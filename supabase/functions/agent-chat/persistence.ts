@@ -82,11 +82,11 @@ const MAX_RUN_EVENTS_READ = 1000;
 /**
  * The single persistence-dep shape passed from index.ts (bound to callerClient) and consumed
  * by handler.ts. Constructs no client, takes no service_role parameter, by construction.
+ * No owner/org fields: every write runs under the caller's JWT and RLS column defaults
+ * stamp owner_id/org_id server-side — identity is never threaded through this shape.
  */
 export interface PersistenceDeps {
   supabase: HandlerSupabaseLike;
-  ownerId: string;
-  orgId: string;
   now: () => Date;
 }
 

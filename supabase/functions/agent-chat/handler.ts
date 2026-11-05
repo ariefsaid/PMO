@@ -164,7 +164,7 @@ const ASK_USER_TOOL: ModelTool = {
 };
 
 // ACTIONS and ACTION_BY_NAME are built per-call based on composeEnabled (Task 7/FR-CV-024).
-// They are kept as module-level variables for the runLoop/handleDecision helpers which
+// They are kept as module-level variables for the continuation/handleDecision helpers which
 // don't receive composeEnabled directly; the handler passes the right map to helpers.
 
 // ── Injected interfaces ────────────────────────────────────────────────────────
@@ -457,7 +457,7 @@ function mkEvent(
 
 /**
  * Per-request persistence bookkeeping — a monotonic seq counter and the run's journaled
- * completed writes, shared across agentChatHandler/handleDecision/runLoop (all three feed
+ * completed writes, shared across agentChatHandler/handleDecision/runContinuation (all three feed
  * the same run's event stream on a resume/decision re-POST). Built once per call; `undefined`
  * when `deps.persistence` is absent (flag-off — FR-AGP-026), so every call site below is a
  * single `if (persist)` guard away from a no-op.
@@ -841,7 +841,9 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
 
   const tools = buildTools(allowCompose ? deps.composeEnabled : false, deputyCtx.featureSwitches);
   deps.ai?.setTools(tools.map((t) => `${t.function.name}: ${t.function.description.split('.')[0].slice(0, 120)}`));
-  const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
+  // compose_view is dispatched separately (divergence 1); the base lookup is the shared
+  // module-level map — rebuilt per call it would duplicate BASE_ACTION_BY_NAME exactly.
+  const actionByName = BASE_ACTION_BY_NAME;
 
   /** Safe JSON parse for tool args — undefined signals a parse failure (JSON.parse never yields undefined). */
   const parseArgs = (raw: string): unknown => {
@@ -1568,8 +1570,8 @@ async function* agentChatHandlerInner(
   // Correctness-remediation (finding 2): routed BEFORE the credit gate below — resolving
   // a pending decision (the write_resolved audit event + tool_result injection for
   // reject/approve) never itself costs a model call, so it must never be credit-blocked.
-  // The SUBSEQUENT model turn inside handleDecision's own runLoop call IS a genuine new
-  // model call and is NOT exempted — RED-2 (gpt-5.5 red-team audit) hardened this: runLoop
+  // The SUBSEQUENT model turn inside handleDecision's own continuation call IS a genuine new
+  // model call and is NOT exempted — RED-2 (gpt-5.5 red-team audit) hardened this: runContinuation
   // now gates itself on deps.rateGuard (isCreditExhausted) before making that call, so a
   // fabricated/stale decision (no real pending item — previously an un-gated free model
   // call) is now blocked identically to a genuine decision's continuation.
@@ -1583,8 +1585,8 @@ async function* agentChatHandlerInner(
   // same reason as the decision branch — resolving a pending question (finding the
   // trailing tool_use + injecting the answer as its tool_result) never itself costs a
   // model call. The trailing model turn that follows (inside handleAnswer's own
-  // runLoopAfterAnswer call) IS a genuine new model call — RED-2 hardened this the same
-  // way as the decision branch: runLoopAfterAnswer now gates itself on deps.rateGuard
+  // runContinuation call) IS a genuine new model call — RED-2 hardened this the same
+  // way as the decision branch: runContinuation now gates itself on deps.rateGuard
   // before making that call (a fabricated/stale answer, or a genuine one, both correctly
   // credit-blocked at zero balance; only the resolution write that already happened is
   // exempt).
@@ -1670,7 +1672,7 @@ async function* agentChatHandlerInner(
  *    messages, no re-injection.
  * 2. Otherwise, append the answer as the tool_result resolving that tool_use
  *    (the chosen option's label, or the free text) and continue the SAME run
- *    (AC-ATC-009) via runLoopAfterAnswer — never a new createRun.
+ *    (AC-ATC-009) via the answer continuation loop — never a new createRun.
  * NFR-ATC-SEC-004: no new deputy bypass — this re-POST never re-derives org/role
  * itself (unlike handleDecision's approve path, there is no write to authorize;
  * ask_user is read-only UX, so the caller-JWT deputy context already governs
@@ -1683,10 +1685,10 @@ async function* agentChatHandlerInner(
  * question is not itself a resolution of anything write-shaped. The model may need
  * to immediately propose a confirm action (e.g. create_activity) or emit a
  * compose_view artifact to actually satisfy the request the question was blocking.
- * So the answer-continuation runs via runLoopAfterAnswer (allowCompose:true,
- * allowProposeConfirm:true — the SAME capabilities as the main pass), not runLoop
- * (which stays allowCompose:false/allowProposeConfirm:false, used only by
- * handleDecision's continuation).
+ * So the answer-continuation runs via runContinuation(..., 'answer') (allowCompose:true,
+ * allowProposeConfirm:true — the SAME capabilities as the main pass), not the decision
+ * continuation (which stays allowCompose:false/allowProposeConfirm:false, used only by
+ * handleDecision).
  */
 async function* handleAnswer(
   req: AgentChatRequest,
@@ -1735,7 +1737,7 @@ async function* handleAnswer(
   // No trailingQuestion found → stale/duplicate answer (AC-ATC-010): fall through
   // and simply continue the model with the messages as replayed (no re-injection).
 
-  yield* runLoopAfterAnswer(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+  yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'answer');
 }
 
 // ── A3: Decision handler (stateless approve/deny re-POST) ─────────────────────
@@ -1801,7 +1803,7 @@ async function* handleDecision(
   if (!trailingToolUse) {
     // No pending confirm action — stale/duplicate decision; treat as no-op (AC-AW-003)
     // Just run the model to continue normally.
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+    yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'decision');
     return;
   }
 
@@ -1810,7 +1812,7 @@ async function* handleDecision(
 
   if (!action || !action.confirm) {
     // Action not found or not a confirm action → no-op
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+    yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'decision');
     return;
   }
 
@@ -1839,7 +1841,7 @@ async function* handleDecision(
       content: JSON.stringify({ result: 'Write action declined by user.' }),
     });
 
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+    yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'decision');
     return;
   }
 
@@ -1863,7 +1865,7 @@ async function* handleDecision(
       name: toolName,
       content: JSON.stringify({ error: `Invalid args on approval: ${validation.error}` }),
     });
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+    yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'decision');
     return;
   }
 
@@ -1947,7 +1949,7 @@ async function* handleDecision(
       },
     });
     messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(offPlan) });
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+    yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'decision');
     return;
   }
 
@@ -1973,7 +1975,7 @@ async function* handleDecision(
         name: toolName,
         content: JSON.stringify({ error: 'Write failed; database error.' }),
       });
-      yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+      yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'decision');
       return;
     }
   }
@@ -2010,7 +2012,7 @@ async function* handleDecision(
   });
 
   // Continue the loop so the model acknowledges
-  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+  yield* runContinuation(req, deps, emit, statusEvent, deputyCtx, messages, persist, 'decision');
 }
 
 // ── RED-2 remediation (gpt-5.5 red-team audit, HIGH): credit-gate every ────────
@@ -2048,64 +2050,40 @@ async function isCreditExhausted(deps: HandlerDeps, orgId: string): Promise<{ ex
   return null;
 }
 
-// ── Inner tool-use loop (reused for the decision continuation) ────────────────
-
-async function* runLoop(
-  req: AgentChatRequest,
-  deps: HandlerDeps,
-  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
-  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
-  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
-  messages: ModelMessage[],
-  persist?: PersistenceRuntime,
-): AsyncGenerator<AgentEvent> {
-  // req.runId is always present here — runLoop is only reached from handleDecision's
-  // branches, and a decision re-POST always carries the runId of the run being resumed.
-  const runId = req.runId ?? '';
-
-  // RED-2: this continuation is a genuine new model call — gate it. Whatever pure
-  // resolution (write_resolved event / stale-decision no-op) the caller already emitted
-  // stays intact; only THIS call is blocked.
-  const exhausted = await isCreditExhausted(deps, deputyCtx.orgId);
-  if (exhausted) {
-    yield statusEvent('errored', { error: 'RATE_LIMITED', retryAfterSeconds: exhausted.retryAfterSeconds });
-    return;
-  }
-
-  // Decision-continuation pass — see runToolLoop's doc comment for the three enumerated
-  // divergences from the main pass: no compose_view (allowCompose:false), no re-proposing
-  // a confirm action mid-continuation (allowProposeConfirm:false), and a missing tool_calls[0]
-  // completes immediately rather than continuing as an unknown-action error (onMissingToolCall:'complete').
-  // TERMINAL by design (correctness-remediation finding 1): a decision resolves a write
-  // (approved/rejected) — the continuation must not immediately propose a SECOND pending
-  // write, nor emit a compose_view artifact, before the model has acknowledged the first
-  // resolution. Used ONLY by handleDecision's approve/reject/no-op branches.
-  yield* runToolLoop({
-    deps,
-    emit,
-    statusEvent,
-    deputyCtx,
-    messages,
-    persist,
-    runId,
-    allowCompose: false,
-    allowProposeConfirm: false,
-    onMissingToolCall: 'complete',
-  });
-}
+// ── Shared continuation loop (decision vs answer) ─────────────────────────────
 
 /**
- * Inner tool-use loop for the answer continuation (ADR-0045 §2, correctness-remediation
- * finding 1). Unlike `runLoop` (handleDecision's continuation, deliberately restricted —
- * see its doc comment), answering a pending question RESUMES the user's original request:
- * the model may need to immediately propose a confirm action (needs-approval) or emit a
- * compose_view artifact to actually satisfy what the question was blocking. Runs with the
- * SAME capabilities as the main pass (allowCompose:true, allowProposeConfirm:true) — only
- * `onMissingToolCall` stays 'complete' (a missing tool_calls[0] on a continuation pass is a
- * graceful completion, not a further "unknown action" round — this divergence is orthogonal
- * to compose/propose-confirm and unrelated to the bug being fixed here).
+ * Which interaction family the continuation resumes.
  */
-async function* runLoopAfterAnswer(
+type ContinuationMode = 'decision' | 'answer';
+
+/**
+ * Inner tool-use loop for BOTH re-POST continuations (ADR-0045 §2, RED-2, correctness-
+ * remediation finding 1). One credit-gated delegation to runToolLoop; the mode derives
+ * the existing three loop options:
+ *
+ * - `'decision'` (handleDecision's approve/reject/no-op branches): the deliberately
+ *   RESTRICTED pass — no compose_view (`allowCompose:false`), no re-proposing a confirm
+ *   action mid-continuation (`allowProposeConfirm:false`), and a missing tool_calls[0]
+ *   completes immediately rather than continuing as an unknown-action error
+ *   (`onMissingToolCall:'complete'`). TERMINAL by design (correctness-remediation
+ *   finding 1): a decision resolves a write (approved/rejected) — the continuation must
+ *   not immediately propose a SECOND pending write, nor emit a compose_view artifact,
+ *   before the model has acknowledged the first resolution. Used ONLY by handleDecision.
+ * - `'answer'` (handleAnswer's continuation, ADR-0045 §2): answering a pending question
+ *   RESUMES the user's original request — the model may need to immediately propose a
+ *   confirm action (needs-approval) or emit a compose_view artifact to actually satisfy
+ *   what the question was blocking. Runs with the SAME capabilities as the main pass
+ *   (`allowCompose:true`, `allowProposeConfirm:true`); only `onMissingToolCall` stays
+ *   'complete' (a missing tool_calls[0] on a continuation pass is a graceful completion,
+ *   not a further "unknown action" round — orthogonal to compose/propose-confirm).
+ *
+ * RED-2 (handlerCreditGateInteractions.test.ts): this continuation is a genuine new
+ * model call, so it is credit-gated here — whatever pure resolution (write_resolved
+ * event / tool_result append / stale-decision no-op) the caller already emitted stays
+ * intact; only THIS call is blocked.
+ */
+async function* runContinuation(
   req: AgentChatRequest,
   deps: HandlerDeps,
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
@@ -2113,14 +2091,12 @@ async function* runLoopAfterAnswer(
   deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
   messages: ModelMessage[],
   persist?: PersistenceRuntime,
+  mode: ContinuationMode = 'decision',
 ): AsyncGenerator<AgentEvent> {
-  // req.runId is always present here — an answer re-POST always carries the runId of the
-  // run being resumed (PmoNativeRuntime._doSubscribe always sends the existing runId).
+  // req.runId is always present here — a decision/answer re-POST always carries the
+  // runId of the run being resumed (PmoNativeRuntime._doSubscribe always sends it).
   const runId = req.runId ?? '';
 
-  // RED-2: this continuation is a genuine new model call — gate it. The answer's own
-  // resolution (the tool_result append the caller already did, if a real pending question
-  // existed) stays intact; only THIS call is blocked.
   const exhausted = await isCreditExhausted(deps, deputyCtx.orgId);
   if (exhausted) {
     yield statusEvent('errored', { error: 'RATE_LIMITED', retryAfterSeconds: exhausted.retryAfterSeconds });
@@ -2135,11 +2111,12 @@ async function* runLoopAfterAnswer(
     messages,
     persist,
     runId,
-    allowCompose: true,
-    allowProposeConfirm: true,
+    allowCompose: mode === 'answer',
+    allowProposeConfirm: mode === 'answer',
     onMissingToolCall: 'complete',
   });
 }
+
 
 // ── Trailing unresolved tool_use finder (shared) ───────────────────────────────
 
