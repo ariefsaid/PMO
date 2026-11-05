@@ -174,8 +174,109 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   return Number(data);
 }
 
-/** Read all visible versions and their related rows independently, with bounded ordered pages. */
-export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
+/**
+ * Read all visible versions and their related rows.
+ *
+ * ⚑ ONE bounded invoker RPC (`budget_version_read`, migration 0650) replaces the four-request graph
+ * (versions, then lines ∥ editors ∥ totals) that this function used to issue. The function returns a
+ * page of versions with their complete children and the 0400 total; it is security-invoker, so RLS
+ * still decides every row and `org_id` is never sent.
+ *
+ * ⚑ Bounded by contract: the page (`p_offset`/`p_limit`) is materialised inside the function BEFORE any
+ * child aggregation. When a page's children exceed the function's documented budget it returns a single
+ * `overflow: true` marker and aggregates nothing — this client then discards that page and runs the
+ * legacy four paged reads below for the COMPLETE project. Nothing is ever truncated, and a partial page
+ * is never returned as if it were the whole budget.
+ *
+ * ⚑ Consistency: one call is ONE statement snapshot; a multi-page read is several. Offset paging shares
+ * the legacy limitation — a version inserted or deleted before an earlier page shifts the window, so a
+ * concurrent write can duplicate or skip a row. This is not a snapshot protocol.
+ */
+const BUDGET_READ_PAGE_SIZE = 1000;
+
+function isOverflowMarker(row: Record<string, unknown>): boolean {
+  return row.overflow === true;
+}
+
+/** Fail-closed mapping of one aggregate row. Any malformed page rejects; it never becomes empty data. */
+function mapAggregateRow(raw: unknown): BudgetVersionWithItems {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new AppError('Budget version read returned an unexpected row');
+  }
+  const row = raw as Record<string, unknown>;
+  const versionRow = row.version_row;
+  if (!versionRow || typeof versionRow !== 'object' || Array.isArray(versionRow)) {
+    throw new AppError('Budget version read returned an unexpected version');
+  }
+  const version = versionRow as Record<string, unknown>;
+  if (typeof version.id !== 'string' || !version.id || typeof version.project_id !== 'string') {
+    throw new AppError('Budget version read returned an unexpected version');
+  }
+  if (typeof row.version_no !== 'number' || !Number.isInteger(row.version_no) ||
+      typeof version.version !== 'number' || !Number.isInteger(version.version) ||
+      row.version_id !== version.id || row.version_no !== version.version) {
+    throw new AppError('Budget version read returned an inconsistent version row');
+  }
+  // Children are explicitly `[]`/`{}` on the wire. A missing/null child array is malformed, never "none".
+  const lines = row.line_items;
+  if (!Array.isArray(lines)) throw new AppError('Budget version read returned unexpected line items');
+  for (const line of lines) {
+    if (!line || typeof line !== 'object' || Array.isArray(line)) {
+      throw new AppError('Budget version read returned an unexpected line item');
+    }
+    const item = line as Record<string, unknown>;
+    if (typeof item.id !== 'string' || !item.id || item.budget_version_id !== version.id) {
+      throw new AppError('Budget version read returned a line item from another version');
+    }
+  }
+  const editors = row.editor_ids;
+  if (!Array.isArray(editors) || editors.some((id) => typeof id !== 'string' || !id)) {
+    throw new AppError('Budget version read returned unexpected editors');
+  }
+  const rawTotal = row.total;
+  // ⚑ `Number(null)` is 0 and `Number('')` is 0: an absent total must never become money.
+  if (rawTotal === null || rawTotal === undefined ||
+      (typeof rawTotal !== 'number' && typeof rawTotal !== 'string') ||
+      (typeof rawTotal === 'string' && rawTotal.trim() === '')) {
+    throw new Error('Missing or invalid budget version total');
+  }
+  const total = Number(rawTotal);
+  if (!Number.isFinite(total)) throw new Error('Missing or invalid budget version total');
+  return {
+    ...(version as unknown as BudgetVersionRow),
+    line_items: lines as unknown as BudgetLineItemRow[],
+    total,
+    editor_ids: editors as string[],
+  };
+}
+
+/** Returns `null` when the server says this page is too large to aggregate safely (caller falls back). */
+async function readBudgetAggregate(projectId: string): Promise<BudgetVersionWithItems[] | null> {
+  const out: BudgetVersionWithItems[] = [];
+  for (let offset = 0; ; offset += BUDGET_READ_PAGE_SIZE) {
+    const { data, error } = await supabase.rpc('budget_version_read', {
+      p_project_id: projectId,
+      p_offset: offset,
+      p_limit: BUDGET_READ_PAGE_SIZE,
+    });
+    if (error) throw toAppError(error);
+    // ⚑ NOT `data ?? []`: a null/non-array body is a broken read, not the end of the set.
+    if (!Array.isArray(data)) throw new AppError('Budget version read returned an unexpected response');
+    if (data.some((row) => row && typeof row === 'object' && !Array.isArray(row) && isOverflowMarker(row as Record<string, unknown>))) {
+      return null;
+    }
+    for (const row of data) out.push(mapAggregateRow(row));
+    if (data.length < BUDGET_READ_PAGE_SIZE) break;
+  }
+  return out;
+}
+
+/**
+ * Legacy four-read path — the COMPLETE, independently paged read used for oversized pages and as the
+ * rollback path. Kept byte-compatible with the pre-0650 client contract (versions ordered `version,id`,
+ * lines ordered `id`, editors ordered `budget_version_id,user_id`, the 0400 totals RPC).
+ */
+async function listBudgetVersionsPaged(projectId: string): Promise<BudgetVersionWithItems[]> {
   const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
     .select('*').eq('project_id', projectId)
     .order('version', { ascending: true }).order('id', { ascending: true }).range(from, to));
@@ -208,6 +309,13 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
     if (total === undefined || !Number.isFinite(total)) throw new Error('Missing or invalid budget version total');
     return { ...v, line_items: linesByVersion.get(v.id) ?? [], total, editor_ids: editorsByVersion.get(v.id) ?? [] };
   });
+}
+
+/** Read all visible versions and their related rows, aggregating a normal page into one request. */
+export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
+  const aggregated = await readBudgetAggregate(projectId);
+  if (aggregated !== null) return aggregated;
+  return listBudgetVersionsPaged(projectId);
 }
 
 /**

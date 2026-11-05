@@ -5,6 +5,7 @@ import { Link } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
+import { useProjectNumbers } from '@/src/hooks/useProjects';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
@@ -78,6 +79,7 @@ export const PMDashboard: React.FC = () => {
   }), [needs.pmOverdueTasksByProject, procurementsByProject, projects]);
   const visibleProjects = orderedProjects.slice(0, 6);
   const visibleProjectIds = useMemo(() => new Set(visibleProjects.map((project) => project.id)), [visibleProjects]);
+  const projectNumbersQuery = useProjectNumbers(visibleProjects.map((project) => project.id));
 
   const contractFigure = projectMoneyFigure(
     projects,
@@ -269,6 +271,7 @@ export const PMDashboard: React.FC = () => {
               <PMProjectArea
                 key={project.id}
                 project={project}
+                projectNumber={projectNumbersQuery.data?.[project.id] ?? null}
                 deliveryPct={deliveryQuery.data?.[project.id]}
                 overdueTaskCount={needs.pmOverdueTasksByProject[project.id] ?? 0}
                 procurements={procurementsByProject.get(project.id) ?? []}

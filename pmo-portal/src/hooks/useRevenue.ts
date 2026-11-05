@@ -19,6 +19,7 @@ import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { nativeDraftInvoicesKey } from './approvalsQueryKeys';
+import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 export { nativeDraftInvoicesKey } from './approvalsQueryKeys';
 
@@ -35,6 +36,7 @@ export function useSalesInvoices(projectId?: string, { enabled = true }: { enabl
     queryKey: ['salesInvoices', orgId, projectId ?? 'all'],
     queryFn: () => repositories.revenue.listInvoices(projectId ? { projectId } : undefined),
     enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -90,6 +92,7 @@ export function useIncomingPayments(customerId?: string, enabled = true, salesIn
       ...(salesInvoiceId ? { salesInvoiceId } : {}),
     }),
     enabled: Boolean(orgId && enabled),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -135,6 +138,10 @@ export function useRevenueMutations() {
     qc.invalidateQueries({ queryKey: ['incomingPayments'] });
     qc.invalidateQueries({ queryKey: ['incomingPayment'] });
     qc.invalidateQueries({ queryKey: ['revenueByProject'] });
+    // The rail's overdue badge is a separate count query. `staleTime` schedules nothing and the
+    // cabinet's focus refetch is off, so an invoice/payment write must invalidate it explicitly or a
+    // mounted rail keeps the old badge for the rest of the session.
+    qc.invalidateQueries({ queryKey: ['overdue-invoice-count', orgId] });
     // OD-BILL-1: an invoice moves its work order's billing and the dashboard's still-to-invoice.
     qc.invalidateQueries({ queryKey: ['work-order-billing'] });
     qc.invalidateQueries({ queryKey: ['unbilled-work-orders'] });
@@ -260,6 +267,7 @@ export function useAssignInvoiceProject() {
       const keys: readonly (readonly unknown[])[] = [
         ['salesInvoices', orgId], ['salesInvoice', orgId, siId], ['incomingPayments', orgId],
         ['incomingPayment', orgId], ['revenueByProject', orgId], ['project-vat-editability'],
+        ['overdue-invoice-count', orgId],
         ['record-history', orgId, 'sales_invoice', siId],
         ...projectIds.flatMap((id) => [
           ['project-finances', orgId, id], ['record-history', orgId, 'project', id],

@@ -47,6 +47,8 @@ export interface RevenueRepository {
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
   listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
+  /** Count overdue open client invoices from a narrow projection for the navigation rail. */
+  countOverdueInvoices(today: string): Promise<number>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */

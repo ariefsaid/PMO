@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { analyticsClient } from '@/src/lib/analytics/client';
+import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
+import { orgPlanGroupQueryKey } from '@/src/hooks/useOrgFeatures';
 import type { OrgPlan } from '@/src/lib/db/orgPlan';
 
 /** PostHog group type for the organisation — one group per org, shared by every member. */
@@ -25,11 +27,15 @@ export function useOrgPlanGroup(): void {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id ?? null;
   const query = useQuery<OrgPlan | null>({
-    queryKey: ['orgPlan', orgId],
+    // Own key: this reader returns an `OrgPlan` OBJECT, while the Operator console's
+    // `useOrgPlan` returns the assigned plan id STRING. Sharing a key made each reader install a
+    // value the other could not read.
+    queryKey: orgPlanGroupQueryKey(orgId),
     queryFn: () => repositories.orgFeature.currentPlan(),
     enabled: Boolean(orgId),
-    // The plan changes when an Operator assigns one; a short stale window keeps navigation cheap.
-    staleTime: 5 * 60 * 1000,
+    // Bounded freshness: a plan assigned from the Operator console in another session reaches this
+    // tab within minutes; `invalidateFeatureState` still refreshes it immediately in the writer's own.
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
   const planId = query.data?.plan_id ?? null;
 

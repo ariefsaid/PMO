@@ -3,6 +3,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
+import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
@@ -207,6 +208,25 @@ export async function listSalesInvoices(
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
   return data.map(toSalesInvoiceRow);
+}
+
+/** Count overdue open invoices from a narrow projection; avoids loading finance tables in the rail. */
+export async function getOverdueInvoiceCount(today: string): Promise<number> {
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .in('status', ['Unpaid', 'Submitted'])
+      .is('paired_erp_invoice_id', null)
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
+  return rows.filter((raw) => {
+    const row = raw as { invoice_date: string | null; erp_due_date: string | null; received_date: string | null; companies: { erp_payment_terms_days: number | null } | null };
+    const dueDate = deriveArDueDate(row.invoice_date, row.companies?.erp_payment_terms_days, row.erp_due_date, row.received_date);
+    const overdueDays = overdueAgeDays(dueDate, today);
+    return overdueDays !== null && overdueDays > 0;
+  }).length;
 }
 
 /**

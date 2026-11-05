@@ -24,6 +24,20 @@ export function useProjectIdentity() {
   });
 }
 
+/** One narrow read for project numbers shown on a bounded dashboard card set. */
+export function useProjectNumbers(ids: string[]) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const stableIds = [...new Set(ids)].sort();
+  return useQuery({
+    queryKey: ['project-numbers', orgId, stableIds],
+    queryFn: async () => Object.fromEntries(
+      (await repositories.project.listNumbers(stableIds)).map((row) => [row.id, row.pmo_project_number]),
+    ) as Record<string, string | null>,
+    enabled: Boolean(orgId) && stableIds.length > 0,
+  });
+}
+
 export function useProjects(opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
