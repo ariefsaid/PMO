@@ -7,7 +7,7 @@ import { avatarHue, initialsOf } from './avatar';
  * Role labels live in roleLabels.ts, the hue/initial helpers in avatar.ts — pure presentation,
  * no data, no authorization, no mutations.
  */
-export const Avatar: React.FC<{ user: UserRow; size?: number }> = ({ user, size = 30 }) => (
+export const Avatar: React.FC<{ user: Pick<UserRow, 'id' | 'full_name'>; size?: number }> = ({ user, size = 30 }) => (
   <span
     aria-hidden
     className="grid shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"

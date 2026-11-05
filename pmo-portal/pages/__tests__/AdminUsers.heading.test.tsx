@@ -17,6 +17,10 @@ import { ToastProvider } from '@/src/components/ui';
 
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useUsersPage: () => ({ data: { rows: [], total: 0 }, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }),
+  useActiveAdminCounts: () => ({ data: {}, isPending: false, isError: false }),
+  useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+  useManagerChoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useUserMutations: () => ({
     updateRole: { mutateAsync: vi.fn(), isPending: false },
     assignManager: { mutateAsync: vi.fn(), isPending: false },

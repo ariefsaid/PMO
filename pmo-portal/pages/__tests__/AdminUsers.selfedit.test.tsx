@@ -34,10 +34,25 @@ const { listState, mutations } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => listState,
-  useUserMutations: () => mutations,
-}));
+vi.mock('@/src/hooks/useUsers', () => {
+  const rows = () => listState.data as Array<{ id: string; full_name: string; email: string; role: string; status: string; org_id: string }>;
+  const counts = () => {
+    const out: Record<string, number> = {};
+    for (const u of rows()) {
+      if (out[u.org_id] === undefined) out[u.org_id] = 0;
+      if (u.role === 'Admin' && u.status === 'active') out[u.org_id] += 1;
+    }
+    return out;
+  };
+  return {
+    useUsers: () => listState,
+    useUsersPage: () => ({ data: { rows: rows(), total: rows().length }, isPending: false, isError: false, isFetching: false, refetch: listState.refetch }),
+    useActiveAdminCounts: () => ({ data: counts(), isPending: false, isError: false, refetch: vi.fn() }),
+    useUserFocusPage: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+    useManagerChoices: () => listState,
+    useUserMutations: () => mutations,
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));

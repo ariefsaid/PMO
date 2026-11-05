@@ -323,6 +323,27 @@
   },
   "admin": {
     "users": {
+      "pager": {
+            "label": "Pages",
+            "range": "{{from}}–{{to}} of {{total}}",
+            "prev": "Previous page",
+            "next": "Next page"
+      },
+      "focus": {
+            "showing": "Showing {{name}} — the person you followed from your page.",
+            "return": "Back to your page",
+            "locating": "Finding {{name}}…",
+            "error": "Couldn't find where {{name}} is in the directory.",
+            "unavailable": "{{name}} is no longer in your directory.",
+            "retry": "Retry"
+      },
+      "managerForm": {
+        "choicesLoading": "Loading people…",
+        "choicesError": "Couldn't load the people list.",
+        "choicesRetry": "Retry",
+        "awaitingChoices": "Wait for the people list to load before saving a manager.",
+        "currentUnavailable": "Current manager (name unavailable)"
+      },
       "inviteError": {
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
