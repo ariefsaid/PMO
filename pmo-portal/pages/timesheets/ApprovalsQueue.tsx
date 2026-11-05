@@ -81,32 +81,21 @@ function buildGrid(sheet: TimesheetAwaitingApproval, t: TFunction): { days: Time
 
 type PendingApproval = { kind: 'approve' | 'return'; id: string; name: string };
 
-export interface TimesheetApprovalPreviewProps {
-  sheet: TimesheetAwaitingApproval;
-  surface?: 'panel' | 'inline';
-  showSodNotice?: boolean;
-  eligibleFromQueue?: boolean;
-}
-
-export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> = ({
-  sheet,
-  surface = 'panel',
-  showSodNotice = surface === 'panel',
-  eligibleFromQueue = false,
-}) => {
+/**
+ * OE08R01-001 — the one individual approve/return controller, shared by the queue and the preview.
+ * Each component keeps its OWN instance (independent `pending` slot and current loading behavior);
+ * the flow itself — the confirm copy, the mutation choice, the success/error toasts — exists once.
+ */
+function useApprovalDecision() {
   const { t } = useTranslation(['common', 'timesheets']);
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
-  const may = usePermission();
-  const isApprover = eligibleFromQueue || may('transition', 'approval');
   const [pending, setPending] = useState<PendingApproval | null>(null);
-  const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
-  const total = sumHours(sheet);
-  const name = sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown');
-  const { days, rows } = buildGrid(sheet, t);
-  const isInline = surface === 'inline';
 
-  const commitApproval = () => {
+  const request = (kind: PendingApproval['kind'], id: string, name: string) => setPending({ kind, id, name });
+  const cancel = () => setPending(null);
+
+  const commit = () => {
     if (!pending) return;
     const mutation = pending.kind === 'approve' ? approve : reject;
     const okHeadline = pending.kind === 'approve' ? t('timesheets:approvalQueue.approved', 'Timesheet approved') : t('timesheets:approvalQueue.returned', 'Timesheet returned');
@@ -130,13 +119,72 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
     );
   };
 
-  const actionCluster = !isInline && (actions.approve || actions.reject) ? (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+  const commitLoading = pending ? (pending.kind === 'approve' ? approve.isPending : reject.isPending) : false;
+
+  return { pending, request, cancel, commit, commitLoading };
+}
+
+/** OE08R01-001 — the shared approve/return confirmation, rendered by both placements. */
+const ApprovalDecisionConfirm: React.FC<{
+  pending: PendingApproval;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({ pending, loading, onCancel, onConfirm }) => {
+  const { t } = useTranslation(['common', 'timesheets']);
+  return (
+    <ConfirmDialog
+      open
+      tone={pending.kind === 'approve' ? 'default' : 'destructive'}
+      title={
+        pending.kind === 'approve'
+          ? t('timesheets:approvalQueue.approveTitle', "Approve {{name}}'s week?", { name: pending.name })
+          : t('timesheets:approvalQueue.returnTitle', "Return {{name}}'s timesheet?", { name: pending.name })
+      }
+      description={
+        pending.kind === 'approve'
+          ? t('timesheets:approvalQueue.approveDescription', "This approves {{name}}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.", { name: pending.name })
+          : t('timesheets:approvalQueue.returnDescription', "This sends {{name}}'s week back for changes. They'll need to correct and resubmit it.", { name: pending.name })
+      }
+      confirmLabel={pending.kind === 'approve' ? t('timesheets:approvalQueue.approve', 'Approve') : t('timesheets:approvalQueue.returnConfirm', 'Return timesheet')}
+      loading={loading}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
+};
+
+export interface TimesheetApprovalPreviewProps {
+  sheet: TimesheetAwaitingApproval;
+  surface?: 'panel' | 'inline';
+  eligibleFromQueue?: boolean;
+}
+
+export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> = ({
+  sheet,
+  surface = 'panel',
+  eligibleFromQueue = false,
+}) => {
+  const { t } = useTranslation(['common', 'timesheets']);
+  const decision = useApprovalDecision();
+  const { approve, reject } = useTimesheetMutations();
+  const may = usePermission();
+  const isApprover = eligibleFromQueue || may('transition', 'approval');
+  const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
+  const total = sumHours(sheet);
+  const name = sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown');
+  const { days, rows } = buildGrid(sheet, t);
+  const isInline = surface === 'inline';
+
+  // OE08R01-002 — the approve/return buttons are built once; the panel and inline wrappers
+  // below place the SAME element, preserving each surface's styles.
+  const actionButtons = (
+    <>
       {actions.approve && (
         <Button
           variant="primary"
           size="sm"
-          onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
+          onClick={() => decision.request('approve', sheet.id, name)}
           loading={approve.isPending}
         >
           <Icon name="check" />
@@ -147,14 +195,15 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
+          onClick={() => decision.request('return', sheet.id, name)}
           loading={reject.isPending}
         >
           {t('timesheets:approvalQueue.return', 'Return')}
         </Button>
       )}
-    </div>
-  ) : null;
+    </>
+  );
+  const hasDecisionActions = Boolean(actions.approve || actions.reject);
 
   return (
     <>
@@ -169,9 +218,13 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
               </div>
               <h2 className="text-lg font-semibold tracking-[-0.01em]">{name}</h2>
             </div>
-            {actionCluster}
+            {!isInline && hasDecisionActions && (
+              <div className="flex flex-wrap items-center justify-end gap-2">{actionButtons}</div>
+            )}
           </div>
-          {!isInline && showSodNotice && (
+          {/* OE08R01-003 — the notice follows the surface, not a prop: panel shows it, inline (which
+              sits inside the queue that already states the policy) does not. */}
+          {!isInline && (
             <p className="mt-3 text-[12px] text-muted-foreground">
               {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
             </p>
@@ -186,51 +239,17 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           )}
         </div>
 
-        {isInline && (actions.approve || actions.reject) && (
-          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-            {actions.approve && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
-                loading={approve.isPending}
-              >
-                <Icon name="check" />
-                {t('timesheets:approvalQueue.approve', 'Approve')}
-              </Button>
-            )}
-            {actions.reject && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
-                loading={reject.isPending}
-              >
-                {t('timesheets:approvalQueue.return', 'Return')}
-              </Button>
-            )}
-          </div>
+        {isInline && hasDecisionActions && (
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">{actionButtons}</div>
         )}
       </div>
 
-      {pending && (
-        <ConfirmDialog
-          open
-          tone={pending.kind === 'approve' ? 'default' : 'destructive'}
-          title={
-            pending.kind === 'approve'
-              ? t('timesheets:approvalQueue.approveTitle', "Approve {{name}}'s week?", { name: pending.name })
-              : t('timesheets:approvalQueue.returnTitle', "Return {{name}}'s timesheet?", { name: pending.name })
-          }
-          description={
-            pending.kind === 'approve'
-              ? t('timesheets:approvalQueue.approveDescription', "This approves {{name}}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.", { name: pending.name })
-              : t('timesheets:approvalQueue.returnDescription', "This sends {{name}}'s week back for changes. They'll need to correct and resubmit it.", { name: pending.name })
-          }
-          confirmLabel={pending.kind === 'approve' ? t('timesheets:approvalQueue.approve', 'Approve') : t('timesheets:approvalQueue.returnConfirm', 'Return timesheet')}
-          loading={pending.kind === 'approve' ? approve.isPending : reject.isPending}
-          onCancel={() => setPending(null)}
-          onConfirm={commitApproval}
+      {decision.pending && (
+        <ApprovalDecisionConfirm
+          pending={decision.pending}
+          loading={decision.commitLoading}
+          onCancel={decision.cancel}
+          onConfirm={decision.commit}
         />
       )}
     </>
@@ -244,11 +263,10 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
 export const ApprovalsQueue: React.FC = () => {
   const { t } = useTranslation(['common', 'timesheets']);
   const { data: queue, isPending, isError, refetch } = useTimesheetsAwaitingApproval();
+  const decision = useApprovalDecision();
   const { approve, reject } = useTimesheetMutations();
-  const { toast } = useToast();
   const may = usePermission();
   const isApprover = may('transition', 'approval');
-  const [pending, setPending] = useState<PendingApproval | null>(null);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpanded = (id: string) =>
@@ -262,31 +280,6 @@ export const ApprovalsQueue: React.FC = () => {
   const sheets = useMemo(() => queue ?? [], [queue]);
   const bulk = useTimesheetBulkApprove(sheets);
   const { selecting, selected, approvableIds } = bulk;
-
-  const commitApproval = () => {
-    if (!pending) return;
-    const mutation = pending.kind === 'approve' ? approve : reject;
-    const okHeadline = pending.kind === 'approve' ? t('timesheets:approvalQueue.approved', 'Timesheet approved') : t('timesheets:approvalQueue.returned', 'Timesheet returned');
-    const okDetail =
-      pending.kind === 'approve'
-        ? t('timesheets:approvalQueue.approvedDetail', "{{name}}'s week approved", { name: pending.name })
-        : t('timesheets:approvalQueue.returnedDetail', 'Sent back to {{name}} for changes', { name: pending.name });
-    mutation.mutate(
-      { id: pending.id },
-      {
-        onSuccess: () => {
-          setPending(null);
-          toast(okHeadline, okDetail, 'success');
-        },
-        onError: (err: unknown) => {
-          setPending(null);
-          const { headline, detail } = classifyMutationError(err);
-          toast(headline, detail, 'warning');
-        },
-      },
-    );
-  };
-
 
   if (isPending) {
     return (
@@ -380,7 +373,7 @@ export const ApprovalsQueue: React.FC = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
+                      onClick={() => decision.request('approve', sheet.id, name)}
                       loading={approve.isPending}
                     >
                       <Icon name="check" />
@@ -391,7 +384,7 @@ export const ApprovalsQueue: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
+                      onClick={() => decision.request('return', sheet.id, name)}
                       loading={reject.isPending}
                     >
                       {t('timesheets:approvalQueue.return', 'Return')}
@@ -401,7 +394,7 @@ export const ApprovalsQueue: React.FC = () => {
 
                 {isExpanded && (
                   <div id={panelId} className="mb-2 rounded-lg border border-border bg-secondary/20 p-2">
-                    <TimesheetApprovalPreview sheet={sheet} surface="inline" showSodNotice={false} />
+                    <TimesheetApprovalPreview sheet={sheet} surface="inline" />
                   </div>
                 )}
               </div>
@@ -410,24 +403,12 @@ export const ApprovalsQueue: React.FC = () => {
         </div>
       )}
 
-      {pending && (
-        <ConfirmDialog
-          open
-          tone={pending.kind === 'approve' ? 'default' : 'destructive'}
-          title={
-            pending.kind === 'approve'
-              ? t('timesheets:approvalQueue.approveTitle', "Approve {{name}}'s week?", { name: pending.name })
-              : t('timesheets:approvalQueue.returnTitle', "Return {{name}}'s timesheet?", { name: pending.name })
-          }
-          description={
-            pending.kind === 'approve'
-              ? t('timesheets:approvalQueue.approveDescription', "This approves {{name}}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.", { name: pending.name })
-              : t('timesheets:approvalQueue.returnDescription', "This sends {{name}}'s week back for changes. They'll need to correct and resubmit it.", { name: pending.name })
-          }
-          confirmLabel={pending.kind === 'approve' ? t('timesheets:approvalQueue.approve', 'Approve') : t('timesheets:approvalQueue.returnConfirm', 'Return timesheet')}
-          loading={pending.kind === 'approve' ? approve.isPending : reject.isPending}
-          onCancel={() => setPending(null)}
-          onConfirm={commitApproval}
+      {decision.pending && (
+        <ApprovalDecisionConfirm
+          pending={decision.pending}
+          loading={decision.commitLoading}
+          onCancel={decision.cancel}
+          onConfirm={decision.commit}
         />
       )}
 
