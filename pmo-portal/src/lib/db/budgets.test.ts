@@ -1268,7 +1268,7 @@ describe('createBudgetVersion budget_mode (#1472 S6A, FR-001)', () => {
     expect(payloads[0]).toMatchObject({ budget_mode: 'per_year' });
   });
 
-  it('the import/provenance entry omits budget_mode so the column keeps its own per_year default', async () => {
+  it('a provenance call that passes no mode omits budget_mode (the import descriptor names per_year itself, see budgetDescriptor)', async () => {
     const payloads = stageVersionInsert();
     await createBudgetVersion('p1', 'Imported', { importBatchId: 'batch-1', importedAt: '2026-11-03T00:00:00Z' });
     expect(payloads[0]).not.toHaveProperty('budget_mode');
