@@ -1,7 +1,7 @@
 /** People, operator, usage, saved views, org features/settings, credits and domain-ownership repository implementations (the admin/settings group). */
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
 import { listSpendApprovers, addSpendApprover, removeSpendApprover } from '@/src/lib/db/spendApprovers';
-import { listUsers, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
+import { listUsers, listUsersPage, countActiveAdminsByOrg, findUserPage, listManagerChoices, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
 import { isOperator } from '@/src/lib/db/operators';
 import {
   getOrgUsageSummary,
@@ -64,6 +64,10 @@ export const profileRepository: ProfileRepository = {
   listProjectManagers: () => wrap(() => listProjectManagers()),
   listOrgProfiles: () => wrap(() => listOrgProfiles()),
   listUsers: () => wrap(() => listUsers()),
+  listUsersPage: (input) => wrap(() => listUsersPage(input)),
+  countActiveAdminsByOrg: (orgIds) => wrap(() => countActiveAdminsByOrg(orgIds)),
+  findUserPage: (input) => wrap(() => findUserPage(input)),
+  listManagerChoices: () => wrap(() => listManagerChoices()),
   updateUserRole: (id, role) => wrap(() => updateUserRole(id, role)),
   assignUserManager: (id, managerId) => wrap(() => assignUserManager(id, managerId)),
   inviteUser: (input) => wrap(() => inviteUser(input)),

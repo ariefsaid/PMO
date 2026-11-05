@@ -77,13 +77,23 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
  * history. One definition, two placements — the header above the tabs on desktop (mb-8 = section
  * 32px), the record's foot on phone (mt-4 = panel-gap phone 16px) so it never pushes tab work below
  * the fold (UIP-005 AC-TH-007, #1701).
+ *
+ * AC-PERF-002 (plan Step 1b): the stage-entries read is the disclosure's, not the page's — StageHistory
+ * mounts on the FIRST open (react-query caches it for later opens). Closed, it costs zero reads; the
+ * first open trades a moment of loading for that, acceptable inside a closed disclosure.
  */
 const SalesHistoryDisclosure: React.FC<{ projectId: string; className: string }> = ({ projectId, className }) => {
   const { t } = useTranslation('project');
+  const [opened, setOpened] = useState(false);
   return (
-    <details className={className}>
+    <details
+      className={className}
+      onToggle={(event) => {
+        if ((event.target as HTMLDetailsElement).open) setOpened(true);
+      }}
+    >
       <summary className="cursor-pointer text-sm font-semibold">{t('projectDetail.stageHistory.salesHistory', 'Sales history')}</summary>
-      <div className="pt-2"><StageHistory projectId={projectId} hideHeading /></div>
+      <div className="pt-2">{opened && <StageHistory projectId={projectId} hideHeading />}</div>
     </details>
   );
 };
