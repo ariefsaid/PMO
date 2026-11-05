@@ -49,3 +49,12 @@ export function resolveErpCredentials(
   }
   return { apiKey, apiSecret };
 }
+
+/** Split a stored `apiKey:apiSecret` on the FIRST colon (the secret half may contain colons). */
+export function splitAuthPair(secret: string): { apiKey: string; apiSecret: string } {
+  const idx = secret.indexOf(':');
+  if (idx <= 0 || idx >= secret.length - 1) {
+    throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
+  }
+  return { apiKey: secret.slice(0, idx), apiSecret: secret.slice(idx + 1) };
+}

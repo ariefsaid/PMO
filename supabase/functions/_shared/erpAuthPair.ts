@@ -23,7 +23,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+import { resolveErpCredentials, splitAuthPair } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { resolvePerOrgSecret } from './perOrgSecret.ts';
 import { externalConnectEnabled } from './externalConnectEnabled.ts';
 
@@ -122,11 +122,4 @@ async function resolveUncached(serviceClient: SupabaseClient, org: ErpAuthPairOr
   throw new AppError("could not determine this org's ERPNext credentials", 'config-rejected');
 }
 
-/** Split a stored `apiKey:apiSecret` on the FIRST colon (the secret half may contain colons). */
-export function splitAuthPair(secret: string): ErpAuthPair {
-  const idx = secret.indexOf(':');
-  if (idx <= 0 || idx >= secret.length - 1) {
-    throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
-  }
-  return { apiKey: secret.slice(0, idx), apiSecret: secret.slice(idx + 1) };
-}
+export { splitAuthPair };
