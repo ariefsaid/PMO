@@ -96,6 +96,13 @@ const toRow = (r: Raw): ErpPurchaseRow => ({
 const byDateDesc = (a: ErpPurchaseRow, b: ErpPurchaseRow) =>
   (b.docDate ?? '').localeCompare(a.docDate ?? '') || a.name.localeCompare(b.name);
 
+/** Deterministic final tie for `listLinkedErpDocuments` ONLY — an equal date AND name must not depend on
+ *  the order rows happened to arrive in. Deliberately NOT folded into `byDateDesc`: the sibling lists
+ *  (`listErpPurchases`/`listErpOrphans`) keep their shipped ordering untouched. */
+const compareIdAsc = (a: ErpPurchaseRow, b: ErpPurchaseRow) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+const byDateDescThenId = (a: ErpPurchaseRow, b: ErpPurchaseRow) => byDateDesc(a, b) || compareIdAsc(a, b);
+
 /** Submitted documents PMO did not push, linked or not (aging needs both; orphans = procurementId null). Paged past max_rows. */
 export async function listErpPurchases(projectId?: string): Promise<ErpPurchaseRow[]> {
   const rows = await fetchAllRowsByKeyset<Raw>((afterId, limit) => {
@@ -132,11 +139,30 @@ export async function hasErpPurchases(): Promise<boolean> {
   return (data ?? []).length > 0;
 }
 
-/** FR-PFE-032 — the ERP documents linked to one purchase. */
+/**
+ * FR-PFE-032 — the ERP documents linked to one purchase.
+ *
+ * ⚑ DATA32: KEYSET-paged on the document id, like `listErpPurchases` — an unpaged read was silently
+ * capped at PostgREST's `max_rows` (HTTP 200, short body, no error), so a purchase with more linked
+ * documents than the cap showed a truncated list on its detail. The `.eq('procurement_id', …)` filter
+ * (and therefore RLS) stays on every page; the caller's own client is still the only scope.
+ *
+ * The view's `id` is the DOCUMENT's primary key and `procurement_erp_links` holds at most one link per
+ * document (`procurement_erp_links_one_purchase`, 0360), so it is unique per requested purchase — the
+ * keyset cursor cannot repeat or skip a row. This is a statement about the tracked migration's shape,
+ * not a claim about any deployed database.
+ */
 export async function listLinkedErpDocuments(procurementId: string): Promise<ErpPurchaseRow[]> {
-  const { data, error } = await supabase.from('erp_purchase_documents_linked').select(COLUMNS).eq('procurement_id', procurementId);
-  if (error) throw new AppError(error.message, error.code);
-  return ((data ?? []) as Raw[]).map(toRow).sort(byDateDesc);
+  const rows = await fetchAllRowsByKeyset<Raw>((afterId, limit) => {
+    const q = supabase
+      .from('erp_purchase_documents_linked')
+      .select(COLUMNS)
+      .eq('procurement_id', procurementId)
+      // The view types every column nullable; `id` is the document's primary key, so it is never null here.
+      .order('id', { ascending: true });
+    return (afterId === null ? q : q.gt('id', afterId)).limit(limit) as unknown as PromiseLike<PageResult<Raw>>;
+  });
+  return rows.map(toRow).sort(byDateDescThenId);
 }
 
 /** FR-PFE-020/030 — link (or dry-run) rows; per-row outcomes come back, refusals included. */

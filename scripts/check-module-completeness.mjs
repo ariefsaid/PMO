@@ -136,8 +136,9 @@ export const LEGACY_ASSISTANT_PATHS = {
     purchase_requests: 'procurement',
     rfqs: 'procurement',
     purchase_orders: 'procurement',
-    // Procurement full — receipts / the three-way-match boundary
-    procurement_receipts: 'procurement_full',
+    // D17 (#1783 item 1): receipts are a BASIC read; procurement_full is line-level + the match
+    // (no assistant read entity of its own — covered by the ALLOWLIST entry below).
+    procurement_receipts: 'procurement',
     // Stock (#1721 read surfaces)
     stock_items: 'stock',
     stock_warehouses: 'stock',
@@ -167,11 +168,6 @@ export const ALLOWLIST = [
     restore: 'Delete when S3 gates it on `revenue` or rules it core.',
   },
   {
-    ids: ['palette:/companies?type=Vendor'],
-    reason: 'The palette follows the CRM-gated Companies route; the Rail keeps a separate Suppliers alias.',
-    restore: 'Remove when the vendor view has a dedicated destination and shared navigation gate.',
-  },
-  {
     ids: [
       'assistant:sales_pipeline',
       'assistant:revenue',
@@ -197,6 +193,22 @@ export const ALLOWLIST = [
     ids: ['assistant:feedback_surveys'],
     reason: 'Admin-owned switch (0419); S4 deliberately gives it no assistant surface',
     restore: 'Delete only if the owner gives the assistant a feedback-surveys read path.',
+  },
+  {
+    ids: ['assistant:procurement_full'],
+    reason: 'Line-level receipt writes and the order/receipt/invoice match have no assistant read entity; existing receipt reads are Basic (procurement) since D17 #1783 item 1',
+    restore: 'Remove when a Full-only assistant read entity or named read tool ships.',
+  },
+  {
+    ids: [
+      'enforcement:0646_rls_caller_initplans.sql:stock_items_select',
+      'enforcement:0646_rls_caller_initplans.sql:stock_units_select',
+      'enforcement:0646_rls_caller_initplans.sql:stock_warehouses_select',
+    ],
+    reason:
+      'ALTER POLICY cannot change a policy command, so these are still the SELECT policies 0412 created (dynamically, via execute format, so the scanner has no prior state for them); the ALTER only adds a scalar-subselect wrapper to the expression copied from the catalog, and a SELECT policy never carries the stock write gate (0534 gates writes only).',
+    restore:
+      'Delete when the enforcement scanner derives an ALTER policy command from the prior state (or from the dynamic creation) instead of defaulting a command-less ALTER to ALL.',
   },
 ];
 

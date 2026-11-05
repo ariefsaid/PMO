@@ -1,7 +1,7 @@
--- AC-008 — server authorization, authorship, RLS and the pre-range deployment fence.
+-- AC-008 — server authorization, authorship, RLS and whole-project activation.
 begin;
 create extension if not exists pgtap;
-select plan(72);
+select plan(74);
 
 insert into organizations (id, name) values
   ('14750000-0000-0000-0000-000000000001', 'Whole Project Roles Org'),
@@ -247,9 +247,12 @@ select throws_ok($$select public.activate_budget_version('14752222-0000-0000-000
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-select throws_ok($$select public.activate_budget_version('14752222-0000-0000-0000-000000000001')$$,
-  'P0001', 'whole-project budget activation is unavailable until range dispatch and predecessor cancellation are installed',
-  'AC-008 an otherwise eligible activator is fenced until the range money path lands');
+select lives_ok($$select public.activate_budget_version('14752222-0000-0000-0000-000000000001')$$,
+  'AC-008 an otherwise eligible activator activates a reconciled same-range revision and archives its predecessor');
+select is((select status::text from budget_versions where id='14752222-0000-0000-0000-000000000001'), 'Active',
+  'AC-008 the eligible whole-project revision becomes Active');
+select is((select status::text from budget_versions where id='14752222-0000-0000-0000-000000000002'), 'Archived',
+  'AC-008 the exact same-range Active predecessor becomes Archived');
 select throws_ok($$select public.activate_budget_version('14752222-0000-0000-0000-000000000009')$$,
   '42501', 'a budget version with no recorded drafter can be activated by Admin or Finance only',
   'AC-008 an Executive cannot activate a version with no recorded drafter');
@@ -260,7 +263,7 @@ select set_eq(
 );
 select throws_ok($$select public.activate_budget_version('14752222-0000-0000-0000-000000000005')$$,
   'P0001', 'budget distribution is incomplete for category Labor',
-  'AC-008 activation refuses a non-reconciling category plan before applying the deployment fence');
+  'AC-008 activation refuses a non-reconciling category plan before changing the Active predecessor');
 reset role;
 
 set local role authenticated;

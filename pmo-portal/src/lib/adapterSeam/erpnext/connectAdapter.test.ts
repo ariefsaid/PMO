@@ -91,8 +91,8 @@ describe('ECA3-T3 erpnext ConnectAdapter sends (lookup-then-create, FR-ECA-020/0
     const a = createErpnextConnectAdapter(client, 'Test Co');
     expect(await a.sendMaster('party', { id: 'c1', name: 'PT Baja', role: 'vendor', taxId: '01.234' }, 'seed:party:c1')).toEqual({ externalId: 'Supplier:SUP-1' });
     expect(await a.sendMaster('party', { id: 'c2', name: 'PT Klien', role: 'client' }, 'seed:party:c2')).toEqual({ externalId: 'Customer:CUS-1' });
-    expect(tables.Supplier[0]).toMatchObject({ supplier_name: 'PT Baja', tax_id: '01.234', supplier_group: 'All Supplier Groups' });
-    expect(tables.Customer[0]).toMatchObject({ customer_name: 'PT Klien', customer_group: 'All Customer Groups' });
+    expect(tables.Supplier[0]).toMatchObject({ supplier_name: 'PT Baja', tax_id: '01.234', supplier_group: 'Services' });
+    expect(tables.Customer[0]).toMatchObject({ customer_name: 'PT Klien', customer_group: 'Commercial' });
   });
 
   it('looks the master up before any create: a name already in the ERP is linked, not created again', async () => {
@@ -132,7 +132,7 @@ describe('ECA3-T3 erpnext ConnectAdapter sends (lookup-then-create, FR-ECA-020/0
     const a = createErpnextConnectAdapter(client, 'Test Co');
     await expect(a.sendMaster('party', { id: 'c1', name: 'PT Baja', role: 'vendor' }, 'k', { commitDeadlineAtMs: Date.now() - 1 })).rejects.toMatchObject({ code: 'external-unreachable' });
     expect(posts(seen)).toHaveLength(0);
-    expect(seen.filter((r) => r.method === 'GET')).toHaveLength(1);
+    expect(seen.filter((r) => r.method === 'GET' && r.path.startsWith('/api/resource/Supplier?'))).toHaveLength(1);
   });
 
   it('two ERP records that match one send are refused as ambiguous, nothing is created', async () => {
@@ -159,5 +159,60 @@ describe('ECA3-T3 erpnext ConnectAdapter sends (lookup-then-create, FR-ECA-020/0
       apiKey: 'k', apiSecret: 's', maxRetries: 3, sleep: async () => {} };
     await expect(createErpnextConnectAdapter(client, 'Test Co').sendMaster('project', { id: 'p', name: 'Jembatan' }, 'k')).rejects.toMatchObject({ code: 'external-unreachable' });
     expect(gets).toBe(1);
+  });
+});
+
+describe('#1606 sends file under the ERP\'s default non-group group, never a hard-coded root node', () => {
+  const vendor = { id: 'c1', name: 'PT Baja', role: 'vendor' as const };
+  const client_ = { id: 'c2', name: 'PT Klien', role: 'client' as const };
+  const item = { id: 'Semen', name: 'Semen', code: 'Semen' };
+
+  it('uses the configured default of each settings doctype', async () => {
+    const tables: Record<string, Array<Record<string, unknown>>> = {
+      'Selling Settings': [{ name: 'Selling Settings', customer_group: 'Retail' }], 'Buying Settings': [{ name: 'Buying Settings', supplier_group: 'Local' }],
+      'Stock Settings': [{ name: 'Stock Settings', item_group: 'Raw' }],
+      'Customer Group': [{ name: 'Retail', is_group: 0 }], 'Supplier Group': [{ name: 'Local', is_group: 0 }], 'Item Group': [{ name: 'Raw', is_group: 0 }],
+    };
+    const a = createErpnextConnectAdapter(fakeErp(tables).client, 'Test Co');
+    await a.sendMaster('party', vendor, 'k1'); await a.sendMaster('party', client_, 'k2'); await a.sendMaster('item', item, 'k3');
+    expect(tables.Supplier[0].supplier_group).toBe('Local');
+    expect(tables.Customer[0].customer_group).toBe('Retail');
+    expect(tables.Item[0].item_group).toBe('Raw');
+  });
+
+  it('falls back to the first non-group when no default is set', async () => {
+    const tables: Record<string, Array<Record<string, unknown>>> = {
+      'Customer Group': [{ name: 'All Customer Groups', is_group: 1 }, { name: 'Zeta', is_group: 0 }, { name: 'Alpha', is_group: 0 }],
+    };
+    await createErpnextConnectAdapter(fakeErp(tables).client, 'Test Co').sendMaster('party', client_, 'k');
+    expect(tables.Customer[0].customer_group).toBe('Alpha');
+  });
+
+  it('a default that is itself a group node is passed over for the first non-group', async () => {
+    const tables: Record<string, Array<Record<string, unknown>>> = { 'Selling Settings': [{ name: 'Selling Settings', customer_group: 'All Customer Groups' }] };
+    await createErpnextConnectAdapter(fakeErp(tables).client, 'Test Co').sendMaster('party', client_, 'k');
+    expect(tables.Customer[0].customer_group).toBe('Commercial');
+  });
+
+  it('reads each default once per adapter, not once per send', async () => {
+    const { client, seen } = fakeErp({});
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    await a.sendMaster('party', { ...client_, id: 'a', name: 'A' }, 'k1'); await a.sendMaster('party', { ...client_, id: 'b', name: 'B' }, 'k2');
+    expect(seen.filter((r) => r.path.includes('Selling%20Settings'))).toHaveLength(1);
+    expect(seen.filter((r) => r.path.startsWith('/api/resource/Customer%20Group'))).toHaveLength(1);
+  });
+
+  it('with no non-group at all the send fails with a clear refusal and creates nothing', async () => {
+    const tables: Record<string, Array<Record<string, unknown>>> = { 'Customer Group': [{ name: 'All Customer Groups', is_group: 1 }] };
+    const { client, seen } = fakeErp(tables);
+    await expect(createErpnextConnectAdapter(client, 'Test Co').sendMaster('party', client_, 'k')).rejects
+      .toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/non-group Customer Group/i) });
+    expect(seen.filter((r) => r.method === 'POST')).toHaveLength(0);
+  });
+
+  it('the fake refuses a group node like the real ERP (guards the guard)', async () => {
+    const { client } = fakeErp({});
+    const res = await client.fetchImpl('https://erp.test/api/resource/Customer', { method: 'POST', body: JSON.stringify({ customer_name: 'x', customer_group: 'All Customer Groups' }) });
+    expect(res.status).toBe(417);
   });
 });

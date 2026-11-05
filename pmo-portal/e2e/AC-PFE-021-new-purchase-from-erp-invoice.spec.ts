@@ -40,7 +40,10 @@ test('AC-PFE-021: New purchase from an ERPNext invoice', async ({ page }) => {
     await expect(linked).toContainText(/(4[.,]321[.,]000|3[.,]900[.,]000)/);
 
     await page.goto(`/projects/${projectId}/procurement`);
-    await expect(page.getByRole('row', { name: new RegExp(invoice) })).toHaveCount(0);
+    const projectPurchases = page.getByRole('table', { name: 'Project procurement' });
+    await expect(projectPurchases.getByRole('row', { name: new RegExp(invoice) })).toHaveCount(1);
+    const remainingOrphans = page.getByRole('table', { name: 'ERPNext documents not in a purchase' });
+    await expect(remainingOrphans.getByRole('row', { name: new RegExp(invoice) })).toHaveCount(0);
   } finally {
     if (purchaseId) {
       await admin.from('procurement_erp_links').delete().eq('procurement_id', purchaseId);

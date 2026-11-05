@@ -495,6 +495,23 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: /loading…/i })).not.toBeInTheDocument());
   });
 
+  it('T-10: a slow FAILURE from an earlier open does not replace the newer inbox with an error', async () => {
+    const user = userEvent.setup();
+    let rejectFirst!: (e: unknown) => void;
+    listNotifications
+      .mockReturnValueOnce(new Promise((_, rej) => { rejectFirst = rej; }))
+      .mockResolvedValueOnce([row({ id: 'n-new', title: 'Newer item' })]);
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+    await user.click(bell);
+    await user.click(bell);
+    await user.click(bell);
+    expect(await screen.findByText('Newer item')).toBeInTheDocument();
+    rejectFirst(new Error('late failure'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByText('Newer item')).toBeInTheDocument();
+  });
+
   it('T-10: a slow first-page response from an earlier open does not overwrite the newer one', async () => {
     const user = userEvent.setup();
     let resolveFirst!: (v: unknown) => void;

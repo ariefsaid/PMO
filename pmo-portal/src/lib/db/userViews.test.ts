@@ -29,6 +29,8 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.gt = chain('order');
+  builder.limit = () => builder;
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.delete = chain('delete');
@@ -66,18 +68,25 @@ beforeEach(() => {
 describe('AC-UV-007 listUserViews', () => {
   it('AC-UV-007: lists non-archived views newest-first, never sends org_id/user_id', async () => {
     h.result.value = {
-      data: [{ id: 'v1', name: 'My View', scope: 'private', archived_at: null }],
+      data: [
+        { id: 'v0', name: 'Old View', scope: 'private', archived_at: null, updated_at: '2026-01-01T00:00:00Z' },
+        { id: 'v1', name: 'My View', scope: 'private', archived_at: null, updated_at: '2026-02-01T00:00:00Z' },
+      ],
       error: null,
     };
     const rows = await listUserViews();
     expect(h.calls.from).toEqual(['user_views']);
     // archived hidden by default → filters on archived_at IS NULL
     expect(h.calls.is).toContainEqual(['archived_at', null]);
-    // newest write first
-    expect(h.calls.order).toContainEqual(['updated_at', { ascending: false }]);
-    // neither org_id nor user_id is ever sent (RLS stamps/scopes them)
-    expect(JSON.stringify(h.calls)).not.toContain('org_id');
-    expect(JSON.stringify(h.calls)).not.toContain('user_id');
+    // scanned by id (keyset), returned newest write first
+    expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+    // neither org_id nor user_id is ever sent as a filter (RLS stamps/scopes them)
+    expect(JSON.stringify([h.calls.eq, h.calls.is, h.calls.order])).not.toMatch(/org_id|user_id/);
+    // the shell reads this on every page: the opaque `spec` (multi-KB) and org_id are not selected
+    const cols = String(h.calls.select[0]).split(',');
+    expect(cols).not.toContain('spec');
+    expect(cols).not.toContain('org_id');
+    expect(cols).not.toContain('*');
     expect(rows[0].name).toBe('My View');
   });
 

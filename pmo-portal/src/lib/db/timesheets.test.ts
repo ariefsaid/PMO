@@ -37,6 +37,8 @@ function builderResolving(resolved: { data: unknown; error: unknown }) {
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
   mockOrder.mockReturnValue(builder);
+  builder.gt = () => builder;
+  builder.limit = () => builder;
   mockRange.mockResolvedValue(resolved);
   mockInsert.mockReturnValue(builder);
   mockSingle.mockResolvedValue(resolved);
@@ -77,7 +79,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('listTimesheets', () => {
-  it('selects timesheets with nested entries+project, filtered by user_id, ordered by week desc (AC-608, FR-DAL-TS-001)', async () => {
+  it('selects timesheets with nested entries+project, filtered by user_id, scanned by id then ordered by week desc (AC-608, FR-DAL-TS-001)', async () => {
     const rows = [{
       id: '70000000-0000-0000-0000-000000000002',
       user_id: '00000000-0000-0000-0000-0000000000a2',
@@ -96,9 +98,22 @@ describe('listTimesheets', () => {
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
     expect(mockSelect).toHaveBeenCalledWith('*, entries:timesheet_entries(*, project:projects(name,short_name,code))');
     expect(mockEq).toHaveBeenCalledWith('user_id', '00000000-0000-0000-0000-0000000000a2');
-    expect(mockOrder).toHaveBeenCalledWith('week_start_date', { ascending: false });
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
     expect(result[0].entries[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].entries[0].entry_date).toBe('2026-06-01');
+  });
+
+  it('returns weeks newest first even though the scan serves them in id order (AC-608)', async () => {
+    builderResolving({
+      data: [
+        { id: 'a', week_start_date: '2026-05-04', entries: [] },
+        { id: 'b', week_start_date: '2026-06-01', entries: [] },
+        { id: 'c', week_start_date: '2026-05-18', entries: [] },
+      ],
+      error: null,
+    });
+    const result = await listTimesheets('u1');
+    expect(result.map(r => r.id)).toEqual(['b', 'c', 'a']);
   });
 
   it('sends no org_id (RLS scopes it) (FR-DAL-TS-001)', async () => {

@@ -146,16 +146,11 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
     supabaseSelect("budget_line_items", () => jsonResponse([])),
-    supabaseSelect("timesheet_entries", (call) => {
-      assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
-      assertEquals(call.url.searchParams.get("timesheets.org_id"), "eq.org-1");
-      assertEquals(call.url.searchParams.get("hours"), "gt.0");
-      return jsonResponse([{ timesheets: { user_id: "member-2" }, hours: 4 }]);
+    // The distinct, active, unlinked participants are counted in the database, scoped to the org.
+    supabaseRpc("erp_setup_unlinked_participant_count", (call) => {
+      assertEquals((call.bodyJson as { p_org_id: string }).p_org_id, "org-1");
+      return jsonResponse(1);
     }),
-    supabaseSelect(
-      "erp_employees",
-      () => jsonResponse([{ profile_id: "admin-1", link_state: "confirmed" }]),
-    ),
   ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
@@ -262,8 +257,7 @@ Deno.test("AC-S09-001 readiness proposes only own, unlinked reviewable projects"
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
     supabaseSelect("budget_line_items", () => jsonResponse([])),
-    supabaseSelect("timesheet_entries", () => jsonResponse([])),
-    supabaseSelect("erp_employees", () => jsonResponse([])),
+    supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
   ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
@@ -1147,6 +1141,34 @@ Deno.test("project ensure searches the PMO code before creating a new ERP Projec
     assertEquals((await response.json()).erpProject, "SYNTH-2");
   });
 });
+Deno.test("project ensure refuses to overwrite a mapping another admin saved for the same project after a lost write race", async () => {
+  let bindingReads = 0;
+  await withFetchMock([
+    supabaseSelect("external_org_bindings", () => {
+      bindingReads++;
+      const project_map = bindingReads === 1 ? binding.config.project_map : { ...binding.config.project_map, "project-2": "REVIEWED-OTHER" };
+      return jsonResponse({ ...binding, config: { ...binding.config, project_map } });
+    }),
+
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse({ id: "project-2", name: "Delivery", code: "SYNTH-2" })),
+    erp("erp.example.test", "/api/resource/Project", (call) => {
+      const filters = JSON.parse(call.url.searchParams.get("filters")!);
+      return jsonResponse({
+        data: filters[1][0] === "name"
+          ? [{ name: "SYNTH-2", project_name: "Delivery", company: "Example Company", is_active: "Yes" }]
+          : [],
+      });
+    }),
+    { label: "lost-cas", method: "PATCH", pathname: "/rest/v1/external_org_bindings", response: () => jsonResponse([]) },
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({ tier: "erpnext", setupAction: "ensure-project", projectId: "project-2" }),
+    );
+    assertEquals(response.status, 422);
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 1);
+  });
+});
 Deno.test("an existing project mapping is checked against the active connected ERP Company before reuse", async () => {
   await withFetchMock([
     ...base(),
@@ -1290,8 +1312,7 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
         { id: "m4", category: "Equipment", erp_account: "Equipment - EX", is_push_target: true },
       ])),
     supabaseSelect("budget_line_items", () => jsonResponse([])),
-    supabaseSelect("timesheet_entries", () => jsonResponse([])),
-    supabaseSelect("erp_employees", () => jsonResponse([])),
+    supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
   ], async () => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
@@ -1314,8 +1335,7 @@ Deno.test("AC-TVC-002 readiness reports which split-out categories the org budge
       assertEquals(call.url.searchParams.get("limit"), "1");
       return jsonResponse(call.url.searchParams.get("category") === "eq.Vehicle" ? [{ category: "Vehicle" }] : []);
     }),
-    supabaseSelect("timesheet_entries", () => jsonResponse([])),
-    supabaseSelect("erp_employees", () => jsonResponse([])),
+    supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
   ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
@@ -1537,6 +1557,86 @@ Deno.test("pmo erp verify-links still flags a mapped ERP project whose name, com
   assertEquals(missing.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
   const renamed = await verifyLinks(project, erpProjectDoc({ name: "ERP-PROJECT-9" }));
   assertEquals(renamed.mismatches.map((m) => [m.reason, m.erp_project]), [["identity_changed", "ERP-PROJECT-9"]]);
+});
+
+Deno.test("pmo erp verify-links reports an ERP outage or refusal as a retryable failure, not as broken project links", async () => {
+  for (const status of [500, 401, 403]) {
+    const result = await withFetchMock([
+      ...base(),
+      supabaseSelect("projects", () => jsonResponse([{ id: "project-1", name: "PMO Project", code: "C-1" }])),
+      erp("erp.example.test", "/api/resource/Project/ERP-PROJECT-1", () => jsonResponse({ message: "boom" }, { status })),
+    ], async () => {
+      const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+      return { status: response.status, body: await response.json() };
+    });
+    assertEquals(result.status >= 400, true, `status ${status}`);
+    assertEquals(result.body.mismatches, undefined, `status ${status}`);
+  }
+});
+
+Deno.test("pmo erp verify-links reports an ERP permission refusal as forbidden, not as unreachable", async () => {
+  const result = await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse([{ id: "project-1", name: "PMO Project", code: "C-1" }])),
+    erp("erp.example.test", "/api/resource/Project/ERP-PROJECT-1", () => jsonResponse({ message: "no" }, { status: 403 })),
+  ], async () => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+    return { status: response.status, text: await response.text() };
+  });
+  assertEquals(result.status, 403, result.text);
+  assertEquals(result.text.includes("could not be reached"), false, result.text);
+});
+
+Deno.test("pmo erp verify-links stops calling the ERP once one check has failed", async () => {
+  const ids = Array.from({ length: 30 }, (_, i) => `project-${i}`);
+  const map = Object.fromEntries(ids.map((id, i) => [id, `ERP-${i}`]));
+  const erpProjects = new Set<string>();
+  const result = await withFetchMock([
+    supabaseSelect("external_org_bindings", () => jsonResponse({ ...binding, config: { ...binding.config, project_map: map } })),
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse(ids.map((id) => ({ id, name: `P ${id}`, code: null })))),
+    { label: "erp-projects", host: "erp.example.test", pathname: /^\/api\/resource\/Project\/ERP-\d+$/, response: async (call) => {
+      erpProjects.add(call.url.pathname);
+      if (call.url.pathname.endsWith("/ERP-0")) return jsonResponse({ message: "no" }, { status: 403 });
+      await new Promise((r) => setTimeout(r, 5));
+      const name = decodeURIComponent(call.url.pathname.split("/").pop()!);
+      return jsonResponse({ data: { name, project_name: `P project-${name.slice(4)}`, company: "Example Company", is_active: "Yes" } });
+    } },
+  ], async () => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+    await new Promise((r) => setTimeout(r, 50));
+    return response.status;
+  });
+  assertEquals(result, 403);
+  assertEquals(erpProjects.size <= 10, true, `projects checked ${erpProjects.size}`);
+});
+
+Deno.test("pmo erp verify-links checks mapped projects with bounded concurrency", async () => {
+  const ids = Array.from({ length: 25 }, (_, i) => `project-${i}`);
+  const map = Object.fromEntries(ids.map((id, i) => [id, `ERP-${i}`]));
+  let inFlight = 0;
+  let peak = 0;
+  const result = await withFetchMock([
+    supabaseSelect("external_org_bindings", () => jsonResponse({ ...binding, config: { ...binding.config, project_map: map } })),
+
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse(ids.map((id) => ({ id, name: `P ${id}`, code: null })))),
+    { label: "erp-projects", host: "erp.example.test", pathname: /^\/api\/resource\/Project\/ERP-\d+$/, response: async (call) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      const name = decodeURIComponent(call.url.pathname.split("/").pop()!);
+      const id = ids[Number(name.slice(4))];
+      return jsonResponse({ data: { name, project_name: `P ${id}`, company: "Example Company", is_active: "Yes" } });
+    } },
+  ], async () => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+    return { status: response.status, body: await response.json() };
+  });
+  assertEquals(result.status, 200);
+  assertEquals(result.body, { checked: 25, mismatches: [] });
+  assertEquals(peak > 1 && peak <= 5, true, `peak ${peak}`);
 });
 
 // ── #775 phase B — the `expenses` employ switch (FR-EXP-118, DD-EXP-22). It opens only with #901 (the release guard

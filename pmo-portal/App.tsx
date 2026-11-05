@@ -203,7 +203,14 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/sales', element: gated('sales_pipeline', <SalesPipeline />) },
   // Model B: the canonical detail route is /projects/:id; /sales/:id redirects there.
   { path: '/sales/:opportunityId', element: gated('sales_pipeline', <SalesDetailRedirect />) },
-  { path: '/procurement', element: gated('procurement', <ProcurementPage />) },
+  {
+    path: '/procurement',
+    element: gated('procurement', (
+      <Suspense fallback={<LoadingFallback />}>
+        <ProcurementPage />
+      </Suspense>
+    )),
+  },
   { path: '/procurement/new', element: gated('procurement', <ProcurementCreate />) },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.
@@ -444,20 +451,11 @@ export const ShellChrome: React.FC = () => {
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
     const recordLabel = recordLabelForPath(pathname, cachedLists);
-    // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
-    // STAGE — resolve its status group from the cached records (the pipeline list carries pre-win
-    // / lost rows that the active projects list no longer holds) and thread it in so a pipeline
-    // record reads "Sales Pipeline > …" and an on-hand record reads "Projects > …".
-    const recordStatusGroup = recordStatusGroupForPath(pathname, {
-      projects,
-      opportunities,
-    });
     const parts = breadcrumbForPath(
       pathname,
       recordLabel,
       breadcrumbNavigate,
       recordResolved,
-      recordStatusGroup,
       contextualParent,
       // A filtered doorway (e.g. Vendors = Companies?type=Vendor) owns its visible
       // vocabulary in the route-derived parts; the Breadcrumb component keeps a
@@ -477,8 +475,6 @@ export const ShellChrome: React.FC = () => {
     breadcrumbNavigate,
     cachedLists,
     recordResolved,
-    projects,
-    opportunities,
   ]);
 
   // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.

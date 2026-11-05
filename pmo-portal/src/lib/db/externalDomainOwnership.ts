@@ -21,7 +21,7 @@ export interface ExternalDomainOwnershipRow {
   domain: string;
 }
 
-function toRow(db: Pick<ExternalDomainOwnershipDbRow, 'id' | 'org_id' | 'external_tier' | 'domain'>): ExternalDomainOwnershipRow {
+export function toRow(db: Pick<ExternalDomainOwnershipDbRow, 'id' | 'org_id' | 'external_tier' | 'domain'>): ExternalDomainOwnershipRow {
   return { id: db.id, orgId: db.org_id, externalTier: db.external_tier, domain: db.domain };
 }
 

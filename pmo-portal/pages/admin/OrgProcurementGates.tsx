@@ -9,6 +9,7 @@ import { FieldError, ListState, Switch } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import { PROCUREMENT_GATES_KEY } from '@/src/hooks/useProcurementGates';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 const RULES: { key: keyof ProcurementGates; label: string; help: string }[] = [
   { key: 'request_before_order', label: 'Request required before order', help: 'When on, an order needs a purchase request first.' },
@@ -44,7 +45,7 @@ export default function OrgProcurementGates() {
   const canManage = usePermission()('manage', 'orgAccounting');
   const qc = useQueryClient();
   const queryKey = [PROCUREMENT_GATES_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getProcurementGates(), enabled: Boolean(orgId) });
+  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getProcurementGates(), enabled: Boolean(orgId), ...SESSION_QUERY_OPTIONS });
   const mutation = useMutation({
     mutationFn: (patch: Partial<ProcurementGates>) => repositories.orgSettings.setProcurementGates(patch),
     onSuccess: (gates) => qc.setQueryData(queryKey, gates),

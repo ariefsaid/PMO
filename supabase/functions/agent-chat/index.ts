@@ -31,7 +31,7 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
-import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv } from '../_shared/openRouterModelClient.ts';
+import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv, modelOverrideFromEnv } from '../_shared/openRouterModelClient.ts';
 import { compactionOptionsFromEnv } from '../_shared/transcriptCompaction.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { DEPLOY_VERSION } from '../_shared/version.ts';
@@ -193,9 +193,17 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
   // leaving the independently entitled assistant available.
   const composeEnabled = !viewsError && viewsEnabled === true;
 
-  // ── 4. Read OPENROUTER_API_KEY from function secrets (NFR-MC-SEC-001) ──────
+  // ── 4. Model transport: OpenRouter in production, or an eval-only env override ──
+  // The override (base URL + key + model, all three or none) routes eval runs away from the
+  // production provider. Unset ⇒ today's behaviour: OPENROUTER_API_KEY + the resolved model.
+  const modelOverride = modelOverrideFromEnv({
+    AGENT_MODEL_BASE_URL: Deno.env.get('AGENT_MODEL_BASE_URL') ?? undefined,
+    AGENT_MODEL_API_KEY: Deno.env.get('AGENT_MODEL_API_KEY') ?? undefined,
+    AGENT_MODEL_ID: Deno.env.get('AGENT_MODEL_ID') ?? undefined,
+    AGENT_MODEL_EXTRA_HEADERS: Deno.env.get('AGENT_MODEL_EXTRA_HEADERS') ?? undefined,
+  });
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
-  if (!apiKey) {
+  if (!apiKey && !modelOverride) {
     logStructuredError({ fn: 'agent-chat', errorCode: 'MISSING_OPENROUTER_API_KEY' });
     // Cast: the real supabase-js client's .from().insert() returns a thenable
     // PostgrestFilterBuilder, not a plain Promise — a structural superset of
@@ -209,7 +217,8 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
   }
 
   const modelClient = new OpenRouterModelClient({
-    apiKey,
+    apiKey: apiKey ?? undefined,
+    override: modelOverride,
     provider: providerPolicyFromEnv({
       AGENT_PROVIDER_ORDER: Deno.env.get('AGENT_PROVIDER_ORDER') ?? undefined,
       AGENT_PROVIDER_ONLY: Deno.env.get('AGENT_PROVIDER_ONLY') ?? undefined,
@@ -220,7 +229,8 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
     }),
     fallbackModels: fallbackModelsFromEnv(Deno.env.get('AGENT_MODEL_FALLBACKS') ?? undefined),
   });
-  const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
+  const model = modelOverride?.model
+    ?? resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
 
   // ── 5. Parse request body ─────────────────────────────────────────────────
   let body: AgentChatRequest;
@@ -245,11 +255,9 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
   // existing deployment with no seeded credits grants is not instantly locked out. An operator
   // flips this on once grant seed-data exists for their users.
   const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
-  // orgId is resolved by the handler's own gate-2 profiles lookup; ownerId (== userId) is all
-  // this entry point can supply up front. index.ts does not duplicate the profiles read —
-  // persistence writes rely on RLS column DEFAULTs (owner_id default auth.uid(), org_id default
-  // seed-org) rather than an explicit orgId here, so an empty string is a safe placeholder
-  // (never sent to Postgres; RLS/DEFAULT stamps the real value).
+  // The caller JWT and RLS column defaults establish every persistence write's identity —
+  // this entry point supplies no owner/org fields (and does not duplicate the profiles read;
+  // the handler's own gate-2 lookup is unrelated to persistence identity).
   const journaledWrites = persistenceEnabled && body.runId
     ? await loadJournaledWrites(
         {
@@ -260,8 +268,6 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
           // `supabase: callerClient` site in this file checks fine). Same bridging-cast convention
           // as `handler: agentChatHandler as never` elsewhere in this codebase.
           supabase: callerClient as never,
-          ownerId: userId,
-          orgId: '',
           now: () => new Date(),
         },
         body.runId,
@@ -280,8 +286,6 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
           // Cast: see the identical loadJournaledWrites cast above (TS2589 structural-recursion
           // limit, not a real mismatch).
           supabase: callerClient as never,
-          ownerId: userId,
-          orgId: '',
           now: () => new Date(),
         },
         body.runId,
@@ -337,8 +341,6 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
         persistence: persistenceEnabled
           ? {
               supabase: callerClient as never,
-              ownerId: userId,
-              orgId: '',
               now: () => new Date(),
               journaledWrites,
               startSeq,

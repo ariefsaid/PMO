@@ -146,7 +146,9 @@ select ok(
                        'subcontract_cap_exceptions','po_revision_push_refusal',
                        -- AMENDED BY 0507 (#1505 P7): the Odoo feed's writers list orders and bills here for visibility and mark them gone; the
                        -- recorded-by-PMO rule reads the flag. Neither feeds actuals (the page apply's linked-row update writes the mirror tables, not this one).
-                       'apply_odoo_purchase_page','mark_odoo_purchase_census_seen','finish_odoo_purchase_census','erp_document_recorded_by_pmo'))
+                       'apply_odoo_purchase_page','mark_odoo_purchase_census_seen','finish_odoo_purchase_census','erp_document_recorded_by_pmo',
+                       -- AMENDED BY 0651: the set-based form of procurement_ledger_held (same guards, per id) — a commitment reader.
+                       'procurement_ledger_held_many'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

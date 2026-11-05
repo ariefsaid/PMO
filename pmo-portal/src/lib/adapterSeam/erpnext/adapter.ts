@@ -14,12 +14,16 @@
  */
 import type { Adapter, AdapterCommand, CommandResult, PmoDomain, PmoRecord, SupersededDocumentMarker } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
-import { cancelDoc, createDoc, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
+import { AppError } from '../../appError.ts';
+import { cancelDoc, callMethod, createDoc, getDoc, submitDoc, submitFetchedDoc, updateDoc, withCommitDeadline, withRangeWriteDeadline, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { findDefaultPurchaseTaxTemplate, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { routeEdit } from './transitionPolicy.ts';
+import { isLegacyBudgetArchiveCommand } from './dispatchBudget.ts';
+import { parseBudgetIdentity } from './budgetAccountIdentity.ts';
 import { erpGetByExternalId, erpListChangesSinceWatermark } from './adapterReads.ts';
 import { toCents } from '../../budget/budgetAmount.ts';
+import { parseExactCents } from '../../exactDecimal.ts';
 
 export const ERPNEXT_TIER = 'erpnext';
 export const ERPNEXT_COMPANIES_DOMAIN: PmoDomain = 'companies';
@@ -37,9 +41,46 @@ export const ERPNEXT_BUDGET_DOMAIN: PmoDomain = 'budget';
  *  the erpnext-sweep pass — adapter-dispatch deliberately has no route for this domain. */
 export const ERPNEXT_EXPENSES_DOMAIN: PmoDomain = 'expenses';
 
+/** The ONE list of ERP domains adapter-dispatch routes: its adapter registry, its ERP-domain gate and the target-binding
+ *  guards all derive from this. `expenses` is deliberately absent (sweep-driven, no dispatch route). A domain left out
+ *  here is not an ERP domain to any of them (fail closed); a domain added here needs an entry in the role map
+ *  (`_shared/moneyWriteRoles.ts`) or it has no writers. */
+export const ERPNEXT_DISPATCH_DOMAINS: readonly PmoDomain[] = [
+  ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_BUDGET_DOMAIN,
+];
+export const isErpDispatchDomain = (domain: string): boolean => (ERPNEXT_DISPATCH_DOMAINS as readonly string[]).includes(domain);
+
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;
   fromDoc: (doc: unknown) => PmoRecord;
+}
+
+export type BudgetRangeStage =
+  | 'cancel_started'
+  | 'cancelled'
+  | 'post_started'
+  | 'draft_witnessed'
+  | 'distribution_put_started'
+  | 'distribution_saved'
+  | 'submit_started'
+  | 'submitted';
+
+export type BudgetRangeOperationState = Record<string, unknown> & {
+  stage: BudgetRangeStage;
+  identity: string;
+  payloadDigest: string;
+};
+
+/** Repository operations over the existing external_command_outbox row, backed by 0578's service-only
+ *  read + generation-CAS RPC. This is not a second queue: it is the provisional ERP witness needed by
+ *  Budget's anchorless POST→PUT→submit sequence. */
+export interface BudgetRangeOutbox {
+  read(attempt: NonNullable<AdapterCommand['outboxCommit']>): Promise<BudgetRangeOperationState | null>;
+  advance(
+    attempt: NonNullable<AdapterCommand['outboxCommit']>,
+    expectedStage: BudgetRangeStage | null,
+    next: BudgetRangeOperationState,
+  ): Promise<boolean>;
 }
 
 export interface ErpAdapterDeps {
@@ -64,6 +105,8 @@ export interface ErpAdapterDeps {
    *  means ERPNext is enforcing nothing, so the recovery from it has to be provable at the real served
    *  boundary. Optional — a production caller that never arms the fault gate omits it (a true no-op). */
   afterCancelHook?: () => Promise<void>;
+  /** Range Budget's durable draft/cancel witness. Ordinary annual budgets keep the existing path. */
+  budgetRangeOutbox?: BudgetRangeOutbox;
   /** The scope the adapter's change-feed reads poll under (the same company / ERP major the sweep uses). */
   readScope?: {
     /** The binding's ERP company; company-owned doctypes cannot be listed without it. */
@@ -108,6 +151,557 @@ function recordWithResolvedItemsFallback(record: PmoRecord, ctx: ErpCtx): PmoRec
   const hasOwnItems = Array.isArray(record.items) && record.items.length > 0;
   if (hasOwnItems || !ctx.resolvedItems) return record;
   return { ...record, items: ctx.resolvedItems };
+}
+
+type BudgetRangeDoc = Record<string, unknown>;
+type BudgetRangeDistribution = { start_date: string; end_date: string; amountCents: string; percentUnits: string };
+type BudgetRangeAttempt = NonNullable<AdapterCommand['outboxCommit']>;
+
+const RANGE_VOLATILE_KEYS = new Set(['docstatus', 'modified', 'modified_by']);
+
+function isRangeBudgetCommand(command: AdapterCommand): boolean {
+  if (command.record.erp_doc_kind !== 'budget') return false;
+  if (command.record.budget_mode === 'whole_project') return true;
+  try {
+    return typeof command.record.outbox_identity === 'string'
+      && parseBudgetIdentity(command.record.outbox_identity).kind === 'range';
+  } catch {
+    return typeof command.record.to_fiscal_year === 'string'
+      && command.record.to_fiscal_year !== command.record.fiscal_year;
+  }
+}
+
+function canonicalValue(value: unknown, omitVolatile = false): unknown {
+  if (Array.isArray(value)) return value.map((entry) => canonicalValue(entry, omitVolatile));
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value as Record<string, unknown>).sort().reduce<Record<string, unknown>>((result, key) => {
+    if (omitVolatile && RANGE_VOLATILE_KEYS.has(key)) return result;
+    result[key] = canonicalValue((value as Record<string, unknown>)[key], omitVolatile);
+    return result;
+  }, {});
+}
+
+async function fingerprint(value: unknown, omitVolatile = false): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(canonicalValue(value, omitVolatile)));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function centsFromErp(value: unknown): bigint | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  return parseExactCents(String(value));
+}
+
+function percentUnitsFromErp(value: unknown): bigint | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  const text = String(value);
+  const match = /^(\d+)(?:\.(\d{1,4}))?$/.exec(text);
+  if (!match) return null;
+  return BigInt(match[1]!) * 10_000n + BigInt((match[2] ?? '').padEnd(4, '0'));
+}
+
+function normalizeRangeDistribution(value: unknown): BudgetRangeDistribution[] | null {
+  if (!Array.isArray(value)) return null;
+  const rows: BudgetRangeDistribution[] = [];
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== 'object') return null;
+    const row = candidate as Record<string, unknown>;
+    const amount = centsFromErp(row.amount);
+    const percent = percentUnitsFromErp(row.percent);
+    if (typeof row.start_date !== 'string' || typeof row.end_date !== 'string'
+      || amount === null || amount < 0n || percent === null || percent < 0n || percent > 1_000_000n) return null;
+    rows.push({ start_date: row.start_date, end_date: row.end_date, amountCents: String(amount), percentUnits: String(percent) });
+  }
+  return rows;
+}
+
+function requireBudgetRangeAttempt(command: AdapterCommand, record: Record<string, unknown>): BudgetRangeAttempt {
+  const attempt = command.outboxCommit;
+  const identity = record.outbox_identity;
+  if (!attempt || !/^[0-9a-f-]{36}$/i.test(attempt.id) || !Number.isInteger(attempt.generation) || attempt.generation < 1
+      || typeof attempt.payloadDigest !== 'string' || !/^[0-9a-f]{64}$/.test(attempt.payloadDigest)
+      || typeof identity !== 'string' || attempt.identity !== identity) {
+    throw new AppError('whole-project budget has no valid generation-fenced outbox claim', 'commit-rejected');
+  }
+  let parsed: ReturnType<typeof parseBudgetIdentity>;
+  try { parsed = parseBudgetIdentity(identity); } catch {
+    throw new AppError('whole-project budget has an invalid range identity', 'commit-rejected');
+  }
+  if (parsed.kind !== 'range' || parsed.versionId !== record.id || parsed.fiscalYear !== record.fiscal_year
+      || parsed.toFiscalYear !== record.to_fiscal_year || parsed.erpAccount !== record.erp_account) {
+    throw new AppError('whole-project budget identity does not match its approved range dimensions', 'commit-rejected');
+  }
+  return attempt;
+}
+
+function requireRangeOutbox(deps: ErpAdapterDeps): BudgetRangeOutbox {
+  if (!deps.budgetRangeOutbox) {
+    throw new AppError('whole-project budget staged outbox is unavailable', 'commit-rejected');
+  }
+  return deps.budgetRangeOutbox;
+}
+
+function heldRangeError(message: string): AppError {
+  return new AppError(`whole-project budget held for operator review: ${message}`, 'command-held');
+}
+
+async function readRangeState(outbox: BudgetRangeOutbox, attempt: BudgetRangeAttempt): Promise<BudgetRangeOperationState | null> {
+  let state: BudgetRangeOperationState | null;
+  try {
+    state = await outbox.read(attempt);
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code === 'command-held') throw error;
+    throw new AppError('whole-project budget outbox state could not be read', 'external-unreachable');
+  }
+  if (state === null) return null;
+  if (state.identity !== attempt.identity || state.payloadDigest !== attempt.payloadDigest
+      || typeof state.stage !== 'string') {
+    throw heldRangeError('the durable operation witness does not match this exact claim and payload');
+  }
+  return state;
+}
+
+async function advanceRangeState(
+  outbox: BudgetRangeOutbox,
+  attempt: BudgetRangeAttempt,
+  expectedStage: BudgetRangeStage | null,
+  next: BudgetRangeOperationState,
+): Promise<void> {
+  try {
+    if (await outbox.advance(attempt, expectedStage, next)) return;
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code === 'command-held') throw error;
+    throw new AppError('whole-project budget operation stage could not be persisted', 'external-unreachable');
+  }
+  throw heldRangeError('the outbox claim was superseded or its expected stage changed');
+}
+
+async function readAuthenticatedErpUser(client: ErpClientDeps): Promise<string> {
+  const result = await callMethod(client, 'frappe.auth.get_logged_user') as { message?: unknown } | null;
+  if (typeof result?.message !== 'string' || result.message.trim() === '') {
+    throw new AdapterError('commit-rejected', 'whole-project budget cannot establish the ERPNext API user');
+  }
+  return result.message;
+}
+
+function assertRangeParent(
+  doc: BudgetRangeDoc,
+  expectedBody: Record<string, unknown>,
+  name: string | null,
+  owner?: string,
+): void {
+  if (name !== null && doc.name !== name) throw heldRangeError('ERPNext returned a different witnessed Budget');
+  if (owner !== undefined && doc.owner !== owner) throw heldRangeError('the witnessed Budget owner no longer matches the ERPNext API user');
+  for (const [field, expected] of Object.entries(expectedBody)) {
+    if (field === 'budget_distribution') continue;
+    const actual = doc[field];
+    if (field === 'budget_amount') {
+      if (centsFromErp(actual) !== centsFromErp(expected)) throw heldRangeError('the ERPNext Budget total differs from the approved amount');
+    } else if (typeof expected === 'number') {
+      if (Number(actual) !== expected) throw heldRangeError(`the ERPNext Budget ${field} differs from the approved value`);
+    } else if (actual !== expected) {
+      throw heldRangeError(`the ERPNext Budget ${field} differs from the approved value`);
+    }
+  }
+}
+
+function rangeIdentityBody(body: Record<string, unknown>): Record<string, unknown> {
+  return {
+    company: body.company,
+    project: body.project,
+    budget_against: body.budget_against,
+    account: body.account,
+    from_fiscal_year: body.from_fiscal_year,
+    to_fiscal_year: body.to_fiscal_year,
+  };
+}
+
+function rangeParentMatchesBody(doc: BudgetRangeDoc, body: Record<string, unknown>): boolean {
+  for (const [field, expected] of Object.entries(body)) {
+    if (field === 'budget_distribution' || field === 'budget_amount' || field === 'amended_from') continue;
+    if (doc[field] !== expected) return false;
+  }
+  return centsFromErp(doc.budget_amount) === centsFromErp(body.budget_amount);
+}
+
+function assertRangeDistribution(doc: BudgetRangeDoc, expected: BudgetRangeDistribution[]): void {
+  const actual = normalizeRangeDistribution(doc.budget_distribution);
+  if (!actual || JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw heldRangeError('the ERPNext dated yearly rows differ from the exact approved amount vector');
+  }
+}
+
+function assertModified(doc: BudgetRangeDoc, value: unknown): asserts value is string {
+  if (typeof value !== 'string' || typeof doc.modified !== 'string' || doc.modified !== value) {
+    throw heldRangeError('the witnessed ERPNext modified stamp changed');
+  }
+}
+
+async function assertContentFingerprint(doc: BudgetRangeDoc, expected: unknown): Promise<void> {
+  if (typeof expected !== 'string' || await fingerprint(doc, true) !== expected) {
+    throw heldRangeError('the witnessed ERPNext Budget was modified outside this operation');
+  }
+}
+
+function getDocstatus(doc: BudgetRangeDoc): number {
+  const status = Number(doc.docstatus);
+  if (!Number.isInteger(status) || ![0, 1, 2].includes(status)) {
+    throw heldRangeError('the witnessed ERPNext Budget has an unsupported status');
+  }
+  return status;
+}
+
+function buildRangeStage(
+  attempt: BudgetRangeAttempt,
+  stage: BudgetRangeStage,
+  fields: Record<string, unknown> = {},
+): BudgetRangeOperationState {
+  return { ...fields, stage, identity: attempt.identity, payloadDigest: attempt.payloadDigest! };
+}
+
+async function commitV16WholeProjectBudget(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
+): Promise<CommandResult> {
+  let cancelledPredecessor: string | null = null;
+  try {
+    return await commitV16WholeProjectBudgetInternal(command, deps, entry, (name) => {
+      cancelledPredecessor = name;
+    });
+  } catch (error) {
+    if (cancelledPredecessor) throw describeAbandonedAmend(error, cancelledPredecessor, entry);
+    throw error;
+  }
+}
+
+async function commitV16WholeProjectBudgetInternal(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
+  onPredecessorCancelled: (name: string) => void,
+): Promise<CommandResult> {
+  const record = command.record as Record<string, unknown>;
+  const account = record.erp_account;
+  const fromFiscalYear = record.fiscal_year;
+  const toFiscalYear = record.to_fiscal_year;
+  const intent = record.budget_intent;
+  if (typeof account !== 'string' || account.trim() === '' || typeof fromFiscalYear !== 'string'
+      || typeof toFiscalYear !== 'string' || (intent !== 'ensure' && intent !== 'remove')) {
+    throw new AdapterError('commit-rejected', 'whole-project budget has incomplete range dimensions');
+  }
+  const attempt = requireBudgetRangeAttempt(command, record);
+  const outbox = requireRangeOutbox(deps);
+  const state = await readRangeState(outbox, attempt);
+  const bodyFns = requireBodyFns(deps, 'budget');
+  const predecessor = record.budget_predecessor;
+  const resolvedTarget = deps.ctx.refs.self ?? null;
+  if (intent === 'remove' && (typeof predecessor !== 'string' || predecessor === '' || resolvedTarget !== predecessor)) {
+    throw new AdapterError('commit-rejected', 'whole-project budget removal lacks its exact witnessed predecessor');
+  }
+  if (intent === 'ensure' && ((predecessor == null && resolvedTarget !== null)
+      || (predecessor != null && (typeof predecessor !== 'string' || resolvedTarget !== predecessor)))) {
+    throw new AdapterError('commit-rejected', 'whole-project budget revision target does not match its witnessed predecessor');
+  }
+  const target: string | null = intent === 'remove' ? predecessor as string : resolvedTarget;
+  let cancellationStartedInThisCommit = false;
+
+  const owner = await readAuthenticatedErpUser(deps.client);
+  const body = intent === 'ensure' ? bodyFns.toBody(command.record, deps.ctx) as Record<string, unknown> : null;
+  const expectedRows = body ? normalizeRangeDistribution(body.budget_distribution) : null;
+  if (body && (!expectedRows || expectedRows.length === 0)) {
+    throw new AdapterError('commit-rejected', 'whole-project budget has no exact dated distribution to write');
+  }
+  const expectedTotal = body ? centsFromErp(body.budget_amount) : null;
+  if (body && (expectedTotal === null || expectedTotal <= 0n)) {
+    throw new AdapterError('commit-rejected', 'whole-project budget total is invalid');
+  }
+  const distributionFingerprint = body ? await fingerprint(expectedRows) : null;
+
+  const canonical = (doc: unknown, budgetIntent: unknown): PmoRecord => ({
+    ...bodyFns.fromDoc(doc),
+    id: command.record.id,
+    fiscal_year: fromFiscalYear,
+    to_fiscal_year: toFiscalYear,
+    erp_account: account,
+    budget_intent: budgetIntent,
+  });
+
+  const stateStage = state?.stage ?? null;
+  if (state && state.stage === 'post_started') {
+    throw heldRangeError('a Budget create may have reached ERPNext before its exact draft witness was durable');
+  }
+  if (state && state.expectedDistributionFingerprint !== (distributionFingerprint ?? null)) {
+    throw heldRangeError('the approved yearly distribution changed after the ERP operation began');
+  }
+
+  // A range replacement cancels only the exact PMO-witnessed same-range predecessor. Validate its
+  // complete approved replacement before creating the durable cancellation stage.
+  let activeState = state;
+  if (stateStage === null && target !== null) {
+    const prior = await getDoc(deps.client, entry.doctype, target) as BudgetRangeDoc;
+    if (!body) {
+      assertRangeParent(prior, {
+        company: deps.ctx.config.company,
+        project: deps.ctx.refs.project,
+        budget_against: 'Project',
+        account,
+        from_fiscal_year: fromFiscalYear,
+        to_fiscal_year: toFiscalYear,
+      }, target);
+      if (getDocstatus(prior) === 2) throw heldRangeError('the predecessor was cancelled outside this witnessed operation');
+      if (typeof record.budget_predecessor_modified !== 'string'
+          || prior.modified !== record.budget_predecessor_modified) {
+        throw heldRangeError('the PMO-witnessed predecessor modified stamp changed');
+      }
+    } else {
+      assertRangeParent(prior, rangeIdentityBody(body), target);
+      const priorStatus = getDocstatus(prior);
+      if (priorStatus !== 1) throw new AdapterError('commit-rejected', `whole-project budget predecessor ${target} is not submitted`);
+      if (typeof record.budget_predecessor_modified !== 'string'
+          || prior.modified !== record.budget_predecessor_modified) {
+        throw heldRangeError('the PMO-witnessed predecessor modified stamp changed');
+      }
+      if (rangeParentMatchesBody(prior, body) && normalizeRangeDistribution(prior.budget_distribution)
+          && JSON.stringify(normalizeRangeDistribution(prior.budget_distribution)) === JSON.stringify(expectedRows)) {
+        assertRangeDistribution(prior, expectedRows!);
+        return { externalRecordId: target, canonical: canonical(prior, 'ensure') };
+      }
+    }
+    if (getDocstatus(prior) !== 1) throw heldRangeError('the exact predecessor is neither a live submitted Budget nor a verified cancellation');
+    const stateFields = {
+      mode: intent === 'remove' ? 'remove' : 'replace',
+      expectedDistributionFingerprint: distributionFingerprint,
+      predecessorName: target,
+      predecessorModified: prior.modified,
+      predecessorFingerprint: await fingerprint(prior, true),
+    };
+    activeState = buildRangeStage(attempt, 'cancel_started', stateFields);
+    await advanceRangeState(outbox, attempt, null, activeState);
+    cancellationStartedInThisCommit = true;
+  }
+
+  if (activeState?.stage === 'cancel_started') {
+    const targetName = activeState.predecessorName;
+    if (typeof targetName !== 'string' || targetName === '' || targetName !== target) {
+      throw heldRangeError('the durable cancellation target no longer matches this exact range command');
+    }
+    const current = await getDoc(deps.client, entry.doctype, targetName) as BudgetRangeDoc;
+    const expectedTargetBody = {
+      company: deps.ctx.config.company,
+      project: deps.ctx.refs.project,
+      budget_against: 'Project',
+      account,
+      from_fiscal_year: fromFiscalYear,
+      to_fiscal_year: toFiscalYear,
+    };
+    assertRangeParent(current, expectedTargetBody, targetName);
+    const status = getDocstatus(current);
+    if (status === 2) {
+      await assertContentFingerprint(current, activeState.predecessorFingerprint);
+      if (activeState.mode === 'replace') onPredecessorCancelled(targetName);
+      activeState = buildRangeStage(attempt, 'cancelled', {
+        ...activeState,
+        mode: activeState.mode,
+        cancelledModified: current.modified,
+      });
+      await advanceRangeState(outbox, attempt, 'cancel_started', activeState);
+    } else if (status === 1 && current.modified === activeState.predecessorModified && cancellationStartedInThisCommit) {
+      await assertContentFingerprint(current, activeState.predecessorFingerprint);
+      await cancelDoc(deps.client, entry.doctype, targetName);
+      await deps.afterCancelHook?.();
+      const readback = await getDoc(deps.client, entry.doctype, targetName) as BudgetRangeDoc;
+      assertRangeParent(readback, expectedTargetBody, targetName);
+      if (getDocstatus(readback) !== 2) throw new AppError('whole-project predecessor cancellation readback is unresolved', 'external-unreachable');
+      await assertContentFingerprint(readback, activeState.predecessorFingerprint);
+        if (activeState.mode === 'replace') onPredecessorCancelled(targetName);
+      activeState = buildRangeStage(attempt, 'cancelled', {
+        ...activeState,
+        mode: activeState.mode,
+        cancelledModified: readback.modified,
+      });
+      await advanceRangeState(outbox, attempt, 'cancel_started', activeState);
+    } else {
+      throw heldRangeError('the predecessor cancellation has no confirmed terminal witness');
+    }
+  }
+
+  if (activeState?.stage === 'cancelled' && activeState.mode === 'remove') {
+    const targetName = activeState.predecessorName;
+    if (typeof targetName !== 'string' || !targetName) throw heldRangeError('the cancelled Budget name is missing');
+    const readback = await getDoc(deps.client, entry.doctype, targetName) as BudgetRangeDoc;
+    assertRangeParent(readback, {
+      company: deps.ctx.config.company,
+      project: deps.ctx.refs.project,
+      budget_against: 'Project',
+      account,
+      from_fiscal_year: fromFiscalYear,
+      to_fiscal_year: toFiscalYear,
+    }, targetName);
+    if (getDocstatus(readback) !== 2) throw heldRangeError('the exact predecessor cancellation is no longer present');
+    await assertContentFingerprint(readback, activeState.predecessorFingerprint);
+    return { externalRecordId: targetName, canonical: canonical(readback, 'remove') };
+  }
+
+  if (activeState?.stage === 'submitted') {
+    const name = activeState.draftName;
+    if (typeof name !== 'string' || !name) throw heldRangeError('the submitted Budget witness has no name');
+    const readback = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(readback, body!, name, owner);
+    if (getDocstatus(readback) !== 1) throw heldRangeError('the witnessed submitted Budget is no longer submitted');
+    assertRangeDistribution(readback, expectedRows!);
+    return { externalRecordId: name, canonical: canonical(readback, 'ensure') };
+  }
+
+  if (activeState?.stage === 'cancelled') {
+    if (!body || activeState.mode !== 'replace') throw heldRangeError('the canceled Budget operation has no replacement body');
+    activeState = buildRangeStage(attempt, 'post_started', {
+      ...activeState,
+      mode: 'replace',
+      expectedDistributionFingerprint: distributionFingerprint,
+      amendedFrom: activeState.predecessorName,
+    });
+    await advanceRangeState(outbox, attempt, 'cancelled', activeState);
+  } else if (activeState === null && body) {
+    activeState = buildRangeStage(attempt, 'post_started', {
+      mode: 'create',
+      expectedDistributionFingerprint: distributionFingerprint,
+    });
+    await advanceRangeState(outbox, attempt, null, activeState);
+  }
+
+  if (activeState?.stage === 'post_started') {
+    if (!body) throw heldRangeError('a removal operation cannot begin a create');
+    const amendedFrom = activeState.amendedFrom;
+    // The durable draft witness must exist before the dated child rows are written. Keeping the
+    // distribution out of POST also lets recovery distinguish an unaccepted PUT from a saved one.
+    const { budget_distribution: _distribution, ...parentBody } = body;
+    const postBody = amendedFrom ? { ...parentBody, amended_from: amendedFrom } : parentBody;
+    const created = await createDoc(deps.client, entry.doctype, postBody) as { name?: unknown };
+    if (typeof created?.name !== 'string' || created.name === '') {
+      throw new AppError('whole-project Budget create returned no stable document name', 'external-unreachable');
+    }
+    const draft = await getDoc(deps.client, entry.doctype, created.name) as BudgetRangeDoc;
+    assertRangeParent(draft, postBody, created.name, owner);
+    if (getDocstatus(draft) !== 0 || typeof draft.modified !== 'string') {
+      throw heldRangeError('the returned Budget is not the exact witnessed draft');
+    }
+    activeState = buildRangeStage(attempt, 'draft_witnessed', {
+      ...activeState,
+      mode: activeState.mode,
+      draftName: created.name,
+      draftOwner: owner,
+      initialModified: draft.modified,
+      initialFingerprint: await fingerprint(draft, true),
+      expectedDistributionFingerprint: distributionFingerprint,
+    });
+    await advanceRangeState(outbox, attempt, 'post_started', activeState);
+  }
+
+  if (activeState?.stage === 'draft_witnessed') {
+    const name = activeState.draftName;
+    if (typeof name !== 'string' || !name || activeState.draftOwner !== owner) {
+      throw heldRangeError('the durable draft witness is incomplete or belongs to another ERP user');
+    }
+    const draft = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(draft, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
+    if (getDocstatus(draft) !== 0) throw heldRangeError('the witnessed draft is no longer a draft before distribution PUT');
+    assertModified(draft, activeState.initialModified);
+    await assertContentFingerprint(draft, activeState.initialFingerprint);
+    activeState = buildRangeStage(attempt, 'distribution_put_started', { ...activeState, mode: activeState.mode });
+    await advanceRangeState(outbox, attempt, 'draft_witnessed', activeState);
+    await updateDoc(deps.client, entry.doctype, name, { budget_distribution: body!.budget_distribution });
+    const saved = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(saved, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
+    if (getDocstatus(saved) !== 0) throw heldRangeError('the distribution PUT changed the Budget lifecycle unexpectedly');
+    assertRangeDistribution(saved, expectedRows!);
+    activeState = buildRangeStage(attempt, 'distribution_saved', {
+      ...activeState,
+      mode: activeState.mode,
+      savedModified: saved.modified,
+      savedFingerprint: await fingerprint(saved, true),
+    });
+    await advanceRangeState(outbox, attempt, 'distribution_put_started', activeState);
+  } else if (activeState?.stage === 'distribution_put_started') {
+    const name = activeState.draftName;
+    if (typeof name !== 'string' || !name || activeState.draftOwner !== owner) {
+      throw heldRangeError('the distribution PUT has no exact witnessed draft');
+    }
+    const current = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(current, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
+    if (getDocstatus(current) !== 0) throw heldRangeError('the distribution PUT target is no longer a draft');
+    const currentRows = normalizeRangeDistribution(current.budget_distribution);
+    if (currentRows && JSON.stringify(currentRows) === JSON.stringify(expectedRows)) {
+      activeState = buildRangeStage(attempt, 'distribution_saved', {
+        ...activeState,
+        mode: activeState.mode,
+        savedModified: current.modified,
+        savedFingerprint: await fingerprint(current, true),
+      });
+      await advanceRangeState(outbox, attempt, 'distribution_put_started', activeState);
+    } else {
+      throw heldRangeError('the distribution PUT has no confirmed saved witness');
+    }
+  }
+
+  if (activeState?.stage === 'distribution_saved') {
+    const name = activeState.draftName;
+    if (typeof name !== 'string' || !name || activeState.draftOwner !== owner) {
+      throw heldRangeError('the saved distribution has no exact draft witness');
+    }
+    const draft = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(draft, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
+    if (getDocstatus(draft) !== 0) throw heldRangeError('the exact saved Budget is no longer a draft before submit');
+    assertModified(draft, activeState.savedModified);
+    await assertContentFingerprint(draft, activeState.savedFingerprint);
+    assertRangeDistribution(draft, expectedRows!);
+    activeState = buildRangeStage(attempt, 'submit_started', { ...activeState, mode: activeState.mode });
+    await advanceRangeState(outbox, attempt, 'distribution_saved', activeState);
+    try {
+      await submitFetchedDoc(deps.client, draft);
+      await deps.afterSubmitHook?.();
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'external-unreachable') throw error;
+      throw new AppError('whole-project Budget submit outcome is uncertain; recovery will inspect the witnessed document', 'external-unreachable');
+    }
+    const submitted = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(submitted, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
+    if (getDocstatus(submitted) !== 1) throw new AppError('whole-project Budget submit readback is unresolved', 'external-unreachable');
+    assertRangeDistribution(submitted, expectedRows!);
+    activeState = buildRangeStage(attempt, 'submitted', { ...activeState, mode: activeState.mode });
+    await advanceRangeState(outbox, attempt, 'submit_started', activeState);
+    return { externalRecordId: name, canonical: canonical(submitted, 'ensure') };
+  }
+
+  if (activeState?.stage === 'submit_started') {
+    const name = activeState.draftName;
+    if (typeof name !== 'string' || !name || activeState.draftOwner !== owner) {
+      throw heldRangeError('the pending submit has no exact draft witness');
+    }
+    const current = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(current, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
+    const status = getDocstatus(current);
+    if (status === 1) {
+      await assertContentFingerprint(current, activeState.savedFingerprint);
+      assertRangeDistribution(current, expectedRows!);
+      activeState = buildRangeStage(attempt, 'submitted', { ...activeState, mode: activeState.mode });
+      await advanceRangeState(outbox, attempt, 'submit_started', activeState);
+      return { externalRecordId: name, canonical: canonical(current, 'ensure') };
+    }
+    throw heldRangeError('the submit has no confirmed terminal witness');
+  }
+
+  if (activeState?.stage === 'submitted') {
+    const name = activeState.draftName;
+    if (typeof name !== 'string' || !name || !body) throw heldRangeError('the submitted range Budget witness is incomplete');
+    const submitted = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
+    assertRangeParent(submitted, activeState.amendedFrom ? { ...body, amended_from: activeState.amendedFrom } : body, name, owner);
+    if (getDocstatus(submitted) !== 1) throw heldRangeError('the witnessed submitted Budget is no longer submitted');
+    assertRangeDistribution(submitted, expectedRows!);
+    return { externalRecordId: name, canonical: canonical(submitted, 'ensure') };
+  }
+
+  throw heldRangeError(`the durable range operation is in an unsupported stage (${String(activeState?.stage)})`);
 }
 
 /**
@@ -173,6 +767,9 @@ async function commitV16BudgetCreate(
   deps: ErpAdapterDeps,
   entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
 ): Promise<CommandResult | null> {
+  if (isRangeBudgetCommand(command)) {
+    return commitV16WholeProjectBudget(command, deps, entry);
+  }
   const record = command.record as Record<string, unknown>;
   const account = record.erp_account;
   const fiscalYear = record.fiscal_year;
@@ -247,9 +844,84 @@ function withBudgetUnitCanonical(command: AdapterCommand, deps: ErpAdapterDeps, 
   return { ...canonical, id: command.record.id, fiscal_year: record.fiscal_year, erp_account: record.erp_account, budget_intent: intent };
 }
 
+/**
+ * #1462 — cancel an OLDER (year-grained, pre-v16) ERP `Budget` by its exact witnessed name.
+ *
+ * ⚑ CANCEL ONLY. There is no body builder here and there must never be one: an amendment/replacement is
+ * a different, operator-initiated revision, and re-POSTing an old push would overwrite a document whose
+ * figure PMO never re-approved. The whole operation is: read THAT document, prove it is still the one the
+ * activation created, cancel it if submitted, read it back, and require docstatus 2.
+ *
+ * ⚑ Every dimension is proven from the DOCUMENT, never from the current map. A 15→16 re-bind changes the
+ * map and the grain; neither is evidence about which old document this alarm names. On v16 the upgraded
+ * representation must name ONE fiscal year (from == to); anything else is an unproven shape and holds.
+ */
+async function commitLegacyBudgetRemove(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
+): Promise<CommandResult> {
+  const record = command.record as Record<string, unknown>;
+  const fiscalYear = record.fiscal_year;
+  const target = deps.ctx.refs.self;
+  const fail = (detail: string): never => {
+    throw new AdapterError('commit-rejected', `legacy budget archive: ${String(target)} ${detail}`);
+  };
+  if (typeof fiscalYear !== 'string' || !fiscalYear) return fail('has no fiscal year');
+  if (!target) return fail('has no witnessed predecessor');
+  if (typeof deps.ctx.refs.project !== 'string' || !deps.ctx.refs.project) {
+    return fail('cannot establish the expected ERP project');
+  }
+  if (typeof deps.ctx.config.company !== 'string' || !deps.ctx.config.company) {
+    return fail('cannot establish the expected ERP company');
+  }
+  const bodyFns = requireBodyFns(deps, 'budget');
+  const verify = (doc: Record<string, unknown>): void => {
+    if (doc.name !== target) fail(`read back a different document (${String(doc.name ?? '')})`);
+    if (doc.company !== deps.ctx.config.company) fail('has a different ERP company');
+    if (doc.project !== deps.ctx.refs.project) fail('has a different ERP project');
+    // An account-grained document is NOT this job's target: a legacy cancellation is account-less.
+    if (doc.account !== undefined && doc.account !== null) fail('is account-grained, not a legacy document');
+    // A legacy cancellation is currently enabled only on v15. If an installation exposes multiple
+    // year fields, every supplied field must agree; a matching fiscal_year cannot mask a conflicting
+    // span supplied by the same ERP document.
+    const ownYear = typeof doc.fiscal_year === 'string' ? doc.fiscal_year : null;
+    const fromYear = typeof doc.from_fiscal_year === 'string' ? doc.from_fiscal_year : null;
+    const toYear = typeof doc.to_fiscal_year === 'string' ? doc.to_fiscal_year : null;
+    if ((ownYear !== null && ownYear !== fiscalYear) ||
+        (fromYear !== null && fromYear !== fiscalYear) ||
+        (toYear !== null && toYear !== fiscalYear) ||
+        (ownYear === null && (fromYear === null || toYear === null))) {
+      fail('does not state an unambiguous matching fiscal year');
+    }
+    const status = Number(doc.docstatus);
+    if (status === 0) fail('is a draft');
+    else if (![1, 2].includes(status)) fail(`has unsupported document status ${String(doc.docstatus)}`);
+  };
+  const canonical = (doc: unknown): PmoRecord => ({
+    ...bodyFns.fromDoc(doc), id: command.record.id, fiscal_year: fiscalYear,
+    budget_intent: 'remove', source_kind: 'legacy',
+  });
+
+  const doc = (await getDoc(deps.client, entry.doctype, target)) as Record<string, unknown>;
+  verify(doc);
+  if (Number(doc.docstatus) === 2) return { externalRecordId: target, canonical: canonical(doc) };
+  await cancelDoc(deps.client, entry.doctype, target);
+  await deps.afterCancelHook?.();
+  const readback = (await getDoc(deps.client, entry.doctype, target)) as Record<string, unknown>;
+  verify(readback);
+  if (Number(readback.docstatus) !== 2) fail('could not confirm cancellation');
+  return { externalRecordId: target, canonical: canonical(readback) };
+}
+
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
+  // #1462 — dispatch the LEGACY archive cancellation by source kind BEFORE either version branch, so a
+  // v16 binding can never coerce an old year-grained document into the account-grained path.
+  if (kind === 'budget' && isLegacyBudgetArchiveCommand(command)) {
+    return commitLegacyBudgetRemove(command, deps, entry);
+  }
   if (kind === 'budget' && deps.ctx.versionMajor === 16) {
     const result = await commitV16BudgetCreate(command, deps, entry);
     if (result) return result;
@@ -574,7 +1246,13 @@ async function commitUpdateNonSubmittable(command: AdapterCommand, deps: ErpAdap
  */
 function budgetedDeps(command: AdapterCommand, deps: ErpAdapterDeps): ErpAdapterDeps {
   if (command.commitDeadlineAtMs === undefined) return deps;
-  return { ...deps, client: withCommitDeadline(deps.client, command.commitDeadlineAtMs) };
+  const client = withCommitDeadline(deps.client, command.commitDeadlineAtMs);
+  return {
+    ...deps,
+    client: isRangeBudgetCommand(command)
+      ? withRangeWriteDeadline(client, command.commitDeadlineAtMs)
+      : client,
+  };
 }
 
 async function commitErpCommand(command: AdapterCommand, rawDeps: ErpAdapterDeps): Promise<CommandResult> {
@@ -609,11 +1287,7 @@ export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
   return {
     tier: ERPNEXT_TIER,
     capabilityMap: new Set<PmoDomain>([
-      ERPNEXT_COMPANIES_DOMAIN,
-      ERPNEXT_PROCUREMENT_DOMAIN,
-      ERPNEXT_REVENUE_DOMAIN,
-      ERPNEXT_TIMESHEETS_DOMAIN,
-      ERPNEXT_BUDGET_DOMAIN,
+      ...ERPNEXT_DISPATCH_DOMAINS,
       // #775 phase B — expense postings (ADR-0081). Reached only through the erpnext-sweep pass; adapter-dispatch
       // still has no `expenses` route, and an org can employ it only through the release-guarded Admin switch.
       ERPNEXT_EXPENSES_DOMAIN,

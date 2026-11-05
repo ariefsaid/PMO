@@ -34,6 +34,7 @@ export const WORKFLOWS = {
   'receipt.read': { version: 1, summary: 'read customer receipts from the ERP' },
   'invoice.pair-existing': { version: 1, summary: 'pair PMO invoices with the same invoices already in the ERP' },
   'cutover.revenue': { version: 1, summary: 'employing revenue is refused while PMO drafts would be stranded' },
+  'tax-document.read': { version: 1, summary: 'read tax-document facts from the ERP' },
   'actuals.read': { version: 1, summary: 'read ledger actuals from the ERP' },
   'budget.push': { version: 1, summary: 'send an active budget version to the ERP' },
   'budget.unowned-occupant': { version: 1, summary: 'refuse to amend an ERP budget PMO did not create, writing nothing' },

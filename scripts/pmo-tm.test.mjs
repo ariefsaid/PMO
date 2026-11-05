@@ -14,7 +14,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { run, writeCredentials } from './pmo.mjs';
-import { MAX_CLAIM_RANGE_DAYS, TM_READ_RPCS, explainError, formatAssignees, formatClaims, formatPreview, validateClaimList, validatePreview, validateRatesList } from './lib/pmo-tm.mjs';
+import { MAX_CLAIM_RANGE_DAYS, TM_READ_RPCS, explainError, formatAssignees, formatClaims, formatPreview, formatRateCard, validateClaimList, validatePreview, validateRatesList } from './lib/pmo-tm.mjs';
 
 const PROJECT = '11111111-1111-1111-1111-111111111111';
 const LINE_KEY = '33333333-3333-3333-3333-333333333333';
@@ -23,11 +23,11 @@ const ENGINEER = '55555555-5555-5555-5555-555555555555';
 
 const PREVIEW_ROWS = [
   {
-    line_key: LINE_KEY, rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000,
+    line_key: LINE_KEY, rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', rate: 50000,
     user_id: null, units: 120, amount: 6000000, source_count: 15, unrated_reason: null,
   },
   {
-    line_key: null, rate_version: null, kind: null, label: '(unassigned)', unit: 'hour', rate: null,
+    line_key: null, rate_version: null, kind: null, basis: 'work', label: '(unassigned)', unit: 'hour', rate: null,
     user_id: ENGINEER, units: 8, amount: null, source_count: 1, unrated_reason: 'no rate line is assigned to this person',
   },
 ];
@@ -37,7 +37,7 @@ const CLAIMS = [
     id: CLAIM, work_order_id: null, period_from: '2026-01-01', period_to: '2026-01-31', status: 'SignedOff',
     currency: 'IDR', gross_amount: 6000000, prepared_by: null, signoff_prepared_by: null, confirmed_by: null,
     confirm_basis: null, document_id: null, note: null, created_at: '2026-02-01T02:03:04.000Z',
-    lines: [{ line_key: LINE_KEY, rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: 120, rate: 50000, amount: 6000000 }],
+    lines: [{ line_key: LINE_KEY, rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: 120, rate: 50000, amount: 6000000 }],
   },
 ];
 
@@ -115,7 +115,26 @@ function guardList(name) {
 
 test('AC-TM-017 the CLI reads are exactly the database T&M read tier (latest api_client_request_guard)', () => {
   assert.deepEqual([...TM_READ_RPCS].sort(), guardList('tm_read_rpcs'));
-  assert.deepEqual([...TM_READ_RPCS].sort(), ['list_tm_claims', 'preview_tm_claim']);
+  assert.deepEqual([...TM_READ_RPCS].sort(), ['list_tm_claim_source_details', 'list_tm_claims', 'preview_tm_claim']);
+});
+
+test('AC-TM-017 standby basis is visible in preview and frozen claim output', () => {
+  const standby = { label: 'Excavator', basis: 'standby', unit: 'hour', units: 6, rate: 200000, amount: 1200000, source_count: 1 };
+  assert.match(formatPreview({ lines: [standby], total: '1200000.00' }), /Excavator \(standby\)/);
+  assert.match(formatClaims([{ ...CLAIMS[0], lines: [standby] }]), /Excavator \(standby\)/);
+  const unbilled = formatPreview({ lines: [], unrated: [{ ...standby, rate: null, amount: null, user_id: null, unrated_reason: 'no_standby_rate' }] });
+  assert.match(unbilled, /Excavator \(standby\).*no_standby_rate/);
+  const crane = formatPreview({ lines: [], unrated: [{ ...standby, label: null, basis: 'work', unit: null, rate: null, amount: null, user_id: null, asset_name: 'Crane A', unrated_reason: 'no_rate' }] });
+  assert.match(crane, /Crane A.*no_rate/, 'an unrated equipment source names its machine');
+  assert.doesNotMatch(unbilled, /no person/);
+});
+
+test('AC-TM-017 equipment rate-card output identifies the asset and optional standby price', () => {
+  const output = formatRateCard({ rates: [{
+    project_id: PROJECT, line_key: 'equipment-line', version: 1, is_current: true, kind: 'equipment',
+    asset_id: 'asset-2', label: 'Excavator', unit: 'hour', rate: 800000, standby_rate: 200000, effective_from: '2026-01-01',
+  }] });
+  assert.match(output, /Excavator · equipment · hour · 800000\.00 · asset asset-2 · standby 200000\.00/);
 });
 
 test('AC-TM-017 tm claim preview sends preview_tm_claim with the project and window', async () => {
@@ -232,7 +251,7 @@ test('AC-TM-017 tm rates list --project reads the rate card with a bounded, orde
     assert.deepEqual(f.requests.map((q) => [q.method, q.path]), [['GET', '/rest/v1/contract_rate_lines']]);
     const search = new URLSearchParams(f.requests[0].search);
     assert.equal(search.get('project_id'), `eq.${PROJECT}`);
-    assert.equal(search.get('select'), 'project_id,line_key,version,is_current,kind,label,unit,rate,effective_from,effective_to,applies_to');
+    assert.equal(search.get('select'), 'project_id,line_key,version,is_current,kind,asset_id,label,unit,rate,standby_rate,effective_from,effective_to,applies_to');
     assert.match(search.get('order'), /label|project_id/);
     assert.equal(search.get('limit'), '1000');
     assert.match(r.out, /Site engineer/);
@@ -379,7 +398,7 @@ test('AC-TM-017 explainError maps every documented code and passes others throug
 });
 
 test('AC-TM-017 formatPreview and formatClaims say when there is nothing to show', () => {
-  assert.match(formatPreview([]), /no approved hours to price in this window/);
+  assert.match(formatPreview([]), /no approved sources to price in this window/);
   assert.match(formatClaims([]), /no time-and-materials claims for this project/);
 });
 

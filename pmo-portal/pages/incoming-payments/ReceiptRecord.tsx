@@ -7,16 +7,18 @@ import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
+import { OdooReceiptStatus } from './OdooReceiptStatus';
 
 interface Props {
   receipt: IncomingPaymentRow;
   /** Allocations to show (`null` = the source has not reported them). */
   allocations: ReceiptAllocation[] | null;
   onBack: () => void;
+  odoo?: boolean;
 }
 
 /** S-06 (RF-030..034) — the read-only receipt page: every invoice allocation, cash not yet applied, and recorded withholding. */
-export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack }) => {
+export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, odoo = false }) => {
   const { t } = useTranslation();
   const money = (n: number) => formatCurrencyCents(n, receipt.currency);
   const cancelled = Boolean(receipt.cancelled_at || receipt.erp_cancelled_at);
@@ -26,8 +28,8 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack })
 
   // FIN-S5: the receipt total always; the other figures only when they say something — they differ from the
   // total, are non-zero, or were never reported (collapsed into one line, never three "Not reported" cells).
-  const cashDiffers = receipt.received_amount != null && receipt.received_amount !== receipt.amount;
-  const withheldShown = receipt.withheld_amount != null && receipt.withheld_amount !== 0;
+  const withheldShown = receipt.withheld_amount != null && receipt.withheld_amount > 0;
+  const cashDiffers = receipt.received_amount != null && receipt.received_amount !== receipt.amount && (!odoo || withheldShown);
   const unappliedShown = unapplied !== null && unapplied > 0;
   const someUnreported = receipt.amount == null || receipt.received_amount == null || receipt.withheld_amount == null || unapplied === null;
   const facts: Array<{ label: string; testId?: string; value: React.ReactNode }> = [
@@ -58,9 +60,16 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack })
       <header className="mb-5 border-b border-border pb-4">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-            {t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
+            {odoo && !receiptNumber(receipt)
+              ? t('finance:receipts.titleUnnumbered', 'Receipt, not numbered yet')
+              : t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
           </h1>
-          {cancelled
+          {odoo
+            ? <OdooReceiptStatus receipt={receipt} fallback={cancelled
+              ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
+              : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>{receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}</StatusPill>}
+            />
+            : cancelled
             ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
             : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>
                 {receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}

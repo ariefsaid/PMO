@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
 import { AppError } from '@/src/lib/appError';
-import { getFinancialStatement, getFinancialStatementCatalogue } from './financialStatements';
+import { getFinancialStatement, getFinancialStatementCatalogue, requestFinancialStatementRefresh } from './financialStatements';
 
 const PROJECT = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 const GENERATION_A = {
@@ -179,5 +179,22 @@ describe('financial statement DAL', () => {
     rpc(READ);
     await expect(getFinancialStatement(INPUT)).resolves.toEqual(READ);
     expect(h.rpc).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('AC-CD-006 requestFinancialStatementRefresh', () => {
+  beforeEach(() => { h.rpc.mockReset(); });
+
+  it('AC-CD-006 sends no scope inputs and returns the safe status', async () => {
+    h.rpc.mockResolvedValueOnce({ data: { status: 'accepted', available_at: '2026-11-05T00:05:00Z' }, error: null });
+    await expect(requestFinancialStatementRefresh()).resolves.toBe('accepted');
+    expect(h.rpc).toHaveBeenCalledWith('request_financial_statement_refresh');
+  });
+
+  it('AC-CD-006 surfaces a denial and rejects an unknown status', async () => {
+    h.rpc.mockResolvedValueOnce({ data: null, error: { message: 'not allowed', code: '42501' } });
+    await expect(requestFinancialStatementRefresh()).rejects.toMatchObject({ code: '42501' });
+    h.rpc.mockResolvedValueOnce({ data: { status: 'weird' }, error: null });
+    await expect(requestFinancialStatementRefresh()).rejects.toBeInstanceOf(AppError);
   });
 });

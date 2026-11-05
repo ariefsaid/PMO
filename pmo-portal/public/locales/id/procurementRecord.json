@@ -82,6 +82,12 @@
     "supplierInvoice": "Faktur pemasok",
     "payment": "Pembayaran"
   },
+  "errors": {
+    "paymentInFlight": {
+      "title": "Pembayaran sedang berlangsung",
+      "detail": "Pembayaran untuk tagihan ini sedang berlangsung. Tunggu hingga selesai sebelum membayar lagi."
+    }
+  },
   "recordAnother": "Catat dokumen lain",
   "recordMenu": "Catat dokumen lain",
   "linkAccounting": "Tautkan dari sistem akuntansi",

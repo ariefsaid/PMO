@@ -13,7 +13,8 @@ import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRec
 import type { ErpDispatchFactoryDeps, ExternalOrgBindingRow } from './dispatchTypes.ts';
 import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { resolveErpProjectName } from './dispatchRefs.ts';
-import { formatTimeMaterialsDescription } from './dispatchRevenueFormatting.ts';
+import { readErpPrecision, reshapeProgressLines } from './erpLineRounding.ts';
+import { formatTimeMaterialsDescription, formatTimeMaterialsLabel } from './dispatchRevenueFormatting.ts';
 
 // ============================================================================
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
@@ -217,6 +218,7 @@ export async function resolveReceiptConfig(
 const MAX_CLAIM_LINES = 500;
 interface CanonicalClaimLine {
   label: string;
+  basis?: 'work' | 'standby';
   unit: string;
   quantity: number | string;
   rate: number | string;
@@ -227,6 +229,7 @@ interface TimeMaterialsClaimLine extends Omit<CanonicalClaimLine, 'item' | 'quan
   line_key: string;
   rate_version: number;
   kind: string;
+  basis: 'work' | 'standby';
   units: number | string;
 }
 interface TimeMaterialsClaimState {
@@ -277,36 +280,28 @@ function canonicalProgressLines(
   return canonical;
 }
 
-function configuredClaimItem(config: Record<string, unknown>, label: string): string {
-  const itemMap = config.item_map;
-  if (itemMap && typeof itemMap === 'object' && !Array.isArray(itemMap) && Object.hasOwn(itemMap, label)) {
-    const mapped = (itemMap as Record<string, unknown>)[label];
-    if (typeof mapped === 'string' && mapped !== '') return mapped;
-  }
-  return label;
-}
-
 function canonicalTimeMaterialsLines(
   lines: readonly TimeMaterialsClaimLine[],
-  config: Record<string, unknown>,
+  salesItemByLineKey: ReadonlyMap<string, string | null>,
 ): CanonicalClaimLine[] {
-  return lines.map((line) => ({
-    label: line.label,
-    unit: line.unit,
-    quantity: Number(line.units),
-    rate: line.rate,
-    amount: line.amount,
-    item: configuredClaimItem(config, line.label),
-  }));
-}
-
-function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[]): Array<Record<string, unknown>> {
-  return lines.map((line) => ({
-    item_code: line.item,
-    qty: Number(line.quantity),
-    rate: Number(line.rate),
-    ...(line.label ? { description: `${line.label} (${line.unit})` } : {}),
-  }));
+  return lines.map((line) => {
+    if (line.basis !== 'work' && line.basis !== 'standby') {
+      throw new AppError('A time-and-materials claim line has an invalid basis', 'commit-rejected');
+    }
+    const item = salesItemByLineKey.get(line.line_key);
+    if (!item) {
+      throw new AppError(`Rate line "${line.label}" has no sales item — map it on the rate card`, 'commit-rejected');
+    }
+    return {
+      label: line.label,
+      basis: line.basis,
+      unit: line.unit,
+      quantity: Number(line.units),
+      rate: line.rate,
+      amount: line.amount,
+      item,
+    };
+  });
 }
 
 /** Mirror Frappe v16's Banker's Rounding item amount calculation. */
@@ -380,8 +375,8 @@ function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[], currenc
       rate: needsFrozenAmount ? frozenAmount : signedRate,
       ...(line.label ? {
         description: needsFrozenAmount
-          ? formatTimeMaterialsDescription(line.label, line.unit, quantity, signedRate, line.amount, currency)
-          : `${line.label} (${line.unit})`,
+          ? formatTimeMaterialsDescription(line.label, line.unit, quantity, signedRate, line.amount, currency, line.basis)
+          : `${formatTimeMaterialsLabel(line.label, line.basis, currency)} (${line.unit})`,
       } : {}),
     };
   });
@@ -579,6 +574,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   }
   let lines: ProgressClaimLineRecord[] = [];
   let timeMaterialsLines: CanonicalClaimLine[] | null = null;
+  let progressLines: CanonicalClaimLine[] | null = null;
   if (claim.kind === 'progress') {
     const { data, error: linesError } = await deps.serviceClient.from('progress_claim_lines')
       .select('item_code,description,unit,quantity,rate,amount')
@@ -605,15 +601,25 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
       throw new AppError('Confirm the time-and-materials claim before raising its invoice', 'commit-rejected');
     }
     const { data, error: linesError } = await deps.serviceClient.from('tm_claim_lines')
-      .select('line_key,rate_version,kind,label,unit,units,rate,amount')
+      .select('line_key,rate_version,kind,basis,label,unit,units,rate,amount')
       .eq('org_id', deps.orgId).eq('claim_id', claim.id)
-      .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+      .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).order('basis', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
     if (linesError) throw new AppError(linesError.message, linesError.code);
     const tmLines = (data ?? []) as TimeMaterialsClaimLine[];
     if (tmLines.length > MAX_CLAIM_LINES) {
       throw new AppError(`A time-and-materials claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
     }
-    timeMaterialsLines = canonicalTimeMaterialsLines(tmLines, binding.config);
+    const lineKeys = [...new Set(tmLines.map((line) => line.line_key))];
+    const { data: rateRows, error: rateError } = await deps.serviceClient.from('contract_rate_lines')
+      .select('line_key,sales_item_code')
+      .eq('org_id', deps.orgId).eq('project_id', claim.project_id).eq('is_current', true)
+      .in('line_key', lineKeys);
+    if (rateError) throw new AppError(rateError.message, rateError.code);
+    const salesItemByLineKey = new Map<string, string | null>(
+      ((rateRows ?? []) as Array<{ line_key: string; sales_item_code: string | null }>)
+        .map((rateLine) => [rateLine.line_key, rateLine.sales_item_code]),
+    );
+    timeMaterialsLines = canonicalTimeMaterialsLines(tmLines, salesItemByLineKey);
     assertTimeMaterialsHeader(timeMaterialsLines, claim.gross_amount, tmClaim.gross_amount);
   }
   if (claim.work_order_id) {
@@ -623,7 +629,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (workOrder) fraction = taxBaseFraction(workOrder);
   }
   if (claim.kind === 'progress') {
-    record.items = invoiceItemsFromCanonical(canonicalProgressLines(claim, lines));
+    progressLines = canonicalProgressLines(claim, lines);
   } else if (claim.kind === 'time_materials') {
     record.items = timeMaterialsInvoiceItems(timeMaterialsLines ?? [], claim.currency);
   } else {
@@ -642,6 +648,10 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   // #858: the claim is stated in its own currency, but ERPNext bills in the customer's (else the company's). Refuse a mismatch
   // before a draft exists rather than book the amounts in the wrong currency.
   await assertClaimCurrencyMatchesErp(deps, binding, client, claim.currency, record.customerId);
+  // #1820: ERPNext recomputes each line amount at the site's precision; a line that would book away from its signed amount is sent as 1 × that amount.
+  if (progressLines) {
+    record.items = reshapeProgressLines(progressLines, await readErpPrecision(client), claim.currency);
+  }
   // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
   // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never
   // ran onboarding or had it switched back off.

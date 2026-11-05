@@ -118,25 +118,6 @@ export function isFiscalPeriodRange(start: string, end: string, expectedMonths: 
   return endDate.toISOString().slice(0, 10) === end;
 }
 
-export function validPeriodPair(row: Record<string, unknown>): boolean {
-  const currentStart = row.current_start;
-  const currentEnd = row.current_end;
-  const priorStart = row.prior_start;
-  const priorEnd = row.prior_end;
-  if (
-    !isRealDate(currentStart) || !isRealDate(currentEnd) ||
-    !isRealDate(priorStart) || !isRealDate(priorEnd) ||
-    currentStart > currentEnd || priorStart > priorEnd
-  ) return false;
-
-  const monthCount = row.period_kind === 'month' ? 1 : row.period_kind === 'quarter' ? 3 : 12;
-  const previousDay = new Date(`${currentStart}T00:00:00.000Z`);
-  previousDay.setUTCDate(previousDay.getUTCDate() - 1);
-  return isFiscalPeriodRange(currentStart, currentEnd, monthCount) &&
-    isFiscalPeriodRange(priorStart, priorEnd, monthCount) &&
-    previousDay.toISOString().slice(0, 10) === priorEnd;
-}
-
 export function copyJson(value: unknown, ancestors = new WeakSet<object>()): unknown {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') return Number.isFinite(value) ? value : reject();

@@ -157,6 +157,14 @@ export interface DbMoneyOutboxDepsOpts {
   procurementSnapshot?: { caseId: string; lines: readonly { name: string; description?: string | null; quantity: number | string; rate: number | string | null }[] };
   /** Raw receipt command witness, set only at the trusted dispatch boundary. */
   procurementInputDigest?: string;
+  /** #1783 item 1: verify a LEGACY accepted receipt row (no stored digest) before any new write.
+   *  Only the receipt-line guard path sets this (the ORIGINAL inbound command carried caller-directed
+   *  lines), so other document kinds and whole-purchase Basic receipts keep the shipped digest skip.
+   *  `material` is the tier's own digest material rule — the SAME computation the resolver applies to
+   *  a current payload (ERPNext excludes `created_after`; Odoo also excludes the window keys and
+   *  `DERIVED_KEYS`). The synthesized digest is IN-MEMORY ONLY: nothing is persisted, no schema, no
+   *  marker. An unreadable row (no payload / no operation) fails closed. */
+  verifyLegacyReceiptDigest?: { material: (payload: Record<string, unknown>) => Record<string, unknown> };
   /** Older stored digests of this same command (`DispatchMoneyOutboxDeps.legacyPayloadDigests`). */
   legacyPayloadDigests?: readonly string[];
   /** BLOCK 7: the VERIFIED dispatching user (index.ts's `verified.sub` — never a client-supplied
@@ -210,10 +218,11 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     async readOutbox(domain, pmoRecordId, idempotencyKey) {
       const { data, error } = await serviceClient
         .from('external_command_outbox')
-        // Trimmed from '*' to the 9 columns mapRow consumes (over-fetch dropped payload,
-        // actor_user_id, last_error, attempt_count, external_tier, org_id, operation,
-        // claimed_at, reconcile_after, created_at, updated_at — all unused on this path).
-        .select('id,domain,pmo_record_id,idempotency_key,state,external_record_id,canonical,claim_generation,payload_digest')
+        // Trimmed from '*' to the columns this path consumes. `payload` + `operation` were dropped in
+        // the original trim and are read back ONLY for #1783 item 1's legacy-receipt verification
+        // (a row with no stored digest, reached by a caller-line-intent command) — identity stays
+        // scoped to the same 4-tuple, nothing is written back, and every other domain/kind ignores them.
+        .select('id,domain,pmo_record_id,idempotency_key,state,external_record_id,canonical,claim_generation,payload_digest,payload,operation')
         .eq('org_id', orgId)
         .eq('domain', domain)
         .eq('pmo_record_id', pmoRecordId)
@@ -221,7 +230,24 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
         .maybeSingle();
       if (error) throw new AppError(error.message, error.code);
       if (!data) return null;
-      const row = mapRow(data as OutboxDbRow);
+      const raw = data as OutboxDbRow & { payload: unknown; operation: unknown };
+      const row = mapRow(raw);
+      // Existence alone must not bypass the key↔payload binding: a legacy receipt row (pre-M-3, no
+      // stored digest) reached by a caller-line-intent command is verified in memory against its
+      // persisted payload + persisted operation, then compared through the SAME M-3 path below.
+      if (!row.payloadDigest && opts.verifyLegacyReceiptDigest) {
+        const payload = raw.payload;
+        const operation = raw.operation;
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+            || typeof operation !== 'string' || operation.length === 0) {
+          throw new AppError('The earlier attempt for this key cannot be verified from its stored command', 'commit-rejected');
+        }
+        row.payloadDigest = await canonicalCommandDigest({
+          domain: row.domain,
+          operation,
+          record: opts.verifyLegacyReceiptDigest.material(payload as Record<string, unknown>),
+        });
+      }
       meta.set(row.id, { ...meta.get(row.id), domain: row.domain });
       return row;
     },
@@ -300,8 +326,20 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
       return mapRow(data as OutboxDbRow);
     },
 
-    claimOutboxForCommit: (id) => callRowRpc(serviceClient, 'claim_outbox_for_commit', id, (raw) =>
-      meta.set(raw.id, { domain: raw.domain, attempt: raw.attempt_count, claimedAtMs: Date.now() })),
+    async claimOutboxForCommit(id) {
+      try {
+        return await callRowRpc(serviceClient, 'claim_outbox_for_commit', id, (raw) =>
+          meta.set(raw.id, { domain: raw.domain, attempt: raw.attempt_count, claimedAtMs: Date.now() }));
+      } catch (err) {
+        // A refused claim never wrote to ERP. Fail the never-claimed pending row (and spend its automatic attempts) so
+        // it stops holding its bill and is never re-driven (0682); a row that was ever claimed is left alone. A failed
+        // write here is ignored: the original refusal is what the caller needs, and 0682 releases a stale holder on demand.
+        if (err instanceof AppError && err.code === 'commit-rejected' && isQueuedProcurementRefusal(err.message)) {
+          await serviceClient.rpc('fail_refused_payment_claim', { p_id: id, p_error: err.message });
+        }
+        throw err;
+      }
+    },
     async quarantineCommitting(id) {
       let raw: OutboxDbRow | undefined;
       const row = await callRowRpc(serviceClient, 'quarantine_committing', id, (r) => { raw = r; });

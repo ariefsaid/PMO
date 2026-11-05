@@ -64,6 +64,8 @@ async function setupIssue(input: {
   tags: Array<string | null>;
   versions: unknown[];
   issueError?: { code: string; details: string };
+  /** Item kind Graph returns per metadata read (default file). */
+  kinds?: Array<'file' | 'folder'>;
 }) {
   const projectDocument = {
     id: documentId,
@@ -94,10 +96,12 @@ async function setupIssue(input: {
     if (url.includes('/versions')) {
       body = { value: input.versions };
     } else {
-      const cTag = input.tags[metadataRead++];
+      const read = metadataRead++;
+      const cTag = input.tags[read];
+      const kind = input.kinds?.[read] ?? 'file';
       body = {
         id: 'synthetic-item', name: 'Synthetic file', webUrl: 'https://example.invalid/item',
-        parentReference: { driveId: 'synthetic-drive' }, file: {},
+        parentReference: { driveId: 'synthetic-drive' }, [kind]: {},
         ...(cTag === null ? {} : { cTag }),
       };
     }
@@ -242,6 +246,18 @@ describe('M365 controlled document checks', () => {
     expect(result).toMatchObject({ status: 409, body: { error: 'SOURCE_CHANGED' } });
     expect(service.rpc).not.toHaveBeenCalledWith('m365_issue_document', expect.anything());
     expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    ['first', ['folder', 'file']],
+    ['second', ['file', 'folder']],
+  ] as const)('AC-M365DOC-068 refuses Issue when Graph returns a folder on the %s metadata read', async (_read, kinds) => {
+    const { service, handlerDeps } = await setupIssue({
+      tags: ['same', 'same'], kinds: [...kinds], versions: [{ id: '1.0', lastModifiedDateTime: '2025-01-01T00:00:00Z' }],
+    });
+    const result = await handleIssueMicrosoftDocument({ document_id: documentId }, handlerDeps);
+    expect(result).toMatchObject({ status: 409, body: { error: 'SOURCE_CHANGED' } });
+    expect(service.rpc).not.toHaveBeenCalledWith('m365_issue_document', expect.anything());
   });
 
   it('AC-M365DOC-068 fences a source/status/actor change observed by the final database commit', async () => {

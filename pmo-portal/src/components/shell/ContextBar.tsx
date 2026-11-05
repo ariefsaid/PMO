@@ -5,7 +5,7 @@ import { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
 import { NotificationBell } from './NotificationBell';
 import { AccountMenu } from './AccountMenu';
 
-export interface ContextBarProps {
+interface ContextBarProps {
   breadcrumb: BreadcrumbPart[];
   onOpenPalette: () => void;
   /** Opens the mobile rail drawer (≤920px). */

@@ -60,6 +60,17 @@ Every audit round has found defects in one of these five buckets. Check yours ag
 | Inbound feed (adopt, lifecycle, status) | `supabase/functions/_shared/erpnextFeedDeps.ts` |
 | Sweep (recovery pass + doctype poll) | `supabase/functions/erpnext-sweep/index.ts` |
 | Outbox schema + its RPCs | `supabase/migrations/0096_erpnext_seam_tables.sql` |
+| Per-bill in-flight serialization (0682) | `supabase/migrations/0682_erpnext_payment_inflight_per_bill.sql` |
+
+**The refused-claim write (0682, ERPNext payments).** When a bill's purchase rules refuse a procurement payment's
+claim, the dispatcher's claim wrapper (`claimOutboxForCommit` in
+`supabase/functions/adapter-dispatch/moneyOutboxDeps.ts`) records that through the SQL function
+`fail_refused_payment_claim` (migration 0682) — its only caller. Scope: it fails that one never-claimed `pending` row
+(spending its automatic attempt budget, so neither the sweep's candidate list nor the pending-retry list re-drives it —
+a person's retry is the way forward) and, via the outbox trigger, frees the bill so another payment can take it. It
+never touches a row that was ever claimed: an unknown outcome belongs to the sweep's adopt-or-hold recovery, never to
+a silent failure. The sweep treats a retry refused because the bill is held (`payment-in-flight-for-bill`) as a
+deferral — quiet, tried again next tick — not an error.
 
 ## Numeric relationships that MUST hold (a whole round was lost to one of these)
 

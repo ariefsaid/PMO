@@ -66,6 +66,20 @@ describe('useProcurements', () => {
   });
 });
 
+describe('useProcurements lean', () => {
+  it('PERF-DASH-1: the lean list has its own cache entry and asks the DAL for the lean select', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ lean: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ lean: true });
+    expect(client.getQueryData(['procurements', 'org-1', 'lean-list'])).toBe(result.current.data);
+  });
+});
+
 describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
   beforeEach(() => {
     ownershipState.data = [];

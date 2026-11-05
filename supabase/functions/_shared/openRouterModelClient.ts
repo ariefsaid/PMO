@@ -148,8 +148,72 @@ export function providerPolicyFromEnv(env: {
   return policy;
 }
 
-export interface OpenRouterModelClientOptions {
+/**
+ * Env-read transport override (eval-only). Production never sets these, so the deployed
+ * behaviour stays OpenRouter with OPENROUTER_API_KEY and the resolved model id.
+ * Names are generic on purpose: the key VALUE comes from the caller's environment; nothing
+ * here fetches secrets or names a vault/item.
+ */
+export interface ModelOverrideEnv {
+  AGENT_MODEL_BASE_URL?: string;
+  AGENT_MODEL_API_KEY?: string;
+  AGENT_MODEL_ID?: string;
+  /** Optional `name=value;name2=value2` extra headers the override provider requires (e.g. a session id). */
+  AGENT_MODEL_EXTRA_HEADERS?: string;
+}
+
+export interface ModelTransportOverride {
+  /** OpenAI-compatible base URL (no trailing slash); `/chat/completions` is appended. */
+  baseUrl: string;
   apiKey: string;
+  /** Model id sent instead of every caller's model (so a production slug never reaches the other provider). */
+  model: string;
+  /** Extra request headers, sent only while the override is active (provider routing requirements). */
+  extraHeaders?: Record<string, string>;
+}
+
+/** Parse `name=value;name2=value2`; blank/invalid pairs are ignored. */
+function parseExtraHeaders(raw: string | undefined): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const pair of (raw ?? '').split(';')) {
+    const separator = pair.indexOf('=');
+    if (separator <= 0) continue;
+    const name = pair.slice(0, separator).trim();
+    const value = pair.slice(separator + 1).trim();
+    if (name && value) headers[name] = value;
+  }
+  return headers;
+}
+
+/**
+ * Read the optional transport override — all three names, or none. A partial set is a
+ * misconfiguration and throws: a half-switched eval run must never silently call the
+ * production provider with the wrong key or slug.
+ */
+export function modelOverrideFromEnv(env: ModelOverrideEnv): ModelTransportOverride | undefined {
+  const baseUrl = env.AGENT_MODEL_BASE_URL?.trim();
+  const apiKey = env.AGENT_MODEL_API_KEY?.trim();
+  const model = env.AGENT_MODEL_ID?.trim();
+  if (!baseUrl && !apiKey && !model) return undefined;
+  if (!baseUrl || !apiKey || !model) {
+    throw new Error(
+      'model override requires AGENT_MODEL_BASE_URL, AGENT_MODEL_API_KEY and AGENT_MODEL_ID together',
+    );
+  }
+  const extraHeaders = parseExtraHeaders(env.AGENT_MODEL_EXTRA_HEADERS);
+  return {
+    baseUrl: baseUrl.replace(/\/+$/, ''),
+    apiKey,
+    model,
+    ...(Object.keys(extraHeaders).length > 0 ? { extraHeaders } : {}),
+  };
+}
+
+export interface OpenRouterModelClientOptions {
+  /** OpenRouter key. Optional only because a transport override carries its own key. */
+  apiKey?: string;
+  /** Eval-only transport override (see modelOverrideFromEnv). Unset ⇒ today's OpenRouter transport. */
+  override?: ModelTransportOverride;
   /** Backend routing policy (default: privacy-first no-train pin). See providerPolicyFromEnv. */
   provider?: OpenRouterProviderPolicy;
   /** Models tried after the primary (OpenRouter `models`). Default DEFAULT_FALLBACK_MODELS; [] disables. */
@@ -199,12 +263,16 @@ function isValidChoice(choice: unknown): choice is OpenRouterChoice {
 
 export class OpenRouterModelClient implements ModelClient {
   private readonly apiKey: string;
+  private readonly override?: ModelTransportOverride;
   private readonly provider: OpenRouterProviderPolicy;
   private readonly fallbackModels: readonly string[];
   private readonly retryBaseDelayMs: number;
 
   constructor(options: OpenRouterModelClientOptions) {
-    this.apiKey = options.apiKey;
+    this.override = options.override;
+    // The override's key wins: an override run must never send the OpenRouter key to another host.
+    this.apiKey = options.override?.apiKey ?? options.apiKey ?? '';
+    if (!this.apiKey) throw new Error('OpenRouterModelClient requires an API key');
     this.provider = options.provider ?? DEFAULT_PROVIDER_POLICY;
     this.fallbackModels = options.fallbackModels ?? DEFAULT_FALLBACK_MODELS;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS;
@@ -226,16 +294,24 @@ export class OpenRouterModelClient implements ModelClient {
   private async attemptFetch(params: ModelClientParams): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    // Override = an OpenAI-compatible provider (eval runs). Unset = OpenRouter, byte-for-byte today's request.
+    const overridden = this.override !== undefined;
+    const url = this.override
+      ? `${this.override.baseUrl}/chat/completions`
+      : OPENROUTER_URL;
     try {
-      return await fetch(OPENROUTER_URL, {
+      return await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
+          // Provider-specific request headers (e.g. a routing/session id), only under the override.
+          ...(this.override?.extraHeaders ?? {}),
         },
         body: JSON.stringify({
-          model: params.model,
-          ...(params.noFallback ? {} : this.modelsField(params.model)),
+          model: this.override?.model ?? params.model,
+          // OpenRouter-only: model fallback slugs and provider routing. Omitted under the override.
+          ...(overridden || params.noFallback ? {} : this.modelsField(params.model)),
           max_tokens: params.max_tokens,
           messages: params.messages,
           ...(params.tools ? { tools: params.tools } : {}),
@@ -245,10 +321,13 @@ export class OpenRouterModelClient implements ModelClient {
           // pinned backend keeps the shared static prefix warm (prompt-cache economics); the privacy
           // guarantee is held by the `only` no-train allow-list (NOT data_collection, which the
           // default leaves unset). The owner re-trades privacy↔latency↔cache via AGENT_PROVIDER_*.
-          provider: this.provider,
-          // Retained for older OpenRouter behavior; usage accounting is now returned unconditionally
-          // (this flag is a no-op on current OpenRouter, harmless to keep).
-          usage: { include: true },
+          // Also OpenRouter-only, so omitted under the override.
+          ...(overridden ? {} : {
+            provider: this.provider,
+            // Retained for older OpenRouter behavior; usage accounting is now returned unconditionally
+            // (this flag is a no-op on current OpenRouter, harmless to keep).
+            usage: { include: true },
+          }),
         }),
         signal: controller.signal,
       });

@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
-const project = vi.hoisted(() => ({ transition: vi.fn().mockResolvedValue(undefined), listPipelineStageConfig: vi.fn().mockResolvedValue([{ status: 'Leads', win_probability: 0.1 }, { status: 'Negotiation', win_probability: 0.75 }]), winEligibility: vi.fn() }));
+const project = vi.hoisted(() => ({ transition: vi.fn().mockResolvedValue(undefined), listPipelineStageConfig: vi.fn().mockResolvedValue([{ status: 'Leads', go_probability: 0.1 }, { status: 'Negotiation', go_probability: 0.75 }]), winEligibility: vi.fn() }));
 const integrations = vi.hoisted(() => ({ getBinding: vi.fn(async () => null), ensureErpProject: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations, project } }));
 
@@ -12,8 +12,8 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations, project
 // ---------------------------------------------------------------------------
 vi.mock('@/src/lib/db/projectTransitions', () => ({
   listPipelineStageConfig: vi.fn().mockResolvedValue([
-    { status: 'Leads', win_probability: 0.1 },
-    { status: 'Negotiation', win_probability: 0.75 },
+    { status: 'Leads', go_probability: 0.1 },
+    { status: 'Negotiation', go_probability: 0.75 },
   ]),
   transitionProject: vi.fn().mockResolvedValue(undefined),
 }));
@@ -102,8 +102,8 @@ describe('usePipelineStageConfig', () => {
 
     expect(project.listPipelineStageConfig).toHaveBeenCalledTimes(1);
     expect(result.current.data).toMatchObject([
-      { status: 'Leads', win_probability: 0.1 },
-      { status: 'Negotiation', win_probability: 0.75 },
+      { status: 'Leads', go_probability: 0.1 },
+      { status: 'Negotiation', go_probability: 0.75 },
     ]);
   });
 

@@ -19,9 +19,9 @@ export function useOdooPurchaseCommands(procurementId: string) {
 }
 
 /** True while PMO cannot reach Odoo or the stored check is stale (FR-OPP-091). Unknown reads as reachable: the write itself fails honestly. */
-export function useOdooUnreachable(): { unreachable: boolean; lastOkAt: string | null } {
-  const read = useOdooConnection().data;
-  if (!read) return { unreachable: false, lastOkAt: null };
+export function useOdooUnreachable(enabled = true): { unreachable: boolean; lastOkAt: string | null } {
+  const read = useOdooConnection(enabled).data;
+  if (!enabled || !read) return { unreachable: false, lastOkAt: null };
   const state = displayedConnection(read.connection, new Date(), read);
   return { unreachable: state === 'unreachable' || state === 'unverified', lastOkAt: read.connection?.last_ok_at ?? null };
 }

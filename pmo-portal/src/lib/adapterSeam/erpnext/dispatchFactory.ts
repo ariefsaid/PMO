@@ -17,7 +17,7 @@
  * helpers, so every caller (edge fns + tests) keeps importing from here unchanged. No new
  * product-adapter port was introduced (ADR-0055).
  */
-import { createErpAdapter, ERPNEXT_TIER, type ErpAdapterDeps } from './adapter.ts';
+import { createErpAdapter, ERPNEXT_TIER, type BudgetRangeOutbox, type BudgetRangeOperationState, type ErpAdapterDeps } from './adapter.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import type { Adapter } from '../contract.ts';
@@ -30,7 +30,7 @@ import { resolveSupplierRef } from './dispatchRefs.ts';
 import { resolvePaymentRefs, resolveProcurementOrderRefs, resolvePurchaseInvoiceTaxes, resolvePurchaseProjectRefs } from './dispatchProcurement.ts';
 import { resolveOrdinaryInvoiceCurrency, resolveOrdinaryInvoiceTaxes, resolveProgressClaimInvoice, resolveReceiptConfig, resolveRevenueRefs } from './dispatchRevenue.ts';
 import { resolveTimesheetRefs } from './dispatchTimesheet.ts';
-import { assertBudgetBindingIdentity, isBudgetCommand, readCategoryAccountMap, resolveBudgetRefs } from './dispatchBudget.ts';
+import { assertBudgetBindingIdentity, isBudgetCommand, isLegacyBudgetArchiveCommand, readCategoryAccountMap, resolveBudgetRefs } from './dispatchBudget.ts';
 
 // ── Public seam (re-exports): everything `dispatchFactory.ts` exported before the split, from the
 // same import path. Edge fns (`adapter-dispatch/*`, `erpnext-sweep`) and the vitest suites import
@@ -195,10 +195,41 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // read or sees a modified `ctx.config`. ⚑ The map is resolved FIRST because the refs pre-flight
   // validates the line items against it before issuing its ERP grain read (AC-BUD-011: an unmapped
   // category refuses with zero ERP calls).
-  const budgetConfig = isBudgetCommand(deps.command)
+  const budgetConfig = isBudgetCommand(deps.command) && !isLegacyBudgetArchiveCommand(deps.command)
     ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
     : receiptConfig;
   const { refs: budgetRefs } = await resolveBudgetRefs(deps, binding, budgetConfig);
+
+  const budgetRangeOutbox: BudgetRangeOutbox | undefined = deps.command.record.erp_doc_kind === 'budget'
+      && deps.command.record.budget_mode === 'whole_project'
+    ? {
+      async read(attempt) {
+        const { data, error } = await deps.serviceClient.rpc('read_budget_range_outbox_state', {
+          p_id: attempt.id,
+          p_generation: attempt.generation,
+          p_payload_digest: attempt.payloadDigest,
+          p_identity: attempt.identity,
+        });
+        if (error) {
+          throw new AppError('whole-project budget claim no longer owns its durable operation state',
+            error.code === 'P0001' ? 'command-held' : 'external-unreachable');
+        }
+        return data as BudgetRangeOperationState | null;
+      },
+      async advance(attempt, expectedStage, next) {
+        const { data, error } = await deps.serviceClient.rpc('advance_budget_range_outbox_stage', {
+          p_id: attempt.id,
+          p_generation: attempt.generation,
+          p_payload_digest: attempt.payloadDigest,
+          p_identity: attempt.identity,
+          p_expected_stage: expectedStage,
+          p_next: next,
+        });
+        if (error) throw new AppError('whole-project budget operation stage could not be persisted', 'external-unreachable');
+        return data === true || data === 1;
+      },
+    }
+    : undefined;
 
   const adapterDeps: ErpAdapterDeps = {
     client: {
@@ -250,6 +281,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     },
     afterSubmitHook: deps.afterSubmitHook,
     afterCancelHook: deps.afterCancelHook,
+    ...(budgetRangeOutbox ? { budgetRangeOutbox } : {}),
   };
   return createErpAdapter(adapterDeps);
 }

@@ -79,8 +79,6 @@ it('control(cancel) drives the run to a persisted terminal status', async () => 
     now: () => new Date('2026-07-03T00:00:00Z'),
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
     },
   };

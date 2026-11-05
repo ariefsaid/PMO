@@ -1,7 +1,9 @@
 import type { Role } from '@/src/auth/AuthContext';
 
-export const procurementsKey = (orgId: string | undefined, withRefs = false, withSharedDetails = false) =>
-  withSharedDetails
+export const procurementsKey = (orgId: string | undefined, withRefs = false, withSharedDetails = false, lean = false) =>
+  lean
+    ? ['procurements', orgId, 'lean-list'] as const
+    : withSharedDetails
     ? ['procurements', orgId, 'shared-list'] as const
     : withRefs ? ['procurements', orgId, 'with-refs'] as const : ['procurements', orgId] as const;
 

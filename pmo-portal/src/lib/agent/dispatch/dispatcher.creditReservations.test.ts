@@ -25,6 +25,7 @@ const trigger = (condition = 'sits >30 days in Ordered') =>
 
 function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts: { archiveError?: boolean } = {}) {
   const usageInserts: Array<Record<string, unknown>> = [];
+  const order: string[] = [];
   const errorEvents: Array<Record<string, unknown>> = [];
   const threadUpdates: Array<{ patch: Record<string, unknown>; id: string }> = [];
   const runUpdates: Array<{ patch: Record<string, unknown>; id: string }> = [];
@@ -52,13 +53,13 @@ function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts:
         return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }), upsert: () => Promise.resolve({ error: null }) };
       }
       if (table === 'agent_automation_fires') {
-        return { insert: () => ({ select: () => Promise.resolve({ data: [{ automation_id: auto.id }], error: null }) }) };
+        return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), }), }), insert: () => ({ select: () => Promise.resolve({ data: [{ automation_id: auto.id }], error: null }) }) };
       }
       if (table === 'profiles') {
         return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { org_id: 'org-A' }, error: null }) }) }) };
       }
       if (table === 'agent_usage') {
-        return { insert: (row: Record<string, unknown>) => { usageInserts.push(row); return { select: () => ({ single: () => Promise.resolve({ error: null }) }) }; } };
+        return { insert: (row: Record<string, unknown>) => { usageInserts.push(row); order.push('usage'); return { select: () => ({ single: () => Promise.resolve({ error: null }) }) }; } };
       }
       // usage attributed to the audit run: the trusted-usage path verifies run + thread ownership first
       if (table === 'agent_runs') {
@@ -74,7 +75,6 @@ function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts:
     }),
   };
   const notifInsert = vi.fn().mockResolvedValue({ error: null });
-  const order: string[] = [];
   const minted = {
     from: vi.fn((table: string) => {
       if (table === 'notifications') return { insert: notifInsert };
@@ -195,6 +195,16 @@ describe('dispatcher — natural-language trigger conditions are credit-checked 
     expect(g.check).toHaveBeenCalledTimes(1);
     expect(g.release).toHaveBeenCalledTimes(1);
     expect(g.check.mock.calls[0][2]).toBe(g.release.mock.calls[0][1]);
+    // BACK-04/CROSS-02: hold before the condition call, usage row landed, THEN the hold is released
+    expect(t.order.filter((o) => o !== 'fire')).toEqual(['check', 'usage', 'release']);
+  });
+
+  it('a condition that is true then a fire that throws: usage lands before the hold is released', async () => {
+    const t = setup(trigger());
+    t.handler.mockImplementation((() => ({ [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new Error('boom')) }) })) as never);
+    const g = t.guard();
+    await t.run(g, t.conditionModel('true'));
+    expect(t.order).toEqual(['check', 'usage', 'release']);
   });
 });
 
@@ -227,24 +237,24 @@ describe('dispatcher — conditional triggers leave no visible trace when the co
     expect(t.errorEvents.map((e) => e.error_code)).toContain('AUTOMATION_AUDIT_CLOSE_FAILED');
   });
 
-  it('a burst of events with a false condition mints once: later events hit the memo before any mint', async () => {
+  it('a burst of events with a false condition judges each event on its own (one mint, hold and archive per event)', async () => {
     const t = setup(trigger(), burst(3));
     const cond = t.conditionModel('false');
     const g = t.guard();
     await t.run(g, cond);
-    expect(cond.create).toHaveBeenCalledTimes(1);
-    expect(t.mint.verifyOtp).toHaveBeenCalledTimes(1);
-    expect(g.check).toHaveBeenCalledTimes(1);
-    expect(t.threadUpdates).toHaveLength(1);
+    expect(cond.create).toHaveBeenCalledTimes(3);
+    expect(t.mint.verifyOtp).toHaveBeenCalledTimes(3);
+    expect(g.check).toHaveBeenCalledTimes(3);
+    expect(t.threadUpdates).toHaveLength(3);
     expect(t.handler).not.toHaveBeenCalled();
   });
 
-  it('a burst with a true condition fires every claimed event (one evaluation, one hold per fire)', async () => {
+  it('a burst with a true condition fires every claimed event (one evaluation and one hold per event)', async () => {
     const t = setup(trigger(), burst(3));
     const cond = t.conditionModel('true');
     const g = t.guard();
     await t.run(g, cond);
-    expect(cond.create).toHaveBeenCalledTimes(1);
+    expect(cond.create).toHaveBeenCalledTimes(3);
     expect(t.handler).toHaveBeenCalledTimes(3);
     expect(g.check).toHaveBeenCalledTimes(3);
     expect(g.release).toHaveBeenCalledTimes(3);

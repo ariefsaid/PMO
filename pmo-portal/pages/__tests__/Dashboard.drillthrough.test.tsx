@@ -244,6 +244,8 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectIdentity: () => ({ data: [] }),
   useProjects: () => ({ data: [] }),
   useProject: () => ({ data: { pmo_project_number: 'PRJ-26-0001' }, isPending: false, isError: false }),
+  // #1890: the PM project area reads numbers for the visible cards in ONE batched request.
+  useProjectNumbers: () => ({ data: { p1: 'PRJ-26-0001', p2: 'PRJ-26-0002' }, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjectStatusLabel', () => ({
   useProjectStatusLabel: () => (status: string) => status,

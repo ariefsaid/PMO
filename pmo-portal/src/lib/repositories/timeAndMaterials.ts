@@ -7,11 +7,19 @@
 import * as dal from '@/src/lib/db/timeAndMaterials';
 import { wrap } from './repositoryErrors';
 import type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
+import type { ContractRateLineInput, RateLineSaveResult } from '@/src/lib/db/timeAndMaterials';
+
+function saveContractRateLine(input: ContractRateLineInput): Promise<RateLineSaveResult>;
+function saveContractRateLine(input: ContractRateLineInput[]): Promise<RateLineSaveResult[]>;
+function saveContractRateLine(input: ContractRateLineInput | ContractRateLineInput[]): Promise<RateLineSaveResult | RateLineSaveResult[]>;
+function saveContractRateLine(input: ContractRateLineInput | ContractRateLineInput[]): Promise<RateLineSaveResult | RateLineSaveResult[]> {
+  return wrap(() => dal.saveContractRateLine(input));
+}
 
 export const timeAndMaterialsRepository: TimeAndMaterialsRepository = {
   listRateLines: (projectId, opts) => wrap(() => dal.listRateLines(projectId, opts)),
   listRateAssignees: (projectId) => wrap(() => dal.listRateAssignees(projectId)),
-  saveContractRateLine: (input) => wrap(() => dal.saveContractRateLine(input)),
+  saveContractRateLine,
   endContractRateLine: (input) => wrap(() => dal.endContractRateLine(input)),
   setContractRateAssignee: (input) => wrap(() => dal.setContractRateAssignee(input)),
   endContractRateAssignee: (input) => wrap(() => dal.endContractRateAssignee(input)),

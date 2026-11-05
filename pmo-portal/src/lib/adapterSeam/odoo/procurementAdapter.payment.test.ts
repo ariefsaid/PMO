@@ -131,6 +131,19 @@ describe('AC-OPP-052 an interrupted payment ends with one posted, reconciled pay
     expect(result.canonical).toMatchObject({ id: PAY_ID, amount: '98.00', erp_docstatus: 1, odoo_bill_residual: '0.00' });
   });
 
+  it('AC-OPP-062 a foreign owner holds a draft payment before recovery posts or reconciles it', async () => {
+    const r = await rig();
+    r.arm('account.payment', 'action_post', 'transport');
+    await expect(r.attempt()).rejects.toMatchObject({ code: 'external-unreachable' });
+    const writes = r.writes().length;
+
+    await expect(Reflect.apply(recoverPayment, null, [
+      r.call, r.command().record, undefined, `account.move:${r.billId}`, undefined, async () => true,
+    ])).rejects.toMatchObject({ code: 'command-held' });
+
+    expect(r.writes()).toHaveLength(writes);
+  });
+
   it('idempotency: the same command twice is one payment, one create, one post, one reconcile', async () => {
     const r = await rig();
     const first = await r.attempt();

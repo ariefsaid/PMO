@@ -132,24 +132,44 @@ export function buildPipelineColumns({
       exportValue: (r) => weightedValue(r),
     },
     {
-      key: 'win',
-      header: t('sales.column.winPct', 'Win %'),
+      key: 'go',
+      header: t('sales:column.goPct', '% Go'),
       kind: 'percent',
       size: 96,
       align: 'num',
       cell: (r) => {
-        const pct = Math.round(r.win_probability * 100);
+        const pct = Math.round((r.go_probability ?? r.win_probability) * 100);
         return (
           <ProgressBar
             value={pct}
             tone="primary"
             showValue
-            aria-label={`${t('sales.winProbability', 'Win probability')} ${pct}%`}
+            aria-label={`${t('sales:goProbability', '% Go')} ${pct}%`}
             className="ml-auto"
           />
         );
       },
-      exportValue: (r) => Math.round(r.win_probability * 100),
+      exportValue: (r) => Math.round((r.go_probability ?? r.win_probability) * 100),
+    },
+    {
+      key: 'get',
+      header: t('sales:column.getPct', '% Get'),
+      kind: 'percent',
+      size: 96,
+      align: 'num',
+      cell: (r) => {
+        const pct = Math.round((r.get_probability ?? 1) * 100);
+        return (
+          <ProgressBar
+            value={pct}
+            tone="primary"
+            showValue
+            aria-label={`${t('sales:getProbability', '% Get')} ${pct}%`}
+            className="ml-auto"
+          />
+        );
+      },
+      exportValue: (r) => Math.round((r.get_probability ?? 1) * 100),
     },
     {
       key: 'owner',

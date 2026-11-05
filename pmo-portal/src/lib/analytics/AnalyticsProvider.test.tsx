@@ -21,22 +21,22 @@ vi.mock('./client', () => ({
 const mockConfig = vi.hoisted(() => ({
   enabled: true,
   demoMode: false,
-  analyticsEnabled: true,
   replayAndAutocapture: false,
   posthogKey: 'ph_test',
   posthogHost: 'https://us.i.posthog.com',
   appEnv: 'test',
-  isDev: false,
   isProd: false,
   demoAudience: 'internal' as 'prospect' | 'internal',
   demoAccount: 'local',
 }));
 
 const mockPersistDemoContext = vi.hoisted(() => vi.fn());
+const mockSafeSessionStorage = vi.hoisted(() => vi.fn<() => Pick<Storage, 'getItem' | 'setItem'> | undefined>());
 
 vi.mock('./config', () => ({
   getAnalyticsConfig: () => mockConfig,
   persistDemoContext: mockPersistDemoContext,
+  safeSessionStorage: () => mockSafeSessionStorage(),
 }));
 
 // Plans S4 (FR-PLN-016): the org-plan group property is its own hook with its own suite
@@ -44,6 +44,9 @@ vi.mock('./config', () => ({
 // QueryClientProvider — the hook's plan query would otherwise throw, and its behaviour is not what
 // this suite asserts.
 vi.mock('@/src/hooks/useOrgPlanGroup', () => ({ useOrgPlanGroup: () => {} }));
+
+// Same reason: no QueryClientProvider here; useRouteFirstData has its own suite.
+vi.mock('./useRouteFirstData', () => ({ useRouteFirstData: () => {} }));
 
 // ── Mock useAuth ─────────────────────────────────────────────────────────
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -53,6 +56,8 @@ import { AnalyticsProvider } from './AnalyticsProvider';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // By default the safe accessor resolves to the real jsdom storage, matching production.
+  mockSafeSessionStorage.mockReset().mockReturnValue(window.sessionStorage);
 });
 
 /** Helper: build a minimal auth context value. */
@@ -150,6 +155,29 @@ describe('AnalyticsProvider', () => {
     mockConfig.demoMode = originalDemoMode;
     mockConfig.demoAudience = originalAudience;
     mockConfig.demoAccount = originalAccount;
+  });
+
+  // A browser that blocks storage access throws the moment `window.sessionStorage` is
+  // touched. The provider must hand persistence the SAFE accessor's result — never
+  // evaluate the raw global — so a blocked storage cannot crash the mount.
+  it('persists via the safe storage accessor, tolerating a blocked storage', () => {
+    const blockedStorage = {
+      getItem: () => {
+        throw new DOMException('Access is denied for this document', 'SecurityError');
+      },
+      setItem: () => {
+        throw new DOMException('Access is denied for this document', 'SecurityError');
+      },
+    };
+    mockSafeSessionStorage.mockReturnValue(blockedStorage);
+    const originalDemoMode = mockConfig.demoMode;
+    mockConfig.demoMode = true;
+    try {
+      expect(() => renderTree(makeAuthCtx())).not.toThrow();
+      expect(mockPersistDemoContext).toHaveBeenCalledWith(mockConfig, blockedStorage);
+    } finally {
+      mockConfig.demoMode = originalDemoMode;
+    }
   });
 
   it('does NOT persist demo context when demoMode is off', () => {

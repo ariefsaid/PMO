@@ -93,6 +93,7 @@ When I prepare a client's starting data, I want Claude on my machine to read and
 - **AC-CLI-016** Given the deployed app, when any page is requested, then it carries
   `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY`.
 - **AC-CLI-017** Given a user completing `pmo login`, when the loopback callback succeeds, then its static PMO-styled page names the signed-in email and explains that it is served by the command-line tool on this computer; when sign-in is denied, expired or incomplete, or the callback state mismatches, then the page clearly explains the error; query and account values are rendered as escaped text so script-shaped input remains inert.
+- **AC-CLI-018** Given an Active budget version, when the user tries to archive it from the CLI — through `pmo rpc archive_budget_version_with_cancel_intent`, a bare `pmo update budget_versions` status write, or a `pmo budgets archive` subcommand — then every attempt is refused before any request is sent, because archiving must take the app's route through the archive RPC that records the ERPNext cancellation intent atomically.
 
 ## 4. Traceability
 
@@ -115,5 +116,19 @@ When I prepare a client's starting data, I want Claude on my machine to read and
 | AC-CLI-015 | Integration (pgTAP) | `supabase/tests/api_client_request_guard.test.sql` (list sync: `scripts/pmo.test.mjs`; live check in the AC-CLI-001 e2e) |
 | AC-CLI-016 | Unit (Vitest) | `pmo-portal/test/securityHeaders.test.ts` |
 | AC-CLI-017 | Unit (node:test) | `scripts/pmo.test.mjs` |
+| AC-CLI-018 | Unit (node:test) | `scripts/pmo.test.mjs` |
 
 CI: the node tests run in `verify` ("PMO CLI tests"); Vitest in `verify`; pgTAP and e2e in their lanes.
+
+## 5. Budget archive stays app-only (#1462, 2026-11-03)
+
+Archiving a budget version is `public.archive_budget_version_with_cancel_intent` (migration `0387`) — the one
+transaction that archives the version AND records the durable ERPNext cancellation intent the sweep later
+drives. A CLI archive route would archive without that intent and leave the ERP Budget enforcing a budget
+PMO reports as archived, so the CLI deliberately has none: `pmo rpc archive_budget_version_with_cancel_intent`
+is in no RPC tier, `pmo update budget_versions` is refused (`budget_versions` is read-only from the CLI), and
+`pmo budgets` accepts only `activate` and `link`. This is DD-API-3 — a money transition belongs in the app
+where its separation-of-duties and confirmation rules apply — not an omission, and it is what AC-CLI-018
+pins. Consequence: there is no second archive path that could drift from the app's, so the CLI needs no
+archive-cancellation behaviour of its own. If an archive command is ever added, it MUST call that RPC and
+AC-CLI-018 will fail until it does.

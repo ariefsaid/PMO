@@ -40,6 +40,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-10-30',
   },
   {
+    file: 'AC-OCI-100-odoo-client-invoice-to-receipt.spec.ts',
+    reason: 'The Odoo client-invoice journey requires the disposable Odoo bed and the served-functions lane.',
+    restore: 'Run under scripts/with-odoo-lock.sh and scripts/with-db-lock.sh with the Odoo bed up and scripts/serve-functions.sh active, then scripts/e2e-local.sh AC-OCI-100.',
+    verified: '2026-11-04',
+  },
+  {
     file: 'serial/AC-WHT-002-receipt-withholding.spec.ts',
     reason: 'Receipt withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',
@@ -77,6 +83,12 @@ export const ALLOWED_SKIPS = [
     reason: 'Served-lane boundary smoke — runs in CI\'s dedicated serve-functions step, not the ordinary lane.',
     restore: 'Runs whenever SUPABASE_FUNCTIONS_URL is set.',
     verified: '2026-09-30',
+  },
+  {
+    file: 'AC-OPP-090-odoo-purchase-to-payment.spec.ts',
+    reason: 'The live Odoo purchase-to-payment acceptance journey needs the local served-functions lane and Odoo bed.',
+    restore: 'Run scripts/e2e-local.sh against the local served-functions lane and Odoo bed.',
+    verified: '2026-11-04',
   },
   {
     file: 'serial/AC-PLN-015-switch-off-journey.spec.ts',

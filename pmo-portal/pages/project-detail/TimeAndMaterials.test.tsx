@@ -18,9 +18,12 @@ const h = vi.hoisted(() => ({
   assignees: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   claims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   preview: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
-  sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() },
+  sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0, signoffCurrent: null as boolean | null }, isPending: false, isError: false, refetch: vi.fn() },
+  assets: [{ id: 'asset-1', name: 'Excavator 01' }] as unknown[],
   profiles: [] as unknown[],
   documents: [] as unknown[],
+  erpConnected: true,
+  loadItems: vi.fn(async () => [] as Array<{ value: string; label: string; sub?: string }>),
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
 }));
 
@@ -34,6 +37,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmClaims: () => h.claims,
   useTmClaimPreview: () => h.preview,
   useTmClaimSources: () => h.sources,
+  useDeselectTmSource: () => ({ mutateAsync: h.mutations.deselect, isPending: false }),
   useSaveTmRateLine: () => ({ mutateAsync: h.mutations.saveRate, isPending: false }),
   useSetTmRateAssignee: () => ({ mutateAsync: h.mutations.assign, isPending: false }),
   useEndTmRateAssignee: () => ({ mutateAsync: h.mutations.endAssignee, isPending: false }),
@@ -43,14 +47,21 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useWithdrawTmSignoff: () => ({ mutateAsync: h.mutations.withdraw, isPending: false }),
   useConfirmTmSignoff: () => ({ mutateAsync: h.mutations.confirm, isPending: false }),
 }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: h.assets, truncated: false }, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.documents, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected, loadOptions: h.loadItems }) }));
 
 import TimeAndMaterials from './TimeAndMaterials';
 
 const rate = {
   id: 'rate-row-1', project_id: 'p1', line_key: 'labour-1', kind: 'labour', label: 'Site engineer', unit: 'hour',
   rate: 50000, currency: 'IDR', effective_from: '2026-11-01', effective_to: null, is_current: true, version: 1,
+};
+const equipmentRate = {
+  id: 'rate-row-eq', project_id: 'p1', line_key: 'equip-1', kind: 'equipment', asset_id: 'asset-1', label: 'Excavator hire', unit: 'hour',
+  rate: 800000, standby_rate: 200000, currency: 'IDR', effective_from: '2026-11-01', effective_to: null, is_current: true, version: 2,
+  sales_item_code: null,
 };
 const assignment = {
   id: 'assignment-1', project_id: 'p1', line_key: 'labour-1', user_id: 'u-engineer',
@@ -60,29 +71,29 @@ const claim = {
   id: 'claim-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status: 'Draft',
   currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: null, confirmed_by: null,
   confirm_basis: null, document_id: null, note: null, created_at: '2026-11-03T00:00:00Z',
-  lines: [{ lineKey: 'labour-1', rateVersion: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: 8, rate: 50000, amount: 400000 }],
+  lines: [{ lineKey: 'labour-1', rateVersion: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: 8, rate: 50000, amount: 400000 }],
 };
 const profile = (id: string, full_name: string, status = 'active') => ({ id, full_name, status, role: 'Engineer' });
 const documentRow = { id: 'doc-1', code: 'DOC-01', title: 'Approved timesheet summary', status: 'Approved', file_path: 'stored-file', revision: '1' };
 const priced = {
-  line_key: 'labour-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000,
+  line_key: 'labour-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', rate: 50000,
   user_id: 'u-engineer', units: 8, amount: 400000, source_count: 1, unrated_reason: null,
 };
 const unrated = {
-  line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null,
+  line_key: null, rate_version: null, kind: null, basis: 'work', label: null, unit: null, rate: null,
   user_id: 'u-other', units: 2, amount: null, source_count: 1, unrated_reason: 'no_rate',
 };
 
 const shipped = (locale: 'en' | 'id') => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/timeAndMaterials.json`), 'utf8')) as Record<string, unknown>;
 
-function page(resources: Record<string, { timeAndMaterials: Record<string, unknown> }> = { en: { timeAndMaterials: shipped('en') }, id: { timeAndMaterials: shipped('id') } }) {
+function page(lng: 'en' | 'id' = 'en', resources: Record<string, { timeAndMaterials: Record<string, unknown> }> = { en: { timeAndMaterials: shipped('en') }, id: { timeAndMaterials: shipped('id') } }) {
   const instance = i18next.createInstance();
-  void instance.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials'], resources, interpolation: { escapeValue: false } });
+  void instance.init({ lng, fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials'], resources, interpolation: { escapeValue: false } });
   return instance;
 }
 
-function renderPanel(props: Partial<React.ComponentProps<typeof TimeAndMaterials>> = {}) {
-  const i18n = page();
+function renderPanel(props: Partial<React.ComponentProps<typeof TimeAndMaterials>> = {}, lng: 'en' | 'id' = 'en') {
+  const i18n = page(lng);
   const user = userEvent.setup();
   const result = render(
     <I18nextProvider i18n={i18n}>
@@ -102,15 +113,22 @@ beforeEach(() => {
   h.assignees = { data: { rows: [assignment], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.claims = { data: { rows: [claim], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.preview = { data: { rows: [priced, unrated], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
-  h.sources = { data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: false, totalCount: 1 }, isPending: false, isError: false, refetch: vi.fn() };
+  h.sources = { data: { signoffCurrent: true, rows: [
+    { id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u-engineer', person_name: 'Engineer One', units: 5, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 6 },
+    { id: 'source-row-2', entry_id: 'entry-2', entry_date: '2026-11-04', person_id: 'u-engineer', person_name: 'Engineer One', units: 1, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 6 },
+    { id: 'source-row-3', entry_id: 'entry-3', entry_date: '2026-11-04', person_id: 'u-other', person_name: 'Engineer Two', units: 2, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 2 },
+  ], truncated: false, totalCount: 3 }, isPending: false, isError: false, refetch: vi.fn() };
   h.profiles = [profile('u-engineer', 'Site engineer'), profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
   h.documents = [documentRow];
+  h.erpConnected = true;
+  h.loadItems = vi.fn(async () => [{ value: 'ITEM-LABOUR', label: 'ITEM-LABOUR', sub: 'Site engineer' }]);
   h.mutations = {
     saveRate: vi.fn().mockResolvedValue({ id: 'rate-row-2', lineKey: 'labour-2', version: 1, changed: true }),
     assign: vi.fn().mockResolvedValue(undefined),
     endAssignee: vi.fn().mockResolvedValue(undefined),
     endRate: vi.fn().mockResolvedValue({ id: 'rate-row-1', lineKey: 'labour-1', version: 2, changed: true }),
     assemble: vi.fn().mockResolvedValue('claim-2'),
+    deselect: vi.fn().mockResolvedValue(undefined),
     prepare: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
     confirm: vi.fn().mockResolvedValue({ claimId: 'claim-1', basis: 'standard', grossAmount: 400000 }),
@@ -156,7 +174,10 @@ describe('TimeAndMaterials', () => {
 
     expect(screen.getByText(/Unrated hours/)).toBeInTheDocument();
     expect(screen.getByText(/No rate applies/)).toBeInTheDocument();
-    h.sources = { ...h.sources, data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: true, totalCount: 2 } };
+    h.sources = { ...h.sources, data: { rows: [{
+      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u-engineer', person_name: 'Engineer One',
+      units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 8,
+    }], truncated: true, totalCount: 2, signoffCurrent: true } };
     await user.click(screen.getByRole('button', { name: /Assemble claim/ }));
     await waitFor(() => expect(h.mutations.assemble).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1', from: expect.any(String), to: expect.any(String) })));
 
@@ -165,6 +186,91 @@ describe('TimeAndMaterials', () => {
     expect(screen.getByText(/Approved source entries/)).toBeInTheDocument();
     expect(screen.getByText('Showing 1 of 2 source entries.')).toBeInTheDocument();
     expect(await axe(document.body)).toHaveNoViolations();
+  });
+
+  it('proposes an exact item name first and accepts only the one unambiguous proposal', async () => {
+    const unmatched = { ...rate, id: 'rate-row-2', line_key: 'labour-2', label: 'Survey crew', version: 3 };
+    h.rates = { ...h.rates, data: { rows: [rate, unmatched], truncated: false } };
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-EXACT', label: 'ITEM-EXACT', sub: 'Site engineer' },
+      { value: 'ITEM-NEAR', label: 'ITEM-NEAR', sub: 'SITE-ENGINEER' },
+    ]);
+    const { user } = renderPanel();
+
+    const accept = await screen.findByRole('button', { name: 'Accept proposed (1)' });
+    await user.click(accept);
+
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledTimes(1));
+    expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      project_id: 'p1', line_key: 'labour-1', expected_version: 1, sales_item_code: 'ITEM-EXACT',
+    })]);
+    expect(h.mutations.saveRate.mock.calls[0]?.[0]).not.toEqual(expect.arrayContaining([expect.objectContaining({ line_key: 'labour-2' })]));
+  });
+
+  it('proposes a unique normalized item name when no exact name matches', async () => {
+    h.loadItems = vi.fn(async () => [{ value: 'ITEM-NORMALIZED', label: 'ITEM-NORMALIZED', sub: 'SITE-ENGINEER' }]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Accept proposed (1)' }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      line_key: 'labour-1', sales_item_code: 'ITEM-NORMALIZED',
+    })]));
+  });
+
+  it('leaves a rate line unmapped when its normalized item name is ambiguous', async () => {
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-A', label: 'ITEM-A', sub: 'Site-engineer' },
+      { value: 'ITEM-B', label: 'ITEM-B', sub: 'site engineer.' },
+    ]);
+    renderPanel();
+    expect(await screen.findByText('Not mapped')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Accept proposed/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Sales item for Site engineer/ })).toBeInTheDocument();
+  });
+
+  it('hides rate-line ERP mappings when the organization has no connected ERP', () => {
+    h.erpConnected = false;
+    h.rates = { ...h.rates, data: { rows: [rate, { ...rate, id: 'rate-row-2', line_key: 'labour-2', label: 'Field technician', sales_item_code: 'ITEM-SAVED' }], truncated: false } };
+
+    renderPanel();
+
+    expect(screen.queryByText('Not mapped')).not.toBeInTheDocument();
+    expect(screen.queryByText('ITEM-SAVED')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /Sales item for/ })).not.toBeInTheDocument();
+    expect(h.loadItems).not.toHaveBeenCalled();
+  });
+
+  it('does not render an empty proposal panel when no ERP item matches', async () => {
+    h.loadItems = vi.fn(async () => [{ value: 'ITEM-OTHER', label: 'ITEM-OTHER', sub: 'Electrical work' }]);
+    const { container } = renderPanel();
+
+    await waitFor(() => expect(h.loadItems).toHaveBeenCalledOnce());
+
+    expect(screen.queryByText(/clear sales item match/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Accept proposed/ })).not.toBeInTheDocument();
+    expect(container.querySelector('[class*="bg-secondary/40"]')).toBeNull();
+  });
+
+  it('shows saved item codes and keeps the picker read-only for viewers and impersonation', async () => {
+    h.effectiveRole = 'Project Manager';
+    h.rates = { ...h.rates, data: { rows: [{ ...rate, sales_item_code: 'ITEM-SAVED' }], truncated: false } };
+    renderPanel();
+    expect(await screen.findByText('ITEM-SAVED')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /Sales item for Site engineer/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Accept proposed/ })).not.toBeInTheDocument();
+  });
+
+  it('lets a rate manager change a saved ERP sales item from the rate card', async () => {
+    h.rates = { ...h.rates, data: { rows: [{ ...rate, sales_item_code: 'ITEM-SAVED' }], truncated: false } };
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-SAVED', label: 'ITEM-SAVED', sub: 'Saved item' },
+      { value: 'ITEM-NEW', label: 'ITEM-NEW', sub: 'Replacement item' },
+    ]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('combobox', { name: 'Sales item for Site engineer' }));
+    await user.click(await screen.findByRole('option', { name: /ITEM-NEW/ }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      line_key: 'labour-1', sales_item_code: 'ITEM-NEW',
+    })]));
   });
 
   it('AC-TM-016 shows source hours that add up to a multi-entry claim', async () => {
@@ -179,19 +285,19 @@ describe('TimeAndMaterials', () => {
     h.claims = { ...h.claims, data: { rows: [multiLineClaim], truncated: false } };
     h.sources = {
       ...h.sources,
-      data: { rows: [
-        { id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 },
-        { id: 'source-row-2', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-2', units: 4 },
-        { id: 'source-row-3', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-3', units: 20 },
-        { id: 'source-row-4', claim_id: 'claim-1', claim_line_id: 'line-2', source_kind: 'timesheet_entry', source_id: 'entry-4', units: 1 },
+      data: { signoffCurrent: true, rows: [
+        { id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-01', person_id: 'u-engineer', person_name: 'Engineer One', units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 32 },
+        { id: 'source-row-2', entry_id: 'entry-2', entry_date: '2026-11-02', person_id: 'u-engineer', person_name: 'Engineer One', units: 4, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 32 },
+        { id: 'source-row-3', entry_id: 'entry-3', entry_date: '2026-11-03', person_id: 'u-engineer', person_name: 'Engineer One', units: 20, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 32 },
+        { id: 'source-row-4', entry_id: 'entry-4', entry_date: '2026-11-04', person_id: 'u-other', person_name: 'Engineer Two', units: 1, unit: 'hour', line_label: 'Electrician', is_selected: true, person_unit_total: 1 },
       ], truncated: false, totalCount: 4 },
     };
 
     const { user } = renderPanel();
     await user.click(screen.getByRole('button', { name: /Open claim/ }));
     const sources = screen.getByRole('region', { name: /Approved source entries/ });
-    const displayedHours = within(sources).getAllByText(/^\d+ hours?$/)
-      .reduce((sum, element) => sum + Number(element.textContent?.match(/^\d+/)?.[0] ?? 0), 0);
+    const displayedHours = within(sources).getAllByText(/Nov \d+, 2026 · \d+ hours?/)
+      .reduce((sum, element) => sum + Number(element.textContent?.match(/· (\d+)/)?.[1] ?? 0), 0);
 
     expect(displayedHours).toBe(33);
   });
@@ -199,13 +305,17 @@ describe('TimeAndMaterials', () => {
   it('AC-TM-016 names the visible and total source counts when the source read is capped', async () => {
     h.sources = {
       ...h.sources,
-      data: { rows: Array.from({ length: 200 }, (_, index) => ({
+      data: { signoffCurrent: true, rows: Array.from({ length: 200 }, (_, index) => ({
         id: `source-row-${index}`,
-        claim_id: 'claim-1',
-        claim_line_id: 'line-1',
-        source_kind: 'timesheet_entry',
-        source_id: `entry-${index}`,
+        entry_id: `entry-${index}`,
+        entry_date: '2026-11-03',
+        person_id: 'u-engineer',
+        person_name: 'Engineer One',
         units: 1,
+        unit: 'hour',
+        line_label: 'Site engineer',
+        is_selected: true,
+        person_unit_total: 237,
       })), truncated: true, totalCount: 237 },
     };
 
@@ -261,7 +371,11 @@ describe('TimeAndMaterials', () => {
         <MemoryRouter><ToastProvider><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={createInvoice} canCreateInvoice={() => true} /></main></ToastProvider></MemoryRouter>
       </I18nextProvider>,
     );
-    await user.click(await screen.findByRole('button', { name: /Confirm sign-off/ }));
+    const claims = await screen.findByRole('region', { name: /Time-and-materials claims/ });
+    expect(within(claims).queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
+    await user.click(within(claims).getByRole('button', { name: /Open claim/ }));
+    const claimDrawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    await user.click(within(claimDrawer).getByRole('button', { name: /Confirm sign-off/ }));
     const confirmDialog = screen.getByRole('dialog', { name: /Confirm client sign-off/ });
     await user.click(within(confirmDialog).getByRole('button', { name: /Confirm sign-off/ }));
     await waitFor(() => expect(h.mutations.confirm).toHaveBeenCalledWith('claim-1'));
@@ -353,13 +467,118 @@ describe('TimeAndMaterials', () => {
     expect(within(claims).queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
   });
 
-  it('keeps developer wording out of the claim detail', async () => {
+  it('shows each approved source by person and date, with subtotals that close to the claim units', async () => {
     const { user } = renderPanel();
     await user.click(await screen.findByRole('button', { name: /Open claim/ }));
     const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
     expect(drawer).not.toHaveTextContent(/frozen|rate version/i);
     expect(drawer).toHaveTextContent('Claim lines');
     expect(drawer).toHaveTextContent('8 hours');
+    expect(within(drawer).getByRole('heading', { name: 'Engineer One' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('heading', { name: 'Engineer Two' })).toBeInTheDocument();
+    expect(within(drawer).getByText(/Nov 3, 2026/)).toBeInTheDocument();
+    expect(within(drawer).getAllByText(/Nov 4, 2026/)).toHaveLength(2);
+    expect(within(drawer).getByText('Subtotal · 6 hours')).toBeInTheDocument();
+    expect(within(drawer).getByText('Subtotal · 2 hours')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('Site engineer')).toHaveLength(4);
+  });
+
+  it('lets a preparer remove one draft source only after confirming the removal', async () => {
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    const remove = within(drawer).getByRole('button', { name: /Remove 5 hours for Engineer One/ });
+    expect(remove).toHaveTextContent(/^Remove$/);
+    await user.click(remove);
+    const confirmation = screen.getByRole('alertdialog', { name: /Remove approved hours/ });
+    expect(h.mutations.deselect).not.toHaveBeenCalled();
+    expect(confirmation).toHaveTextContent('Nov 3, 2026');
+    await user.click(within(confirmation).getByRole('button', { name: /^Remove$/ }));
+    await waitFor(() => expect(h.mutations.deselect).toHaveBeenCalledWith({ claimId: 'claim-1', claimSourceId: 'source-row-1' }));
+  });
+
+  it('keeps the visible remove label inside its accessible name in Indonesian', async () => {
+    const { user } = renderPanel({}, 'id');
+    await user.click(await screen.findByRole('button', { name: /Buka klaim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Klaim waktu dan material/ });
+    const remove = within(drawer).getByRole('button', { name: /Hapus 5 jam/ });
+    expect(remove).toHaveTextContent(/^Hapus$/);
+  });
+
+  it('does not offer confirmation when the prepared sign-off no longer matches the claim', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    h.sources = { ...h.sources, data: { ...h.sources.data, signoffCurrent: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(screen.queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
+    expect(within(drawer).getByText(/changed after the sign-off was prepared/i)).toBeInTheDocument();
+  });
+
+  it('allows the project manager to remove a draft source', async () => {
+    h.role = 'Project Manager';
+    h.effectiveRole = 'Project Manager';
+    h.userId = 'u-pm';
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByRole('button', { name: /Remove 5 hours for Engineer One/ })).toBeInTheDocument();
+  });
+
+  it('shows a way to prepare the sign-off again after a draft source changes', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    await user.click(within(drawer).getByRole('button', { name: /Prepare sign-off again/ }));
+    const dialog = await screen.findByRole('dialog', { name: /Update client sign-off/ });
+    await user.selectOptions(within(dialog).getByLabelText(/Evidence document/), 'doc-1');
+    await user.click(within(dialog).getByRole('button', { name: /Prepare sign-off again/ }));
+    await waitFor(() => expect(h.mutations.prepare).toHaveBeenCalledWith({ claimId: 'claim-1', documentId: 'doc-1', note: null }));
+  });
+
+  it('keeps a released source visible without offering another deselect action', async () => {
+    const firstSource = h.sources.data.rows[0] as Record<string, unknown>;
+    h.sources = {
+      ...h.sources,
+      data: { ...h.sources.data, rows: [{ ...firstSource, is_selected: false, person_unit_total: 0 }], truncated: false, totalCount: 1 },
+    };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByText('Not selected')).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: /Remove .* for Engineer One/ })).not.toBeInTheDocument();
+  });
+
+  it('explains released hours once on a withdrawn claim without a zero subtotal', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, status: 'Withdrawn' }], truncated: false } };
+    h.sources = {
+      ...h.sources,
+      data: { ...h.sources.data, rows: h.sources.data.rows.map((source) => ({ ...(source as Record<string, unknown>), is_selected: false, person_unit_total: 0 })) },
+    };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getAllByText('Released when the claim was withdrawn')).toHaveLength(1);
+    expect(within(drawer).queryByText('Not selected')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Subtotal · 0 hours')).not.toBeInTheDocument();
+    expect(within(drawer).getByText('Nov 3, 2026 · 5 hours')).toBeInTheDocument();
+  });
+
+  it('hides source removal after sign-off and while viewing through impersonation', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, status: 'SignedOff', signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    const signedOff = renderPanel();
+    await signedOff.user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    let drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).queryByRole('button', { name: /Remove .* for Engineer/ })).not.toBeInTheDocument();
+    signedOff.unmount();
+
+    h.claims = { ...h.claims, data: { rows: [claim], truncated: false } };
+    h.effectiveRole = 'Project Manager';
+    const impersonated = renderPanel();
+    await impersonated.user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).queryByRole('button', { name: /Remove .* for Engineer/ })).not.toBeInTheDocument();
   });
 
   it('defaults the assemble period to the local calendar date, not UTC', async () => {
@@ -394,6 +613,86 @@ describe('TimeAndMaterials', () => {
     expect(h.mutations.endRate).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole('button', { name: /End rate/ }));
     await waitFor(() => expect(h.mutations.endRate).toHaveBeenCalledWith({ projectId: 'p1', lineKey: 'labour-1', expectedVersion: 1, effectiveTo: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
+  });
+
+  it('T5 review: shows an equipment rate line read-only with its machine, rate and standby rate', async () => {
+    h.rates = { ...h.rates, data: { rows: [rate, equipmentRate], truncated: false } };
+    renderPanel();
+    const row = (await screen.findByText('Excavator hire')).closest('li') as HTMLElement;
+    expect(within(row).getByText('Equipment')).toBeInTheDocument();
+    expect(within(row).getByText('Excavator 01')).toBeInTheDocument();
+    expect(row).toHaveTextContent('800,000');
+    expect(row).toHaveTextContent('Standby');
+    expect(row).toHaveTextContent('200,000');
+    expect(within(row).queryByRole('button', { name: /Edit rate/ })).not.toBeInTheDocument();
+    expect(within(row).queryByText('Not assigned yet')).not.toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /End rate/ })).toBeInTheDocument();
+  });
+
+  it('T5 review: mapping an equipment row sends its own kind, machine and standby rate, never labour', async () => {
+    h.rates = { ...h.rates, data: { rows: [equipmentRate], truncated: false } };
+    h.loadItems = vi.fn(async () => [{ value: 'ITEM-EXC', label: 'ITEM-EXC', sub: 'Excavator hire' }]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Accept proposed (1)' }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledTimes(1));
+    expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      line_key: 'equip-1', expected_version: 2, kind: 'equipment', asset_id: 'asset-1', standby_rate: 200000,
+      rate: 800000, unit: 'hour', sales_item_code: 'ITEM-EXC',
+    })]);
+  });
+
+  it('T5 review: mapping all proposed items keeps each line its own kind, so one equipment line cannot fail the batch', async () => {
+    h.rates = { ...h.rates, data: { rows: [rate, equipmentRate], truncated: false } };
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-LAB', label: 'ITEM-LAB', sub: 'Site engineer' },
+      { value: 'ITEM-EXC', label: 'ITEM-EXC', sub: 'Excavator hire' },
+    ]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Accept proposed (2)' }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledTimes(1));
+    const sent = h.mutations.saveRate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(sent.map((line) => [line.line_key, line.kind, line.asset_id ?? null])).toEqual([
+      ['labour-1', 'labour', null], ['equip-1', 'equipment', 'asset-1'],
+    ]);
+    expect(sent[0]).not.toHaveProperty('standby_rate');
+  });
+
+  it('T5 review: a clearing of an equipment sales item keeps the machine too', async () => {
+    h.rates = { ...h.rates, data: { rows: [{ ...equipmentRate, sales_item_code: 'ITEM-EXC' }], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Clear/ }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      kind: 'equipment', asset_id: 'asset-1', standby_rate: 200000, sales_item_code: null,
+    })]));
+  });
+
+  it('T5 review: the assign form offers labour rates only', async () => {
+    h.rates = { ...h.rates, data: { rows: [rate, equipmentRate], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Assign person/ }));
+    const dialog = screen.getByRole('dialog', { name: /Assign a person to a rate/ });
+    const options = within(within(dialog).getByLabelText(/Rate line/)).getAllByRole('option').map((option) => option.textContent);
+    expect(options.join('|')).toContain('Site engineer');
+    expect(options.join('|')).not.toContain('Excavator hire');
+  });
+
+  it('T5 review: unrated equipment names its machine and a standby claim line says standby', async () => {
+    h.preview = { ...h.preview, data: { rows: [
+      { ...unrated, kind: 'equipment', basis: 'standby', user_id: null, asset_id: 'asset-1', asset_name: 'Excavator 01', unrated_reason: 'no_standby_rate', units: 6 },
+    ], truncated: false } };
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, lines: [{ lineKey: 'equip-1', rateVersion: 1, kind: 'equipment', basis: 'standby', label: 'Excavator hire', unit: 'hour', units: 6, rate: 200000, amount: 1200000 }] }], truncated: false } };
+    h.sources = { ...h.sources, data: { rows: [
+      { id: 'source-eq-1', entry_id: 'usage-1', entry_date: '2026-11-03', person_id: null, person_name: null, asset_id: 'asset-1', asset_name: 'Excavator 01', basis: 'standby', units: 6, unit: 'hour', line_label: 'Excavator hire', is_selected: true, person_unit_total: 6 },
+    ], truncated: false, totalCount: 1, signoffCurrent: true } };
+    const { user } = renderPanel();
+    const unratedList = (await screen.findByRole('heading', { name: /Unrated/ })).parentElement as HTMLElement;
+    expect(unratedList).toHaveTextContent('Excavator 01');
+    expect(unratedList).toHaveTextContent('No standby rate');
+    expect(unratedList).not.toHaveTextContent('Person not identified');
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByRole('heading', { name: 'Excavator 01' })).toBeInTheDocument();
+    expect(drawer).toHaveTextContent('Excavator hire (standby)');
   });
 
   it('marks an ended rate and hides its edit and end actions', async () => {

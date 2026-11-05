@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import { Constants, type Tables } from '@/src/lib/supabase/database.types';
+import { Constants, type Database, type Tables, type Json } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -16,38 +16,66 @@ export type BudgetVersionRow = Tables<'budget_versions'>;
 export type BudgetLineItemRow = Tables<'budget_line_items'>;
 export type BudgetDocumentLinkRow = Tables<'budget_version_document_links'>;
 export type BudgetActivationMode = 'allowed' | 'sole_operator' | 'blocked' | 'blocked_editor' | 'blocked_no_drafter';
+/** The persisted budget-mode column (0576 check constraint). `per_year` is the historic default. */
+export type BudgetVersionMode = 'whole_project' | 'per_year';
+
+/** Exact source-line witness sent with an explicit Draft budget-mode change. */
+export interface BudgetModeSwitchLineWitness {
+  id: string;
+  category: BudgetLineItemRow['category'];
+  budgeted_amount: string;
+  fiscal_year: string | null;
+}
+
+export interface BudgetModeSwitchAssignment {
+  id: string;
+  fiscal_year: string;
+}
+
+// ---------------------------------------------------------------------------
+// Distribution plan contract (#1472 S6A) — the accepted S3 API
+// (`save_budget_distribution`, migration 0577). Amounts travel as EXACT decimal
+// strings end to end; the server owns every validation and the org stamp.
+// ---------------------------------------------------------------------------
+
 export type BudgetDistributionMethod = 'by_days' | 'percent_by_year' | 'amount_by_year';
 
+/** One basis fiscal year: the org's actual ERP fiscal-year name and its date span. */
 export interface BudgetDistributionBasisYear {
   name: string;
   start: string;
   end: string;
 }
 
+/** The exact date/calendar basis a plan was computed against (staleness oracle). */
 export interface BudgetDistributionBasis {
   projectStart: string;
   projectEnd: string | null;
   years: BudgetDistributionBasisYear[];
 }
 
+/** Budget-wide entered weights: basis-year name → the operator's exact decimal string. */
 export type BudgetDistributionInputs = Record<string, string>;
 
+/** A per-category override: its own method and its own entered vector. */
 export interface BudgetCategoryOverride {
   method: BudgetDistributionMethod;
   inputs: BudgetDistributionInputs;
 }
-
 export type BudgetCategoryOverrides = Record<string, BudgetCategoryOverride>;
 
 export interface BudgetDistributionPlanRow {
   category: BudgetLineItemRow['category'];
   fiscal_year: string;
+  /** Zero-based position of this year in the basis (server-validated). */
   ordinal: number;
+  /** EXACT decimal string — never a JS float (NFR-001). */
   amount: string;
   method: BudgetDistributionMethod;
   is_override: boolean;
 }
 
+/** One whole-project distribution snapshot: exactly what the save RPC persists and the read returns. */
 export interface BudgetDistributionPlan {
   method: BudgetDistributionMethod;
   inputs: BudgetDistributionInputs;
@@ -82,19 +110,42 @@ export interface ActivateVersionResult {
 export interface ArchiveVersionResult {
   /** The choice saved by the first successful archive request. */
   cancelErp: boolean;
-  /** Live ERPNext v16 account budgets observed and committed with the archive request. */
+  /** Known potentially live ERPNext budgets observed and committed with the archive request. */
   liveTargetCount: number;
   /** Durable cancellation intents recorded for the sweep. */
   queuedCount: number;
 }
 
-export type BudgetArchiveLiveTarget = Omit<Tables<'budget_version_account_erp_mirror'>, 'erp_budget_name' | 'budget_intent'> & {
-  erp_budget_name: string;
+export type BudgetArchiveLiveTarget = {
+  id: string;
+  budget_version_id: string;
+  fiscal_year: string;
+  to_fiscal_year: string | null;
+  /** '' for a LEGACY (year-grained) document — never invented from a category map. */
+  erp_account: string;
+  erp_budget_name: string | null;
+  erp_docstatus: number | null;
+  erp_cancelled_at: string | null;
+  push_state: string;
   budget_intent: 'ensure' | 'remove';
-  /** True only while this org has an active ERPNext v16 binding; the mirror can outlive it. */
+  activated_at_witness: string | null;
+  /** #1462 — which mirror kind this row came from; `legacy` predates the account-grained push. */
+  source_kind: 'account' | 'legacy';
+  /** True only while this org's active ERPNext binding can cancel THIS kind (v16 for account, v15 for legacy). */
   archive_cancellation_available: boolean;
 };
-type BudgetArchiveMirrorTarget = Omit<BudgetArchiveLiveTarget, 'archive_cancellation_available'>;
+type BudgetArchiveMirrorTarget = Omit<BudgetArchiveLiveTarget, 'archive_cancellation_available' | 'source_kind'>;
+
+/**
+ * #1462 — one conservative archive-cancellation candidate, as the SERVER sees it.
+ *
+ * `eligible` is the server's answer (the same locked predicates the archive transaction re-checks), and
+ * `reason` is a safe code the surface may explain generically. The browser never re-derives eligibility.
+ */
+type BudgetArchiveTargetRpcRow = Database['public']['Functions']['get_budget_archive_targets']['Returns'][number];
+export type BudgetArchiveTarget = Omit<BudgetArchiveTargetRpcRow, 'page_key' | 'source_kind'> & {
+  source_kind: 'account' | 'legacy';
+};
 
 export interface NewLineItem {
   category: BudgetLineItemRow['category'];
@@ -190,6 +241,10 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   return Number(data);
 }
 
+// ---------------------------------------------------------------------------
+// Distribution plan reads/writes (#1472 S6A)
+// ---------------------------------------------------------------------------
+
 function isJsonObject(value: unknown): value is { [key: string]: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -274,7 +329,13 @@ function parseDistributionRows(value: unknown): BudgetDistributionPlanRow[] {
   });
 }
 
-/** Reads a saved plan and all ordered distribution rows in one tenant-scoped SQL snapshot. */
+/**
+ * Reads one version's whole-project distribution from one tenant-scoped SQL statement. Plan fields
+ * and every ordered row share the statement snapshot; the row aggregate is one JSON value, so the
+ * PostgREST response-row limit cannot silently cap the distribution. A version without a visible
+ * plan reads as `null`; any read failure propagates. org_id is NEVER sent — invoker RLS scopes the
+ * plan and rows via the existing policies (NFR-002).
+ */
 export async function getBudgetDistribution(versionId: string): Promise<BudgetDistributionPlan | null> {
   const { data, error } = await supabase.rpc('get_budget_distribution_snapshot', { p_version_id: versionId });
   if (error) throw toAppError(error);
@@ -289,8 +350,175 @@ export async function getBudgetDistribution(versionId: string): Promise<BudgetDi
   };
 }
 
-/** Read all visible versions and their related rows independently, with bounded ordered pages. */
-export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
+/**
+ * Saves one distribution snapshot atomically via the accepted S3 RPC (0577, six-argument form with
+ * per-category overrides). Rows, basis, inputs and overrides pass through VERBATIM — exact decimal
+ * strings, no numeric conversion, no invented fields. org_id is NEVER sent; the definer RPC stamps
+ * the org, validates the whole snapshot under lock against the live source lines, and records the
+ * editor (NFR-002). A rejection throws — the caller keeps its entered values and re-reviews.
+ */
+export async function saveBudgetDistribution(versionId: string, plan: BudgetDistributionPlan): Promise<void> {
+  // The wire format is jsonb; these rebuilds copy each field VERBATIM (no numeric conversion, no
+  // re-shaping) — they exist only to give the typed structures Json's index signature honestly.
+  const basisJson: Json = {
+    projectStart: plan.basis.projectStart,
+    projectEnd: plan.basis.projectEnd,
+    years: plan.basis.years.map((year) => ({ name: year.name, start: year.start, end: year.end })),
+  };
+  const overridesJson: Json = Object.fromEntries(
+    Object.entries(plan.categoryOverrides).map(([category, override]) => [
+      category,
+      { method: override.method, inputs: { ...override.inputs } },
+    ]),
+  );
+  const { error } = await supabase.rpc('save_budget_distribution', {
+    p_version: versionId,
+    p_method: plan.method,
+    p_inputs: { ...plan.inputs },
+    p_basis: basisJson,
+    p_rows: plan.rows.map((row) => ({
+      category: row.category,
+      fiscal_year: row.fiscal_year,
+      ordinal: row.ordinal,
+      amount: row.amount,
+      method: row.method,
+      is_override: row.is_override,
+    })),
+    p_category_overrides: overridesJson,
+  });
+  if (error) throw toAppError(error);
+}
+
+/**
+ * Changes a Draft's fiscal-year shape after the server matches the complete source-line witness.
+ * The RPC changes only fiscal_year and budget_mode; exact source amounts and line identities stay
+ * untouched, and the current editor is stamped for the activation SoD rule.
+ */
+export async function switchBudgetDraftMode(
+  versionId: string,
+  targetMode: BudgetVersionMode,
+  expectedLines: readonly BudgetModeSwitchLineWitness[],
+  assignments: readonly BudgetModeSwitchAssignment[],
+): Promise<void> {
+  const witnessJson: Json = expectedLines.map((line) => ({
+    id: line.id,
+    category: line.category,
+    budgeted_amount: line.budgeted_amount,
+    fiscal_year: line.fiscal_year,
+  }));
+  const assignmentJson: Json = assignments.map((assignment) => ({ ...assignment }));
+  const { error } = await supabase.rpc('switch_budget_draft_mode', {
+    p_version: versionId,
+    p_target_mode: targetMode,
+    p_expected_lines: witnessJson,
+    p_assignments: assignmentJson,
+  });
+  if (error) throw toAppError(error);
+}
+
+/**
+ * Read all visible versions and their related rows.
+ *
+ * ⚑ ONE bounded invoker RPC (`budget_version_read`, migration 0650) replaces the four-request graph
+ * (versions, then lines ∥ editors ∥ totals) that this function used to issue. The function returns a
+ * page of versions with their complete children and the 0400 total; it is security-invoker, so RLS
+ * still decides every row and `org_id` is never sent.
+ *
+ * ⚑ Bounded by contract: the page (`p_offset`/`p_limit`) is materialised inside the function BEFORE any
+ * child aggregation. When a page's children exceed the function's documented budget it returns a single
+ * `overflow: true` marker and aggregates nothing — this client then discards that page and runs the
+ * legacy four paged reads below for the COMPLETE project. Nothing is ever truncated, and a partial page
+ * is never returned as if it were the whole budget.
+ *
+ * ⚑ Consistency: one call is ONE statement snapshot; a multi-page read is several. Offset paging shares
+ * the legacy limitation — a version inserted or deleted before an earlier page shifts the window, so a
+ * concurrent write can duplicate or skip a row. This is not a snapshot protocol.
+ */
+const BUDGET_READ_PAGE_SIZE = 1000;
+
+function isOverflowMarker(row: Record<string, unknown>): boolean {
+  return row.overflow === true;
+}
+
+/** Fail-closed mapping of one aggregate row. Any malformed page rejects; it never becomes empty data. */
+export function mapAggregateRow(raw: unknown): BudgetVersionWithItems {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new AppError('Budget version read returned an unexpected row');
+  }
+  const row = raw as Record<string, unknown>;
+  const versionRow = row.version_row;
+  if (!versionRow || typeof versionRow !== 'object' || Array.isArray(versionRow)) {
+    throw new AppError('Budget version read returned an unexpected version');
+  }
+  const version = versionRow as Record<string, unknown>;
+  if (typeof version.id !== 'string' || !version.id || typeof version.project_id !== 'string') {
+    throw new AppError('Budget version read returned an unexpected version');
+  }
+  if (typeof row.version_no !== 'number' || !Number.isInteger(row.version_no) ||
+      typeof version.version !== 'number' || !Number.isInteger(version.version) ||
+      row.version_id !== version.id || row.version_no !== version.version) {
+    throw new AppError('Budget version read returned an inconsistent version row');
+  }
+  // Children are explicitly `[]`/`{}` on the wire. A missing/null child array is malformed, never "none".
+  const lines = row.line_items;
+  if (!Array.isArray(lines)) throw new AppError('Budget version read returned unexpected line items');
+  for (const line of lines) {
+    if (!line || typeof line !== 'object' || Array.isArray(line)) {
+      throw new AppError('Budget version read returned an unexpected line item');
+    }
+    const item = line as Record<string, unknown>;
+    if (typeof item.id !== 'string' || !item.id || item.budget_version_id !== version.id) {
+      throw new AppError('Budget version read returned a line item from another version');
+    }
+  }
+  const editors = row.editor_ids;
+  if (!Array.isArray(editors) || editors.some((id) => typeof id !== 'string' || !id)) {
+    throw new AppError('Budget version read returned unexpected editors');
+  }
+  const rawTotal = row.total;
+  // ⚑ `Number(null)` is 0 and `Number('')` is 0: an absent total must never become money.
+  if (rawTotal === null || rawTotal === undefined ||
+      (typeof rawTotal !== 'number' && typeof rawTotal !== 'string') ||
+      (typeof rawTotal === 'string' && rawTotal.trim() === '')) {
+    throw new Error('Missing or invalid budget version total');
+  }
+  const total = Number(rawTotal);
+  if (!Number.isFinite(total)) throw new Error('Missing or invalid budget version total');
+  return {
+    ...(version as unknown as BudgetVersionRow),
+    line_items: lines as unknown as BudgetLineItemRow[],
+    total,
+    editor_ids: editors as string[],
+  };
+}
+
+/** Returns `null` when the server says this page is too large to aggregate safely (caller falls back). */
+async function readBudgetAggregate(projectId: string): Promise<BudgetVersionWithItems[] | null> {
+  const out: BudgetVersionWithItems[] = [];
+  for (let offset = 0; ; offset += BUDGET_READ_PAGE_SIZE) {
+    const { data, error } = await supabase.rpc('budget_version_read', {
+      p_project_id: projectId,
+      p_offset: offset,
+      p_limit: BUDGET_READ_PAGE_SIZE,
+    });
+    if (error) throw toAppError(error);
+    // ⚑ NOT `data ?? []`: a null/non-array body is a broken read, not the end of the set.
+    if (!Array.isArray(data)) throw new AppError('Budget version read returned an unexpected response');
+    if (data.some((row) => row && typeof row === 'object' && !Array.isArray(row) && isOverflowMarker(row as Record<string, unknown>))) {
+      return null;
+    }
+    for (const row of data) out.push(mapAggregateRow(row));
+    if (data.length < BUDGET_READ_PAGE_SIZE) break;
+  }
+  return out;
+}
+
+/**
+ * Legacy four-read path — the COMPLETE, independently paged read used for oversized pages and as the
+ * rollback path. Kept byte-compatible with the pre-0650 client contract (versions ordered `version,id`,
+ * lines ordered `id`, editors ordered `budget_version_id,user_id`, the 0400 totals RPC).
+ */
+async function listBudgetVersionsPaged(projectId: string): Promise<BudgetVersionWithItems[]> {
   const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
     .select('*').eq('project_id', projectId)
     .order('version', { ascending: true }).order('id', { ascending: true }).range(from, to));
@@ -325,6 +553,13 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
   });
 }
 
+/** Read all visible versions and their related rows, aggregating a normal page into one request. */
+export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
+  const aggregated = await readBudgetAggregate(projectId);
+  if (aggregated !== null) return aggregated;
+  return listBudgetVersionsPaged(projectId);
+}
+
 /**
  * Reads live ERPNext v16 account budgets for a project's versions. These rows drive
  * the archive prompt and the FR-BUD-122 project banner; the archive RPC re-checks
@@ -343,7 +578,7 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
   const data = await fetchAllPages(async (from, to) => {
     const result = await supabase
       .from('budget_push_mirror_rows')
-      .select('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
+      .select('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
       .in('budget_version_id', [...versionIds])
       .neq('erp_account', '')
       .is('erp_cancelled_at', null)
@@ -357,14 +592,101 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
       typeof row.id === 'string' &&
       typeof row.budget_version_id === 'string' &&
       typeof row.fiscal_year === 'string' &&
-      typeof row.activated_at_witness === 'string' &&
+      (typeof row.to_fiscal_year === 'string' || row.to_fiscal_year === null) &&
+      (typeof row.activated_at_witness === 'string' || row.activated_at_witness === null) &&
       typeof row.erp_account === 'string' && row.erp_account !== '' &&
       typeof row.erp_budget_name === 'string' && row.erp_budget_name !== '' &&
       row.erp_docstatus !== 2 &&
       (row.budget_intent === 'ensure' || row.budget_intent === 'remove') &&
       typeof row.push_state === 'string',
     );
-  return targets.map((target) => ({ ...target, archive_cancellation_available: cancellationAvailable }));
+  return targets.map((target) => ({ ...target, source_kind: 'account' as const, archive_cancellation_available: cancellationAvailable }));
+}
+
+/**
+ * #1462 — the LEGACY (pre-v16, year-grained) twin of `listBudgetArchiveLiveTargets`.
+ *
+ * A v15 push writes `budget_version_erp_mirror`; a 15→16 re-bind leaves those rows in place. The
+ * archived status disclosure therefore reads both account and legacy mirror kinds.
+ *
+ * ⚑ A null/stale activation witness is still returned: it is a reason to WARN, never a reason to hide.
+ * The banner is disclosure; the archive RPC re-checks everything under lock before any write.
+ */
+export async function listLegacyBudgetArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]> {
+  if (versionIds.length === 0) return [];
+  const { data: binding, error: bindingError } = await supabase
+    .from('external_org_bindings')
+    .select('version_major,activated_at')
+    .eq('external_tier', 'erpnext')
+    .maybeSingle();
+  const cancellationAvailable = !bindingError && typeof binding?.activated_at === 'string' &&
+    binding?.version_major === 15;
+  const data = await fetchAllPages(async (from, to) => {
+    const result = await supabase
+      .from('budget_version_erp_mirror')
+      .select('id,budget_version_id,fiscal_year,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,activated_at_witness')
+      .in('budget_version_id', [...versionIds])
+      .is('erp_cancelled_at', null)
+      .order('id')
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    return result;
+  });
+  return ((data ?? []).map((row) => ({ ...row, to_fiscal_year: null })) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
+    .filter((row): row is BudgetArchiveMirrorTarget =>
+      typeof row.id === 'string' &&
+      typeof row.budget_version_id === 'string' &&
+      typeof row.fiscal_year === 'string' &&
+      typeof row.erp_budget_name === 'string' && row.erp_budget_name.trim() !== '' &&
+      row.erp_docstatus !== 2 &&
+      typeof row.push_state === 'string',
+    )
+    .map((row) => ({
+      ...row,
+      erp_account: '',
+      to_fiscal_year: null,
+      budget_intent: 'ensure' as const,
+      source_kind: 'legacy' as const,
+      archive_cancellation_available: cancellationAvailable,
+    }));
+}
+
+/**
+ * #1462 — the SERVER's conservative inventory for one version: every known potentially live ERPNext
+ * Budget (both mirror kinds), the eligibility verdict and a safe reason.
+ *
+ * ⚑ Fails closed. A read error throws, so the surface can never render "nothing is live" out of a
+ * failed query. The archive RPC re-evaluates every predicate under lock; this read is disclosure only.
+ */
+export async function listBudgetArchiveTargets(versionId: string): Promise<BudgetArchiveTarget[]> {
+  const data = await fetchAllPages(async (from, to) => {
+    const result = await supabase.rpc('get_budget_archive_targets', { p_version_id: versionId })
+      .order('page_key', { ascending: true })
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    if (!Array.isArray(result.data)) throw new AppError('Budget archive target read returned an unexpected response');
+    return result;
+  });
+  if (!Array.isArray(data)) throw new AppError('Budget archive target read returned an unexpected response');
+  return (data as unknown as Array<Record<string, unknown>>).map((row) => {
+    if ((row.source_kind !== 'account' && row.source_kind !== 'legacy') ||
+        typeof row.fiscal_year !== 'string' || typeof row.erp_budget_name !== 'string' ||
+        !(typeof row.to_fiscal_year === 'string' || row.to_fiscal_year === null) ||
+        (row.source_kind === 'legacy' && row.to_fiscal_year !== null) ||
+        typeof row.eligible !== 'boolean' || typeof row.reason !== 'string') {
+      throw new AppError('Budget archive target read returned an invalid row');
+    }
+    return {
+      source_kind: row.source_kind,
+      fiscal_year: row.fiscal_year,
+      to_fiscal_year: row.to_fiscal_year,
+      erp_budget_name: row.erp_budget_name,
+      eligible: row.eligible,
+      reason: row.reason,
+      push_state: typeof row.push_state === 'string' ? row.push_state : '',
+      erp_docstatus: typeof row.erp_docstatus === 'number' ? row.erp_docstatus : null,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -462,11 +784,18 @@ function isVersionAllocationConflict(error: { code?: string; message?: string })
 /**
  * Creates a new Draft budget version at max(version)+1 for the project.
  * org_id is NEVER sent (AC-724, FR-BV-004).
+ *
+ * ⚠ #1472 FR-001: the UI names its mode EXPLICITLY (`budgetMode: 'whole_project'`) at the
+ * repository boundary; the import entry names `per_year` explicitly so future default changes
+ * cannot reinterpret imported history. Other mode-less callers and the CLI loader's fixed column
+ * list retain the database's `'per_year'` default. A clone inherits the source mode server-side
+ * (`clone_budget_version`, 0577).
  */
 export async function createBudgetVersion(
   projectId: string,
   name: string,
   provenance?: ImportProvenance,
+  budgetMode?: BudgetVersionMode,
 ): Promise<BudgetVersionRow> {
   for (let attempt = 0; attempt < VERSION_ALLOCATION_ATTEMPTS; attempt++) {
     // Step 1: read current max version for this project
@@ -489,6 +818,10 @@ export async function createBudgetVersion(
         version: nextVersion,
         name,
         status: 'Draft',
+        // #1472 FR-001: the UI names whole_project and import names per_year explicitly; other
+        // mode-less write paths keep the database's own 'per_year' default. The CLI load path is
+        // unchanged and still omits this column from its fixed allowlist.
+        ...(budgetMode ? { budget_mode: budgetMode } : {}),
         // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
         // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
         // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.

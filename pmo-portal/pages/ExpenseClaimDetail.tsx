@@ -1,5 +1,5 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
@@ -7,7 +7,7 @@ import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectChoices } from './expenses/useProjectChoices';
 import {
   useExpenseAdvanceOutstanding, useExpenseClaim, useExpenseClaimLines, useExpenseClaimMutations, useExpenseClaimRoute,
 } from '@/src/hooks/useExpenseClaims';
@@ -40,9 +40,8 @@ const ExpenseClaimDetail: React.FC = () => {
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
   const { update } = useExpenseClaimMutations();
   const float = useImprestFloat(claim?.imprest_float_id);
-  const { data: projects } = useProjects();
+  const projectChoices = useProjectChoices();
   const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
   const backLabel = t('expenses.detail.back', 'Expenses');
   const goBack = () => navigate('/expenses');
@@ -186,7 +185,8 @@ const ExpenseClaimDetail: React.FC = () => {
       {editOpen && (
         <ExpenseClaimFormModal
           kind={claim.kind}
-          projectOptions={projectOptions}
+          projectOptions={projectChoices.options}
+          projectLoad={projectChoices}
           advanceOptions={ownAdvances.options}
           advanceLoad={ownAdvances}
           initial={{

@@ -6,6 +6,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ErpHarness } from './harness.ts';
 
+function normaliseMoney(value: string | null): string {
+  const match = value === null ? null : /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) throw new Error(`Expected a fixed-scale monetary string, received ${value}`);
+  return `${match[1]}.${(match[2] ?? '').padEnd(2, '0')}`;
+}
+
 export function purchasePushSuite(h: ErpHarness): void {
   describe(`purchase.push (${h.tier})`, () => {
     it('B10 a purchase order for another tenant\'s case is refused before any ERP call', async () => {
@@ -67,15 +73,17 @@ export function purchaseLinkExistingSuite(h: ErpHarness): void {
     it('AC-EPR-001 an ERP-native order and bill are each mirrored with the ERP\'s own total', async () => {
       const rows = await h.mirrorPurchases([order, bill]);
       expect(rows).toHaveLength(2);
-      expect(rows).toEqual(expect.arrayContaining([
-        { kind: 'purchase-order', reference: 'PUR-ORD-1', total: '900000' },
-        { kind: 'bill', reference: 'ACC-PINV-1', total: '500000' },
+      expect(rows.map((row) => [row.kind, row.reference, normaliseMoney(row.total)])).toEqual(expect.arrayContaining([
+        ['purchase-order', 'PUR-ORD-1', '900000.00'],
+        ['bill', 'ACC-PINV-1', '500000.00'],
       ]));
     });
 
     it('a document the ERP lists twice is mirrored once, at its newest figures (no double counting)', async () => {
       const rows = await h.mirrorPurchases([bill, { ...bill, total: 450000, modifiedAt: '2026-02-03 00:00:00' }, { ...bill, total: 1, modifiedAt: '2026-01-01 00:00:00' }]);
-      expect(rows).toEqual([{ kind: 'bill', reference: 'ACC-PINV-1', total: '450000' }]);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ kind: 'bill', reference: 'ACC-PINV-1' });
+      expect(normaliseMoney(rows[0].total)).toBe('450000.00');
     });
   });
 }

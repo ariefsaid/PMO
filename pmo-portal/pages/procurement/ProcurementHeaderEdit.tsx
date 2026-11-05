@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -80,14 +80,6 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
     idPrefix: 'pr-header-edit',
     module: 'procurement',
   });
-
-  const { reset } = form;
-  // Re-seed the form from the live props when the panel mounts (it is mounted only
-  // while the header Edit action holds it open).
-  useEffect(() => {
-    reset({ title, projectId, vendorId, budgetCategory: budgetCategory ?? '' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once on mount from props
-  }, []);
 
   const titleField = form.fieldProps('title');
 

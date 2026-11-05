@@ -105,6 +105,19 @@
 -- ⚑ AMENDED BY 0376 (#1271): `save_cost_attribution_rule` and `end_cost_attribution_rule` join the retained set (+2,
 -- count 83 after 0367's 81). SECURITY DEFINER writers under a member's JWT: active Admin/Finance, org from the JWT,
 -- targets limited to the caller's org; proved by supabase/tests/cost_attribution.test.sql (AC-CAT-011).
+-- ⚑ AMENDED BY #1462: `get_budget_archive_targets` joins the retained set (+1, count 149 on the 148-row list).
+-- A SECURITY DEFINER READ invoked through PostgREST under a member's JWT; its body re-asserts active
+-- membership, the caller's org, project access and the archive role gate, and it exposes no internal
+-- reference. Graceful pairing: supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
+-- ⚑ AMENDED BY #1813 (S3): `budget_distribution_gaps` and `save_budget_distribution` join the retained set (+2).
+-- ⚑ AMENDED BY 0588 (#1514 D1): `list_tm_claim_source_details` joins the retained set (+1). This SECURITY DEFINER read
+-- gates to the same amounts audience as `list_tm_claims` and scopes the claim to the JWT org; its role, cross-org and
+-- API-client tier contract is proved in `tm_reads.test.sql`.
+-- ⚑ AMENDED BY 0687: `attach_erp_journal_lines` and `detach_erp_journal_line` join (+2, count 156). Role- and org-gated definers under a member's JWT; anon/PUBLIC revoked.
+-- ⚑ AMENDED BY #1472 (S6B): `switch_budget_draft_mode` joins (+1, count 157). SECURITY DEFINER writer, authenticated member JWTs
+-- only; re-asserts active membership, org and the four budget-writer roles; proved by supabase/tests/budget_draft_mode_switch.test.sql.
+-- Current retained set: 157 names after #1505, #1813, #1514 D1 and #1472 S6B, including #1462's archive inventory read. 0685 adds request_financial_statement_refresh (Refresh now).
+--
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
 -- proved by supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
@@ -225,7 +238,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(6);
+select plan(7);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
@@ -244,10 +257,13 @@ insert into client_callable_rpc_names (proname) values
   ('admin_set_user_status'),
   ('approve_procurement_amount'),
   ('archive_budget_version_with_cancel_intent'),
+  ('get_budget_archive_targets'),
   ('approved_timesheet_for_push'),
   ('approve_equipment_usage_week'),
   ('archive_equipment_usage'),
   ('attach_claim_evidence'),
+  ('attach_erp_journal_lines'),  -- 0687: Admin/Exec/PM/Finance, org from the session; 0687 pgTAP
+  ('detach_erp_journal_line'),  -- 0687: Admin/Finance, org-scoped; 0687 pgTAP
   ('attribute_subcontract_bill_lines'),
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
@@ -321,6 +337,7 @@ insert into client_callable_rpc_names (proname) values
   ('admin_change_domain_ownership'),
   ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
+  ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0588 (#1514 D1)
   ('operator_agent_run_stats'),
   ('operator_create_org'),
   ('operator_grant_credits'),
@@ -348,8 +365,9 @@ insert into client_callable_rpc_names (proname) values
   ('redate_stage_entry'),
   ('release_credits'),
   ('release_outbox_hold'),
+  ('request_financial_statement_refresh'),  -- 0685: Refresh now (Admin/Finance/Executive, org from the session)
   ('request_imprest_replenishment'),
-  ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508 (#1505 P6)
+  ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508, 0512, 0513 (#1505 P6, #1506 C5/C6)
   ('request_po_variation'),
   ('reserve_credits'),
   ('retry_connect_send'),
@@ -372,6 +390,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_work_order_value'),
   ('start_procurement_import_run'),
   ('submit_sales_invoice'),
+  ('switch_budget_draft_mode'),
   ('transition_document_status'),
   ('transition_equipment_usage'),
   ('transition_expense_claim'),
@@ -409,8 +428,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  151,
-  'AC-ACL-002 all 151 retained client-callable RPC names still have a public function');
+  157,
+  'AC-ACL-002 all 157 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -419,8 +438,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  151,
-  'AC-ACL-003 all 151 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  157,
+  'AC-ACL-003 all 157 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
@@ -471,6 +490,16 @@ select is(
 
 revoke execute on function public.anon_definer_write_probe() from anon, authenticated;
 drop function public.anon_definer_write_probe();
+
+-- 0644 adds no client-callable surface: the nightly and manual entry points are service-only, and the
+-- scheduling helper is owner-only. Pinned explicitly so a future accidental grant is named here.
+select ok(not has_function_privilege('anon','public.record_erp_statement_nightly_due(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('authenticated','public.record_erp_statement_nightly_due(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('anon','public.request_erp_statement_manual_intent(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('authenticated','public.request_erp_statement_manual_intent(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('anon','public._erp_statement_nightly_due_at(date,text)','EXECUTE')
+  and not has_function_privilege('authenticated','public._erp_statement_nightly_due_at(date,text)','EXECUTE'),
+  'AC-NS-004 nightly surfaces add no anonymous or authenticated execute');
 
 select * from finish();
 rollback;

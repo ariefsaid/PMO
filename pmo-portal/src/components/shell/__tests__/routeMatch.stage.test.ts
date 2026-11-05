@@ -19,7 +19,7 @@ import {
 describe('breadcrumbForPath — /projects/:id always roots at "Projects" (FIX-2)', () => {
   it('FIX-2: a pipeline-status project at /projects/:id reads "Projects > <name>" (not Sales Pipeline)', () => {
     const navigate = vi.fn();
-    const crumbs = breadcrumbForPath('/projects/p1', 'Acme Tender', navigate, true, 'pipeline');
+    const crumbs = breadcrumbForPath('/projects/p1', 'Acme Tender', navigate, true);
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
@@ -29,7 +29,7 @@ describe('breadcrumbForPath — /projects/:id always roots at "Projects" (FIX-2)
 
   it('FIX-2: a lost-status project at /projects/:id reads "Projects > <name>"', () => {
     const navigate = vi.fn();
-    const crumbs = breadcrumbForPath('/projects/p1', 'Lost Bid', navigate, true, 'lost');
+    const crumbs = breadcrumbForPath('/projects/p1', 'Lost Bid', navigate, true);
     expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
     expect(navigate).toHaveBeenCalledWith('/projects');
@@ -37,7 +37,7 @@ describe('breadcrumbForPath — /projects/:id always roots at "Projects" (FIX-2)
 
   it('an onHand-status project reads "Projects > <name>" (unchanged)', () => {
     const navigate = vi.fn();
-    const crumbs = breadcrumbForPath('/projects/p1', 'Innovate HQ', navigate, true, 'onHand');
+    const crumbs = breadcrumbForPath('/projects/p1', 'Innovate HQ', navigate, true);
     expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
     expect(navigate).toHaveBeenCalledWith('/projects');
@@ -45,12 +45,12 @@ describe('breadcrumbForPath — /projects/:id always roots at "Projects" (FIX-2)
   });
 
   it('an internal-status project reads "Projects > <name>"', () => {
-    const crumbs = breadcrumbForPath('/projects/p1', 'Internal Tooling', undefined, true, 'internal');
+    const crumbs = breadcrumbForPath('/projects/p1', 'Internal Tooling', undefined, true);
     expect(crumbs[0].label).toBe('Projects');
   });
 
   it('the /budget deep-link variant also roots at "Projects"', () => {
-    const crumbs = breadcrumbForPath('/projects/p1/budget', 'Innovate HQ', undefined, true, 'onHand');
+    const crumbs = breadcrumbForPath('/projects/p1/budget', 'Innovate HQ', undefined, true);
     expect(crumbs[0].label).toBe('Projects');
   });
 
@@ -117,8 +117,7 @@ describe('Lost/pre-win deal breadcrumb resolution (FIX-2)', () => {
   it('FIX-2: a lost deal at /projects/:id reads "Projects > <name>" (breadcrumb + rail agree)', () => {
     const navigate = vi.fn();
     const label = recordLabelForPath('/projects/lost1', lists);
-    const group = recordStatusGroupForPath('/projects/lost1', lists);
-    const crumbs = breadcrumbForPath('/projects/lost1', label, navigate, true, group);
+    const crumbs = breadcrumbForPath('/projects/lost1', label, navigate, true);
     expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
     expect(navigate).toHaveBeenCalledWith('/projects');
@@ -127,16 +126,14 @@ describe('Lost/pre-win deal breadcrumb resolution (FIX-2)', () => {
 
   it('FIX-2: a pre-win deal at /projects/:id reads "Projects > <name>"', () => {
     const label = recordLabelForPath('/projects/pre1', lists);
-    const group = recordStatusGroupForPath('/projects/pre1', lists);
-    const crumbs = breadcrumbForPath('/projects/pre1', label, undefined, true, group);
+    const crumbs = breadcrumbForPath('/projects/pre1', label, undefined, true);
     expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1]).toEqual({ label: 'Northwind ERP Rollout' });
   });
 
   it('an on-hand project still reads "Projects > <name>" (unchanged)', () => {
     const label = recordLabelForPath('/projects/on1', lists);
-    const group = recordStatusGroupForPath('/projects/on1', lists);
-    const crumbs = breadcrumbForPath('/projects/on1', label, undefined, true, group);
+    const crumbs = breadcrumbForPath('/projects/on1', label, undefined, true);
     expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1]).toEqual({ label: 'On-Hand HQ' });
   });

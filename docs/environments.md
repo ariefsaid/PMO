@@ -489,6 +489,19 @@ scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh 
   npx playwright test e2e/AC-ENA-053-*
 ```
 
+**ERPNext vendor payments: one in flight per bill.** A bill can have one ERPNext payment in flight at a time; a second
+attempt is refused with "A payment for this bill is already in progress". A payment that never reached ERPNext frees its
+bill by itself: one the purchase rules refused is marked failed at once, and a queued one never claimed within 15 minutes is
+marked failed when the next payment for that bill arrives. Those two automatic releases are not retried automatically; a
+person's retry of the same payment still works while no other payment holds the bill. A payment whose outcome is unknown
+(claimed, then committing, committed or quarantined) is settled by the sweep, which adopts the ERPNext document or holds
+the row. The one route that needs a person is a **held** payment: resolve it through the Admin-only `release_outbox_hold`
+action (held to failed). The same payment then retries by itself and adopts the ERPNext payment if one exists — but the
+automatic retry only happens within 24 hours of the command (`outbox_max_auto_age`, the sweep's automatic age limit), so
+a failed payment older than that is never re-driven on its own and only a person's retry moves it. Before any manual
+retry, check ERPNext for the payment first: if it already exists, the retry adopts it instead of paying twice. Do not
+edit outbox rows by hand.
+
 ## Odoo 20 Community dev bed (#1504 prerequisite)
 
 A stock `odoo:20.0` + `postgres:17-alpine` Docker Compose project (`pmo-odoo`), separate from the Supabase and
@@ -518,6 +531,34 @@ Accounting Invoice groups completed order confirmation, partial and complete rec
 lot creation, revision, bill and payment posting, and reconciliation. Removing each app group separately
 blocked an exercised operation. This is the smallest set tested on this bed, not a proof for every possible
 customized installation; see the O2 findings below.
+
+**Purchase-to-payment setup:** double validation must be off (`po_double_validation = one_step`) so an
+order confirmation completes within the tested flow. Select the organisation's default payment journal from
+the mirrored bank or cash journals that have an outbound payment method; Finance can choose another journal
+for an individual payment. Odoo procurement money writes use the shared money outbox, including same-intent
+recovery after a lost response.
+
+**Background recovery (AC-OPP-062):** each eligible Odoo sweep tick runs bounded procurement recovery beside
+revenue recovery and shares the tick's Odoo-call and time budgets. It reads the candidate set once, reserves
+capacity before dispatch, rebuilds the recorded command and uses persisted composite facts where a recovery
+probe needs them. The recorded actor is rechecked before any recovery reissue that could create a new Odoo
+document. A uniquely proved document is confirmed and linked; ambiguous or conflicting probe evidence stays
+held. Do not adopt a document by amount, vendor or date alone. The AC-OPP-062 sweep bed proves a lost
+bill-post response is linked with exactly one Odoo bill for that command, an edited bill anchor remains held,
+and a payment-create response lost after Odoo accepts it is recovered without allowing a second payment
+intent for the same bill. Order, receipt and revision recovery are covered by unit tests, not this sweep bed.
+
+**Held bill or order procedure:** an Admin reviews the held outbox command, its original PMO record and the
+matching Odoo document, including the supplier, totals, order relationship and creation window. When the
+intended Odoo document is clear, restore or correct its stock external identifier so the original command can
+find it, then use the audited `release_outbox_hold` route and retry the original command. Keep the row held
+when more than one document or owner could match; do not start a new intent to work around the hold.
+
+**Held payment procedure:** only an Admin or Finance user other than the dispatching user may resolve a held
+payment. Compare the candidate in Odoo with the bill, vendor, amount and bounded creation window; adopt only
+after confirming the named payment is reconciled to that bill. Mark the payment absent only after searching
+those same facts and repeating the search; then retry the original command. Leave the row held when the
+evidence is inconclusive. These are scoped dev-bed results; release readiness remains the owner's call.
 
 For the exercised customer-invoice and receipt calls (#1506 findings, research doc §10), an internal user with the
 Billing group (`account.group_account_invoice`) completed invoice create and post, the register-payment wizard, line

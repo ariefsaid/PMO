@@ -4,7 +4,7 @@
 -- b8 foreign admin (org a2), b9 the only member of org a3 (sole-operator case).
 begin;
 create extension if not exists pgtap;
-select plan(107);
+select plan(108);
 
 -- ── Fixture F1 ──────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -243,6 +243,9 @@ set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b1","r
 select lives_ok($q$select deselect_tm_source(pg_temp.st('claimB')::uuid, (select s.id from tm_claim_sources s where s.claim_id = pg_temp.st('claimB')::uuid and s.source_id = '15140000-0000-0000-0000-000000000e11'))$q$,
   'FR-TM-023 the assembler deselects the 4 Nov hours after the prepare');
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+select is(pg_temp.sc(format($q$select to_jsonb(source)->>'signoff_is_current'
+  from list_tm_claim_source_details(%L) source limit 1$q$, pg_temp.st('claimB'))), 'false',
+  'AC-TM-006 a confirmer can see that the prepared sign-off is stale');
 select throws_ok($q$select confirm_tm_signoff(pg_temp.st('claimB')::uuid)$q$, 'P0001', 'the claim changed after its sign-off was prepared: prepare it again',
   'FR-TM-023 the signed quantities are the assembled quantities: a changed claim must be prepared again');
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b2","role":"authenticated"}';

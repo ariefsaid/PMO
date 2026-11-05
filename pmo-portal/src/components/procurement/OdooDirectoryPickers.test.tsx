@@ -16,7 +16,7 @@ vi.mock('@/src/hooks/useOdoo', () => ({
 }));
 vi.mock('@/src/lib/format', async (orig) => ({ ...(await orig<typeof import('@/src/lib/format')>()), formatRelativeTime: () => '3 days ago' }));
 
-import { OdooJournalSelect, OdooTaxPicker } from './OdooDirectoryPickers';
+import { OdooAccountSelect, OdooJournalSelect, OdooTaxPicker } from './OdooDirectoryPickers';
 
 const tax = (id: string, name: string) => ({ external_id: id, name, code: null, attrs: {} });
 const journal = (id: string, name: string, type: string) => ({ external_id: id, name, code: null, attrs: { type } });
@@ -80,6 +80,13 @@ describe('AC-OPP-081 OdooTaxPicker', () => {
 });
 
 describe('AC-OPP-081 OdooJournalSelect', () => {
+  it('AC-OCI-091 takes the caller\'s label, so a receipt reads "Received into" and a bill payment reads "Pay from"', () => {
+    const { rerender } = render(<OdooJournalSelect value="" onChange={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Pay from' })).toBeInTheDocument();
+    rerender(<OdooJournalSelect value="" onChange={vi.fn()} label="Received into" />);
+    expect(screen.getByRole('combobox', { name: 'Received into' })).toBeInTheDocument();
+  });
+
   it('offers only bank and cash journals, after the default, and reports the choice', async () => {
     h.records = { data: { rows: [journal('9', 'Bank BCA', 'bank'), journal('3', 'Purchases', 'purchase'), journal('4', 'Petty cash', 'cash')], total: 3 }, isError: false };
     h.summary = { data: { asOf: FRESH } };
@@ -104,5 +111,48 @@ describe('AC-OPP-081 OdooJournalSelect', () => {
     render(<OdooJournalSelect value="" onChange={vi.fn()} />);
     expect(screen.getByRole('combobox', { name: 'Pay from' })).toBeDisabled();
     expect(screen.getByText('The journal list was last read 3 days ago; refresh the Odoo connection first.')).toBeInTheDocument();
+  });
+});
+
+describe('AC-OCI-091 OdooAccountSelect', () => {
+  it('offers active mirrored accounts from the directory', async () => {
+    h.records = { data: { rows: [{ external_id: '88', name: 'Tax prepayments', code: '1350', attrs: {} }], total: 1 }, isError: false };
+    h.summary = { data: { asOf: FRESH } };
+    const onChange = vi.fn();
+    render(<OdooAccountSelect id="tax-prepaid" label="Tax-prepaid account" value="" onChange={onChange} />);
+    expect(h.seen[0]).toMatchObject({ kind: 'account' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax-prepaid account' }), '88');
+    expect(onChange).toHaveBeenCalledWith('88');
+  });
+
+  it('is disabled with a clear reason when the account directory is empty or stale', () => {
+    h.records = { data: { rows: [], total: 0 }, isError: false }; h.summary = { data: { asOf: null } };
+    const { rerender } = render(<OdooAccountSelect id="tax-prepaid" label="Tax-prepaid account" value="" onChange={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Tax-prepaid account' })).toBeDisabled();
+    expect(screen.getByText('No accounts have been read from Odoo yet.')).toBeInTheDocument();
+    h.records = { data: { rows: [{ external_id: '88', name: 'Tax prepayments', code: '1350', attrs: {} }], total: 1 }, isError: false };
+    h.summary = { data: { asOf: '2026-10-30T00:00:00Z' } };
+    rerender(<OdooAccountSelect id="tax-prepaid" label="Tax-prepaid account" value="" onChange={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Tax-prepaid account' })).toBeDisabled();
+    expect(screen.getByText('The account list was last read 3 days ago; refresh the Odoo connection first.')).toBeInTheDocument();
+  });
+
+  it('review: asks for a page big enough for a chart of accounts, not 100 rows', () => {
+    h.records = { data: { rows: [], total: 0 }, isError: false };
+    render(<OdooAccountSelect id="a" label="Tax-prepaid account" value="" onChange={vi.fn()} />);
+    expect(h.seen[0]).toMatchObject({ kind: 'account', pageSize: 500 });
+  });
+
+  it('review: a saved account stays visible even when the list does not hold it, instead of reading as not set', () => {
+    h.records = { data: { rows: [{ external_id: '88', name: 'Tax prepayments', code: '1350', attrs: {} }], total: 1 }, isError: false };
+    h.summary = { data: { asOf: FRESH } };
+    render(<OdooAccountSelect id="a" label="Customer-advance account" value="210" onChange={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Customer-advance account' })).toHaveDisplayValue('Saved account 210');
+  });
+
+  it('review: can hide its visible label (the setup row already names it) and keeps the accessible name', () => {
+    h.records = { data: { rows: [], total: 0 }, isError: false };
+    render(<OdooAccountSelect id="a" label="Tax-prepaid account" hideLabel value="" onChange={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Tax-prepaid account' })).toBeInTheDocument();
   });
 });

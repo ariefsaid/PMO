@@ -76,6 +76,8 @@ export function classifyBudgetLineCategory(category, description) {
 
 /** The name the app's budget import gives a version it creates (budgetDescriptor.ts). */
 export const IMPORT_VERSION_NAME = 'Imported';
+/** #1472: loaded lines carry fiscal years, so a CLI-created version is per-year, like the app's import. Whole-project Drafts are refused. */
+export const LOAD_BUDGET_MODE = 'per_year';
 
 // Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
 const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
@@ -296,9 +298,8 @@ export async function resolveLoad(doc, api) {
     let problem = null;
     if (hit === 'ambiguous') problem = `company "${c.name}": more than one company has this legal name — resolve it in the app`;
     else if (hit?.archived_at) problem = `company "${c.name}" is archived — restore it in the app first`;
-    else if (!hit && erpOwnsCompanies) {
-      problem = `company "${c.name}" does not exist, and ERPNext owns companies for this organisation: create it in the app (Companies → New) or as a Customer in ERPNext, wait for it to appear in PMO, then run the load again`;
-    }
+    // ADR-0055 §5: companies are ERP party master when ERPNext owns them. A loader can create
+    // the missing Customer through the same synchronous adapter-dispatch command as the app.
     if (problem) {
       problems.push(problem);
       unresolved.add(c.name);
@@ -306,7 +307,7 @@ export async function resolveLoad(doc, api) {
     }
     const current = hit?.short_name?.trim() || null;
     const wanted = c.short_name ?? null;
-    let action = 'create';
+    let action = !hit && erpOwnsCompanies ? 'create_external' : 'create';
     if (hit) action = !wanted || wanted === current ? 'skip' : current === null ? 'set_short_name' : 'short_name_differs';
     const entry = { name: c.name, id: hit?.id ?? null, action, short_name: wanted, current_short_name: current };
     companies.push(entry);
@@ -378,11 +379,15 @@ async function resolveBudget(api, entry) {
     return { ...l, category, rawCategory: l.category, import_key: lineKey(entry.key, l), decision, row };
   });
   if (!entry.existing) return { state: 'new', versionId: null, lines };
-  const versions = await api.get('budget_versions', params({ select: 'id,status,version', project_id: eq(entry.id), order: 'version.desc' }));
+  const versions = await api.get('budget_versions', params({ select: 'id,status,version,budget_mode', project_id: eq(entry.id), order: 'version.desc' }));
   if (versions.some((v) => v.status !== 'Draft')) {
     return { state: 'skip', versionId: null, lines: [], reason: 'the project already has an active or archived budget — add lines with the budget import in the app' };
   }
   if (versions.length === 0) return { state: 'new', versionId: null, lines };
+  // #1472: loaded lines carry fiscal years; a whole-project Draft takes category totals, so it is edited in the app.
+  if (versions[0].budget_mode === 'whole_project') {
+    return { state: 'skip', versionId: null, lines: [], reason: 'the Draft budget is in whole-project mode — the CLI loads per-year lines only; edit it in the app' };
+  }
   return { state: 'attach', versionId: versions[0].id, lines };
 }
 
@@ -459,6 +464,20 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
       await write({ kind: 'company.create', name: c.name }, async () => {
         const [row] = await api.post('companies', { name: c.name, type: 'Client', ...(c.short_name ? { short_name: c.short_name } : {}) });
         c.id = row.id;
+        return { id: row.id };
+      });
+    } else if (c.action === 'create_external') {
+      await write({ kind: 'company.create', name: c.name }, async () => {
+        if (typeof api.createExternalCompany !== 'function') {
+          throw new Error('The API client cannot create an ERP-owned company');
+        }
+        const row = await api.createExternalCompany({ name: c.name, type: 'Client' });
+        if (!row?.id) throw new Error('The ERP company create command returned no canonical company id');
+        c.id = row.id;
+        if (c.short_name) {
+          const rows = await api.patch('companies', params({ id: eq(c.id) }), { short_name: c.short_name });
+          if (!rows?.length) throw Object.assign(new Error(`The short name of "${c.name}" was not changed — the database did not allow it`), { code: 'no_rows' });
+        }
         return { id: row.id };
       });
     } else if (c.action === 'set_short_name') {
@@ -570,7 +589,7 @@ async function applyBudget(e, api, write, note, { batchId, importedAt }) {
     // `status` is omitted on purpose: the column default is Draft and the 0176 trigger refuses anything else.
     await write({ kind: 'budget.version', key: e.key, name: IMPORT_VERSION_NAME }, async () => {
       const [v] = await api.post('budget_versions', {
-        project_id: e.id, version: 1, name: IMPORT_VERSION_NAME, import_batch_id: batchId, imported_at: importedAt,
+        project_id: e.id, version: 1, name: IMPORT_VERSION_NAME, budget_mode: LOAD_BUDGET_MODE, import_batch_id: batchId, imported_at: importedAt,
       });
       versionId = v.id;
       return { version_id: v.id };

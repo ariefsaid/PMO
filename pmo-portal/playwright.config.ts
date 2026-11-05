@@ -18,7 +18,7 @@ export default defineConfig({
   // shared-DB DATA-race flakes (not auth), revert to `process.env.CI ? 1` — the auth-reuse win
   // stands regardless; DB data isolation is a separate follow-up.
   workers: process.env.CI ? 4 : undefined,
-  reporter: 'html',
+  reporter: [['html', { open: 'never' }]],
   // Write ephemeral artifacts (traces, screenshots, error-context) OUTSIDE the worktree. Two reasons:
   //   1. They are gitignored throwaway output — `/tmp` is the honest home for them.
   //   2. Locally, `supabase functions serve` runs an in-process edge runtime with a project file

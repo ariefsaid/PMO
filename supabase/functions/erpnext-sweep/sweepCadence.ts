@@ -23,6 +23,23 @@ export function fullSweepDue(lastFullSweepAt: string | null | undefined, nowMs: 
   return !Number.isFinite(last) || nowMs - last >= SWEEP_FULL_INTERVAL_MS;
 }
 
+/**
+ * The financial-statement report batch keeps its OWN freshness marker (`erp_statement_pass_run`)
+ * instead of the full-run marker, so the batch cadence is independent of how often the full run
+ * happens: 0358 leaves a deferred full run due again on the next tick, which is the right shape for
+ * the inbound passes and the wrong shape for a resumable report batch.
+ */
+export const STATEMENT_PASS_INTERVAL_MS = SWEEP_FULL_INTERVAL_MS;
+/** Deferred segments become eligible at the next UTC five-minute boundary. They run only on a
+ * qualifying full sweep; already-published bindings retain the ordinary full-run retry policy. */
+export const STATEMENT_PASS_RETRY_DELAY_SECONDS = SWEEP_BACKFILL_EVERY_MINUTES * 60;
+
+/** Whether an org's statement pass is due: never run, unreadable, or completed at least an hour ago. */
+export function statementPassDue(lastStatementPassAt: string | null | undefined, nowMs: number): boolean {
+  const last = lastStatementPassAt ? Date.parse(lastStatementPassAt) : Number.NaN;
+  return !Number.isFinite(last) || nowMs - last >= STATEMENT_PASS_INTERVAL_MS;
+}
+
 /** Tick-wide: on a five-minute tick, `full` while some binding lacks its first statement publication. */
 export async function sweepCadenceAt(entryMs: number, allPublished: () => Promise<boolean>): Promise<ErpSweepCadence> {
   const minute = new Date(entryMs).getUTCMinutes();

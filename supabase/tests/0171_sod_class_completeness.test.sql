@@ -676,8 +676,9 @@ set local request.jwt.claims =
 --   reproduction — the exploit IS a PM driving their own deal the length of the pipeline alone.
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b5','01710000-0000-0000-0000-000000000001','SCC Self-set deal','Leads',99999999,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'Tender Submitted'::project_status);
 select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), 'reviewer_required', 'AC-SCC-070: self-authored value is ineligible before win');
 select throws_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,
@@ -704,7 +705,7 @@ select throws_ok(
 reset role;
 select is(
   (select status::text from public.projects where id = '01710000-0000-0000-0000-0000000000b5'),
-  'Quotation Submitted',
+  'Tender Submitted',
   'AC-SCC-071 ROW 2 …and the deal did not move');
 
 -- ── ROW 3: the PM's LINE MANAGER ratifies -> ALLOWED, whatever their role ───────────────────────
@@ -743,8 +744,9 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b6','01710000-0000-0000-0000-000000000001','SCC Finance-ratified','Leads',250000,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'Tender Submitted'::project_status);
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
@@ -767,8 +769,9 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b7','01710000-0000-0000-0000-000000000001','SCC Finance own deal','Leads',88888,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'Tender Submitted'::project_status);
 select lives_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-4', '2026-03-02'::date) $$,
@@ -783,8 +786,9 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b8','01710000-0000-0000-0000-000000000001','SCC Null-manager deal','Leads',640000,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'Tender Submitted'::project_status);
 reset role;
 select ok(
   (select manager_id is null from profiles where id = '01710000-0000-0000-0000-0000000000a2'),
@@ -963,7 +967,7 @@ select is(
 -- It did exactly that on the rank ruling. Pick the deal the rule actually holds back.
 select is(
   (select status::text from public.projects where id = '01710000-0000-0000-0000-0000000000b8'),
-  'Quotation Submitted',
+  'Tender Submitted',
   'AC-CPS-070 transition_project''s money SoD still holds an un-ratified deal out of Won');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════

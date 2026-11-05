@@ -19,6 +19,18 @@
     "assignmentsTruncated": "Ada lebih dari {{limit}} penugasan tarif; tidak semuanya ditampilkan.",
     "peopleError": "Daftar orang tidak dapat dimuat. Coba lagi sebelum menetapkan tarif.",
     "saved": "Tarif disimpan",
+    "salesItem": "Barang penjualan ERP",
+    "salesItemFor": "Barang penjualan untuk {{label}}",
+    "salesItemNoun": "barang penjualan",
+    "notMapped": "Belum dipetakan",
+    "chooseSalesItem": "Pilih barang penjualan",
+    "searchSalesItems": "Cari barang penjualan",
+    "acceptProposed": "Terima usulan ({{count}})",
+    "proposalsLoading": "Memeriksa kemungkinan kecocokan barang penjualan ERP…",
+    "proposalsError": "Barang penjualan ERP tidak dapat dimuat. Coba lagi untuk memeriksa kecocokan.",
+    "retrySalesItems": "Coba lagi",
+    "proposalsReady": "Beberapa baris tarif yang belum dipetakan memiliki kecocokan barang penjualan yang jelas.",
+    "salesItemsSaved": "Pemetaan barang penjualan disimpan",
     "assigned": "Orang ditetapkan ke tarif",
     "addTitle": "Tambah tarif tenaga kerja",
     "editTitle": "Ubah tarif tenaga kerja",
@@ -51,7 +63,10 @@
     "end": "Akhiri tarif",
     "endTitle": "Akhiri tarif ini?",
     "endDescription": "Jam kerja baru setelah hari ini tidak lagi dihargai dengan {{line}}. Klaim yang sudah disusun tetap memakai tarifnya.",
-    "ended": "Tarif diakhiri"
+    "ended": "Tarif diakhiri",
+    "equipmentKind": "Alat berat",
+    "standbyRate": "Siaga",
+    "assetUnavailable": "Alat tidak lagi terdaftar"
   },
   "assembly": {
     "title": "Susun klaim",
@@ -76,7 +91,8 @@
     "error": "Jam yang disetujui tidak dapat ditinjau",
     "empty": "Tidak ada jam yang disetujui pada periode ini.",
     "sourceCount_other": "{{count}} entri yang disetujui",
-    "sourceCount_one": "{{count}} entri yang disetujui"
+    "sourceCount_one": "{{count}} entri yang disetujui",
+    "noStandbyRate": "Belum ada tarif siaga untuk alat ini"
   },
   "claims": {
     "statusSignedOff": "Disetujui klien",
@@ -107,8 +123,12 @@
     "confirmDescription": "Konfirmasi menandai klaim ini disetujui klien dan memungkinkan Finance menerbitkan fakturnya.",
     "withdrawTitle": "Tarik persetujuan pelanggan?",
     "withdrawDescription": "Klaim ini tidak dapat ditagihkan lagi. Jam yang disetujui kembali belum diklaim dan dapat disusun ke klaim berikutnya.",
+    "stale": "Klaim ini berubah setelah persetujuan disiapkan. Siapkan ulang sebelum konfirmasi.",
     "prepareTitle": "Siapkan persetujuan pelanggan",
     "prepareDescription": "Pilih dokumen proyek berstatus Diterbitkan atau Disetujui yang memiliki berkas. Pengguna lain harus mengonfirmasi persetujuan ini.",
+    "prepareAgain": "Siapkan persetujuan lagi",
+    "prepareAgainTitle": "Perbarui persetujuan pelanggan",
+    "prepareAgainDescription": "Tinjau jam yang diperbarui berdasarkan dokumen proyek, lalu siapkan persetujuan lagi.",
     "revision": "revisi {{revision}}",
     "documentsError": "Dokumen bukti tidak dapat dimuat",
     "noDocuments": "Tidak ada dokumen proyek berstatus Diterbitkan atau Disetujui yang memiliki berkas.",
@@ -124,6 +144,16 @@
     "sourcesError": "Entri sumber tidak dapat dimuat",
     "sourcesTruncated": "Menampilkan {{shown}} dari {{total}} entri sumber.",
     "noSources": "Tidak ada entri sumber untuk klaim ini.",
+    "subtotal": "Subtotal",
+    "dateUnavailable": "tanggal tidak tersedia",
+    "sourceNotSelected": "Tidak dipilih",
+    "sourcesReleased": "Jam dilepaskan saat klaim ditarik",
+    "removeSource": "Hapus",
+    "removeSourceLabel": "Hapus {{amount}} untuk {{person}} pada {{date}}",
+    "removeSourceTitle": "Hapus jam yang disetujui?",
+    "removeSourceDescription": "Hapus {{amount}} untuk {{person}} pada {{date}} ({{line}}) dari draf klaim ini?",
+    "reprepareNote": "Persetujuan harus disiapkan kembali agar sesuai dengan jam yang diperbarui.",
+    "sourceRemoved": "Sumber dihapus dari klaim",
     "timeEntry": "Entri waktu yang disetujui",
     "equipmentEntry": "Entri penggunaan yang disetujui"
   },
@@ -132,5 +162,8 @@
     "day_other": "{{amount}} hari",
     "hour_one": "{{amount}} jam",
     "day_one": "{{amount}} hari"
+  },
+  "basis": {
+    "standby": "siaga"
   }
 }

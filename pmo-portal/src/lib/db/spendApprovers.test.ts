@@ -15,6 +15,9 @@ vi.mock('@/src/lib/supabase/client', () => {
     insert: rec('insert'),
     delete: rec('delete'),
     eq: rec('eq'),
+    order: rec('order'),
+    gt: rec('gt'),
+    limit: rec('limit'),
     then: (resolve: (v: unknown) => unknown) => Promise.resolve(h.result).then(resolve),
   });
   return {

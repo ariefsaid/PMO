@@ -1,0 +1,86 @@
+-- Reverses 0512_odoo_receipt_defaults.sql. Restore the vendor-payment-only version from 0508,
+-- then remove the receipt fence, actor column and service-only account setter.
+drop index if exists public.external_command_outbox_one_inflight_odoo_receipt_per_invoice;
+drop function if exists public.set_odoo_tax_prepaid_account(uuid, uuid, text);
+alter table public.incoming_payments drop column if exists recorded_by_id;
+
+create or replace function public.resolve_held_outbox_command(
+  p_outbox_id uuid, p_resolution text, p_external_record_id text default null, p_reason text default null)
+  returns void
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+declare
+  v_actor   uuid := auth.uid();
+  v_org     uuid;
+  v_state   text;
+  v_domain  text;
+  v_tier    text;
+  v_creator uuid;
+  v_record  text;
+  v_payload jsonb;
+begin
+  if v_actor is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+
+  select o.org_id, o.state, o.domain, o.external_tier, o.actor_user_id, o.pmo_record_id, o.payload
+    into v_org, v_state, v_domain, v_tier, v_creator, v_record, v_payload
+    from public.external_command_outbox o where o.id = p_outbox_id for update;
+  if v_org is null then
+    raise exception 'outbox command not found' using errcode = 'P0002';
+  end if;
+
+  if v_org is distinct from public.auth_org_id()
+     or public.auth_role() not in ('Admin', 'Finance')
+     or not public.is_active_member()
+     or v_creator is null
+     or v_creator = v_actor then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  if v_state is distinct from 'held' then
+    raise exception 'outbox command is % — only a held command can be resolved', v_state using errcode = 'P0001';
+  end if;
+  if v_tier is distinct from 'odoo' or v_domain is distinct from 'procurement' or v_payload->>'erp_doc_kind' is distinct from 'payment' then
+    raise exception 'only a held Odoo vendor payment can be resolved here' using errcode = 'P0001';
+  end if;
+
+  if p_resolution = 'adopt' then
+    if p_external_record_id is null or p_external_record_id !~ '^account\.payment:[0-9]+$' then
+      raise exception 'adopt names an Odoo payment as account.payment:<id>' using errcode = '22023';
+    end if;
+    if exists (select 1 from public.external_refs r
+                where r.org_id = v_org and r.external_tier = 'odoo' and r.external_record_id = p_external_record_id
+                  and not (r.domain = v_domain and r.pmo_record_id = v_record)) then
+      raise exception '% is already linked to another record', p_external_record_id using errcode = 'P0001';
+    end if;
+    v_payload := v_payload || jsonb_build_object('odoo_adopted_ref', p_external_record_id);
+  elsif p_resolution = 'absent' then
+    if p_external_record_id is not null then
+      raise exception 'absent names no document' using errcode = '22023';
+    end if;
+    v_payload := v_payload || jsonb_build_object('odoo_absent_confirmed', true);
+  else
+    raise exception 'resolution must be adopt or absent' using errcode = '22023';
+  end if;
+
+  update public.external_command_outbox
+     set state            = 'failed',
+         payload          = v_payload,
+         last_error       = 'hold resolved (' || p_resolution || ') by operator ' || v_actor::text || ': ' || coalesce(p_reason, ''),
+         claim_generation = claim_generation + 1,
+         updated_at       = now()
+   where id = p_outbox_id;
+
+  perform public.log_audit(
+    'resolve_held_outbox_command', v_org, v_actor, p_outbox_id,
+    jsonb_build_object('resolution', p_resolution, 'external_record_id', p_external_record_id, 'reason', p_reason, 'resolved_from', v_state)
+  );
+end;
+$$;
+
+revoke all on function public.resolve_held_outbox_command(uuid, text, text, text) from public;
+grant execute on function public.resolve_held_outbox_command(uuid, text, text, text) to authenticated;
+revoke execute on function public.resolve_held_outbox_command(uuid, text, text, text) from anon;

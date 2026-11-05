@@ -67,13 +67,22 @@ they don't touch Postgres directly.
 
 ```bash
 npm run e2e
-# == playwright test --project=chromium && playwright test --project=serial --workers=1
+# == playwright test --project=chromium && playwright test --project=serial --workers=1 && playwright test --project=consent
 ```
 
 **Why two phases, not one run:** Playwright's `workers` setting is **global** to an invocation — a
 single run cannot pin the `serial` project to 1 worker while `chromium` uses 4. Two invocations is
 the simplest way to guarantee `serial` specs never overlap the parallel batch or each other; each
 invocation owns fresh dev servers (`reuseExistingServer: false`).
+
+**Where a failure's evidence lives:** Playwright CLEARS its `outputDir` at the start of every
+invocation, so each invocation gets its own directory under the config's root
+(`os.tmpdir()/pmo-portal-test-results` → `chromium/`, `serial/`, `consent/`). Sharing one directory
+lets a later phase delete an earlier phase's trace, video and error-context — which is exactly what
+made a chromium red un-root-causable under `affected-e2e.mjs --run`. That script and
+`scripts/e2e-local.sh`'s no-arg path each pass `--output` per phase and print the paths; a
+single-invocation run keeps the config default, so CI's `pmo-portal-test-results/` upload still
+covers every lane.
 
 ## 7. The PR→`main` gate is CI; `verify-main-pr.sh` reproduces it locally
 

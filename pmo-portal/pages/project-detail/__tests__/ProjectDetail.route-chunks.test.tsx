@@ -33,6 +33,7 @@ const routeChunkState = vi.hoisted(() => {
   };
 });
 
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('@/src/hooks/useProjectStageEntries', () => ({
   useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
   useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),

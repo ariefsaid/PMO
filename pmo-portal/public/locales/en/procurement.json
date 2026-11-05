@@ -326,13 +326,6 @@
     "selectSupplier": "Select a supplier…",
     "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
   },
-  "approvalSection": {
-    "heading": "Procurement cases awaiting you ({{total}})",
-    "error": "Couldn't load procurement cases",
-    "errorSub": "Something went wrong fetching requests awaiting you.",
-    "empty": "No procurement cases awaiting your decision",
-    "emptySub": "Procurement cases that need your approval will appear here."
-  },
   "approvalRow": {
     "approve": "Approve",
     "rejectShort": "Reject",
@@ -346,7 +339,6 @@
     "noProject": "No project linked",
     "approveTitle": "Approve {{title}}?",
     "rejectTitle": "Reject {{title}}?",
-    "showBudget": "Show budget impact for {{title}}",
     "approvedDetail": "{{title}} has been approved",
     "rejectedDetail": "{{title}} has been rejected",
     "open": "Open procurement",
@@ -620,7 +612,9 @@
       "purchase-order": "Order",
       "goods-receipt": "Goods receipt",
       "purchase-invoice": "Supplier invoice",
-      "payment": "Payment"
+      "payment": "Payment",
+      "sales-invoice": "Customer invoice",
+      "incoming-payment": "Customer receipt"
     },
     "waiting": {
       "title": "Waiting on Odoo"
@@ -629,16 +623,23 @@
       "adopt": "It exists in Odoo",
       "absent": "It does not exist in Odoo",
       "adoptTitle": "Link this payment to Odoo?",
+      "adoptRevenueTitle": "Link this document to Odoo?",
+      "adoptRevenueBody": "Enter the Odoo document number. PMO checks that it belongs to this record before linking it.",
+      "absentRevenueTitle": "Confirm this document does not exist in Odoo?",
+      "absentRevenueBody": "PMO will look for it once more and, if it finds nothing, may send the document again. Only confirm after checking Odoo.",
       "adoptBody": "Enter the number of the Odoo payment to link. PMO checks that it belongs to this bill before treating it as the payment.",
       "adoptField": "Odoo payment number",
       "adoptHint": "The number Odoo shows for that payment, for example 123.",
+      "documentField": "Odoo document number",
+      "documentHint": "The number Odoo shows for this document, for example 123.",
       "absentTitle": "Confirm no payment exists in Odoo?",
       "absentBody": "PMO will look for it once more and, if it finds nothing, may send the payment again. Only confirm after checking Odoo.",
       "confirm": "Confirm",
       "cancel": "Cancel",
       "done": "Decision recorded.",
       "failed": "The decision could not be recorded.",
-      "ownCommand": "You sent this payment, so someone else must decide."
+      "ownCommand": "You sent this payment, so someone else must decide.",
+      "ownRevenueCommand": "You sent this document, so someone else must decide."
     },
     "taxes": {
       "label": "Taxes",
@@ -652,6 +653,12 @@
       "emptyReason": "No payment journals have been read from Odoo yet.",
       "staleReason": "The journal list was last read {{age}}; refresh the Odoo connection first."
     },
+    "accounts": {
+      "choose": "Choose an account",
+      "emptyReason": "No accounts have been read from Odoo yet.",
+      "staleReason": "The account list was last read {{age}}; refresh the Odoo connection first.",
+      "saved": "Saved account {{id}}"
+    },
     "booked": "Received in Odoo: {{qty}}",
     "entered": "entered {{qty}}",
     "paymentAwaiting": "Payment sent, awaiting Odoo",
@@ -659,7 +666,10 @@
       "title": "Quantity received",
       "hint": "Leave blank to receive everything still open. Odoo refuses more than is open.",
       "line": "{{name}} (ordered {{qty}})",
-      "invalid": "Enter a quantity above zero and no more than was ordered for {{name}}."
+      "invalid": "Enter a quantity above zero and no more than was ordered for {{name}}.",
+      "fullUnavailable": "Line quantities are kept, but they cannot be submitted while line-level receipts are unavailable. Clear them to receive everything still open.",
+      "retry": "Retry",
+      "clearAll": "Clear quantities and receive all open items"
     }
   }
 }

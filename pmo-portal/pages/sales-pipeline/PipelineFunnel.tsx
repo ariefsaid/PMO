@@ -47,6 +47,7 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
     <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card mb-4 p-[var(--panel-inset)]">
       <Funnel
         stages={funnelStages}
+        presentation="flat"
         selectedIndex={selectedIndex ?? undefined}
         onSelect={(i) => {
           const col = openColumns[i];

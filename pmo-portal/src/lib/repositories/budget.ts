@@ -4,6 +4,8 @@ import {
   getBudgetActivationMode,
   precheckBudgetActivation,
   listBudgetArchiveLiveTargets,
+  listLegacyBudgetArchiveLiveTargets,
+  listBudgetArchiveTargets,
   importBudgetLine,
   listBudgetVersions,
   createLineItem,
@@ -18,6 +20,8 @@ import {
   addBudgetDocumentLink,
   removeBudgetDocumentLink,
   getBudgetDistribution,
+  saveBudgetDistribution,
+  switchBudgetDraftMode,
 } from '@/src/lib/db/budgets';
 import { findImportTargetDraft, findImportedLine } from '@/src/lib/db/budgetImportSkip';
 import { wrap } from './repositoryErrors';
@@ -29,14 +33,19 @@ export const budgetRepository: BudgetRepository = {
   getActivationMode: (versionId) => wrap(() => getBudgetActivationMode(versionId)),
   precheckActivation: (versionId) => wrap(() => precheckBudgetActivation(versionId)),
   listArchiveLiveTargets: (versionIds) => wrap(() => listBudgetArchiveLiveTargets(versionIds)),
+  listLegacyArchiveLiveTargets: (versionIds) => wrap(() => listLegacyBudgetArchiveLiveTargets(versionIds)),
+  listArchiveTargets: (versionId) => wrap(() => listBudgetArchiveTargets(versionId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
   createLineItem: (versionId, item, provenance) =>
     wrap(() => createLineItem(versionId, item, provenance)),
   updateLineItem: (id, patch) => wrap(() => updateLineItem(id, patch)),
   deleteLineItem: (id) => wrap(() => deleteLineItem(id)),
-  createVersion: (projectId, name, provenance) =>
-    wrap(() => createBudgetVersion(projectId, name, provenance)),
+  createVersion: (projectId, name, provenance, budgetMode) =>
+    wrap(() => createBudgetVersion(projectId, name, provenance, budgetMode)),
   getDistribution: (versionId) => wrap(() => getBudgetDistribution(versionId)),
+  saveDistribution: (versionId, plan) => wrap(() => saveBudgetDistribution(versionId, plan)),
+  switchDraftMode: (versionId, targetMode, expectedLines, assignments) =>
+    wrap(() => switchBudgetDraftMode(versionId, targetMode, expectedLines, assignments)),
   findImportTargetDraft: (projectId) => wrap(() => findImportTargetDraft(projectId)),
   findImportedLine: (versionId, importKey) => wrap(() => findImportedLine(versionId, importKey)),
   cloneVersion: (versionId) => wrap(() => cloneVersion(versionId)),

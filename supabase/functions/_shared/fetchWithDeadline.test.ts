@@ -27,6 +27,7 @@ Deno.test('fetchWithDeadline passes a fast successful response straight through 
   const fastFetch = (() => Promise.resolve(ok)) as typeof fetch;
   const res = await fetchWithDeadline(fastFetch, 'https://erp.example/x', { method: 'GET' }, 20_000);
   assertEquals(res.status, 200);
+  await res.body?.cancel(); // the deadline timer lives until the body is consumed or cancelled
 });
 
 Deno.test('fetchWithDeadline propagates a non-timeout network rejection unchanged (DNS/refused)', async () => {
@@ -46,4 +47,32 @@ Deno.test('fetchWithDeadline threads the AbortSignal into the underlying fetch i
   }) as typeof fetch;
   await fetchWithDeadline(spyFetch, 'https://erp.example/x', { method: 'GET' }, 20_000);
   assert(sawSignal, 'the bounded fetch must pass an AbortSignal to the transport');
+});
+
+Deno.test('fetchWithDeadline keeps the deadline through the body: headers prompt, body stalled → FetchDeadlineError', async () => {
+  const stalledBodyFetch = ((_input: string | URL | Request, init?: RequestInit) => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason ?? new Error('aborted')));
+      },
+    });
+    return Promise.resolve(new Response(body, { status: 200 }));
+  }) as typeof fetch;
+  const res = await fetchWithDeadline(stalledBodyFetch, 'https://erp.example/x', {}, 25);
+  assertEquals(res.status, 200);
+  let guard: number | undefined;
+  const outcome = await Promise.race([
+    res.text().then(() => 'read', (e) => e),
+    new Promise((r) => { guard = setTimeout(() => r('hung'), 1_000); }),
+  ]);
+  clearTimeout(guard);
+  assert(outcome instanceof FetchDeadlineError, `expected FetchDeadlineError, got ${String(outcome)}`);
+});
+
+Deno.test('fetchWithDeadline passes a fully read body through intact and leaves no timer behind', async () => {
+  const fast = (() => Promise.resolve(new Response('{"a":1}', { status: 201, headers: { 'x-k': 'v' } }))) as typeof fetch;
+  const res = await fetchWithDeadline(fast, 'https://erp.example/x', {}, 20_000);
+  assertEquals(res.status, 201);
+  assertEquals(res.headers.get('x-k'), 'v');
+  assertEquals(await res.json(), { a: 1 }); // Deno's leak sanitizer fails the test if the timer is left running
 });

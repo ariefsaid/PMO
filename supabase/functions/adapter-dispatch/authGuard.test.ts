@@ -614,3 +614,11 @@ Deno.test('AC-OCI-001: the ERPNext sweep entry stays pinned to ERPNext: odoo-own
   const res = await checkErpnextCommandAuthorization(fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['revenue:odoo'] }), 'org-1', 'user-1', REVENUE_INVOICE as never);
   assertEquals([res.ok, res.status], [false, 403]);
 });
+
+Deno.test('AC-OCI-062: an Odoo sweep replay reauthorizes against Odoo ownership', async () => {
+  const res = await checkOutboxReplayAuthorization(
+    fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['revenue:odoo'] }), 'org-1',
+    { ...pendingRow, tier: 'odoo' },
+  );
+  assertEquals(res.ok, true, res.message);
+});

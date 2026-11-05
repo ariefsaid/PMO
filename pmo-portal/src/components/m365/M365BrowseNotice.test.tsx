@@ -23,7 +23,7 @@ beforeEach(() => { connect.initiate.mockReset(); });
 describe('M365BrowseNotice', () => {
   it('AC-M365DOC-032 stale and revoked connections show reviewed expiry copy with a Reconnect action', () => {
     for (const code of ['CONNECTION_STALE', 'CONNECTION_REVOKED']) {
-      const { unmount } = renderNotice({ code, onReconnect: vi.fn() });
+      const { unmount } = renderNotice({ code });
       expect(screen.getByRole('alert')).toHaveTextContent('The Microsoft 365 connection expired. Reconnect to link more documents.');
       expect(screen.getByRole('button', { name: 'Reconnect Microsoft 365' })).toBeInTheDocument();
       unmount();
@@ -47,7 +47,7 @@ describe('M365BrowseNotice', () => {
 
   it('AC-M365DOC-035 network failure keeps the selection and offers retry only', async () => {
     const onRetry = vi.fn();
-    renderNotice({ code: 'external-unreachable', onRetry, onReconnect: vi.fn() });
+    renderNotice({ code: 'external-unreachable', onRetry });
     expect(screen.getByRole('alert')).toHaveTextContent('Could not load Microsoft items. Retry; your selection and location are kept.');
     expect(screen.queryByRole('button', { name: 'Reconnect Microsoft 365' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -56,7 +56,7 @@ describe('M365BrowseNotice', () => {
 
   it('AC-M365DOC-035 opaque Graph, internal and unknown raw codes use the one generic sentence and never a reconnect', () => {
     for (const code of ['GRAPH_ERROR', 'INTERNAL_ERROR', 'raw-synthetic-error: tenant 0000 oid Files.Read.All', undefined]) {
-      const { unmount } = renderNotice({ code, onRetry: vi.fn(), onReconnect: vi.fn() });
+      const { unmount } = renderNotice({ code, onRetry: vi.fn() });
       expect(screen.getByRole('alert')).toHaveTextContent(GENERIC);
       expect(screen.queryByRole('button', { name: 'Reconnect Microsoft 365' })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe('M365BrowseNotice', () => {
 
   it('AC-M365DOC-035 entitlement, approval and membership codes use the shared reviewed copy with no reconnect/retry loop', () => {
     for (const code of ['NOT_ENTITLED', 'ORG_APPROVAL_REQUIRED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'FORBIDDEN']) {
-      const { unmount } = renderNotice({ code, onRetry: vi.fn(), onReconnect: vi.fn() });
+      const { unmount } = renderNotice({ code, onRetry: vi.fn() });
       expect(screen.getByRole('alert').textContent).not.toBe(GENERIC);
       expect(screen.queryByRole('button', { name: /Reconnect|Retry/ })).not.toBeInTheDocument();
       unmount();

@@ -95,6 +95,9 @@ const FILES = [
   join(PMO_ROOT, 'App.tsx'),
   ...walk(join(PMO_ROOT, 'pages')),
   ...walk(join(PMO_ROOT, 'src')),
+  // Eval expectations assert the assistant's rendered link targets, so they follow the same rule
+  // (invoice-reach drifted to the legacy /sales-invoices address after #1524 moved the emitter).
+  ...walk(join(PMO_ROOT, 'evals')),
   ...EDGE_FNS.map((f) => join(REPO_ROOT, f)),
 ];
 

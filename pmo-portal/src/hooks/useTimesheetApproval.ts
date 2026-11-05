@@ -117,21 +117,35 @@ export function useTimesheetMutations() {
     onSuccess: invalidateBoth,
   });
 
-  const approve = useMutation<void, Error, { id: string; notes?: string }>({
+  // Approval-side caches shared by every approved sheet (invalidated once per batch)...
+  const refreshApprovedShared = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] }),
+    queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
+  ]);
+  // ...and the per-sheet push state.
+  const refreshPushState = (id: string) =>
+    queryClient.invalidateQueries({ queryKey: ['timesheet-push-state', id], exact: true });
+
+  // `batch: true` defers cache refresh to one `settleBatch` call after the whole batch.
+  const approve = useMutation<void, Error, { id: string; notes?: string; batch?: boolean }>({
     mutationFn: async ({ id, notes }) => {
       await repositories.timesheet.approve(id, notes);
       await pushAfterApprove(id);
     },
-    onSettled: async (_data, error, { id }) => {
+    onSettled: async (_data, error, { id, batch }) => {
+      if (batch) return;
       // Refresh history before the pending row disappears, keeping the correction path reachable.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] }),
-        queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
-        queryClient.invalidateQueries({ queryKey: ['timesheet-push-state', id], exact: true }),
-      ]);
+      await Promise.all([refreshApprovedShared(), refreshPushState(id)]);
       if (!error) invalidateBoth();
     },
   });
+
+  /** Once per batch, also after a partial failure so persisted approvals leave the queue. */
+  const settleBatch = async (approvedIds: string[]) => {
+    await Promise.all([refreshApprovedShared(), ...approvedIds.map(refreshPushState)]);
+    // Also when every row failed: stale rows (e.g. approved elsewhere) must leave the queue.
+    invalidateBoth();
+  };
 
   const reject = useMutation<void, Error, { id: string; notes?: string }>({
     mutationFn: ({ id, notes }) => repositories.timesheet.reject(id, notes),
@@ -172,7 +186,7 @@ export function useTimesheetMutations() {
     },
   });
 
-  return { submit, approve, reject, reopen, reopenApproved, attestNoErpDocument };
+  return { submit, approve, settleBatch, reject, reopen, reopenApproved, attestNoErpDocument };
 }
 
 // ---------------------------------------------------------------------------

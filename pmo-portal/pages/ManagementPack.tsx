@@ -69,6 +69,15 @@ const ActionCell: React.FC<ActionCellProps> = React.memo(({
   return <MenuButton ariaLabel={ariaLabel} items={items} />;
 });
 
+type InvoiceCountStatus = 'error' | 'loading' | 'success';
+
+function getInvoiceCountExportValue(
+  status: InvoiceCountStatus,
+  count: number,
+): number | string {
+  return status === 'success' ? count : '';
+}
+
 const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const may = usePermission();
@@ -98,9 +107,27 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   );
   const { data: delivery } = useProjectsDelivery(projectIds);
   const { data: projects } = useProjects({ enabled: !!pack });
-  const { data: revenueRows, isPending: invoiceCountsPending } = useRevenuePerProject();
+  const {
+    data: revenueRows,
+    isPending: invoiceCountsPending,
+    isError: invoiceCountsError,
+    refetch: refetchInvoiceCounts,
+  } = useRevenuePerProject();
+  const invoiceCountStatus: InvoiceCountStatus = invoiceCountsError
+    ? 'error'
+    : invoiceCountsPending || revenueRows === undefined
+      ? 'loading'
+      : 'success';
   const projectById = useMemo(() => new Map((projects ?? []).map((project) => [project.id, project])), [projects]);
-  const invoiceCounts = useMemo(() => new Map((revenueRows ?? []).map((row) => [`${row.project_id ?? ''}|${row.currency}`, row.invoice_count])), [revenueRows]);
+  const invoiceCounts = useMemo(
+    () => (invoiceCountStatus === 'success' && revenueRows
+      ? new Map(revenueRows.map((row) => [`${row.project_id ?? ''}|${row.currency}`, row.invoice_count]))
+      : new Map<string, number>()),
+    [invoiceCountStatus, revenueRows],
+  );
+  const invoiceCountsUnavailableLabel = t('financeHub:managementPack.invoiceCountsUnavailable', 'Unavailable');
+  const invoiceCountsLoadingLabel = t('financeHub:managementPack.invoiceCountsLoading', 'Loading invoice counts');
+  const retryInvoiceCountsLabel = t('financeHub:managementPack.retryInvoiceCounts', 'Retry invoice counts');
 
   const state: 'loading' | 'error' | 'empty' | undefined = isError
     ? 'error'
@@ -281,8 +308,18 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       kind: 'number',
       align: 'num',
       size: 70,
-      cell: (row) => <span data-testid="pack-cell-invoices" className="tabular">{invoiceCountsPending ? '—' : invoiceCountFor(row)}</span>,
-      exportValue: (row) => invoiceCountFor(row),
+      cell: (row) => (
+        <span data-testid="pack-cell-invoices" className="tabular">
+          {invoiceCountStatus === 'error' ? (
+            invoiceCountsUnavailableLabel
+          ) : invoiceCountStatus === 'loading' ? (
+            <span aria-label={invoiceCountsLoadingLabel}>—</span>
+          ) : (
+            invoiceCountFor(row)
+          )}
+        </span>
+      ),
+      exportValue: (row) => getInvoiceCountExportValue(invoiceCountStatus, invoiceCountFor(row)),
     },
     {
       key: 'actions',
@@ -308,7 +345,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     packTo,
     label,
     measureCell,
-    invoiceCountsPending,
+    invoiceCountStatus,
+    invoiceCountsUnavailableLabel,
+    invoiceCountsLoadingLabel,
     invoiceCountFor,
     canRecord,
     onExportRow,
@@ -335,7 +374,14 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         invoicedToDate: money(sum('invoicedToDate'), currency),
         unbilled: money(sum('unbilled'), currency),
         backlog: backlogIsUnknown ? backlogUnknown : money(contracts.reduce((total, row) => total + (latestMonth(row)?.backlog ?? 0), 0), currency),
-        invoiceCount: invoiceCountsPending ? '—' : filteredRows.reduce((total, row) => total + invoiceCountFor(row), 0),
+        invoiceCount:
+          invoiceCountStatus === 'error' ? (
+            invoiceCountsUnavailableLabel
+          ) : invoiceCountStatus === 'loading' ? (
+            <span aria-label={invoiceCountsLoadingLabel}>—</span>
+          ) : (
+            filteredRows.reduce((total, row) => total + invoiceCountFor(row), 0)
+          ),
         // An unknown row makes the currency total unknown too: left out, explained by the note below the table.
       } as Record<string, React.ReactNode>,
     };
@@ -521,6 +567,24 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           <h2 className="mb-2 mt-6 text-[15px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
+          {invoiceCountStatus === 'error' && (
+            <div
+              role="status"
+              aria-label={invoiceCountsUnavailableLabel}
+              className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive-text"
+            >
+              <span>{invoiceCountsUnavailableLabel}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { void refetchInvoiceCounts(); }}
+                className="h-8"
+              >
+                {retryInvoiceCountsLabel}
+              </Button>
+            </div>
+          )}
           <DataTable
             rows={filteredRows}
             columns={columns}

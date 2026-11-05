@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   effectiveRole: null as string | null,
   userId: 'u-fin',
   connected: true,
+  loadItems: vi.fn(),
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   boq: [] as unknown[],
@@ -34,7 +35,7 @@ vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
 });
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: vi.fn() }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: h.loadItems }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
@@ -50,12 +51,14 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmRateLines: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useTmRateAssignees: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useTmClaims: () => h.tmClaims,
   useTmClaimPreview: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useTmClaimSources: () => ({ data: { rows: [], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
+  useDeselectTmSource: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useSaveTmRateLine: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useSetTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useEndTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),

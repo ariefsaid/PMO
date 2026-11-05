@@ -3,6 +3,16 @@ import type { ExternalRefsLookupClient } from '../../../../pmo-portal/src/lib/ad
 import { parseBudgetIdentity } from '../../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import type { ReadModelWriter } from './types.ts';
 
+interface BudgetMirrorFilterBuilder {
+  eq(column: string, value: string): BudgetMirrorFilterBuilder;
+  is(column: string, value: null): BudgetMirrorFilterBuilder;
+  maybeSingle(): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+}
+
+interface BudgetMirrorLookupClient {
+  from(table: string): { select(columns: string): BudgetMirrorFilterBuilder };
+}
+
 /**
  * P3c ERPNext `budget` writer (ADR-0059 §6 side mirror).
  *
@@ -24,7 +34,16 @@ export const budgetWriter: ReadModelWriter = {
     if (kind !== 'budget') {
       throw new AppError(`erpnext budget read-model writer for erp_doc_kind '${String(kind)}' is not wired`, 'UNSUPPORTED_DOMAIN');
     }
-    const record = command.record as { outbox_identity?: unknown; fiscal_year?: unknown; erp_account?: unknown; budget_intent?: unknown };
+    const record = command.record as {
+      outbox_identity?: unknown;
+      fiscal_year?: unknown;
+      to_fiscal_year?: unknown;
+      erp_account?: unknown;
+      budget_mode?: unknown;
+      budget_intent?: unknown;
+      budget_archive_cancel_job_id?: unknown;
+      budget_archive_source_mirror_id?: unknown;
+    };
     const identity = typeof record.outbox_identity === 'string' ? parseBudgetIdentity(record.outbox_identity) : null;
     // The account-framed outbox identity and server unit record remain authoritative if a replayed
     // canonical was persisted by an older/partial finalizer with only its bare PMO id.
@@ -33,6 +52,13 @@ export const budgetWriter: ReadModelWriter = {
       : identity?.erpAccount !== null && identity?.erpAccount !== undefined
         ? identity.fiscalYear
         : undefined;
+    // Annual v16 ERP documents also carry `to_fiscal_year = fiscal_year`, but the PMO mirror uses
+    // NULL for that dimension. Only the range-framed identity may populate this range key.
+    const toFiscalYear = identity?.kind === 'range' ? identity.toFiscalYear : null;
+    if ((record.budget_mode === 'whole_project') !== (identity?.kind === 'range')
+        || (identity?.kind === 'range' && (identity.fiscalYear !== fiscalYear || identity.toFiscalYear !== record.to_fiscal_year))) {
+      throw new AppError('budget mirror: range identity does not match the command dimensions', 'commit-rejected');
+    }
     // The mirror's grain is (budget_version_id x fiscal_year) — a row written without the fiscal year
     // would be a wrong-grain row that the next push could not find, so this fails loudly instead.
     if (typeof fiscalYear !== 'string' || fiscalYear === '') {
@@ -64,6 +90,89 @@ export const budgetWriter: ReadModelWriter = {
     if (typeof witnessActivatedAt !== 'string' || witnessActivatedAt === '') {
       throw new AppError('budget mirror: the pushed budget carries no activation witness', 'commit-rejected');
     }
+    // #1462 — the LEGACY archive cancellation finalizer. A year-grained (pre-v16) document's mirror row
+    // is `budget_version_erp_mirror`, keyed by (org, version, fiscal year), and it has no account.
+    //
+    // ⚑ COMPARE-AND-SET, and it can never resurrect a tombstone. The row is only tombstoned when it still
+    // names the document the cancellation actually witnessed and is not already cancelled; a mismatch
+    // throws so the intent is NOT marked complete on an unproven write. A replay that finds the tombstone
+    // already set with the same name converges WITHOUT a write.
+    if ((command.record as { source_kind?: unknown }).source_kind === 'legacy') {
+      if (record.budget_intent !== 'remove') {
+        throw new AppError('budget mirror: a legacy archive command must be a removal', 'commit-rejected');
+      }
+      if (identity === null || identity.erpAccount !== null || identity.versionId !== canonical.id || identity.fiscalYear !== fiscalYear) {
+        throw new AppError('budget mirror: legacy cancellation identity does not match its fiscal year', 'commit-rejected');
+      }
+      if (canonical.erp_docstatus !== 2) {
+        throw new AppError('budget mirror: a legacy cancellation is only final after confirmed docstatus 2', 'commit-rejected');
+      }
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (typeof record.budget_archive_cancel_job_id !== 'string' || !uuid.test(record.budget_archive_cancel_job_id) ||
+          typeof record.budget_archive_source_mirror_id !== 'string' || !uuid.test(record.budget_archive_source_mirror_id)) {
+        throw new AppError('budget mirror: the legacy cancellation has no durable source witness', 'commit-rejected');
+      }
+      const erpBudgetName = canonical.erp_budget_name;
+      if (typeof erpBudgetName !== 'string' || erpBudgetName === '') {
+        throw new AppError('budget mirror: the legacy cancellation carries no ERP document name', 'commit-rejected');
+      }
+      const now = new Date().toISOString();
+      const mirrorUpdate = ctx.serviceClient.from('budget_version_erp_mirror')
+        .update({
+          erp_docstatus: 2,
+          erp_cancelled_at: now,
+          erp_budget_name: erpBudgetName,
+          push_state: 'pushed',
+          push_error: null,
+          activated_at_witness: witnessActivatedAt,
+          pushed_project_start_date: witnessStart,
+          pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
+          pushed_at: now,
+        })
+        .eq('org_id', ctx.orgId)
+        .eq('id', record.budget_archive_source_mirror_id)
+        .eq('budget_version_id', String(canonical.id))
+        .eq('fiscal_year', fiscalYear)
+        .eq('erp_budget_name', erpBudgetName)
+        .eq('activated_at_witness', witnessActivatedAt)
+        .eq('pushed_project_start_date', witnessStart);
+      const mirrorUpdateWithSpan = typeof witnessEnd === 'string' && witnessEnd !== ''
+        ? mirrorUpdate.eq('pushed_project_end_date', witnessEnd)
+        : mirrorUpdate.is('pushed_project_end_date', null);
+      // The adapter reached this writer only after reading the exact ERP document and confirming
+      // docstatus 2 with its company/project/year intact. The mirror's cached status may be null or
+      // stale (including an ERP cancellation performed before this archive), so it is deliberately
+      // NOT part of the CAS; the immutable source id, name, activation/span witness, pending state and
+      // absent tombstone are the facts that must still match before recording that verified result.
+      const { data: updated, error: updateError } = await mirrorUpdateWithSpan
+        .in('push_state', ['pending', 'failed'])
+        .is('erp_cancelled_at', null)
+        .select('id');
+      if (updateError) throw new AppError(updateError.message, updateError.code);
+      if ((updated ?? []).length > 0) return;
+      const { data: existing, error: readError } = await ctx.serviceClient.from('budget_version_erp_mirror')
+        .select('id,erp_budget_name,erp_cancelled_at,erp_docstatus,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+        .eq('org_id', ctx.orgId).eq('budget_version_id', String(canonical.id))
+        .eq('id', record.budget_archive_source_mirror_id)
+        .eq('fiscal_year', fiscalYear).maybeSingle();
+      if (readError) throw new AppError(readError.message, readError.code);
+      const row = existing as {
+        id?: string;
+        erp_budget_name?: string | null;
+        erp_cancelled_at?: string | null;
+        erp_docstatus?: number | null;
+        activated_at_witness?: string | null;
+        pushed_project_start_date?: string | null;
+        pushed_project_end_date?: string | null;
+      } | null;
+      if (row && row.erp_cancelled_at != null && row.erp_docstatus === 2 && row.erp_budget_name === erpBudgetName &&
+          row.activated_at_witness === witnessActivatedAt && row.pushed_project_start_date === witnessStart &&
+          row.pushed_project_end_date === (typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null)) return;
+      throw new AppError(
+        'budget mirror: the legacy cancellation no longer matches its mirror row (an operator must review it)',
+        'commit-rejected',
+      );
+    }
     if (identity?.erpAccount !== null && identity?.erpAccount !== undefined) {
       const account = identity.erpAccount;
       if (identity.fiscalYear !== fiscalYear || record.erp_account !== account ||
@@ -74,15 +183,20 @@ export const budgetWriter: ReadModelWriter = {
         throw new AppError('budget mirror: account intent is invalid', 'commit-rejected');
       }
       if (ctx.isReplay) {
-        const { data: existing, error: readError } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
+        let existingQuery = (ctx.serviceClient as unknown as BudgetMirrorLookupClient)
           .from('budget_version_account_erp_mirror').select('erp_cancelled_at')
           .eq('org_id', ctx.orgId).eq('budget_version_id', String(canonical.id))
-          .eq('fiscal_year', fiscalYear).eq('erp_account', account).maybeSingle();
+          .eq('fiscal_year', fiscalYear).eq('erp_account', account);
+        existingQuery = toFiscalYear === null
+          ? existingQuery.is('to_fiscal_year', null)
+          : existingQuery.eq('to_fiscal_year', toFiscalYear);
+        const { data: existing, error: readError } = await existingQuery.maybeSingle();
         if (readError) throw new AppError(readError.message, readError.code);
         if ((existing as { erp_cancelled_at?: string | null } | null)?.erp_cancelled_at != null) return;
       }
       const { error } = await ctx.serviceClient.from('budget_version_account_erp_mirror').upsert({
         org_id: ctx.orgId, budget_version_id: canonical.id, fiscal_year: fiscalYear,
+        to_fiscal_year: toFiscalYear,
         erp_account: account, budget_intent: record.budget_intent,
         push_state: 'pushed', push_error: null,
         pushed_project_start_date: witnessStart,
@@ -93,7 +207,7 @@ export const budgetWriter: ReadModelWriter = {
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
         erp_cancelled_at: record.budget_intent === 'remove' ? new Date().toISOString() : null,
         pushed_at: new Date().toISOString(),
-      }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+      }, { onConflict: 'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account' });
       if (error) throw new AppError(error.message, error.code);
       return;
     }

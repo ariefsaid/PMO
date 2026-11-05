@@ -125,8 +125,6 @@ it('AC-AGP-018 every agent_* table access goes through the single injected persi
     // business reads AND the persistence writes. No second (privileged) client is ever built.
     persistence: {
       supabase: sharedSupabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
     },
   };

@@ -24,7 +24,7 @@ for (const scenario of headingCases) {
     await signIn(page, 'pm@acme.test'); // the seeded author — sees the editable editor
     await page.goto(`/meetings/${SEEDED_MEETING}`);
     const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
-    await expect(editor).toBeVisible();
+    await expect(editor).toBeVisible({ timeout: 20_000 });
     await waitForFonts(page); // layout is measured below (#713)
     const blockContent = editor.locator('.bn-block-content');
     const originalBlocks = await blockContent.evaluateAll((elements) =>

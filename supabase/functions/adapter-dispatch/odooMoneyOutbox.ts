@@ -18,8 +18,10 @@ import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.t
 import { readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import { checkQueuedProcurementCreate } from './procurementGateGuard.ts';
+import { checkPoRevise } from './poReviseGuard.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
+import { withOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** The PMO document kinds a purchase command names (the shared command shape) and the Odoo document each becomes. */
 export const ODOO_PURCHASE_KIND: Readonly<Record<string, PurchaseKind>> = {
@@ -40,13 +42,31 @@ export function odooAnchorKey(kind: PurchaseKind, record: Record<string, unknown
 
 /** Odoo stores naive UTC `YYYY-MM-DD HH:MM:SS`. */
 const odooDatetime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+const legacyOrderWindowEnd = (createdAfter: string): string | undefined => {
+  const timestamp = Date.parse(createdAfter.includes('T') ? createdAfter : `${createdAfter.replace(' ', 'T')}Z`);
+  return Number.isFinite(timestamp) ? odooDatetime(timestamp + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS) : undefined;
+};
+
+async function readPersistedPayload(ctx: AdapterSelectContext): Promise<Record<string, unknown> | null> {
+  return await readOutboxCompositePayload(
+    ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command.domain,
+    ctx.command.record.id, ctx.command.idempotencyKey!,
+  );
+}
+
+async function persistedPayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
+  const stored = await readPersistedPayload(ctx);
+  if (!stored) throw new AppError('Odoo recovery payload is missing', 'commit-rejected');
+  return stored;
+}
 
 /**
- * A payment's composite-probe inputs, persisted with the outbox row so the retry and the sweep probe identically (C-1): the vendor,
+ * A payment's composite-probe inputs, persisted with the outbox row so a retry can probe the same facts (C-1): the vendor,
  * the amount, the bill it pays (the conjunct that tells our payment from a look-alike) and the window the first attempt could have
  * created it in, bounded on both sides. DB reads only: a recovery must not depend on Odoo being reachable to know what to look for.
  */
 async function paymentCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
+  if (ctx.replay) return persistedPayload(ctx);
   const record = ctx.command.record as Record<string, unknown>;
   const facts = await paymentCompositeFacts(ctx.serviceClient as SupabaseClient, ctx.orgId, record);
   return {
@@ -60,13 +80,18 @@ const ORDER_WINDOW_MS = 10 * 60_000;
 
 /** An order's composite-probe inputs, persisted with the outbox row for the same reason (the window is the first attempt's). */
 async function orderCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
+  if (ctx.replay) return persistedPayload(ctx);
   const facts = await orderCompositeFacts(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command.record as { id?: unknown; procurementId?: unknown });
-  return { odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount, created_after: odooDatetime(Date.now() - ORDER_WINDOW_MS) };
+  const now = Date.now();
+  return {
+    odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount,
+    created_after: odooDatetime(now - ORDER_WINDOW_MS), created_before: odooDatetime(now + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS),
+  };
 }
 
 /**
  * A bill's composite-probe inputs plus what its read-back is judged against (the figure PMO expected, the project's cost account),
- * persisted with the outbox row so a retry or the sweep probes and judges identically. A replay resolves nothing new (the document
+ * persisted with the outbox row so a retry can use the same facts. A replay resolves nothing new (the document
  * may already exist and today's mappings are not its concern): it takes the composite facts alone and the expectation from the
  * stored row.
  */
@@ -75,6 +100,9 @@ async function billCompositePayload(ctx: AdapterSelectContext, call: OdooCall, r
   // Bounded above: a bill is created within the first attempt's commit budget, so a vendor bill made after that is not ours (I1).
   const window = { created_after: odooDatetime(Date.now() - ORDER_WINDOW_MS), created_before: odooDatetime(Date.now() + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS) };
   if (ctx.replay) {
+    const persisted = await readPersistedPayload(ctx);
+    if (persisted) return persisted;
+    // Pre-composite legacy rows still build deps so the recovery closure can fail closed on its missing stored expectation.
     const facts = await billCompositeFacts(sc, ctx.orgId, ctx.command.record as { procurementId?: unknown });
     return { odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount, ...window };
   }
@@ -94,10 +122,14 @@ const billExpectOf = (p: Record<string, unknown> | null | undefined): BillExpect
     ? { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account }
     : undefined;
 
-const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderComposite | undefined =>
-  p && typeof p.odoo_partner_id === 'number' && typeof p.odoo_amount === 'string' && Number.isInteger(p.odoo_line_count) && typeof p.created_after === 'string'
-    ? { partnerId: p.odoo_partner_id, amount: p.odoo_amount, lineCount: p.odoo_line_count as number, createdAfter: p.created_after, ...(typeof p.created_before === 'string' ? { createdBefore: p.created_before } : {}) }
+const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderComposite | undefined => {
+  if (!p || typeof p.odoo_partner_id !== 'number' || typeof p.odoo_amount !== 'string' ||
+      !Number.isInteger(p.odoo_line_count) || typeof p.created_after !== 'string') return undefined;
+  const createdBefore = typeof p.created_before === 'string' ? p.created_before : legacyOrderWindowEnd(p.created_after);
+  return createdBefore
+    ? { partnerId: p.odoo_partner_id, amount: p.odoo_amount, lineCount: p.odoo_line_count as number, createdAfter: p.created_after, createdBefore }
     : undefined;
+};
 
 /** A held payment's resolution (0508 `resolve_held_outbox_command`): the operator's word, stored in the row's payload. */
 const paymentResolutionOf = (p: Record<string, unknown> | null | undefined): PaymentResolution | undefined =>
@@ -147,9 +179,11 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
   if (!kind) throw new AppError(`odoo purchase kind '${docKind}' is not wired`, 'commit-rejected');
   const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
   if ('refusal' in resolved) throw new AppError(`The Odoo connection is not usable (${resolved.refusal})`, 'config-rejected');
-  const raw = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  const raw = withOdooCallBudget(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
   const call: OdooCall = async <T>(model: string, method: string, body?: Record<string, unknown>) => {
-    try { return await raw<T>(model, method, body); } catch (err) { return toAdapterError(err); }
+    try { return await raw<T>(model, method, body); } catch (err) {
+      return toAdapterError(err);
+    }
   };
   const isReceiptCreate = kind === 'receipt' && operation === 'create';
   if (isReceiptCreate) await stampReceiptPlan(ctx, call, resolved);
@@ -168,6 +202,16 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
     externalTier: ODOO_TIER,
+    // #1783 item 1: same legacy-receipt verification as the ERPNext resolver, with THIS resolver's
+    // material rule (windows + DERIVED_KEYS excluded) — Odoo first restores the stored plan exactly as
+    // `stampReceiptPlan` does above, so the comparison runs against the restored command, never a
+    // forged plan. Receipt-scoped: only a line-intent command sets the context flag.
+    ...(ctx.receiptLineIntent
+      ? { verifyLegacyReceiptDigest: { material: (p: Record<string, unknown>) => {
+        const { created_after: _window, created_before: _windowEnd, ...withDerived } = p;
+        return Object.fromEntries(Object.entries(withDerived).filter(([k]) => !(DERIVED_KEYS as readonly string[]).includes(k)));
+      } } }
+      : {}),
     // The outbox column takes create|update|transition; a revise edits the confirmed order in place.
     operation: operation === 'revise' ? 'update' : (operation as 'create' | 'update' | 'transition'),
     actorUserId: ctx.userId,
@@ -176,15 +220,23 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
     payloadDigest,
     ...(ctx.command.domain === 'procurement' && operation === 'create'
       ? { reauthorizeRecoveryReissue: () => checkQueuedProcurementCreate(ctx.serviceClient as never, ctx.orgId, ctx.command as never, ctx.userId) }
-      : {}),
+      : ctx.command.domain === 'procurement' && operation === 'revise'
+        ? { reauthorizeRecoveryReissue: async () => {
+          const result = await checkPoRevise(ctx.serviceClient as never, ctx.orgId, {
+            poId: record.poId, revision: record.revision,
+          }, { reviseCancels: false });
+          return { ok: result.ok, message: result.message };
+        } }
+        : {}),
     probeByRemarksKey: async (domain, idempotencyKey, probe) => {
       // An order and a revision are not adopted as a bare reference: the probe also anchors a found order and completes its
       // confirm, and returns it read back (a draft adopted as it stands would be mirrored as issued).
-      if (operation === 'revise') return recoverRevise(call, ctx.command.record);
+      if (operation === 'revise') return recoverRevise(call, ctx.command.record, ctx.odooAnchorOwnedElsewhere);
       if (isReceiptCreate) return recoverReceipt(call, ctx.command.record);
       if (isOrderCreate) {
         const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
-        return recoverOrder(call, ctx.command.record, orderCompositeOf(persisted) ?? orderCompositeOf(payload));
+        const composite = probe?.recovery === false ? undefined : orderCompositeOf(persisted) ?? orderCompositeOf(payload);
+        return recoverOrder(call, ctx.command.record, composite, ctx.odooAnchorOwnedElsewhere);
       }
       if (isBillCreate) {
         const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
@@ -193,7 +245,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
         // The composite looks for a bill a lost response may have left without its identifier, so it runs only in a RECOVERY. A bill's
         // first attempt has made nothing yet: the vendor's other, unanchored Odoo bills are not its business (I1). No signal = recovery.
         const composite = probe?.recovery === false ? undefined : orderCompositeOf(persisted) ?? orderCompositeOf(payload);
-        return recoverBill(call, ctx.command.record, composite, expect);
+        return recoverBill(call, ctx.command.record, composite, expect, ctx.odooAnchorOwnedElsewhere);
       }
       // A payment's anchor is a memo anyone can edit, so a recovery may also look for it by vendor, amount, window and bill; a first attempt
       // has made nothing yet and looks by memo alone. Doubt throws (the row is held); nothing found is null, which the outbox holds too
@@ -201,7 +253,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
       const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
       const billRef = [persisted, payload].map((p) => p?.odoo_bill_ref).find((r): r is string => typeof r === 'string');
       if (!billRef) throw new AppError('payment-bill-missing', 'commit-rejected');   // cannot say which bill this pays: hold it
-      return recoverPayment(call, ctx.command.record, probe?.recovery === false ? undefined : paymentCompositeOf(persisted) ?? paymentCompositeOf(payload), billRef, paymentResolutionOf(persisted));
+      return recoverPayment(call, ctx.command.record, probe?.recovery === false ? undefined : paymentCompositeOf(persisted) ?? paymentCompositeOf(payload), billRef, paymentResolutionOf(persisted), ctx.odooAnchorOwnedElsewhere);
     },
   });
 }

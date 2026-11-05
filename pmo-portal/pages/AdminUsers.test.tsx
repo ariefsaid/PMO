@@ -25,10 +25,37 @@ const { listState, mutations, isOperatorState } = vi.hoisted(() => ({
   isOperatorState: { value: false },
 }));
 
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => listState,
-  useUserMutations: () => mutations,
-}));
+vi.mock('@/src/hooks/useUsers', () => {
+  type MockUser = { full_name: string; email: string; org_id: string; role: string; status: string };
+  type MockState = { data?: readonly unknown[] | null; isPending?: boolean; isError?: boolean; refetch?: () => unknown };
+  const directoryPage = (state: MockState, input: { pageSize?: number; page?: number; search?: string } = {}) => {
+    const size = input.pageSize || 50;
+    const pageNo = input.page || 1;
+    const term = String(input.search || '').trim().toLowerCase();
+    const all = (state.data || []) as MockUser[];
+    const matched = term ? all.filter((u) => u.full_name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)) : all;
+    return {
+      data: { rows: matched.slice((pageNo - 1) * size, pageNo * size), total: matched.length },
+      isPending: state.isPending, isError: state.isError, isFetching: false, refetch: state.refetch,
+    };
+  };
+  const adminCounts = (state: MockState) => {
+    const out: Record<string, number> = {};
+    for (const u of (state.data || []) as MockUser[]) {
+      if (out[u.org_id] === undefined) out[u.org_id] = 0;
+      if (u.role === 'Admin' && u.status === 'active') out[u.org_id] += 1;
+    }
+    return { data: out, isPending: false, isError: false };
+  };
+  return {
+    useUsers: () => listState,
+    useUsersPage: (input: { page?: number; pageSize?: number; search?: string }) => directoryPage(listState, input),
+    useActiveAdminCounts: () => adminCounts(listState),
+    useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+    useManagerChoices: () => listState,
+    useUserMutations: () => mutations,
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
@@ -114,8 +141,9 @@ describe('Admin Users — directory (AC-AU-001)', () => {
   it('AC-AU-001: search filters by name or email', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search users/i), 'tobias');
-    // Renata's USER row is gone (her email no longer renders); only Tobias remains.
-    expect(screen.queryByText('renata@meridian.example')).not.toBeInTheDocument();
+    // The search is issued to the server after a short pause (one request per term, not per
+    // keystroke), so the narrowed directory arrives asynchronously.
+    await waitFor(() => expect(screen.queryByText('renata@meridian.example')).not.toBeInTheDocument());
     expect(screen.queryByText('desmond@meridian.example')).not.toBeInTheDocument();
     expect(screen.getByText('tobias@meridian.example')).toBeInTheDocument();
     // exactly one data row after filtering
@@ -336,5 +364,60 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     expect(mutations.setStatus.mutateAsync).toHaveBeenCalledWith({ id: 'u5', status: 'active', orgId: 'org-1' });
     expect(toast).toHaveTextContent(/ask your Operator to upgrade the plan/i);
     expect(toast).not.toHaveTextContent(/seat_limit_reached/);
+  });
+});
+
+describe('Admin Users — dialog error scoping (role confirm retry, no stale submit errors)', () => {
+  it('a failed role confirm stays open so the staged change can be retried or cancelled', async () => {
+    mutations.updateRole.mutateAsync.mockRejectedValue(new AppError('row violates RLS', '42501'));
+    renderPage('Admin');
+    await userEvent.click(
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
+    await findToastAnnouncement('alert', /don't have permission/i);
+    // The confirmation itself survives the failure — the staged change is still on screen.
+    expect(screen.getByText(/Change Desmond Achebe's role to Executive\?/i)).toBeInTheDocument();
+  });
+
+  it('a failed role confirm never leaks its error into a later role dialog for another user', async () => {
+    mutations.updateRole.mutateAsync.mockRejectedValueOnce(new AppError('row violates RLS', '42501'));
+    renderPage('Admin');
+    await userEvent.click(
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
+    await findToastAnnouncement('alert', /don't have permission/i);
+    await userEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    // A NEW edit for a different user opens clean — no stale failure from Desmond's change.
+    await userEvent.click(
+      within(screen.getByText('Priya Venkatesh').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    const nextDialog = screen.getByRole('dialog');
+    expect(within(nextDialog).queryByText(/don't have permission/i)).not.toBeInTheDocument();
+  });
+
+  it('a failed invite never leaks its error into a fresh invite dialog', async () => {
+    mutations.invite.mutateAsync.mockRejectedValueOnce(new AppError('duplicate', 'DUPLICATE_EMAIL'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /Invite user/i }));
+    await userEvent.type(screen.getByLabelText(/Email/i), 'renata@meridian.example');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Invite user/i }));
+    await findToastAnnouncement('alert', /already in your workspace/i);
+    // The dirty form's Cancel routes through the discard confirm.
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Discard/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByText(/already in your workspace/i)).not.toBeInTheDocument();
   });
 });

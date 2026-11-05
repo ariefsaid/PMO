@@ -5,11 +5,8 @@ import {
   SearchMini,
   ViewToggle,
   ListState,
-  StatusPill,
-  LifecycleStepper,
   Button,
   Icon,
-  ProjectNameLink,
   MobileToolbarDisclosure,
   Card,
   Tabs,
@@ -33,7 +30,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { ProcurementBlock } from '@/src/components/procurement';
 import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
-import { formatCurrency, formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatWeekdayMonthDay } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
@@ -41,7 +38,6 @@ import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcur
 import type { ProcurementView } from '@/src/hooks/useProcurementView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
 import type { StageKey } from './procurement/blocks/stage';
@@ -277,60 +273,18 @@ const ProcurementPage: React.FC = () => {
     openRecord(`/procurement/${row.id}`);
   };
 
-  const columns: Column<ProcurementWithRefs>[] = [
-    {
-      key: 'request',
-      header: t('column.procurement', 'Procurement'),
-      cell: (row) => (
-        <div className="min-w-0">
-          <div className="truncate font-semibold" title={row.title}>{row.title}</div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">{row.code ?? row.id.slice(0, 8)}</div>
-        </div>
-      ),
-      exportValue: (row) => row.title,
-    },
-    {
-      key: 'project',
-      header: t('column.project', 'Project'),
-      cell: (row) => <ProjectNameLink projectId={row.project_id} name={row.project ? projectDisplayName(row.project) : undefined} legalName={row.project?.name} className="text-muted-foreground" />,
-      exportValue: (row) => row.project?.name ?? '',
-    },
-    {
-      key: 'requester',
-      header: t('column.raisedBy', 'Raised by'),
-      cell: (row) => (
-        <span className="flex items-center gap-2">
-          <span aria-hidden className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
-            {(row.requested_by?.full_name ?? '?').trim().charAt(0).toUpperCase() || '?'}
-          </span>
-          <span className="truncate">{row.requested_by?.full_name ?? t('unknownRequester', 'Unknown')}</span>
-        </span>
-      ),
-      exportValue: (row) => row.requested_by?.full_name ?? '',
-    },
-    {
-      key: 'value',
-      header: t('column.value', 'Value'),
-      align: 'num',
-      cell: (row) => formatCurrency(row.total_value, row.currency),
-      exportValue: (row) => row.total_value,
-    },
-    {
-      key: 'lifecycle',
-      header: t('column.lifecycle', 'Lifecycle'),
-      cell: (row) => <LifecycleStepper variant="inline" steps={lifecycleSteps(row.status as ProcurementStatus)} aria-label={`${t('column.lifecycle', 'Lifecycle')}: ${statusLabel(row.status as ProcurementStatus)}`} />,
-      exportValue: (row) => statusLabel(row.status as ProcurementStatus),
-    },
-    {
-      key: 'status',
-      header: t('column.status', 'Status'),
-      cell: (row) => <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>{statusLabel(row.status as ProcurementStatus)}</StatusPill>,
-      exportValue: (row) => statusLabel(row.status as ProcurementStatus),
-    },
-  ];
+  // The list itself renders through ProcurementBlock; these columns only describe the export.
+  const noCell = () => null;
   const exportColumns: Column<ProcurementWithRefs>[] = [
-    ...withCurrencyColumn(columns, 'value', (row) => row.currency),
-    { key: 'external-refs', header: t('column.externalReferences', 'External references'), cell: (row) => externalRefsOf(row).join(', '), exportValue: (row) => externalRefsOf(row).join(', ') },
+    ...withCurrencyColumn<ProcurementWithRefs>([
+      { key: 'request', header: t('column.procurement', 'Procurement'), cell: noCell, exportValue: (row) => row.title },
+      { key: 'project', header: t('column.project', 'Project'), cell: noCell, exportValue: (row) => row.project?.name ?? '' },
+      { key: 'requester', header: t('column.raisedBy', 'Raised by'), cell: noCell, exportValue: (row) => row.requested_by?.full_name ?? '' },
+      { key: 'value', header: t('column.value', 'Value'), align: 'num', cell: noCell, exportValue: (row) => row.total_value },
+      { key: 'lifecycle', header: t('column.lifecycle', 'Lifecycle'), cell: noCell, exportValue: (row) => statusLabel(row.status as ProcurementStatus) },
+      { key: 'status', header: t('column.status', 'Status'), cell: noCell, exportValue: (row) => statusLabel(row.status as ProcurementStatus) },
+    ], 'value', (row) => row.currency),
+    { key: 'external-refs', header: t('column.externalReferences', 'External references'), cell: noCell, exportValue: (row) => externalRefsOf(row).join(', ') },
   ];
 
   const projectFilters = distinctOptions(all.map((row) => ({ value: row.project_id, label: row.project ? projectDisplayName(row.project) : null })));

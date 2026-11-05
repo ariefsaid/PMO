@@ -13,8 +13,10 @@
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
+ *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
+ *   pmo purchases journals --project <id> | attach-journals <file.json|-> [--dry-run]   (Admin, Executive, PM, Finance — #1919)
  *   pmo erp readiness | list-projects | verify-links
  *   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
  *   pmo m365 status
@@ -51,7 +53,7 @@ import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -106,6 +108,9 @@ export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link
  */
 export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project', 'import_budget_line_v2']);
 export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'boq_items']);
+/** #1835 stage history is available only through the active-Admin stage commands. */
+export const STAGE_ADMIN_TABLES = Object.freeze(['project_stage_entries']);
+export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
 
 /**
  * The ACTIVE-ADMIN `pmo rpc` tier (#1326). The database guard (migration 0366) admits these only to an active
@@ -123,7 +128,7 @@ export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
 export { TM_READ_RPCS };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -780,11 +785,16 @@ const USAGE = `usage:
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
+  pmo stages <project>   (active Admin: read stage history)
+  pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
   pmo purchases set-aside <file.json | file.csv | -> [--csv] [--undo] [--dry-run]   (Admin, Finance: rows of
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
   pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
                                                                    link sends ${MAX_BATCH} rows per call)
+  pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
+  pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
+                                                   voucher_no, account, project_id, procurement_id; link only)
   pmo purchases link-file <json | @file | ->
   pmo erp readiness | list-projects | verify-links
   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
@@ -825,6 +835,28 @@ async function readMe(ctx) {
   return { user, profile: Array.isArray(rows) && rows[0] ? rows[0] : {} };
 }
 
+async function requireActiveAdmin(ctx, command) {
+  const { profile } = await readMe(ctx);
+  if (profile.role !== 'Admin' || profile.status !== 'active') {
+    throw usage(`pmo ${command} is for an active Admin. Sign in as the organisation's Admin.`);
+  }
+}
+
+function validIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? '')) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+async function readStageEntries(ctx, projectId) {
+  const query = new URLSearchParams({
+    select: 'id,stage,entered_on,position,source,redated_at',
+    project_id: `eq.${projectId}`,
+    order: 'position.asc',
+  });
+  return authed(ctx, 'GET', `/rest/v1/project_stage_entries?${query}`);
+}
+
 /**
  * Turn ids into names in ONE read — the same `in.(…)` shape `attribution preview` uses — so a report prints a name
  * where it has an id. Row-level security and the API-client tier decide what comes back; an id the read does not
@@ -848,6 +880,20 @@ function loadApi(ctx) {
     post: (table, body) => authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: representation }),
     patch: (table, q, body) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers: representation }),
     rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+    // Match Companies → New: the authenticated caller's JWT invokes the same synchronous ERP
+    // dispatch command, which creates the ERP party and returns its canonical PMO row.
+    createExternalCompany: async ({ name, type }) => {
+      const id = crypto.randomUUID();
+      const result = await authed(ctx, 'POST', '/functions/v1/adapter-dispatch', {
+        body: {
+          domain: 'companies',
+          operation: 'create',
+          record: { id, name, type, erp_doc_kind: 'customer' },
+          idempotencyKey: crypto.randomUUID(),
+        },
+      });
+      return result?.canonical;
+    },
   };
 }
 
@@ -921,10 +967,7 @@ async function dispatch(ctx, command, positionals, flags) {
       if (problems.length > 0) {
         throw new CliError(`The load file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_load_file', details: problems });
       }
-      const { profile } = await readMe(ctx);
-      if (profile.role !== 'Admin' || profile.status !== 'active') {
-        throw usage("pmo load is for an active Admin (the owner). Sign in as the organisation's Admin.");
-      }
+      await requireActiveAdmin(ctx, 'load');
       const api = loadApi(ctx);
       const resolved = await resolveLoad(doc, api);
       if (resolved.problems.length > 0) {
@@ -939,6 +982,27 @@ async function dispatch(ctx, command, positionals, flags) {
         err.details = { cause: err.details ?? null, ...(e?.loadReport ?? {}) };
         throw err;
       }
+    }
+    case 'stages': {
+      const [projectId] = positionals;
+      if (!projectId || !UUID.test(projectId)) throw usage('stages needs a project UUID: pmo stages <project>');
+      await requireActiveAdmin(ctx, 'stages');
+      return readStageEntries(ctx, projectId);
+    }
+    case 'stage-date': {
+      const [projectId, stage, enteredOn] = positionals;
+      if (!projectId || !UUID.test(projectId) || !stage || !enteredOn || positionals.length !== 3) {
+        throw usage('stage-date needs a project UUID, stage name and date: pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>');
+      }
+      if (!validIsoDate(enteredOn)) throw usage('stage-date needs a real date in YYYY-MM-DD format');
+      await requireActiveAdmin(ctx, 'stage-date');
+      const entries = await readStageEntries(ctx, projectId);
+      const entry = [...(Array.isArray(entries) ? entries : [])].reverse().find((candidate) => candidate.stage === stage);
+      if (!entry) throw usage(`No '${stage}' stage entry was found for project ${projectId}.`);
+      await authed(ctx, 'POST', '/rest/v1/rpc/redate_stage_entry', {
+        body: { p_entry_id: entry.id, p_entered_on: enteredOn },
+      });
+      return { project_id: projectId, entry_id: entry.id, stage, entered_on: enteredOn };
     }
     case 'purchases':
       return purchases(ctx, positionals, flags);
@@ -1105,6 +1169,23 @@ async function purchases(ctx, positionals, flags) {
     const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
     return failed ? new Reported(report, 1) : report;
   }
+  if (sub === 'journals') {
+    // #1919: the project's accounting-system journal cost lines (the same read as the Procurement tab).
+    if (flags.project === undefined || !UUID.test(String(flags.project))) throw usage('purchases journals needs --project <id (uuid)>: pmo purchases journals --project <id>');
+    return readJournalPages((from, to) => authed(ctx, 'POST', '/rest/v1/rpc/project_erp_journal_lines',
+      { body: { p_project_id: flags.project }, headers: { 'range-unit': 'items', range: `${from}-${to}` } }));
+  }
+  if (sub === 'attach-journals') {
+    if (!arg) throw usage('purchases attach-journals needs a file: pmo purchases attach-journals <file.json|-> [--dry-run]');
+    const rows = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+    const problems = validateJournalRows(rows);
+    if (problems.length > 0) throw new CliError(`The journal file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_journal_file', details: problems });
+    const dryRun = Boolean(flags['dry-run']);
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    const report = await runAttachJournals(api, rows, { dryRun });
+    const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
+    return failed ? new Reported(report, 1) : report;
+  }
   if (sub === 'link-file') {
     const body = await readPayload(ctx, arg);
     if (!body || typeof body !== 'object' || Array.isArray(body) || !body.procurement_id || !body.item) {
@@ -1114,7 +1195,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals or link-file.`);
 }
 
 /**

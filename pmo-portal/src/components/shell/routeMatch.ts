@@ -109,8 +109,9 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
-    // This destination follows the CRM gate on the /companies route.
-    feature: 'crm',
+    // Mirror Rail: the Suppliers doorway shows only while CRM is OFF (its job is done by the
+    // Companies directory once CRM ships — parity guard, navigationRegistryParity.test).
+    unlessFeature: 'crm',
   },
   {
     module: 'contacts',
@@ -150,9 +151,11 @@ export const MODULES: ModuleDef[] = [
   // #775: Expenses — every role (own claims); RLS scopes reads.
   { module: 'expenses', icon: 'expenses', label: 'Expenses', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
-  // #1515: Site cash — floats visible to approval rank (RLS); the rail hides it from Engineers.
+  // #1515: Site cash — floats visible to approval rank (RLS); the rail hides it from Engineers,
+  // so the palette Navigate group must too (parity guard: mirror Rail's role gate).
   { module: 'imprest', icon: 'expenses', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' }, feature: 'imprest' },
+    labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' },
+    feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
   { module: 'equipment', icon: 'clock', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
@@ -421,22 +424,17 @@ const administrationBreadcrumbForPath = (
  * a link. `recordResolved` defaults to false (still loading) so callers that
  * don't pass it keep the prior cold-deep-link "Loading…" behavior.
  *
- * Model B (ADR-0020, AC-IXD-PROJ-005): `/projects/:id` is the ONE canonical detail route for
- * every project/opportunity, so its breadcrumb ancestry follows the record's STAGE rather than
- * the URL prefix — a `pipeline | lost` record reads `Sales Pipeline > <name>` (and links back
- * to `/sales`), an `onHand | internal` record reads `Projects > <name>`. The caller resolves
- * the record's status group from the cached lists (`recordStatusForPath`) and threads it in via
- * `recordStatusGroup`; when omitted it defaults to the module's own ancestry (back-compat).
+ * Model B (ADR-0020, AC-IXD-PROJ-005, FIX-2): `/projects/:id` is the ONE canonical detail route for
+ * every project/opportunity, so its breadcrumb ancestry is ALWAYS the module's own "Projects"
+ * ancestry — a pipeline/lost record reads `Projects > <name>` exactly like an onHand/internal
+ * one. The stage group is deliberately NOT an input: the rail's stage-aware highlight is
+ * derived separately (`recordStatusGroupForPath` + `deriveRailActiveOverride` in App.tsx).
  */
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
   navigate?: (target: string | ListReturnNavigation) => void,
   recordResolved = false,
-  // FIX-2: the stage group is no longer used to change the breadcrumb ancestry for
-  // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
-  // The param is kept in the signature so App.tsx callers don't need updating.
-  _recordStatusGroup?: ProjectStatusGroup,
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
   routeSearch = '',
@@ -526,13 +524,10 @@ export function breadcrumbForPath(
       : [{ label: placeholderTitle }];
   }
 
-  // User-view detail route → [My Views (link to /) > <view.name>] (OD-4, FR-VR-053)
-  // OD-4 note: 'My Views' currently links to '/' (Dashboard) because there is no
-  // /views index route yet. The label is accurate (the section IS called My Views) but
-  // the destination is unexpected for a screen-reader user — WCAG 2.4.6 (descriptive
-  // link labels). To mitigate the mismatch the crumb carries an aria-label spelling out
-  // the destination, consistent with option (a) of OD-4. When a /views index route ships
-  // (I4/I5), update onClick to navigate('/views') and drop the aria-label override.
+  // User-view detail route → [My Views (link to /views) > <view.name>] (OD-4, FR-VR-053)
+  // OD-4 follow-up: the /views index route (MyViewsPage) has shipped, so the parent crumb now
+  // leads to the user's own view list instead of Dashboard, and the interim "back to Dashboard"
+  // aria-label override is gone — the visible label IS the accurate accessible name.
   if (pathname.startsWith('/views/')) {
     // The pending/not-found state crumbs share the shell vocabulary keys so the
     // states localize like every other breadcrumb label (UXS-006).
@@ -542,9 +537,8 @@ export function breadcrumbForPath(
     return [
       {
         label: 'My Views', // i18n-exempt: /views breadcrumb is outside the AC-UXA-017 invoice route scope
-        href: '/',
-        onClick: () => navigate?.('/'),
-        ariaLabel: 'My Views — back to Dashboard',
+        href: '/views',
+        onClick: () => navigate?.('/views'),
       },
       // The create route is not a record deep-link: it renders the working New View form
       // (tidy audit TA-012) — never the record Loading/Not-found crumbs.
