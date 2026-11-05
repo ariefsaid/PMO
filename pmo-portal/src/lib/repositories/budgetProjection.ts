@@ -17,7 +17,7 @@ import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
 import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncoding';
 import { budgetAccountIdentity } from '@/src/lib/adapterSeam/erpnext/budgetAccountIdentity';
-import type { Database } from '@/src/lib/supabase/database.types';
+import { Constants, type Database } from '@/src/lib/supabase/database.types';
 import type { BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
 
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
@@ -405,15 +405,41 @@ export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear:
   if (rpcError) throw toAppError(rpcError);
 }
 
-/** Lists every account row of the caller org's map, by category then account (RLS scopes the org). */
+/**
+ * ⚑ DATA32 — the map is read by KEYSET on its uuid, then presented in the map's own order.
+ *
+ * The categories are a Postgres ENUM, so their meaningful order is `budget_category`'s declaration
+ * order — alphabetic ordering would put "Contingency" first and "Vehicle" last, a different list from
+ * the one the admin surface groups by. `erp_account` is free text: order it with an EXPLICIT JS
+ * comparator (`localeCompare`), and give every tie the uuid as the final deterministic key.
+ *
+ * ⚑ HONEST LIMIT: the previous read asked Postgres to sort (`ORDER BY category, erp_account`), whose
+ * collation can differ from JS `localeCompare` for non-ASCII account names. This comparator is
+ * self-consistent and keeps readable ascending account order, but it is NOT byte-identical to a
+ * Postgres collation sort — no such claim is made here.
+ */
+const budgetCategoryRank = new Map<string, number>(Constants.public.Enums.budget_category.map((category, index) => [category, index]));
+
+const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+const byCategoryThenAccountThenId = (a: MapDbRow, b: MapDbRow) =>
+  (budgetCategoryRank.get(a.category) ?? Constants.public.Enums.budget_category.length)
+  - (budgetCategoryRank.get(b.category) ?? Constants.public.Enums.budget_category.length)
+  || a.erp_account.localeCompare(b.erp_account)
+  || compareText(a.id, b.id);
+
+/** Lists every account row of the caller org's map, by category then account (RLS scopes the org).
+ *  ⚑ DATA32: KEYSET-paged so a map past PostgREST's response cap is read WHOLE (an unpaged read
+ *  truncated silently — HTTP 200, short body, no error — leaving the admin's map short one account). */
 export async function listBudgetCategoryAccountMap(): Promise<CategoryAccountMapRow[]> {
-  const { data, error } = await supabase
-    .from('budget_category_account_map')
-    .select(MAP_COLUMNS)
-    .order('category')
-    .order('erp_account');
-  if (error) throw toAppError(error);
-  return ((data ?? []) as MapDbRow[]).map(toMapRow);
+  const rows = await fetchAllRowsByKeyset<MapDbRow>((afterId, limit) => {
+    const q = supabase
+      .from('budget_category_account_map')
+      .select(MAP_COLUMNS)
+      .order('id', { ascending: true });
+    return (afterId === null ? q : q.gt('id', afterId)).limit(limit) as unknown as PromiseLike<PageResult<MapDbRow>>;
+  });
+  return [...rows].sort(byCategoryThenAccountThenId).map(toMapRow);
 }
 
 /** Adds an account to a category (Admin-only — RLS `budget_category_account_map_write`, FR-BUD-112). The push
