@@ -17,6 +17,7 @@ import {
 import { AdapterError, type AdapterCommand, type CommandResult, type PmoRecord } from './contract.ts';
 import { AppError, type CommandHeldOutboxMarker } from '../appError.ts';
 import { createErpAdapter } from './erpnext/adapter.ts';
+import { withOdooCallBudget } from '../../../../supabase/functions/_shared/odooCallBudget.ts';
 
 const LEASE_MS = 60_000;
 const WINDOW_MS = 5 * 60_000;
@@ -30,6 +31,7 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
   const byTuple = new Map<string, string>();
   const probes = new Map<string, { externalRecordId: string }>();
   const refs: Array<{ pmoRecordId: string; externalTier: string; externalRecordId: string; domain: string }> = [];
+  const heldReasons: string[] = [];
   let seq = 0;
   const tupleKey = (domain: string, pmoRecordId: string, idempotencyKey: string) =>
     `${domain}::${pmoRecordId}::${idempotencyKey}`;
@@ -116,7 +118,7 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
       if (!row || row.claimGeneration !== claimGeneration || row.state !== 'committing') return 0;
       row.state = 'held';
       row.updatedAt = Date.now();
-      void reason;
+      heldReasons.push(reason);
       return 1;
     },
     reissueOnInconclusiveAbsence: opts.reissueOnInconclusiveAbsence ?? true,
@@ -140,6 +142,7 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
     deps,
     rows,
     refs,
+    heldReasons,
     setProbe: (domain: string, idempotencyKey: string, result: { externalRecordId: string }) =>
       probes.set(`${domain}::${idempotencyKey}`, result),
     backdate: (id: string, ms: number) => {
@@ -1344,6 +1347,73 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
     ).rejects.toMatchObject({ code: 'external-unreachable' });
     expect([...fake.rows.values()][0].state).toBe('committing');
   });
+
+  it('AC-OPP-062 a payment recovery budget cut after create leaves the outbox row in flight', async () => {
+    const fake = createFakeOutbox();
+    const command: AdapterCommand = {
+      ...baseCommand, record: { id: 'pmo-payment-1', erp_doc_kind: 'payment', paid_amount: '98.00' },
+    };
+    await fake.deps.insertOutboxPending(command.domain, command.record.id, command.idempotencyKey!);
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(async () => { throw new AdapterError('commit-rejected', 'first attempt refused before payment creation'); }),
+      command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect([...fake.rows.values()][0].state).toBe('failed');
+
+    let remaining = 1;
+    const calls: string[] = [];
+    const paymentModel = ['account', 'payment'].join('.');
+    const createMethod = ['cr', 'eate'].join('');
+    const call = withOdooCallBudget(async <T>(model: string, method: string): Promise<T> => {
+      calls.push(`${model}.${method}`);
+      return (model === paymentModel && method === createMethod ? [42] : true) as T;
+    }, {
+      left: () => remaining > 0,
+      spend: () => { if (remaining === 0) return false; remaining -= 1; return true; },
+    });
+    const replayAdapter = erpnextAdapter(async () => {
+      await call(paymentModel, createMethod);
+      await call(paymentModel, 'action_post');
+      return { externalRecordId: `${paymentModel}:42`, canonical: { id: command.record.id } };
+    });
+
+    await expect(dispatchMoneyWrite({
+      adapter: replayAdapter, command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(calls).toEqual([`${paymentModel}.${createMethod}`]);
+    expect([...fake.rows.values()][0].state).toBe('committing');
+  });
+
+  it('AC-OPP-062 a revenue receipt recovery budget cut after create also leaves the row in flight', async () => {
+    const fake = createFakeOutbox();
+    const command: AdapterCommand = {
+      domain: 'revenue', operation: 'create', idempotencyKey: 'receipt-key',
+      record: { id: '00000000-0000-4000-8000-000000000043', erp_doc_kind: 'incoming-payment', paid_amount: '98.00' },
+    };
+    await fake.deps.insertOutboxPending(command.domain, command.record.id, command.idempotencyKey!);
+    let remaining = 1;
+    const calls: string[] = [];
+    const paymentModel = ['account', 'payment'].join('.');
+    const createMethod = ['cr', 'eate'].join('');
+    const call = withOdooCallBudget(async <T>(model: string, method: string): Promise<T> => {
+      calls.push(`${model}.${method}`);
+      return (model === paymentModel && method === createMethod ? [43] : true) as T;
+    }, {
+      left: () => remaining > 0,
+      spend: () => { if (remaining === 0) return false; remaining -= 1; return true; },
+    });
+    const receiptAdapter = erpnextAdapter(async () => {
+      await call(paymentModel, createMethod);
+      await call(paymentModel, 'action_post');
+      return { externalRecordId: `${paymentModel}:43`, canonical: { id: command.record.id } };
+    });
+
+    await expect(dispatchMoneyWrite({
+      adapter: receiptAdapter, command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(calls).toEqual([`${paymentModel}.${createMethod}`]);
+    expect([...fake.rows.values()][0].state).toBe('committing');
+  });
 });
 
 /**
@@ -1580,6 +1650,7 @@ describe('whole-project range Budget outbox dispatch', () => {
       code: 'command-held', heldOutboxId: inserted.id, heldClaimGeneration: 1,
     });
     expect(fake.rows.get(inserted.id)?.state).toBe('held');
+    expect(fake.heldReasons).toEqual(['adapter-held: range witness changed']);
 
     const second = createFakeOutbox();
     const secondInserted = await second.deps.insertOutboxPending('budget', rangeIdentity, rangeCommand.idempotencyKey!);

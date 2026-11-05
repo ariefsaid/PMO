@@ -43,3 +43,25 @@ Deno.test('C6-T7 an unowned revenue domain is not dispatched', async () => {
   assertEquals(built, false);
   assertEquals(result, { reconciled: 0, errors: [{ id: '1', error: 'domain-not-owned' }] });
 });
+
+Deno.test('C6-T7 revenue recovery reserves the candidate probe, commit and read-back budget before dispatch', async () => {
+  let remaining = 1;
+  let dispatched = false;
+  const budget = {
+    left: () => remaining > 0,
+    spend: (units = 1) => {
+      if (units > remaining) return false;
+      remaining -= units;
+      return true;
+    },
+  };
+  const result = await reconcileOdooRevenueCandidates([
+    candidate('1', { erp_doc_kind: 'sales-invoice', verb: 'submit' }),
+  ], { orgId: 'org-a', ownsRevenue: true, callBudget: budget }, async () => deps, async () => {
+    dispatched = true;
+    return {};
+  });
+
+  assertEquals([dispatched, remaining], [false, 1], 'a tick that cannot reserve the invoice recovery does not start it');
+  assertEquals(result.reconciled, 0);
+});

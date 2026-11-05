@@ -11,23 +11,19 @@ import { getReadModelWriter } from './readModelWriters.ts';
 import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 import { resolveOdooRevenueAdapter } from './odooAdapters.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { reservedOdooCallBudget, type OdooCallBudget, type ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
+import { parseOdooOutboxRecoveryCandidates, type OdooOutboxRecoveryCandidate } from '../_shared/odooOutboxRecovery.ts';
 
-export interface OdooRevenueCandidate {
-  row: OutboxRow;
-  externalTier: string;
-  operation: string;
-  payload: Record<string, unknown> | null;
-  updatedAt: string;
-}
+export type OdooRevenueCandidate = OdooOutboxRecoveryCandidate;
 
 export interface OdooRevenueRecoveryResult {
   reconciled: number;
   errors: Array<{ id: string; error: string }>;
 }
 
-type OdooCallBudget = { left: () => boolean; spend: () => boolean };
+export const ODOO_REVENUE_RECOVERY_CALL_RESERVATION = 16;
 
-export type BuildOdooRevenueRecoveryDeps = (candidate: OdooRevenueCandidate) => DispatchMoneyWriteDeps | Promise<DispatchMoneyWriteDeps>;
+export type BuildOdooRevenueRecoveryDeps = (candidate: OdooRevenueCandidate, callBudget?: ReservedOdooCallBudget) => DispatchMoneyWriteDeps | Promise<DispatchMoneyWriteDeps>;
 export type DispatchOdooRevenueRecovery = (deps: DispatchMoneyWriteDeps) => Promise<unknown>;
 
 const isInvoiceSubmit = (candidate: OdooRevenueCandidate): boolean =>
@@ -56,38 +52,60 @@ export async function reconcileOdooRevenueCandidates(
   let reconciled = 0;
   for (const candidate of eligible.slice(0, options.maxCandidates ?? 100)) {
     if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) break;
-    if (options.callBudget && !options.callBudget.left()) break;
+    if (options.callBudget && !(options.callBudget.canSpend?.(ODOO_REVENUE_RECOVERY_CALL_RESERVATION) ?? options.callBudget.left())) break;
+    const candidateBudget = options.callBudget ? reservedOdooCallBudget(ODOO_REVENUE_RECOVERY_CALL_RESERVATION) : undefined;
+    let built: DispatchMoneyWriteDeps;
     try {
-      await dispatch(await buildDeps(candidate));
+      built = await buildDeps(candidate, candidateBudget);
+      if (candidateBudget?.exhausted()) {
+        const used = candidateBudget.used();
+        if (used > 0) options.callBudget?.spend(used);
+        errors.push({ id: candidate.row.id, error: 'external-unreachable' });
+        break;
+      }
+      if (options.callBudget && !options.callBudget.spend(ODOO_REVENUE_RECOVERY_CALL_RESERVATION)) {
+        const used = candidateBudget?.used() ?? 0;
+        if (used > 0) options.callBudget.spend(used);
+        break;
+      }
+    } catch (error) {
+      const used = candidateBudget?.used() ?? 0;
+      if (used > 0) options.callBudget?.spend(used);
+      errors.push({ id: candidate.row.id, error: error instanceof Error ? error.message : String(error) });
+      if (candidateBudget?.exhausted() || (options.callBudget && !options.callBudget.left())) break;
+      continue;
+    }
+    let stopAfterDispatch = false;
+    try {
+      await dispatch(built);
       reconciled += 1;
     } catch (error) {
       errors.push({ id: candidate.row.id, error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      if (options.callBudget && candidateBudget) {
+        const used = candidateBudget.used();
+        if (used < ODOO_REVENUE_RECOVERY_CALL_RESERVATION) options.callBudget.refund?.(ODOO_REVENUE_RECOVERY_CALL_RESERVATION - used);
+        else if (used > ODOO_REVENUE_RECOVERY_CALL_RESERVATION) options.callBudget.spend(used - ODOO_REVENUE_RECOVERY_CALL_RESERVATION);
+        stopAfterDispatch = candidateBudget.exhausted() || !options.callBudget.left();
+      }
     }
+    if (stopAfterDispatch) break;
   }
   return { reconciled, errors };
-}
-
-function outboxRow(raw: Record<string, unknown>): OutboxRow {
-  return {
-    id: String(raw.id), domain: String(raw.domain), pmoRecordId: String(raw.pmo_record_id), idempotencyKey: String(raw.idempotency_key),
-    state: raw.state as OutboxRow['state'], externalRecordId: (raw.external_record_id as string | null) ?? null,
-    canonical: (raw.canonical as PmoRecord | null) ?? null, claimGeneration: Number(raw.claim_generation ?? 0),
-    payloadDigest: (raw.payload_digest as string | null) ?? null,
-  };
 }
 
 async function buildOdooRevenueRecoveryDeps(
   sc: SupabaseClient,
   orgId: string,
   candidate: OdooRevenueCandidate,
-  callBudget?: OdooCallBudget,
+  callBudget?: ReservedOdooCallBudget,
 ): Promise<DispatchMoneyWriteDeps> {
   const { data, error } = await sc.from('external_command_outbox')
-    .select('external_tier,domain,pmo_record_id,operation,payload,actor_user_id')
+    .select('external_tier,domain,pmo_record_id,operation,state,payload,actor_user_id')
     .eq('org_id', orgId).eq('id', candidate.row.id).maybeSingle();
   if (error || !data) throw new AppError('Odoo invoice recovery row could not be read', error?.code ?? 'not-found');
   const stored = data as {
-    external_tier: string; domain: string; pmo_record_id: string; operation: string;
+    external_tier: string; domain: string; pmo_record_id: string; operation: string; state: OutboxRow['state'];
     payload: Record<string, unknown> | null; actor_user_id: string | null;
   };
   const payload = stored.payload ?? {};
@@ -99,11 +117,11 @@ async function buildOdooRevenueRecoveryDeps(
     domain: 'revenue', operation: 'transition', record: payload as AdapterCommand['record'], idempotencyKey: candidate.row.idempotencyKey,
   };
   const replayAuth = await checkOutboxReplayAuthorization(sc as never, orgId, {
-    id: candidate.row.id, state: candidate.row.state, domain: command.domain, operation: command.operation,
+    id: candidate.row.id, state: stored.state, domain: command.domain, operation: command.operation,
     pmoRecordId: candidate.row.pmoRecordId, actorUserId: stored.actor_user_id, payload, tier: ODOO_TIER,
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
-  if (replayMayIssueErpWrite(candidate.row.state)) await assertNotPreCutover(sc as never, { domain: command.domain, record: payload });
+  if (replayMayIssueErpWrite(stored.state)) await assertNotPreCutover(sc as never, { domain: command.domain, record: payload });
 
   const context: AdapterSelectContext = {
     orgId, command, serviceClient: sc, userId: stored.actor_user_id ?? '', replay: true, erpAuth: new Map(),
@@ -125,14 +143,14 @@ async function buildOdooRevenueRecoveryDeps(
 export async function reconcileOdooRevenueOutbox(
   sc: SupabaseClient,
   orgId: string,
-  options: { maxCandidates?: number; timeBudgetMs?: number; callBudget?: OdooCallBudget } = {},
+  options: { maxCandidates?: number; timeBudgetMs?: number; callBudget?: OdooCallBudget; candidates?: OdooRevenueCandidate[] } = {},
 ): Promise<OdooRevenueRecoveryResult> {
-  const { data, error } = await sc.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
-  if (error) throw new AppError('Odoo invoice recovery candidates could not be read', error.code);
-  const candidates: OdooRevenueCandidate[] = ((data as Array<Record<string, unknown>> | null) ?? []).map((raw) => ({
-    row: outboxRow(raw), externalTier: String(raw.external_tier), operation: String(raw.operation),
-    payload: (raw.payload as Record<string, unknown> | null) ?? null, updatedAt: String(raw.updated_at ?? ''),
-  }));
+  let candidates = options.candidates;
+  if (!candidates) {
+    const { data, error } = await sc.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
+    if (error) throw new AppError('Odoo invoice recovery candidates could not be read', error.code);
+    candidates = parseOdooOutboxRecoveryCandidates(data);
+  }
   const { data: ownership, error: ownershipError } = await sc.from('external_domain_ownership').select('id')
     .eq('org_id', orgId).eq('external_tier', ODOO_TIER).eq('domain', 'revenue').limit(1);
   if (ownershipError) throw new AppError('Odoo revenue ownership could not be checked', ownershipError.code);
@@ -142,5 +160,5 @@ export async function reconcileOdooRevenueOutbox(
     orgId, ownsRevenue: (ownership?.length ?? 0) > 0, maxCandidates: options.maxCandidates,
     deadlineAt: now + recoveryBudgetMs, callBudget: options.callBudget,
   },
-    (candidate) => buildOdooRevenueRecoveryDeps(sc, orgId, candidate, options.callBudget));
+    (candidate, callBudget) => buildOdooRevenueRecoveryDeps(sc, orgId, candidate, callBudget));
 }
