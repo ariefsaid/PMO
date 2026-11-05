@@ -58,7 +58,11 @@ interface NavItem {
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
-const ALL_ITEMS: NavItem[] = [
+// Exported for the navigation-registry parity guard (⌘K Navigate reads MODULES; this is the
+// rail's own registry — the guard keeps the two from drifting apart). The `ALL_ITEMS` name is
+// load-bearing: scripts/check-module-completeness.mjs parses this block by it.
+// eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
+export const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },

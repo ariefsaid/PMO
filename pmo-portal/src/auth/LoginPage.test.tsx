@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
@@ -438,5 +438,64 @@ describe('LoginPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: /resend confirmation/i }));
     await waitFor(() => expect(screen.getByText(/too many|rate limit|try again/i)).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /resend confirmation/i })).toBeDisabled();
+  });
+});
+
+describe('LoginPage — rate-limit recovery (resend cooldown and way back)', () => {
+  async function reachRateLimitedResend(setup: ReturnType<typeof userEvent.setup>) {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Email not confirmed' } });
+    auth.resend.mockResolvedValueOnce({
+      error: { message: 'For security purposes, you can only request this once every 60 seconds' },
+    });
+    const view = renderLogin();
+    await setup.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await setup.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await setup.click(screen.getByRole('button', { name: /sign in/i }));
+    await setup.click(await screen.findByRole('button', { name: /resend confirmation/i }));
+    await waitFor(() => expect(screen.getByText(/too many|rate limit|try again/i)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /resend confirmation/i })).toBeDisabled();
+    return view;
+  }
+
+  it('re-enables the resend action once the retry interval has elapsed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const setup = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    try {
+      await reachRateLimitedResend(setup);
+      // The cooldown is the server's documented 60-second retry interval.
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(screen.getByRole('button', { name: /resend confirmation/i })).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cleans up the cooldown timer on unmount', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const setup = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    try {
+      const view = await reachRateLimitedResend(setup);
+      const withCooldown = vi.getTimerCount();
+      expect(withCooldown).toBeGreaterThan(0);
+      view.unmount();
+      expect(vi.getTimerCount()).toBeLessThan(withCooldown);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('offers a way back to the sign-in form from the confirm-required state', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Email not confirmed' } });
+    renderLogin();
+    const setup = userEvent.setup();
+    await setup.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await setup.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await setup.click(screen.getByRole('button', { name: /sign in/i }));
+    await screen.findByRole('button', { name: /resend confirmation/i });
+    await setup.click(screen.getByRole('button', { name: /back to sign in/i }));
+    // The ordinary sign-in form is back.
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /resend confirmation/i })).not.toBeInTheDocument();
   });
 });

@@ -51,32 +51,29 @@ export function useRecordSearch(
   // anything an index page already cached is still searched.
   const { t } = useTranslation(['common', 'projects']);
   const enabled = opts?.enabled !== false;
-  const projects = useProjects({ enabled });
-  const procurements = useProcurements({ enabled });
-  const pipeline = useSalesPipeline({ enabled });
-  // CW-7: index master data (Companies + Contacts) too — searching a company/contact name
-  // returned nothing before. Both are already-cached, RLS-scoped lists; reads only the cache.
-  const companies = useCompanies(undefined, { enabled });
-  const contacts = useContacts({ enabled });
-  // CW-4a: index the incident register so ⌘K opens an incident's routable /incidents/:id detail
-  // page (the dead-end fix). Incidents are visible to EVERY role (any member may file), so this
-  // is indexed unconditionally — no view-gate; RLS scopes the rows.
-  const incidents = useIncidents(undefined, { enabled });
-  // ⌘K module view-gate (A-8, AC-W2-RBAC-015): a module's records are indexed ONLY when the
-  // viewer's REAL role may view that module's index, so a denied role (e.g. Engineer — no
-  // Procurement / Sales nav per rbac-visibility §A/§C/§E) never surfaces another module's rows
-  // via the palette. Read the real role non-throwing so the hook stays usable outside the
-  // ImpersonationProvider (deny-by-default). RLS stays the authority; this closes the
-  // client-cache cross-scope leak for clarity.
-  const realRole = useOptionalRealRole();
+  // Source gates are computed BEFORE the query hooks so each denied source can be disabled at
+  // its `enabled` option (HKA-014): a role (or feature flag) that can never surface a module's
+  // rows must not pay for its list read. RLS stays the authority; this is an over-fetch fix.
   // Sales Pipeline view = Admin·Exec·PM·Finance (§C); the `project.transition` set is exactly
   // that role set (the shipped WRITE_ROLES). Procurement index view = Admin·Exec·PM·Finance (§E).
+  const realRole = useOptionalRealRole();
   const mayViewPipeline = can('transition', 'project', { realRole });
   const mayViewProcurement = can('view', 'procurement', { realRole });
   // Companies + Contacts directory view = master-data roles (Admin·Exec·PM·Finance §D); an Engineer
   // (no master-data nav) never surfaces these rows via ⌘K. RLS stays the authority.
   const mayViewCompanies = can('view', 'company', { realRole });
   const mayViewContacts = can('view', 'contact', { realRole });
+  // Incidents module gate (CW-4a): the interim UI flag decides whether the register is read at
+  // all — a hidden feature performs no read, not merely a filtered result.
+  const incidentsEnabled = isFeatureEnabled('incidents');
+  const projects = useProjects({ enabled });
+  const procurements = useProcurements({ enabled: enabled && mayViewProcurement });
+  const pipeline = useSalesPipeline({ enabled: enabled && mayViewPipeline });
+  // CW-7: index master data (Companies + Contacts) too — searching a company/contact name
+  // returned nothing before. Both are already-cached, RLS-scoped lists; reads only the cache.
+  const companies = useCompanies(undefined, { enabled: enabled && mayViewCompanies });
+  const contacts = useContacts({ enabled: enabled && mayViewContacts });
+  const incidents = useIncidents(undefined, { enabled: enabled && incidentsEnabled });
 
   const records = useMemo<PaletteItem[]>(() => {
     const out: PaletteItem[] = [];
@@ -182,9 +179,7 @@ export function useRecordSearch(
       }
     }
 
-    // Incidents are indexed only when the feature flag is on. The useIncidents()
-    // hook call is unconditional (hooks can't be conditional) — the fetch is
-    // harmless while the module is hidden; only the result is excluded here.
+    // Incidents are indexed only when the feature flag is on (the read itself is gated above).
     if (isFeatureEnabled('incidents')) {
       for (const inc of incidents.data ?? []) {
         out.push({
@@ -217,27 +212,30 @@ export function useRecordSearch(
 
   return {
     records,
+    // A disabled query idles with status "pending" in TanStack, so the aggregate covers only the
+    // sources this viewer actually has enabled — a denied source's in-flight/failed state never
+    // surfaces as palette skeletons or a failure it cannot resolve.
     isPending:
       projects.isPending ||
-      procurements.isPending ||
-      pipeline.isPending ||
-      companies.isPending ||
-      contacts.isPending ||
-      incidents.isPending,
+      (mayViewProcurement && procurements.isPending) ||
+      (mayViewPipeline && pipeline.isPending) ||
+      (mayViewCompanies && companies.isPending) ||
+      (mayViewContacts && contacts.isPending) ||
+      (incidentsEnabled && incidents.isPending),
     isError:
       projects.isError ||
-      procurements.isError ||
-      pipeline.isError ||
-      companies.isError ||
-      contacts.isError ||
-      incidents.isError,
+      (mayViewProcurement && procurements.isError) ||
+      (mayViewPipeline && pipeline.isError) ||
+      (mayViewCompanies && companies.isError) ||
+      (mayViewContacts && contacts.isError) ||
+      (incidentsEnabled && incidents.isError),
     refetch: () => {
       projects.refetch?.();
-      procurements.refetch?.();
-      pipeline.refetch?.();
-      companies.refetch?.();
-      contacts.refetch?.();
-      incidents.refetch?.();
+      if (mayViewProcurement) procurements.refetch?.();
+      if (mayViewPipeline) pipeline.refetch?.();
+      if (mayViewCompanies) companies.refetch?.();
+      if (mayViewContacts) contacts.refetch?.();
+      if (incidentsEnabled) incidents.refetch?.();
     },
   };
 }
