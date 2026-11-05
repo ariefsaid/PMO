@@ -77,12 +77,11 @@ describe('AdministrationUsage — Provider-cost column is Operator-only (AC-USE-
 });
 
 describe('AdministrationUsage — AC-L10N-021 (FR-L10N-023): platform AI billing stays USD in an IDR org', () => {
-  it('provider cost / margin render `$…` even when the org currency is IDR; credits spent is a unit-labelled credit number', () => {
+  it('provider cost / credits spent / margin render `$…` even when the org currency is IDR', () => {
     const idrOrgRows = [{ ...operatorRow, provider_cost_usd: 0.03, cost: 0.1, margin_usd: 0.07 } as OperatorUsageSummaryRow];
     render(<AdministrationUsage rows={idrOrgRows} isPending={false} isError={false} onRetry={vi.fn()} />);
     expect(screen.getByText('$0.03')).toBeInTheDocument();
-    expect(screen.getByText('0.1')).toBeInTheDocument();
-    expect(screen.queryByText('$0.10')).not.toBeInTheDocument();
+    expect(screen.getByText('$0.10')).toBeInTheDocument();
     expect(screen.getByText('$0.07')).toBeInTheDocument();
     // and never the org currency — an IDR re-denomination is the silent wrong figure
     expect(screen.queryByText(/IDR/)).not.toBeInTheDocument();

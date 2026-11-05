@@ -23,12 +23,11 @@ const baseRow: UsageSummaryRow = {
   margin_usd: null,
 };
 
-describe('AdministrationUsage — credits spent unit', () => {
-  it('shows credits spent as a labelled credit number, not a dollar amount', () => {
+describe('AdministrationUsage — cost unit (FR-L10N-023)', () => {
+  it('labels the cost column USD and renders it as a dollar amount', () => {
     render(<AdministrationUsage rows={[{ ...baseRow, cost: 737.123456 }]} isPending={false} isError={false} onRetry={vi.fn()} />);
-    expect(screen.getByRole('columnheader', { name: /credits spent \(credits\)/i })).toBeInTheDocument();
-    expect(screen.getByText('737.123456')).toBeInTheDocument();
-    expect(screen.queryByText(/\$737/)).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /cost \(usd\)/i })).toBeInTheDocument();
+    expect(screen.getByText('$737.1235')).toBeInTheDocument();
   });
 });
 
