@@ -12,11 +12,16 @@ export function hungFetch(): typeof fetch {
     })) as typeof fetch;
 }
 
+/** A fetch whose headers arrive at once (200) but whose body never delivers a byte: the stalled-body case. */
+export function stalledBodyFetch(): typeof fetch {
+  return (() => Promise.resolve(new Response(new ReadableStream<Uint8Array>({ pull: () => new Promise(() => {}) }), { status: 200 }))) as typeof fetch;
+}
+
 /** Run `fn` with the outbound deadline timer shortened to `ms`; restores setTimeout afterwards. */
 export async function withShortOutboundDeadline<T>(fn: () => Promise<T>, ms = 10): Promise<T> {
   const real = globalThis.setTimeout;
   globalThis.setTimeout = ((handler: () => void, delay?: number) =>
-    real(handler, delay === OUTBOUND_FETCH_TIMEOUT_MS ? ms : delay)) as typeof setTimeout;
+    real(handler, delay !== undefined && delay > OUTBOUND_FETCH_TIMEOUT_MS - 1000 && delay <= OUTBOUND_FETCH_TIMEOUT_MS ? ms : delay)) as typeof setTimeout;
   try {
     return await fn();
   } finally {
