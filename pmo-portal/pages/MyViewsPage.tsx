@@ -22,7 +22,7 @@ import { useUserViews, useUserViewMutations } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { UserViewRow } from '@/src/lib/db/userViews';
+import type { UserViewListRow } from '@/src/lib/db/userViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import AIComposerModal from '@/src/components/builder/AIComposerModal';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
@@ -36,16 +36,16 @@ const MyViewsPage: React.FC = () => {
   const { data, isPending, isError, refetch } = useUserViews();
   const { archive } = useUserViewMutations();
 
-  const [archiveTarget, setArchiveTarget] = useState<UserViewRow | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<UserViewListRow | null>(null);
   const [aiComposerOpen, setAIComposerOpen] = useState(false);
 
   const showAIComposer =
     isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer');
 
-  const canChange = (row: UserViewRow, action: 'edit' | 'archive') =>
+  const canChange = (row: UserViewListRow, action: 'edit' | 'archive') =>
     may(action, 'userView', { currentUserId: currentUser?.id, record: { user_id: row.user_id } });
 
-  const columns: Column<UserViewRow>[] = [
+  const columns: Column<UserViewListRow>[] = [
     {
       key: 'name',
       header: t('financeCopy.name', "Name"),
@@ -71,7 +71,7 @@ const MyViewsPage: React.FC = () => {
     },
   ];
 
-  const rowMenu = (row: UserViewRow): RowMenuItem[] => [
+  const rowMenu = (row: UserViewListRow): RowMenuItem[] => [
     ...(canChange(row, 'edit') ? [{
       label: t('financeCopy.edit', "Edit"),
       onClick: () => navigate(`/views/${row.id}/edit`),
