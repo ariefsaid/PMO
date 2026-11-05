@@ -73,7 +73,7 @@ describe('UXS-006 shared route vocabulary', () => {
   });
 
   it('keeps the filtered Vendors doorway vocabulary on its canonical breadcrumb', () => {
-    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, undefined, '?type=Vendor')).toEqual([
+    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, '?type=Vendor')).toEqual([
       { label: 'Vendors', i18nKey: 'shell.nav.vendors' },
     ]);
   });
@@ -277,7 +277,6 @@ describe('breadcrumbForPath — contextual list return', () => {
       'Example project',
       navigate,
       true,
-      undefined,
       contextualParent,
     );
 

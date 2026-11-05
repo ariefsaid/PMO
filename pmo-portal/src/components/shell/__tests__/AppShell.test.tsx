@@ -372,7 +372,6 @@ describe('AppShell — parent breadcrumb record return', () => {
       'Harbor Co',
       breadcrumbNavigate,
       true,
-      undefined,
       contextual,
     );
     return (

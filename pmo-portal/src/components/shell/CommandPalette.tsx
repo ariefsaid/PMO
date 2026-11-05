@@ -25,7 +25,7 @@ export interface PaletteItem {
   run: () => void;
 }
 
-export interface CommandPaletteProps {
+interface CommandPaletteProps {
   open: boolean;
   items: PaletteItem[];
   onClose: () => void;

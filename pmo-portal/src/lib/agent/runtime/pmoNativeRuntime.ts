@@ -249,22 +249,11 @@ export class PmoNativeRuntime implements AgentRuntime {
       this._runs.set(runId, newState);
     }
 
-    // Use arrow function for [Symbol.asyncIterator] to capture `this` lexically
-    // (avoids no-this-alias lint error while preserving the correct binding).
+    // An async generator already implements the async iterator protocol and is lazy until
+    // advanced — return a FRESH generator per iteration (arrow captures `this` lexically),
+    // letting `for await`/break/cancel drive next/return/throw directly on it.
     return {
-      [Symbol.asyncIterator]: () => {
-        let gen: AsyncGenerator<AgentEvent> | null = null;
-        const getGen = (): AsyncGenerator<AgentEvent> => {
-          if (!gen) gen = this._doSubscribe(runId);
-          return gen;
-        };
-        return {
-          next: () => getGen().next(),
-          return: (value?: unknown) =>
-            getGen().return(value as AgentEvent),
-          throw: (e?: unknown) => getGen().throw(e),
-        };
-      },
+      [Symbol.asyncIterator]: () => this._doSubscribe(runId),
     };
   }
 
@@ -275,12 +264,14 @@ export class PmoNativeRuntime implements AgentRuntime {
    * followUp() can continue the SAME run (multi-turn contract, D8/R5). It is released
    * only by dispose(runId), called from the panel on newConversation()/stop() — the only
    * paths that mint a new run or permanently end one — so the Map stays bounded in a
-   * long-lived SPA session without breaking follow-ups (Blocker-4 reconciled).
+   * long-lived SPA session without breaking follow-ups (Blocker-4 reconciled). This
+   * generator performs NO cleanup of its own: it deliberately has no try/finally —
+   * `dispose` alone owns the state lifetime.
    *
    * A3/ADR-0045 §2: if the stream ends in `needs-approval` or awaiting a question answer,
    * awaitingDecision/awaitingAnswer are set so subscribe()'s entry-point rehydrates a
    * fresh controller (carrying the stashed pendingId/decision or questionId/answer) for
-   * the next POST. The state is still not deleted in the finally — dispose owns that.
+   * the next POST.
    *
    * @param runId — the run whose state entry to subscribe and clean up.
    */
@@ -297,141 +288,125 @@ export class PmoNativeRuntime implements AgentRuntime {
     let endedInNeedsApproval = false;
     let endedInQuestion = false;
 
-    try {
-      const jwt = await this._opts.getJwt();
-      const fetchImpl = this._opts.fetchImpl ?? globalThis.fetch;
-      const attachmentIds = state.attachmentIds;
-      state.attachmentIds = undefined;
+    const jwt = await this._opts.getJwt();
+    const fetchImpl = this._opts.fetchImpl ?? globalThis.fetch;
+    const attachmentIds = state.attachmentIds;
+    state.attachmentIds = undefined;
 
-      const analytics = this._opts.getAnalytics?.();
-      const body: AgentChatRequest = {
+    const analytics = this._opts.getAnalytics?.();
+    const body: AgentChatRequest = {
+      runId,
+      ...(state.threadId ? { threadId: state.threadId } : {}),
+      messages: state.messages,
+      context: state.context,
+      ...(attachmentIds ? { attachmentIds } : {}),
+      // A3: include decision on re-POST if present
+      ...(decision ? { decision } : {}),
+      // ADR-0045 §2: include answer on re-POST if present
+      ...(answer ? { answer } : {}),
+      ...(analytics ? { analytics } : {}),
+    };
+
+    const resp = await fetchImpl(this._opts.fnUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+      body: JSON.stringify(body),
+      signal: state.controller.signal,
+    });
+
+    // `?.` guards an injected fetchImpl whose Response omits headers (a real fetch
+    // Response always has them; test doubles may not).
+    const deployVersion = resp.headers?.get?.('x-deploy-version');
+    if (deployVersion) this._opts.onDeployVersion?.(deployVersion);
+
+    if (!resp.ok || !resp.body) {
+      // Yield an error status event and stop
+      yield {
+        id: crypto.randomUUID(),
         runId,
-        ...(state.threadId ? { threadId: state.threadId } : {}),
-        messages: state.messages,
-        context: state.context,
-        ...(attachmentIds ? { attachmentIds } : {}),
-        // A3: include decision on re-POST if present
-        ...(decision ? { decision } : {}),
-        // ADR-0045 §2: include answer on re-POST if present
-        ...(answer ? { answer } : {}),
-        ...(analytics ? { analytics } : {}),
-      };
+        type: 'status',
+        payload: { status: 'errored', error: 'UPSTREAM_ERROR' },
+        createdAt: new Date().toISOString(),
+      } satisfies AgentEvent;
+      return;
+    }
 
-      const resp = await fetchImpl(this._opts.fnUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${jwt}`,
-        },
-        body: JSON.stringify(body),
-        signal: state.controller.signal,
-      });
+    const reader = resp.body.getReader();
 
-      // `?.` guards an injected fetchImpl whose Response omits headers (a real fetch
-      // Response always has them; test doubles may not).
-      const deployVersion = resp.headers?.get?.('x-deploy-version');
-      if (deployVersion) this._opts.onDeployVersion?.(deployVersion);
-
-      if (!resp.ok || !resp.body) {
-        // Yield an error status event and stop
-        yield {
-          id: crypto.randomUUID(),
-          runId,
-          type: 'status',
-          payload: { status: 'errored', error: 'UPSTREAM_ERROR' },
-          createdAt: new Date().toISOString(),
-        } satisfies AgentEvent;
-        return;
+    for await (const ev of decodeSseStream(reader)) {
+      // Accumulate assistant/tool events into the transcript for followUp (D8)
+      if (ev.type === 'assistant' && ev.text) {
+        state.messages.push({ role: 'assistant', content: ev.text });
       }
 
-      const reader = resp.body.getReader();
+      // A3: stash pendingId from needs-approval events for the next control() call.
+      // Also push the assistant tool_use block into state.messages so the re-POST
+      // transcript contains the trailing confirm-action tool_use block that
+      // findTrailingConfirmToolUse() in handler.ts needs to locate.
+      // Without this block, approve is a silent no-op (Blocker-5).
+      if (
+        ev.type === 'status' &&
+        (ev.payload as NeedsApprovalPayload | undefined)?.status === 'needs-approval'
+      ) {
+        const payload = ev.payload as NeedsApprovalPayload;
+        state.pendingId = payload.pendingId;
+        endedInNeedsApproval = true;
 
-      for await (const ev of decodeSseStream(reader)) {
-        // Accumulate assistant/tool events into the transcript for followUp (D8)
-        if (ev.type === 'assistant' && ev.text) {
-          state.messages.push({ role: 'assistant', content: ev.text });
-        }
+        // Reconstruct the assistant tool_use block from the needs-approval payload.
+        // The pendingId doubles as the tool_use id so the handler's tool_result
+        // (appended on approve/reject) references the correct tool_use_id.
+        state.messages.push({
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: payload.pendingId,
+              name: payload.actionName,
+              input: payload.structuredArgs,
+            },
+          ],
+        });
+      } else if (
+        ev.type === 'status' &&
+        (ev.payload as QuestionPayload | undefined)?.kind === 'question'
+      ) {
+        // ADR-0045 §2: stash questionId from question events for the next control()
+        // call, and reconstruct the assistant ask_user tool_use block (mirrors the
+        // needs-approval reconstruction above) so findTrailingQuestion in handler.ts
+        // can locate it on the answer re-POST.
+        const payload = ev.payload as QuestionPayload;
+        state.pendingQuestionId = payload.questionId;
+        endedInQuestion = true;
 
-        // A3: stash pendingId from needs-approval events for the next control() call.
-        // Also push the assistant tool_use block into state.messages so the re-POST
-        // transcript contains the trailing confirm-action tool_use block that
-        // findTrailingConfirmToolUse() in handler.ts needs to locate.
-        // Without this block, approve is a silent no-op (Blocker-5).
-        if (
-          ev.type === 'status' &&
-          (ev.payload as NeedsApprovalPayload | undefined)?.status === 'needs-approval'
-        ) {
-          const payload = ev.payload as NeedsApprovalPayload;
-          state.pendingId = payload.pendingId;
-          endedInNeedsApproval = true;
-
-          // Reconstruct the assistant tool_use block from the needs-approval payload.
-          // The pendingId doubles as the tool_use id so the handler's tool_result
-          // (appended on approve/reject) references the correct tool_use_id.
-          state.messages.push({
-            role: 'assistant',
-            content: [
-              {
-                type: 'tool_use',
-                id: payload.pendingId,
-                name: payload.actionName,
-                input: payload.structuredArgs,
-              },
-            ],
-          });
-        } else if (
-          ev.type === 'status' &&
-          (ev.payload as QuestionPayload | undefined)?.kind === 'question'
-        ) {
-          // ADR-0045 §2: stash questionId from question events for the next control()
-          // call, and reconstruct the assistant ask_user tool_use block (mirrors the
-          // needs-approval reconstruction above) so findTrailingQuestion in handler.ts
-          // can locate it on the answer re-POST.
-          const payload = ev.payload as QuestionPayload;
-          state.pendingQuestionId = payload.questionId;
-          endedInQuestion = true;
-
-          state.messages.push({
-            role: 'assistant',
-            content: [
-              {
-                type: 'tool_use',
-                id: payload.questionId,
-                name: 'ask_user',
-                input: { prompt: payload.prompt, options: payload.options, allowFreeText: payload.allowFreeText },
-              },
-            ],
-          });
-        } else if (ev.type === 'status') {
-          // Any other status (completed, errored) means the run is no longer paused.
-          endedInNeedsApproval = false;
-          endedInQuestion = false;
-        }
-
-        yield ev;
+        state.messages.push({
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: payload.questionId,
+              name: 'ask_user',
+              input: { prompt: payload.prompt, options: payload.options, allowFreeText: payload.allowFreeText },
+            },
+          ],
+        });
+      } else if (ev.type === 'status') {
+        // Any other status (completed, errored) means the run is no longer paused.
+        endedInNeedsApproval = false;
+        endedInQuestion = false;
       }
 
-      // If the last notable status was needs-approval/question, the run is paused (not done).
-      if (endedInNeedsApproval) {
-        state.awaitingDecision = true;
-      }
-      if (endedInQuestion) {
-        state.awaitingAnswer = true;
-      }
-    } finally {
-      // Multi-turn money-path fix (Blocker-4 reconciled): do NOT delete the run's state
-      // on a normal completion — KEEP it so a subsequent followUp() can reuse it (the
-      // panel reuses the SAME runId for follow-ups, D8/R5). The previous "delete on
-      // completion" caused the 2nd-turn hang: followUp() returned early (state gone),
-      // subscribe() then POSTed nothing, and the panel froze on "Working…" with zero
-      // model calls.
-      //
-      // The Map is now bounded by dispose(runId), called from the panel on
-      // newConversation()/stop() (the only paths that mint a new run or permanently end
-      // one) — NOT here on a plain 'completed' (a follow-up may still come). The
-      // awaitingDecision/awaitingAnswer flags set above for the needs-approval/question
-      // pause flow are retained (subscribe()'s entry-point rehydrates a fresh controller
-      // in that case), but no longer gate a delete here.
+      yield ev;
+    }
+
+    // If the last notable status was needs-approval/question, the run is paused (not done).
+    if (endedInNeedsApproval) {
+      state.awaitingDecision = true;
+    }
+    if (endedInQuestion) {
+      state.awaitingAnswer = true;
     }
   }
 }

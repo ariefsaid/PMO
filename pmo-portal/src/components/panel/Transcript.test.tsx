@@ -7,7 +7,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { TranscriptEntry } from '@/src/hooks/useAssistantPanel';
-import { Transcript, TRANSCRIPT_CAP } from './Transcript';
+import { Transcript } from './Transcript';
 
 function makeEntries(count: number): TranscriptEntry[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -23,9 +23,8 @@ function makeEntries(count: number): TranscriptEntry[] {
 }
 
 describe('Transcript — NFR-AP-PERF-003 entry cap', () => {
-  it('TRANSCRIPT_CAP is exported and equals 200', () => {
-    expect(TRANSCRIPT_CAP).toBe(200);
-  });
+  // The cap is a private constant; its value is pinned through the visible boundary:
+  // 200 entries render uncapped, 201+ hide the oldest behind "Show earlier".
 
   it('renders all entries when count ≤ 200 (no cap, no Show earlier)', () => {
     const entries = makeEntries(200);
