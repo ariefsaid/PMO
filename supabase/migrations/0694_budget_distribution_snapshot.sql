@@ -1,6 +1,6 @@
--- 0582_budget_distribution_snapshot.sql
+-- 0694_budget_distribution_snapshot.sql
 -- Read a persisted whole-project distribution in one MVCC statement snapshot.
--- Reverse: rollback/0582_budget_distribution_snapshot_down.sql.
+-- Reverse: rollback/0694_budget_distribution_snapshot_down.sql.
 
 create or replace function public.get_budget_distribution_snapshot(p_version_id uuid)
 returns jsonb
