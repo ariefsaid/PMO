@@ -509,5 +509,4 @@ if (import.meta.main) {
 }
 
 // Export validators and SSRF helper for testability
-export { validateClickUpToken, validateErpNextCredentials };
-export type { ValidatorDeps };
+export { validateClickUpToken };

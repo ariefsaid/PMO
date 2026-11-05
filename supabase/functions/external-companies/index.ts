@@ -297,8 +297,6 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
 }
 
 // Export validation function for testing
-export { fetchErpNextCompanies, isPrivateOrReservedHost };
-export type { ErpCompanyDeps };
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {
