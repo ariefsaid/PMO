@@ -41,6 +41,15 @@ export const ERPNEXT_BUDGET_DOMAIN: PmoDomain = 'budget';
  *  the erpnext-sweep pass — adapter-dispatch deliberately has no route for this domain. */
 export const ERPNEXT_EXPENSES_DOMAIN: PmoDomain = 'expenses';
 
+/** The ONE list of ERP domains adapter-dispatch routes: its adapter registry, its ERP-domain gate and the target-binding
+ *  guards all derive from this. `expenses` is deliberately absent (sweep-driven, no dispatch route). A domain left out
+ *  here is not an ERP domain to any of them (fail closed); a domain added here needs an entry in the role map
+ *  (`_shared/moneyWriteRoles.ts`) or it has no writers. */
+export const ERPNEXT_DISPATCH_DOMAINS: readonly PmoDomain[] = [
+  ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_BUDGET_DOMAIN,
+];
+export const isErpDispatchDomain = (domain: string): boolean => (ERPNEXT_DISPATCH_DOMAINS as readonly string[]).includes(domain);
+
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;
   fromDoc: (doc: unknown) => PmoRecord;
@@ -1278,11 +1287,7 @@ export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
   return {
     tier: ERPNEXT_TIER,
     capabilityMap: new Set<PmoDomain>([
-      ERPNEXT_COMPANIES_DOMAIN,
-      ERPNEXT_PROCUREMENT_DOMAIN,
-      ERPNEXT_REVENUE_DOMAIN,
-      ERPNEXT_TIMESHEETS_DOMAIN,
-      ERPNEXT_BUDGET_DOMAIN,
+      ...ERPNEXT_DISPATCH_DOMAINS,
       // #775 phase B — expense postings (ADR-0081). Reached only through the erpnext-sweep pass; adapter-dispatch
       // still has no `expenses` route, and an org can employ it only through the release-guarded Admin switch.
       ERPNEXT_EXPENSES_DOMAIN,

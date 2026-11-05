@@ -28,7 +28,7 @@
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
-import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIER, isErpDispatchDomain } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import {
   runBudgetActivationPrecheck,
   BudgetGateError,
@@ -273,7 +273,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   }
 
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
-  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN || command.domain === ERPNEXT_BUDGET_DOMAIN || command.domain === ERPNEXT_TIMESHEETS_DOMAIN;
+  const isErpDomain = isErpDispatchDomain(command.domain);
 
   // ── #784 — a revenue command names its record by the canonical uuid every PMO revenue table keys it on;
   // the whole money path compares that id as TEXT (the outbox fence, the one-in-flight index, external_refs,
