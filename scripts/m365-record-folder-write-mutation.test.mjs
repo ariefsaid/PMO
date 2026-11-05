@@ -9,7 +9,7 @@ import { MUTATIONS, runMutationWitness, staticWiringProblems } from './m365-reco
 const CUSTODY = 'supabase/functions/m365-token-custody';
 const READ = `
 export function validateGraphProxyInput(req) {
-  const browserMethodAllowed = normalizeGraphMethod(req.method) === "GET"; // mutation-witness:browser-get-only
+  const browserMethodAllowed = isGetMethod(req.method); // mutation-witness:browser-get-only
 }
 export function scopeCoversPath(scopes, method, path) {
   if (normalizedMethod !== "GET") return false; // mutation-witness:scope-get-only

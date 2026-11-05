@@ -56,6 +56,7 @@ import { purchaseHasValue } from './procurement/purchaseValue';
 import { recordableFirstKinds } from './procurement/firstDocument';
 import { useLinkedErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { LinkedErpDocuments } from './procurement/LinkedErpDocuments';
+import { AttachedJournalLines } from './procurement/AttachedJournalLines';
 import { ProcurementMicrosoftReferences } from './procurement/ProcurementMicrosoftReferences';
 import { VendorWithholdingSlipModal } from './procurement/VendorWithholdingSlipModal';
 import { VendorWithholdingSlipDetails } from './procurement/VendorWithholdingSlipDetails';
@@ -1254,6 +1255,7 @@ const ProcurementDetails: React.FC = () => {
               </div>
             )}
             {!isEngineer && <LinkedErpDocuments procurementId={p.id} />}
+            {!isEngineer && <AttachedJournalLines procurementId={p.id} projectId={p.project_id} />}
             <ProcurementMicrosoftReferences procurementId={p.id} requestNumber={p.pr_number} createdAt={p.created_at} targets={attachTargets} />
           </Card>
         )}

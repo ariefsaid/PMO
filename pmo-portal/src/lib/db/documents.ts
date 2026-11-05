@@ -90,6 +90,23 @@ export async function getProjectDocument(id: string): Promise<ProjectDocumentRow
   return data ?? null;
 }
 
+/** Validate a Microsoft reference and map it to the `project_documents` columns it is stored in. */
+function referenceColumns(reference: MicrosoftReferenceInput, failure = 'Cannot link this item.') {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError(failure, '23514', 'm365-reference-invalid');
+  }
+  return {
+    source: 'onedrive' as const,
+    ms_drive_id: reference.drive_id,
+    ms_item_id: reference.item_id,
+    ms_web_url: reference.web_url,
+    ms_item_name: reference.name,
+    ms_item_kind: reference.item_kind,
+  };
+}
+
 /**
  * Create a document register entry (AC-DOC-003). org_id is NEVER sent — the column default +
  * the `project_documents_write` WITH CHECK are the authority. `author_id` is stamped from the
@@ -106,13 +123,7 @@ export async function createProjectDocument(
   if ((input.source === 'onedrive') !== Boolean(input.microsoft)) {
     throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
   }
-  if (input.microsoft) {
-    try {
-      assertMicrosoftReference(input.microsoft);
-    } catch {
-      throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
-    }
-  }
+  const reference = input.microsoft ? referenceColumns(input.microsoft) : {};
   const { data, error } = await supabase
     .from('project_documents')
     .insert({
@@ -123,14 +134,7 @@ export async function createProjectDocument(
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),
       author_id: authorId,
-      ...(input.source === 'onedrive' && input.microsoft ? {
-        source: 'onedrive' as const,
-        ms_drive_id: input.microsoft.drive_id,
-        ms_item_id: input.microsoft.item_id,
-        ms_web_url: input.microsoft.web_url,
-        ms_item_name: input.microsoft.name,
-        ms_item_kind: input.microsoft.item_kind,
-      } : {}),
+      ...reference,
     })
     .select()
     .single();
@@ -148,21 +152,10 @@ export async function linkMicrosoftDocument(
   id: string,
   reference: MicrosoftReferenceInput,
 ): Promise<void> {
-  try {
-    assertMicrosoftReference(reference);
-  } catch {
-    throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
-  }
+  const columns = referenceColumns(reference);
   const { data, error } = await supabase
     .from('project_documents')
-    .update({
-      source: 'onedrive',
-      ms_drive_id: reference.drive_id,
-      ms_item_id: reference.item_id,
-      ms_web_url: reference.web_url,
-      ms_item_name: reference.name,
-      ms_item_kind: reference.item_kind,
-    })
+    .update(columns)
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);
@@ -179,22 +172,10 @@ export async function attachMicrosoftUpload(
   id: string,
   reference: MicrosoftReferenceInput,
 ): Promise<void> {
-  try {
-    assertMicrosoftReference(reference);
-  } catch {
-    throw new AppError('Cannot attach this file.', '23514', 'm365-reference-invalid');
-  }
+  const columns = referenceColumns(reference, 'Cannot attach this file.');
   const { data, error } = await supabase
     .from('project_documents')
-    .update({
-      source: 'onedrive',
-      file_path: null,
-      ms_drive_id: reference.drive_id,
-      ms_item_id: reference.item_id,
-      ms_web_url: reference.web_url,
-      ms_item_name: reference.name,
-      ms_item_kind: 'file',
-    })
+    .update({ ...columns, file_path: null, ms_item_kind: 'file' })
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);
@@ -402,13 +383,7 @@ export async function createDocumentRevision(
   authorId: string | null,
   microsoft?: MicrosoftReferenceInput,
 ): Promise<ProjectDocumentRow> {
-  if (microsoft) {
-    try {
-      assertMicrosoftReference(microsoft);
-    } catch {
-      throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
-    }
-  }
+  const reference = microsoft ? referenceColumns(microsoft) : {};
   const parent = await getProjectDocument(parentId);
   if (!parent) throw new AppError('Parent document not found');
 
@@ -425,14 +400,7 @@ export async function createDocumentRevision(
       author_id: authorId,
       parent_document_id: parentId,
       // One child INSERT carries the reference; the old pin/baseline is never inherited.
-      ...(microsoft ? {
-        source: 'onedrive' as const,
-        ms_drive_id: microsoft.drive_id,
-        ms_item_id: microsoft.item_id,
-        ms_web_url: microsoft.web_url,
-        ms_item_name: microsoft.name,
-        ms_item_kind: microsoft.item_kind,
-      } : {}),
+      ...reference,
     })
     .select()
     .single();

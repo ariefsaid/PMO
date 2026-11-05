@@ -57,6 +57,7 @@ import type {
 import type {
   ErpPurchaseRepository,
 } from './contracts/erpPurchases';
+import type { ErpJournalLineRepository } from './contracts/erpJournalLines';
 import type {
   ExpenseClaimRepository,
   ExpensePostingRepository,
@@ -142,6 +143,7 @@ export interface Repositories {
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
   erpPurchases: ErpPurchaseRepository;
+  erpJournalLines: ErpJournalLineRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;
@@ -192,6 +194,7 @@ export type { ImprestRepository } from './contracts/imprest';
 export type { EquipmentRepository } from './contracts/equipment';
 export type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';
+export type { ErpJournalLineRepository } from './contracts/erpJournalLines';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';
 export type { ErpSnapshotsRepository, FinancialStatementsRepository, FxCommitCounts, FxRateInput, FxRateMatch, FxRatePage, FxRateRow, FxRatesRepository, ReportsRepository } from './contracts/reporting';

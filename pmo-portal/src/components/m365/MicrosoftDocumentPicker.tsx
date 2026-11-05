@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, EntityFormModal, Icon, ListState, TextField, useEntityForm, type SubmitError } from '@/src/components/ui';
+import { Button, EntityFormModal, Icon, ListState, TextField, type SubmitError } from '@/src/components/ui';
 import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
 import {
-  browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, listDrives, listSites, searchDrive,
+  browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, searchDrive,
   type GraphDrive, type GraphItem, type GraphReadRequest, type GraphSite,
 } from '@/src/lib/m365/graphClient';
 import { suggestFolders, type PickerContext } from '@/src/lib/m365/folderSuggestions';
@@ -81,8 +81,6 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
   const kindLabel = (kind: GraphItem['item_kind']) => (kind === 'folder' ? t('m365Documents.picker.kindFolder', 'folder') : t('m365Documents.picker.kindFile', 'file'));
   const { connection, defaultLibrary, isPending, connectionError, defaultError, refetch } = useMicrosoftDocuments();
   const canBrowse = connection?.connected === true && connection.status === 'active';
-  const form = useEntityForm<{ selected: string }>({ initialValues: { selected: '' }, requiredFields: ['selected'] });
-  const setSelectedValue = form.setValue;
 
   const [location, setLocation] = useState<Location>({ kind: 'chooser' });
   const [selected, setSelected] = useState<GraphItem | null>(null);
@@ -213,7 +211,6 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
 
   function select(item: GraphItem) {
     setSelected(item);
-    setSelectedValue('selected', item.item_id);
   }
 
   function openItems(target: GraphDrive, nextPath: GraphItem[], nextOrigin: 'default' | 'manual' = 'manual') {
@@ -226,7 +223,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
     locationCursors.current.clear();
     setSites({ status: 'loading', value: [], next: null, error: null });
     try {
-      const result = await listSites();
+      const result = await browseSites();
       if (seq === navGeneration.current) setSites({ status: 'ready', value: result.value, next: result.next, error: null });
     } catch (error) {
       if (seq === navGeneration.current) setSites({ status: 'error', value: [], next: null, error });
@@ -239,7 +236,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
     locationCursors.current.clear();
     setLibraries({ status: 'loading', value: [], next: null, error: null });
     try {
-      const result = await listDrives(site.id);
+      const result = await browseDrives(site.id);
       if (seq === navGeneration.current) setLibraries({ status: 'ready', value: result.value, next: result.next, error: null });
     } catch (error) {
       if (seq === navGeneration.current) setLibraries({ status: 'error', value: [], next: null, error });
@@ -357,7 +354,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
       disabledReason={t('m365Documents.picker.disabledReason', 'Select a file or folder to link.')}
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
-      submitDisabled={!form.isComplete || !selected}
+      submitDisabled={!selected}
       loading={saving}
       submitError={submitError}
       width="lg"

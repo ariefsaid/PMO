@@ -596,5 +596,51 @@
     "otherHelp": "Lisensi, penggantian biaya, dan pekerjaan di luar kontrak: dihitung dalam pendapatan dan margin, tidak pernah mengurangi Sisa untuk ditagihkan.",
     "change": "Ubah jenis penagihan",
     "save": "Simpan jenis penagihan"
+  },
+  "erpJournal": {
+    "title": "Jurnal dari sistem akuntansi",
+    "alreadyInSpending": "Sudah termasuk dalam pengeluaran",
+    "qualifier": "Biaya ini sudah dihitung dalam pengeluaran proyek. Melampirkan menghubungkan jurnal ke pembelian dan tidak menambah pengeluaran.",
+    "noPurchaseNote": "Dibayar langsung dan dicatat di sistem akuntansi sebagai jurnal, sehingga tidak ada pembelian yang dibuat di PMO.",
+    "notInPurchase": "Belum ada pembelian",
+    "cancelled": "Dibatalkan di sistem akuntansi",
+    "possiblyReversed": "Mungkin dibalik",
+    "attach": "Lampirkan ke pembelian",
+    "attachOne": "Lampirkan {{name}} ke pembelian",
+    "attachConfirm": "Lampirkan",
+    "loadError": "Jurnal tidak dapat dimuat",
+    "column": {
+      "journal": "Jurnal",
+      "date": "Tanggal",
+      "account": "Akun",
+      "amount": "Jumlah",
+      "purchase": "Pembelian"
+    },
+    "dialogTitle": "Lampirkan {{name}} ke pembelian",
+    "dialogSub": "Komitmen terbuka pembelian turun sebesar baris ini, dan pengeluaran proyek tidak berubah. Tidak ada yang dikirim ke sistem akuntansi.",
+    "willAttach": "Siap dilampirkan. Tidak ada yang dikirim ke sistem akuntansi.",
+    "notAttached": "Tidak ada yang dilampirkan.",
+    "cannotAttach": "Baris ini tidak dapat dilampirkan ke pembelian tersebut.",
+    "purchaseNoun": "pembelian proyek ini",
+    "attachedTitle": "Jurnal dari sistem akuntansi",
+    "attachedError": "Jurnal terlampir tidak dapat dimuat",
+    "detach": "Lepaskan",
+    "detachOne": "Lepaskan {{name}}",
+    "detachTitle": "Lepaskan {{name}}?",
+    "detachBody": "{{name}} tidak lagi menjadi bagian dari pembelian ini dan komitmen terbukanya naik kembali sebesar jumlah itu. Pengeluaran proyek tidak berubah, dan tidak ada yang berubah di sistem akuntansi.",
+    "reason": {
+      "unknown": "Baris jurnal ini tidak dapat dilampirkan.",
+      "keyMissing": "Baris jurnal tidak lengkap.",
+      "invalidId": "Pembelian atau proyek tidak dapat dibaca. Segarkan dan coba lagi.",
+      "pmoPosted": "PMO sendiri yang memposting jurnal ini; jurnal ini sudah punya catatannya sendiri.",
+      "notFound": "Baris jurnal ini belum ada di PMO. Tunggu sinkronisasi berikutnya.",
+      "notPositive": "Hanya baris jurnal yang menambah biaya yang dapat dilampirkan.",
+      "purchaseNotFound": "Pembelian tidak ditemukan.",
+      "purchaseClosed": "Pembelian ini dibatalkan atau ditolak.",
+      "project": "Pembelian ini milik proyek lain.",
+      "currency": "Mata uang pembelian berbeda dari mata uang akuntansi.",
+      "attachedElsewhere": "Baris jurnal ini sudah menjadi bagian dari pembelian lain.",
+      "alreadyAttached": "Baris jurnal ini sudah dilampirkan ke pembelian ini."
+    }
   }
 }

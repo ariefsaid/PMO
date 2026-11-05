@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseCsv, rowsFromCsv, validateLinkRows, runLink, PURCHASE_RPCS, PURCHASE_READ_VIEWS, MAX_BATCH,
-  SET_ASIDE_RPCS, setAsideRowsFromCsv, validateSetAsideRows, runSetAside, LinkFileError } from './lib/pmo-purchases.mjs';
+  SET_ASIDE_RPCS, setAsideRowsFromCsv, validateSetAsideRows, runSetAside, LinkFileError, validateJournalRows, runAttachJournals, readJournalPages, JOURNAL_PAGE } from './lib/pmo-purchases.mjs';
 
 const CSV = 'erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind\n'
   + 'Purchase Invoice,PINV-1,,11111111-1111-1111-1111-111111111111,G,"Steel, batch 1",,,,,,\n'
@@ -218,4 +218,52 @@ test('AC-13c: a failed call keeps what earlier calls saved and names the unsaved
   assert.equal(out.failed_at_row, 501);
   assert.deepEqual(out.not_saved_rows, [501]);
   assert.equal(out.error.status, 504);
+});
+
+// ── #1919 journal lines (AC-JEC-017) ─────────────────────────────────────────────────────────────
+
+const JROW = { voucher_no: 'ACC-JV-1', project_id: '11111111-1111-1111-1111-111111111111', account: 'Sub - X', procurement_id: '22222222-2222-2222-2222-222222222222' };
+
+test('AC-JEC-017: a journal row without voucher_no, account, project_id or procurement_id is refused before anything is sent', () => {
+  assert.deepEqual(validateJournalRows([JROW]), []);
+  for (const k of ['voucher_no', 'account', 'project_id', 'procurement_id']) {
+    const row = { ...JROW }; delete row[k];
+    assert.deepEqual(validateJournalRows([row]), [`row 1: ${k} is required`]);
+  }
+  assert.deepEqual(validateJournalRows([{ ...JROW, bogus: 1 }]), ["row 1: unknown field 'bogus'"]);
+  assert.deepEqual(validateJournalRows([JROW, JROW]), ['row 2: ACC-JV-1 / Sub - X is already listed on row 1']);
+  assert.deepEqual(validateJournalRows([]), ['the file has no rows']);
+});
+
+test('AC-JEC-017: --dry-run sends p_dry_run true and one outcome per row comes back under its file row', async () => {
+  const sent = [];
+  const api = { rpc: async (name, body) => { sent.push({ name, body });
+    return { dry_run: body.p_dry_run, results: body.p_rows.map((r, i) => ({ row: i + 1, outcome: 'attach', reason: null, voucher_no: r.voucher_no })) }; } };
+  const report = await runAttachJournals(api, [JROW, { ...JROW, voucher_no: 'ACC-JV-2' }], { dryRun: true });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].name, 'attach_erp_journal_lines');
+  assert.equal(sent[0].body.p_dry_run, true);
+  assert.deepEqual(report.results.map((r) => [r.row, r.outcome]), [[1, 'attach'], [2, 'attach']]);
+  assert.deepEqual(report.counts, { attach: 2, skip: 0, refused: 0 });
+});
+
+test('AC-JEC-017: more than 500 rows go in several calls and a failed call reports what was not saved', async () => {
+  const rows = Array.from({ length: MAX_BATCH + 3 }, (_, i) => ({ ...JROW, voucher_no: `JV-${i}` }));
+  let calls = 0;
+  const api = { rpc: async (name, body) => { calls += 1;
+    if (calls === 2) throw Object.assign(new Error('boom'), { code: '500', status: 500 });
+    return { results: body.p_rows.map((r, i) => ({ row: i + 1, outcome: 'attach', reason: null })) }; } };
+  const report = await runAttachJournals(api, rows, { dryRun: false });
+  assert.equal(report.results.length, MAX_BATCH);
+  assert.equal(report.failed_at_row, MAX_BATCH + 1);
+  assert.deepEqual(report.not_saved_rows, [MAX_BATCH + 1, MAX_BATCH + 2, MAX_BATCH + 3]);
+  assert.equal(report.error.message, 'boom');
+});
+
+test('NFR-JEC-002: the journals read pages past one page and stops at a short page', async () => {
+  const calls = [];
+  const rows = await readJournalPages(async (from, to) => { calls.push([from, to]);
+    return Array.from({ length: from === 0 ? JOURNAL_PAGE : 7 }, (_, i) => ({ n: from + i })); });
+  assert.equal(rows.length, JOURNAL_PAGE + 7);
+  assert.deepEqual(calls, [[0, JOURNAL_PAGE - 1], [JOURNAL_PAGE, 2 * JOURNAL_PAGE - 1]]);
 });
