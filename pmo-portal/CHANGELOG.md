@@ -10,6 +10,69 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.32.0](https://github.com/ariefsaid/PMO/compare/v0.31.0...v0.32.0) (2026-11-05)
+
+
+### Features
+
+* **integrations:** ERP setup screen with per-row review ([#1605](https://github.com/ariefsaid/PMO/issues/1605)) ([b641b09](https://github.com/ariefsaid/PMO/commit/b641b0991d06cc7c7a5701c4c5b0cea10e034807))
+* **odoo:** client invoice and receipt screens ([#1506](https://github.com/ariefsaid/PMO/issues/1506) C8) ([c82db5a](https://github.com/ariefsaid/PMO/commit/c82db5a05ebdac46bf8fdb7611db5f931ed91331))
+* **odoo:** client-invoice contract suite and served proof (C9, [#1506](https://github.com/ariefsaid/PMO/issues/1506)) ([4a6dd3d](https://github.com/ariefsaid/PMO/commit/4a6dd3dec3604894f9ad8ed4fbe6028443fb4884))
+* **odoo:** complete purchase-to-payment P9 ([2167130](https://github.com/ariefsaid/PMO/commit/2167130d5b8d69d81defcb5a98ad6bb1ee325b4c))
+* **odoo:** purchase cutover and activation proof (P9, [#1505](https://github.com/ariefsaid/PMO/issues/1505)) ([2a7ff87](https://github.com/ariefsaid/PMO/commit/2a7ff878d55219aa804ae180ecff45c3d45be8fb))
+* **odoo:** recover in-flight procurement writes in the background ([#1505](https://github.com/ariefsaid/PMO/issues/1505) AC-OPP-062) ([dcd9ffa](https://github.com/ariefsaid/PMO/commit/dcd9ffa2c1685ce49e176b02d6e300a415535154))
+* **procurement:** line-level goods receipts under procurement_full ([#1783](https://github.com/ariefsaid/PMO/issues/1783) item 1) ([7dd0769](https://github.com/ariefsaid/PMO/commit/7dd07699aced2c8b6aa17a2c9ea9a8ae20f1b9d4))
+* **procurement:** line-level receipt writes require procurement_full ([#1783](https://github.com/ariefsaid/PMO/issues/1783)) ([7018071](https://github.com/ariefsaid/PMO/commit/701807192088e847418fa5462f948904f83dc0f7))
+* **sales:** pipeline stage order and Go/Get ([#1793](https://github.com/ariefsaid/PMO/issues/1793), [#1796](https://github.com/ariefsaid/PMO/issues/1796)) ([0526e1f](https://github.com/ariefsaid/PMO/commit/0526e1fdef2ac161eafd5a1b09607d3657186556))
+* **tm:** time-and-materials claim source details (D1, [#1514](https://github.com/ariefsaid/PMO/issues/1514)) ([c351b94](https://github.com/ariefsaid/PMO/commit/c351b94667415fc19892b260a343b3c6d123025e))
+
+
+### Bug Fixes
+
+* **analytics:** sanitize nested URL properties before send ([e8fa94e](https://github.com/ariefsaid/PMO/commit/e8fa94e0cb9b8405509d3fb0f5bb7f991324d7a1))
+* **budget,procurement:** read the whole category map and linked ERP document list ([6e03778](https://github.com/ariefsaid/PMO/commit/6e03778ace46db82745b83ab392a8a1fb14557d6)), closes [#1540](https://github.com/ariefsaid/PMO/issues/1540)
+* **budget:** whole-project range units and activation ([#1472](https://github.com/ariefsaid/PMO/issues/1472) S4/S5) ([80e93d3](https://github.com/ariefsaid/PMO/commit/80e93d36f9b87d77eea1949fd95934fc6b4336df))
+* clear dev CI regressions ([f0db52c](https://github.com/ariefsaid/PMO/commit/f0db52c133c2f012cc9cdbb987d687e8d5e5b5b0))
+* **client:** bound session cache freshness and scope plan keys ([a1df6cd](https://github.com/ariefsaid/PMO/commit/a1df6cdcc3051ad387bc1362f6dd00c542c0736b))
+* **db:** renumber TM claim source migration to 0588 ([#1514](https://github.com/ariefsaid/PMO/issues/1514) D1) ([d4e450c](https://github.com/ariefsaid/PMO/commit/d4e450c9ff6c0216bc7fc8c695efaaa095d3063f))
+* dev CI red (tier branches behind the seam, budget paging fixture, empty interface) ([1535e7e](https://github.com/ariefsaid/PMO/commit/1535e7e483f9cf90d7ae5ceca30adb6da5a0b296))
+* don't wait for ERP when creating projects ([050266b](https://github.com/ariefsaid/PMO/commit/050266b9b1f571b5773e06d1ddf8a4491c520521))
+* **e2e:** each phase keeps its own failure artifacts ([a40f7a6](https://github.com/ariefsaid/PMO/commit/a40f7a64b823afc240290ee88823dbbee3808cf7))
+* **e2e:** give each Playwright phase its own output dir ([#1870](https://github.com/ariefsaid/PMO/issues/1870)) ([3008669](https://github.com/ariefsaid/PMO/commit/3008669211ecd55fece7204c0b007be9157dd1cf))
+* **erpnext:** accept canonical UUID shape in statement report refresh ([#1495](https://github.com/ariefsaid/PMO/issues/1495)) ([364d12e](https://github.com/ariefsaid/PMO/commit/364d12e0448a18e4aab471c799090af8d6ec778a))
+* **features:** a failed background refetch no longer unmounts a gated page ([423cef1](https://github.com/ariefsaid/PMO/commit/423cef12c266b627cdcd05aadfdcbebd6ffdb79c))
+* **features:** keep the resolved answer when a background refetch fails ([f463b7f](https://github.com/ariefsaid/PMO/commit/f463b7f3dbedd82c149d3d443aa3cd128b2a98e4))
+* **finance:** count receivables with unknown amounts honestly ([#1475](https://github.com/ariefsaid/PMO/issues/1475)) ([9f32d6e](https://github.com/ariefsaid/PMO/commit/9f32d6e7a4500505902ad7d774dde1d3c8c63b54))
+* **odoo:** align P9 contract review ([#1505](https://github.com/ariefsaid/PMO/issues/1505)) ([569c5ae](https://github.com/ariefsaid/PMO/commit/569c5aef48787fd7c06a6067a527ea147327fc36))
+* **odoo:** close C9 review findings ([#1506](https://github.com/ariefsaid/PMO/issues/1506) C9 review) ([1c574db](https://github.com/ariefsaid/PMO/commit/1c574dbceb1753d672e60671e500237d257b4324))
+* **odoo:** close recovery budget and anchor gaps ([#1505](https://github.com/ariefsaid/PMO/issues/1505) AC-OPP-062 review) ([143e3a8](https://github.com/ariefsaid/PMO/commit/143e3a8be65877ec9cf06c9cf4cc5903bec678c0))
+* **odoo:** keep procurement tier checks in the Odoo seam ([#1505](https://github.com/ariefsaid/PMO/issues/1505) AC-OPP-062) ([a06c11c](https://github.com/ariefsaid/PMO/commit/a06c11c582a1928c6ab32a0206fa290487faa58d))
+* **odoo:** reconcile P9 C9 contracts ([#1505](https://github.com/ariefsaid/PMO/issues/1505)) ([5d12ce9](https://github.com/ariefsaid/PMO/commit/5d12ce9856b34710958594925a7ad5da0450f83c))
+* **odoo:** recovery budget is charged after claim and refunded ([#1505](https://github.com/ariefsaid/PMO/issues/1505) AC-OPP-062) ([195b446](https://github.com/ariefsaid/PMO/commit/195b4466084360a8c4904831df1eba4a6cbdcbd4))
+* **odoo:** type production contract harness ([#1505](https://github.com/ariefsaid/PMO/issues/1505)) ([d7248c2](https://github.com/ariefsaid/PMO/commit/d7248c28bc71ef6f65d3a5d61f54524df469b4b0))
+* **procurement:** end receipt capture after success ([9711cf2](https://github.com/ariefsaid/PMO/commit/9711cf2ae961a31cb3fb1ddf7d0d79ee7f6a57ee))
+* **procurement:** persist purchase orders from capture form ([9858612](https://github.com/ariefsaid/PMO/commit/98586123573eaf6816f26fd99059b5a4e032dcba))
+* **projects:** create no longer waits for the ERP sync ([2f14a30](https://github.com/ariefsaid/PMO/commit/2f14a30fdfca1c3fa9b042e147b3041a66176ea2))
+* **revenue:** propagate unknown outstanding balance count in getRevenueByProject ([#1475](https://github.com/ariefsaid/PMO/issues/1475)) ([82d8e6a](https://github.com/ariefsaid/PMO/commit/82d8e6a8ef07fc80997307e227957a029a281ddb))
+* v0.31 hotfixes (analytics URL sanitize; stage redate CLI [#1835](https://github.com/ariefsaid/PMO/issues/1835)) ([cfc1177](https://github.com/ariefsaid/PMO/commit/cfc1177d09b9d420803e4e052bbae4e7634dd685))
+
+
+### Performance
+
+* **budget:** read budget versions in one aggregate RPC ([f1aa07a](https://github.com/ariefsaid/PMO/commit/f1aa07aa292c45700a670b654bf0a5c244625a38))
+* **budget:** single RPC read for project budget version page (#Q12) ([5a7372a](https://github.com/ariefsaid/PMO/commit/5a7372a5a3911d3e528c130d1401b332df9c6dbb))
+* **client:** cache stable queries and batch reads ([5741c73](https://github.com/ariefsaid/PMO/commit/5741c7379c0a988dd7ea84ef1f0a5414a0509da1))
+* **client:** share session reads, batch dashboard lookups, split analytics out of the list chunk ([bbb3953](https://github.com/ariefsaid/PMO/commit/bbb39533b7b85fcb3171fa5b4148fec7b1ebe9fa))
+
+
+### Refactors
+
+* **data:** complete linked-record reads and remove dead exports (T12 batch) ([a708332](https://github.com/ariefsaid/PMO/commit/a7083324d4af62bb1be072159f19def8e254669b))
+* **financialStatements:** remove unused native report exports ([93e11f8](https://github.com/ariefsaid/PMO/commit/93e11f899d278f988372d172592c25a028da8770)), closes [#1540](https://github.com/ariefsaid/PMO/issues/1540)
+* **tables:** shared DataTable renderers ([#1723](https://github.com/ariefsaid/PMO/issues/1723)) ([3274009](https://github.com/ariefsaid/PMO/commit/3274009a93018f8c7e7b7d87a071ae413d2e27e4))
+* **ui:** split DataTable desktop and mobile render branches ([#1723](https://github.com/ariefsaid/PMO/issues/1723)) ([8ea7d8c](https://github.com/ariefsaid/PMO/commit/8ea7d8cd80f458eeceba4889b4d79dfd9277ad10))
+* **ui:** split DataTable desktop and mobile render branches ([#1723](https://github.com/ariefsaid/PMO/issues/1723)) ([06069dc](https://github.com/ariefsaid/PMO/commit/06069dc20f097699c2f40cfa59266207f6200bb3))
+
 ## [0.31.0](https://github.com/ariefsaid/PMO/compare/v0.30.0...v0.31.0) (2026-11-04)
 
 

@@ -14,6 +14,7 @@ import {
   useTmRateLines, useWithdrawTmSignoff,
 } from '@/src/hooks/useTimeAndMaterials';
 import { useDocuments } from '@/src/hooks/useDocuments';
+import { useEquipmentAssets } from '@/src/hooks/useEquipment';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { LIST_LIMIT, type ContractRateLineInput, type ContractRateLineRow, type TmClaimPreviewRow, type TmClaimSourceDetail, type TmClaimSummary } from '@/src/lib/db/timeAndMaterials';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
@@ -73,6 +74,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const claims = useTmClaims(projectId);
   const people = useAssignableProfiles();
   const documents = useDocuments(projectId);
+  const assets = useEquipmentAssets();
   const erpItems = useErpItemOptions('sales');
   const erpItemsConnected = erpItems.connected;
   const loadErpItemOptions = erpItems.loadOptions;
@@ -103,6 +105,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const [proposalRetry, setProposalRetry] = useState(0);
 
   const rateRows = rateLines.data?.rows ?? EMPTY_RATE_LINES;
+  const assetNames = useMemo(() => new Map((assets.data?.rows ?? []).map((asset) => [asset.id, asset.name])), [assets.data]);
+  const labourRateRows = useMemo(() => rateRows.filter((line) => line.kind !== 'equipment'), [rateRows]);
   const unmappedRateRows = useMemo(() => rateRows.filter((line) => !line.sales_item_code), [rateRows]);
   const assignmentRows = assignments.data?.rows;
   const claimRows = claims.data?.rows ?? [];
@@ -176,11 +180,14 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     toast(classified.headline, classified.detail, 'warning');
   };
 
+  // A mapping save re-sends the line as it is: equipment keeps its kind, machine and standby rate (never converted to labour).
   const rateItemInput = (line: ContractRateLineRow, salesItemCode: string | null): ContractRateLineInput => ({
     project_id: line.project_id,
     line_key: line.line_key,
     expected_version: line.version,
-    kind: 'labour',
+    ...(line.kind === 'equipment'
+      ? { kind: 'equipment' as const, asset_id: line.asset_id, standby_rate: line.standby_rate === null ? null : Number(line.standby_rate) }
+      : { kind: 'labour' as const }),
     label: line.label,
     unit: line.unit === 'day' ? 'day' : 'hour',
     rate: Number(line.rate),
@@ -310,11 +317,14 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     if (row.unrated_reason === 'no_assignee') return t('preview.noAssignee', 'No person is assigned to a rate line');
     if (row.unrated_reason === 'no_rate') return t('preview.noRate', 'No rate applies to this period');
     if (row.unrated_reason === 'unit_not_supported') return t('preview.unitUnsupported', 'The rate unit cannot be used for these hours');
+    if (row.unrated_reason === 'no_standby_rate') return t('preview.noStandbyRate', 'No standby rate is set for this machine');
     return t('preview.notRated', 'This time cannot be priced yet');
   };
   const personFor = (userId: string | null) => userId
     ? profilesById.get(userId)?.full_name ?? t('preview.personUnavailable', 'Person no longer active')
     : t('preview.personUnknown', 'Person not identified');
+  const whoFor = (row: TmClaimPreviewRow) => row.user_id === null && row.asset_name ? standbyLabel(row.asset_name, row.basis) : personFor(row.user_id);
+  const standbyLabel = (label: string, basis: string) => basis === 'standby' ? `${label} (${t('basis.standby', 'standby')})` : label;
   const compactError = 'rounded-none border-0 bg-transparent p-0';
 
   const rateList = rateLines.isPending ? <ListState variant="loading" rows={2} />
@@ -324,6 +334,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
           {rateRows.map((line) => {
             const assignedPeople = currentAssigneesFor(line.line_key);
             const ended = line.effective_to !== null && line.effective_to <= today();
+            const equipment = line.kind === 'equipment';
             const selectedSalesItem = line.sales_item_code
               ? proposalItems.find((item) => item.value === line.sales_item_code) ?? { value: line.sales_item_code, label: line.sales_item_code }
               : null;
@@ -332,9 +343,13 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                 <p className="font-medium text-foreground">{line.label}</p>
                 <p className="mt-0.5 text-sm text-muted-foreground tabular">
                   {formatCurrency(Number(line.rate), currency)} <span aria-hidden>/</span> {line.unit === 'day' ? t('unit.day', 'day') : t('unit.hour', 'hour')}
+                  {equipment && line.standby_rate !== null && <><span className="px-2" aria-hidden>·</span>{t('rateCard.standbyRate', 'Standby')} {formatCurrency(Number(line.standby_rate), currency)} <span aria-hidden>/</span> {line.unit === 'day' ? t('unit.day', 'day') : t('unit.hour', 'hour')}</>}
                   {ended && <><span className="px-2" aria-hidden>·</span>{t('rateCard.endedOn', 'Ended {{date}}', { date: formatDateOnly(line.effective_to) })}</>}
                 </p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-muted-foreground">
+                {equipment ? <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                  <span>{t('rateCard.equipmentKind', 'Equipment')}</span>
+                  <span className="text-foreground">{line.asset_id ? assetNames.get(line.asset_id) ?? t('rateCard.assetUnavailable', 'Machine no longer listed') : t('rateCard.assetUnavailable', 'Machine no longer listed')}</span>
+                </p> : <p className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-muted-foreground">
                   {assignedPeople.length === 0 ? <span>{t('rateCard.unassigned', 'Not assigned yet')}</span> : <span>{t('rateCard.assignedLabel', 'Assigned to')}</span>}
                   {assignedPeople.map((assignee, index) => <span key={assignee.id} className="inline-flex items-center gap-1">
                     <span className="text-foreground">{assignee.name}</span>
@@ -343,7 +358,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                       onClick={() => setRemoveFor({ id: assignee.id, person: assignee.name, line: line.label })}>{t('rateCard.remove', 'Remove')}</Button>}
                     {index < assignedPeople.length - 1 && <span aria-hidden>,</span>}
                   </span>)}
-                </p>
+                </p>}
                 {erpItemsConnected && <div className="mt-2 max-w-md">
                   {!line.sales_item_code && <p role="status" className="mb-1 text-sm text-muted-foreground">
                     {t('rateCard.notMapped', 'Not mapped')}
@@ -369,7 +384,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                 </div>}
               </div>
               {canManageRates && !ended && <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setRateFormFor(line)}>{t('rateCard.edit', 'Edit rate')}</Button>
+                {/* ponytail: equipment lines are read-only here; the equipment rate form arrives with the equipment screen (#1514 T8). */}
+                {!equipment && <Button variant="outline" size="sm" onClick={() => setRateFormFor(line)}>{t('rateCard.edit', 'Edit rate')}</Button>}
                 <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10" onClick={() => setEndRateFor(line)}>{t('rateCard.end', 'End rate')}</Button>
               </div>}
             </li>;
@@ -454,8 +470,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                 <h4 className="mb-2 text-sm font-semibold">{t('preview.priced', 'Ready to claim')}</h4>
                 <ul className="divide-y divide-border">
                   {pricedRows.map((row, index) => <li key={`${row.line_key ?? row.label}-${row.user_id}-${index}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2 text-sm">
-                    <span className="min-w-0 font-medium">{row.label ?? t('preview.labour', 'Labour')}</span>
-                    <span className="tabular text-muted-foreground">{personFor(row.user_id)} · {unitCount(row.units, row.unit)} × {formatCurrency(Number(row.rate), currency)} = {formatCurrency(Number(row.amount), currency)}</span>
+                    <span className="min-w-0 font-medium">{standbyLabel(row.label ?? t('preview.labour', 'Labour'), row.basis)}</span>
+                    <span className="tabular text-muted-foreground">{whoFor(row)} · {unitCount(row.units, row.unit)} × {formatCurrency(Number(row.rate), currency)} = {formatCurrency(Number(row.amount), currency)}</span>
                   </li>)}
                 </ul>
                 <p className="flex items-center justify-between gap-2 border-t border-border pt-2 text-sm font-semibold"><span>{t('claims.total', 'Claim total')}</span><span className="tabular">{formatCurrency(previewTotal, currency)}</span></p>
@@ -464,7 +480,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                 <h4 id="tm-unrated-heading" className="mb-2 text-sm font-semibold">{t('preview.unratedHeading', 'Unrated hours')}</h4>
                 <ul className="divide-y divide-border">
                   {unratedRows.map((row, index) => <li key={`${row.unrated_reason}-${row.user_id}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                    <span>{reasonFor(row)} · {personFor(row.user_id)}</span>
+                    <span>{reasonFor(row)} · {whoFor(row)}</span>
                     <span className="tabular text-muted-foreground">{unitCount(row.units, row.unit)} · {t('preview.sourceCount', '{{count}} approved entries', { count: row.source_count })}</span>
                   </li>)}
                 </ul>
@@ -505,7 +521,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
         setRateFormFor(undefined);
         toast(t('rateCard.saved', 'Rate saved'), undefined, 'success');
       }} />}
-      {assignOpen && <AssignPersonModal projectId={projectId} rates={rateRows} profiles={activeProfiles} profilesPending={people.isPending} onClose={() => setAssignOpen(false)} onAssign={async (lineKey, personId, from) => {
+      {assignOpen && <AssignPersonModal projectId={projectId} rates={labourRateRows} profiles={activeProfiles} profilesPending={people.isPending} onClose={() => setAssignOpen(false)} onAssign={async (lineKey, personId, from) => {
         setActionError(null);
         await assignPerson.mutateAsync({ projectId, lineKey, userId: personId, from, to: null });
         setAssignOpen(false);
@@ -533,7 +549,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
       {deselectFor && currentSelectedClaim && <ConfirmDialog open tone="destructive" title={t('detail.removeSourceTitle', 'Remove approved hours?')}
         description={`${t('detail.removeSourceDescription', 'Remove {{amount}} for {{person}} on {{date}} ({{line}}) from this draft claim?', {
           amount: unitCount(deselectFor.units, deselectFor.unit),
-          person: deselectFor.person_name ?? t('preview.personUnavailable', 'Person no longer active'),
+          person: deselectFor.person_name ?? deselectFor.asset_name ?? t('preview.personUnavailable', 'Person no longer active'),
           date: deselectFor.entry_date ? formatDateOnly(deselectFor.entry_date) : t('detail.dateUnavailable', 'date unavailable'),
           line: deselectFor.line_label,
         })}${currentSelectedClaim.signoff_prepared_by ? ` ${t('detail.reprepareNote', 'The sign-off must be prepared again to match the updated hours.')}` : ''}`}
@@ -747,8 +763,9 @@ interface TmClaimSourceGroup {
 function groupClaimSources(sources: TmClaimSourceDetail[], personUnavailable: string): TmClaimSourceGroup[] {
   const groups = new Map<string, TmClaimSourceGroup>();
   for (const source of sources) {
-    const person = source.person_name?.trim() || personUnavailable;
-    const key = source.person_id ?? `unknown:${person}`;
+    // Equipment sources group under their machine, never under the clerk who logged the usage.
+    const person = source.person_name?.trim() || source.asset_name?.trim() || personUnavailable;
+    const key = source.person_id ?? source.asset_id ?? `unknown:${person}`;
     const group = groups.get(key) ?? { key, person, sources: [], subtotals: [] };
     group.sources.push(source);
     if (!group.subtotals.some((subtotal) => subtotal.unit === source.unit)) {
@@ -762,6 +779,7 @@ function groupClaimSources(sources: TmClaimSourceDetail[], personUnavailable: st
 const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, staleSignoffHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction, canDeselect, deselecting, onDeselect }) => {
   const { t } = useTranslation('timeAndMaterials');
   const sourceGroups = groupClaimSources(sources, t('preview.personUnavailable', 'Person no longer active'));
+  const standbyLabel = (label: string, basis: string) => basis === 'standby' ? `${label} (${t('basis.standby', 'standby')})` : label;
   return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={`${formatDateOnly(claim.period_from)} – ${formatDateOnly(claim.period_to)}`}
     status={statusPill}
     onClose={onClose} headerActions={<div className="flex flex-wrap items-center gap-2">
@@ -781,7 +799,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
       {claim.lines.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('detail.noLines', 'This claim has no billable lines.')}</p> : <ul className="mt-2 divide-y divide-border">
         {claim.lines.map((line, index) => <li key={`${line.lineKey}-${index}`} className="py-3 text-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <span className="font-medium">{line.label}</span>
+            <span className="font-medium">{standbyLabel(line.label, line.basis)}</span>
             <span className="tabular font-medium">{formatCurrency(Number(line.amount), claim.currency)}</span>
           </div>
           <p className="mt-1 text-muted-foreground tabular">{unitCount(line.units, line.unit)} × {formatCurrency(Number(line.rate), claim.currency)}</p>
@@ -811,7 +829,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
                     const amount = unitCount(source.units, source.unit);
                     return <li key={source.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2">
                       <div className="min-w-0">
-                        <p className="font-medium">{source.line_label}</p>
+                        <p className="font-medium">{standbyLabel(source.line_label, source.basis)}</p>
                         <p className="mt-0.5 text-muted-foreground tabular">{date} · {amount}</p>
                         {!source.is_selected && claim.status !== 'Withdrawn' && <p className="mt-0.5 text-muted-foreground">{t('detail.sourceNotSelected', 'Not selected')}</p>}
                       </div>

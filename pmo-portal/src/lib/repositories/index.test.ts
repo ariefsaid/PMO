@@ -52,6 +52,10 @@ vi.mock('@/src/lib/db/documents', () => ({
 vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn(), listOrgProfiles: vi.fn() }));
 vi.mock('@/src/lib/db/adminUsers', () => ({
   listUsers: vi.fn(),
+  listUsersPage: vi.fn(),
+  listManagerChoices: vi.fn(),
+  countActiveAdminsByOrg: vi.fn(),
+  findUserPage: vi.fn(),
   updateUserRole: vi.fn(),
   assignUserManager: vi.fn(),
   inviteUser: vi.fn(),
@@ -304,7 +308,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.profile).sort()).toEqual(
-      ['assignUserManager', 'inviteUser', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'setUserStatus', 'updateUserRole'].sort(),
+      // 'listUsersPage'/'listManagerChoices'/'countActiveAdminsByOrg'/'findUserPage' added
+      // deliberately with the Administration › Users server-side page: the directory reads one
+      // projected page, the manager picker reads its own complete lazy list, and the sole-Admin
+      // predicate plus the manager jump are server counts. Exhaustive API-seam contract — extend
+      // only deliberately.
+      ['assignUserManager', 'countActiveAdminsByOrg', 'findUserPage', 'inviteUser', 'listManagerChoices', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'listUsersPage', 'setUserStatus', 'updateUserRole'].sort(),
     );
     expect(Object.keys(repositories.task).sort()).toEqual(
       // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018

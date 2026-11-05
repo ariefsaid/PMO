@@ -26,22 +26,35 @@ const idCatalogue = JSON.parse(
   readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'),
 );
 
-vi.mock('@/src/hooks/useUsers', () => ({
+vi.mock('@/src/hooks/useUsers', () => {
+  const rows = [
+    { id: 'self-admin', full_name: 'Org Admin', email: 'admin@example.com', role: 'Admin', manager_id: null, org_id: 'org-1', status: 'active' },
+  ];
+  return {
   useUsers: () => ({
-    data: [
-      { id: 'self-admin', full_name: 'Org Admin', email: 'admin@example.com', role: 'Admin', manager_id: null, org_id: 'org-1', status: 'active' },
-    ],
+    data: rows,
     isPending: false,
     isError: false,
     refetch: () => {},
   }),
+  useUsersPage: () => ({
+    data: { rows, total: rows.length },
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    refetch: () => {},
+  }),
+  useActiveAdminCounts: () => ({ data: { 'org-1': 1 }, isPending: false, isError: false }),
+  useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+  useManagerChoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useUserMutations: () => ({
     updateRole: { mutateAsync: () => Promise.resolve(), isPending: false },
     assignManager: { mutateAsync: () => Promise.resolve(), isPending: false },
     invite: { mutateAsync: () => Promise.resolve(), isPending: false },
     setStatus: { mutateAsync: () => Promise.resolve(), isPending: false },
   }),
-}));
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));

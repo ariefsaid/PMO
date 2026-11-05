@@ -53,11 +53,13 @@ export function useProject(id: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs | null>({
-    queryKey: ['project', orgId, id],
+    queryKey: projectKeys.detail(orgId, id),
     queryFn: () => repositories.project.getWithRefs(id!),
     enabled: Boolean(orgId && id),
   });
 }
+
+export { usePrefetchProject } from './usePrefetchProject';
 
 /**
  * Dated milestones for a set of visible projects — the read-only Project Calendar view.

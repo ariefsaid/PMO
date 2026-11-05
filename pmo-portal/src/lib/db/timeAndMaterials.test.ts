@@ -220,7 +220,10 @@ describe('#1514 T7.1 claim and preview reads', () => {
         id: 'c1', work_order_id: null, period_from: '2026-09-01', period_to: '2026-09-30', status: 'SignedOff',
         currency: 'IDR', gross_amount: 6000000, prepared_by: 'u1', signoff_prepared_by: 'u2', confirmed_by: 'u3',
         confirm_basis: 'standard', document_id: 'd1', note: null, created_at: '2026-10-01T00:00:00Z',
-        lines: [{ line_key: 'k1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: 120, rate: 50000, amount: 6000000 }],
+        lines: [
+          { line_key: 'k1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: 120, rate: 50000, amount: 6000000 },
+          { line_key: 'ke1', rate_version: 1, kind: 'equipment', basis: 'standby', label: 'Excavator', unit: 'hour', units: 6, rate: 200000, amount: 1200000 },
+        ],
       }],
       error: null,
     };
@@ -228,7 +231,10 @@ describe('#1514 T7.1 claim and preview reads', () => {
     expect(h.calls.rpc).toEqual([['list_tm_claims', { p_project: 'p1' }]]);
     expect(page.truncated).toBe(false);
     expect(page.rows[0].gross_amount).toBe(6000000);
-    expect(page.rows[0].lines).toEqual([{ lineKey: 'k1', rateVersion: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: 120, rate: 50000, amount: 6000000 }]);
+    expect(page.rows[0].lines).toEqual([
+      { lineKey: 'k1', rateVersion: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: 120, rate: 50000, amount: 6000000 },
+      { lineKey: 'ke1', rateVersion: 1, kind: 'equipment', basis: 'standby', label: 'Excavator', unit: 'hour', units: 6, rate: 200000, amount: 1200000 },
+    ]);
   });
 
   it('T7.1 a claim list with unreadable line JSON fails loudly rather than showing a claim with no lines', async () => {
@@ -242,27 +248,35 @@ describe('#1514 T7.1 claim and preview reads', () => {
   it('T7.1 previewTmClaim keeps an unrated group in the RPC\'s own (lineless) shape — never a malformed response', async () => {
     h.result.value = {
       data: [
-        { line_key: 'k1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000, user_id: null, units: 120, amount: 6000000, source_count: 5, unrated_reason: null },
-        // Verbatim AC-TM-011 shape (tm_reads.test.sql): for `no_assignee`/`no_rate` the lateral join in
-        // tm_assignable_sources matches nothing, so line_key, rate_version, kind, label, unit and rate are ALL NULL
-        // and only `amount` is nulled by preview_tm_claim. Parsing must not reject the row.
-        { line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null, user_id: 'u4', units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee' },
+        { line_key: 'k1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', rate: 50000, user_id: null, units: 120, amount: 6000000, source_count: 5, unrated_reason: null },
+        // Verbatim AC-TM-011 labour shape: without an assigned line the rate fields are NULL and only `amount`
+        // is nulled by preview_tm_claim. Parsing must not reject the row.
+        { line_key: null, rate_version: null, kind: null, basis: 'work', label: null, unit: null, rate: null, user_id: 'u4', units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee' },
       ],
       error: null,
     };
     const page = await dal.previewTmClaim({ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' });
     expect(h.calls.rpc).toEqual([['preview_tm_claim', { p_project: 'p1', p_from: '2026-09-01', p_to: '2026-09-30' }]]);
     expect(page.rows[1]).toEqual({
-      line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null,
-      user_id: 'u4', units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee',
+      line_key: null, rate_version: null, kind: null, basis: 'work', label: null, unit: null, rate: null,
+      user_id: 'u4', asset_id: null, asset_name: null, units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee',
     });
     // the priced group beside it is unaffected
     expect(page.rows[0].amount).toBe(6000000);
   });
 
+  it('T5 review: an unrated equipment group carries its machine, not a person', async () => {
+    h.result.value = {
+      data: [{ line_key: null, rate_version: null, kind: 'equipment', basis: 'standby', label: null, unit: null, rate: null, user_id: null, asset_id: 'a1', asset_name: 'Excavator', units: 6, amount: null, source_count: 2, unrated_reason: 'no_rate' }],
+      error: null,
+    };
+    const page = await dal.previewTmClaim({ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' });
+    expect(page.rows[0]).toMatchObject({ kind: 'equipment', basis: 'standby', user_id: null, asset_id: 'a1', asset_name: 'Excavator' });
+  });
+
   it('T7.1 a preview row without units is still an error — a missing quantity is never a zero', async () => {
     h.result.value = {
-      data: [{ line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null, user_id: 'u4', amount: null, source_count: 1, unrated_reason: 'no_assignee' }],
+      data: [{ line_key: null, rate_version: null, kind: null, basis: 'work', label: null, unit: null, rate: null, user_id: 'u4', amount: null, source_count: 1, unrated_reason: 'no_assignee' }],
       error: null,
     };
     await expect(dal.previewTmClaim({ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' }))
@@ -282,13 +296,13 @@ describe('#1514 T7.1 claim and preview reads', () => {
 
   it('T7.1 listTmClaimSources reads dated, named source details and each person subtotal through the claim reader RPC', async () => {
     h.result.value = { data: [{
-      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One', basis: 'work',
       units: '8.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '8.00', total_count: 1,
       signoff_is_current: true,
     }], error: null };
     await expect(dal.listTmClaimSources('c1')).resolves.toEqual({
       rows: [{
-        id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+        id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One', asset_id: null, asset_name: null, basis: 'work',
         units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 8,
       }], truncated: false, totalCount: 1,
       signoffCurrent: true,
@@ -297,9 +311,19 @@ describe('#1514 T7.1 claim and preview reads', () => {
     expect(h.calls.limit).toContain(LIST_LIMIT + 1);
   });
 
+  it('T5 review: an equipment claim source names its machine and has no person', async () => {
+    h.result.value = { data: [{
+      id: 'source-row-2', entry_id: 'usage-1', entry_date: '2026-11-03', person_id: null, person_name: null, asset_id: 'a1', asset_name: 'Excavator', basis: 'standby',
+      units: '6.00', unit: 'hour', line_label: 'Excavator', is_selected: true, person_unit_total: '6.00', total_count: 1,
+      signoff_is_current: true,
+    }], error: null };
+    const read = await dal.listTmClaimSources('c1');
+    expect(read.rows[0]).toMatchObject({ person_id: null, person_name: null, asset_id: 'a1', asset_name: 'Excavator', basis: 'standby' });
+  });
+
   it('reports when a prepared sign-off no longer matches the claim sources', async () => {
     h.result.value = { data: [{
-      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One', basis: 'work',
       units: '8.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '8.00', total_count: 1,
       signoff_is_current: false,
     }], error: null };
@@ -308,7 +332,7 @@ describe('#1514 T7.1 claim and preview reads', () => {
 
   it('T7.1 source details keep the exact total when the visible rows are capped', async () => {
     const sources = Array.from({ length: LIST_LIMIT + 1 }, (_, index) => ({
-      id: `source-${index}`, entry_id: `entry-${index}`, entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+      id: `source-${index}`, entry_id: `entry-${index}`, entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One', basis: 'work',
       units: '1.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '237.00', total_count: 237,
       signoff_is_current: true,
     }));

@@ -23,12 +23,13 @@ interface ProjectTableColumnInputs {
   canViewMoney: boolean;
   isAtRiskActual: (project: ProjectWithRefs) => boolean;
   onOpen: (project: ProjectWithRefs) => void;
+  onPrefetch?: (id: string) => void;
   projectStatusLabel: (status: string) => string;
   t: TFunction;
 }
 
 export function projectTableColumns({ filtered, deliverySummary, deliveryPending, deliveryError, projectMoney,
-  moneyPending, moneyError, canViewMoney, isAtRiskActual, onOpen, projectStatusLabel, t }: ProjectTableColumnInputs) {
+  moneyPending, moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch, projectStatusLabel, t }: ProjectTableColumnInputs) {
   const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
   const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
   // ONE table-level coverage note (AC-RD-TBL-PROJ-001): the count of ERP rows with an unmapped or
@@ -192,6 +193,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
                 <button
                   type="button"
                   data-list-return-focus={`projects:${p.id}`}
+                  onPointerEnter={() => onPrefetch?.(p.id)}
+                  onFocus={() => onPrefetch?.(p.id)}
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpen(p);

@@ -4,7 +4,7 @@
  * The rate card is read from `contract_rate_lines` / `contract_rate_assignees` under RLS (an active Admin, Finance or
  * Executive member, or the project's Project Manager); the claims go through the two reads 0518 adds — `list_tm_claims`
  * and `preview_tm_claim` — which decide the amounts audience themselves. Nothing here prices an hour: `preview_tm_claim`
- * groups the approved, unclaimed hours exactly as the assembly would, and it writes nothing. This module only shapes the
+ * groups the approved, unclaimed sources exactly as the assembly would, and it writes nothing. This module only shapes the
  * calls, the text and the refusals that can be made before a request is sent.
  *
  * Contract: docs/specs/time-and-materials-claims.spec.md §4 AC-6 (FR-TM-051), plan T9. Node 22 standard library only.
@@ -15,12 +15,12 @@ export const TM_READ_RPCS = Object.freeze(['list_tm_claim_source_details', 'list
 
 /** The rate-card columns the CLI reads: no `org_id`, no `created_by`, nothing a reader does not need. */
 export const RATE_LINE_COLUMNS = Object.freeze([
-  'project_id', 'line_key', 'version', 'is_current', 'kind', 'label', 'unit', 'rate', 'effective_from', 'effective_to', 'applies_to',
+  'project_id', 'line_key', 'version', 'is_current', 'kind', 'asset_id', 'label', 'unit', 'rate', 'standby_rate', 'effective_from', 'effective_to', 'applies_to',
 ]);
 export const RATE_ASSIGNEE_COLUMNS = Object.freeze(['project_id', 'line_key', 'user_id', 'effective_from', 'effective_to']);
 /** PostgREST truncates at 1000 rows by default; ask for that many explicitly so the bound is visible. */
 export const MAX_RATE_ROWS = 1000;
-/** A claim preview prices approved hours; a window wider than two years is a mistake, not a report. */
+/** A claim preview prices approved sources; a window wider than two years is a mistake, not a report. */
 export const MAX_CLAIM_RANGE_DAYS = 731;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,7 +92,7 @@ export function explainError(error) {
   return error.message ? `${base}: ${error.message}` : base;
 }
 
-/** Preview the approved, unclaimed hours: { lines, unrated, total }. Reads only — writes nothing. */
+/** Preview the approved, unclaimed sources: { lines, unrated, total }. Reads only — writes nothing. */
 export async function previewClaim(api, { project, from, to }) {
   const rows = await api.rpc('preview_tm_claim', validatePreview({ project, from, to }));
   return summarisePreview(rows);
@@ -137,17 +137,17 @@ function total(rows) {
 }
 
 /**
- * A readable preview: the priced lines as a table, then the hours nobody may bill, with the reason, then `Total` —
+ * A readable preview: priced lines as a table, then the sources nobody may bill, with the reason, then `Total` —
  * which sums the priced lines only, so a window where nothing is rated still ends `Total 0.00` (nothing is billable,
  * rather than a preview that stopped early). `names` maps a person's id to their name; an id it does not carry prints
  * as the id, so a person the directory read cannot resolve still appears.
  */
 export function formatPreview({ lines = [], unrated = [], total: sum = '0.00' } = {}, names = new Map()) {
-  if (lines.length === 0 && unrated.length === 0) return '(no approved hours to price in this window)\n';
+  if (lines.length === 0 && unrated.length === 0) return '(no approved sources to price in this window)\n';
   const out = [];
   if (lines.length > 0) {
     const table = lines.map((line) => [
-      line.label ?? '(no label)',
+      formatBasisLabel(line.label ?? '(no label)', line.basis),
       line.unit ?? '',
       money(line.units),
       money(line.rate),
@@ -163,7 +163,8 @@ export function formatPreview({ lines = [], unrated = [], total: sum = '0.00' } 
     if (out.length > 0) out.push('');
     out.push('Unrated (listed, not billed):');
     for (const row of unrated) {
-      out.push(`  ${row.label ?? '(no label)'}  ${money(row.units)} ${row.unit ?? ''}  ${names?.get?.(row.user_id) ?? row.user_id ?? '(no person)'}  ${row.unrated_reason}`);
+      const person = row.user_id ? names?.get?.(row.user_id) ?? row.user_id : row.asset_name ?? null;
+      out.push(`  ${formatBasisLabel(row.label ?? '(no label)', row.basis)}  ${money(row.units)} ${row.unit ?? ''}${person ? `  ${person}` : ''}  ${row.unrated_reason}`);
     }
   }
   out.push(`Total ${sum}`);
@@ -177,7 +178,7 @@ export function formatClaims(claims) {
   for (const claim of claims) {
     out.push(`${claim.id} · ${claim.period_from} → ${claim.period_to} · ${claim.status} · ${claim.currency ?? ''} ${money(claim.gross_amount)}`.replace(' ·  ', ' · '));
     for (const line of Array.isArray(claim.lines) ? claim.lines : []) {
-      out.push(`  ${line.label ?? '(no label)'}  ${money(line.units)} ${line.unit ?? ''} × ${money(line.rate)} = ${money(line.amount)}`);
+      out.push(`  ${formatBasisLabel(line.label ?? '(no label)', line.basis)}  ${money(line.units)} ${line.unit ?? ''} × ${money(line.rate)} = ${money(line.amount)}`);
     }
   }
   return `${out.join('\n')}\n`;
@@ -201,13 +202,20 @@ export function formatRateCard({ rates = [], assignees = [] } = {}, names = new 
   for (const line of rates) {
     const window = line.effective_to ? `from ${line.effective_from}, ended ${line.effective_to}` : `from ${line.effective_from}`;
     const state = line.is_current ? 'current' : 'history';
-    out.push(`${line.project_id} · ${line.label} · ${line.kind} · ${line.unit} · ${money(line.rate)} · ${window} · ${state}`);
+    const equipment = line.kind === 'equipment'
+      ? ` · asset ${line.asset_id ?? '(missing)'} · standby ${line.standby_rate == null ? 'unrated' : money(line.standby_rate)}`
+      : '';
+    out.push(`${line.project_id} · ${line.label} · ${line.kind} · ${line.unit} · ${money(line.rate)}${equipment} · ${window} · ${state}`);
     const key = `${line.project_id}|${line.line_key}`;
     if (Number(line.version ?? 0) !== newest.get(key)) continue;
     for (const person of holders.get(key) ?? []) out.push(formatAssignees([person], names));
   }
   out.push(`${rates.length} rate line${rates.length === 1 ? '' : 's'}`);
   return `${out.join('\n')}\n`;
+}
+
+function formatBasisLabel(label, basis) {
+  return basis === 'standby' ? `${label} (standby)` : label;
 }
 
 /** Assignee rows as indented lines under their rate line; `names` (id → name) prints a person by name, else their id. */
