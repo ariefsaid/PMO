@@ -25,6 +25,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
+  bearerToken,
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
@@ -66,12 +67,6 @@ export const testSupabaseOptions = {
     detectSessionInUrl: false,
   },
 };
-
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -234,7 +229,7 @@ export async function handleListsRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
