@@ -388,9 +388,9 @@ async function openOwnConnection(
     try {
       accessToken = await loadFreshAccessToken(connection, deps, deadline);
       return accessToken;
-    } catch {
-      // A refresh that ran into the invocation deadline is an outage, not a stale connection.
-      if (deadline && deadline.remaining() <= 0) {
+    } catch (err) {
+      // A refresh that ran into the invocation deadline, or hit a transient provider/DB fault, is an outage, not a stale connection.
+      if (err instanceof TransientRefreshError || (deadline && deadline.remaining() <= 0)) {
         return {
           status: 502,
           body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
@@ -402,28 +402,28 @@ async function openOwnConnection(
         .select("status")
         .eq("id", connection.id)
         .single();
-      const status = (fresh as { status?: string } | null)?.status;
-      if (!freshError && status === "revoked") {
+      // The status re-read itself failing is a DB outage: retryable, not a reconnect.
+      if (freshError) {
+        return {
+          status: 502,
+          body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
+          headers: GRAPH_HEADERS,
+        };
+      }
+      if ((fresh as { status?: string } | null)?.status === "revoked") {
         return {
           status: 410,
           body: { error: "CONNECTION_REVOKED", message: "connection revoked" },
           headers: GRAPH_HEADERS,
         };
       }
-      // Reconnect guidance only when the refresh classified the connection stale; a transient failure leaves it active.
-      if (!freshError && status === "stale") {
-        return {
-          status: 409,
-          body: {
-            error: "CONNECTION_STALE",
-            message: "token refresh failed, please reconnect",
-          },
-          headers: GRAPH_HEADERS,
-        };
-      }
+      // Stale, or an unhandled OAuth error (e.g. invalid_client): reconnect/admin action, not a retry.
       return {
-        status: 502,
-        body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
+        status: 409,
+        body: {
+          error: "CONNECTION_STALE",
+          message: "token refresh failed, please reconnect",
+        },
         headers: GRAPH_HEADERS,
       };
     }
@@ -960,6 +960,9 @@ function graphUrl(path: string, query?: Record<string, string>): URL | null {
   return url;
 }
 
+/** A provider/DB fault while refreshing: retryable, says nothing about the connection. */
+class TransientRefreshError extends Error {}
+
 async function loadFreshAccessToken(
   connection: ConnectionRow,
   deps: HandlerDeps,
@@ -977,7 +980,9 @@ async function loadFreshAccessToken(
   ) {
     const timeoutMs = deadline ? deadline.slice() : undefined;
     if (timeoutMs === null) throw new Error("deadline spent");
-    const refreshed = await refreshAccessToken(connection, deps, timeoutMs);
+    const outcome: { transient?: boolean } = {};
+    const refreshed = await refreshAccessToken(connection, deps, timeoutMs, outcome);
+    if (outcome.transient) throw new TransientRefreshError();
     if (!refreshed) throw new Error("refresh failed");
     const { data: fresh, error: freshError } = await serviceClient
       .from("ms_graph_connections")
