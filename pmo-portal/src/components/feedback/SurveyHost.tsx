@@ -56,10 +56,12 @@ export const SurveyHost: React.FC = () => {
   const lastInteractionAt = useRef(Date.now());
   const flowDone = useRef(false);
   const shown = useRef(false);
+  const checking = useRef(false);
   const retryAfter = useRef(0);
 
   useEffect(() => {
     recordActiveDay(localStorage, dayInZone(Date.now(), getActiveLocale().timezone));
+    let cancelled = false;
     const touch = () => (lastInteractionAt.current = Date.now());
     window.addEventListener('keydown', touch, true);
     window.addEventListener('pointerdown', touch, true);
@@ -67,7 +69,7 @@ export const SurveyHost: React.FC = () => {
     const tick = setInterval(() => {
       const s = live.current;
       const now = Date.now();
-      if (shown.current || !s.enabled || !surveysLive() || now < retryAfter.current) return;
+      if (shown.current || checking.current || !s.enabled || !surveysLive() || now < retryAfter.current) return;
       if (!isPastFirstWeek(s.createdAt, now)) return;
       const today = dayInZone(now, getActiveLocale().timezone);
       const id = flowDone.current && s.flowId
@@ -85,14 +87,27 @@ export const SurveyHost: React.FC = () => {
         pathname: s.pathname,
       });
       if (refusal) return;
-      if (!canShowSurvey(id)) {
-        retryAfter.current = now + RECHECK_MS;
-        return;
-      }
-      shown.current = true;
-      showSurvey(id, buildSurveyContext(s.pathname));
+      // PostHog's verdict is async (the SDK loads after first render); `checking` stops ticks overlapping it.
+      checking.current = true;
+      canShowSurvey(id)
+        .then((ok) => {
+          if (cancelled || shown.current) return;
+          if (!ok) {
+            retryAfter.current = now + RECHECK_MS;
+            return;
+          }
+          shown.current = true;
+          showSurvey(id, buildSurveyContext(s.pathname));
+        })
+        .catch(() => {
+          retryAfter.current = now + RECHECK_MS;
+        })
+        .finally(() => {
+          checking.current = false;
+        });
     }, TICK_MS);
     return () => {
+      cancelled = true;
       clearInterval(tick);
       offFlow();
       window.removeEventListener('keydown', touch, true);

@@ -49,8 +49,9 @@ afterEach(() => {
 });
 
 describe('analyticsClient.group — FR-PLN-016', () => {
-  it('registers the organisation group with its plan once analytics is live', () => {
+  it('registers the organisation group with its plan once analytics is live', async () => {
     analyticsClient.init(base);
+    await analyticsClient.ready();
     analyticsClient.group(ORG_GROUP_TYPE, 'org-1', { plan: 'growth' });
     expect(posthog.group).toHaveBeenCalledTimes(1);
     expect(posthog.group).toHaveBeenCalledWith('organisation', 'org-1', { plan: 'growth' });
@@ -61,23 +62,27 @@ describe('analyticsClient.group — FR-PLN-016', () => {
     expect(posthog.group).not.toHaveBeenCalled();
   });
 
-  it('registers nothing when the deployment disables analytics', () => {
+  it('registers nothing when the deployment disables analytics', async () => {
     analyticsClient.init({ ...base, enabled: false });
+    await analyticsClient.ready();
     analyticsClient.group(ORG_GROUP_TYPE, 'org-1', { plan: 'growth' });
     expect(posthog.group).not.toHaveBeenCalled();
   });
 
-  it('registers nothing after the user opts out (no group for a non-consenting browser)', () => {
+  it('registers nothing after the user opts out (no group for a non-consenting browser)', async () => {
     analyticsClient.init(base);
+    await analyticsClient.ready();
     analyticsClient.optOut();
     analyticsClient.group(ORG_GROUP_TYPE, 'org-1', { plan: 'growth' });
     expect(posthog.group).not.toHaveBeenCalled();
   });
 
-  it('registers again after the user opts back in', () => {
+  it('registers again after the user opts back in', async () => {
     analyticsClient.init(base);
+    await analyticsClient.ready();
     analyticsClient.optOut();
     analyticsClient.optIn();
+    await analyticsClient.ready();
     analyticsClient.group(ORG_GROUP_TYPE, 'org-1', { plan: 'growth' });
     expect(posthog.group).toHaveBeenCalledWith('organisation', 'org-1', { plan: 'growth' });
   });
