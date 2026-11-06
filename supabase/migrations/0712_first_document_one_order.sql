@@ -29,6 +29,7 @@ begin
      where id = (select o.id from public.purchase_orders o
                   where o.procurement_id = p_procurement_id and o.po_number = v_po_number
                     and o.reference_number is null and o.amount is null and o.import_key is null
+                    and o.external_ref is null and o.status = 'Issued'
                   order by o.created_at limit 1 for update)
     returning * into v_row;
     if found then return v_row; end if;
