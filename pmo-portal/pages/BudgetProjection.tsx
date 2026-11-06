@@ -96,6 +96,9 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const calendarBasisMatches = calendarResult?.status === 'resolved' &&
     calendarResult.project.start === projectStartDate && calendarResult.project.end === projectEndDate;
   const calendarMatches = Boolean(calendarBasisMatches && !calendarIsFetching);
+  // No ERP binding, outage or unresolved calendar: Forecast still works from the budget's own years (no "current" claim).
+  const calendarUnusable = !calendarIsPending && !calendarIsFetching &&
+    (calendarIsError || (calendarResult != null && calendarResult.status !== 'resolved'));
   useEffect(() => {
     if (calendarData?.status !== 'resolved' || calendarBasisMatches || calendarIsFetching) {
       if (calendarIsSuccess && calendarBasisMatches) mismatchedCalendarRefresh.current = null;
@@ -123,7 +126,9 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       ? activeSelection
       : calendarMatches && yearsReady
         ? chooseDefaultBudgetProjectionScope(currentYearOptions, new Set())
-        : null;
+        : calendarUnusable && yearsReady
+          ? chooseDefaultBudgetProjectionScope(years, new Set())
+          : null;
   const allYears = scope?.kind === 'all';
   const fiscalYear = scope?.kind === 'year' ? scope.year : null;
   const scopeKey = scope ? scopeToken(scope) : 'unresolved';
@@ -391,12 +396,15 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     return `${year.fiscalYear} · ${t(`projectDetail.budget.${source}`, fallback)}`;
   };
 
+  // Shown above the controls while no scope is chosen; below them once Forecast has fallen back to the budget's own years.
+  const calendarNote = calendarMessage && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+    <span>{calendarMessage}</span>
+    <Button variant="ghost" size="sm" onClick={() => void calendarQuery.refetch()}>{t('common.retry', 'Retry')}</Button>
+  </p>;
+
   return (
     <section ref={sectionRef} className="min-w-0 space-y-3" aria-label={t('projectDetail.budget.forecast', 'Forecast')} data-testid="budget-forecast-view">
-      {calendarMessage && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <span>{calendarMessage}</span>
-        <Button variant="ghost" size="sm" onClick={() => void calendarQuery.refetch()}>{t('common.retry', 'Retry')}</Button>
-      </p>}
+      {!scope && calendarNote}
       {(yearsQuery.isError || (wholeProjectMode && distributionQuery.isError)) && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>{t('projectDetail.budget.fiscalYearsError', 'Saved fiscal-year choices could not be loaded')}</span>
         <Button variant="ghost" size="sm" onClick={() => void (yearsQuery.isError ? yearsQuery.refetch() : distributionQuery.refetch())}>{t('common.retry', 'Retry')}</Button>
@@ -438,6 +446,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
           </> : <Button ref={triggerRef} variant="outline" size="sm" onClick={beginEdit}>{t('projectDetail.budget.editCostToFinish', 'Edit cost to finish')}</Button>)}
         </div>
       </div>
+      {scope && calendarNote}
       {viewLoading ? <ListState variant="loading" rows={4} />
         : viewError ? <ListState variant="error" title={t('projectDetail.budget.forecastError', 'Forecast could not be loaded')} onRetry={viewRetry} />
           : allYears && comparisonRows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noComparisonRows', 'No approved budget or recorded spending is available yet')} sub={t('projectDetail.budget.noComparisonRowsSub', 'All-years comparison reads the active approved budget and mapped ledger records.')} />

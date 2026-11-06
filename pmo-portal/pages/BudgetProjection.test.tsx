@@ -404,20 +404,47 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(screen.queryByRole('option', { name: 'FY-stale · current' })).not.toBeInTheDocument();
   });
 
-  it('keeps an unresolved calendar separate from explicit All and does not query a guessed year', async () => {
+  // Deliberate behaviour change (#1472 S7): a client with no ERP is the floor, so an unresolved,
+  // unavailable or missing calendar no longer blocks Forecast; it defaults from the budget's own years.
+  it('with an unresolved calendar, defaults from observed years, still says so, and never claims a current year', async () => {
     yearsMock.mockResolvedValue([{ fiscalYear: 'FY-saved-only', hasActiveBudget: true }]);
     calendarMock.mockResolvedValue({ status: 'unresolved', project: { start: '2025-04-01', end: '2026-03-31' } });
     comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 20, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 80, percentUsed: 0.2 }]);
     renderForecast();
-    const select = await screen.findByRole('combobox', { name: 'Fiscal year' });
-    expect(select).toHaveValue('unresolved');
-    expect(await screen.findByText('Current fiscal calendar could not be resolved.')).toBeInTheDocument();
-    expect(comparisonMock).not.toHaveBeenCalled();
-
-    await userEvent.selectOptions(select, JSON.stringify({ kind: 'all' }));
     await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-saved-only' }));
+    expect(screen.getByText('Current fiscal calendar could not be resolved.')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /· current$/ })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['no ERP binding', { status: 'binding-unavailable', project: { start: '2025-04-01', end: '2026-03-31' } }],
+    ['an ERP outage', { status: 'unavailable', project: { start: '2025-04-01', end: '2026-03-31' } }],
+  ])('with %s, Forecast opens on the approved year and reads the projection', async (_name, calendar) => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-approved', hasActiveBudget: true }]);
+    calendarMock.mockResolvedValue(calendar);
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-approved' }));
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', 'FY-approved');
+  });
+
+  it('with the calendar read failing, Forecast still opens from observed years', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-approved', hasActiveBudget: true }]);
+    calendarMock.mockRejectedValue(new Error('functions unreachable'));
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-approved' }));
+  });
+
+  it('with an unusable calendar and several observed years, opens on All years', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-a', hasActiveBudget: true }, { fiscalYear: 'FY-b', hasActiveBudget: false }]);
+    calendarMock.mockResolvedValue({ status: 'binding-unavailable', project: { start: null, end: null } });
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 20, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 80, percentUsed: 0.2 }]);
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'all' }));
     expect(comparisonMock).toHaveBeenCalledWith('proj-1', null);
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('labels Active-version and saved line years as approved while leaving ledger-only years unmarked', async () => {
