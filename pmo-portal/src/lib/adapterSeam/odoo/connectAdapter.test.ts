@@ -182,3 +182,16 @@ describe('odoo setup adapter (what the shared census and run see)', () => {
     await expect(adapter.countDomain('invoice')).rejects.toMatchObject({ code: 'commit-rejected' });
   });
 });
+
+describe('#1692 which PMO field Odoo matches its project code on', () => {
+  it('an Odoo cost account\'s code carries the PMO project number (FR-ODC-072)', () => {
+    const { adapter } = setup();
+    expect(adapter.projectCodeField).toBe('pmo_project_number');
+  });
+
+  it('the setup adapter the run resolves declares the same field', () => {
+    const fake = createFakeOdoo({ key: 'k' });
+    const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: fake.fetch });
+    expect(createOdooSetupAdapter(call, CTX).projectCodeField).toBe('pmo_project_number');
+  });
+});

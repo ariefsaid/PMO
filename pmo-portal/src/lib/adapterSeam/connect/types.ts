@@ -35,8 +35,15 @@ export interface PmoMaster {
 /** `commitDeadlineAtMs`: the money outbox's claim deadline; past it the create must be refused, not issued (ADR-0058 BLOCK 10). */
 export interface SendOptions { commitDeadlineAtMs?: number }
 
+/** The PMO `projects` column an ERP's project code is matched against (#1692). `code` is PMO's client project code and
+ *  the default; an ERP whose project key is the PMO project number (Odoo's cost-account code, FR-ODC-072) declares it. */
+export type PmoProjectCodeField = 'code' | 'pmo_project_number';
+
 export interface ConnectAdapter {
   readonly tier: string;
+  /** Which PMO `projects` column this ERP's project code matches on (FR-ECA-014). Absent means `code`, the client
+   *  project code: the adapter declares it, so no code above the adapter keeps a per-ERP table (#1692). */
+  readonly projectCodeField?: PmoProjectCodeField;
   /** One page of a kind, keyset-paged; `nextCursor` is null on the last page. */
   listMasters(kind: MasterKind, cursor: string | null): Promise<{ rows: NormalisedMaster[]; nextCursor: string | null }>;
   /** Census, read-only: how many records `listMasters` would page through. */
