@@ -2,7 +2,7 @@
 -- No Odoo-specific writer exists: tier 'odoo' runs ECA-2's shared appliers (migration 0480). AC-ODC-031 (exactly-once adoption),
 -- AC-ODC-033 (while Odoo owns companies only enhancement fields are editable), AC-ECA-004 for the second tier.
 begin;
-select plan(29);
+select plan(34);
 
 insert into organizations (id, name) values
  ('a6040000-0000-0000-0000-000000000001','Odoo Parties A'),
@@ -70,6 +70,12 @@ select is((select count(*)::int from external_refs where external_record_id='Ven
 select is(public.apply_connect_outcome('a6040000-0000-0000-0000-000000000003','odoo','party','bring-in',null,'Vendor:1',
   '{"name":"X","role":"vendor"}'::jsonb), 'No active connection for this ERP', 'an org with no Odoo connection takes no partner');
 
+-- FR-ODC-052 (#1691): the party link step itself refuses a company of type Internal, whichever tier calls it —
+-- the candidate lists already keep only vendors and clients; the shared writer holds the rule in one place.
+select is(public.apply_connect_outcome('a6040000-0000-0000-0000-000000000001','odoo','party','link','a6040000-0000-0000-0000-0000000000d3','Vendor:11',
+  '{"name":"Own Internal","matchKey":"name"}'::jsonb), 'An internal company cannot take an ERP link', 'FR-ODC-052 the party link step refuses an Internal company (tier odoo)');
+select is((select count(*)::int from external_refs where external_record_id='Vendor:11'), 0, 'FR-ODC-052 no reference was written for the Internal company');
+
 -- two accepts of one open bring-in proposal (the Admin double-clicks): one company
 select set_config('a604.run', public.start_connect_run('a6040000-0000-0000-0000-000000000001','odoo','a6040000-0000-0000-0000-0000000000a1')::text, true);
 select public.replace_connect_proposals('a6040000-0000-0000-0000-000000000001','odoo',current_setting('a604.run')::uuid,'party','[
@@ -100,6 +106,22 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"a6040000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$update companies set name = 'Renamed' where id = 'a6040000-0000-0000-0000-0000000000d1'$$,
   'AC-ODC-033 releasing ownership reopens native edits');
+reset role;
+
+-- FR-ODC-052 (#1691): the same refusal from the one shared writer for tier erpnext (no Odoo-specific rule exists).
+-- The writer is revoked from every role by design, so the proof runs through the actor-checked accept, as erp_connect_setup does.
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
+ ('a6040000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','a604_erp','active','{"site_url":"https://erp.example.test"}', now());
+insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, identity, pmo_ids, external_ids, match_key, snapshot) values
+ ('a6040000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a6040000-0000-0000-0000-000000000001' and external_tier='erpnext'),
+  'erpnext','party','link','internal-target','{a6040000-0000-0000-0000-0000000000d3}','{Supplier:11}','name','{"name":"Own Internal"}');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a6040000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select set_config('a604.internal', public.accept_connect_proposals('erpnext','party',array(select id from erp_connect_proposals where identity='internal-target'))::text, true);
+reset role;
+select is(current_setting('a604.internal')::jsonb #> '{counts,party}', '{"link":0,"bring_in":0,"send":0,"left_open":1}'::jsonb, 'FR-ODC-052 the erpnext accept leaves the Internal target open');
+select is((select reason_text from erp_connect_proposals where identity='internal-target'), 'An internal company cannot take an ERP link', 'FR-ODC-052 the same writer refuses an Internal company for tier erpnext');
+select is((select count(*)::int from external_refs where external_record_id='Supplier:11'), 0, 'FR-ODC-052 no erpnext reference was written for the Internal company');
 
 select * from finish();
 rollback;
