@@ -80,6 +80,20 @@ describe('useProcurements lean', () => {
   });
 });
 
+describe('useProcurements lean without routes', () => {
+  it('PERF-FIN-1: asks the DAL to skip approval routes, under its own cache entry', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ lean: true, withoutRoutes: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ lean: true, withoutRoutes: true });
+    expect(client.getQueryData(['procurements', 'org-1', 'lean-list-no-routes'])).toBe(result.current.data);
+  });
+});
+
 describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
   beforeEach(() => {
     ownershipState.data = [];
