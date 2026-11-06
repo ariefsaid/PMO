@@ -52,7 +52,9 @@ Deno.test('AC-CD-001: an unchanged ledger with nothing due plans a skip and neve
   const d = await planChangeDrivenStatements(service, orgWithHolder, () => { clientBuilt = true; return Promise.reject(new Error('no ERP call expected')); }, Date.now());
   assert(d.kind === 'skip', `expected skip, got ${d.kind}`);
   assert(!clientBuilt, 'a check that is not due must not read the ERP');
-  assert(calls.map((c) => c.name).join() === 'sync_erp_statement_change_scope,record_erp_statement_nightly_due,plan_erp_statement_pass', 'only sync, nightly recording and plan run');
+  assert(calls.map((c) => c.name).join() === 'sync_erp_statement_change_scope,record_erp_statement_nightly_due,scan_erp_statement_confirmed_misses,plan_erp_statement_pass', 'only sync, nightly recording, the missed-confirmation recovery scan and plan run');
+  const scan = calls.find((c) => c.name === 'scan_erp_statement_confirmed_misses');
+  assert(!!scan && scan.args.p_org_id === ORG && scan.args.p_holder === orgWithHolder.statementLockHolder && scan.args.p_binding_id === BINDING && scan.args.p_activated_at === ACT, 'the recovery scan runs under the org lease scope (#1932)');
 });
 
 Deno.test('AC-CD-001: a skipped tick opens no batch: no statement refresh is invoked', async () => {
@@ -114,7 +116,7 @@ Deno.test('AC-CD-004: a checker error falls back to today\'s hourly refresh', as
 });
 
 Deno.test('AC-CD-004: any RPC error falls back to legacy, never to skip', async () => {
-  for (const rpcError of ['sync_erp_statement_change_scope', 'record_erp_statement_nightly_due', 'plan_erp_statement_pass']) {
+  for (const rpcError of ['sync_erp_statement_change_scope', 'record_erp_statement_nightly_due', 'scan_erp_statement_confirmed_misses', 'plan_erp_statement_pass']) {
     const { service } = fakeService({ mode: 'skip', rpcError });
     const d = await planChangeDrivenStatements(service, orgWithHolder, () => Promise.reject(new Error('unused')), Date.now());
     assert(d.kind === 'legacy', `${rpcError} error must fall back to legacy`);
