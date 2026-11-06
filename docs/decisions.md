@@ -3668,3 +3668,14 @@ already uses (OD-NAR / #784). This supersedes, for orgs with no ERP, the "PMO ha
 in ADR-0048 and ADR-0055 §5. Building a native ledger **extends** the vision, it does not reverse a decision. Not
 scheduled yet: the owner said record, don't build (2026-11-03). A future build takes a new ADR for the native ledger
 and a roadmap map.
+
+### DD-TMN-1 — A no-ERP org invoices a T&M claim through its own RPC; invoice id = claim id (#1817, 2026-11-06)
+`create_native_tm_invoice(claim)` (migration 0704) is a new RPC, not a `p_id` argument on `create_native_sales_invoice`:
+that function is pinned by signature in six pgTAP files, the function-ACL proof and the isolation manifest, and a
+client-supplied id on a general creator would need the whole claim gate inside it anyway. The cost is VAT/currency drift
+between the two creators, covered by a parity test (AC-TM-025). The invoice takes the claim's id, which is the
+double-billing guard (primary key plus an explicit check that also blocks a cancelled invoice) and how the existing author
+trigger finds the claim. The work-order fence refuses any insert that reuses a claim id; it now lets this RPC through
+with a transaction-local marker that names the claim. Defaults taken from the plan (owner questions open): the approval
+rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
+line, no item code; no re-invoice after a cancel.
