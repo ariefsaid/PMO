@@ -4,68 +4,136 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
+// ══ Import boundaries ════════════════════════════════════════════════════
+// ESLint flat config does NOT merge a rule's options across config objects:
+// for any given file, the LAST object that sets `no-restricted-imports`
+// REPLACES the earlier options (verify with `eslint --print-config`). Declaring
+// one boundary per object therefore silently switched every earlier boundary
+// OFF for the files it covered (#1456). Each boundary is a pattern set here, and
+// every object below composes the FULL set of pattern sets applicable to the
+// files it matches, so no boundary can clobber another. When adding a boundary,
+// add it to every object whose files it governs.
+//
+// Boundaries and their exemptions:
+//   posthog-js   every TS file, except src/lib/analytics/client.ts
+//   analytics    src/**, except src/lib/analytics/**
+//   runtime      src/**, except src/lib/agent/runtime/** and src/lib/agent/*.test.*
+//   pages        src/**, except tests (they legitimately render the page under test)
+const POSTHOG_SDK = [
+  {
+    group: ['posthog-js'],
+    message: 'Import posthog-js only in src/lib/analytics/client.ts. Use the analytics facade from src/lib/analytics instead.',
+  },
+];
+
+// Only analytics internals may import client.ts.
+const ANALYTICS_CLIENT = [
+  {
+    group: ['**/analytics/client'],
+    message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
+  },
+  {
+    group: ['**/analytics/client.ts', '**/analytics/client.js'],
+    message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
+  },
+  {
+    group: ['@/src/lib/analytics/client', '@/src/lib/analytics/client.ts'],
+    message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
+  },
+];
+
+// A2 port isolation (AC-AP-024 / NFR-AP-SEC-003): the concrete adapter may only
+// be imported inside src/lib/agent/ (the provider + its tests). Panel, hooks,
+// and all other app code must import ONLY from port.ts (the abstract interface)
+// or AgentRuntimeContext. Exempt: the runtime directory (provider + adapter) and
+// the co-located adapter test files that legitimately test the implementation.
+const AGENT_RUNTIME = [
+  {
+    group: ['**/pmoNativeRuntime', '**/pmoNativeRuntime.ts'],
+    message: 'Import only the AgentRuntime port / AgentRuntimeContext. The concrete PmoNativeRuntime adapter may be imported only inside src/lib/agent/ (the provider/tests).',
+  },
+  {
+    group: ['@/src/lib/agent/runtime/pmoNativeRuntime', '@/src/lib/agent/runtime/pmoNativeRuntime.ts'],
+    message: 'Import only the AgentRuntime port / AgentRuntimeContext. The concrete PmoNativeRuntime adapter may be imported only inside src/lib/agent/ (the provider/tests).',
+  },
+];
+
+// pages import boundary (#1456): the dependency graph runs one way,
+// pages → components → lib. Shared calculations live under src/lib; pages may
+// import them, src must not reach back into pages/.
+const PAGES_BOUNDARY = [
+  {
+    group: ['**/pages/**', '**/pages'],
+    message: 'src/ must not import from pages/ — shared code belongs under src/lib (the dependency runs pages → components → lib, #1456).',
+  },
+];
+
+const restrictImports = (...boundaries) => ['error', { patterns: boundaries.flat() }];
+
+const TEST_FILES = ['src/**/*.test.*', 'src/**/*.spec.*', 'src/**/__tests__/**/*.{ts,tsx}'];
+
 export default tseslint.config(
   { ignores: ['dist', 'dist-consent', 'node_modules', 'coverage', 'playwright-report', 'test-results'] },
-  // ── posthog-js import boundary: only client.ts may import the SDK ──────
+  // ── Import boundaries (composed per file class; see the note above) ─────
+  // Non-src TS (pages/, e2e/, configs): only the posthog-js boundary applies.
   {
     files: ['**/*.{ts,tsx}'],
-    ignores: ['src/lib/analytics/client.ts'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['posthog-js'],
-          message: 'Import posthog-js only in src/lib/analytics/client.ts. Use the analytics facade from src/lib/analytics instead.',
-        }],
-      }],
-    },
+    ignores: ['src/**'],
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK) },
   },
-  // ── analytics/client import boundary: only analytics internals may import client.ts ──
+  // Ordinary src modules: every boundary applies.
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/lib/analytics/**'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [
-          {
-            group: ['**/analytics/client'],
-            message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
-          },
-          {
-            group: ['**/analytics/client.ts', '**/analytics/client.js'],
-            message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
-          },
-          {
-            group: ['@/src/lib/analytics/client', '@/src/lib/analytics/client.ts'],
-            message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
-          },
-        ],
-      }],
-    },
+    ignores: ['src/lib/analytics/**', 'src/lib/agent/*.test.*', 'src/lib/agent/runtime/**', ...TEST_FILES],
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK, ANALYTICS_CLIENT, AGENT_RUNTIME, PAGES_BOUNDARY) },
   },
-  // ── A2 port isolation: PmoNativeRuntime adapter only importable from its own dir ──
-  // AC-AP-024 / NFR-AP-SEC-003: the concrete adapter may only be imported inside
-  // src/lib/agent/ (the provider + its tests). Panel, hooks, and all other app
-  // code must import ONLY from port.ts (the abstract interface) or AgentRuntimeContext.
+  // Analytics internals may import the client, but must obey every other boundary.
   {
-    files: ['src/**/*.{ts,tsx}'],
-    // Exempt the agent runtime directory (provider + adapter) AND the co-located
-    // adapter test files (pmoNativeRuntime.test.ts, port.contract.test.ts) which
-    // legitimately test the concrete implementation.
-    ignores: ['src/lib/agent/runtime/**', 'src/lib/agent/*.test.ts'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [
-          {
-            group: ['**/pmoNativeRuntime', '**/pmoNativeRuntime.ts'],
-            message: 'Import only the AgentRuntime port / AgentRuntimeContext. The concrete PmoNativeRuntime adapter may be imported only inside src/lib/agent/ (the provider/tests).',
-          },
-          {
-            group: ['@/src/lib/agent/runtime/pmoNativeRuntime', '@/src/lib/agent/runtime/pmoNativeRuntime.ts'],
-            message: 'Import only the AgentRuntime port / AgentRuntimeContext. The concrete PmoNativeRuntime adapter may be imported only inside src/lib/agent/ (the provider/tests).',
-          },
-        ],
-      }],
-    },
+    files: ['src/lib/analytics/**/*.{ts,tsx}'],
+    ignores: ['src/lib/analytics/client.ts', ...TEST_FILES],
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK, AGENT_RUNTIME, PAGES_BOUNDARY) },
+  },
+  // Agent runtime internals may import the concrete adapter, but must obey every other boundary.
+  {
+    files: ['src/lib/agent/runtime/**/*.{ts,tsx}'],
+    ignores: TEST_FILES,
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK, ANALYTICS_CLIENT, PAGES_BOUNDARY) },
+  },
+  // src tests: exempt from the pages boundary only (they render page components).
+  {
+    files: TEST_FILES,
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK, ANALYTICS_CLIENT, AGENT_RUNTIME) },
+  },
+  // …analytics tests keep their analytics exemption too.
+  {
+    files: ['src/lib/analytics/**/*.test.*', 'src/lib/analytics/**/*.spec.*', 'src/lib/analytics/**/__tests__/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK, AGENT_RUNTIME) },
+  },
+  // …except the real-SDK and dead-click gate tests, which exercise posthog-js itself
+  // (consent, deferred load, surveys, person properties, dead clicks). Like the
+  // co-located adapter tests above, they get a narrow exemption from the SDK rule
+  // ONLY — every other boundary still applies.
+  {
+    files: ['src/lib/analytics/*.realSdk.test.ts', 'src/lib/analytics/client.deadClickGate.test.ts'],
+    rules: { 'no-restricted-imports': restrictImports(AGENT_RUNTIME) },
+  },
+  // …runtime tests keep their runtime exemption too.
+  {
+    files: ['src/lib/agent/runtime/**/*.test.*', 'src/lib/agent/runtime/**/*.spec.*', 'src/lib/agent/runtime/**/__tests__/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK, ANALYTICS_CLIENT) },
+  },
+  // …co-located adapter tests in src/lib/agent/ are exempt from the runtime boundary.
+  {
+    files: ['src/lib/agent/*.test.*', 'src/lib/agent/*.spec.*'],
+    rules: { 'no-restricted-imports': restrictImports(POSTHOG_SDK, ANALYTICS_CLIENT) },
+  },
+  // client.ts is the single posthog-js entry point, so it is exempt from that
+  // boundary (and, being an analytics internal, from the analytics one), but it
+  // still must not reach into pages/ or the concrete agent adapter. Keep this
+  // last: it must win over the analytics objects above.
+  {
+    files: ['src/lib/analytics/client.ts'],
+    rules: { 'no-restricted-imports': restrictImports(AGENT_RUNTIME, PAGES_BOUNDARY) },
   },
   // ── locale drift guard (#477): display formatting lives ONLY in src/lib/format.ts ──
   // toLocaleString / toLocaleDateString / new Intl.* hardcode or imply a locale and bypass the
@@ -97,23 +165,6 @@ export default tseslint.config(
             'Construct Intl formatters only in src/lib/format.ts (single formatting seam, #468/#477). Import a formatter from src/lib/format instead.',
         },
       ],
-    },
-  },
-  // ── pages import boundary (#1456): src/ never imports pages/ ─────────
-  // The dependency graph runs one way: pages → components → lib. Shared
-  // calculations live under src/lib; pages may import them, src must not
-  // reach back into pages/. Tests are exempt: they legitimately render the
-  // page components under test.
-  {
-    files: ['src/**/*.{ts,tsx}'],
-    ignores: ['**/__tests__/**', '**/*.test.*', '**/*.spec.*'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['**/pages/**', '**/pages'],
-          message: 'src/ must not import from pages/ — shared code belongs under src/lib (the dependency runs pages → components → lib, #1456).',
-        }],
-      }],
     },
   },
   {

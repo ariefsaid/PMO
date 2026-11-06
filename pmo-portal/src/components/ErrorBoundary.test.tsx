@@ -78,10 +78,10 @@ describe('ErrorBoundary (reliability harden #4 — render throw must not white-s
 
 // ── PostHog exception capture (observability floor, S6) ─────────────────────
 // A second describe block in the same file, per the plan: ErrorBoundary.tsx
-// imports analyticsClient from '@/src/lib/analytics/client' directly (the barrel
-// deliberately does not export it) and safeTrack from the barrel
-// '@/src/lib/analytics'. Two separate vi.mock calls are needed because the two
-// specifiers point at different modules.
+// reaches PostHog through the analytics facade's captureHandledError helper
+// (src/ must not import client.ts directly — the client import boundary) and
+// wraps it in safeTrack from the same barrel. The client mock is still needed
+// because the real facade's helper calls into client.ts.
 const analyticsMock = vi.hoisted(() => ({
   captureException: vi.fn(),
 }));
