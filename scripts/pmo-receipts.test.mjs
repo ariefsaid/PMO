@@ -12,7 +12,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { run, writeCredentials } from './pmo.mjs';
-import { parseLineFlags } from './lib/pmo-receipts.mjs';
+import { isReceiptDate, parseLineFlags, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 
 const PROC = '11111111-1111-1111-1111-111111111111';
 const INTENT = '22222222-2222-2222-2222-222222222222';
@@ -20,13 +20,15 @@ const OWNED = [200, [{ domain: 'procurement', external_tier: 'odoo' }]];
 const DISPATCH = 'POST /functions/v1/adapter-dispatch';
 const OK = [200, { externalRecordId: 'WH/IN/1', canonical: { id: INTENT, gr_number: 'GR-1', status: 'Partial' } }];
 
-async function fake(handlers = {}) {
+async function fake(handlers = {}, hooks = {}) {
   const requests = [];
   const server = http.createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
     const url = new URL(req.url, 'http://localhost');
-    requests.push({ method: req.method, path: url.pathname, body: body ? JSON.parse(body) : undefined });
+    const request = { method: req.method, path: url.pathname, body: body ? JSON.parse(body) : undefined };
+    requests.push(request);
+    hooks.onRequest?.(request);
     const answer = handlers[`${req.method} ${url.pathname}`];
     const [status, json] = answer === undefined ? [404, { message: `unexpected ${req.method} ${url.pathname}` }] : answer;
     res.writeHead(status, { 'content-type': 'application/json' });
@@ -36,7 +38,8 @@ async function fake(handlers = {}) {
   return { url: `http://127.0.0.1:${server.address().port}`, requests, close: () => new Promise((r) => server.close(r)) };
 }
 
-async function cli(argv, server) {
+/** Run the CLI against `server`. `stderrSeen.text` mirrors stderr live, so a hook can read what was printed so far. */
+async function cli(argv, server, { stderrSeen } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-rcv-'));
   writeCredentials({ PMO_CONFIG_DIR: dir }, server.url, {
     client_id: 'c', access_token: 'a', refresh_token: 'r', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u', email: 'a@example.test' },
@@ -44,7 +47,8 @@ async function cli(argv, server) {
   let out = ''; let err = '';
   const code = await run([...argv, '--url', server.url], {
     env: { PMO_CONFIG_DIR: dir, PMO_SUPABASE_KEY: 'k' },
-    stdout: { write: (s) => (out += s) }, stderr: { write: (s) => (err += s) },
+    stdout: { write: (s) => (out += s) },
+    stderr: { write: (s) => { err += s; if (stderrSeen) stderrSeen.text = err; } },
     stdin: (async function* () {})(),
     now: () => Date.parse('2026-11-06T03:00:00Z'),
   });
@@ -126,13 +130,16 @@ test('AC-RCV-006 quantity over what is open is refused with the line named and a
   } finally { await s.close(); }
 });
 
-test('AC-RCV-007 wrong state (nothing open / no order) and unreachable ERP carry hints; unreachable says to re-run with the same intent', async () => {
-  for (const [message, error, hint] of [
-    ['receipt-nothing-open', 'commit-rejected', /already fully received/],
-    ['po-missing', 'commit-rejected', /purchase order/],
-    ['The external system could not be reached', 'external-unreachable', /--intent/],
+test('AC-RCV-007 wrong state (nothing open / no order / pre-cutover) and unreachable ERP carry hints; unreachable says to re-run with the same intent', async () => {
+  for (const [message, error, status, hint] of [
+    ['receipt-nothing-open', 'commit-rejected', 422, /already fully received/],
+    ['po-missing', 'commit-rejected', 422, /purchase order/],
+    // The server's real pre-cutover refusal (adapter-dispatch returns this message with the code, HTTP 409):
+    // the hint must key on the code, because the message never says "cutover".
+    ['not sent: this purchase started before the ERP connection', 'pre-cutover', 409, /Record it in the app/],
+    ['The external system could not be reached', 'external-unreachable', 502, /--intent/],
   ]) {
-    const s = await fake({ 'GET /rest/v1/external_domain_ownership': OWNED, [DISPATCH]: [error === 'commit-rejected' ? 422 : 502, { error, message }] });
+    const s = await fake({ 'GET /rest/v1/external_domain_ownership': OWNED, [DISPATCH]: [status, { error, message }] });
     try {
       const r = await cli(['purchases', 'receive', PROC, '--intent', INTENT], s);
       assert.equal(r.code, 1);
@@ -165,6 +172,7 @@ test('AC-RCV-009 bad input is refused before anything is sent', async () => {
       ['purchases', 'receive', PROC, '--line', 'Pump=1', '--line', 'Pump=2'],
       ['purchases', 'receive', PROC, '--status', 'Done'],
       ['purchases', 'receive', PROC, '--date', '06/11/2026'],
+      ['purchases', 'receive', PROC, '--date', '2026-02-30'],
       ['purchases', 'receive', PROC, '--intent', 'x'],
     ]) {
       const r = await cli(argv, s);
@@ -176,4 +184,72 @@ test('AC-RCV-009 bad input is refused before anything is sent', async () => {
 
 test('AC-RCV-009 parseLineFlags splits on the last = so item names may contain one', () => {
   assert.deepEqual(parseLineFlags(['A=B=2']), { lines: [{ itemRef: 'A=B', quantity: 2 }] });
+});
+
+test('AC-RCV-009 isReceiptDate accepts real calendar days only, so a rolled-over date cannot reach the server', () => {
+  for (const good of ['2026-11-06', '2028-02-29', '2026-12-31', '2026-01-01']) assert.equal(isReceiptDate(good), true, good);
+  for (const bad of ['2026-02-30', '2026-11-31', '2026-13-01', '2026-00-10', '2027-02-29', '2026-1-6', '06/11/2026', '', 'nope']) {
+    assert.equal(isReceiptDate(bad), false, bad);
+  }
+});
+
+test('AC-RCV-010 --line is refused on a tier whose receipt command takes no per-line quantities; the whole purchase is still available', async () => {
+  for (const tier of ['erpnext', null]) {
+    const s = await fake({ 'GET /rest/v1/external_domain_ownership': [200, [{ domain: 'procurement', external_tier: tier }]], [DISPATCH]: OK });
+    try {
+      const r = await cli(['purchases', 'receive', PROC, '--line', 'Pump=3', '--intent', INTENT], s);
+      assert.equal(r.code, 2, `${tier}: ${JSON.stringify(r.error)}`);
+      assert.equal(r.error.code, 'receipt_lines_unsupported_tier');
+      assert.match(r.error.hint, /without --line/);
+      assert.equal(dispatched(s).length, 0);
+    } finally { await s.close(); }
+  }
+  // A whole-purchase receipt carries no caller lines, so every tier still receives it (the server derives the lines).
+  const s = await fake({ 'GET /rest/v1/external_domain_ownership': [200, [{ domain: 'procurement', external_tier: 'erpnext' }]], [DISPATCH]: OK });
+  try {
+    const r = await cli(['purchases', 'receive', PROC, '--intent', INTENT], s);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(dispatched(s)[0].body.record.receiptLines, undefined);
+  } finally { await s.close(); }
+});
+
+test('AC-RCV-010 receiptLineTierRefusal admits only the tier whose receipt keys caller lines on receiptLines', () => {
+  const lines = [{ itemRef: 'Pump', quantity: 3 }];
+  assert.equal(receiptLineTierRefusal('odoo', lines), null);
+  assert.equal(receiptLineTierRefusal('erpnext', lines)?.hint.length > 0, true);
+  assert.equal(receiptLineTierRefusal(undefined, lines)?.message.includes('unknown'), true);
+  assert.equal(receiptLineTierRefusal('erpnext', []), null, 'no caller lines means nothing to gate');
+});
+
+test('AC-RCV-011 an impossible calendar date is refused before anything is sent, and a real one passes', async () => {
+  const refused = await fake({});
+  try {
+    for (const date of ['2026-02-30', '2026-11-31', '2026-13-01']) {
+      const r = await cli(['purchases', 'receive', PROC, '--date', date], refused);
+      assert.equal(r.code, 2, date);
+      assert.match(JSON.stringify(r.error.details), /real calendar date/);
+      assert.equal(dispatched(refused).length, 0);
+    }
+    assert.equal(refused.requests.length, 0);
+  } finally { await refused.close(); }
+  const s = await fake({ 'GET /rest/v1/external_domain_ownership': OWNED });
+  try {
+    const r = await cli(['purchases', 'receive', PROC, '--date', '2028-02-29', '--dry-run'], s);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.command.record.receiptDate, '2028-02-29');
+  } finally { await s.close(); }
+});
+
+test('AC-RCV-012 the intent is printed before the receipt is sent, so a hung run still leaves the retry id', async () => {
+  const seen = { text: '' };
+  let printedBeforeDispatch = null;
+  const s = await fake({ 'GET /rest/v1/external_domain_ownership': OWNED, [DISPATCH]: OK }, {
+    onRequest: (request) => { if (request.path === '/functions/v1/adapter-dispatch') printedBeforeDispatch = seen.text; },
+  });
+  try {
+    const r = await cli(['purchases', 'receive', PROC], s, { stderrSeen: seen });
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.match(printedBeforeDispatch ?? '', new RegExp(`intent: ${r.json.intent}`));
+    assert.match(seen.text, new RegExp(`intent: ${r.json.intent}`));
+  } finally { await s.close(); }
 });
