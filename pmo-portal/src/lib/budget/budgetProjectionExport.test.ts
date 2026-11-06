@@ -13,9 +13,19 @@ describe('buildBudgetProjectionCsv (AC-013/015)', () => {
 
     expect(buildBudgetProjectionCsv({ scope: { kind: 'all' }, rows }, options)).toBe([
       '"Scope","Fiscal year","Category","Approved total (USD)","Budget source","Recorded to date (USD)","Recorded source","Recorded as of","Remaining (USD)","% recorded"',
-      '"All years (project to date)","","Labor","100","Active budget version","0","ERP ledger","2026-01-01T00:00:00Z","100","0"',
+      '"All years (project to date)","","Labor","100","Active budget version","0","ERP ledger","2026-01-01T00:00:00Z","100","0.00"',
       '"All years (project to date)","","Equipment","20","Active budget version","","No ledger account mapped","","",""',
     ].join('\r\n'));
+  });
+
+  it('exports the percent with exact decimal math: 0.57 is 57.00, never 56.99999999999999', () => {
+    const row = (percentUsed: number): BudgetComparisonRow => ({ category: 'Labor', budgetTotal: 100, recorded: 1, recordedAsOf: null, mapped: true, hasLedger: true, remaining: 99, percentUsed });
+    const percentCell = (fraction: number) => buildBudgetProjectionCsv({ scope: { kind: 'all' }, rows: [row(fraction)] }, options).split('\r\n')[1].split(',').pop();
+    expect(0.57 * 100).not.toBe(57); // the float trap this guards
+    expect(percentCell(0.57)).toBe('"57.00"');
+    expect(percentCell(0.29)).toBe('"29.00"');
+    expect(percentCell(1.2345)).toBe('"123.45"');
+    expect(percentCell(0.005)).toBe('"0.50"');
   });
 
   it('AC-015 suppresses cross-currency comparisons in the actual all-years CSV while retaining both amounts and bases', () => {

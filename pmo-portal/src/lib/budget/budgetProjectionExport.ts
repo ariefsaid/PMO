@@ -1,3 +1,4 @@
+import { formatExactCents } from '@/src/lib/exactDecimal';
 import type { BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
 
 export type BudgetProjectionExport =
@@ -8,6 +9,14 @@ interface BudgetProjectionExportOptions {
   budgetCurrency: string;
   projectCurrency: string;
   categoryLabel: (category: string) => string;
+}
+
+/** Fraction (0.57) to a two-decimal percent string ("57.00"), shifted in integers so binary floats never leak. */
+function exactPercent(fraction: number): string {
+  const [whole, frac] = Math.abs(fraction).toFixed(10).split('.');
+  const scaled = BigInt(whole) * 10n ** 10n + BigInt(frac); // fraction * 1e10
+  const cents = (scaled + 500_000n) / 1_000_000n; // percent * 100, half-up
+  return formatExactCents(fraction < 0 ? -cents : cents);
 }
 
 const quoteCsvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
@@ -38,7 +47,7 @@ export function buildBudgetProjectionCsv(
         ? !row.mapped ? 'No ledger account mapped' : !row.hasLedger ? 'No ledger reading' : 'ERP ledger amount unavailable'
         : 'ERP ledger',
       row.recordedAsOf ?? '', compatibleCurrencyBasis ? row.remaining ?? '' : '',
-      compatibleCurrencyBasis && row.percentUsed !== null ? row.percentUsed * 100 : '',
+      compatibleCurrencyBasis && row.percentUsed !== null ? exactPercent(row.percentUsed) : '',
     ])
     : (payload.rows as BudgetProjectionCellRow[]).map((row) => [
       'Fiscal year', annualFiscalYear, categoryLabel(row.category), row.pmoBudgetAmount ?? '', 'Active budget version',

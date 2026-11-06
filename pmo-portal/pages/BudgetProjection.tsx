@@ -75,7 +75,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     queryKey: ['budget-project-calendar', orgId, projectId, budgetVersionId, projectStartDate, projectEndDate],
     queryFn: () => fetchProjectFiscalCalendar(projectId),
     enabled: Boolean(orgId && projectId && budgetVersionId),
-    staleTime: 0,
+    staleTime: 5 * 60_000,
     retry: false,
   });
   const calendarData = calendarQuery.data;
@@ -97,8 +97,10 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     calendarResult.project.start === projectStartDate && calendarResult.project.end === projectEndDate;
   const calendarMatches = Boolean(calendarBasisMatches && !calendarIsFetching);
   // No ERP binding, outage or unresolved calendar: Forecast still works from the budget's own years (no "current" claim).
+  // A resolved calendar whose project-date basis still differs after the one refetch is unusable too, never an endless load.
+  const mismatchSettled = mismatchedCalendarRefresh.current === identity;
   const calendarUnusable = !calendarIsPending && !calendarIsFetching &&
-    (calendarIsError || (calendarResult != null && calendarResult.status !== 'resolved'));
+    (calendarIsError || (calendarResult != null && (calendarResult.status !== 'resolved' || (!calendarBasisMatches && mismatchSettled))));
   useEffect(() => {
     if (calendarData?.status !== 'resolved' || calendarBasisMatches || calendarIsFetching) {
       if (calendarIsSuccess && calendarBasisMatches) mismatchedCalendarRefresh.current = null;

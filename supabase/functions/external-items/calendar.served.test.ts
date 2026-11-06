@@ -38,6 +38,8 @@ const project = (row: Record<string, unknown> | null, error = false) => supabase
     ? jsonResponse({ message: 'database detail must remain private' }, { status: 500 })
     : jsonResponse(row, { headers: objectHeaders });
 });
+const actor = (active = true) => supabaseRpc('actor_authorization_state', () =>
+  jsonResponse({ role: 'Finance', active }));
 const binding = (versionMajor = 16, config: Record<string, unknown> = { company: 'Test Co' }) =>
   supabaseSelect('external_org_bindings', (call) => {
     assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
@@ -80,10 +82,19 @@ const bindingAndSecret = (versionMajor = 16, config: Record<string, unknown> = {
 ];
 
 describe('external-items project fiscal calendar served read', () => {
+  it('refuses a deactivated member before any ERP or binding read', async () => {
+    await withFetchMock([profile(), project(projectRow()), actor(false)], async ({ calls }) => {
+      const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
+      assertEquals(response.status, 403);
+      assertEquals(calls.some((call) => call.url.pathname === '/rest/v1/external_org_bindings'), false);
+    });
+  });
+
+
   it('AC-013/015 resolves unobserved current years from caller-visible project dates for every active role', async () => {
     for (const role of ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer']) {
       await withFetchMock([
-        profile(), project(projectRow()), ...bindingAndSecret(), ...twoYearCalendar(),
+        profile(), project(projectRow()), actor(), ...bindingAndSecret(), ...twoYearCalendar(),
       ], async ({ calls }) => {
         const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }, role));
         assertEquals(response.status, 200);
@@ -107,7 +118,7 @@ describe('external-items project fiscal calendar served read', () => {
 
   it('allows an archived project whose row remains visible under caller RLS', async () => {
     await withFetchMock([
-      profile(), project(projectRow({ archived_at: '2026-01-01T00:00:00Z' })),
+      profile(), project(projectRow({ archived_at: '2026-01-01T00:00:00Z' })), actor(),
       ...bindingAndSecret(), ...twoYearCalendar(),
     ], async () => {
       const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
@@ -161,7 +172,7 @@ describe('external-items project fiscal calendar served read', () => {
       { start_date: '2027-02-15', end_date: '2027-02-14' },
       { start_date: '2025-02-29', end_date: null },
     ]) {
-      await withFetchMock([profile(), project(projectRow(projectDates))], async ({ calls }) => {
+      await withFetchMock([profile(), project(projectRow(projectDates)), actor()], async ({ calls }) => {
         const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
         assertEquals(response.status, 200);
         assertEquals((await response.json() as { status: string }).status, 'bad-project-dates');
@@ -172,7 +183,7 @@ describe('external-items project fiscal calendar served read', () => {
 
   it('returns a project-current open-ended year instead of every year in the ERP calendar', async () => {
     await withFetchMock([
-      profile(), project(projectRow({ start_date: '2025-10-01', end_date: null })),
+      profile(), project(projectRow({ start_date: '2025-10-01', end_date: null })), actor(),
       ...bindingAndSecret(), ...twoYearCalendar(),
     ], async () => {
       const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
@@ -186,7 +197,7 @@ describe('external-items project fiscal calendar served read', () => {
 
   it('treats unsupported bindings as unavailable and does not call ERP', async () => {
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(14),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(14),
     ], async ({ calls }) => {
       const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
       assertEquals(response.status, 200);
@@ -201,7 +212,7 @@ describe('external-items project fiscal calendar served read', () => {
       { name: 'FY opaque B', year_start_date: '2026-05-01', year_end_date: '2027-03-31', companies: [] },
     ];
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(),
       calendarList(),
       detail(rows[0].name, rows[0].year_start_date, rows[0].year_end_date),
       detail(rows[1].name, rows[1].year_start_date, rows[1].year_end_date),
@@ -212,7 +223,7 @@ describe('external-items project fiscal calendar served read', () => {
     });
 
     await withFetchMock([
-      profile(), project(projectRow({ start_date: '2025-06-15', end_date: '2026-02-15' })), ...bindingAndSecret(),
+      profile(), project(projectRow({ start_date: '2025-06-15', end_date: '2026-02-15' })), actor(), ...bindingAndSecret(),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year$/, () => jsonResponse({ data: [{ name: 'FY duplicate' }, { name: 'FY duplicate' }] })),
     ], async ({ calls }) => {
       const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
@@ -221,7 +232,7 @@ describe('external-items project fiscal calendar served read', () => {
     });
 
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year$/, () => jsonResponse({ data: [{ name: 'FY malformed' }] })),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year\/[^/]+$/, () => jsonResponse({ data: { name: 'FY other' } })),
     ], async () => {
@@ -230,7 +241,7 @@ describe('external-items project fiscal calendar served read', () => {
     });
 
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year$/, () => jsonResponse({ data: [{ name: 'FY overlap A' }, { name: 'FY overlap B' }] })),
       detail('FY overlap A', '2025-04-01', '2026-06-30'),
       detail('FY overlap B', '2026-04-01', '2027-03-31'),
@@ -242,7 +253,7 @@ describe('external-items project fiscal calendar served read', () => {
 
   it('does not accept a full final page as a complete ERP calendar', async () => {
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year$/, (call) => {
         assertEquals(call.url.searchParams.get('limit_page_length'), '100');
         const offset = Number(call.url.searchParams.get('limit_start'));
@@ -259,7 +270,7 @@ describe('external-items project fiscal calendar served read', () => {
 
   it('filters company-linked years and returns unavailable on ERP transport failure', async () => {
     await withFetchMock([
-      profile(), project(projectRow({ start_date: '2025-06-15', end_date: '2026-02-15' })), ...bindingAndSecret(),
+      profile(), project(projectRow({ start_date: '2025-06-15', end_date: '2026-02-15' })), actor(), ...bindingAndSecret(),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year$/, () => jsonResponse({ data: [{ name: 'FY other' }, { name: 'FY current' }] })),
       detail('FY other', '2025-04-01', '2026-03-31', [{ company: 'Another Co' }]),
       detail('FY current', '2025-04-01', '2026-03-31', [{ company: 'Test Co' }]),
@@ -272,7 +283,7 @@ describe('external-items project fiscal calendar served read', () => {
     });
 
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year$/, () => { throw new Error('private network detail'); }),
     ], async () => {
       const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
@@ -289,7 +300,7 @@ describe('external-items project fiscal calendar served read', () => {
       }),
     };
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(),
       deadlineRoute,
     ], async ({ calls }) => {
       const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
@@ -306,7 +317,7 @@ describe('external-items project fiscal calendar served read', () => {
       return jsonResponse({ data: [{ name: 'FY expired' }] });
     });
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(), list,
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(), list,
     ], async ({ calls }) => {
       try {
         const response = await handleItemsRequest(await request({ purpose: 'budget-project-calendar', projectId: PROJECT_ID }));
@@ -322,7 +333,7 @@ describe('external-items project fiscal calendar served read', () => {
 
   it('classifies an ERP error mentioning Fiscal Year as unavailable, not malformed calendar data', async () => {
     await withFetchMock([
-      profile(), project(projectRow()), ...bindingAndSecret(),
+      profile(), project(projectRow()), actor(), ...bindingAndSecret(),
       erp('erp.example.com', /^\/api\/resource\/Fiscal%20Year$/, () =>
         jsonResponse({ message: 'Fiscal Year service temporarily unavailable' }, { status: 503 })),
     ], async () => {

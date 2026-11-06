@@ -404,6 +404,17 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(screen.queryByRole('option', { name: 'FY-stale · current' })).not.toBeInTheDocument();
   });
 
+  it('a calendar basis that still mismatches after the one refetch falls back to observed years with the notice, never an endless load', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-approved', hasActiveBudget: true }]);
+    calendarMock.mockResolvedValue({ status: 'resolved', project: { start: '2024-04-01', end: '2025-03-31' }, years: [{ name: 'FY-stale', start: '2024-04-01', end: '2025-03-31' }] });
+    renderForecast();
+    await rowFor('Labor');
+    expect(calendarMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-approved' }));
+    expect(screen.getByText('Current fiscal calendar could not be resolved.')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'FY-stale · current' })).not.toBeInTheDocument();
+  });
+
   // Deliberate behaviour change (#1472 S7): a client with no ERP is the floor, so an unresolved,
   // unavailable or missing calendar no longer blocks Forecast; it defaults from the budget's own years.
   it('with an unresolved calendar, defaults from observed years, still says so, and never claims a current year', async () => {

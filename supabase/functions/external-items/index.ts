@@ -92,11 +92,18 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
     }
     const { data: project, error: projectError } = await caller
       .from('projects')
-      .select('id,org_id,start_date,end_date,archived_at')
+      .select('id,org_id,start_date,end_date')
       .eq('id', body.projectId)
       .maybeSingle();
     if (projectError) return json({ error: 'PROJECT_LOOKUP_FAILED' }, 500);
     if (!project || project.org_id !== profile.org_id) return json({ error: 'FORBIDDEN' }, 404);
+    // Budgets are readable by any active member of the org; a deactivated member gets nothing.
+    const actor = createClient(url, key, clientOptions);
+    const { data: actorState, error: actorError } = await actor.rpc('actor_authorization_state', {
+      p_org_id: profile.org_id,
+      p_user_id: userId,
+    });
+    if (actorError || !(actorState as { active: boolean } | null)?.active) return json({ error: 'FORBIDDEN' }, 403);
     const projectDates = { start: project.start_date ?? null, end: project.end_date ?? null };
     if (!isValidProjectDateBasis(projectDates.start, projectDates.end)) {
       return json({ status: 'bad-project-dates', project: projectDates });
