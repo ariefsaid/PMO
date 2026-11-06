@@ -42,8 +42,9 @@ describe('AC-PHO-103 the SDK never pops a survey by itself', () => {
 });
 
 describe('AC-PHO-103 survey methods', () => {
-  it('find resolves a survey id by exact name and null when it is not published', () => {
+  it('find resolves a survey id by exact name and null when it is not published', async () => {
     analyticsClient.init(config);
+    await analyticsClient.ready();
     posthog.getSurveys.mockImplementation((cb: (s: unknown[]) => void) =>
       cb([{ id: 's1', name: '[PMO] NPS' }, { id: 's2', name: '[PMO] Feedback' }]),
     );
@@ -53,15 +54,17 @@ describe('AC-PHO-103 survey methods', () => {
     expect(got).toEqual(['s2', null]);
   });
 
-  it('canRender follows the SDK verdict (wait period, targeting, already seen)', () => {
+  it('canRender follows the SDK verdict (wait period, targeting, already seen)', async () => {
     analyticsClient.init(config);
+    await analyticsClient.ready();
     posthog.canRenderSurvey.mockReturnValueOnce({ visible: true }).mockReturnValueOnce({ visible: false, disabledReason: 'wait' });
-    expect(analyticsClient.surveys.canRender('s1')).toBe(true);
-    expect(analyticsClient.surveys.canRender('s1')).toBe(false);
+    expect(await analyticsClient.surveys.canRender('s1')).toBe(true);
+    expect(await analyticsClient.surveys.canRender('s1')).toBe(false);
   });
 
-  it('show opens PostHog\'s own popover with the context properties; nextTo anchors it', () => {
+  it('show opens PostHog\'s own popover with the context properties; nextTo anchors it', async () => {
     analyticsClient.init(config);
+    await analyticsClient.ready();
     analyticsClient.surveys.show('s1', { module: 'projects' });
     expect(posthog.displaySurvey).toHaveBeenLastCalledWith('s1', {
       displayType: 'popover', ignoreConditions: true, ignoreDelay: true, properties: { module: 'projects' },
@@ -70,8 +73,9 @@ describe('AC-PHO-103 survey methods', () => {
     expect(posthog.displaySurvey).toHaveBeenLastCalledWith('s1', expect.objectContaining({ position: 'next_to_trigger', selector: '#fb' }));
   });
 
-  it('onCaptured relays captured event names and stops after unsubscribe', () => {
+  it('onCaptured relays captured event names and stops after unsubscribe', async () => {
     analyticsClient.init(config);
+    await analyticsClient.ready();
     const off = vi.fn();
     posthog.on.mockReturnValue(off);
     const seen: string[] = [];
@@ -85,19 +89,21 @@ describe('AC-PHO-103 survey methods', () => {
     expect(off).toHaveBeenCalled();
   });
 
-  it('is inert before init, and after the user opts out nothing reaches the SDK', () => {
+  it('is inert before init, and after the user opts out nothing reaches the SDK', async () => {
     const cb = vi.fn();
     analyticsClient.surveys.find('[PMO] NPS', cb);
     expect(cb).toHaveBeenCalledWith(null);
-    expect(analyticsClient.surveys.canRender('s1')).toBe(false);
+    expect(await analyticsClient.surveys.canRender('s1')).toBe(false);
 
     analyticsClient.init(config);
+
+    await analyticsClient.ready();
     analyticsClient.optOut();
     posthog.getSurveys.mockClear();
     const cb2 = vi.fn();
     analyticsClient.surveys.find('[PMO] NPS', cb2);
     expect(cb2).toHaveBeenCalledWith(null);
-    expect(analyticsClient.surveys.canRender('s1')).toBe(false);
+    expect(await analyticsClient.surveys.canRender('s1')).toBe(false);
     analyticsClient.surveys.show('s1', {});
     expect(posthog.getSurveys).not.toHaveBeenCalled();
     expect(posthog.displaySurvey).not.toHaveBeenCalled();

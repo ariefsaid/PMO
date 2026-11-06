@@ -20,7 +20,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { created_
 vi.mock('@/src/lib/analytics', () => ({
   surveysLive: () => h.live,
   setSurveyViewer: () => {},
-  canShowSurvey: () => h.canShow,
+  canShowSurvey: () => Promise.resolve(h.canShow),
   showSurvey: (...a: unknown[]) => h.show(...a),
   buildSurveyContext: (p: string) => ({ module: 'projects', route: p }),
   onCoreFlowCompleted: (cb: () => void) => {
@@ -42,7 +42,7 @@ const tree = (path: string) => (
   </QueryClientContext.Provider>
 );
 const mount = (path = '/projects') => render(tree(path));
-const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
+const wait = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
 
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW });
@@ -56,14 +56,14 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('AC-PHO-106 NPS for active users', () => {
-  it('appears once, after a minute, for an active user past their first week at a calm moment', () => {
+  it('appears once, after a minute, for an active user past their first week at a calm moment', async () => {
     mount();
-    wait(30_000);
+    await wait(30_000);
     expect(h.show).not.toHaveBeenCalled();
-    wait(40_000);
+    await wait(40_000);
     expect(h.show).toHaveBeenCalledTimes(1);
     expect(h.show).toHaveBeenCalledWith('sid-nps', { module: 'projects', route: '/projects' });
-    wait(300_000);
+    await wait(300_000);
     expect(h.show).toHaveBeenCalledTimes(1); // one survey per session, whatever else is eligible
   });
 
@@ -75,10 +75,10 @@ describe('AC-PHO-106 NPS for active users', () => {
     ['PostHog says not eligible (wait period / already seen)', () => (h.canShow = false)],
     ['the survey is not published', () => (h.ids.nps = null)],
     ['the user is not active', () => localStorage.setItem('pmo.activeDays', '[]')],
-  ])('never when %s', (_n, arrange) => {
+  ])('never when %s', async (_n, arrange) => {
     arrange();
     mount();
-    wait(600_000);
+    await wait(600_000);
     expect(h.show).not.toHaveBeenCalled();
   });
 });
@@ -92,63 +92,63 @@ describe('AC-PHO-106 never interrupts a write or a form', () => {
     }],
     ['a save is in flight', () => (h.mutating = 1)],
   ];
-  it.each(blocked)('waits while %s, then shows once it clears', (_n, arrange) => {
+  it.each(blocked)('waits while %s, then shows once it clears', async (_n, arrange) => {
     arrange();
     const { rerender } = mount();
-    wait(120_000);
+    await wait(120_000);
     expect(h.show).not.toHaveBeenCalled();
     document.body.querySelectorAll('[role="dialog"],#f').forEach((n) => n.remove());
     h.mutating = 0;
     rerender(tree('/projects'));
-    wait(6_000);
+    await wait(6_000);
     expect(h.show).toHaveBeenCalledTimes(1);
   });
 
-  it('never on a create or edit route', () => {
+  it('never on a create or edit route', async () => {
     mount('/procurement/new');
-    wait(600_000);
+    await wait(600_000);
     expect(h.show).not.toHaveBeenCalled();
   });
 
-  it('waits for three quiet seconds after the last key or click', () => {
+  it('waits for three quiet seconds after the last key or click', async () => {
     mount();
-    wait(59_000);
+    await wait(59_000);
     act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' })));
-    wait(2_000);
+    await wait(2_000);
     expect(h.show).not.toHaveBeenCalled();
-    wait(4_000);
+    await wait(4_000);
     expect(h.show).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('AC-PHO-106 first core flow', () => {
-  it('asks the 1-5 question after a business event, ahead of NPS, at the next calm moment', () => {
+  it('asks the 1-5 question after a business event, ahead of NPS, at the next calm moment', async () => {
     mount();
-    wait(5_000);
+    await wait(5_000);
     act(() => h.flowCb?.());
-    wait(6_000);
+    await wait(6_000);
     expect(h.show).toHaveBeenCalledTimes(1);
     expect(h.show).toHaveBeenCalledWith('sid-flow', { module: 'projects', route: '/projects' });
-    wait(300_000);
+    await wait(300_000);
     expect(h.show).toHaveBeenCalledTimes(1);
   });
 
-  it('holds the question while the form that just saved is still open', () => {
+  it('holds the question while the form that just saved is still open', async () => {
     mount();
     document.body.insertAdjacentHTML('beforeend', '<div role="dialog"></div>');
     act(() => h.flowCb?.());
-    wait(30_000);
+    await wait(30_000);
     expect(h.show).not.toHaveBeenCalled();
     document.body.innerHTML = '';
-    wait(6_000);
+    await wait(6_000);
     expect(h.show).toHaveBeenCalledWith('sid-flow', expect.any(Object));
   });
 
-  it('is not asked in the user\'s first week, even right after a business event', () => {
+  it('is not asked in the user\'s first week, even right after a business event', async () => {
     h.createdAt = '2026-11-08T00:00:00Z';
     mount();
     act(() => h.flowCb?.());
-    wait(60_000);
+    await wait(60_000);
     expect(h.show).not.toHaveBeenCalled();
   });
 });
