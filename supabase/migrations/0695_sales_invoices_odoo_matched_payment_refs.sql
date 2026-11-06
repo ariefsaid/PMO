@@ -136,3 +136,9 @@ end $$;
 -- which is the only shape in which the edge fn can reach this function. ─────────────────────────────
 revoke all     on function public.record_sales_invoice_receipt_read_back(uuid, uuid, text[], text, numeric, text, timestamptz) from public, anon, authenticated;
 grant  execute on function public.record_sales_invoice_receipt_read_back(uuid, uuid, text[], text, numeric, text, timestamptz) to   service_role;
+
+-- Same classification as its 0511 siblings: a read-side mirror fact the machine writes, not a history
+-- event (AC-CHG-011's catalog gate fails on an unclassified column).
+update public.record_history_config
+   set omit_cols = omit_cols || array['odoo_matched_payment_refs']
+ where entity_type = 'sales_invoice';

@@ -4,6 +4,11 @@
 
 drop function if exists public.record_sales_invoice_receipt_read_back(uuid, uuid, text[], text, numeric, text, timestamptz);
 
+-- Un-classify what 0695 omitted from the change-history registry (0511's siblings stay omitted).
+update public.record_history_config
+   set omit_cols = array_remove(omit_cols, 'odoo_matched_payment_refs')
+ where entity_type = 'sales_invoice';
+
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
   language plpgsql set search_path = public as $$
 begin
