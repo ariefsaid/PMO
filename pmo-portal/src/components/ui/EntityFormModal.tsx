@@ -77,6 +77,8 @@ export interface EntityFormModalProps {
   onClose: () => void;
   /** Disable the submit (e.g. while the form is invalid). */
   submitDisabled?: boolean;
+  /** Drop the primary submit from the footer (Cancel/Done only). */
+  hideSubmit?: boolean;
   /**
    * The screen-reader reason a disabled submit is described by. Defaults to the required-fields hint;
    * pass your own when the submit is disabled for another reason (e.g. an invalid value).
@@ -121,6 +123,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   onSubmit,
   onClose,
   submitDisabled,
+  hideSubmit,
   disabledReason,
   discardCopy,
   loading = false,
@@ -400,7 +403,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
 
             {/* Sticky footer */}
             <div className={overlayFooterClassName}>
-              {submitDisabled && (
+              {submitDisabled && !hideSubmit && (
                 <span id={disabledReasonId} className="sr-only">
                   {disabledReason ?? t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
                 </span>
@@ -410,6 +413,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                 cancelLabel={cancelLabel ?? t('entityForm.cancel', 'Cancel')}
                 onCancel={requestClose}
                 disabled={submitDisabled}
+                hideSubmit={hideSubmit}
                 loading={loading}
                 submitDescribedBy={disabledReasonId}
               />

@@ -774,7 +774,7 @@
     "mappingLegend": "Pemetaan kolom",
     "mapField": "Kolom {{field}}",
     "notUsed": "Tidak dipakai",
-    "column": "Kolom {{n}}",
+    "column": "Kol {{n}}",
     "field": {
       "category": "Kategori",
       "description": "Deskripsi",
@@ -795,6 +795,9 @@
       "row": "Baris",
       "status": "Pemeriksaan"
     },
+    "ambiguousNote": "Dibaca {{amount}}, bukan desimal.",
+    "ambiguousConfirm_one": "{{count}} jumlah seperti 12,345 dibaca sebagai ribuan (12345), bukan desimal (12,345 = 12.345). Saya konfirmasi ini benar.",
+    "ambiguousConfirm_other": "{{count}} jumlah seperti 12,345 dibaca sebagai ribuan (12345), bukan desimal (12,345 = 12.345). Saya konfirmasi ini benar.",
     "rowOk": "OK",
     "rowError": {
       "mapping-required": "Kolom {{field}} belum dipilih.",

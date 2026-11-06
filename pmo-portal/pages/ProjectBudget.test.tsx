@@ -2263,7 +2263,7 @@ describe('budget paste rows dialog (#1473 C)', () => {
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'First row is a header' }));
     expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('1 valid, 0 invalid');
     expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('$8.25');
-    expect(within(dialog).getByText('8.25')).toBeInTheDocument();
+    expect(within(dialog).getByRole('cell', { name: '$8.25' })).toBeInTheDocument();
   });
 
   it('AC-003 requires an explicit mode when both Amount and Quantity × Rate are mapped', async () => {
@@ -2279,7 +2279,7 @@ describe('budget paste rows dialog (#1473 C)', () => {
 
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Use Quantity × Rate' }));
     expect(within(dialog).getByRole('button', { name: 'Save 1 valid row' })).toBeEnabled();
-    expect(within(dialog).getByText('6.00')).toBeInTheDocument();
+    expect(within(dialog).getByRole('cell', { name: '$6.00' })).toBeInTheDocument();
   });
 
   it('AC-004 cannot confirm empty, unmapped, or over-500-row input', async () => {
@@ -2333,7 +2333,46 @@ describe('budget paste rows dialog (#1473 C)', () => {
     ]);
     expect(mockRefreshBudgetQueries).toHaveBeenCalledWith(expect.anything(), 'org-1', 'p-1');
     expect(within(dialog).getByRole('button', { name: 'Done' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: /^Save/ })).toBeDisabled();
+    expect(within(dialog).queryByRole('button', { name: /^Save/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('textbox', { name: /Rows pasted from a spreadsheet/i })).not.toBeInTheDocument();
+  });
+
+  it('FR-009 submits only the valid rows of a mixed set', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'ok', '100'], ['Labor', 'no amount', ''], ['Materials', 'bad amount', '1.2.3'], ['Materials', 'ok too', '50']));
+    expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('2 valid, 2 invalid');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save 2 valid rows' }));
+    await waitFor(() => expect(within(dialog).getByTestId('paste-result-summary')).toHaveTextContent('2 of 2 rows saved.'));
+    expect(mockBudgetRepository.createLineItem.mock.calls).toEqual([
+      ['v-draft', { category: 'Labor', description: 'ok', budgeted_amount: 100 }],
+      ['v-draft', { category: 'Materials', description: 'ok too', budgeted_amount: 50 }],
+    ]);
+  });
+
+  it('FR-005 notes a 12,345 amount and needs one explicit confirmation before saving', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'comma', '12,345'], ['Materials', 'plain', '1,200.50'], ['Labor', 'second', '9,876']));
+    expect(within(dialog).getAllByTestId('paste-ambiguous-note')).toHaveLength(2);
+    expect(within(dialog).getByRole('button', { name: 'Save 3 valid rows' })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /2 amounts like 12,345 are read as thousands/ }));
+    expect(within(dialog).getByRole('button', { name: 'Save 3 valid rows' })).toBeEnabled();
+    // Changing the pasted set drops the confirmation.
+    await paste(dialog, tsv(['Labor', 'comma', '12,345'], ['Materials', 'plain', '1,200.50']));
+    expect(within(dialog).getByRole('button', { name: 'Save 2 valid rows' })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /1 amounts? like 12,345/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save 2 valid rows' }));
+    await waitFor(() => expect(within(dialog).getByTestId('paste-result-summary')).toHaveTextContent('2 of 2 rows saved.'));
+    expect(mockBudgetRepository.createLineItem.mock.calls[0]).toEqual(['v-draft', { category: 'Labor', description: 'comma', budgeted_amount: 12345 }]);
+  });
+
+  it('FR-005 asks for no confirmation when no amount is ambiguous', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'a', '1,200.50'], ['Materials', 'b', '12,34']));
+    expect(within(dialog).queryByTestId('paste-ambiguous-note')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('checkbox', { name: /like 12,345/ })).not.toBeInTheDocument();
   });
 
   it('FR-010 reports a partial reject per row and a retry submits only the failure', async () => {

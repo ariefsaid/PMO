@@ -775,7 +775,7 @@
     "mappingLegend": "Column mapping",
     "mapField": "{{field}} column",
     "notUsed": "Not used",
-    "column": "Column {{n}}",
+    "column": "Col {{n}}",
     "field": {
       "category": "Category",
       "description": "Description",
@@ -796,6 +796,9 @@
       "row": "Row",
       "status": "Check"
     },
+    "ambiguousNote": "Read as {{amount}}, not a decimal.",
+    "ambiguousConfirm_one": "{{count}} amount like 12,345 is read as thousands (12345), not decimals (12.345). I confirm this is right.",
+    "ambiguousConfirm_other": "{{count}} amounts like 12,345 are read as thousands (12345), not decimals (12.345). I confirm this is right.",
     "rowOk": "OK",
     "rowError": {
       "mapping-required": "{{field}} column is not chosen.",

@@ -183,7 +183,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
-  const [hasOpenEditorBuffers, setHasOpenLineBuffers] = useState(false);
+  const [hasOpenEditorBuffers, setHasOpenEditorBuffers] = useState(false);
   const [pasteTargetId, setPasteTargetId] = useState<string | null>(null);
   const pasteOpen = pasteTargetId !== null;
   const hasOpenLineBuffers = hasOpenEditorBuffers || pasteOpen;
@@ -704,7 +704,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
         onDeleteLineItem={requestDeleteLineItem}
         onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
-        onOpenBuffersChange={setHasOpenLineBuffers}
+        onOpenBuffersChange={setHasOpenEditorBuffers}
         onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
         createIsPending={mutations.createLineItem.isPending}
         updateIsPending={mutations.updateLineItem.isPending}

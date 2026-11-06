@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, EntityFormModal, SelectField, TextArea } from '@/src/components/ui';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -9,6 +9,7 @@ import {
   parsePasteTsv,
   previewPasteRows,
   PasteRowsParseError,
+  isAmbiguousCommaNumber,
   type PasteBudgetCategory,
   type PasteMode,
   type PasteRowError,
@@ -48,6 +49,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
 }) => {
   const { t } = useTranslation('finance');
   const headerId = useId();
+  const ambiguousId = useId();
   const [text, setText] = useState('');
   const [header, setHeader] = useState(false);
   const [mapping, setMapping] = useState<Mapping>(DEFAULT_MAPPING);
@@ -57,6 +59,9 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
   const paste = useBudgetPasteRows({ projectId, targetId, selectedId, isDraft, canCreate, canEdit });
   const { results } = paste;
   const hasResults = results.length > 0;
+  const summaryRef = useRef<HTMLParagraphElement>(null);
+  // The collapsed result summary is the safety signal (e.g. "not confirmed"); move focus to it when results first appear.
+  useEffect(() => { if (hasResults) summaryRef.current?.focus(); }, [hasResults]);
 
   const parsed = useMemo<{ rows: PasteTsvRow[]; failed: boolean }>(() => {
     try { return { rows: parsePasteTsv(text), failed: false }; } catch (error) {
@@ -84,14 +89,23 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
   const hasInput = text.trim() !== '';
   const previewBlocked = preview.errors.length > 0 || parsed.failed;
   const validRows = preview.rows.filter((row) => row.errors.length === 0 && row.category !== null && row.amount !== null);
-  const canSave = hasInput && !previewBlocked && validRows.length > 0 && !hasResults && !paste.isSaving;
+  // `12,345` is a thousands group by the dot-decimal rule; an Indonesian comma decimal would mean 12.345. One confirmation covers the current set.
+  const ambiguousRows = validRows.filter((row) => (shownMode === 'quantity-rate' ? [row.raw.quantity, row.raw.rate] : [row.raw.amount]).some(isAmbiguousCommaNumber));
+  const ambiguousKey = ambiguousRows.map((row) => `${row.rowNumber}:${row.amount}`).join('|');
+  const ambiguousRowNumbers = new Set(ambiguousRows.map((row) => row.rowNumber));
+  const [confirmedKey, setConfirmedKey] = useState('');
+  const ambiguityConfirmed = ambiguousRows.length === 0 || confirmedKey === ambiguousKey;
+  const canSave = hasInput && !previewBlocked && validRows.length > 0 && ambiguityConfirmed && !hasResults && !paste.isSaving;
   const unresolved = results.some((r) => r.status !== 'created');
   const failedRetryable = results.filter((r) => r.status === 'failed' && r.retryable);
+
+  const headerText = t('budgetPaste.header', 'First row is a header');
+  const ambiguousText = t('budgetPaste.ambiguousConfirm', '{{count}} amounts like 12,345 are read as thousands (12345), not decimals (12.345). I confirm this is right.', { count: ambiguousRows.length });
 
   const columnOptions = (field: MappingField) => [
     { value: '', label: t('budgetPaste.notUsed', 'Not used') },
     ...Array.from({ length: Math.max(columnCount, (mapping[field] ?? -1) + 1) }, (_, i) => ({
-      value: String(i), label: t('budgetPaste.column', 'Column {{n}}', { n: i + 1 }),
+      value: String(i), label: t('budgetPaste.column', 'Col {{n}}', { n: i + 1 }),
     })),
   ];
   const fieldLabel: Record<MappingField, string> = {
@@ -140,6 +154,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
       onSubmit={submit}
       onClose={close}
       submitDisabled={!canSave}
+      hideSubmit={hasResults}
       disabledReason={t('budgetPaste.disabledReason', 'Paste rows with a mapped category and amount, with at least one valid row.')}
       loading={paste.isSaving}
       dirty={(hasInput && !hasResults) || unresolved}
@@ -151,20 +166,44 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
       }}
     >
       <div className="space-y-4">
+        {hasResults && (
+          <section aria-label={t('budgetPaste.resultsLabel', 'Save results')} className="space-y-2">
+            <p ref={summaryRef} tabIndex={-1} role="status" aria-live="polite" data-testid="paste-result-summary" className="text-sm font-medium outline-none">
+              {paste.isSaving
+                ? t('budgetPaste.progress', 'Saving {{completed}} of {{total}}…', paste.progress)
+                : t('budgetPaste.resultSummary', '{{created}} of {{total}} rows saved.', { created: results.filter((r) => r.status === 'created').length, total: results.length })}
+            </p>
+            {paste.refreshError && <p role="alert" className="text-sm text-destructive-text">{paste.refreshError}</p>}
+            {failedRetryable.length > 0 && (
+              <Button type="button" variant="outline" size="sm" disabled={paste.isSaving} onClick={() => { void paste.retryFailed(); }}>
+                {t('budgetPaste.retry', 'Retry {{count}} failed rows', { count: failedRetryable.length })}
+              </Button>
+            )}
+            <ul className="space-y-1 text-xs">
+              {results.map((r) => (
+                <li key={r.rowNumber}>
+                  {t('budgetPaste.resultRow', 'Row {{row}} · {{category}} · {{amount}}', { row: r.rowNumber, category: budgetCategoryLabel(r.category, t), amount: r.amount })}
+                  {': '}{statusText(r)}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {paste.validationError && <p role="alert" className="text-sm text-destructive-text">{paste.validationError}</p>}
+        {!hasResults && (<>
         <TextArea
           label={t('budgetPaste.textLabel', 'Rows pasted from a spreadsheet')}
           helper={t('budgetPaste.textHelper', 'Copy cells from any spreadsheet and paste them here. Up to 500 rows. Numbers use a dot for decimals; commas may group thousands.')}
           value={text}
           onChange={(value) => { setText(value); setAliases({}); }}
           rows={5}
-          disabled={hasResults}
           fullWidth
         />
         {parsed.failed && <p role="alert" className="text-sm text-destructive-text">{t('budgetPaste.parseError', 'The pasted text has an unclosed quote. Check it and paste again.')}</p>}
 
         {hasInput && !parsed.failed && (
           <>
-            <fieldset disabled={hasResults} className="grid min-w-0 grid-cols-2 gap-3 border-0 p-0 sm:grid-cols-5">
+            <fieldset className="grid min-w-0 grid-cols-2 gap-3 border-0 p-0 sm:grid-cols-3">
               <legend className="sr-only">{t('budgetPaste.mappingLegend', 'Column mapping')}</legend>
               {MAPPING_FIELDS.map((field) => (
                 <SelectField
@@ -178,21 +217,21 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
             </fieldset>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               <span className="inline-flex items-center gap-2 text-sm">
-                <Checkbox checked={header} onChange={setHeader} label={t('budgetPaste.header', 'First row is a header')} labelledBy={headerId} disabled={hasResults} />
-                <span id={headerId} onClick={() => !hasResults && setHeader(!header)}>{t('budgetPaste.header', 'First row is a header')}</span>
+                <Checkbox checked={header} onChange={setHeader} label={headerText} labelledBy={headerId} />
+                <span id={headerId} onClick={() => setHeader(!header)}>{headerText}</span>
               </span>
-              <fieldset disabled={hasResults} className="flex flex-wrap items-center gap-4 border-0 p-0 text-sm">
+              <fieldset className="flex flex-wrap items-center gap-4 border-0 p-0 text-sm">
                 <legend className="sr-only">{t('budgetPaste.modeLegend', 'Amount mode')}</legend>
                 {(['amount', 'quantity-rate'] as const).map((value) => (
                   <label key={value} className="inline-flex items-center gap-2">
-                    <input type="radio" name="paste-mode" checked={shownMode === value} onChange={() => setMode(value)} />
+                    <input type="radio" className="accent-primary" name="paste-mode" checked={shownMode === value} onChange={() => setMode(value)} />
                     {value === 'amount' ? t('budgetPaste.modeAmount', 'Use Amount') : t('budgetPaste.modeProduct', 'Use Quantity × Rate')}
                   </label>
                 ))}
               </fieldset>
             </div>
 
-            {unknownCategories.length > 0 && !hasResults && (
+            {unknownCategories.length > 0 && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {unknownCategories.map((raw) => (
                   <SelectField
@@ -207,6 +246,18 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
               </div>
             )}
 
+            {ambiguousRows.length > 0 && (
+              <div className="flex items-start gap-2 rounded-md border border-border p-3 text-sm">
+                <Checkbox
+                  checked={confirmedKey === ambiguousKey}
+                  onChange={(checked) => setConfirmedKey(checked ? ambiguousKey : '')}
+                  label={ambiguousText}
+                  labelledBy={ambiguousId}
+                />
+                <span id={ambiguousId} onClick={() => setConfirmedKey(confirmedKey === ambiguousKey ? '' : ambiguousKey)}>{ambiguousText}</span>
+              </div>
+            )}
+
             {blockText && <p role="alert" className="text-sm text-destructive-text">{blockText}</p>}
 
             <p role="status" className="text-sm text-muted-foreground" data-testid="paste-summary">
@@ -215,7 +266,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
               })}
             </p>
 
-            {preview.rows.length > 0 && !(preview.rows.length > 500) && (
+            {preview.rows.length > 0 && preview.rows.length <= 500 && (
               <div tabIndex={0} role="region" aria-label={t('budgetPaste.previewLabel', 'Preview')} className="max-h-72 overflow-auto rounded-md border border-border">
                 <table className="w-full min-w-[32rem] text-left text-xs">
                   <thead className="sticky top-0 bg-card">
@@ -233,11 +284,16 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
                         <td className="px-2 py-1">{row.rowNumber}</td>
                         <td className="px-2 py-1">{row.category ? budgetCategoryLabel(row.category, t) : row.raw.category}</td>
                         <td className="px-2 py-1">{row.description ?? ''}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{row.amount ?? ''}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{row.amount === null ? '' : formatCurrencyCents(Number(row.amount), currency)}</td>
                         <td className="px-2 py-1">
                           {row.errors.length === 0
                             ? t('budgetPaste.rowOk', 'OK')
                             : <span className="text-destructive-text">{row.errors.map(errorText).join(' ')}</span>}
+                          {row.errors.length === 0 && ambiguousRowNumbers.has(row.rowNumber) && (
+                            <span className="ml-2 font-medium text-warning-foreground" data-testid="paste-ambiguous-note">
+                              {t('budgetPaste.ambiguousNote', 'Read as {{amount}}, not a decimal.', { amount: row.amount })}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -248,31 +304,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
           </>
         )}
 
-        {paste.validationError && <p role="alert" className="text-sm text-destructive-text">{paste.validationError}</p>}
-
-        {hasResults && (
-          <section aria-label={t('budgetPaste.resultsLabel', 'Save results')} className="space-y-2">
-            <p role="status" aria-live="polite" data-testid="paste-result-summary" className="text-sm font-medium">
-              {paste.isSaving
-                ? t('budgetPaste.progress', 'Saving {{completed}} of {{total}}…', paste.progress)
-                : t('budgetPaste.resultSummary', '{{created}} of {{total}} rows saved.', { created: results.filter((r) => r.status === 'created').length, total: results.length })}
-            </p>
-            <ul className="space-y-1 text-xs">
-              {results.map((r) => (
-                <li key={r.rowNumber}>
-                  {t('budgetPaste.resultRow', 'Row {{row}} · {{category}} · {{amount}}', { row: r.rowNumber, category: budgetCategoryLabel(r.category, t), amount: r.amount })}
-                  {': '}{statusText(r)}
-                </li>
-              ))}
-            </ul>
-            {paste.refreshError && <p role="alert" className="text-sm text-destructive-text">{paste.refreshError}</p>}
-            {failedRetryable.length > 0 && (
-              <Button type="button" variant="outline" size="sm" disabled={paste.isSaving} onClick={() => { void paste.retryFailed(); }}>
-                {t('budgetPaste.retry', 'Retry {{count}} failed rows', { count: failedRetryable.length })}
-              </Button>
-            )}
-          </section>
-        )}
+        </>)}
       </div>
     </EntityFormModal>
   );

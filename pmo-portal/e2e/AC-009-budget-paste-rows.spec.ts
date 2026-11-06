@@ -49,8 +49,8 @@ test('AC-009 pasted direct and quantity × rate rows are saved to the Draft and 
     const second = page.getByRole('dialog', { name: 'Paste rows' });
     await second.getByRole('textbox', { name: /Rows pasted from a spreadsheet/ }).fill('Equipment\tCrane hire\t2.5\t3.3');
     await second.getByRole('combobox', { name: 'Amount column' }).selectOption({ label: 'Not used' });
-    await second.getByRole('combobox', { name: 'Quantity column' }).selectOption({ label: 'Column 3' });
-    await second.getByRole('combobox', { name: 'Rate column' }).selectOption({ label: 'Column 4' });
+    await second.getByRole('combobox', { name: 'Quantity column' }).selectOption({ label: 'Col 3' });
+    await second.getByRole('combobox', { name: 'Rate column' }).selectOption({ label: 'Col 4' });
     await expect(second.getByRole('radio', { name: 'Use Quantity × Rate' })).toBeChecked();
     await expect(second.getByTestId('paste-summary')).toContainText('1 valid, 0 invalid');
     await second.getByRole('button', { name: 'Save 1 valid row' }).click();
@@ -72,6 +72,9 @@ test('AC-009 pasted direct and quantity × rate rows are saved to the Draft and 
     const activeAfter = await admin.from('budget_versions').select('status, budget_line_items(budgeted_amount)').eq('id', active.data.id).single().throwOnError();
     expect(activeAfter.data.status).toBe('Active');
     expect(activeAfter.data.budget_line_items.map((line) => Number(line.budgeted_amount))).toEqual([5000]);
+    // The effective project budget is the Active version's total; the Draft rows do not move it.
+    const effective = await admin.rpc('get_project_budget', { p_project_id: projectId }).throwOnError();
+    expect(Number(effective.data)).toBe(5000);
     const draftAfter = await admin.from('budget_versions').select('status').eq('id', draft.data.id).single().throwOnError();
     expect(draftAfter.data.status).toBe('Draft');
   } finally {
