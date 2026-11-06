@@ -68,7 +68,7 @@ import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyPr
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
-import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
+import { AssistantPanelSlot } from '@/src/components/panel/AssistantPanelSlot';
 import { FeedbackWidget } from '@/src/components/feedback/FeedbackWidget';
 import { SurveyHost } from '@/src/components/feedback/SurveyHost';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
@@ -436,9 +436,10 @@ export const appRouteConfig: RouteObject[] = [
   { path: '*', element: <NotFoundPage /> },
 ];
 
-export const AppRoutes: React.FC = () => (
-  <Suspense fallback={<LoadingFallback />}>{useRoutes(appRouteConfig)}</Suspense>
-);
+// memo: ShellChrome re-renders on every record-cache settle; the routes only depend on the location.
+export const AppRoutes: React.FC = React.memo(function AppRoutes() {
+  return <Suspense fallback={<LoadingFallback />}>{useRoutes(appRouteConfig)}</Suspense>;
+});
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 export const ShellChrome: React.FC = () => {
@@ -534,6 +535,11 @@ export const ShellChrome: React.FC = () => {
     paletteTriggerRef.current = document.activeElement as HTMLElement;
     setPaletteOpen(true);
   }, []);
+  // Stable callbacks/elements so the memoised Rail and ContextBar skip shell re-renders.
+  const closeRail = useCallback(() => setRailOpen(false), []);
+  const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
+  const feedbackWidget = useMemo(() => <FeedbackWidget />, []);
+  const assistantPanel = useMemo(() => <AssistantPanelSlot open={assistantOpen} />, [assistantOpen]);
 
   // Breadcrumb derives from the ROUTE (URL is the source of truth) — no tab
   // state. A detail route resolves its record name from the cached index lists;
@@ -681,7 +687,7 @@ export const ShellChrome: React.FC = () => {
       <AppShell
         rail={
           <Rail
-            onNavigate={() => setRailOpen(false)}
+            onNavigate={closeRail}
             onPreloadHref={preloadForPath}
             railActiveOverride={railActiveOverride}
             operatorAccessError={needsOperatorRecovery}
@@ -695,16 +701,16 @@ export const ShellChrome: React.FC = () => {
           <ContextBar
             breadcrumb={breadcrumb}
             onOpenPalette={openPalette}
-            onToggleRail={() => setRailOpen((v) => !v)}
-            beforeBell={<FeedbackWidget />}
+            onToggleRail={toggleRail}
+            beforeBell={feedbackWidget}
           />
         }
         banner={<ImpersonationBanner />}
         railOpen={railOpen}
-        onCloseRail={() => setRailOpen(false)}
+        onCloseRail={closeRail}
         assistantOpen={assistantEntitled ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
-        assistant={assistantEntitled ? <AssistantPanel /> : undefined}
+        assistant={assistantEntitled ? assistantPanel : undefined}
       >
         <AppRoutes />
       </AppShell>

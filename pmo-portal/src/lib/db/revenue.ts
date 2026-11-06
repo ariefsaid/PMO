@@ -409,6 +409,22 @@ export async function listPaidPaymentFacts(): Promise<PaidPaymentFact[]> {
   );
 }
 
+/** Whether the org holds ANY client invoice, whatever its status — the dashboard's empty-state evidence
+ *  the open-status facts read cannot give (an org with only a drafted invoice is not an inactive org).
+ *  One narrow column, one row; RLS scopes org exactly like every other revenue read here. */
+export async function hasAnySalesInvoice(): Promise<boolean> {
+  const { data, error } = await supabase.from('sales_invoices').select('id').limit(1);
+  if (error) throwWrite(error);
+  return (data?.length ?? 0) > 0;
+}
+
+/** Whether the org holds ANY incoming payment, whatever its status — the Scheduled-only counterpart of `hasAnySalesInvoice`. */
+export async function hasAnyIncomingPayment(): Promise<boolean> {
+  const { data, error } = await supabase.from('incoming_payments').select('id').limit(1);
+  if (error) throwWrite(error);
+  return (data?.length ?? 0) > 0;
+}
+
 /**
  * Fetch a single incoming payment by id, or null when not found / not readable.
  * RLS scopes the row to the caller's org.

@@ -12,12 +12,13 @@ vi.mock('@/src/lib/supabase/client', () => ({
       for (const op of ['in', 'is', 'eq', 'order']) q[op] = (...a: unknown[]) => { call.ops.push(`${op}:${a.join(',')}`); return q; };
       q.select = (s: string) => { call.select = s; return q; };
       q.range = () => Promise.resolve({ data: tableRows[table] ?? [], error: null });
+      q.limit = (n: unknown) => Promise.resolve({ data: (tableRows[table] ?? []).slice(0, Number(n)), error: null });
       return q;
     },
   },
 }));
 
-import { listOverdueInvoiceFacts, listPaidPaymentFacts } from './revenue';
+import { listOverdueInvoiceFacts, listPaidPaymentFacts, hasAnySalesInvoice, hasAnyIncomingPayment } from './revenue';
 import { selectOverdueInvoices } from '@/src/components/dashboard/restructure/useNeedsYou';
 import { selectCollectedTotals } from '@/src/components/dashboard/restructure/useCompanyFigures';
 
@@ -79,5 +80,19 @@ describe('listPaidPaymentFacts', () => {
     const full = [...paid, { status: 'Scheduled', date: '2026-03-10', amount: 999, currency: 'USD' }] as never;
     expect(selectCollectedTotals(facts, '2026-03', '2026-04')).toEqual(selectCollectedTotals(full, '2026-03', '2026-04'));
     expect(selectCollectedTotals(facts, '2026-03', '2026-04')).toEqual({ totals: [{ currency: 'USD', amount: '300.30' }], unknownCurrencies: ['IDR'] });
+  });
+});
+
+describe('empty-state existence probes (issue 1973)', () => {
+  it('are one narrow read each: id only, one row, NO status filter — any-status evidence', async () => {
+    tableRows.sales_invoices = [{ id: 'a' }];
+    tableRows.incoming_payments = [];
+    await expect(hasAnySalesInvoice()).resolves.toBe(true);
+    await expect(hasAnyIncomingPayment()).resolves.toBe(false);
+    expect(calls.map((call) => call.table)).toEqual(['sales_invoices', 'incoming_payments']);
+    for (const call of calls) {
+      expect(call.select).toBe('id');
+      expect(call.ops.join(' ')).not.toMatch(/status|paired_erp/);
+    }
   });
 });

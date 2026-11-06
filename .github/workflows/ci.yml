@@ -278,6 +278,8 @@ jobs:
             --min 80
       - name: Build
         run: npm run build
+      - name: Entry preload list excludes recharts/markdown/compiler
+        run: npx vitest run src/lib/build/entryPreload.test.ts
       - name: Lock wrapper process tests
         working-directory: .
         run: python3 -m unittest discover -s scripts/tests -v

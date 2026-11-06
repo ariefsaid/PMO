@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
@@ -56,9 +56,10 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   const showDeliveryAttention = lens === 'delivery'
     && (attention.isPending || Boolean(attention.error) || visibleDeliveryAttention.length > 0);
   // F8: the curve is gated on data only (ProjectSCurve draws nothing without dated phases), never on role.
-  const curve = !isPipeline
+  const curve = useMemo(() => !isPipeline
     ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
-    : null;
+    : null, [isPipeline, project.id]);
+  const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
   const canSeeMoney = may('view', 'salesInvoice');
   if (isPipeline) {
     if (lens === 'delivery') {
@@ -74,7 +75,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     }
     return (
       <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
-        <CostBlock project={project} isPipeline onOpenBudget={() => onOpen('budget')} />
+        <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
         {canSeeMoney && <div className="min-w-0 xl:col-span-2"><ProjectFinancesSection project={project} /></div>}
@@ -103,7 +104,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
           {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>
+          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
         <WhenNearViewport>
