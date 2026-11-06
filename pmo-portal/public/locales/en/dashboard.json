@@ -43,7 +43,8 @@
     "today": "Today",
     "totalOutstanding": "Total outstanding",
     "unattributed": "Not attributed to a project",
-    "value": "Value"
+    "value": "Value",
+    "committedSpent": "Committed + spent"
   },
   "pm": {
     "myProjectsHelp": "Delivery projects where you are the assigned project manager.",

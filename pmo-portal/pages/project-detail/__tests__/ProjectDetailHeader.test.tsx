@@ -182,9 +182,10 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getByText('$5,000,000')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeVisible();
     expect(disclosure).toHaveTextContent('PMO purchase orders$2,100,000');
-    expect(disclosure).toHaveTextContent('Actual$2,100,000');
-    expect(disclosure).toHaveTextContent('Contract remaining after cost$2,900,000');
-    expect(disclosure).toHaveTextContent('Spend50%');
+    // #1739: Actual is recorded spend (the project-finances read), not the committed purchase-order total.
+    expect(disclosure).toHaveTextContent('Actual$1,800,000');
+    expect(disclosure).toHaveTextContent('Contract remaining after cost$3,200,000');
+    expect(disclosure).toHaveTextContent('Spend43%');
   });
 
   it('UIP-006: the PM lock chip is in the contract value row and discloses its reason in a full-width lane', async () => {
@@ -639,13 +640,22 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
     spent: 0, // as in production — the dead stored column
   } as unknown as ProjectWithRefs;
 
-  it('DD-MONEY-1/A3 withholds PMO Actual until the purchase-order read succeeds', () => {
+  it('DD-MONEY-1/A3 keeps the PMO purchase-order total out of Actual (#1739)', () => {
     roleBox.value = 'Finance';
-    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
+    const { rerender } = render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
+      commitmentSource="pmo" ledgerBasis="pmo" /></ToastProvider></MemoryRouter>);
+    const tile = (label: string) => Array.from(document.querySelectorAll('[data-testid="stat-tile"]'))
+      .find((element) => element.textContent?.startsWith(label));
+    // The committed purchase-order total is its own tile; Actual is recorded spend (the Budget tab's Spent basis),
+    // so a half-paid order can never read as fully spent (#1739).
+    expect(tile('PMO purchase orders')).toHaveTextContent('$2,100,000');
+    expect(tile('Actual')).toHaveTextContent('$1,800,000');
+    expect(tile('Actual')).not.toHaveTextContent('$2,100,000');
+    // While the purchase-order read is still pending, that tile withholds — and Actual is unaffected by it.
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
       commitmentSource="pmo" ledgerBasis="pmo" commitmentPending /></ToastProvider></MemoryRouter>);
-    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
-    expect(actual).toHaveTextContent('Loading Actual…');
-    expect(actual).not.toHaveTextContent('$2,100,000');
+    expect(tile('PMO purchase orders')).toHaveTextContent('Loading Actual…');
+    expect(tile('Actual')).toHaveTextContent('$1,800,000');
   });
 
   it('AC-CAT-016 names attributed cost under the Actual tile only when there is some', () => {

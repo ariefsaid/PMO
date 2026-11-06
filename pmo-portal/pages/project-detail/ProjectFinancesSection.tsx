@@ -62,8 +62,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     ? collectionPosition.actuals : undefined;
   const pmoAmount = pmoActual?.total ?? undefined;
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis: commitments.ledgerBasis,
-    committedSpend: pmoAmount, commitmentPending: collection.isPending, commitmentError: collection.isError,
-    commitmentComplete: pmoActual?.complete === true,
+    pmoSpent: pmoAmount, pmoSpentPending: collection.isPending, pmoSpentError: collection.isError,
+    pmoSpentComplete: pmoActual?.complete === true,
     projectCurrency: project.currency, actuals, contractValue: project.contract_value, activeBudget: undefined });
   const actualPosition = moneyPosition.actual;
   const mappedCategories = moneyPosition.coverage.mapped;
@@ -250,7 +250,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                 ? t('uxs01.coverageUnavailable', 'Spending coverage unavailable')
                 : pmoActual.complete !== true
                   ? t('projectFinances.pmoPartial', 'Partial position; other currencies or unavailable amounts are excluded.')
-                  : t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
+                  : t('project:pmoSpentCoverage', 'Paid PMO purchase payments, pre-tax')}
           </p>
           : !completeCoverage && <p className="text-xs text-muted-foreground">
             {hasCoverage

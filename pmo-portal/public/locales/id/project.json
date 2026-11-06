@@ -31,7 +31,7 @@
     "excessDetailUnavailable": "Rincian tagihan di balik kelebihan ini tidak dapat diverifikasi.",
     "contractComparisonUnavailable": "Perbandingan kontrak tidak tersedia: nilai kontrak belum dicatat, atau tagihan kontrak tidak dapat dibandingkan (mata uang atau dasar pajak).",
     "currencyUnavailable": "Mata uang tidak tersedia",
-    "pmoPartial": "Posisi belum lengkap; mata uang lain atau jumlah yang tidak tersedia tidak disertakan.",
+    "pmoPartial": "Belanja belum diketahui: ada pembayaran dalam mata uang lain atau tidak dapat dibaca.",
     "contractAfterCostSource": "Nilai kontrak dikurangi Aktual tercatat yang dapat dibandingkan.",
     "contractAfterCostPending": "Ditampilkan setelah pengeluaran tercatat lengkap."
   },
@@ -957,5 +957,6 @@
     "confirmDescription": "Ganti anggaran ERP {{name}} untuk {{account}}, {{year}}, dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmDescriptionYear": "Ganti anggaran ERP {{name}} untuk {{year}} dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmLabel": "Ganti anggaran ERP"
-  }
+  },
+  "pmoSpentCoverage": "Pembayaran pembelian PMO yang sudah dibayar, sebelum pajak"
 }

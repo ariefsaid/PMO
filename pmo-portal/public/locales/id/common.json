@@ -210,7 +210,6 @@
     "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
     "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
     "budgetUsed": "{{percent}}% dari anggaran Aktif",
-    "budgetSummary": "{{actual}} dari anggaran Aktif {{budget}}",
     "currencyMismatch": "Mata uang anggaran berbeda dari Aktual",
     "atRisk": "Berisiko"
   },
@@ -4414,7 +4413,6 @@
   "uxs01": {
     "recordedSpending": "Pengeluaran tercatat",
     "pmoPurchaseOrders": "Pesanan pembelian PMO",
-    "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
     "actualUnavailable": "Pengeluaran aktual masih menunggu konfirmasi.",
     "actualLoading": "Memuat Aktual…",
     "actualPartial": "Belum lengkap: lihat rincian pengeluaran",
@@ -4517,7 +4515,6 @@
     "pmoPurchasing": "Permintaan pembelian PMO",
     "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
     "activeBudget": "Anggaran aktif",
-    "actual": "Aktual",
     "variance": "Selisih",
     "utilization": "Pemakaian",
     "atRisk": "Berisiko",

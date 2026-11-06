@@ -210,7 +210,6 @@
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
     "budgetUsed": "{{percent}}% of Active budget",
-    "budgetSummary": "{{actual}} of {{budget}} Active budget",
     "currencyMismatch": "Budget currency differs from Actual",
     "atRisk": "At risk"
   },
@@ -4414,7 +4413,6 @@
   "uxs01": {
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
-    "pmoCoverage": "Committed PMO purchase orders",
     "actualUnavailable": "Actual spending is still being confirmed.",
     "actualLoading": "Loading Actual…",
     "actualPartial": "Incomplete: see spending details",
@@ -4517,7 +4515,6 @@
     "pmoPurchasing": "PMO purchasing requests",
     "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart.",
     "activeBudget": "Active budget",
-    "actual": "Actual",
     "variance": "Variance",
     "utilization": "Utilization",
     "atRisk": "At risk",

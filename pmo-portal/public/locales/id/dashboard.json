@@ -43,7 +43,8 @@
     "today": "Hari ini",
     "totalOutstanding": "Total terutang",
     "unattributed": "Tidak terkait dengan proyek",
-    "value": "Nilai"
+    "value": "Nilai",
+    "committedSpent": "Terikat + terpakai"
   },
   "pm": {
     "myProjectsHelp": "Proyek pengiriman yang ditetapkan kepada Anda sebagai manajer proyek.",

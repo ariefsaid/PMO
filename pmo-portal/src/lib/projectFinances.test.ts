@@ -165,32 +165,32 @@ describe('exact project-finance money', () => {
   it('DD-MONEY-1 selects Actual from ledger ownership, independent of procurement ownership', () => {
     const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
-    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'erp', pmoSpent: 125, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: '50.00', currency: 'USD', basis: 'erp' });
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: 125, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: '125.00', currency: 'IDR', basis: 'pmo' });
-    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: undefined, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'erp', pmoSpent: undefined, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: '50.00', basis: 'erp' });
     expect(deriveContractRemainingFromPosition(100, { amount: '50.00', currency: 'USD' }, 'IDR')).toBeNull();
   });
 
   it('keeps a currency-incomplete PMO position unavailable for comparisons', () => {
     expect(isActualComplete({ basis: 'pmo', readSucceeded: true, complete: false })).toBe(false);
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: 100, commitmentPending: false,
-      commitmentError: false, commitmentComplete: false, projectCurrency: 'USD', actuals: undefined }))
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: 100, pmoSpentPending: false,
+      pmoSpentError: false, pmoSpentComplete: false, projectCurrency: 'USD', actuals: undefined }))
       .toMatchObject({ amount: null, complete: false });
   });
 
   it('preserves exact project-currency totals from the collection', () => {
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: '90071992547409.91', commitmentPending: false,
-      commitmentError: false, projectCurrency: 'USD', actuals: undefined }).amount).toBe('90071992547409.91');
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: '90071992547409.91', pmoSpentPending: false,
+      pmoSpentError: false, projectCurrency: 'USD', actuals: undefined }).amount).toBe('90071992547409.91');
   });
 
   it('DD-MONEY-1 withholds Actual while its selected source is loading or failed', () => {
     const actuals = { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] };
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: true, commitmentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: false, commitmentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
-    expect(deriveActualPosition({ ledgerBasis: 'unavailable', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: undefined, pmoSpentPending: true, pmoSpentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: undefined, pmoSpentPending: false, pmoSpentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'unavailable', pmoSpent: 125, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: null, basis: 'unavailable', complete: false });
   });
 

@@ -3660,6 +3660,20 @@ budget and the order total; sums are in the project currency, and an org-currenc
 another currency is unknown, not relabelled; an unusable paid amount keeps the full order total committed. Spec:
 `procurement-flexible-entry.spec.md` FR-PFE-035/036, NFR-PFE-002, AC-PFE-005.
 
+### DD-1739-SPLIT — one PMO position, two figures: spend and open commitment (applies OD-1530-COMMIT to the list and dashboards)
+The Projects list and the dashboards read ONE PMO figure per project — the sum of every ordered..paid purchase total —
+so a half-paid 1,000 purchase read 1,000 Actual on the list and 500 Spent / 500 Committed on the Budget tab (#1739).
+The basis is now the same on every surface, because the position itself is two figures: `project_pmo_spent_position`
+(pre-tax paid + the internal equipment charge — the Budget tab's Spent) and `project_pmo_commitment_position` (the open
+commitment of FR-PFE-036 — the Budget tab's Committed). A surface that means recorded spend reads the spent figure; a
+surface that means budget consumption (the list's Budget used, the at-risk rule) reads spent + committed, which is the
+same purchase total a fully unpaid project always reported, so no ordering moves for an org that has not paid
+anything. A single-figure budget surface says what it adds up: the finance review's one column is labelled
+"Committed + spent". ERP-ledger orgs keep their ledger basis and their delivery-summary figure unchanged. Proven in
+`supabase/tests/0700_pmo_spend_split.test.sql` (500/500 for a half-paid 1,000 purchase; a ledger org still reads its
+mapped ledger Actual) and `pmo-portal/pages/project-detail/budget/__tests__/pmoSpendSplit.test.ts` (the list and the
+Budget tab agree on the same payload).
+
 ### OD-VISION-ERP — PMO is an ERP; a client with no ERP is the floor (owner, 2026-11-03)
 The product vision is **PMO as an ERP**. At minimum PMO covers, on its own, a client that runs **no ERP**: its books,
 receivables and payables, bank, statements, tax and close all live in PMO. A connected ERPNext or Odoo stays optional;
