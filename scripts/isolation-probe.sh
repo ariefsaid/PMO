@@ -200,6 +200,7 @@ if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc prepare_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\",\"p_document\":\"b0000000-0000-4000-8000-0000000000af\",\"p_note\":\"probe\"}")
   c=$(rpc withdraw_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
   c=$(rpc confirm_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
+  c=$(rpc create_native_tm_invoice "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
   c=$(rpc get_financial_statement_catalogue "$(jq -nc --arg project "$A_PROJECT" '{p_project_id:$project}')")
   c=$(rpc get_financial_statement "$(jq -nc --arg project "$A_PROJECT" '{p_period_kind:"month",p_period_start:"2026-09-01",p_statement:"profit_and_loss",p_project_id:$project,p_view_kind:"project_totals",p_unassigned:false}')")
 else

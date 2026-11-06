@@ -116,7 +116,9 @@
 -- ⚑ AMENDED BY 0687: `attach_erp_journal_lines` and `detach_erp_journal_line` join (+2, count 156). Role- and org-gated definers under a member's JWT; anon/PUBLIC revoked.
 -- ⚑ AMENDED BY #1472 (S6B): `switch_budget_draft_mode` joins (+1, count 157). SECURITY DEFINER writer, authenticated member JWTs
 -- only; re-asserts active membership, org and the four budget-writer roles; proved by supabase/tests/budget_draft_mode_switch.test.sql.
--- Current retained set: 157 names after #1505, #1813, #1514 D1 and #1472 S6B, including #1462's archive inventory read. 0685 adds request_financial_statement_refresh (Refresh now).
+-- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1, count 158). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
+-- Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/tm_native_invoice.test.sql.
+-- Current retained set: 158 names after #1817, #1505, #1813, #1514 D1 and #1472 S6B, including #1462's archive inventory read. 0685 adds request_financial_statement_refresh (Refresh now).
 --
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
@@ -279,6 +281,7 @@ insert into client_callable_rpc_names (proname) values
   ('confirm_work_order_acceptance'),
   ('consent_budget_occupant_replace'),
   ('create_native_sales_invoice'),
+  ('create_native_tm_invoice'),  -- ⚑ AMENDED BY 0704 (#1817)
   ('decide_connect_review'),
   ('create_payment'),
   ('create_procurement_invoice'),
@@ -428,8 +431,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  157,
-  'AC-ACL-002 all 157 retained client-callable RPC names still have a public function');
+  158,
+  'AC-ACL-002 all 158 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -438,8 +441,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  157,
-  'AC-ACL-003 all 157 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  158,
+  'AC-ACL-003 all 158 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
