@@ -1,6 +1,8 @@
 -- 0701 (#1902): the fenced committed -> held transition for an Odoo procurement row whose Odoo document is
--- anchored to another PMO record. Recovery never drives such a row, so it must not stay in flight (it holds
--- the per-bill slot and the one-in-flight-per-record index) and must appear in the operator held queue.
+-- anchored to another PMO record. Recovery never drives such a row, so this moves it from silent in-flight to
+-- the operator held queue. The slot stays occupied until release: held remains inside the per-bill slot and
+-- one-in-flight predicates (0134/0508/0682), which is correct for money — an Odoo document exists, so the slot
+-- must stay blocked until an operator decides.
 -- Same shape as mark_outbox_held (0096): guarded on claim_generation and state, reason in last_error, returns
 -- 1 when held else 0, service_role only. The audited release_outbox_hold (0137 §4) is the route out.
 -- Reversibility: rollback/0701_hold_committed_outbox_down.sql.

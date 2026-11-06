@@ -1,7 +1,7 @@
 -- 0701_hold_committed_outbox.test.sql
 -- AC-OPP-062 — hold_committed_outbox: the fenced committed -> held transition (#1902).
 begin;
-select plan(8);
+select plan(9);
 
 insert into organizations (id, name) values ('07010000-0000-0000-0000-00000000000a','Hold Committed Org');
 
@@ -29,6 +29,11 @@ select is(hold_committed_outbox('07010000-0000-0000-0000-0000000000f1', 3, 'agai
 set local role authenticated;
 select throws_ok($$ select hold_committed_outbox('07010000-0000-0000-0000-0000000000f1', 3, 'x') $$, '42501', null,
   'AC-OPP-062: authenticated users cannot call it (service_role only)');
+reset role;
+
+set local role anon;
+select throws_ok($$ select hold_committed_outbox('07010000-0000-0000-0000-0000000000f1', 3, 'x') $$, '42501', null,
+  'AC-OPP-062: anon cannot call it (service_role only)');
 reset role;
 
 select * from finish();
