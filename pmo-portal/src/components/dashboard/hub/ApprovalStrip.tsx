@@ -14,7 +14,9 @@ const TONE_ICON_STYLES: Record<AttentionItem['tone'], string> = {
   neutral: 'text-muted-foreground',
 };
 
-export const ApprovalStrip: React.FC<ApprovalStripProps> = ({ items }) => {
+// Perf (dashboard render work): memoised so an approvals settle paints once instead of on every
+// dashboard commit; the callers hand it a value-stable list.
+export const ApprovalStrip = React.memo(function ApprovalStrip({ items }: ApprovalStripProps) {
   if (items.length === 0) return null;
 
   return (
@@ -40,4 +42,4 @@ export const ApprovalStrip: React.FC<ApprovalStripProps> = ({ items }) => {
       })}
     </ul>
   );
-};
+});

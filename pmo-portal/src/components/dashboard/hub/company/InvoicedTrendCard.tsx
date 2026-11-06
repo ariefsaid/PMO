@@ -12,9 +12,11 @@ export interface InvoicedTrendCardProps {
 }
 
 /** The trend's loading / error / nothing-invoiced states around the tile; the figures hook owns the data. */
-export const InvoicedTrendCard: React.FC<InvoicedTrendCardProps> = ({ trend, pending, error, onRetry }) => {
+// Perf (dashboard render work): memoised so a commit that only settled another dashboard query does
+// not re-render the trend tile; `trend` is a value-memoised slice and `onRetry` a stable callback.
+export const InvoicedTrendCard = React.memo(function InvoicedTrendCard({ trend, pending, error, onRetry }: InvoicedTrendCardProps) {
   const { t } = useTranslation('dashboard');
   if (error) return <ListState variant="error" title={t('trend.error', "Couldn't load the invoiced trend")} onRetry={onRetry} />;
   if (pending) return <ListState variant="loading" rows={1} className="min-h-[168px]" />;
   return trend ? <InvoicedTrendTile trend={trend} /> : null;
-};
+});

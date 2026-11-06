@@ -62,14 +62,20 @@ const statusVariant = (status: string) => {
   return variant === 'progress' ? 'neutral' : variant;
 };
 
-export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
+/**
+ * One project card. Memoised (perf: dashboard render work): the dashboard re-renders once per query
+ * settle, and each card's props are its own project row, number, delivery share, overdue count and
+ * waiting procurements — so an unrelated settle no longer repaints six cards. Every prop is read
+ * from the parent's committed data, so a change to this project still repaints its card.
+ */
+export const PMProjectArea = React.memo(function PMProjectArea({
   project,
   projectNumber,
   deliveryPct,
   overdueTaskCount,
   procurements,
   orgCurrency,
-}) => {
+}: PMProjectAreaProps) {
   const { t } = useTranslation('dashboard');
   const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
@@ -266,4 +272,4 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       {hasNoAttention && attention}
     </AreaPanel>
   );
-};
+});

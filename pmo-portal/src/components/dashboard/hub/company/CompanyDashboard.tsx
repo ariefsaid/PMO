@@ -45,6 +45,7 @@ import type { ExecutiveDashboard as DashboardData, BudgetReviewRow, PipelineStag
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { Role } from '@/src/auth/AuthContext';
 import { ApprovalStrip, AreaPanel, AttentionList, HubGrid } from '../index';
+import { itemsSignature, useStableCallback, useStableValue } from '../renderStability';
 
 const ICONS: Record<string, 'grid' | 'dollar' | 'pipe' | 'cart' | 'clock' | 'file'> = {
   'contract-on-hand': 'grid', 'billed-margin': 'dollar', pipeline: 'pipe',
@@ -57,6 +58,16 @@ const TONES: Record<string, 'blue' | 'green' | 'violet' | 'amber' | 'red'> = {
 
 const money = (value: number | null, currency: string, unavailable = '—') =>
   value === null || !Number.isFinite(value) ? unavailable : formatCurrency(value, currency);
+
+/** Stable empty/loop stand-ins so the memoised panels below keep the same props across commits. */
+const EMPTY_PIPELINE_STAGES: PipelineStage[] = [];
+const EMPTY_PIPELINE_PROJECTS: PipelineProject[] = [];
+/** Value signature of a figure list: everything a panel renders for one figure. */
+const figureListSignature = (figures: DashboardFigure[]): string => figures
+  .map((figure) => [figure.id, figure.label, String(figure.value ?? ''), figure.exactValue ?? '', String(figure.subline ?? ''), figure.unavailableReason ?? '', figure.href ?? '', (figure.lines ?? []).join('|')].join('\u001f'))
+  .join('\u001e');
+/** The band's fixture order: the six figures every company role sees today. */
+const COMPANY_FIGURE_IDS = ['contract-on-hand', 'billed-margin', 'pipeline', 'client-overdue', 'supplier-payables', 'still-to-invoice'] as const;
 
 /**
  * L12(a): a supplier invoice's unpaid amount, read the way Payables and the procurement record read it — through the
@@ -278,6 +289,142 @@ function FinanceAccountingBlocks() {
   </>;
 }
 
+// ── Memo boundaries (perf: dashboard render work) ──────────────────────────────
+/**
+ * The dashboard settles ~16 queries on load and React re-renders the page once per settle, so every
+ * panel used to render 5-6 times to show data only one of them read. Each panel below takes only
+ * stable props — react-query data references, primitives, stabilised callbacks and a value-stable
+ * attention list — so a commit caused by another query bails out here. When a panel's own data
+ * changes, its props change and it renders exactly as before (each one has a test proving that).
+ */
+interface DeliveryAreaProps {
+  data: DashboardData | undefined;
+  projects: ReturnType<typeof useProjects>['data'];
+  dashboardPending: boolean;
+  dashboardError: boolean;
+  projectsPending: boolean;
+  projectsError: boolean;
+  activeDeliveryProjects: number;
+  showAllClear: boolean;
+  attention: React.ComponentProps<typeof AttentionList>['items'];
+  onRetry: () => void;
+}
+
+const DeliveryArea = React.memo(function DeliveryArea({
+  data, projects, dashboardPending, dashboardError, projectsPending, projectsError,
+  activeDeliveryProjects, showAllClear, attention, onRetry,
+}: DeliveryAreaProps) {
+  const { t } = useTranslation('dashboard');
+  return <AreaPanel title={t('dashboard:hub.company.delivery', 'Delivery')} openHref="/projects" openLabel={t('dashboard:hub.company.openProjects', 'Open projects')}>
+    <AttentionList compact items={attention} />
+    {activeDeliveryProjects > 0 && data?.active_delivery_actual_project_count != null && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.actualsCoverage', 'Actuals available for {{available}} of {{total}} active delivery projects.', { available: data.active_delivery_actual_project_count, total: activeDeliveryProjects })}</p>}
+    {showAllClear && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.checkedRiskClear', '0 projects at risk. All {{count}} active delivery projects are currently on track.', { count: activeDeliveryProjects })}</p>}
+    <section className="grid gap-2">
+      <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.spendingVsContract', 'Spending vs contract')}</h3><Tooltip content={t('dashboard:hub.company.projectSpendHelp', 'Used is recorded spending divided by contract value. It is shown only when actuals are complete and currencies match.')}><button type="button" aria-label={t('dashboard:hub.company.aboutProjectSpend', 'About spending versus contract')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+      <ProjectSpendTable dashboard={data} projects={projects} pending={dashboardPending || projectsPending} error={dashboardError || projectsError} retry={onRetry} />
+    </section>
+  </AreaPanel>;
+});
+
+interface SalesAreaProps {
+  figures: DashboardFigure[];
+  pending: boolean;
+  error: boolean;
+  onRetry: () => void;
+  stages: PipelineStage[];
+  projects: PipelineProject[];
+  pipelinePending: boolean;
+  pipelineError: boolean;
+  onPipelineRetry: () => void;
+  orgCurrency: string;
+  range: React.ComponentProps<typeof WinRateCard>['range'];
+  help: (id: string) => string;
+}
+
+const SalesArea = React.memo(function SalesArea({
+  figures, pending, error, onRetry, stages, projects, pipelinePending, pipelineError, onPipelineRetry, orgCurrency, range, help,
+}: SalesAreaProps) {
+  const { t } = useTranslation('dashboard');
+  const periodMini = (id: string) => figures.find((figure) => figure.id === id) ?? { id, label: id, value: null };
+  return <AreaPanel title={t('dashboard:hub.company.sales', 'Sales')} openHref="/sales" openLabel={t('dashboard:hub.company.openSales', 'Open sales')}>
+    <FigureGroup heading={t('dashboard:hub.company.salesFigures', 'Sales results')} figures={[{ ...periodMini('won'), help: help('won') }]} isPending={pending} isError={error} onRetry={onRetry} hideHeading />
+    <section className="grid gap-2">
+      <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('figures.pipeline', 'Pipeline (weighted)')}</h3><Tooltip content={t('dashboard:hub.company.help.pipelineStages', 'Each open stage shows its gross project value and the value weighted by its win probability. Won and lost projects are excluded.')}><button type="button" aria-label={t('dashboard:hub.company.aboutPipelineStages', 'About Pipeline (weighted)')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+      <ProjectedMarginBars stages={stages} currency={orgCurrency} />
+      <PipelineStages stages={stages} projects={projects} pending={pipelinePending} error={pipelineError} retry={onPipelineRetry} />
+    </section>
+    <WinRateCard currency={orgCurrency} range={range} hidePeriodControl embedded />
+  </AreaPanel>;
+});
+
+interface BillingAreaProps {
+  figures: DashboardFigure[];
+  pending: boolean;
+  error: boolean;
+  onRetry: () => void;
+  finance: boolean;
+  help: (id: string) => string;
+}
+
+const BillingArea = React.memo(function BillingArea({ figures, pending, error, onRetry, finance, help }: BillingAreaProps) {
+  const { t } = useTranslation('dashboard');
+  const periodMini = (id: string) => figures.find((figure) => figure.id === id) ?? { id, label: id, value: null };
+  return <AreaPanel title={t('dashboard:hub.company.billing', 'Billing and collections')} openHref="/finance/receivables" openLabel={t('dashboard:hub.company.openInvoices', 'Open invoices')}>
+    <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }]} isPending={pending} isError={error} onRetry={onRetry} hideHeading />
+    {finance && <ClientAgingBlock />}
+  </AreaPanel>;
+});
+
+interface PurchasingAreaProps {
+  attention: React.ComponentProps<typeof AttentionList>['items'];
+  data: DashboardData | undefined;
+  dashboardPending: boolean;
+  dashboardError: boolean;
+  onRetry: () => void;
+}
+
+const PurchasingArea = React.memo(function PurchasingArea({ attention, data, dashboardPending, dashboardError, onRetry }: PurchasingAreaProps) {
+  const { t } = useTranslation('dashboard');
+  // L12(g): purchasing is grouped by the four stages every procurement screen uses — Request · Order · Receive · Pay.
+  const stageCounts = React.useMemo(() => PROCUREMENT_STAGES.map((stage) => ({
+    status: stage,
+    count: (data?.procurements_by_status ?? []).filter((row) => stageForStatus(row.status) === stage).reduce((sum, row) => sum + row.count, 0),
+  })), [data]);
+  const stageName = React.useCallback((stage: ProcurementStage) => ({
+    Request: t('dashboard:hub.company.stageRequest', 'Request'),
+    Order: t('dashboard:hub.company.stageOrder', 'Order'),
+    Receive: t('dashboard:hub.company.stageReceive', 'Receive'),
+    Pay: t('dashboard:hub.company.stagePay', 'Pay'),
+  })[stage], [t]);
+  const toneFor = React.useCallback((stage: ProcurementStage) => chartTheme.categorical[PROCUREMENT_STAGES.indexOf(stage)] ?? chartTheme.categorical[0], []);
+  const hrefFor = React.useCallback((stage: ProcurementStage) => `/procurement?stage=${stage.toLowerCase()}`, []);
+  return <AreaPanel title={t('dashboard:hub.company.purchasing', 'Purchasing')} openHref="/procurement" openLabel={t('dashboard:hub.company.openProcurements', 'Open procurements')}>
+    <AttentionList compact items={attention} />
+    <section className="grid gap-2">
+      <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}</h3><Tooltip content={t('dashboard:hub.company.help.purchasesScope', 'Purchases made directly in the accounting system are not counted in this PMO procurement view.')}><button type="button" aria-label={t('dashboard:hub.company.purchasesScopeLabel', 'About purchasing by stage')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+      <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.accountingPurchasesExcluded', 'Purchases made directly in the accounting system are not counted.')}</p>
+      {dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={onRetry} /> : dashboardPending ? <ListState variant="loading" shape="chart" rows={3} /> : stageCounts.every((row) => row.count === 0) ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={stageCounts} toneFor={toneFor} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={hrefFor} labelFor={stageName} compactSegments />}
+    </section>
+  </AreaPanel>;
+});
+
+interface CompanyKpiBandProps {
+  figures: DashboardFigure[];
+  pending: boolean;
+  error: boolean;
+  onRetry: () => void;
+  data: DashboardData | undefined;
+  canOpenAccountingMap: boolean;
+  help: (id: string) => string;
+}
+
+const CompanyKpiBand = React.memo(function CompanyKpiBand({ figures, pending, error, onRetry, data, canOpenAccountingMap, help }: CompanyKpiBandProps) {
+  const { t } = useTranslation('dashboard');
+  return <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className="grid-cols-2 min-[1280px]:grid-cols-3">
+    {pending ? Array.from({ length: 6 }, (_, i) => <KPITile key={i} loading tone="blue" icon="grid" label="" value="" className={i < 3 ? "min-h-[148px]" : "min-h-[108px]"} />) : error ? <div className="col-span-full"><ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={onRetry} /></div> : figures.map((figure) => <div key={figure.id} className="min-w-0"><KPITile icon={ICONS[figure.id] ?? 'grid'} tone={TONES[figure.id] ?? 'blue'} label={figure.label} value={figure.value ?? '—'} exactValue={figure.exactValue} unavailableReason={figure.value == null ? figure.unavailableReason : undefined} help={help(figure.id)} to={figure.href} linkLabel={figure.href ? t('dashboard:hub.company.openFigure', 'Open related records for {{metric}}.', { metric: figure.label }) : undefined} loading={false} vs={figure.subline ? String(figure.subline) : undefined} />{figure.id === 'billed-margin' && canOpenAccountingMap && data && (data.on_hand_actual_coverage_total ?? 0) > (data.on_hand_actual_coverage_count ?? 0) && <Link className="-mt-2 mb-1 ml-4 inline-flex min-h-11 items-center text-xs font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('dashboard:hub.company.reviewAccountingMappings', 'Review accounting mappings')}</Link>}</div>)}
+  </KPIRow>;
+});
+
 export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | 'Admin' | 'Finance'> }) {
   const { t } = useTranslation('dashboard');
   const { realRole } = useEffectiveRole();
@@ -298,24 +445,43 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const finance = role === 'Finance';
   // Ready to pay is a Finance table; only Finance reads the linked accounting documents behind it.
   const unpaidOf = useSupplierUnpaid(finance);
-  const periodFigure = (id: string) => figures.period.find((figure) => figure.id === id);
-  const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   // L6: overdue invoices, supplier invoices and work still to invoice are owned by their tiles above
   // (count, amount and link); the panels list only attention items no tile carries.
   const activeDeliveryProjects = data?.active_delivery_projects ?? 0;
-  const deliveryNeeds = needsAttention(needs.areaItems, ['at-risk', 'risk-unchecked', 'budgets-over'], t).map((item) =>
+  // `useNeedsYou` rebuilds its arrays on every render (that file belongs to another branch). Compare
+  // the values the panels actually render so their references — and the memo boundaries — hold.
+  const areaItems = useStableValue(needs.areaItems, itemsSignature);
+  const deliveryNeeds = useStableValue(needsAttention(areaItems, ['at-risk', 'risk-unchecked', 'budgets-over'], t).map((item) =>
     item.id === 'at-risk' && activeDeliveryProjects > 0
       ? { ...item, label: t('dashboard:hub.company.atRiskOfActiveDelivery', 'of {{count}} active delivery projects at risk', { count: activeDeliveryProjects }) }
       : item,
-  );
+  ), itemsSignature);
   const showDeliveryAllClear = activeDeliveryProjects > 0 && data?.projects_at_risk === 0 && data?.risk_unchecked_projects === 0;
-  const purchasingNeeds = needsAttention(needs.areaItems, ['procurement-approvals'], t);
+  const purchasingNeeds = useStableValue(needsAttention(areaItems, ['procurement-approvals'], t), itemsSignature);
+  const approvalItems = useStableValue(
+    needs.items.filter((item) => item.id === 'approvals').map((item) => ({ id: item.id, tone: item.tone, icon: 'check' as const, count: item.count, label: item.label, href: item.href })),
+    itemsSignature,
+  );
   const order = finance ? ['billing', 'purchasing', 'delivery', 'sales'] : ['delivery', 'sales', 'billing', 'purchasing'];
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
     void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
   };
-  const help = (id: string) => {
+  // The figure bundle hands back fresh `retry` closures on every render; these keep one identity for
+  // the life of the page so the memoised panels can bail out of commits that do not concern them.
+  const onDashboardRetry = useStableCallback(() => figures.dashboardRetry());
+  const onDeliveryRetry = useStableCallback(() => { figures.dashboardRetry(); void projects.refetch(); });
+  const onPeriodRetry = useStableCallback(() => figures.periodRetry());
+  const onPipelineRetry = useStableCallback(() => void figures.pipelineRetry());
+  const onTrendRetry = useStableCallback(() => figures.trendRetry());
+  const onTodayRetry = useStableCallback(() => figures.todayRetry());
+  // `t` is re-created by react-i18next on parent renders, so the figure arrays and the help lookup
+  // that depend on it are re-created too (their owning hook is another branch's). Re-key them on the
+  // values they render so the memoised panels keep their props across unrelated settles.
+  const periodFigures = useStableValue(figures.period, figureListSignature);
+  const todayFigures = useStableValue(figures.today, figureListSignature);
+  const winRateRange = useStableValue(figures.winRateRange, (range) => range.key);
+  const help = useStableCallback((id: string) => {
     const reasons: Record<string, string> = {
       'contract-on-hand': t('dashboard:hub.company.help.contract', 'Sum of contract values for delivery work, in each project currency. Left after spending uses complete recorded actuals. Source: dashboard summary.'),
       'billed-margin': t('dashboard:hub.company.help.margin', 'Known margin is billed-work revenue less recorded spending. It is not cash received. The margin amount is available, while the percentage is unavailable until billed revenue is available company-wide.'),
@@ -329,57 +495,23 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       'win-rate': t('dashboard:hub.company.help.winRate', 'Won projects divided by won plus lost projects in the selected period. The chart can switch between count and value.'),
     };
     return reasons[id] ?? t('dashboard:hub.company.help.period', 'Period result from the selected date range.');
-  };
+  });
   const todayError = figures.todayError;
-  // L12(g): purchasing is grouped by the four stages every procurement screen uses — Request · Order · Receive · Pay.
-  const stageCounts = PROCUREMENT_STAGES.map((stage) => ({
-    status: stage,
-    count: (data?.procurements_by_status ?? []).filter((row) => stageForStatus(row.status) === stage).reduce((sum, row) => sum + row.count, 0),
-  }));
-  const stageName = (stage: ProcurementStage) => ({
-    Request: t('dashboard:hub.company.stageRequest', 'Request'),
-    Order: t('dashboard:hub.company.stageOrder', 'Order'),
-    Receive: t('dashboard:hub.company.stageReceive', 'Receive'),
-    Pay: t('dashboard:hub.company.stagePay', 'Pay'),
-  })[stage];
-  const pipelineStages = pipeline.data?.stages ?? [];
-  const commonTodayFigures = ['contract-on-hand', 'billed-margin', 'pipeline', 'client-overdue', 'supplier-payables', 'still-to-invoice'].map((id) => todayFigure(id)).filter((figure): figure is DashboardFigure => Boolean(figure));
-  const periodMini = (id: string) => periodFigure(id) ?? { id, label: id, value: null };
+  const pipelineStages = pipeline.data?.stages ?? EMPTY_PIPELINE_STAGES;
+  const pipelineProjects = pipeline.data?.projects ?? EMPTY_PIPELINE_PROJECTS;
+  const commonTodayFigures = React.useMemo(
+    () => COMPANY_FIGURE_IDS.map((id) => todayFigures.find((figure) => figure.id === id)).filter((figure): figure is DashboardFigure => Boolean(figure)),
+    [todayFigures],
+  );
   const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
     || Boolean(procurements.data?.length || figures.pipeline?.projects?.length);
 
   const area = (id: string) => {
     switch (id) {
-      case 'delivery': return <AreaPanel key={id} title={t('dashboard:hub.company.delivery', 'Delivery')} openHref="/projects" openLabel={t('dashboard:hub.company.openProjects', 'Open projects')}>
-        <AttentionList compact items={deliveryNeeds} />
-        {activeDeliveryProjects > 0 && data?.active_delivery_actual_project_count != null && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.actualsCoverage', 'Actuals available for {{available}} of {{total}} active delivery projects.', { available: data.active_delivery_actual_project_count, total: activeDeliveryProjects })}</p>}
-        {showDeliveryAllClear && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.checkedRiskClear', '0 projects at risk. All {{count}} active delivery projects are currently on track.', { count: activeDeliveryProjects })}</p>}
-        <section className="grid gap-2">
-          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.spendingVsContract', 'Spending vs contract')}</h3><Tooltip content={t('dashboard:hub.company.projectSpendHelp', 'Used is recorded spending divided by contract value. It is shown only when actuals are complete and currencies match.')}><button type="button" aria-label={t('dashboard:hub.company.aboutProjectSpend', 'About spending versus contract')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          <ProjectSpendTable dashboard={data} projects={projects.data} pending={figures.dashboardPending || projects.isPending} error={figures.dashboardError || projects.isError} retry={() => { figures.dashboardRetry(); void projects.refetch(); }} />
-        </section>
-      </AreaPanel>;
-      case 'sales': return <AreaPanel key={id} title={t('dashboard:hub.company.sales', 'Sales')} openHref="/sales" openLabel={t('dashboard:hub.company.openSales', 'Open sales')}>
-        <FigureGroup heading={t('dashboard:hub.company.salesFigures', 'Sales results')} figures={[{ ...periodMini('won'), help: help('won') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
-        <section className="grid gap-2">
-          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('figures.pipeline', 'Pipeline (weighted)')}</h3><Tooltip content={t('dashboard:hub.company.help.pipelineStages', 'Each open stage shows its gross project value and the value weighted by its win probability. Won and lost projects are excluded.')}><button type="button" aria-label={t('dashboard:hub.company.aboutPipelineStages', 'About Pipeline (weighted)')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          <ProjectedMarginBars stages={pipelineStages} currency={orgCurrency} />
-          <PipelineStages stages={pipelineStages} projects={pipeline.data?.projects ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} />
-        </section>
-        <WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded />
-      </AreaPanel>;
-      case 'billing': return <AreaPanel key={id} title={t('dashboard:hub.company.billing', 'Billing and collections')} openHref="/finance/receivables" openLabel={t('dashboard:hub.company.openInvoices', 'Open invoices')}>
-        <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
-        {finance && <ClientAgingBlock />}
-      </AreaPanel>;
-      default: return <AreaPanel key={id} title={t('dashboard:hub.company.purchasing', 'Purchasing')} openHref="/procurement" openLabel={t('dashboard:hub.company.openProcurements', 'Open procurements')}>
-        <AttentionList compact items={purchasingNeeds} />
-        <section className="grid gap-2">
-          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}</h3><Tooltip content={t('dashboard:hub.company.help.purchasesScope', 'Purchases made directly in the accounting system are not counted in this PMO procurement view.')}><button type="button" aria-label={t('dashboard:hub.company.purchasesScopeLabel', 'About purchasing by stage')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.accountingPurchasesExcluded', 'Purchases made directly in the accounting system are not counted.')}</p>
-          {figures.dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={figures.dashboardRetry} /> : figures.dashboardPending ? <ListState variant="loading" shape="chart" rows={3} /> : stageCounts.every((row) => row.count === 0) ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={stageCounts} toneFor={(stage) => chartTheme.categorical[PROCUREMENT_STAGES.indexOf(stage)] ?? chartTheme.categorical[0]} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={(stage) => `/procurement?stage=${stage.toLowerCase()}`} labelFor={stageName} compactSegments />}
-        </section>
-      </AreaPanel>;
+      case 'delivery': return <DeliveryArea key={id} data={data} projects={projects.data} dashboardPending={figures.dashboardPending} dashboardError={figures.dashboardError} projectsPending={projects.isPending} projectsError={projects.isError} activeDeliveryProjects={activeDeliveryProjects} showAllClear={showDeliveryAllClear} attention={deliveryNeeds} onRetry={onDeliveryRetry} />;
+      case 'sales': return <SalesArea key={id} figures={periodFigures} pending={figures.periodPending} error={figures.periodError} onRetry={onPeriodRetry} stages={pipelineStages} projects={pipelineProjects} pipelinePending={pipeline.isPending} pipelineError={pipeline.isError} onPipelineRetry={onPipelineRetry} orgCurrency={orgCurrency} range={winRateRange} help={help} />;
+      case 'billing': return <BillingArea key={id} figures={periodFigures} pending={figures.periodPending} error={figures.periodError} onRetry={onPeriodRetry} finance={finance} help={help} />;
+      default: return <PurchasingArea key={id} attention={purchasingNeeds} data={data} dashboardPending={figures.dashboardPending} dashboardError={figures.dashboardError} onRetry={onDashboardRetry} />;
     }
   };
 
@@ -415,11 +547,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <div className="min-w-0"><h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{t('dashboard:hub.company.title', 'Dashboard')}</h1><p className="mt-0.5 min-h-[2lh] max-w-[68ch] text-[13.5px] text-muted-foreground">{t('dashboard:hub.company.basis', 'Position today in each record currency; sales and billing results cover {{period}}.', { period: periodState.period.label })}</p></div>
       <div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" className="min-h-11 min-w-11 min-[1180px]:h-8" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>
     </header>
-    {needs.isPending ? <ListState variant="loading" rows={1} className="h-11 overflow-hidden" /> : needs.isError ? <ListState variant="error" title={t('dashboard:hub.company.approvalsError', "Couldn't load approvals and attention items")} onRetry={needs.refetch} /> : <section aria-label={t('dashboard:hub.company.approvals', 'Approvals waiting for you')}><ApprovalStrip items={needs.items.filter((item) => item.id === 'approvals').map((item) => ({ id: item.id, tone: item.tone, icon: 'check', count: item.count, label: item.label, href: item.href }))} /></section>}
-    <InvoicedTrendCard trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
-    <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className="grid-cols-2 min-[1280px]:grid-cols-3">
-      {figures.todayPending ? Array.from({ length: 6 }, (_, i) => <KPITile key={i} loading tone="blue" icon="grid" label="" value="" className={i < 3 ? "min-h-[148px]" : "min-h-[108px]"} />) : todayError ? <div className="col-span-full"><ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} /></div> : commonTodayFigures.map((figure) => <div key={figure.id} className="min-w-0"><KPITile icon={ICONS[figure.id] ?? 'grid'} tone={TONES[figure.id] ?? 'blue'} label={figure.label} value={figure.value ?? '—'} exactValue={figure.exactValue} unavailableReason={figure.value == null ? figure.unavailableReason : undefined} help={help(figure.id)} to={figure.href} linkLabel={figure.href ? t('dashboard:hub.company.openFigure', 'Open related records for {{metric}}.', { metric: figure.label }) : undefined} loading={false} vs={figure.subline ? String(figure.subline) : undefined} />{figure.id === 'billed-margin' && canOpenAccountingMap && data && (data.on_hand_actual_coverage_total ?? 0) > (data.on_hand_actual_coverage_count ?? 0) && <Link className="-mt-2 mb-1 ml-4 inline-flex min-h-11 items-center text-xs font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('dashboard:hub.company.reviewAccountingMappings', 'Review accounting mappings')}</Link>}</div>)}
-      </KPIRow>
+    {needs.isPending ? <ListState variant="loading" rows={1} className="h-11 overflow-hidden" /> : needs.isError ? <ListState variant="error" title={t('dashboard:hub.company.approvalsError', "Couldn't load approvals and attention items")} onRetry={needs.refetch} /> : <section aria-label={t('dashboard:hub.company.approvals', 'Approvals waiting for you')}><ApprovalStrip items={approvalItems} /></section>}
+    <InvoicedTrendCard trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={onTrendRetry} />
+    <CompanyKpiBand figures={commonTodayFigures} pending={figures.todayPending} error={todayError} onRetry={onTodayRetry} data={data} canOpenAccountingMap={canOpenAccountingMap} help={help} />
     <HubGrid>{order.map(area)}</HubGrid>
     {finance && <section aria-label={t('dashboard:hub.company.financeReview', 'Finance review tables')} className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
       <FinanceTableCard title={t('dashboard:hub.company.readyToPay', 'Ready to pay')} rows={readyToPayRows} columns={invoiceColumns} help={t('dashboard:hub.company.readyToPayHelp', 'Days since invoiced uses the recorded supplier invoice date; legacy rows use their last update. The procurement record has no supplier invoice due date, so due state is unknown.')}>{unpaidUnknown > 0 && <p className="px-4 pt-2 text-xs text-muted-foreground">{t('dashboard:hub.company.unpaidUnknownNote', { count: unpaidUnknown, defaultValue: '{{count}} supplier invoices have no recorded amount yet', defaultValue_one: '{{count}} supplier invoice has no recorded amount yet' })}</p>}<div className="overflow-x-auto"><ReadyToPayTable rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} /></div></FinanceTableCard>

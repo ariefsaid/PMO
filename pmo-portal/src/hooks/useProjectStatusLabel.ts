@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nextProcurementStep, stageLabelForStatus } from '@/components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -6,10 +7,14 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
  * Display label for a project status. The enum value ('Quotation Submitted', 'Won, Pending KoM', …)
  * is DATA and never changes; only what the user reads is translated. English defaults equal the
  * enum text, so the English UI is unchanged. Unknown values fall through untouched.
+ *
+ * Perf (dashboard render work): the label map and the returned lookup are memoised, so a memoised
+ * panel that receives this function as a prop still bails out of commits that only settled another
+ * query. A language change rebuilds both (dep on `t`), which re-renders every consumer.
  */
 export function useProjectStatusLabel(): (status: string) => string {
   const { t } = useTranslation();
-  const labels: Record<string, string> = {
+  const labels = useMemo<Record<string, string>>(() => ({
     'Leads': t('projects.status.leads', 'Leads'),
     'PQ Submitted': t('projects.status.pqSubmitted', 'PQ Submitted'),
     'Quotation Submitted': t('projects.status.quotationSubmitted', 'Quotation Submitted'),
@@ -22,8 +27,8 @@ export function useProjectStatusLabel(): (status: string) => string {
     'Loss Tender': t('projects.status.lossTender', 'Lost'),
     Declined: t('projects.status.declined', 'Declined'),
     'Internal Project': t('projects.status.internalProject', 'Internal Project'),
-  };
-  return (status) => labels[status] ?? status;
+  }), [t]);
+  return useCallback((status: string) => labels[status] ?? status, [labels]);
 }
 
 /**
@@ -47,7 +52,7 @@ export function useSalesStageLabel(): (col: { title: string; testId: string }) =
 /** Display the shared full purchasing-state noun without changing its stored enum. */
 export function useProcurementStatusLabel(): (status: string) => string {
   const { t } = useTranslation();
-  const labels: Record<string, string> = {
+  const labels = useMemo<Record<string, string>>(() => ({
     Draft: t('uxs19.status.draft', 'Draft'),
     Requested: t('uxs19.status.requested', 'Purchase Request'),
     Approved: t('uxs19.status.approved', 'Approved'),
@@ -59,8 +64,8 @@ export function useProcurementStatusLabel(): (status: string) => string {
     Paid: t('uxs19.status.paid', 'Paid'),
     Rejected: t('uxs19.status.rejected', 'Rejected'),
     Cancelled: t('uxs19.status.cancelled', 'Cancelled'),
-  };
-  return (status) => labels[status] ?? stageLabelForStatus(status as ProcurementStatus);
+  }), [t]);
+  return useCallback((status: string) => labels[status] ?? stageLabelForStatus(status as ProcurementStatus), [labels]);
 }
 
 /** Localized next-step descriptions stay descriptive and never authorize a transition. */
