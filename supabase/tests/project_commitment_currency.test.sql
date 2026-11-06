@@ -9,7 +9,7 @@
 -- P-COMMIT: a 400 USD unpaid purchase and a 300 IDR unpaid purchase → 400 committed in project currency + 300 IDR
 --           named separately, and the project-currency position is withheld as incomplete.
 begin;
-select plan(28);
+select plan(34);
 insert into organizations (id,name,default_currency) values ('c0300000-0000-0000-0000-000000000001','Currency test','USD');
 insert into organizations (id,name,default_currency) values ('c0300000-0000-0000-0000-000000000008','Other currency test','USD');
 insert into projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,tax_rate,tax_base_numerator,tax_base_denominator,subject_to_vat) values ('c0300000-0000-0000-0000-000000000009','c0300000-0000-0000-0000-000000000008','Other project','Ongoing Project','USD',10,'exclusive',0,0,1,1,false);
@@ -53,7 +53,8 @@ select is((get_executive_dashboard()->>'risk_unchecked_projects')::int,1,'Incomp
 select is((select count(*)::int from project_pmo_spent_position('00000000-0000-0000-0000-000000000001')),0,'Unavailable projects return no spent position');
 select is((select count(*)::int from project_pmo_commitment_position('c0300000-0000-0000-0000-000000000009')),0,'Other organizations return no commitment position');
 select is((select count(*)::int from get_projects_money_collection(array['c0300000-0000-0000-0000-000000000009'::uuid])),0,'Collection excludes other organizations');
-select ok(not has_function_privilege('anon','public.project_pmo_spent_position(uuid)','EXECUTE'),'Anonymous execution is unavailable');
+select ok(not has_function_privilege('anon','public.project_pmo_spent_position(uuid)','EXECUTE'),'Anonymous execution of the spent position is unavailable');
+select ok(not has_function_privilege('anon','public.project_pmo_commitment_position(uuid)','EXECUTE'),'Anonymous execution of the commitment position is unavailable');
 reset role;
 insert into auth.users (id,email) values ('c0300000-0000-0000-0000-000000000006','currency-engineer@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('c0300000-0000-0000-0000-000000000006','c0300000-0000-0000-0000-000000000001','Engineer','currency-engineer@example.test','Engineer','active');
@@ -74,6 +75,8 @@ insert into profiles (id,org_id,full_name,email,role,status) values
 set local role authenticated;
 set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000011","role":"authenticated"}';
 select is((select amount from project_pmo_spent_position('c0300000-0000-0000-0000-000000000003')),1001::numeric,'Admin reads the full same-currency spent position');
+set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000012","role":"authenticated"}';
+select is((select amount from project_pmo_spent_position('c0300000-0000-0000-0000-000000000003')),1001::numeric,'Executive reads the full same-currency spent position');
 set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000013","role":"authenticated"}';
 select is((select amount from project_pmo_spent_position('c0300000-0000-0000-0000-000000000003')),1001::numeric,'Finance reads the full same-currency spent position');
 reset role;
@@ -87,6 +90,8 @@ set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000002","rol
 select is((select actuals->>'complete' from get_projects_money_collection(array['c0300000-0000-0000-0000-000000000003'::uuid])),'false','Another-currency paid amount makes the collection position incomplete');
 select is((select actuals->>'total' from get_projects_money_collection(array['c0300000-0000-0000-0000-000000000003'::uuid])),null,'Another-currency paid amount never becomes a partial figure');
 select is((select x->>'actual_complete' from json_array_elements(get_executive_dashboard()->'top_projects') x where x->>'id'='c0300000-0000-0000-0000-000000000003'),'false','Executive marks the another-currency spend incomplete');
+select is((select x->>'actual_complete' from json_array_elements(get_pm_dashboard_projects()) x where x->>'id'='c0300000-0000-0000-0000-000000000003'),'false','PM dashboard marks the another-currency spend incomplete');
+select is((select x->>'contract_remaining' from json_array_elements(get_pm_dashboard_projects()) x where x->>'id'='c0300000-0000-0000-0000-000000000003'),null,'PM dashboard withholds incomplete remaining');
 reset role;
 delete from payments where id='c0300000-0000-0000-0000-0000000000c7';
 delete from procurements where id='c0300000-0000-0000-0000-0000000000f7';
@@ -99,6 +104,15 @@ set local role authenticated;
 set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000002","role":"authenticated"}';
 select is((select actuals->>'committed_complete' from get_projects_money_collection(array['c0300000-0000-0000-0000-00000000000c'::uuid])),'false','Unknown currency makes the collection commitment incomplete');
 select is((select (actuals->>'committed_total')::numeric from get_projects_money_collection(array['c0300000-0000-0000-0000-00000000000c'::uuid])),400::numeric,'Unknown currency is never added to the project currency');
+reset role;
+-- A budget in another currency than the project is never compared with its spend: not at risk, counted as unchecked.
+-- (Two unchecked: the project below, plus the commitment project whose foreign commitment withholds its figure.)
+delete from procurements where id='c0300000-0000-0000-0000-000000000007';
+update budget_versions set currency='IDR' where id='c0300000-0000-0000-0000-000000000006';
+set local role authenticated;
+set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000002","role":"authenticated"}';
+select is((get_executive_dashboard()->>'projects_at_risk')::int,0,'Different budget currency is excluded from risk');
+select is((get_executive_dashboard()->>'risk_unchecked_projects')::int,2,'Different budget currency is counted as unchecked');
 reset role;
 select * from finish();
 rollback;

@@ -296,7 +296,7 @@ describe('ProjectFinancesSection reading states', () => {
     h.commitments.ledgerBasis = 'pmo';
     rerender(<ProjectFinancesSection project={project} />);
     expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('75', { selector: 'p' })).toBeInTheDocument();
-    expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('Paid PMO purchase payments, pre-tax', { selector: 'p' })).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('Paid PMO purchase payments and internal equipment charges, pre-tax', { selector: 'p' })).toBeInTheDocument();
 
     h.commitments.ledgerBasis = 'unavailable';
     rerender(<ProjectFinancesSection project={project} />);

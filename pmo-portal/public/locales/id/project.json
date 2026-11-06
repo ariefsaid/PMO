@@ -958,5 +958,5 @@
     "confirmDescriptionYear": "Ganti anggaran ERP {{name}} untuk {{year}} dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmLabel": "Ganti anggaran ERP"
   },
-  "pmoSpentCoverage": "Pembayaran pembelian PMO yang sudah dibayar, sebelum pajak"
+  "pmoSpentCoverage": "Pembayaran pembelian PMO dan biaya sewa peralatan internal, sebelum pajak"
 }

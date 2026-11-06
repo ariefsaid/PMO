@@ -161,7 +161,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
     ? attributedSplit({ attributed: authorizedActuals.attributed_total })
     : null;
   const actualCoverage = moneyPosition.coverage.kind === 'pmo'
-    ? t('project:pmoSpentCoverage', 'Paid PMO purchase payments, pre-tax')
+    ? t('project:pmoSpentCoverage', 'Paid PMO purchase payments and internal equipment charges, pre-tax')
     : moneyPosition.coverage.kind === 'complete'
       ? t('uxs01.completeCoverage', 'Complete category coverage')
       : moneyPosition.coverage.kind === 'partial'

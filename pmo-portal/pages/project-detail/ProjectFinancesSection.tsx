@@ -250,7 +250,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                 ? t('uxs01.coverageUnavailable', 'Spending coverage unavailable')
                 : pmoActual.complete !== true
                   ? t('projectFinances.pmoPartial', 'Partial position; other currencies or unavailable amounts are excluded.')
-                  : t('project:pmoSpentCoverage', 'Paid PMO purchase payments, pre-tax')}
+                  : t('project:pmoSpentCoverage', 'Paid PMO purchase payments and internal equipment charges, pre-tax')}
           </p>
           : !completeCoverage && <p className="text-xs text-muted-foreground">
             {hasCoverage

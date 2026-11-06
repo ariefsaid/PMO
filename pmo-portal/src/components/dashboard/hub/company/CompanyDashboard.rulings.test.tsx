@@ -215,6 +215,26 @@ describe('C4: unknown spending is left out and said once', () => {
   });
 });
 
+describe('#1739: the Budget review figure is labelled by what it adds up', () => {
+  const row = (ledger_owned: boolean) => ({ id: 'k', name: 'Known', client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 7_000, budget_currency: 'USD', spent: 6_300, variance: -700, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null, ledger_owned });
+
+  it('a PMO-basis org reads ordered..paid purchase totals, so the column says "Committed + spent", never "Spent"', () => {
+    state.budgetReview = [row(false)];
+    renderDashboard('Finance');
+    const card = screen.getByRole('heading', { name: 'Budget review' }).closest('.panel-card') as HTMLElement;
+    expect(within(card).getByRole('columnheader', { name: /Committed \+ spent/ })).toBeInTheDocument();
+    expect(within(card).queryByRole('columnheader', { name: /^Spent$/ })).toBeNull();
+  });
+
+  it('an ERP-ledger org reads the ledger Actual, which stays "Spent"', () => {
+    state.budgetReview = [row(true)];
+    renderDashboard('Finance');
+    const card = screen.getByRole('heading', { name: 'Budget review' }).closest('.panel-card') as HTMLElement;
+    expect(within(card).getByRole('columnheader', { name: /^Spent$/ })).toBeInTheDocument();
+    expect(within(card).queryByText(/Committed \+ spent/)).toBeNull();
+  });
+});
+
 describe('L6: the ageing source note is said once', () => {
   it('L6: with PMO standing in for both client and supplier ageing, "From invoices recorded in PMO" shows once', () => {
     state.ageing = {

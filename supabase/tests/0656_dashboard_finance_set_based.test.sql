@@ -2,7 +2,9 @@
 -- AC-PERF-Q12-001: get_executive_dashboard() and get_finance_budget_review() return, byte for byte, what the pre-0656
 -- row-per-project bodies returned, for every role, on an ERP-ledger org and on a PMO-basis org.
 -- The oracle functions below are the 0322 / 0396+0591 bodies verbatim, renamed; they live only in this transaction.
--- 0700 (#1739) moved the PMO basis to spent + open commitment in BOTH bodies, so the oracle still proves output parity.
+-- 0700 (#1739) moved the PMO basis to spent + open commitment in BOTH dashboard bodies and added one output field to the
+-- finance review (ledger_owned, appended last); the oracle carries those and nothing else, so it still proves output parity.
+-- The basis itself is owned by 0700_pmo_spend_split.test.sql.
 begin;
 select plan(23);
 
@@ -297,7 +299,8 @@ AS $function$
       case when p.ledger_owned then coalesce(a.actual_coverage_count, 0) else 1 end as actual_coverage_count,
       case when p.ledger_owned then coalesce(a.actual_coverage_total, 0) else 1 end as actual_coverage_total,
       case when p.ledger_owned then a.actual_as_of else null::timestamptz end as actual_as_of,
-      case when p.ledger_owned then p.default_currency else p.currency end as actual_currency
+      case when p.ledger_owned then p.default_currency else p.currency end as actual_currency,
+      p.ledger_owned
     from project_scope p
     join active_budget b on b.id = p.id and b.budget > 0
     left join erp_actuals a on a.id = p.id
@@ -314,7 +317,7 @@ AS $function$
         and b.currency = b.actual_currency
         then b.spent - b.budget else null::numeric end as variance,
       b.actual_currency, b.actual_complete, b.actual_coverage_count,
-      b.actual_coverage_total, b.actual_as_of
+      b.actual_coverage_total, b.actual_as_of, b.ledger_owned
     from review_basis b
     left join public.companies c on c.id = b.client_id and c.org_id = b.org_id
   )

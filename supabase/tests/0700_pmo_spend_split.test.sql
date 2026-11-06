@@ -6,7 +6,7 @@
 -- on the list and 500/500 on the budget tab.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(28);
 
 insert into public.organizations (id, name, default_currency) values
   ('07000000-0000-0000-0000-000000000001', 'Split org', 'USD'),
@@ -49,6 +49,30 @@ insert into public.budget_line_items (id, org_id, budget_version_id, category, d
   ('07000000-0000-0000-0000-0000000000e3', '07000000-0000-0000-0000-000000000002', '07000000-0000-0000-0000-0000000000b3', 'Labor', 'ledger', 5000);
 update public.budget_versions set status = 'Active'
  where id in ('07000000-0000-0000-0000-0000000000b1', '07000000-0000-0000-0000-0000000000b2', '07000000-0000-0000-0000-0000000000b3');
+
+-- I3 / minor 6 fixtures: a paid purchase with no budget category, and a payment on a cancelled order.
+insert into public.projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount,
+                             tax_rate, tax_base_numerator, tax_base_denominator, subject_to_vat, project_manager_id) values
+  ('07000000-0000-0000-0000-0000000000d4', '07000000-0000-0000-0000-000000000001', 'Uncategorized paid project', 'Ongoing Project', 'USD', 10000, 'exclusive', 0, 0, 1, 1, false, '07000000-0000-0000-0000-0000000000a1'),
+  ('07000000-0000-0000-0000-0000000000d5', '07000000-0000-0000-0000-000000000001', 'Cancelled paid project', 'Ongoing Project', 'USD', 10000, 'exclusive', 0, 0, 1, 1, false, '07000000-0000-0000-0000-0000000000a1');
+insert into public.procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, origin) values
+  ('07000000-0000-0000-0000-0000000000f4', '07000000-0000-0000-0000-000000000001', 'Uncategorized paid purchase', 'Paid', 400,
+   '07000000-0000-0000-0000-0000000000d4', 'USD', null, null),
+  ('07000000-0000-0000-0000-0000000000f5', '07000000-0000-0000-0000-000000000001', 'Cancelled paid purchase', 'Cancelled', 200,
+   '07000000-0000-0000-0000-0000000000d5', 'USD', 'Labor', null);
+insert into public.payments (id, org_id, procurement_id, status, date, amount, currency) values
+  ('07000000-0000-0000-0000-0000000000c4', '07000000-0000-0000-0000-000000000001',
+   '07000000-0000-0000-0000-0000000000f4', 'Paid', '2026-10-10', 400, 'USD'),
+  ('07000000-0000-0000-0000-0000000000c5', '07000000-0000-0000-0000-000000000001',
+   '07000000-0000-0000-0000-0000000000f5', 'Paid', '2026-10-10', 200, 'USD');
+insert into public.budget_versions (id, org_id, project_id, version, name, status, currency) values
+  ('07000000-0000-0000-0000-0000000000b4', '07000000-0000-0000-0000-000000000001', '07000000-0000-0000-0000-0000000000d4', 1, 'v1', 'Draft', 'USD'),
+  ('07000000-0000-0000-0000-0000000000b5', '07000000-0000-0000-0000-000000000001', '07000000-0000-0000-0000-0000000000d5', 1, 'v1', 'Draft', 'USD');
+insert into public.budget_line_items (id, org_id, budget_version_id, category, description, budgeted_amount) values
+  ('07000000-0000-0000-0000-0000000000e4', '07000000-0000-0000-0000-000000000001', '07000000-0000-0000-0000-0000000000b4', 'Labor', 'uncategorized', 5000),
+  ('07000000-0000-0000-0000-0000000000e5', '07000000-0000-0000-0000-000000000001', '07000000-0000-0000-0000-0000000000b5', 'Labor', 'cancelled', 5000);
+update public.budget_versions set status = 'Active'
+ where id in ('07000000-0000-0000-0000-0000000000b4', '07000000-0000-0000-0000-0000000000b5');
 
 set local request.jwt.claims = '{"role":"service_role"}';
 set local role service_role;
@@ -93,8 +117,9 @@ select is((select (value->>'committed')::numeric from json_array_elements(public
 select is((select (value->>'spent')::numeric from json_array_elements(public.get_pm_dashboard_projects()) value
            where value->>'id' = '07000000-0000-0000-0000-0000000000d1'), 500::numeric,
   'AC-1739-03 the PM dashboard spent is the pre-tax paid amount');
-select is((select committed_spend from public.get_projects_delivery(array['07000000-0000-0000-0000-0000000000d1'::uuid])), 500::numeric,
-  'AC-1739-03 the delivery summary committed spend is the unpaid remainder');
+select is((select (value->>'ledger_owned')::boolean from json_array_elements(public.get_finance_budget_review()) value
+           where value->>'id' = '07000000-0000-0000-0000-0000000000d1'), false,
+  'AC-1739-04 a PMO-basis review row says so, so the Finance home labels its column "Committed + spent"');
 select is((select (value->>'spent')::numeric from json_array_elements(public.get_finance_budget_review()) value
            where value->>'id' = '07000000-0000-0000-0000-0000000000d1'), 1000::numeric,
   'AC-1739-04 the finance review keeps ONE purchase-consumption figure (500 spent plus 500 committed), labelled as such');
@@ -109,6 +134,29 @@ select is((select amount from public.project_pmo_spent_position('07000000-0000-0
 select is((select amount from public.project_pmo_commitment_position('07000000-0000-0000-0000-0000000000d2')), 900::numeric,
   'AC-1739-06 an ordered-but-unpaid purchase is fully committed');
 
+-- ── An uncategorized paid purchase still counts (I3) ──────────────────────────────────────────────────────────
+select is((select amount from public.project_pmo_spent_position('07000000-0000-0000-0000-0000000000d4')), 400::numeric,
+  'AC-1739-08 a paid purchase with no budget category counts as spent, so the list Actual is not blanked');
+select is((select (actuals->>'total')::numeric from public.get_projects_money_collection(array['07000000-0000-0000-0000-0000000000d4'::uuid])), 400::numeric,
+  'AC-1739-08 the Projects list shows the uncategorized paid amount');
+select is((select (value->>'spent')::numeric from json_array_elements(public.get_executive_dashboard()->'top_projects') value
+           where value->>'id' = '07000000-0000-0000-0000-0000000000d4'), 400::numeric,
+  'AC-1739-08 the executive dashboard shows the uncategorized paid amount');
+
+-- ── Documented exception: cash paid on a cancelled order is spent, with nothing left committed (minor 6) ────
+select is((select s.amount || '/' || c.amount from public.project_pmo_spent_position('07000000-0000-0000-0000-0000000000d5') s
+             cross join public.project_pmo_commitment_position('07000000-0000-0000-0000-0000000000d5') c), '200.00/0',
+  'AC-1739-09 a payment on a cancelled order stays spent (cash is out) and leaves no commitment');
+
+-- ── Server-bound agreement: the real list payload against the Budget tab sources ──────────────────────────────
+select is((select (actuals->>'committed_total')::numeric from public.get_projects_money_collection(array['07000000-0000-0000-0000-0000000000d1'::uuid])),
+          (select sum(public.procurement_open_commitment(pr)) from public.procurements pr
+            where pr.project_id = '07000000-0000-0000-0000-0000000000d1' and pr.status::text = any(public.committed_procurement_statuses())),
+  'AC-1739-02 the list commitment equals the sum of the per-purchase open commitments the Budget tab shows');
+select is((select array_agg(k order by k) from jsonb_object_keys((select actuals from public.get_projects_money_collection(array['07000000-0000-0000-0000-0000000000d1'::uuid]))) k),
+          array['as_of','categories','committed_complete','committed_total','complete','currency','excludes_restricted_rows','total'],
+  'AC-1739-02 the collection actuals payload carries the keys the pmoSpendSplit.test.ts fixture mirrors');
+
 -- ── An ERP-ledger org is untouched ────────────────────────────────────────────────────────────────────────────
 set local request.jwt.claims = '{"sub":"07000000-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select is((select (actuals->>'total')::numeric from public.get_projects_money_collection(array['07000000-0000-0000-0000-0000000000d3'::uuid])), 300::numeric,
@@ -118,8 +166,9 @@ select is((select ledger_basis from public.get_projects_money_collection(array['
 select is((select (value->>'spent')::numeric from json_array_elements(public.get_executive_dashboard()->'top_projects') value
            where value->>'id' = '07000000-0000-0000-0000-0000000000d3'), 300::numeric,
   'AC-1739-07 the executive dashboard keeps the ledger Actual for an ERP-ledger org');
-select is((select committed_spend from public.get_projects_delivery(array['07000000-0000-0000-0000-0000000000d3'::uuid])), 1000::numeric,
-  'AC-1739-07 the delivery summary keeps its shipped figure for an ERP-ledger org (no change in scope here)');
+select is((select (value->>'ledger_owned')::boolean from json_array_elements(public.get_finance_budget_review()) value
+           where value->>'id' = '07000000-0000-0000-0000-0000000000d3'), true,
+  'AC-1739-07 an ERP-ledger review row says so: its figure is the ledger Actual and stays labelled "Spent"');
 
 reset role;
 select * from finish();

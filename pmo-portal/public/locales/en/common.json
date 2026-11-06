@@ -4515,6 +4515,7 @@
     "pmoPurchasing": "PMO purchasing requests",
     "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart.",
     "activeBudget": "Active budget",
+    "actual": "Actual",
     "variance": "Variance",
     "utilization": "Utilization",
     "atRisk": "At risk",

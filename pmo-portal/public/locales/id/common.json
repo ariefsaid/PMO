@@ -4515,6 +4515,7 @@
     "pmoPurchasing": "Permintaan pembelian PMO",
     "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
     "activeBudget": "Anggaran aktif",
+    "actual": "Aktual",
     "variance": "Selisih",
     "utilization": "Pemakaian",
     "atRisk": "Berisiko",

@@ -351,9 +351,7 @@ export const FinanceDashboard: React.FC = () => {
     },
     {
       key: 'spent',
-      // #1739: this one figure is budget CONSUMPTION on the purchase side — PMO spent plus open commitment — so the
-      // variance and utilization beside it keep meaning headroom. It is labelled as what it adds up, never "Actual".
-      header: t('dashboard:finance.committedSpent', 'Committed + spent'),
+      header: t('uxs03.actual', 'Actual'),
       align: 'num',
       sortKey: 'spent',
       cell: (p) => {

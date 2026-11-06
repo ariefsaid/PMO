@@ -13,16 +13,24 @@
 --                                        is what the list and dashboards read as Actual.
 --
 -- A surface that stands for budget consumption rather than spend (the list's Budget used, the at-risk rule) reads
--- spent + committed, which is exactly the figure a fully unpaid project always reported, so no existing ordering
--- moves for an org that has not paid anything. ERP-ledger orgs keep their ledger basis untouched: the collection, the
--- dashboards and the delivery summary's shipped figure are unchanged for them.
+-- spent + committed. For a project with no hire charge and no payment on a cancelled order that is exactly the
+-- ordered..paid purchase total a fully unpaid project always reported, so no ordering moves for an org that has not
+-- paid anything. Two real-money cases are the documented exception: the internal hire charge is spend (the Budget tab
+-- counts it) and a payment on a cancelled order is cash already out, so spent + committed can exceed the old total by
+-- those amounts and a project can reach the at-risk line sooner. ERP-ledger orgs keep their ledger basis untouched.
+-- The finance review's single purchase column stays the ordered..paid total (purchases only, no hire charge) and is
+-- labelled "Committed + spent" for a PMO-basis org; get_finance_budget_review now says which basis a row is on.
+-- get_projects_delivery.committed_spend is not redefined: nothing reads it, and it follows the position function.
 --
 -- No begin/commit: the rollback round trip wraps this file in its own transaction.
 
--- The Budget tab's Spent, aggregated to the project: the same source (project_finance_actuals, 0560) summed the same
--- way, so the list and the budget table can never drift. Unknown (NULL, never a partial sum) when any paid purchase's
--- amount is unreadable or in another currency, or when a paid purchase has no budget category. The role/org guard
--- repeats the one the position functions carry: a restricted role reads no row, and the inner read is not reached.
+-- The Budget tab's Spent, aggregated to the project: the paid-purchase and hire-charge terms of
+-- project_finance_actuals (0560) summed over the whole project, so the list and the budget table agree on every
+-- categorized project (the 0700 test pins that equality). Unlike the per-category table, a paid purchase with no
+-- budget category still counts here: it is real money paid on this project, and the total has no category to
+-- misplace it into (the Budget tab keeps its own per-category coverage rule). Unknown (NULL, never a partial sum)
+-- when a paid amount is unreadable or in another currency, or the hire charge is in another currency. The
+-- role/org guard repeats the one the position functions carry: a restricted role reads no row.
 create function public.project_pmo_spent_position(p_project_id uuid)
 returns table(amount numeric, complete boolean)
 language plpgsql stable security invoker set search_path = public, pg_temp as $$
@@ -38,13 +46,26 @@ begin
   ) then
     return;
   end if;
-  select case
-           when count(*) filter (where a.mapped) = 0
-             or count(*) filter (where a.mapped and a.actuals_to_date is null) > 0 then null::numeric
-           else sum(a.actuals_to_date) filter (where a.mapped)
-         end
-    into v_amount
-    from public.project_finance_actuals(p_project_id) a;
+  with target_project as (
+    select p.id, p.org_id, p.currency, p.currency = o.default_currency as charge_in_project_currency
+      from public.projects p join public.organizations o on o.id = p.org_id
+     where p.id = p_project_id and p.org_id = public.auth_org_id()
+  ), paid_rows as (
+    select case when pr.currency = p.currency then public.procurement_paid_pre_tax(pr) end as paid
+      from target_project p
+      join public.procurements pr on pr.project_id = p.id and pr.org_id = p.org_id
+     where pr.origin is distinct from 'erp_link'
+       and exists (select 1 from public.payments pay
+                    where pay.procurement_id = pr.id and pay.org_id = pr.org_id and pay.status = 'Paid'
+                      and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null)
+  ), charges as (
+    select case when (select charge_in_project_currency from target_project) then q.amount end as charged
+      from public.equipment_charge_project_actuals(p_project_id, null) q
+  )
+  select case when exists (select 1 from paid_rows r where r.paid is null)
+                or exists (select 1 from charges c where c.charged is null) then null::numeric
+              else coalesce((select sum(r.paid) from paid_rows r), 0) + coalesce((select sum(c.charged) from charges c), 0) end
+    into v_amount;
   return query select v_amount, v_amount is not null;
 end $$;
 revoke all on function public.project_pmo_spent_position(uuid) from public, anon;
@@ -462,69 +483,131 @@ revoke all on function public.get_pm_dashboard_projects() from public;
 grant execute on function public.get_pm_dashboard_projects() to authenticated;
 revoke execute on function public.get_pm_dashboard_projects() from anon;
 
--- The delivery summary's committed_spend (0396 body): a PMO-basis org reads the open commitment (the Budget tab's
--- Committed). A ledger-reading org keeps the shipped figure — the ordered..paid purchase totals in the project
--- currency, withheld when one of them cannot be read — because this issue changes no ledger-basis money.
-create or replace function get_projects_delivery(p_ids uuid[])
-  returns table (
-    project_id    uuid,
-    delivery_pct  numeric,
-    committed_spend numeric,
-    budget        numeric
-  )
-  language sql stable security invoker set search_path = public as $$
-  with eff as (
-    select
-      m.project_id,
-      m.weight,
-      coalesce(
-        m.input_pct,
-        count(t.id) filter (where t.status = 'Done') * 100.0 / nullif(count(t.id), 0),
-        0
-      ) as effective_pct,
-      (m.input_pct is not null or count(t.id) > 0) as has_signal
-    from project_milestones m
-    left join tasks t on t.milestone_id = m.id
-                     and t.parent_task_id is null   -- OD-INT-9: subtasks never move a percentage.
-                     and t.archived_at is null      -- archived tasks never move a percentage.
-    where m.project_id = any(p_ids)
-    group by m.id
+-- The finance review (0656 body): each row now says which basis its `spent` is on, so the Finance home can label the
+-- column by what it adds up. A PMO-basis row is still the ordered..paid purchase total (committed + spent); a ledger
+-- org's is the ledger Actual.
+create or replace function public.get_finance_budget_review()
+  returns json
+  language sql
+  stable
+  security invoker
+  set search_path = public
+as $$
+  with flag as materialized (                         -- 0656: the org's ledger basis is read once, not once per project
+    select public.org_reads_erp_ledger() as erp,
+           public.holds_spend_approval_authority(public.auth_role()) as holds
   ),
-  committed as (
-    select
-      p.id as project_id,
-      coalesce((select sum(li.budgeted_amount)
-                from budget_versions v join budget_line_items li on li.budget_version_id = v.id
-                where v.project_id = p.id and v.status = 'Active'), 0) as budget,
-      case when public.org_reads_erp_ledger() then
-        (select case when coalesce(bool_and(coalesce(pr.currency = p.currency, false)
-                     and pr.total_value is not null
-                     and pr.total_value::text not in ('NaN','Infinity','-Infinity')), true)
-                   then coalesce(sum(pr.total_value), 0) end
-           from public.procurements pr
-          where pr.project_id = p.id and pr.org_id = p.org_id
-            and pr.status::text = any(public.committed_procurement_statuses()))
-      else
-        (select case when position.complete then position.amount end
-           from public.project_pmo_commitment_position(p.id) position)
-      end as committed_spend
-    from projects p
-    where p.id = any(p_ids)
-
+  project_scope as (
+    select p.id, p.org_id, p.name, p.status::text as status, p.currency, p.client_id,
+      o.default_currency,
+      f.erp as ledger_owned
+    from public.projects p
+    join public.organizations o on o.id = p.org_id
+    cross join flag f
+  ),
+  active_budget as (
+    select p.id,
+      case
+        when count(li.id) filter (where li.budgeted_amount is null
+          or li.budgeted_amount::text in ('NaN','Infinity','-Infinity')) > 0 then null::numeric
+        else coalesce(sum(li.budgeted_amount), 0::numeric)
+      end as budget,
+      (select v.currency
+         from public.budget_versions v
+        where v.org_id = p.org_id and v.project_id = p.id and v.status = 'Active'
+        order by v.version desc, v.created_at desc, v.id desc
+        limit 1) as budget_currency
+    from project_scope p
+    left join public.budget_versions v
+      on v.org_id = p.org_id and v.project_id = p.id and v.status = 'Active'
+    left join public.budget_line_items li
+      on li.org_id = v.org_id and li.budget_version_id = v.id
+    group by p.id, p.org_id
+  ),
+  active_budget_categories as (
+    select distinct p.id, li.category
+    from project_scope p
+    join active_budget b on b.id = p.id and b.budget > 0
+    join public.budget_versions v
+      on v.org_id = p.org_id and v.project_id = p.id and v.status = 'Active'
+    join public.budget_line_items li
+      on li.org_id = v.org_id and li.budget_version_id = v.id
+  ),
+  mapped_actual_rows as (                             -- 0656: one org-wide read (row for row the per-project one), only on a ledger basis
+    select x.project_id as id, x.category, x.mapped, x.actuals_to_date, x.actuals_as_of
+    from public.project_mapped_actuals_all(null) x
+    join active_budget b on b.id = x.project_id and b.budget > 0
+    where (select erp from flag)
+  ),
+  erp_actuals as (
+    select id,
+      max(actuals_as_of) as actual_as_of,
+      count(*) filter (where mapped and actuals_to_date is not null)::int as actual_coverage_count,
+      count(*) filter (where mapped)::int as actual_coverage_total,
+      case
+        when count(*) filter (where mapped) = 0
+          or count(*) filter (where mapped and actuals_to_date is null) > 0 then null::numeric
+        else sum(actuals_to_date) filter (where mapped)
+      end as source_total
+    from mapped_actual_rows
+    group by id
+  ),
+  erp_completeness as (                               -- every Active-budget category mapped and read
+    select required.id,
+      coalesce(
+        count(required.category) > 0
+        and count(ok.category) = count(required.category)
+        and (select holds from flag),
+        false
+      ) as actual_complete
+    from active_budget_categories required
+    left join (select id, category from mapped_actual_rows where mapped and actuals_to_date is not null) ok
+      on ok.id = required.id and ok.category = required.category
+    group by required.id
+  ),
+  committed as (                                      -- 0656: PMO-basis spend, one pass (was a subquery per project)
+    select pr.project_id, sum(pr.total_value) as total
+    from public.procurements pr
+    where pr.status::text = any(public.committed_procurement_statuses())
+      and not (select erp from flag)
+    group by pr.project_id
+  ),
+  review_basis as (
+    select p.id, p.org_id, p.client_id, p.name, p.status, p.currency,
+      b.budget, b.budget_currency,
+      case when p.ledger_owned then
+        case when coalesce(c.actual_complete, false) and a.source_total is not null
+          then a.source_total else null::numeric end
+      else coalesce(cm.total, 0::numeric) end as spent,
+      case when p.ledger_owned then coalesce(c.actual_complete, false) else true end as actual_complete,
+      case when p.ledger_owned then coalesce(a.actual_coverage_count, 0) else 1 end as actual_coverage_count,
+      case when p.ledger_owned then coalesce(a.actual_coverage_total, 0) else 1 end as actual_coverage_total,
+      case when p.ledger_owned then a.actual_as_of else null::timestamptz end as actual_as_of,
+      case when p.ledger_owned then p.default_currency else p.currency end as actual_currency,
+      p.ledger_owned
+    from project_scope p
+    join active_budget b on b.id = p.id and b.budget > 0
+    left join erp_actuals a on a.id = p.id
+    left join erp_completeness c on c.id = p.id
+    left join committed cm on cm.project_id = p.id
+  ),
+  review_rows as (
+    select b.id, b.name,
+      coalesce(nullif(btrim(c.short_name), ''), c.name) as client_name,
+      b.status, b.currency, b.budget, b.budget_currency, b.spent,
+      case when b.actual_complete and b.spent is not null
+        and b.spent::text not in ('NaN','Infinity','-Infinity')
+        and b.budget > 0
+        and b.currency = b.budget_currency
+        and b.currency = b.actual_currency
+        then b.spent - b.budget else null::numeric end as variance,
+      b.actual_currency, b.actual_complete, b.actual_coverage_count,
+      b.actual_coverage_total, b.actual_as_of, b.ledger_owned
+    from review_basis b
+    left join public.companies c on c.id = b.client_id and c.org_id = b.org_id
   )
-  select
-    c.project_id,
-    case
-      when bool_or(e.has_signal) then sum(e.weight * e.effective_pct) / nullif(sum(e.weight), 0)
-      else null
-    end as delivery_pct,
-    c.committed_spend,
-    c.budget
-  from committed c
-  left join eff e on e.project_id = c.project_id
-  group by c.project_id, c.committed_spend, c.budget;
+  select coalesce((
+    select json_agg(row_to_json(r) order by r.variance desc nulls last, r.id)
+    from review_rows r
+  ), '[]'::json);
 $$;
-
-revoke all     on function get_projects_delivery(uuid[]) from public;
-grant  execute on function get_projects_delivery(uuid[]) to   authenticated;
-revoke execute on function get_projects_delivery(uuid[]) from anon;

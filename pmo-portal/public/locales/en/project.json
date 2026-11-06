@@ -958,5 +958,5 @@
     "confirmDescriptionYear": "Replace ERP budget {{name}} for {{year}} with PMO’s active version? The ERP copy will be amended.",
     "confirmLabel": "Replace ERP budget"
   },
-  "pmoSpentCoverage": "Paid PMO purchase payments, pre-tax"
+  "pmoSpentCoverage": "Paid PMO purchase payments and internal equipment charges, pre-tax"
 }

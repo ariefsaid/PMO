@@ -3666,13 +3666,24 @@ so a half-paid 1,000 purchase read 1,000 Actual on the list and 500 Spent / 500 
 The basis is now the same on every surface, because the position itself is two figures: `project_pmo_spent_position`
 (pre-tax paid + the internal equipment charge — the Budget tab's Spent) and `project_pmo_commitment_position` (the open
 commitment of FR-PFE-036 — the Budget tab's Committed). A surface that means recorded spend reads the spent figure; a
-surface that means budget consumption (the list's Budget used, the at-risk rule) reads spent + committed, which is the
-same purchase total a fully unpaid project always reported, so no ordering moves for an org that has not paid
-anything. A single-figure budget surface says what it adds up: the finance review's one column is labelled
-"Committed + spent". ERP-ledger orgs keep their ledger basis and their delivery-summary figure unchanged. Proven in
-`supabase/tests/0700_pmo_spend_split.test.sql` (500/500 for a half-paid 1,000 purchase; a ledger org still reads its
-mapped ledger Actual) and `pmo-portal/pages/project-detail/budget/__tests__/pmoSpendSplit.test.ts` (the list and the
-Budget tab agree on the same payload).
+surface that means budget consumption (the list's Budget used, the at-risk rule) reads spent + committed.
+- **Who sees what.** Finance, Executive, Admin and Project Manager at an org with no ERP binding: the list Actual, the
+  executive and PM dashboards show spent (500 of the half-paid 1,000); Budget used and at-risk use spent + committed
+  (1,000). The Finance home's budget review keeps its one purchase figure (Σ ordered..paid totals, purchases only) and
+  labels it "Committed + spent" for such an org; a ledger org's column stays "Spent" (the ledger Actual).
+  `get_finance_budget_review` rows carry `ledger_owned` for that label. ERP-ledger orgs keep their ledger basis.
+- **Uncategorized paid purchase counts.** The Budget tab's per-category table goes unknown when a paid purchase has no
+  `budget_category`; the project total has no category to misplace it into, so the spent position counts it. Before this
+  change the list showed the order total for such a project; blanking it would have been a new regression. The Budget tab
+  keeps its own coverage rule.
+- **Exception to "spent + committed = the old ordered total".** The internal equipment hire charge is spend (the Budget
+  tab counts it) and a payment on a cancelled order is cash already out (nothing stays committed). Spent + committed can
+  therefore exceed the old total by those amounts, and a project can reach the at-risk line sooner. This is deliberate.
+- **Delivery summary.** `get_projects_delivery.committed_spend` is not redefined; nothing renders it. It follows the
+  commitment position (the open commitment).
+Proven in `supabase/tests/0700_pmo_spend_split.test.sql` (500/500 for a half-paid 1,000 purchase against the real
+collection and project-finances reads; uncategorized and cancelled-paid cases; a ledger org still reads its ledger
+Actual) and `pmo-portal/pages/project-detail/budget/__tests__/pmoSpendSplit.test.ts` (client derivations on that payload).
 
 ### OD-VISION-ERP — PMO is an ERP; a client with no ERP is the floor (owner, 2026-11-03)
 The product vision is **PMO as an ERP**. At minimum PMO covers, on its own, a client that runs **no ERP**: its books,

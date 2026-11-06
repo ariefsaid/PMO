@@ -281,6 +281,8 @@ export interface BudgetReviewRow {
   actual_coverage_count: number;
   actual_coverage_total: number;
   actual_as_of: string | null;
+  /** True when the org reads the ERP ledger (spent is the ledger Actual); false when spent is PMO's ordered..paid purchase totals. */
+  ledger_owned?: boolean;
 }
 
 /**

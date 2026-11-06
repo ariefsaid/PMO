@@ -41,6 +41,7 @@ vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop
 const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number | undefined, isPending: false, isError: false } }));
 const { financeBox } = vi.hoisted(() => ({
   financeBox: {
+    isPending: false,
     data: {
       actuals: {
         currency: 'USD', total: '1800000.00', excludes_restricted_rows: false,
@@ -49,7 +50,7 @@ const { financeBox } = vi.hoisted(() => ({
     },
   },
 }));
-vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ ...financeBox, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ ...financeBox, isError: false }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetBox,
 }));
@@ -656,6 +657,21 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
       commitmentSource="pmo" ledgerBasis="pmo" commitmentPending /></ToastProvider></MemoryRouter>);
     expect(tile('PMO purchase orders')).toHaveTextContent('Loading Actual…');
     expect(tile('Actual')).toHaveTextContent('$1,800,000');
+  });
+
+  it('DD-MONEY-1/A3 withholds PMO Actual until the project-finances read succeeds (#1739)', () => {
+    roleBox.value = 'Finance';
+    financeBox.isPending = true;
+    try {
+      render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
+        commitmentSource="pmo" ledgerBasis="pmo" /></ToastProvider></MemoryRouter>);
+      const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+      expect(actual).toHaveTextContent('Loading Actual…');
+      expect(actual).not.toHaveTextContent('$1,800,000');
+      expect(actual).not.toHaveTextContent('$2,100,000');
+    } finally {
+      financeBox.isPending = false;
+    }
   });
 
   it('AC-CAT-016 names attributed cost under the Actual tile only when there is some', () => {

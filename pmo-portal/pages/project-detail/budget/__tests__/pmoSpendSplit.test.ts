@@ -5,9 +5,11 @@ import { buildBudgetSummaryRows, committedTotal } from '../budgetModel';
 /**
  * #1739 / AC-PFE-005 — the Projects list and the Budget tab split ONE purchase the same way.
  *
- * The payloads below are what the 0700 read returns for a no-ERP org with a single half-paid 1,000 purchase:
- * the collection carries 500 spent + 500 committed, the budget tab's actuals carry 500 per category and its
- * commitments carry the server's open commitment of 500.
+ * The payloads below mirror what the 0700 read returns for a no-ERP org with a single half-paid 1,000 purchase. They
+ * are NOT the proof that the server agrees with itself: that is supabase/tests/0700_pmo_spend_split.test.sql AC-1739-02,
+ * which drives the real collection and the real project-finances read, pins the committed figure to the Budget tab's
+ * per-purchase open commitments, and pins the exact payload keys mirrored here. This file proves the client derivations
+ * (what the list and the Budget tab show for that payload) agree.
  */
 const halfPaidCollection = {
   ledgerBasis: 'pmo' as const,

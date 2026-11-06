@@ -43,8 +43,7 @@
     "today": "Hari ini",
     "totalOutstanding": "Total terutang",
     "unattributed": "Tidak terkait dengan proyek",
-    "value": "Nilai",
-    "committedSpent": "Terikat + terpakai"
+    "value": "Nilai"
   },
   "pm": {
     "myProjectsHelp": "Proyek pengiriman yang ditetapkan kepada Anda sebagai manajer proyek.",
@@ -461,6 +460,7 @@
       "readyToPayError": "Tidak dapat memuat catatan yang siap dibayar",
       "budget": "Anggaran",
       "spent": "Terpakai",
+      "committedSpent": "Terikat + terpakai",
       "spentUnknown": "Pengeluaran tercatat belum lengkap atau menggunakan mata uang berbeda.",
       "percentUsed": "% terpakai",
       "budgetUsedUnknown": "Anggaran dan pengeluaran tercatat tidak dapat dibandingkan.",
