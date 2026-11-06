@@ -13,15 +13,16 @@ export { procurementsKey } from './approvalsQueryKeys';
  * `['procurements', orgId]` prefix, so existing invalidations still refetch it. `lean` is the dashboards' list (PERF-DASH-1). `withSharedDetails`
  * adds the batched money/stage inputs needed by the shared procurement block under a third cache key.
  */
-export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; enabled?: boolean }) {
+export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const withRefs = opts?.withRefs === true;
   const withSharedDetails = opts?.withSharedDetails === true;
   const lean = opts?.lean === true;
+  const withoutRoutes = lean && opts?.withoutRoutes === true;
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: procurementsKey(orgId, withRefs, withSharedDetails, lean),
-    queryFn: () => repositories.procurement.list(lean ? { lean: true } : withSharedDetails
+    queryKey: procurementsKey(orgId, withRefs, withSharedDetails, lean, withoutRoutes),
+    queryFn: () => repositories.procurement.list(lean ? (withoutRoutes ? { lean: true, withoutRoutes: true } : { lean: true }) : withSharedDetails
       ? { withRefs: true, withSharedDetails: true }
       : withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,

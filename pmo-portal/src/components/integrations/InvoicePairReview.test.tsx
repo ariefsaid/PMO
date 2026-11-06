@@ -10,8 +10,9 @@ const h = vi.hoisted(() => ({
   unpairInvoice: vi.fn(),
   listUnpairedNativeInvoices: vi.fn(),
   listAcceptedInvoicePairs: vi.fn(),
+  listOwn: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: h } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: h, externalDomainOwnership: { listOwn: h.listOwn } } }));
 
 import { InvoicePairReview } from './InvoicePairReview';
 
@@ -22,6 +23,7 @@ const proposal = (n: number, extra: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.listOwn.mockResolvedValue([{ domain: 'revenue', externalTier: 'erp' }]);
   h.proposeInvoicePairs.mockResolvedValue([proposal(1), proposal(2)]);
   h.listUnpairedNativeInvoices.mockResolvedValue([]);
   h.listAcceptedInvoicePairs.mockResolvedValue([]);
@@ -126,6 +128,16 @@ it('shows nothing, and reads nothing, for a role that cannot pair invoices', () 
   mount('Engineer');
   expect(screen.queryByText('PMO-1')).not.toBeInTheDocument();
   expect(h.proposeInvoicePairs).not.toHaveBeenCalled();
+});
+
+it('reads no invoice pairs while no ERP owns revenue', async () => {
+  h.listOwn.mockResolvedValue([{ domain: 'procurement', externalTier: 'erp' }]);
+  mount();
+  await waitFor(() => expect(h.listOwn).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 20));
+  expect(h.proposeInvoicePairs).not.toHaveBeenCalled();
+  expect(h.listUnpairedNativeInvoices).not.toHaveBeenCalled();
+  expect(h.listAcceptedInvoicePairs).not.toHaveBeenCalled();
 });
 
 it('renders nothing when there is nothing to review', async () => {

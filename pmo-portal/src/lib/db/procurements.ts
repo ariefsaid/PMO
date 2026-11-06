@@ -160,7 +160,7 @@ export async function getProjectReservedSpend(projectId: string): Promise<Projec
  * the full cached list.
  */
 export async function listProcurements(
-  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean },
+  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean },
 ): Promise<ProcurementWithRefs[]> {
   const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
@@ -168,7 +168,7 @@ export async function listProcurements(
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
   });
-  return attachApprovalRoutes(data);
+  return opts?.withoutRoutes ? data : attachApprovalRoutes(data);
 }
 
 /**

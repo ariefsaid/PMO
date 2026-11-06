@@ -6,6 +6,7 @@ import { repositories } from '@/src/lib/repositories';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import type { AcceptedInvoicePair, InvoicePairProposal, UnpairedReason } from '@/src/lib/db/revenue';
 import { Button, ConfirmDialog } from '@/src/components/ui';
+import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -24,7 +25,14 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const enabled = Boolean(orgId && canPair);
+  // Pairing exists only while an ERP owns revenue; the three reads below return nothing otherwise, so skip them. Same key as the
+  // app-shell ownership read: a cache hit, no extra request.
+  const ownership = useQuery({
+    queryKey: externalDomainOwnershipKey(orgId),
+    queryFn: () => repositories.externalDomainOwnership.listOwn(),
+    enabled: Boolean(orgId && canPair),
+  });
+  const enabled = Boolean(orgId && canPair && ownership.data?.some((row) => row.domain === 'revenue'));
   const proposals = useQuery({
     queryKey: ['invoicePairs', 'propose', orgId],
     queryFn: () => repositories.revenue.proposeInvoicePairs(),
