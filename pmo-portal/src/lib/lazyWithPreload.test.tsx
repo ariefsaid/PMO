@@ -52,4 +52,23 @@ describe('lazyWithPreload', () => {
     const loaded = await Lazy.preload();
     expect(typeof loaded.default).toBe('function');
   });
+
+  it('a rejected import is not cached — the next preload() retries and resolves (#1834 follow-up)', async () => {
+    const flaky = vi.fn()
+      .mockImplementationOnce(() => Promise.reject(new Error('offline')))
+      .mockImplementation(() => Promise.resolve({ default: () => <div>retried content</div> }));
+    const Lazy = lazyWithPreload(flaky);
+
+    await expect(Lazy.preload()).rejects.toThrow('offline');
+    expect(flaky).toHaveBeenCalledTimes(1);
+
+    // The memo was reset on rejection: the next preload() starts a FRESH import...
+    const retried = Lazy.preload();
+    await expect(retried).resolves.toHaveProperty('default');
+    expect(flaky).toHaveBeenCalledTimes(2);
+
+    // ...and once the retry resolves, memoization holds again — no third import.
+    await Lazy.preload();
+    expect(flaky).toHaveBeenCalledTimes(2);
+  });
 });
