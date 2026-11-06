@@ -225,6 +225,44 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ statement: 'profit_and_loss' }));
   });
 
+  // #1930: an accepted "Refresh now" must refetch the statement read so republished figures
+  // replace the stale ones without a manual reload; non-accepted responses must not refetch.
+  it('#1930: an accepted Refresh now refetches the statement read and renders the republished figure', async () => {
+    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+    renderPage();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    const callsBeforeRefresh = readSpy.mock.calls.length;
+
+    // The sweep published new figures while the screen was showing the stale read.
+    readSpy.mockImplementation(async (input: GetFinancialStatementInput) => {
+      const next = read(input) as FinancialStatementRead & {
+        result: { payload: { current: { rows: Array<Record<string, string>> } } };
+      };
+      next.result.payload.current.rows = [{ account: 'Republished native row', closing_debit: '7654321.00' }];
+      return next;
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsBeforeRefresh + 1));
+    expect(await screen.findByText('Republished native row')).toBeVisible();
+    expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
+    expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+      periodKind: 'month', periodStart: '2026-09-01', statement: 'trial_balance', viewKind: 'account_breakdown',
+    }));
+  });
+
+  it('#1930: a coalesced Refresh now leaves the statement read untouched', async () => {
+    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('coalesced');
+    renderPage();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    const callsBeforeRefresh = readSpy.mock.calls.length;
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    expect(await screen.findByText('A refresh was requested recently.')).toBeVisible();
+    expect(readSpy).toHaveBeenCalledTimes(callsBeforeRefresh);
+    expect(screen.getByText('Current native row')).toBeVisible();
+  });
+
   it('AC-007: quarter and fiscal-year selections use catalogue ranges and BS as-at ends without deriving dates', async () => {
     renderPage();
     await screen.findByText('Current native row');

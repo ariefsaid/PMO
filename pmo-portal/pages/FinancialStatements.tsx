@@ -1,6 +1,6 @@
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
@@ -144,7 +144,20 @@ const FinancialStatements: React.FC = () => {
     ...namedProjectOptions,
   ];
 
-  const refreshNowMutation = useMutation({ mutationFn: () => repositories.financialStatements.refreshNow() });
+  const queryClient = useQueryClient();
+  const refreshNowMutation = useMutation({
+    mutationFn: () => repositories.financialStatements.refreshNow(),
+    // #1930: once the refresh intent is accepted, the sweep republishes the statement; refetch
+    // the feature's statement reads so the new figures appear without a manual reload.
+    onSuccess: (result) => {
+      if (result === 'accepted') {
+        void queryClient.invalidateQueries({
+          queryKey: ['financial-statements'],
+          predicate: (query) => query.queryKey.includes('read'),
+        });
+      }
+    },
+  });
   const refreshNote = refreshNowMutation.isError
     ? t('financialStatements.refreshNowError', 'Could not request a refresh. Try again.')
     : refreshNowMutation.data === 'accepted'
