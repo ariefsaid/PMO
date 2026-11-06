@@ -21,6 +21,8 @@ import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueD
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { orderByCurrency } from './currencyOrder';
 import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
@@ -84,13 +86,15 @@ type Translate = (key: string, defaultValue: string, options?: Record<string, un
 const counted = (t: Translate, key: string, singular: string, plural: string, count: number) =>
   t(key, count === 1 ? singular : plural, { count });
 
-const amountsText = (totals: CurrencyTotal[], t: Translate): string | undefined => {
+/** One joined amounts figure per known currency, in the shared dashboard currency order (issue 1973):
+ *  the facts read orders rows by id, so first-encountered order is load-dependent — sort it. */
+const amountsText = (totals: CurrencyTotal[], t: Translate, orgCurrency: string): string | undefined => {
   if (totals.length === 0) return undefined;
-  return totals.map(({ currency, amount }) => moneyFigure(amount, currency, t('needs.amountUnavailable', 'Amount unavailable'), { code: true }).value).join(' · ');
+  return orderByCurrency(totals, orgCurrency).map(({ currency, amount }) => moneyFigure(amount, currency, t('needs.amountUnavailable', 'Amount unavailable'), { code: true }).value).join(' · ');
 };
 
 /** Pure role adapter for the shared needs list; every zero count is intentionally omitted. */
-export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate): NeedsItem[] {
+export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate, orgCurrency: string): NeedsItem[] {
   const items: NeedsItem[] = [];
   const add = (item: NeedsItem | null) => { if (item && item.count > 0) items.push(item); };
   const approvalItem = (count: number | undefined): NeedsItem | null => count === undefined ? null : ({
@@ -124,12 +128,12 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       const unknown = overdue.unknownBalances > 0
         ? ` · ${t('needs.unknownBalanceDays', '{{count}} balance unknown; {{days}} days overdue', { count: overdue.unknownBalances, days: overdue.oldestDays ?? '—' })}`
         : '';
-      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t), href: '/finance/receivables?overdue=true', tone: 'lost' });
+      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
       label: [counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count), facts.supplierInvoices.unknownBalances > 0 ? t('needs.unknownBalanceCount', 'Unknown balances: {{count}}', { count: facts.supplierInvoices.unknownBalances }) : null].filter(Boolean).join(' · '),
-      amount: amountsText(facts.supplierInvoices.knownTotals, t), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
+      amount: amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });
     if (facts.readyToBill !== undefined) add({
       id: 'ready-to-bill', count: facts.readyToBill,
@@ -266,6 +270,7 @@ export interface NeedsYouResult {
 }
 
 export function useNeedsYou(role: Role | null): NeedsYouResult {
+  const orgCurrency = useOrgCurrency();
   const { t } = useTranslation('dashboard');
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
@@ -421,9 +426,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const engineerSourcesPending = timesheetsQuery.isPending;
   const engineerSourcesError = timesheetsQuery.isError;
   const translate = (key: string, fallback: string, options?: Record<string, unknown>) => t(key, { defaultValue: fallback, ...(options ?? {}) });
-  const items = buildNeedsItems(role, facts, translate);
+  const items = buildNeedsItems(role, facts, translate, orgCurrency);
   const companyAreaItems = companyRole
-    ? [...buildNeedsItems('Executive', facts, translate), ...buildNeedsItems('Finance', facts, translate)]
+    ? [...buildNeedsItems('Executive', facts, translate, orgCurrency), ...buildNeedsItems('Finance', facts, translate, orgCurrency)]
       .filter((item) => ['at-risk', 'procurement-approvals', 'overdue-invoices', 'supplier-invoices', 'budgets-over', 'ready-to-bill'].includes(item.id))
     : [];
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];

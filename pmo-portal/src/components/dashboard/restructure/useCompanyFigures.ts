@@ -7,7 +7,7 @@ import { periodDateRange } from './usePeriod';
 import { useDashboard, useSalesPipeline, useWinRate } from '@/src/hooks/useDashboard';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { selectInvoicedTrend, trendWindow, type InvoicedTrend } from '@/src/lib/dashboardTrend';
-import { useOverdueInvoiceFacts, usePaidPaymentFacts } from '@/src/hooks/useRevenue';
+import { useOverdueInvoiceFacts, usePaidPaymentFacts, useHasAnySalesInvoice, useHasAnyIncomingPayment } from '@/src/hooks/useRevenue';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { useOrgCurrency, useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
@@ -149,6 +149,10 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const orgDay = useFxOrgDay(true);
   const invoices = useOverdueInvoiceFacts();
   const payments = usePaidPaymentFacts();
+  // Issue 1973: the narrow facts reads see only open invoices / Paid receipts, so the empty state
+  // needs one existence probe each — an org with only closed records still has activity.
+  const anyInvoice = useHasAnySalesInvoice();
+  const anyPayment = useHasAnyIncomingPayment();
   // Shared-details select: the supplier invoice and payment rows behind the unpaid balance.
   const procurements = useProcurements({ lean: true });
   const workOrders = useUnbilledWorkOrders();
@@ -298,14 +302,14 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const hasWorkOrderEvidence = (workOrders.data?.totals ?? []).some((row) => row.count > 0) || (workOrders.data?.incompleteCount ?? 0) > 0;
   const isEmpty = Boolean(dashboard.data && !dashboardStatusRows.some((row) => row.count > 0) && !procurementStatusRows.some((row) => row.count > 0)
     && !invoices.data?.length && !procurements.data?.length && !payments.data?.length && !pipeline.data?.projects?.length && !hasWorkOrderEvidence
-    && !pack.data?.totals.length);
+    && !pack.data?.totals.length && anyInvoice.data === false && anyPayment.data === false);
 
   return {
     today, period: periodFigures,
-    todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || orgDay.isPending,
+    todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || orgDay.isPending || anyInvoice.isPending || anyPayment.isPending,
     todayError: dashboard.isError || invoices.isError || procurements.isError || workOrders.isError || orgDay.isError,
     periodPending, periodError,
-    todayRetry: () => { void dashboard.refetch(); void invoices.refetch(); void procurements.refetch(); void workOrders.refetch(); orgDay.retry(); },
+    todayRetry: () => { void dashboard.refetch(); void invoices.refetch(); void procurements.refetch(); void workOrders.refetch(); void anyInvoice.refetch(); void anyPayment.refetch(); orgDay.retry(); },
     periodRetry: () => { void pack.refetch(); void payments.refetch(); void winRate.refetch(); },
     dashboard: dashboard.data,
     dashboardPending: dashboard.isPending,
