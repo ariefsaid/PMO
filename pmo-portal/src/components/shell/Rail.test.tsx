@@ -3,7 +3,7 @@
  * AC-VR-014, AC-VR-015, AC-VR-017 (FR-VR-060, FR-VR-061, FR-VR-062, FR-VR-064, FR-VR-065)
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
@@ -14,7 +14,18 @@ const { featureEnabled, userViewsData, roleState, eligibility } = vi.hoisted(() 
   const featureEnabled: Record<string, boolean> = { userViews: true };
   const userViewsData: { id: string; name: string; description: string | null }[] = [];
   const roleState = { role: 'Admin' };
-  const eligibility = { pending: [] as unknown[], corrections: [] as unknown[], pendingError: false, correctionError: false };
+  // Subscribable like the real react-query hooks: a change re-renders Rail without new props (React.memo).
+  const listeners = new Set<() => void>();
+  const eligibility = {
+    pending: [] as unknown[], corrections: [] as unknown[], pendingError: false, correctionError: false,
+    version: 0,
+    subscribe: (cb: () => void) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
+    update(patch: Partial<{ pending: unknown[]; corrections: unknown[] }>) {
+      Object.assign(eligibility, patch);
+      eligibility.version += 1;
+      listeners.forEach((cb) => cb());
+    },
+  };
   return { featureEnabled, userViewsData, roleState, eligibility };
 });
 
@@ -53,8 +64,14 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: eligibility.pending, isError: eligibility.pendingError }),
-  useReopenableApprovedTimesheets: () => ({ data: eligibility.corrections, isError: eligibility.correctionError }),
+  useTimesheetsAwaitingApproval: () => {
+    React.useSyncExternalStore(eligibility.subscribe, () => eligibility.version);
+    return { data: eligibility.pending, isError: eligibility.pendingError };
+  },
+  useReopenableApprovedTimesheets: () => {
+    React.useSyncExternalStore(eligibility.subscribe, () => eligibility.version);
+    return { data: eligibility.corrections, isError: eligibility.correctionError };
+  },
 }));
 vi.mock('./ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
@@ -160,10 +177,9 @@ describe('timesheet approval navigation', () => {
     eligibility.corrections = [{ id: 'eligible' }];
     const auth = {} as AuthContextValue;
     const tree = () => <AuthContext.Provider value={auth}><MemoryRouter><Rail /></MemoryRouter></AuthContext.Provider>;
-    const view = render(tree());
+    render(tree());
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
-    eligibility.corrections = [];
-    view.rerender(tree());
+    act(() => eligibility.update({ corrections: [] }));
     expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
     roleState.role = 'Admin';
   });

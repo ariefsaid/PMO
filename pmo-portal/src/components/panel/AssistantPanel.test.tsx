@@ -105,6 +105,8 @@ interface RenderPanelOptions {
   runtime?: FakeRuntime;
   /** Whether to start with the panel open. Default: true */
   open?: boolean;
+  /** Late-mount opener (AssistantPanelSlot) for when focus already left the trigger. */
+  openerRef?: React.RefObject<HTMLElement | null>;
 }
 
 function renderPanel(opts: RenderPanelOptions = {}) {
@@ -138,7 +140,7 @@ function renderPanel(opts: RenderPanelOptions = {}) {
   const result = render(
     <Wrapper>
       <MemoryRouter>
-        <AssistantPanel />
+        <AssistantPanel openerRef={opts.openerRef} />
       </MemoryRouter>
     </Wrapper>,
   );
@@ -194,6 +196,19 @@ describe('AssistantPanel', () => {
     });
 
     document.body.removeChild(probeButton);
+  });
+
+  it('AC-AP-005 a late-mounted panel returns focus to the opener the slot remembered, not <body>', async () => {
+    const user = userEvent.setup();
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    (document.activeElement as HTMLElement | null)?.blur();
+    // Mounts open with focus already on <body> (the chunk landed after the keypress).
+    const { setOpen } = renderPanel({ open: true, openerRef: { current: opener } });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(opener).toHaveFocus());
+    void setOpen;
+    document.body.removeChild(opener);
   });
 
   it('AC-AP-005 Escape closes the panel regardless of run state (D-A2-4)', async () => {

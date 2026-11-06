@@ -68,7 +68,7 @@ import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyPr
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
-import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
+import { AssistantPanelSlot } from '@/src/components/panel/AssistantPanelSlot';
 import { FeedbackWidget } from '@/src/components/feedback/FeedbackWidget';
 import { SurveyHost } from '@/src/components/feedback/SurveyHost';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
@@ -539,7 +539,7 @@ export const ShellChrome: React.FC = () => {
   const closeRail = useCallback(() => setRailOpen(false), []);
   const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
   const feedbackWidget = useMemo(() => <FeedbackWidget />, []);
-  const assistantPanel = useMemo(() => <AssistantPanel />, []);
+  const assistantPanel = useMemo(() => <AssistantPanelSlot open={assistantOpen} />, [assistantOpen]);
 
   // Breadcrumb derives from the ROUTE (URL is the source of truth) — no tab
   // state. A detail route resolves its record name from the cached index lists;
