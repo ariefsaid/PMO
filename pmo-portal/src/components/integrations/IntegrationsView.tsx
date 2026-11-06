@@ -1,72 +1,31 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Card,
-  Icon,
-  StatusPill,
-  Button,
-  EntityFormModal,
-  ConfirmDialog,
-  FormSection,
-  FormGrid,
-  TextField,
-  FieldError,
-  ListState,
-  DataTable,
-  type Column,
-  Combobox,
-  type StatusVariant,
-} from '@/src/components/ui';
+import { ConfirmDialog, ListState } from '@/src/components/ui';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
-import { useEntityForm } from '@/src/components/ui/useEntityForm';
-import { tierLabel, domainLabel } from './integrationLabels';
-import { CanWrite, usePermission } from '@/src/auth/usePermission';
-import { formatInstantDate, formatList } from '@/src/lib/format';
+import { tierLabel } from './integrationLabels';
+import { usePermission } from '@/src/auth/usePermission';
+import { formatList } from '@/src/lib/format';
 import type { ExternalTier } from '@/src/lib/repositories/types';
 import { repositories } from '@/src/lib/repositories';
-import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { M365DefaultLibraryCard } from './M365DefaultLibraryCard';
-import { ErpSetupChecklist } from './ErpSetupChecklist';
 import { OdooIntegrationSection } from './odoo/OdooIntegrationSection';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { TaskListMatchReview } from './TaskListMatchReview';
 import { useIntegrationsHealth } from './useIntegrationsHealth';
-import { IntegrationHealthPanel } from './IntegrationHealthPanel';
-import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
+import { TierConnectionCard } from './TierConnectionCard';
+import { OwnershipDomainsPanel } from './OwnershipDomainsPanel';
+import { ConnectCredentialsModal, type ConnectFormValues } from './ConnectCredentialsModal';
+import { ErpCompanyModal } from './ErpCompanyModal';
+import { ClickUpBindingMap } from './ClickUpBindingMap';
 import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
 
 // Odoo has its own card (OdooIntegrationSection), so this list stays the two generic tiers.
 const TIERS: Array<Exclude<ExternalTier, 'odoo'>> = ['clickup', 'erpnext'];
-
-/** Connect credential form values per tier */
-interface ConnectFormValues {
-  token: string;
-  siteUrl: string;
-  apiKey: string;
-  apiSecret: string;
-}
-
-type FormFieldName = 'token' | 'siteUrl' | 'apiKey' | 'apiSecret';
-
-const validateClickUp = (v: ConnectFormValues, required: string): Partial<Record<FormFieldName, string>> => {
-  const errors: Partial<Record<FormFieldName, string>> = {};
-  if (!v.token.trim()) errors.token = required;
-  return errors;
-};
-
-const validateERPNext = (v: ConnectFormValues, required: { url: string; key: string; secret: string }): Partial<Record<FormFieldName, string>> => {
-  const errors: Partial<Record<FormFieldName, string>> = {};
-  if (!v.siteUrl.trim()) errors.siteUrl = required.url;
-  if (!v.apiKey.trim()) errors.apiKey = required.key;
-  if (!v.apiSecret.trim()) errors.apiSecret = required.secret;
-  return errors;
-};
 
 export const IntegrationsView: React.FC = () => {
   const { t } = useTranslation();
@@ -105,19 +64,8 @@ export const IntegrationsView: React.FC = () => {
   const projectsPending = Boolean(projectsQuery?.isPending);
   const projectsError = Boolean(projectsQuery?.isError);
 
-  // Group employed domains by tier (from external_domain_ownership)
+  // Grouped + rendered by OwnershipDomainsPanel (AC-IRUX-007).
   const ownershipQuery = useExternalDomainOwnership();
-  const ownershipRows = ownershipQuery?.data ?? [];
-  const domainsByTier: Record<ExternalTier, string[]> = {
-    clickup: [],
-    erpnext: [],
-    odoo: [],
-  };
-  ownershipRows.forEach((r) => {
-    if (r.externalTier === 'clickup' || r.externalTier === 'erpnext') {
-      domainsByTier[r.externalTier].push(r.domain);
-    }
-  });
 
   // Determine connected tiers for health fetching (derived ONLY from a successful binding read).
   // AC-IRUX-009: if the binding read fails, no tier is treated as connected. A successful cached
@@ -159,7 +107,6 @@ export const IntegrationsView: React.FC = () => {
   // OD-INT-6: Company picker state for ERPNext
   const [setCompanyTier, setSetCompanyTier] = useState<ExternalTier | null>(null);
   const [setCompanyError, setSetCompanyError] = useState<string | null>(null);
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [taskListReview, setTaskListReview] = useState<{
     projectId: string;
     projectName: string;
@@ -167,54 +114,35 @@ export const IntegrationsView: React.FC = () => {
   } | null>(null);
   const [taskListReviewError, setTaskListReviewError] = useState<string | null>(null);
 
-  // Form state (using useEntityForm)
-  const connectForm = useEntityForm<ConnectFormValues>({
-    initialValues: { token: '', siteUrl: '', apiKey: '', apiSecret: '' },
-    validate: (v) => (connectTier === 'clickup'
-      ? validateClickUp(v, t('integrations.organization.readiness.connect.tokenRequired', 'Personal API token is required.'))
-      : validateERPNext(v, {
-          url: t('integrations.organization.readiness.connect.urlRequired', 'Instance URL is required.'),
-          key: t('integrations.organization.readiness.connect.keyRequired', 'API Key is required.'),
-          secret: t('integrations.organization.readiness.connect.secretRequired', 'API Secret is required.'),
-        })),
-    idPrefix: 'connect-form',
-    requiredFields: connectTier === 'clickup' ? ['token'] : ['siteUrl', 'apiKey', 'apiSecret'],
-  });
-
   const handleConnectClick = (tier: ExternalTier) => {
     setConnectTier(tier);
     setConnectError(null);
-    connectForm.reset({ token: '', siteUrl: '', apiKey: '', apiSecret: '' });
   };
 
-  const handleConnectSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // The connect dialog owns the mount-scoped form state; the view owns the mutation and its error.
+  const handleConnectSubmit = async (values: ConnectFormValues) => {
     if (!connectTier) return;
-
-    await connectForm.handleSubmit(async (values) => {
-      try {
-        const credential =
-          connectTier === 'clickup'
-            ? { token: values.token }
-            : {
-                siteUrl: values.siteUrl,
-                apiKey: values.apiKey,
-                apiSecret: values.apiSecret,
-              };
-        await connect.mutateAsync({ tier: connectTier, credential });
-        setConnectTier(null);
-      } catch {
-        // Fixed, generic, task-level copy — never forward transport details or credential values.
-        setConnectError(t('integrations.organization.readiness.connect.connectFailed', 'Could not connect. Check the details and try again.'));
-      }
-    });
+    try {
+      const credential =
+        connectTier === 'clickup'
+          ? { token: values.token }
+          : {
+              siteUrl: values.siteUrl,
+              apiKey: values.apiKey,
+              apiSecret: values.apiSecret,
+            };
+      await connect.mutateAsync({ tier: connectTier, credential });
+      setConnectTier(null);
+    } catch {
+      // Fixed, generic, task-level copy — never forward transport details or credential values.
+      setConnectError(t('integrations.organization.readiness.connect.connectFailed', 'Could not connect. Check the details and try again.'));
+    }
   };
 
   // OD-INT-6: Handle ERPNext company selection
   const handleSetCompanyClick = (tier: ExternalTier) => {
     setSetCompanyTier(tier);
     setSetCompanyError(null);
-    setSelectedCompany(null);
   };
 
   const activationErrorMessage = (refusal: ErpActivationRefusal | null): string => {
@@ -239,10 +167,9 @@ export const IntegrationsView: React.FC = () => {
     return t('integrations.organization.readiness.erpActivation.activateFailed', 'Activation failed. Your selection was kept; you can try again.');
   };
 
-  const handleSetCompanySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSetCompanySubmit = async (companyId: string | null) => {
     if (!setCompanyTier) return;
-    if (!selectedCompany) {
+    if (!companyId) {
       setSetCompanyError(t('integrations.organization.readiness.erpActivation.selectRequired', 'Select a Company to activate.'));
       return;
     }
@@ -250,11 +177,10 @@ export const IntegrationsView: React.FC = () => {
     try {
       // Send the SELECTED Company doc name — NOT the tier. `config.company` must hold the Company
       // (OD-INT-6); the binding stays connected-but-not-activated until this is set.
-      await setCompany.mutateAsync(selectedCompany);
+      await setCompany.mutateAsync(companyId);
       void qc.invalidateQueries({ queryKey: ['integrations', 'setup', orgId] });
       void qc.invalidateQueries({ queryKey: ['integrations', 'project-erp', orgId] });
       setSetCompanyTier(null);
-      setSelectedCompany(null);
     } catch (err) {
       // AC-IRUX-005: activation failure keeps the dialog open AND the selection, so the Admin can retry.
       // #656: a refusal the Admin can act on says what to fix; anything else stays generic.
@@ -282,52 +208,7 @@ export const IntegrationsView: React.FC = () => {
     }
   };
 
-  const activeClickUpBinding = isSuccess && !isError && getBinding('clickup')?.status === 'active';
-  const activeProjectIds = new Set(
-    projects.filter((project) => !project.archived_at).map((project) => project.id),
-  );
-  const clickUpBindings = projectBindings.filter(
-    (binding) => binding.external_tier === 'clickup' && activeProjectIds.has(binding.project_id),
-  );
-  const activeProjects = projects.filter((project) => !project.archived_at);
-  const bindingByProjectId = new Map(clickUpBindings.map((binding) => [binding.project_id, binding]));
-  const boundListIds = new Set(clickUpBindings.map((binding) => binding.external_container_id));
-  const matchProposals = proposeTaskListMatches(
-    activeProjects.map(({ id, name }) => ({ id, name })),
-    clickupLists,
-    clickUpBindings,
-  );
-  const matchProposalByProjectId = new Map(matchProposals.map((proposal) => [proposal.projectId, proposal]));
-  const clickUpListById = new Map(clickupLists.map((list) => [list.id, list]));
-  const bindingMapVisible = activeClickUpBinding;
-  const clickUpListsUnavailable = isListsError || isListsPending;
-  // AC-IRUX-006: a PMO-native/bound conclusion needs EVERY map input (lists, bindings, projects).
-  const bindingMapDataUnavailable =
-    clickUpListsUnavailable ||
-    isBindingsPending ||
-    isBindingsError ||
-    projectsPending ||
-    projectsError;
-  const bindingMapColumns: Column<(typeof activeProjects)[number]>[] = [
-    { key: 'project', header: t('integrations.organization.readiness.map.projectColumn', 'PMO project'), kind: 'primary', rowHeader: true, cell: (project) => project.name, primaryTitle: (project) => project.name },
-    { key: 'list', header: t('integrations.organization.readiness.map.listColumn', 'ClickUp List'), kind: 'text', cell: (project) => {
-      const binding = bindingByProjectId.get(project.id);
-      const proposal = matchProposalByProjectId.get(project.id);
-      const list = binding ? clickUpListById.get(binding.external_container_id) : undefined;
-      const suggestedList = proposal?.state === 'proposed' && proposal.listId ? clickUpListById.get(proposal.listId) : undefined;
-      return bindingMapDataUnavailable ? t('integrations.organization.readiness.map.unknown', 'Unknown') : binding ? list?.name ?? t('uxs21.savedListUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId: binding.external_container_id }) : suggestedList ? <>{t('uxs21.suggestedList', 'Suggested')}: {suggestedList.name}</> : proposal?.state === 'ambiguous' ? t('uxs21.ambiguousMatch', 'Several lists have this project name') : '—';
-    } },
-    { key: 'status', header: t('integrations.organization.readiness.map.statusColumn', 'Status'), kind: 'status', cell: (project) => {
-      const binding = bindingByProjectId.get(project.id);
-      return bindingMapDataUnavailable ? t('integrations.organization.readiness.map.unknown', 'Unknown') : binding ? <>{t('integrations.organization.readiness.map.bound', 'Bound')} · {t('uxs21.initialTransferPendingShort', 'Initial transfer not confirmed')}</> : t('integrations.organization.readiness.map.pmoNative', 'PMO-native');
-    } },
-    ...(canManageIntegrations ? [{ key: 'review', header: t('uxs21.reviewColumn', 'Review'), kind: 'actions' as const, cell: (project: (typeof activeProjects)[number]) => {
-      const binding = bindingByProjectId.get(project.id);
-      if (binding || bindingMapDataUnavailable) return null;
-      const proposal = matchProposalByProjectId.get(project.id);
-      return <Button variant="outline" size="sm" onClick={() => { setTaskListReviewError(null); setTaskListReview({ projectId: project.id, projectName: project.name, proposedListId: proposal?.state === 'proposed' ? proposal.listId : null }); }}>{t('uxs21.reviewMatch', 'Review list match')}</Button>;
-    } } satisfies Column<(typeof activeProjects)[number]>] : []),
-  ];
+  const bindingMapVisible = isSuccess && !isError && getBinding('clickup')?.status === 'active';
 
   const handleTaskListLinkConfirm = async (input: LinkClickUpProjectInput) => {
     try {
@@ -386,497 +267,82 @@ export const IntegrationsView: React.FC = () => {
         {/* Org default document library — an org setting, deliberately separate from the personal
             connection and from the org approval above (it grants no access to anything). */}
         <M365DefaultLibraryCard />
-        {TIERS.map((tier) => {
-          const binding = isError ? undefined : getBinding(tier);
-          const isConnected = binding?.status === 'active';
-          const isDisconnected = binding?.status === 'disconnected';
-          const showConnect = !isConnected; // show connect when not active (disconnected or never connected)
-          const showDisconnect = isConnected && !isError;
-
-          // AC-IRUX-001: on a failed binding read the connection state is UNKNOWN, never inferred
-          // "Disconnected"/"Not connected". We also never offer Disconnect from an unknown binding.
-          let pillVariant: StatusVariant = 'neutral';
-          let pillLabel = t('integrations.organization.readiness.bindUnknown', 'Connection state unavailable');
-          if (!isError) {
-            if (tier === 'erpnext' && isConnected && !binding?.config?.company) {
-              pillVariant = 'warn';
-              pillLabel = t('integrations.organization.readiness.erpActivation.pending', 'Awaiting activation: select a Company to activate');
-            } else if (isConnected) {
-              pillVariant = 'won';
-              pillLabel = t('integrations.organization.readiness.connected', 'Connected');
-            } else if (isDisconnected) {
-              pillVariant = 'lost';
-              pillLabel = t('integrations.organization.readiness.disconnected', 'Disconnected');
-            } else {
-              pillVariant = 'neutral';
-              pillLabel = t('integrations.organization.readiness.notConnected', 'Not connected');
-            }
-          }
-
-          // OD-INT-6: Check if ERPNext is connected but not activated (no company selected)
-          const isConnectedButNotActivated = !isError && tier === 'erpnext' && isConnected && !binding?.config?.company;
-
-          const healthState = healthQueries[tier].state;
-          const erpSetup = tier === 'erpnext' ? erpSetupQuery.data : undefined;
-          const setupIncompleteness = erpSetup ? getErpSetupIncompleteness(erpSetup) : null;
-          const setupSteps = setupIncompleteness ? [
-            { key: 'domains', missing: setupIncompleteness.domains },
-            { key: 'company-defaults', missing: setupIncompleteness.company },
-            { key: 'activity-defaults', missing: setupIncompleteness.activity },
-            { key: 'budget-map', missing: setupIncompleteness.budget },
-            { key: 'employee-links', missing: setupIncompleteness.employees },
-            { key: 'project-links', missing: setupIncompleteness.projects },
-          ] : [];
-          const missingSetupSteps = setupSteps.filter((step) => step.missing);
-          const setupIncomplete = Boolean(erpSetup && missingSetupSteps.length > 0);
-          const firstMissingSetupStep = missingSetupSteps[0]?.key;
-
-          return (
-            <Card key={tier} className="p-4" data-tier={tier}>
-              {/* AC-IRUX-010: flex-wrap so the long activation status pill reflows beside/under the
-                  tier name instead of overflowing the card at 390px. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Icon name="plug" />
-                <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
-                {setupIncomplete
-                  ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet: {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
-                  : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
-                  ? <StatusPill variant="neutral" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.setupAdminRequired', 'Ask an administrator to check setup')}</StatusPill>
-                  : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !erpSetup
-                  ? <StatusPill variant={erpSetupQuery.isError ? 'warn' : 'neutral'} className="min-w-0 max-w-full shrink whitespace-normal break-words">{erpSetupQuery.isError ? t('uxs07.setupUnavailable', 'Setup status unavailable') : t('uxs07.setupChecking', 'Checking setup')}</StatusPill>
-                  : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && erpSetup
-                  ? <span className="text-xs font-medium text-success-text">{t('uxs07.ready', 'Ready')}</span>
-                  : <StatusPill variant={pillVariant} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pillLabel}</StatusPill>}
-              </div>
-
-              {setupIncomplete && (
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span className="text-sm text-muted-foreground">{t('integrations.organization.readiness.connected', 'Connected')}</span>
-                  <CanWrite entity="integration" action="manage">
-                    <a className="inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90" href={`#erp-setup-${firstMissingSetupStep}`}>
-                      {t('uxs07.finishSetup', 'Finish setup')}
-                    </a>
-                  </CanWrite>
-                </div>
-              )}
-              {!isError && (isConnected || isDisconnected) && binding && (
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  {/* AC-ICI-001/002 — always-present connector identity line: readable same-org
-                      profile name or a translated neutral fallback, never the raw actor value. */}
-                  <span className="min-w-0 break-words">
-                    {t('integrations.organization.readiness.connectedBy', 'Connected by')}:{' '}
-                    <span className="font-medium text-foreground">
-                      {connectorNamesById.get(binding.connected_by ?? '') ??
-                        t('integrations.organization.readiness.connectedByUnavailable', 'Former or unavailable user')}
-                    </span>
-                  </span>
-                  <span>
-                    {t('integrations.organization.readiness.connectedAt', 'Connected')}:{' '}
-                    <span className="font-medium text-foreground">
-                      {binding.connected_at
-                        ? formatInstantDate(binding.connected_at)
-                        : '—'}
-                    </span>
-                  </span>
-                  {isDisconnected && binding.disconnected_at && (
-                    <span>
-                      {t('integrations.organization.readiness.disconnectedAt', 'Disconnected')}:{' '}
-                      <span className="font-medium text-foreground">
-                        {formatInstantDate(binding.disconnected_at)}
-                      </span>
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Binding-status retry when the read failed (AC-IRUX-001) */}
-              {isError && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => refetch()}>
-                    <Icon name="refresh" className="size-3.55" aria-hidden="true" />
-                    {t('integrations.organization.readiness.bindRetry', 'Retry status')}
-                  </Button>
-                </div>
-              )}
-
-              {/* Health info when connected and activated (AC-IRUX-003/004) */}
-              {isConnected && !isConnectedButNotActivated && (
-                <IntegrationHealthPanel
-                  state={healthState}
-                  onRetry={() => healthQueries[tier].refetch()}
-                  t={t}
-                />
-              )}
-
-              {/* OD-INT-6: ERPNext Company picker when connected but not activated */}
-              {isConnectedButNotActivated && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    {t('integrations.organization.readiness.erpActivation.pausedNote', 'ERP sync is paused until a Company is selected.')}
-                  </p>
-                  <CanWrite entity="integration" action="manage">
-                    <Button variant="outline" size="sm" onClick={() => handleSetCompanyClick(tier)}>
-                      <Icon name="folder" className="size-3.55" aria-hidden="true" />
-                      {t('integrations.organization.readiness.erpActivation.select', 'Select Company')}
-                    </Button>
-                  </CanWrite>
-                </div>
-              )}
-
-              {/* Connect / Disconnect buttons (Admin only via CanWrite) */}
-              {!isConnectedButNotActivated && (
-                <div className="mt-3 flex items-center gap-2">
-                  <CanWrite entity="integration" action="manage">
-                    {showConnect && (
-                      <Button variant="outline" size="sm" onClick={() => handleConnectClick(tier)}>
-                        <Icon name="plus" className="size-3.55" aria-hidden="true" />
-                        {t('integrations.organization.readiness.connectAction', 'Connect {{service}}', { service: tierLabel(tier) })}
-                      </Button>
-                    )}
-                    {showDisconnect && (
-                      <details className="text-sm">
-                        <summary className="cursor-pointer list-none rounded-md px-2 py-1 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                          {t('uxs07.connectionOptions', 'Connection options')}
-                        </summary>
-                        <div className="absolute z-10 mt-1 rounded-md border border-border bg-card p-2 shadow-sm">
-                          <Button variant="ghost" size="sm" onClick={() => handleDisconnectClick(tier)}>
-                            <Icon name="plug" className="size-3.55" aria-hidden="true" />
-                            {t('integrations.organization.readiness.disconnectAction', 'Disconnect {{service}}', { service: tierLabel(tier) })}
-                          </Button>
-                        </div>
-                      </details>
-                    )}
-                  </CanWrite>
-                </div>
-              )}
-
-              {/* Tier-specific info notes */}
-              {tier === 'erpnext' && isConnected && !isConnectedButNotActivated && (
-                <CanWrite entity="integration" action="manage">
-                  <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
-                </CanWrite>
-              )}
-              {tier === 'clickup' && (
-                <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                  <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                  <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS: task-domain data resides with ClickUp')}</span>
-                </p>
-              )}
-              {tier === 'erpnext' && (
-                <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                  <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                  <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP: data resides on your ERPNext instance')}</span>
-                </p>
-              )}
-            </Card>
-          );
-        })}
+        {TIERS.map((tier) => (
+          <TierConnectionCard
+            key={tier}
+            tier={tier}
+            binding={isError ? undefined : getBinding(tier)}
+            bindingReadFailed={isError}
+            healthState={healthQueries[tier].state}
+            onHealthRetry={() => healthQueries[tier].refetch()}
+            erpSetup={tier === 'erpnext' ? erpSetupQuery.data : undefined}
+            erpSetupUnavailable={erpSetupQuery.isError}
+            connectorNamesById={connectorNamesById}
+            orgId={orgId}
+            onConnect={handleConnectClick}
+            onDisconnect={handleDisconnectClick}
+            onSelectCompany={handleSetCompanyClick}
+            onRetryStatus={() => refetch()}
+          />
+        ))}
         {/* #1504 S5: one ERP per org, so Odoo is offered only while no ERPNext binding is active. */}
         {isSuccess && !isError && getBinding('erpnext')?.status !== 'active' && <OdooIntegrationSection />}
       </div>
 
       {bindingMapVisible && (
-        <section className="mt-6" aria-labelledby="clickup-binding-map-title" data-testid="clickup-binding-map">
-          <div className="mb-3 flex items-center gap-2">
-            <Icon name="plug" aria-hidden="true" />
-            <h4 id="clickup-binding-map-title" className="text-sm font-semibold text-foreground">
-              {t('integrations.organization.readiness.map.title', 'ClickUp binding map')}
-            </h4>
-          </div>
-
-          {/* AC-IRUX-006: source-specific load and unavailability notices + retries */}
-          {isListsPending && !isListsError && (
-            <p className="mb-2 text-sm text-muted-foreground" role="status">
-              {t('integrations.organization.readiness.map.listsLoading', 'Loading ClickUp lists…')}
-            </p>
-          )}
-          {isListsError && (
-            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground" role="status">
-              <span>{t('integrations.organization.readiness.map.listsUnavailable', 'ClickUp lists are unavailable, so project-to-List bindings cannot be determined.')}</span>
-              <Button variant="outline" size="sm" onClick={() => refetchLists()}>
-                <Icon name="refresh" className="size-3.55" aria-hidden="true" />{t('integrations.organization.readiness.map.listsRetry', 'Retry lists')}
-              </Button>
-            </div>
-          )}
-          {isBindingsPending && (
-            <p className="mb-2 text-sm text-muted-foreground" role="status">
-              {t('integrations.organization.readiness.map.bindingsLoading', 'Loading project bindings…')}
-            </p>
-          )}
-          {isBindingsError && (
-            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground" role="status">
-              <span>{t('integrations.organization.readiness.map.bindingsUnavailable', 'Project bindings are unavailable, so ClickUp connections cannot be determined.')}</span>
-              <Button variant="outline" size="sm" onClick={() => refetchBindings()}>
-                <Icon name="refresh" className="size-3.55" aria-hidden="true" />{t('integrations.organization.readiness.map.bindingsRetry', 'Retry bindings')}
-              </Button>
-            </div>
-          )}
-          {projectsPending && (
-            <p className="mb-2 text-sm text-muted-foreground" role="status">
-              {t('integrations.organization.readiness.map.projectsLoading', 'Loading projects…')}
-            </p>
-          )}
-          {projectsError && (
-            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground" role="status">
-              <span>{t('integrations.organization.readiness.map.projectsUnavailable', 'Projects are unavailable, so the project breakdown cannot be determined.')}</span>
-              <Button variant="outline" size="sm" onClick={() => projectsQuery.refetch()}>
-                <Icon name="refresh" className="size-3.55" aria-hidden="true" />{t('integrations.organization.readiness.map.projectsRetry', 'Retry projects')}
-              </Button>
-            </div>
-          )}
-
-          {!clickUpListsUnavailable && !isBindingsPending && !isBindingsError && !projectsPending && !projectsError && clickUpBindings.length === 0 && (
-            <p className="mb-3 rounded-md border border-border bg-card p-3 text-sm text-muted-foreground" data-testid="clickup-binding-map-empty">
-              {t('integrations.organization.readiness.map.empty', 'No PMO projects are bound to ClickUp yet. Projects remain PMO-native until an admin links them.')}
-            </p>
-          )}
-          <DataTable
-            rows={activeProjects}
-            columns={bindingMapColumns}
-            rowKey={(project) => project.id}
-            accessibleName={t('integrations.organization.readiness.map.caption', 'PMO projects and their ClickUp List bindings')}
-            tableId="components-integrations-integrationsview-clickup-bindings-table"
-            state={projectsPending ? 'loading' : undefined}
-            className="text-sm"
-          />
-          {taskListReview && (
-            <TaskListMatchReview
-              open
-              projectId={taskListReview.projectId}
-              projectName={taskListReview.projectName}
-              lists={clickupLists.filter((list) => !boundListIds.has(list.id))}
-              proposedListId={taskListReview.proposedListId}
-              canConfirm={canManageIntegrations}
-              saving={linkProject.isPending}
-              error={taskListReviewError}
-              onClose={() => setTaskListReview(null)}
-              onConfirm={handleTaskListLinkConfirm}
-            />
-          )}
-          {!clickUpListsUnavailable && !isBindingsPending && !isBindingsError && !projectsPending && !projectsError && (
-            <>
-              <h5 className="mb-2 mt-5 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h5>
-              <ul className="rounded-lg border border-border" aria-label={t('integrations.organization.readiness.map.untrackedAria', 'Untracked ClickUp Lists')}>
-                {clickupLists.filter((list) => !boundListIds.has(list.id)).map((list) => (
-                  <li key={list.id} className="border-b border-border px-3 py-2 text-sm last:border-b-0">
-                    <span className="font-medium text-foreground">{list.name}</span>
-                    <span className="ml-2 text-muted-foreground">({list.space_name}{list.folder_name ? ` / ${list.folder_name}` : ''}) — {t('integrations.organization.readiness.map.untrackedNote', 'PMO does not track')}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </section>
+        <ClickUpBindingMap
+          projects={projects}
+          projectsPending={projectsPending}
+          projectsError={projectsError}
+          onRetryProjects={() => projectsQuery.refetch()}
+          clickupLists={clickupLists}
+          isListsPending={isListsPending}
+          isListsError={isListsError}
+          onRetryLists={() => refetchLists()}
+          projectBindings={projectBindings}
+          isBindingsPending={isBindingsPending}
+          isBindingsError={isBindingsError}
+          onRetryBindings={() => refetchBindings()}
+          canManageIntegrations={canManageIntegrations}
+          linkPending={linkProject?.isPending ?? false}
+          taskListReview={taskListReview}
+          taskListReviewError={taskListReviewError}
+          onStartReview={(review) => { setTaskListReviewError(null); setTaskListReview(review); }}
+          onLinkConfirm={handleTaskListLinkConfirm}
+          onCloseReview={() => setTaskListReview(null)}
+        />
       )}
 
       {/* Employed domains section (existing read-only panel, AC-IRUX-007) */}
-      <div className="mt-6">
-        <h4 className="mb-3 text-sm font-semibold text-foreground">
-          {t('uxs07.ownershipTitle', 'Information updated from connected services')}
-        </h4>
-        <div data-testid="integrations-tier-list">
-        {ownershipQuery?.isPending ? (
-          <div className="rounded-lg border border-border bg-card">
-            <p className="px-4 pt-4 text-sm text-muted-foreground" role="status">
-              {t('uxs07.ownershipLoading', 'Checking which information is updated automatically…')}
-            </p>
-            <ListState variant="loading" rows={2} />
-          </div>
-        ) : ownershipQuery?.isError ? (
-          <div data-testid="ownership-error">
-            <ListState
-              variant="error"
-              title={t('uxs07.ownershipUnavailable', 'Automatic updates unavailable')}
-              sub={t('uxs07.ownershipUnavailableHelp', 'PMO could not check which information updates automatically. Try again.')}
-              onRetry={ownershipQuery.refetch}
-              retryLabel={t('integrations.organization.readiness.retry', 'Retry')}
-            />
-          </div>
-        ) : ownershipRows.length === 0 ? (
-          <div className="flex flex-col gap-3.5">
-            <div className="rounded-lg border border-border bg-card" data-testid="ownership-empty">
-              <ListState
-                variant="empty"
-                title={t('uxs07.ownershipEmpty', 'No information is set to update automatically')}
-                sub={t('uxs07.ownershipEmptyHelp', 'Choose which information should stay current from each connected service.')}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3.5">
-            {TIERS.map((tier) => {
-              const domains = domainsByTier[tier] ?? [];
-              if (domains.length === 0) return null;
-              return (
-                <Card key={tier} className="p-4" data-tier={tier}>
-                  <div className="flex items-center gap-2">
-                    <Icon name="plug" />
-                    <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
-                  </div>
-                  <ul className="mt-2.5 flex flex-wrap gap-1.5">
-                    {domains.map((d) => (
-                      <li key={d} className="rounded-md border border-border bg-background px-2 py-1 text-sm text-muted-foreground">
-                        {domainLabel(d)}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                      {t('uxs07.ownershipDomains', '{{service}} updates {{count}} information areas here.', { count: domains.length, service: tierLabel(tier) })}
-                  </p>
-                  {tier === 'clickup' && (
-                    <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                      <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                      <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS: task-domain data resides with ClickUp')}</span>
-                    </p>
-                  )}
-                  {tier === 'erpnext' && (
-                    <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                      <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                      <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP: data resides on your ERPNext instance')}</span>
-                    </p>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        )}
-        </div>
-      </div>
+      <OwnershipDomainsPanel query={ownershipQuery} tiers={TIERS} />
 
       {/* Connect Modal */}
       {connectTier && (
-        <EntityFormModal
-          open
-          title={t('integrations.organization.readiness.connectAction', 'Connect {{service}}', { service: tierLabel(connectTier) })}
-          subtitle={t('integrations.organization.readiness.connect.subtitle', 'Enter your {{service}} credentials to establish the connection', { service: tierLabel(connectTier) })}
-          submitLabel={t('integrations.organization.readiness.connectAction', 'Connect {{service}}', { service: tierLabel(connectTier) })}
-          onSubmit={handleConnectSubmit}
-          onClose={() => setConnectTier(null)}
+        <ConnectCredentialsModal
+          tier={connectTier}
           loading={connect.isPending}
-          dirty={connectForm.isDirty}
-          submitDisabled={!connectForm.isComplete}
-          errorSummary={connectError ? [{ fieldId: connectForm.fieldProps('token').id, message: connectError }] : undefined}
-        >
-          <FormSection legend={t('integrations.organization.readiness.connect.credentials', 'Credentials')}>
-            <FormGrid>
-              {connectTier === 'clickup' ? (
-                <TextField
-                  {...connectForm.fieldProps('token')}
-                  label={t('integrations.organization.readiness.connect.tokenLabel', 'Personal API token')}
-                  required
-                  type="password"
-                  placeholder="pk_123456789..."
-                  autoComplete="off"
-                  fullWidth
-                />
-              ) : (
-                <>
-                  <TextField
-                    {...connectForm.fieldProps('siteUrl')}
-                    label={t('integrations.organization.readiness.connect.urlLabel', 'Instance URL')}
-                    required
-                    placeholder="https://your-instance.erpnext.com"
-                    autoComplete="url"
-                    fullWidth
-                  />
-                  <TextField
-                    {...connectForm.fieldProps('apiKey')}
-                    label={t('integrations.organization.readiness.connect.keyLabel', 'API Key')}
-                    required
-                    placeholder="your-api-key"
-                    autoComplete="off"
-                  />
-                  <TextField
-                    {...connectForm.fieldProps('apiSecret')}
-                    label={t('integrations.organization.readiness.connect.secretLabel', 'API Secret')}
-                    required
-                    type="password"
-                    placeholder="your-api-secret"
-                    autoComplete="off"
-                  />
-                </>
-              )}
-            </FormGrid>
-          </FormSection>
-          {connectError && (
-            <FieldError id={`${connectForm.fieldProps('token').id}-submit`}>
-              {connectError}
-            </FieldError>
-          )}
-        </EntityFormModal>
+          error={connectError}
+          onClose={() => setConnectTier(null)}
+          onSubmit={handleConnectSubmit}
+        />
       )}
 
       {/* OD-INT-6: ERPNext Company Picker Modal (AC-IRUX-005) */}
       {setCompanyTier && (
-        <EntityFormModal
-          open
-          title={t('integrations.organization.readiness.erpActivation.title', 'Select ERPNext Company')}
-          subtitle={t('integrations.organization.readiness.erpActivation.subtitle', 'Choose the Company from your ERPNext instance to activate the integration')}
-          submitLabel={t('integrations.organization.readiness.erpActivation.activate', 'Activate')}
+        <ErpCompanyModal
+          companies={erpnextCompanies}
+          isCompaniesPending={isCompaniesPending}
+          isCompaniesError={isCompaniesError}
+          onRefetchCompanies={() => refetchCompanies()}
+          loading={setCompany.isPending}
+          error={setCompanyError}
+          onSelectionChange={() => setSetCompanyError(null)}
           onSubmit={handleSetCompanySubmit}
           onClose={() => {
             setSetCompanyTier(null);
             setSetCompanyError(null);
           }}
-          loading={setCompany.isPending}
-          dirty={true}
-          submitDisabled={
-            !selectedCompany ||
-            isCompaniesPending ||
-            isCompaniesError ||
-            erpnextCompanies.length === 0
-          }
-          errorSummary={setCompanyError ? [{ fieldId: 'company-select', message: setCompanyError }] : undefined}
-        >
-          <FormSection legend={t('integrations.organization.readiness.erpActivation.companyLabel', 'Company')}>
-            {isCompaniesPending ? (
-              <div className="rounded-lg border border-border bg-card" data-testid="companies-loading">
-                <p className="px-4 pt-4 text-sm text-muted-foreground" role="status">
-                  {t('integrations.organization.readiness.erpActivation.loading', 'Loading Companies…')}
-                </p>
-                <ListState variant="loading" rows={1} />
-              </div>
-            ) : isCompaniesError ? (
-              <div data-testid="companies-error">
-                <ListState
-                  variant="error"
-                  title={t('integrations.organization.readiness.erpActivation.unavailableTitle', 'Companies unavailable')}
-                  sub={t('integrations.organization.readiness.erpActivation.unavailableSub', 'Your ERPNext Companies could not be read. Try again to activate the integration.')}
-                  onRetry={refetchCompanies}
-                  retryLabel={t('integrations.organization.readiness.retry', 'Retry')}
-                />
-              </div>
-            ) : erpnextCompanies.length === 0 ? (
-              <div className="rounded-lg border border-border bg-card" data-testid="companies-empty">
-                <ListState
-                  variant="empty"
-                  title={t('integrations.organization.readiness.erpActivation.emptyTitle', 'No Companies found')}
-                  sub={t('integrations.organization.readiness.erpActivation.emptySub', 'Create a Company in ERPNext before activating this integration.')}
-                />
-              </div>
-            ) : (
-              <Combobox
-                label={t('integrations.organization.readiness.erpActivation.companyLabel', 'Company')}
-                value={selectedCompany}
-                onChange={(value) => {
-                  setSelectedCompany(value as string | null);
-                  setSetCompanyError(null);
-                }}
-                loadOptions={async () => {
-                  return erpnextCompanies.map((c) => ({ value: c.name, label: c.name }));
-                }}
-                placeholder={isCompaniesPending ? t('integrations.organization.readiness.erpActivation.loading', 'Loading Companies…') : t('integrations.organization.readiness.erpActivation.placeholder', 'Select a Company...')}
-                disabled={isCompaniesPending}
-                noun={t('integrations.organization.readiness.erpActivation.companyNoun', 'company')}
-              />
-            )}
-          </FormSection>
-          {setCompanyError && (
-            <FieldError id="company-select-error">
-              {setCompanyError}
-            </FieldError>
-          )}
-        </EntityFormModal>
+        />
       )}
 
       {/* Disconnect ConfirmDialog (AC-IRUX-008) */}

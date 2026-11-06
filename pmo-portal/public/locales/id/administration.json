@@ -186,6 +186,8 @@
     "description": "Tombol Masukan di header dan, paling sering sebulan sekali, satu pertanyaan singkat setelah tugas pertama atau tinjauan triwulanan. Tidak pernah muncul saat seseorang mengisi formulir. Jawaban tidak memuat isi data."
   },
   "integrations": {
+    "identityIncomplete": "Penyiapan belum selesai",
+    "identityRetry": "Coba lagi",
     "send": {
       "title": "Data yang sedang dikirim ke ERP",
       "sending": "Sedang dikirim ke ERP",
