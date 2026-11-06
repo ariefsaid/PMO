@@ -57,8 +57,12 @@ export async function proposeConfig(c: OdooCtx): Promise<Response> {
 
 /** Saves one Odoo default through its actor-checked setter. */
 export async function saveDefaults(c: OdooCtx): Promise<Response> {
-  if (['account_defaults', 'unit_map', 'default_warehouse_id'].some((k) => Object.hasOwn(c.body, k))) return saveMapDefaults(c);
   const fields = ['customer_advance_account_ref', 'tax_prepaid_account_id', 'default_payment_journal_id'];
+  if (['account_defaults', 'unit_map', 'default_warehouse_id'].some((k) => Object.hasOwn(c.body, k))) {
+    // The map keys take their own path; a body that also carries a journal or tax field would lose it silently, so it is refused.
+    if (fields.some((field) => Object.hasOwn(c.body, field))) return odooError(c, 'Save one Odoo default at a time', 'BAD_REQUEST', 400);
+    return saveMapDefaults(c);
+  }
   if (fields.filter((field) => Object.hasOwn(c.body, field)).length > 1) {
     return odooError(c, 'Save one Odoo default at a time', 'BAD_REQUEST', 400);
   }

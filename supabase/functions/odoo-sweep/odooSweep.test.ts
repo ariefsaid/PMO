@@ -697,6 +697,11 @@ describe('odooSweep — #1504 S7 link reconciliation (AC-ODC-054)', () => {
     assertEquals(rpcCall(r.calls, 'reconcile_odoo_links').length, 1);
   });
 
+  it('a setup step whose store read fails does not skip the reconciliation after it', async () => {
+    const r = await sweep({ runError: true });
+    assertEquals(rpcCall(r.calls, 'reconcile_odoo_links').length, 1);
+  });
+
   it('a reconcile that fails does not fail the tick: the connection state is still stored and the lock released', async () => {
     const r = await sweep({ reconcileError: true });
     assertEquals('ok' in r.result && r.result.failed, undefined);

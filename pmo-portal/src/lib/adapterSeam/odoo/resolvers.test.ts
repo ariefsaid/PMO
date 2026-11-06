@@ -20,6 +20,9 @@ describe('AC-ODC-071 resolvers never default or guess', () => {
   it('an unmapped unit is unresolved: unmapped', async () => {
     expect(await resolveUnit(reads({ config: { unit_map: { m: '5' } } }), 'm3')).toEqual({ resolved: false, reason: 'unmapped' });
   });
+  it('a unit text with stray spaces resolves through the trimmed key', async () => {
+    expect(await resolveUnit(reads({ config: { unit_map: { m: '5' } }, master: { active: true, tombstoned_at: null } }), ' m ')).toEqual({ resolved: true, id: '5' });
+  });
   it('a mapped unit whose Odoo unit is live resolves', async () => {
     expect(await resolveUnit(reads({ config: { unit_map: { m: '5' } }, master: { active: true, tombstoned_at: null } }), 'm')).toEqual({ resolved: true, id: '5' });
   });

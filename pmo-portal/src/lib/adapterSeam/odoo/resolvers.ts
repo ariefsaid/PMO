@@ -24,5 +24,5 @@ async function resolveFromConfig(r: ResolverReads, path: [string, string], kind:
   return { resolved: true, id };
 }
 
-export const resolveUnit = (r: ResolverReads, unit: string) => resolveFromConfig(r, ['unit_map', unit], 'uom', 'unmapped');
+export const resolveUnit = (r: ResolverReads, unit: string) => resolveFromConfig(r, ['unit_map', unit.trim()], 'uom', 'unmapped');
 export const resolveAccountDefault = (r: ResolverReads, key: string) => resolveFromConfig(r, ['account_defaults', key], 'account', 'unset');

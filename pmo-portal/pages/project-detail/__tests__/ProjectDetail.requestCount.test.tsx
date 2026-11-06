@@ -343,7 +343,7 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 9 (Steps 1 and 3)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 8 (Steps 1 and 3)', async () => {
     vi.stubGlobal('IntersectionObserver', stub.IO);
     renderProjectDetail();
     await settleRequests();
@@ -368,11 +368,10 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         'read:tasks',
         'read:procurements',
         'read:external_org_bindings', // ERP match-review context: the org binding check
-        'read:external_org_bindings', // ProjectErpLink: is the org connected to Odoo (#1504 S7; one small row, cached for the session)
         'rpc:resolved_org_features', // Overview-foot survey eligibility
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(9);
+    expect(endpointLabels()).toHaveLength(8);
   });
 
   it('AC-PERF-003: the work-order reads fire exactly once when the block nears the viewport', async () => {

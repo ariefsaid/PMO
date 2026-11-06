@@ -28,12 +28,12 @@ const MIRROR: Record<string, unknown[]> = {
   warehouse: [row('1', 'Main', {}, 'WH')],
 };
 
-interface Opts { role?: string; active?: boolean; config?: Record<string, unknown>; units?: string[]; mirror?: Record<string, unknown[]>; rpc?: Record<string, (c: FetchCall) => Response> }
+interface Opts { role?: string; operator?: boolean; active?: boolean; config?: Record<string, unknown>; units?: string[]; mirror?: Record<string, unknown[]>; rpc?: Record<string, (c: FetchCall) => Response> }
 function routes(o: Opts): MockRoute[] {
   const rpc = (fn: string, fallback: () => Response) => supabaseRpc(fn, o.rpc?.[fn] ?? fallback);
   return [
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
-    supabaseSelect('platform_operators', () => none()),
+    supabaseSelect('platform_operators', () => (o.operator ? one({ user_id: 'user-1' }) : none())),
     supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: o.active ?? true })),
     supabaseSelect('external_org_bindings', () => one({ config: o.config ?? {} })),
@@ -81,6 +81,12 @@ describe('Odoo router — propose-config', () => {
     assertEquals(r.json.current, { account_defaults: { payable: '1', bank: '99' }, unit_map: { m: '5', gone: '55' }, default_warehouse_id: '9' });
   });
 
+  it('AC-ODC-070 a platform Operator who is not Admin or Finance cannot read the map proposal', async () => {
+    const r = await call({ setupAction: 'propose-config', map: true }, { role: 'Engineer', operator: true });
+    assertEquals(r.res.status, 403);
+    assertEquals(r.calls.filter((c) => c.url.pathname === '/rest/v1/external_master_records').length, 0);
+  });
+
   it('AC-ODC-070 only Admin and Finance reach it; an Executive, a PM, an Engineer and an inactive member do not', async () => {
     for (const role of ['Executive', 'Project Manager', 'Engineer']) assertEquals((await call({ setupAction: 'propose-config', map: true }, { role })).res.status, 403);
     assertEquals((await call({ setupAction: 'propose-config', map: true }, { active: false })).res.status, 403);
@@ -99,6 +105,20 @@ describe('Odoo router — save-defaults', () => {
       { p_org_id: 'org-1', p_actor_id: 'user-1', p_key: 'default_warehouse_id', p_value: '1' },
     ]);
     assertEquals(r.json.saved, ['account_defaults', 'unit_map', 'default_warehouse_id']);
+  });
+
+  it('AC-ODC-070 a platform Operator who is not Admin or Finance cannot save a map key; a mixed body is refused whole', async () => {
+    for (const body of [{ default_warehouse_id: '1' }, { unit_map: { m: '5' } }, { account_defaults: { payable: '1' } }]) {
+      const r = await call({ setupAction: 'save-defaults', ...body }, { role: 'Engineer', operator: true });
+      assertEquals(r.res.status, 403);
+      assertEquals(setCalls(r.calls).length, 0);
+    }
+    for (const field of [{ default_payment_journal_id: '7' }, { tax_prepaid_account_id: '8' }, { customer_advance_account_ref: 'account.account:9' }]) {
+      const r = await call({ setupAction: 'save-defaults', default_warehouse_id: '1', ...field });
+      assertEquals(r.res.status, 400, JSON.stringify(field));
+      assertEquals(setCalls(r.calls).length, 0);
+      assertEquals(r.calls.filter((c) => c.url.pathname.includes('/rpc/set_odoo_')).length, 0);
+    }
   });
 
   it('a request that names one key writes only that key', async () => {

@@ -3,7 +3,7 @@
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).
 begin;
-select plan(129);
+select plan(135);
 
 insert into organizations (id, name) values
  ('a6050000-0000-0000-0000-000000000001','Odoo Links A'),
@@ -323,6 +323,20 @@ select lives_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000
 select is((select config->>'default_warehouse_id' from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), '1', 'AC-ODC-060 the default warehouse is stored');
 select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000f1','default_warehouse_id','"2"')$$, 'P0001', null, 'AC-ODC-060 an archived warehouse is refused');
 select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000f1','default_warehouse_id','"11"')$$, 'P0001', null, 'AC-ODC-060 an account id is not a warehouse');
+-- an account must fit the default it is saved under
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"payable":"12"}')$$, 'P0001', null, 'AC-ODC-070 a receivable account is refused as the payable default');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"receivable":"11"}')$$, 'P0001', null, 'AC-ODC-070 a payable account is refused as the receivable default');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"bank":"11"}')$$, 'P0001', null, 'AC-ODC-070 a payable account is refused as the bank default');
+-- a mapping gone stale (its Odoo unit archived) never blocks saving a different one: only what the call changes is checked
+reset role;
+update external_master_records set active = false where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo' and kind='uom' and external_id='5';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select lives_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','unit_map','{"m":"5","m2":"6"}')$$, 'AC-ODC-041 the stored map is saved again with a stale unit left as it was');
+select lives_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','unit_map','{"m":"5","m2":"6","m3":"6"}')$$, 'AC-ODC-041 a new unit maps while another mapping is stale');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','unit_map','{"m":"5","m2":"5","m3":"6"}')$$, 'P0001', null, 'AC-ODC-041 choosing the archived unit for a unit that is being changed is still refused');
+reset role;
+update external_master_records set active = true where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo' and kind='uom' and external_id='5';
 reset role;
 update external_org_bindings set activated_at = null where org_id='a6050000-0000-0000-0000-000000000002' and external_tier='odoo';
 set local role service_role;

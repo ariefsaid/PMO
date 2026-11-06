@@ -6,7 +6,7 @@
 -- an allow-list, not a patch: any other key is refused, so it cannot overwrite the connection's database, plan or company.
 create or replace function public.set_odoo_org_config(p_org_id uuid, p_actor_id uuid, p_key text, p_value jsonb)
 returns void language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_state jsonb; v_kind text; v_ids text[];
+declare v_state jsonb; v_kind text; v_old jsonb; v_pairs jsonb; v_key text; v_id text;
 begin
   if current_setting('role', true) <> 'service_role' then raise exception 'service role required' using errcode = '42501'; end if;
   v_state := public.actor_authorization_state(p_org_id, p_actor_id);
@@ -18,7 +18,6 @@ begin
   if v_kind is null then raise exception 'unknown config key' using errcode = '22023'; end if;
   if p_key = 'default_warehouse_id' then
     if jsonb_typeof(p_value) <> 'string' then raise exception 'an Odoo id is required' using errcode = '22023'; end if;
-    v_ids := array[p_value #>> '{}'];
   else
     if jsonb_typeof(p_value) <> 'object' then raise exception 'an object of Odoo ids is required' using errcode = '22023'; end if;
     if exists (select 1 from jsonb_each(p_value) e where jsonb_typeof(e.value) <> 'string' or e.value #>> '{}' = '') then
@@ -31,15 +30,28 @@ begin
     if p_key = 'unit_map' and exists (select 1 from jsonb_object_keys(p_value) k where length(k) not between 1 and 40) then
       raise exception 'unknown unit' using errcode = '22023';
     end if;
-    select array_agg(e.value #>> '{}') into v_ids from jsonb_each(p_value) e;
   end if;
-  -- every id is a live record of the right kind in THIS org's mirror (accounts: not a group or off-balance account)
-  if exists (select 1 from unnest(coalesce(v_ids, '{}'::text[])) v where not exists (
-       select 1 from public.external_master_records m
-        where m.org_id = p_org_id and m.external_tier = 'odoo' and m.kind = v_kind and m.external_id = v and m.active and m.tombstoned_at is null
-          and (v_kind <> 'account' or coalesce(m.attrs ->> 'account_type', '') <> all (array['view', 'off_balance'])))) then
-    raise exception 'not a usable %', v_kind using errcode = 'P0001';
+  -- Only what this call changes is checked: a value saved earlier and sent back unchanged is not re-validated, so a mapping gone stale
+  -- (its Odoo record archived, its PMO unit no longer used) can never block saving a different one. Every changed id is a live
+  -- record of the right kind in THIS org's mirror; an account default also has a type that fits the default's name.
+  select config -> p_key into v_old from public.external_org_bindings where org_id = p_org_id and external_tier = 'odoo' and status = 'active';
+  if p_key = 'default_warehouse_id' then
+    if p_value is distinct from v_old then v_pairs := jsonb_build_object('', p_value); end if;
+  else
+    select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) into v_pairs from jsonb_each(p_value) e where (v_old -> e.key) is distinct from e.value;
   end if;
+  for v_key, v_id in select e.key, e.value #>> '{}' from jsonb_each(coalesce(v_pairs, '{}'::jsonb)) e loop
+    if not exists (
+         select 1 from public.external_master_records m
+          where m.org_id = p_org_id and m.external_tier = 'odoo' and m.kind = v_kind and m.external_id = v_id and m.active and m.tombstoned_at is null
+            and (v_kind <> 'account' or coalesce(m.attrs ->> 'account_type', '') = any (case v_key
+                   when 'payable' then array['liability_payable'] when 'receivable' then array['asset_receivable']
+                   when 'bank' then array['asset_cash'] when 'cash' then array['asset_cash']
+                   when 'expense' then array['expense', 'expense_direct_cost'] when 'stock_valuation' then array['asset_current']
+                   when 'stock_consumption' then array['expense_direct_cost'] else array[]::text[] end))) then
+      raise exception 'not a usable %: %', v_kind, v_key using errcode = 'P0001';
+    end if;
+  end loop;
   update public.external_org_bindings
      set config = coalesce(config, '{}'::jsonb) || jsonb_build_object(p_key, p_value, p_key || '_set_by', p_actor_id, p_key || '_set_at', now()), updated_at = now()
    where org_id = p_org_id and external_tier = 'odoo' and status = 'active';
