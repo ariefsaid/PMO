@@ -53,6 +53,10 @@ export interface RevenueRepository {
   listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]>;
   /** Dashboard: Paid receipts, only the columns the collected figure reads. */
   listPaidPaymentFacts(): Promise<PaidPaymentFact[]>;
+  /** Dashboard empty-state evidence: whether the org holds ANY client invoice, any status. */
+  hasAnySalesInvoice(): Promise<boolean>;
+  /** Dashboard empty-state evidence: whether the org holds ANY incoming payment, any status. */
+  hasAnyIncomingPayment(): Promise<boolean>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */

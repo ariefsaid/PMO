@@ -64,6 +64,33 @@ export function usePaidPaymentFacts(enabled = true) {
   });
 }
 
+/** Dashboard empty-state evidence (issue 1973): does the org hold ANY client invoice, any status?
+ *  The open-status facts read cannot tell — a drafted-only org is not an inactive org. Same
+ *  `salesInvoices` key prefix, so revenue mutations refresh it alongside the figures. */
+export function useHasAnySalesInvoice(enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<boolean>({
+    queryKey: ['salesInvoices', orgId, 'exists'],
+    queryFn: () => repositories.revenue.hasAnySalesInvoice(),
+    enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
+/** Dashboard empty-state evidence (issue 1973): does the org hold ANY incoming payment, any status?
+ *  The Scheduled-only org is exactly the case the Paid-status facts read misses. */
+export function useHasAnyIncomingPayment(enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<boolean>({
+    queryKey: ['incomingPayments', orgId, 'exists'],
+    queryFn: () => repositories.revenue.hasAnyIncomingPayment(),
+    enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
 /** Lazy read-only ERP evidence for an invoice detail; never fetched for PMO-native invoices. */
 export function useSalesInvoiceEvidence(id: string | undefined, enabled: boolean) {
   const { currentUser } = useAuth();
