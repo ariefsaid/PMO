@@ -21,8 +21,8 @@ import { instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/
 import { useEntityForm } from '@/src/components/ui';
 import type { NoteBlock } from '@/src/lib/meetingNotes';
 import type { MinutesEditorHandle } from '@/src/components/meetings/MinutesEditor';
+import { MinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
 
-const MinutesEditor = React.lazy(() => import('@/src/components/meetings/MinutesEditor'));
 interface Values { title: string; occurredAt: string; location: string; projectId: string }
 const makeValidate = (t: TFunction) => (values: Values): Partial<Record<keyof Values, string>> => {
   const errors: Partial<Record<keyof Values, string>> = {};

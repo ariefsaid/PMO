@@ -7,22 +7,16 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectBilling } from '@/src/hooks/useProgressBilling';
+import {
+  BudgetTab, BillingTab, ContractCascade, DocumentsTab, MaterialsTab,
+  ProcurementTab, ProjectSCurve, TasksTab, WorkOrdersTab, preloadProjectTab,
+} from './lazyProjectChunks';
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
-
-const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
-const ProcurementTab = React.lazy(() => import('./tabs/ProcurementTab'));
-const MaterialsTab = React.lazy(() => import('./tabs/MaterialsTab'));
-const TasksTab = React.lazy(() => import('./tabs/TasksTab'));
-const DocumentsTab = React.lazy(() => import('./tabs/DocumentsTab'));
-const WorkOrdersTab = React.lazy(() => import('./tabs/WorkOrdersTab'));
-const BillingTab = React.lazy(() => import('./tabs/BillingTab'));
-const ContractCascade = React.lazy(() => import('./ContractCascade').then((module) => ({ default: module.ContractCascade })));
-const ProjectSCurve = React.lazy(() => import('./ProjectSCurve'));
 
 import { AREAS, type Area } from './projectDetailAreas';
 
@@ -204,20 +198,36 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const onCountChange = panel === 'procurement' ? reportProcurementCount
     : panel === 'tasks' ? reportTaskCount
       : panel === 'documents' ? reportDocumentCount : undefined;
+  // #1834: a tab's chunk downloads on hover, focus and pointerdown — the same
+  // intent-driven preload the rail nav links use — instead of only after the
+  // click, where it lands behind the Suspense boundary as one more serial
+  // step. preloadProjectTab is memoized per chunk, so repeats are free.
+  const preloadTabChunk = (event: React.PointerEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
+    const prefix = `${tabId('project-detail', '')}`;
+    const tab = (event.target as HTMLElement).closest('[role="tab"]');
+    if (!tab || !tab.id.startsWith(prefix)) return;
+    preloadProjectTab(tab.id.slice(prefix.length) as Area);
+  };
   return (
     <>
       {header}
-      <Tabs<Area>
-        items={items}
-        value={panel}
-        onChange={setArea}
-        ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
-        idBase="project-detail"
-        // Tabs scrolls the active item with inline:nearest; this margin keeps its label clear of the right fade.
-        // The end padding lets the last tab scroll fully clear of the right fade, so no label is ever clipped (P5).
-        // P5: tighter phone padding lets the next tab peek into the fade, so the row reads as scrollable.
-        className="mb-0! pr-8 max-md:[&_[role=tab]]:px-2.5 max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
-      />
+      <div
+        onPointerOver={preloadTabChunk}
+        onPointerDown={preloadTabChunk}
+        onFocusCapture={preloadTabChunk}
+      >
+        <Tabs<Area>
+          items={items}
+          value={panel}
+          onChange={setArea}
+          ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
+          idBase="project-detail"
+          // Tabs scrolls the active item with inline:nearest; this margin keeps its label clear of the right fade.
+          // The end padding lets the last tab scroll fully clear of the right fade, so no label is ever clipped (P5).
+          // P5: tighter phone padding lets the next tab peek into the fade, so the row reads as scrollable.
+          className="mb-0! pr-8 max-md:[&_[role=tab]]:px-2.5 max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
+        />
+      </div>
       <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-4 md:pt-8">
         <Suspended>
           {panel === 'overview'
