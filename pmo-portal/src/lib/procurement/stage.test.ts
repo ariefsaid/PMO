@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stageForStatus, stageDates, payStepLabel, stageLabelForStatus } from '../stage';
+import { stageForStatus, stageDates, payStepLabel, stageLabelForStatus } from './stage';
 
 describe('procurement stages', () => {
   it.each([

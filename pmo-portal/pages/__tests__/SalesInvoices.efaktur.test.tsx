@@ -8,8 +8,8 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { formatDateOnly } from '@/src/lib/format';
-import { FinanceI18nTestProvider } from './financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from './financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const h = vi.hoisted(() => ({
   invoices: [] as SalesInvoiceRow[],

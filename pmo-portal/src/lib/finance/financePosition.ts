@@ -2,7 +2,7 @@ import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
-import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
 
 export type CurrencyTotals = Record<string, number>;
 

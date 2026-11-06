@@ -99,6 +99,23 @@ export default tseslint.config(
       ],
     },
   },
+  // ── pages import boundary (#1456): src/ never imports pages/ ─────────
+  // The dependency graph runs one way: pages → components → lib. Shared
+  // calculations live under src/lib; pages may import them, src must not
+  // reach back into pages/. Tests are exempt: they legitimately render the
+  // page components under test.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['**/__tests__/**', '**/*.test.*', '**/*.spec.*'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['**/pages/**', '**/pages'],
+          message: 'src/ must not import from pages/ — shared code belongs under src/lib (the dependency runs pages → components → lib, #1456).',
+        }],
+      }],
+    },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
