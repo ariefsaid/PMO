@@ -6,6 +6,20 @@ import path from 'node:path';
 // local runs that don't touch those specs (scripts/e2e-local.sh sets it). CI never sets it.
 const consentLane = process.env.E2E_CONSENT_LANE !== '0';
 
+// #1968: which server serves the app — 'dev' (Vite dev server, fast rebuilds, HMR; local default) or
+// 'build' (a real production bundle: `vite build` + `vite preview` on the same ports; CI default).
+// CI ran e2e against the dev server: every page load made ~3,900 module requests (2.5–2.7 s per
+// load on the runner), which both slowed CI and diverged from what production serves. The build
+// serves ~100 requests per load. Locally the dev server stays the default for fast iteration;
+// opt into build parity with E2E_SERVER=build. The two webServers build to SEPARATE outDirs
+// (`dist`, `dist-consent`): Playwright starts them CONCURRENTLY and two vite builds cannot share
+// one output directory. The commands call vite directly (not `npm run build`) to skip the postbuild
+// sourcemap step — it is a deploy-only concern (AC-PHO-011) and would read the wrong outDir here.
+const e2eServer = process.env.E2E_SERVER ?? (process.env.CI ? 'build' : 'dev');
+if (e2eServer !== 'dev' && e2eServer !== 'build') {
+  throw new Error(`E2E_SERVER must be 'dev' or 'build', got '${e2eServer}'`);
+}
+
 // Acceptance (BDD) layer. Each spec maps 1:1 to an AC-### from docs/specs/*.spec.md.
 export default defineConfig({
   testDir: './e2e',
@@ -89,7 +103,9 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev',
+      command: e2eServer === 'build'
+        ? 'npx vite build && npx vite preview --port 3000 --strictPort'
+        : 'npm run dev',
       url: 'http://localhost:3000',
       // The authoritative CI/local-promotion lane must serve this checkout, never
       // silently attach to port 3000 from another worktree.
@@ -100,7 +116,11 @@ export default defineConfig({
       // Analytics-ENABLED lane for AC-CON-003 only. The key is a syntactically valid throwaway (it
       // must satisfy isValidPosthogKey); the host is unroutable on purpose, so every PostHog request
       // is trivially identifiable and is intercepted by the spec rather than actually leaving.
-      command: 'npm run dev -- --port 3100 --strictPort',
+      // In build mode the analytics env below is baked in at `vite build` time (import.meta.env is
+      // a build-time substitution) — exactly what the lane's CONTROL assertion verifies each run.
+      command: e2eServer === 'build'
+        ? 'npx vite build --outDir dist-consent && npx vite preview --outDir dist-consent --port 3100 --strictPort'
+        : 'npm run dev -- --port 3100 --strictPort',
       url: 'http://localhost:3100',
       reuseExistingServer: false,
       timeout: 120_000,
