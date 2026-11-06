@@ -30,7 +30,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; reconcileError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -109,6 +109,7 @@ function harness(o: Opts = {}) {
     supabaseRpc('replace_connect_proposals', () => jsonResponse(null)),
     supabaseRpc('fail_connect_run', () => jsonResponse('staging')),
     supabaseRpc('apply_connect_outcome', () => jsonResponse(null)),
+    supabaseRpc('reconcile_odoo_links', () => (o.reconcileError ? jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) : jsonResponse(0))),
     { label: 'odoo-json2', host: ODOO, pathname: /^\/json\/2\//, response: (c: FetchCall) => {
       odooCalls++;
       const key = o.rejectAfter !== undefined && odooCalls > o.rejectAfter ? 'revoked' : (c.headers.get('authorization') ?? '');
@@ -678,5 +679,28 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
     assertEquals(purchaseReads(r.secondTick).length, 0);
     assertEquals(rpcCall(r.secondTick, 'apply_odoo_purchase_page').length, 0);
     assertEquals(r.secondSnapshot, r.firstSnapshot);
+  });
+});
+
+describe('odooSweep — #1504 S7 link reconciliation (AC-ODC-054)', () => {
+  it('a clean tick reconciles this org\'s project links once, after the directory pages are saved', async () => {
+    const r = await sweep();
+    const calls = rpcCall(r.calls, 'reconcile_odoo_links');
+    assertEquals(calls.map((c) => c.bodyJson), [{ p_org_id: ORG }]);
+    const lastPage = r.calls.map((c) => c.url.pathname === '/rest/v1/rpc/apply_odoo_master_page').lastIndexOf(true);
+    assert(lastPage >= 0 && lastPage < r.calls.indexOf(calls[0]));
+  });
+
+  it('a tick that cannot reach Odoo still reconciles from the mirror it already holds', async () => {
+    const r = await sweep({ rejectAfter: 0 });
+    assertEquals('ok' in r.result && r.result.failed, 'key-rejected');
+    assertEquals(rpcCall(r.calls, 'reconcile_odoo_links').length, 1);
+  });
+
+  it('a reconcile that fails does not fail the tick: the connection state is still stored and the lock released', async () => {
+    const r = await sweep({ reconcileError: true });
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals(stored(r.calls)?.connection.state, 'healthy');
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
   });
 });

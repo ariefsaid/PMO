@@ -3,6 +3,7 @@
  * the org's default payment journal (FR-OPP-093, OQ-OPP-6), the C5 tax-prepaid account, and customer-advance account. Odoo is not called:
  * the lists are mirrored, and writes go through actor-checked RPCs (0505, 0509, 0512, 0540) that enforce their role and scope.
  */
+import { mapProposal, saveMapDefaults } from './config.ts';
 import { odooError, type OdooCtx } from './router.ts';
 
 const JOURNAL_TYPES = new Set(['bank', 'cash']);
@@ -36,6 +37,10 @@ async function journals(c: OdooCtx): Promise<Journal[] | null> {
 
 /** What the setup page offers for the payment journal: the one bank journal, a choice, or nothing; plus any default already set. */
 export async function proposeConfig(c: OdooCtx): Promise<Response> {
+  // The one-time map (#1504 S7) asks for its own proposal, so a failure in one never hides the other.
+  if (c.body.map === true) {
+    try { return c.respond(await mapProposal(c)); } catch { return odooError(c, 'The proposal could not be read', 'STORE_FAILED', 500); }
+  }
   const [list, binding] = await Promise.all([
     journals(c),
     c.sc.from('external_org_bindings').select('config').eq('org_id', c.orgId).eq('external_tier', 'odoo').maybeSingle(),
@@ -52,6 +57,7 @@ export async function proposeConfig(c: OdooCtx): Promise<Response> {
 
 /** Saves one Odoo default through its actor-checked setter. */
 export async function saveDefaults(c: OdooCtx): Promise<Response> {
+  if (['account_defaults', 'unit_map', 'default_warehouse_id'].some((k) => Object.hasOwn(c.body, k))) return saveMapDefaults(c);
   const fields = ['customer_advance_account_ref', 'tax_prepaid_account_id', 'default_payment_journal_id'];
   if (fields.filter((field) => Object.hasOwn(c.body, field)).length > 1) {
     return odooError(c, 'Save one Odoo default at a time', 'BAD_REQUEST', 400);

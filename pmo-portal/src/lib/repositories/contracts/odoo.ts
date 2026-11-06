@@ -1,4 +1,5 @@
 import type { ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
+import type { ConfigProposal } from '@/src/lib/adapterSeam/odoo/configProposal';
 
 export interface MasterRecord {
   id: string;
@@ -89,3 +90,24 @@ export interface OdooRepository {
   resolveHeldRevenueCommand(input: { outboxId: string; kind: RevenueCommandKind; resolution: 'adopt' | 'absent'; documentNumber?: string; reason?: string }): Promise<void>;
   setup<T>(setupAction: string, input?: Record<string, unknown>): Promise<T>;
 }
+
+/** What `propose-config` returns (FR-ODC-061/090): proposals over this org's mirror, the records to choose from, and what is saved now. */
+export interface OdooConfigProposalRead {
+  proposals: ConfigProposal[];
+  accounts: Array<{ id: string; code: string | null; name: string; type: string | null }>;
+  uoms: Array<{ id: string; name: string }>;
+  warehouses: Array<{ id: string; code: string | null; name: string }>;
+  units: Array<{ unit: string; mapped: boolean }>;
+  current: { account_defaults: Record<string, string>; unit_map: Record<string, string>; default_warehouse_id: string | null };
+  /** Saved settings (`account_defaults.bank`, `unit_map.m`, `default_warehouse_id`) whose Odoo record is no longer active. */
+  attention: string[];
+}
+/** What `list-projects` returns for tier odoo. With no plan chosen it offers the plans and no accounts. */
+export interface OdooProjectLinksRead {
+  planId: number | null;
+  plans?: Array<{ id: string; name: string }>;
+  accounts: Array<{ id: string; code: string | null; name: string }>;
+  truncated?: boolean;
+  linked: Array<{ projectId: string; accountId: string; attention: string | null }>;
+}
+export interface SaveDefaultsInput { account_defaults?: Record<string, string>; unit_map?: Record<string, string>; default_warehouse_id?: string }
