@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 //
-// SECURITY: the URL/token sanitiser used to run on event `properties` only. posthog-js also puts the
-// landing URL/referrer into TOP-LEVEL `$set` / `$set_once` (`$initial_current_url`, `$initial_referrer`
-// ...) and into the `/flags` request's `person_properties` -- neither passes through `property_denylist`.
-// This inits the REAL SDK on a URL whose query + hash carry token-like values, intercepts every transport
-// (fetch / XHR / sendBeacon), decodes gzip / base64 bodies, and asserts the markers appear in NO body.
+// Inits the real SDK on a URL with query + hash values, intercepts every transport, decodes bodies,
+// and asserts person properties, flags requests and the SDK's browser storage carry only sanitised URLs.
 import { describe, expect, it, vi } from 'vitest';
 import posthog from 'posthog-js';
 import { analyticsClient } from './client';
@@ -22,10 +19,10 @@ const config: AnalyticsConfig = {
   demoAccount: 'local',
 };
 
-const HASH_TOKEN = 'HASHSECRET9f8e7d6c5b4a';
-const QUERY_TOKEN = 'QUERYSECRET1a2b3c4d5e6f';
-const REF_TOKEN = 'REFSECRET0p9o8i7u6y5t';
-const MARKERS = [HASH_TOKEN, QUERY_TOKEN, REF_TOKEN];
+const HASH_MARK = 'HASHMARK9f8e7d6c5b4a';
+const QUERY_MARK = 'QUERYMARK1a2b3c4d5e6f';
+const REF_MARK = 'REFMARK0p9o8i7u6y5t';
+const MARKS = [HASH_MARK, QUERY_MARK, REF_MARK];
 
 type Sent = { url: string; variants: string[] };
 
@@ -88,16 +85,16 @@ const { sent } = vi.hoisted(() => {
   return { sent };
 });
 
-describe('person properties never carry the landing URL tokens -- the REAL SDK, every transport', () => {
-  it('no request body (events, $set/$set_once, /flags, decide) contains URL query/hash values', async () => {
-    window.history.pushState({}, '', `/login?token=${QUERY_TOKEN}#access_token=${HASH_TOKEN}`);
+describe('person properties are sanitised (real SDK, every transport)', () => {
+  it('every request body and the browser storage carry only sanitised URLs', async () => {
+    window.history.pushState({}, '', `/login?token=${QUERY_MARK}#access_token=${HASH_MARK}`);
     Object.defineProperty(document, 'referrer', {
-      value: `https://idp.example/cb?code=${REF_TOKEN}#frag=${REF_TOKEN}`,
+      value: `https://idp.example/cb?code=${REF_MARK}#frag=${REF_MARK}`,
       configurable: true,
     });
     analyticsClient.init(config);
     posthog.capture('app_route_viewed', { route: '/login' });
-    posthog.identify('user-1', { role: 'admin' });
+    posthog.identify('user-1', { role: 'admin', seen_at: `https://app.example/x?q=${QUERY_MARK}#h=${HASH_MARK}` });
     posthog.capture('after_identify');
     posthog.setPersonPropertiesForFlags({ plan: 'x' });
     posthog.reloadFeatureFlags();
@@ -111,12 +108,17 @@ describe('person properties never carry the landing URL tokens -- the REAL SDK, 
     // positive controls: the transport really saw events and a /flags call (else this is vacuous)
     expect(sent.some((s) => /\/(e|batch|i\/v0\/e)\/?(\?|$)/.test(s.url))).toBe(true);
     expect(sent.some((s) => /\/flags\//.test(s.url))).toBe(true);
-    const leaks: string[] = [];
+    const found: string[] = [];
+    // The SDK's persisted copies (cookie, localStorage, sessionStorage) are readable by the page and sent
+    // back with requests, so they are checked the same way.
+    const stored = [document.cookie, ...[localStorage, sessionStorage].map((st) => JSON.stringify({ ...st }))];
+    for (const v of stored) for (const mark of MARKS) if (v.includes(mark)) found.push(`browser storage carries ${mark}`);
+    expect(stored.join('').includes('phc_')).toBe(true); // control: the SDK did persist state
     for (const s of sent) {
       for (const v of s.variants) {
-        for (const marker of MARKERS) if (v.includes(marker)) leaks.push(`${s.url} leaks ${marker}`);
+        for (const mark of MARKS) if (v.includes(mark)) found.push(`${s.url} carries ${mark}`);
       }
     }
-    expect(leaks).toEqual([]);
+    expect(found).toEqual([]);
   }, 15000);
 });

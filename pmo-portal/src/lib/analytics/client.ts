@@ -118,23 +118,59 @@ function redactExceptionProperties(
     }
   }
   sanitizeNestedEventValue(properties);
-  // Person properties are TOP-LEVEL on the capture result (`$set`, `$set_once`: `$initial_current_url`,
-  // `$initial_referrer`, ...), not inside `properties`, so they need the same pass.
+  // Same pass for person properties (`$set`, `$set_once`).
   sanitizeNestedEventValue(captureResult.$set);
   sanitizeNestedEventValue(captureResult.$set_once);
   return captureResult;
 }
 
+type PersistenceLike = {
+  props?: Record<string, unknown>;
+  save?: () => void;
+  get_initial_props?: () => unknown;
+  set_initial_person_info?: () => void;
+  update_referrer_info?: () => void;
+};
+
+// Stored URL-bearing values (cookie / localStorage / sessionStorage copies).
+const PERSISTED_URL_KEYS = ['$initial_person_info', '$referrer', '$client_session_props'];
+
+function sanitizePersisted(persistence: PersistenceLike): void {
+  const props = persistence.props;
+  if (!props) return;
+  for (const key of PERSISTED_URL_KEYS) {
+    if (props[key] !== undefined) props[key] = sanitizeNestedEventValue(props[key]);
+  }
+  persistence.save?.();
+}
+
 /**
- * posthog-js feeds `persistence.get_initial_props()` (`$initial_current_url`, `$initial_referrer`, ...)
- * into every `/flags` request as `person_properties`, and into `$set_once`. It is rebuilt from the raw
- * landing URL/referrer after every `reset()`, so wrap the reader (one choke point), not the stored copy.
+ * Sanitises initial person properties at their reader and at their stored copies; holds across
+ * `reset()` because the writers are wrapped too.
  */
 function sanitizeInitialPersonProps(ph: unknown): void {
-  const persistence = (ph as { persistence?: { get_initial_props?: () => unknown } }).persistence;
+  const { persistence, sessionPersistence } = ph as {
+    persistence?: PersistenceLike;
+    sessionPersistence?: PersistenceLike;
+  };
   const read = persistence?.get_initial_props;
-  if (!persistence || typeof read !== 'function') return;
+  if (!persistence || typeof read !== 'function') {
+    if (import.meta.env.DEV) console.warn('[analytics] posthog persistence hook missing; person properties unsanitised');
+    return;
+  }
   persistence.get_initial_props = () => sanitizeNestedEventValue(read.call(persistence));
+  for (const store of [persistence, sessionPersistence]) {
+    if (!store) continue;
+    for (const writer of ['set_initial_person_info', 'update_referrer_info'] as const) {
+      const original = store[writer];
+      if (typeof original !== 'function') continue;
+      store[writer] = () => {
+        original.call(store);
+        sanitizePersisted(store);
+      };
+    }
+    sanitizePersisted(store);
+  }
 }
 
 function sanitizeNestedEventValue(value: unknown): unknown {
@@ -320,6 +356,7 @@ export function buildPosthogInitOptions(config: AnalyticsConfig): Parameters<typ
       maskCapturedNetworkRequestFn: redactUrl,
     },
     before_send: redactExceptionProperties,
+    disable_capture_url_hashes: true,
     loaded: (ph) => sanitizeInitialPersonProps(ph),
   };
 }
