@@ -33,7 +33,7 @@ Chunk size is the gzip of the built file (the preview server does not compress; 
 
 **How to re-run:** `cd pmo-portal && npx vite build --mode lh && npx vite preview --port 4199`, then from the
 repo root `scripts/with-db-lock.sh node scripts/perf/lighthouse-flow.mjs [baseUrl]` (`LH_RUNS=n` sets the run count; default 3).
-`--mode lh` keeps the build pointed at the local stack instead of `.env.production`.
+`--mode lh` loads `.env.local` and not `.env.production` (which holds only two feature flags), so the build points at the local stack with those flags unset. The script refuses a non-localhost `baseUrl` unless `--allow-remote` is passed, and reads chunk sizes from the default `pmo-portal/dist`.
 
 ## Audit result
 

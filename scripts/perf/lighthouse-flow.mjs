@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Lighthouse user flow: signs in through the real /login form, then one navigation step per page.
 // Desktop, 4x CPU. Run against a PRODUCTION build (npm run build && npm run preview -- --port 4199).
-// usage: node scripts/perf/lighthouse-flow.mjs [baseUrl]   (default http://localhost:4199)
+// usage: node scripts/perf/lighthouse-flow.mjs [baseUrl] [--allow-remote]   (default http://localhost:4199)
+// Types the seeded password into the login form, so non-localhost targets are refused without --allow-remote.
+// Reads chunk sizes from pmo-portal/dist (default outDir).
 // Prints a markdown table.
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -16,7 +18,13 @@ const puppeteer = req('puppeteer-core');
 const { startFlow } = await import(req.resolve('lighthouse'));
 const desktop = (await import(req.resolve('lighthouse/core/config/desktop-config.js'))).default;
 
-const base = process.argv[2] || 'http://localhost:4199';
+const args = process.argv.slice(2);
+const allowRemote = args.includes('--allow-remote');
+const base = args.find((a) => !a.startsWith('--')) || 'http://localhost:4199';
+if (!allowRemote && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(base).hostname)) {
+  console.error(`refusing non-localhost target ${base}: this script types the seeded password into /login. Pass --allow-remote to override.`);
+  process.exit(1);
+}
 const password = 'Passw0rd!dev'; // seeded local-only password, same as e2e/helpers.ts SEED_PASSWORD
 const ROLES = [
   { role: 'Executive', email: 'exec@acme.test', pages: ['/', '/projects/:id', '/procurement', '/finance/receivables'] },
@@ -82,7 +90,7 @@ all.push(rows);
 }
 const rows = all[0].map((_, i) => all.map((r) => r[i]).sort((x, y) => x.score - y.score)[Math.floor(RUNS / 2)]);
 
-console.log('| Page | Role | LCP | TBT | CLS | Score | Largest JS chunk (transferred) |\n|---|---|---|---|---|---|---|');
+console.log('| Page | Role | LCP | TBT | CLS | Score | Largest JS chunk (gzip) |\n|---|---|---|---|---|---|---|');
 for (const r of rows) console.log(`| \`${r.route}\` | ${r.role} | ${r.lcp} | ${r.tbt} | ${r.cls} | ${r.score} | ${r.chunk} |`);
 console.log('\ndiagnostics:');
 for (const r of rows) console.log(`${r.role} ${r.route}: lcpEl=${r.lcpEl} longTasks=${r.long} bootup=${r.boot} unusedJS=${r.unused} top=${r.top} shift=${r.shift}`);
