@@ -98,6 +98,10 @@ import {
   type StatementReportBatchService,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/statementReportRefresh.ts';
 export { STATEMENT_READ_REQUEST_TIMEOUT_MS, STATEMENT_READ_STAGE_TIMEOUT_MS };
+import {
+  planChangeDrivenStatements, settleChangeDrivenRun,
+  type ChangeDrivenDecision, type ChangeDrivenRun, type ChangeDrivenService,
+} from './statementChangeDriven.ts';
 export const STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS = 5_000;
 export const STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS = 7_000;
 import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
@@ -106,7 +110,7 @@ import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDe
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { fetchWithDeadline, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { readJsonBounded, fetchWithDeadline, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 import { recordErrorEvent, type ErrorEventSupabaseLike } from '../_shared/errorEvent.ts';
 import {
   lookupConfirmedErpEmployee,
@@ -526,7 +530,15 @@ export async function reconcileOrgOutbox(
     } catch (err) {
       // A retryable reconcile (e.g. a quarantined row still in its window → "reconciling") is expected
       // mid-recovery; record + continue so one candidate does not abort the pass.
-      errors.push({ id: candidate.id, error: err instanceof Error ? err.message : String(err) });
+      const message = err instanceof Error ? err.message : String(err);
+      // A failed payment whose bill a newer payment now holds retries on the next tick once that one settles
+      // (0682); it is a deferral, not a fault to report on every tick. The retry path CLASSIFIES the raw 23505
+      // before this catch sees it (dispatch.ts `toDispatchError` → the named `payment-in-flight-for-bill`
+      // refusal, #1912), so match that code first; the constraint-name match below stays for a bypassed
+      // classification (e.g. an op raised straight off a PostgREST error object).
+      if ((err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill') continue;
+      if (message.includes('external_command_outbox_one_inflight_erpnext_payment_per_bill')) continue;
+      errors.push({ id: candidate.id, error: message });
     }
   }
   return { reconciled, errors };
@@ -584,6 +596,8 @@ interface OrgBinding {
 export interface NativeStatementPassResult {
   errorCode?: string;
   status?: 'published' | 'progress' | 'failed';
+  /** The generation a `published` pass committed (settles a change-driven run). */
+  snapshotId?: string;
 }
 
 /** How the statement pass was treated on this org's tick (reported in `perOrg[].statement`):
@@ -597,7 +611,11 @@ export interface ErpSweepCycleDeps {
   claimStatementLock?: (orgId: string, holder: string) => Promise<boolean>;
   releaseStatementLock?: (orgId: string, holder: string) => Promise<void>;
   /** Native statement collection is independent of raw-ledger catch-up and legacy readiness. */
-  refreshNativeStatements?: (org: OrgBinding) => Promise<NativeStatementPassResult>;
+  refreshNativeStatements?: (org: OrgBinding, opts?: { bypassMarker?: boolean }) => Promise<NativeStatementPassResult>;
+  /** Change-driven statements: decide whether this tick runs a refresh (`legacy` keeps the hourly cadence). Optional so
+   *  every existing cycle fixture stays byte-for-byte; absent ⇒ legacy. */
+  planChangeDrivenStatements?: (org: OrgBinding) => Promise<ChangeDrivenDecision>;
+  settleChangeDrivenStatements?: (org: OrgBinding, run: ChangeDrivenRun, result: NativeStatementPassResult) => Promise<void>;
   reconcileOrgOutbox: (org: OrgBinding) => Promise<ReconcileOrgOutboxResult>;
   /** `complete: false` = the bounded walk stopped early (budget/page quantum); it resumes next tick. */
   sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string; complete?: boolean }>;
@@ -725,11 +743,11 @@ export async function runErpSweepCycle(
     let statement: NativeStatementPassOutcome | undefined = deps.refreshNativeStatements === undefined
       ? undefined
       : statementDue ? 'skipped' : 'not-due';
-    const runStatementPass = async (): Promise<void> => {
-      if (!deps.refreshNativeStatements) return;
+    const runStatementPass = async (opts?: { bypassMarker?: boolean }): Promise<NativeStatementPassResult> => {
+      if (!deps.refreshNativeStatements) return {};
       let result: NativeStatementPassResult;
       try {
-        result = await deps.refreshNativeStatements(org);
+        result = await deps.refreshNativeStatements(org, opts);
       } catch {
         errors.push('native-statement:native-refresh-failed');
         result = { status: 'failed' };
@@ -751,6 +769,7 @@ export async function runErpSweepCycle(
           errors.push(`statement-pass-mark:${err instanceof Error ? err.message : String(err)}`);
         }
       }
+      return result;
     };
     try {
     // (1) outbox recovery FIRST.
@@ -821,6 +840,26 @@ export async function runErpSweepCycle(
     }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
     // tick skips them (the money passes (5)–(7) above have already run).
+    // Change-driven statements run on EVERY tick (money-only included) so "Refresh now" and a confirmed posting are
+    // not held up to an hourly window. `legacy` (feature off, checker error, any error here) keeps today's hourly pass.
+    let changeDriven = false;
+    if (deps.planChangeDrivenStatements && deps.refreshNativeStatements && deps.forceStatementPass !== true) {
+      let decision: ChangeDrivenDecision = { kind: 'legacy' };
+      try {
+        decision = await deps.planChangeDrivenStatements(org);
+      } catch {
+        errors.push('statement-plan:failed');
+      }
+      changeDriven = decision.kind !== 'legacy';
+      if (decision.kind === 'run' && !pastDeadline()) {
+        const result = await runStatementPass({ bypassMarker: true });
+        try {
+          await deps.settleChangeDrivenStatements?.(org, decision, result);
+        } catch (err) {
+          errors.push(`statement-settle:${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
     let sweep: { applied: number } | undefined;
     let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
     if (hourly) {
@@ -856,7 +895,7 @@ export async function runErpSweepCycle(
       }
       // Native report capture is independently resumable; raw ledger readiness never gates it. 0642: it
       // also has its own hourly marker — a due full run no longer implies a statement pass.
-      if (deps.refreshNativeStatements && statementDue && stillTime()) {
+      if (deps.refreshNativeStatements && statementDue && !changeDriven && stillTime()) {
         await runStatementPass();
       }
       // (3) ledger-mirror feed.
@@ -3781,9 +3820,19 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
       const { error } = await serviceClient.rpc('release_erp_sweep_lock', { p_org_id: orgId, p_holder: holder });
       if (error) throw new Error(`statement lock release failed: ${error.code ?? 'unknown'}`);
     },
-    refreshNativeStatements: async (org) => {
+    planChangeDrivenStatements: async (org) => {
+      // Feature off ⇒ today's path (which returns {} for a switched-off module).
+      if (featureDisabled(org, 'financial_statements')) return { kind: 'legacy' };
+      return await planChangeDrivenStatements(
+        serviceClient as unknown as ChangeDrivenService, org, () => erpClientForOrg(serviceClient, org, erpAuth), Date.now(),
+      );
+    },
+    settleChangeDrivenStatements: (org, run, result) =>
+      settleChangeDrivenRun(serviceClient as unknown as ChangeDrivenService, org, run, result),
+    refreshNativeStatements: async (org, opts) => {
       // Recheck after the org lease: another invocation may have completed since the candidate read.
-      if (!forceFull) {
+      // A change-driven run was admitted by the DB (nightly/intent/first publication), so it bypasses the hourly marker.
+      if (!forceFull && !opts?.bypassMarker) {
         const { data, error } = await serviceClient.from('erp_statement_pass_run')
           .select('completed_at').eq('org_id', org.orgId).maybeSingle();
         if (error) throw new Error('statement marker read failed');
@@ -3821,7 +3870,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
           service: serviceClient as unknown as StatementReportBatchService,
           remainingTickBudgetMs,
         });
-        return { errorCode: result.errorCode, status: result.status };
+        return { errorCode: result.errorCode, status: result.status, snapshotId: result.snapshotId };
       } catch {
         return { errorCode: 'native-refresh-failed', status: 'failed' as const };
       }
@@ -4393,7 +4442,7 @@ async function assertBudgetSweepGate(
 }
 
 /** The client's OWN fiscal calendar, read live (the same doctype read the foreground gate makes). */
-async function readErpFiscalYearsLive(
+export async function readErpFiscalYearsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   cache?: ErpAuthPairCache,
@@ -4419,7 +4468,7 @@ async function readErpFiscalYearsLive(
     throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
   }
   if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
-  const body = (await res.json()) as { data?: unknown };
+  const body = await readJsonBounded<{ data?: unknown }>(res, 'could not read the ERPNext fiscal calendar (unreachable)');
   const rows = Array.isArray(body.data) ? body.data : [];
   return rows.filter(
     (r): r is FiscalYearRow =>

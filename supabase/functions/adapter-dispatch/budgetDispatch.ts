@@ -25,7 +25,7 @@ import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/b
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
 import { ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
+import { readJsonBounded, fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
 import { resolveErpAuthPair, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
@@ -179,7 +179,7 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
   if (!res.ok) {
     throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
   }
-  const body = (await res.json()) as { data?: unknown };
+  const body = await readJsonBounded<{ data?: unknown }>(res, 'could not read the ERPNext fiscal calendar (unreachable)');
   const rows = Array.isArray(body.data) ? body.data : [];
   return rows.filter(
     (r): r is FiscalYearRow =>

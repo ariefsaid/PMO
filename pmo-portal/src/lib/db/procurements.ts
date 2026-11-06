@@ -56,6 +56,11 @@ const PROCUREMENT_LIST_DETAILS = [
 const SELECT_WITH_REFS =
   `${SELECT}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
 
+/** PERF-DASH-1: the dashboards' list. The shared list's money/stage inputs without the SQL open commitment (a
+ *  per-row function, most of the read's cost) and the search-only record-reference embeds, which no dashboard shows. */
+const SELECT_LEAN_DETAILS =
+  `*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), ${PROCUREMENT_LIST_DETAILS}`;
+
 const SELECT_WITH_SHARED_DETAILS =
   `${SELECT_SHARED_LIST}, ${PROCUREMENT_LIST_DETAILS}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
 
@@ -95,7 +100,11 @@ export interface ProjectCommittedSpend {
 export async function getProjectCommittedSpend(projectId: string): Promise<ProjectCommittedSpend> {
   const { data, error } = await supabase.rpc('project_committed_spend', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  const rows = data ?? [];
+  return parseCommittedSpend(data ?? []);
+}
+
+/** Maps `project_committed_spend` rows; shared by the per-endpoint read and the Overview read-model. */
+export function parseCommittedSpend(rows: Array<{ currency: string; amount: number | string; is_project_currency: boolean }>): ProjectCommittedSpend {
   const own = rows.find((row) => row.is_project_currency);
   return {
     amount: Number(own?.amount ?? 0),
@@ -151,9 +160,9 @@ export async function getProjectReservedSpend(projectId: string): Promise<Projec
  * the full cached list.
  */
 export async function listProcurements(
-  opts?: { withRefs?: boolean; withSharedDetails?: boolean },
+  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean },
 ): Promise<ProcurementWithRefs[]> {
-  const selection = opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
+  const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
     let query = supabase.from('procurements').select(selection).order('id', { ascending: true }).limit(limit);
     if (afterId !== null) query = query.gt('id', afterId);

@@ -68,6 +68,11 @@ test('AC-WOMS-012 Finance invoices a work order from the project plan', async ({
     await page.route('**/api/resource/**', (route) => route.abort());
 
     await page.goto('/projects/' + projectId + '/overview');
+    // AC-PERF-003: the billing-milestones block sits at the Overview foot, below the fold — a reader
+    // scrolls down to it, and approaching the slot is exactly what mounts the block (its reads defer
+    // to the viewport approach; the app scrolls its main content region, never window). The goal
+    // assertion is unchanged: the milestone shows "Planned".
+    await page.locator('[data-near-viewport]').scrollIntoViewIfNeeded();
     const milestone = page.getByTestId('billing-milestone-' + workOrderId);
     await expect(milestone.getByText(localized('Planned', 'Direncanakan'))).toBeVisible();
     await milestone.getByRole('link', { name: localized('Invoice ' + workOrderNumber, 'Tagih ' + workOrderNumber) }).click();
@@ -90,6 +95,9 @@ test('AC-WOMS-012 Finance invoices a work order from the project plan', async ({
     expect(Number(saved.data.amount)).toBe(amount);
 
     await page.goto('/projects/' + projectId + '/overview');
+    // Same journey as above: scroll the Overview foot's slot into view so the block mounts, then the
+    // goal assertion — the milestone now reads "In progress" — is checked unchanged.
+    await page.locator('[data-near-viewport]').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('billing-milestone-' + workOrderId).getByText(localized('In progress', 'Berjalan'))).toBeVisible();
   } catch (error) {
     testFailed = true;

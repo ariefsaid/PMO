@@ -33,4 +33,21 @@ describe('useProjectVatEditability', () => {
     expect(getVatEditability).not.toHaveBeenCalled();
     currentUser.org_id = 'org-1';
   });
+
+  it('AC-PERF-001 stays idle while disabled and reads when enabled flips true', async () => {
+    const result = { eligible: true, reason: null, hasInvoices: false };
+    getVatEditability.mockResolvedValue(result);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result: hook, rerender } = renderHook(
+      ({ enabled }) => useProjectVatEditability('project-1', enabled),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(hook.current.fetchStatus).toBe('idle');
+    expect(getVatEditability).not.toHaveBeenCalled();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(hook.current.data).toEqual(result));
+    expect(getVatEditability).toHaveBeenCalledExactlyOnceWith('project-1');
+  });
 });

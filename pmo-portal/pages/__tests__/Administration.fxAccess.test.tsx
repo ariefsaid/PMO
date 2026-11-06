@@ -42,6 +42,10 @@ vi.mock('@/src/auth/useIsOperator', () => ({
 }));
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [], isPending: false, isError: false }),
+  useUsersPage: () => ({ data: { rows: [], total: 0 }, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }),
+  useActiveAdminCounts: () => ({ data: {}, isPending: false, isError: false }),
+  useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+  useManagerChoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useUserMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useUsage', () => ({

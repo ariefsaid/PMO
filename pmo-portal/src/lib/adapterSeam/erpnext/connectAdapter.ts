@@ -1,6 +1,6 @@
 import { AdapterError } from '../contract.ts';
 import type { CensusDomain, ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
-import { createDoc, erpnextRequest, listDocsByFilters, withCommitDeadline, withProbeBudget, type ErpClientDeps } from './client.ts';
+import { createDoc, erpnextRequest, getDoc, listDocsByFilters, withCommitDeadline, withProbeBudget, type ErpClientDeps } from './client.ts';
 import { accountCategoryKey } from '../../budget/categoryAccountMap.ts';
 export const ERP_CONNECT_PAGE = 200;
 const SPECS: Partial<Record<MasterKind, Array<{ doctype: string; fields: string[]; company: boolean; map: (r: Record<string, unknown>) => NormalisedMaster }>>> = {
@@ -62,19 +62,41 @@ export async function erpnextSendProbe(client: ErpClientDeps, company: string, k
 }
 
 // ponytail: an item is created in the stock unit 'Nos' whatever the PMO unit says; map PMO units to ERP UOMs when a tenant needs it.
-function createBody(company: string, kind: MasterKind, record: PmoMaster): { doctype: string; body: Record<string, unknown>; id: (name: string) => string } {
+/** The group each created record is filed under: the ERP's own default (as its UI pre-fills it), a group node never. */
+const GROUPS = {
+  Supplier: { field: 'supplier_group', groups: 'Supplier Group', settings: 'Buying Settings' },
+  Customer: { field: 'customer_group', groups: 'Customer Group', settings: 'Selling Settings' },
+  Item: { field: 'item_group', groups: 'Item Group', settings: 'Stock Settings' },
+} as const;
+
+/** The settings default when it names a non-group, else the first non-group by name; none at all is a refusal the setup screen shows. */
+async function defaultGroup(client: ErpClientDeps, g: (typeof GROUPS)[keyof typeof GROUPS]): Promise<string> {
+  const leaf = (extra: unknown[][]) => listDocsByFilters(client, g.groups, [['is_group', '=', 0], ...extra] as never, ['name'], 1, 'name asc');
+  const configured = String(((await getDoc(client, g.settings, g.settings)) as Record<string, unknown> | null)?.[g.field] ?? '');
+  const hit = (configured && (await leaf([['name', '=', configured]]))[0]) || (await leaf([]))[0];
+  if (!hit) throw new AdapterError('commit-rejected', `The ERP has no non-group ${g.groups}. Add one in the ERP (or set it in ${g.settings}), then send again.`);
+  return String(hit.name);
+}
+
+function createBody(company: string, kind: MasterKind, record: PmoMaster): { doctype: string; body: (group: (g: (typeof GROUPS)[keyof typeof GROUPS]) => Promise<string>) => Promise<Record<string, unknown>>; id: (name: string) => string } {
   const [l] = lookupsFor(company, kind, record);
   if (kind === 'party') {
     const vendor = record.role !== 'client';
-    return { doctype: l.doctype, id: l.id, body: vendor
-      ? { supplier_name: record.name, tax_id: record.taxId ?? undefined, supplier_group: 'All Supplier Groups' }
-      : { customer_name: record.name, tax_id: record.taxId ?? undefined, customer_group: 'All Customer Groups' } };
+    const g = vendor ? GROUPS.Supplier : GROUPS.Customer;
+    return { doctype: l.doctype, id: l.id, body: async (group) => ({ [vendor ? 'supplier_name' : 'customer_name']: record.name, tax_id: record.taxId ?? undefined, [g.field]: await group(g) }) };
   }
-  if (kind === 'project') return { doctype: 'Project', id: l.id, body: { project_name: record.name, company } };
-  return { doctype: 'Item', id: l.id, body: { item_code: record.code ?? record.name, item_name: record.name, item_group: 'All Item Groups', stock_uom: 'Nos', is_stock_item: 0, is_purchase_item: 1 } };
+  if (kind === 'project') return { doctype: 'Project', id: l.id, body: async () => ({ project_name: record.name, company }) };
+  return { doctype: 'Item', id: l.id, body: async (group) => ({ item_code: record.code ?? record.name, item_name: record.name, item_group: await group(GROUPS.Item), stock_uom: 'Nos', is_stock_item: 0, is_purchase_item: 1 }) };
 }
 
 export function createErpnextConnectAdapter(client: ErpClientDeps, company: string): ConnectAdapter {
+  // read once per adapter (one send run): the promise is cached, a failed read is dropped so the next send retries
+  const groups = new Map<string, Promise<string>>();
+  const group = (g: (typeof GROUPS)[keyof typeof GROUPS]) => {
+    let p = groups.get(g.groups);
+    if (!p) { p = defaultGroup(withProbeBudget(client), g); p.catch(() => groups.delete(g.groups)); groups.set(g.groups, p); }
+    return p;
+  };
   const specOf = (kind: string) => { const s = SPECS[kind as MasterKind]; if (!s) throw new AdapterError('commit-rejected', `kind ${kind} unavailable`); return s; };
   const filters = (company_: boolean, after: string | null) => [...(company_ ? [['company', '=', company]] : []), ...(after ? [['name', '>', after]] : [])];
   return {
@@ -108,7 +130,8 @@ export function createErpnextConnectAdapter(client: ErpClientDeps, company: stri
       // the lookup is re-issuable and must not hold the claim: one bounded attempt; only the create below keeps the client's own budget
       const found = await findSent(withProbeBudget(client), company, kind, record);
       if (found !== null) return { externalId: found };
-      const { doctype, body, id } = createBody(company, kind, record);
+      const { doctype, body: makeBody, id } = createBody(company, kind, record);
+      const body = await makeBody(group);
       // the create is the one non-idempotent call: it carries the outbox claim's deadline (a lookup stays re-issuable)
       const writer = opts?.commitDeadlineAtMs === undefined ? client : withCommitDeadline(client, opts.commitDeadlineAtMs);
       return { externalId: id(String(((await createDoc(writer, doctype, body)) as { name: string }).name)) };

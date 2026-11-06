@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isSerialSpec, planPhases, printPhases, resultsRoot, runPhases, serialTestMatch } from './affected-e2e.mjs';
+import { MAX_LOCAL_SPECS, isSerialSpec, planPhases, printPhases, resultsRoot, runCapped, runPhases, serialTestMatch } from './affected-e2e.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
@@ -178,4 +178,30 @@ test('the npm e2e script gives every lane its own output dir too', () => {
   assert.deepEqual(lanes, ['chromium', 'serial', 'consent'], 'npm run e2e runs three invocations into one outputDir unless each lane is split');
   assert.match(scripts.e2e, /^R=\$\(node \.\.\/scripts\/affected-e2e\.mjs --results-root\) && /,
     'the npm lanes must use the config-derived root, not a hard-coded artifacts path');
+});
+
+const specs = (n) => Array.from({ length: n }, (_, i) => `e2e/AC-X-${i}.spec.ts`);
+const spawnCount = () => { const calls = []; return { calls, spawn: (...a) => (calls.push(a), { status: 0 }) }; };
+
+test('affected-e2e --run over the cap refuses and runs nothing', () => {
+  const { calls, spawn } = spawnCount();
+  const origErr = console.error; let msg = ''; console.error = (m) => { msg += m; };
+  try { assert.equal(runCapped(planPhases(specs(MAX_LOCAL_SPECS + 1)), false, spawn), 1); } finally { console.error = origErr; }
+  assert.equal(calls.length, 0);
+  assert.match(msg, /41 specs/);
+  assert.match(msg, /e2e-local\.sh <fragment>/);
+  assert.match(msg, /ci-e2e\.sh/);
+  assert.match(msg, /--allow-broad/);
+});
+
+test('affected-e2e --run --allow-broad runs over the cap', () => {
+  const { calls, spawn } = spawnCount();
+  assert.equal(runCapped(planPhases(specs(MAX_LOCAL_SPECS + 1)), true, spawn), 0);
+  assert.equal(calls.length, 1);
+});
+
+test('affected-e2e --run at the cap runs', () => {
+  const { calls, spawn } = spawnCount();
+  assert.equal(runCapped(planPhases(specs(MAX_LOCAL_SPECS)), false, spawn), 0);
+  assert.equal(calls.length, 1);
 });

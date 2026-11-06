@@ -455,6 +455,25 @@ Deno.test("document-preview AC-014 preview refuses a non-member or non-entitled 
   }
 });
 
+Deno.test("document-preview a database outage is retryable, not 'not connected'", async () => {
+  const result = await run(newWorld({ connectionReadError: true }), (sc) => openCallerDocumentPreview(sc.deps));
+  assertEquals("status" in result && [result.status, (result.body as { error: string }).error], [502, "GRAPH_ERROR"]);
+});
+
+Deno.test("document-preview a transient refresh failure is retryable; a refused refresh token asks to reconnect", async () => {
+  const transient = await previewOutcome(() => jsonResponse({ getUrl: EMBED }), {
+    accessExpired: true,
+    refresh: () => { throw new Error("token endpoint unreachable"); },
+  });
+  assertEquals((transient.outcome as { result?: { status: number } }).result?.status, 502);
+  const refused = await previewOutcome(() => jsonResponse({ getUrl: EMBED }), {
+    accessExpired: true,
+    refresh: () => jsonResponse({ error: "invalid_grant" }, { status: 400 }),
+  });
+  const result = (refused.outcome as { result?: { status: number; body: { error: string } } }).result;
+  assertEquals([result?.status, result?.body.error], [409, "CONNECTION_STALE"]);
+});
+
 Deno.test("document-preview AC-003 a refresh that drops the Files read grant is re-checked before the preview", async () => {
   const { outcome, calls } = await previewOutcome(() => jsonResponse({ getUrl: EMBED }), {
     accessExpired: true,

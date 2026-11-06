@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import { AppError } from '@/src/lib/appError';
 import { MicrosoftDocumentPicker, type PickerContext } from './MicrosoftDocumentPicker';
-import { browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, listDrives, listSites, searchDrive, type GraphItem, type GraphReadRequest } from '@/src/lib/m365/graphClient';
+import { browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, searchDrive, type GraphItem, type GraphReadRequest } from '@/src/lib/m365/graphClient';
 
 const h = vi.hoisted(() => ({
   hook: {
@@ -24,8 +24,6 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/lib/m365/graphClient', () => ({
-  listSites: vi.fn(),
-  listDrives: vi.fn(),
   browseSites: vi.fn(),
   browseDrives: vi.fn(),
   getPersonalDrive: vi.fn(),
@@ -68,10 +66,8 @@ beforeEach(() => {
   h.hook.connection = { status: 'active', connected: true };
   h.hook.defaultLibrary = null; h.hook.isPending = false; h.hook.isError = false;
   h.hook.connectionError = null; h.hook.defaultError = null;
-  vi.mocked(listSites).mockResolvedValue(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }]));
-  vi.mocked(listDrives).mockResolvedValue(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }]));
-  vi.mocked(browseSites).mockResolvedValue(page([]));
-  vi.mocked(browseDrives).mockResolvedValue(page([]));
+  vi.mocked(browseSites).mockResolvedValue(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }]));
+  vi.mocked(browseDrives).mockResolvedValue(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }]));
   vi.mocked(getPersonalDrive).mockResolvedValue({ id: 'drive-2', name: 'OneDrive', web_url: 'https://example.invalid/me' });
   vi.mocked(listChildren).mockResolvedValue(page(ROOT));
   vi.mocked(browseOneDrive).mockResolvedValue(page([]));
@@ -157,7 +153,7 @@ describe('MicrosoftDocumentPicker locations', () => {
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
     await user.click(await screen.findByRole('button', { name: 'Synthetic site' }));
-    expect(listDrives).toHaveBeenCalledWith('site-1');
+    expect(browseDrives).toHaveBeenCalledWith('site-1');
     expect(screen.queryByRole('button', { name: /^Select / })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Link from Microsoft 365' })).toBeDisabled();
     await user.click(await screen.findByRole('button', { name: 'Documents' }));
@@ -167,7 +163,7 @@ describe('MicrosoftDocumentPicker locations', () => {
 
   it('continues sites and libraries only after an explicit Load more and de-duplicates entries', async () => {
     const user = userEvent.setup();
-    vi.mocked(listSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites?skip=opaque' }));
+    vi.mocked(browseSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites?skip=opaque' }));
     vi.mocked(browseSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }, { id: 'site-2', name: 'Second site', web_url: 'https://example.invalid/site2' }]));
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
@@ -179,14 +175,14 @@ describe('MicrosoftDocumentPicker locations', () => {
 
   it('can retry a continuation page without dropping the cursor', async () => {
     const user = userEvent.setup();
-    vi.mocked(listSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites', query: { '$skiptoken': 'next' } }));
+    vi.mocked(browseSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites', query: { '$skiptoken': 'next' } }));
     vi.mocked(browseSites).mockRejectedValueOnce(new AppError('Synthetic', 'GRAPH_ERROR')).mockResolvedValueOnce(page([{ id: 'site-2', name: 'Second site', web_url: 'https://example.invalid/next' }]));
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
     await user.click(await screen.findByRole('button', { name: 'Load more' }));
     await user.click(await screen.findByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('button', { name: 'Second site' })).toBeInTheDocument();
-    expect(browseSites).toHaveBeenCalledTimes(2);
+    expect(browseSites).toHaveBeenCalledTimes(3);
   });
 
   it('keeps continuation state with the current location during overlapping navigation', async () => {
@@ -194,8 +190,8 @@ describe('MicrosoftDocumentPicker locations', () => {
     const oldPage = deferred<Awaited<ReturnType<typeof browseSites>>>();
     const newPage = deferred<Awaited<ReturnType<typeof browseSites>>>();
     const first = page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites', query: { '$skiptoken': 'first' } });
-    vi.mocked(listSites).mockResolvedValue(first);
-    vi.mocked(browseSites).mockReturnValueOnce(oldPage.promise).mockReturnValueOnce(newPage.promise);
+    vi.mocked(browseSites).mockResolvedValueOnce(first).mockReturnValueOnce(oldPage.promise)
+      .mockResolvedValueOnce(first).mockReturnValueOnce(newPage.promise);
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
     await user.click(await screen.findByRole('button', { name: 'Load more' }));
@@ -214,7 +210,7 @@ describe('MicrosoftDocumentPicker locations', () => {
   it('continues library pages once and ends a repeated cursor', async () => {
     const user = userEvent.setup();
     const next = { path: '/sites/site-1/drives', query: { '$skiptoken': 'next' } };
-    vi.mocked(listDrives).mockResolvedValueOnce(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }], next));
+    vi.mocked(browseDrives).mockResolvedValueOnce(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }], next));
     vi.mocked(browseDrives).mockResolvedValueOnce(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }, { id: 'drive-2', name: 'Other documents', web_url: 'https://example.invalid/other' }], next));
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
@@ -246,7 +242,7 @@ describe('MicrosoftDocumentPicker locations', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The Microsoft 365 connection expired. Reconnect to link more documents.');
     expect(screen.getByRole('button', { name: 'SharePoint sites' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'My OneDrive' })).toBeDisabled();
-    expect(listSites).not.toHaveBeenCalled();
+    expect(browseSites).not.toHaveBeenCalled();
   });
 
   it('AC-M365DOC-054 chooser: an absent connection links to setup, and a failed connection-status read is not shown as "not connected"', async () => {
@@ -328,7 +324,7 @@ describe('MicrosoftDocumentPicker default library', () => {
     expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
     expect(listChildren).toHaveBeenCalledWith('drive-d', undefined);
     expect(screen.getByText('Default library: Synthetic site / Project library')).toBeInTheDocument();
-    expect(listSites).not.toHaveBeenCalled();
+    expect(browseSites).not.toHaveBeenCalled();
     expect(h.setDefaultLibrary).not.toHaveBeenCalled();
   });
 

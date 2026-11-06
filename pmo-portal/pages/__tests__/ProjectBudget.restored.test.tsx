@@ -30,6 +30,7 @@ const state = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => state.versions,
+  useBudgetDistribution: () => ({ data: null, isPending: false, isError: false }),
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => ({
     data: { status: 'ready', erpCheck: 'available', fiscalYearNames: ['FY-2026'], issues: [] },
@@ -47,6 +48,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
     createLineItem: { mutateAsync: vi.fn(), isPending: false },
     updateLineItem: { mutateAsync: vi.fn(), isPending: false },
     deleteLineItem: { mutateAsync: vi.fn(), isPending: false },
+    switchDraftMode: { mutateAsync: vi.fn(), isPending: false },
+    saveDistribution: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
@@ -247,7 +250,8 @@ describe('version selection (AC-BD)', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('named "Budget v2"');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create version' }));
-    expect(state.createVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v2' });
+    // #1472 AC-001: a UI-created version names whole_project mode at the seam.
+    expect(state.createVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v2', budgetMode: 'whole_project' });
   });
 
   it('BU-1 a newly created version becomes the version in view', async () => {

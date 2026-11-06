@@ -144,3 +144,14 @@ describe('useUserViewMutations', () => {
     }
   });
 });
+
+describe('useUserViews(enabled)', () => {
+  it('request count: an org without the user_views module makes no saved-views read', async () => {
+    userView.list.mockClear();
+    const client = freshClient();
+    const { result } = renderHook(() => useUserViews(false), { wrapper: wrap(client) });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(userView.list).not.toHaveBeenCalled();
+  });
+});

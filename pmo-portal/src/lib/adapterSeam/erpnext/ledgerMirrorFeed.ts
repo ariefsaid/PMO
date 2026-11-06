@@ -440,6 +440,7 @@ function glRowToMirror(r: GlEntryRow): Record<string, unknown> {
     is_cancelled: r.is_cancelled,
     erp_docstatus: r.docstatus,
     erp_modified: r.modified,
+    remarks: r.remarks ?? null,
   };
 }
 

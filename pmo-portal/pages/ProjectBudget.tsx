@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import {
@@ -7,6 +7,7 @@ import {
   useBudgetVersions,
   useBudgetMutations,
   useBudgetArchiveTargets,
+  useBudgetDistribution,
 } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -22,6 +23,9 @@ import {
   formatInstantDate,
 } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
+import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
+import { staleDistributionBasis } from '@/src/lib/budget/distributionStaleness';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
@@ -44,7 +48,7 @@ import {
   Drawer,
   MenuButton,
 } from '@/src/components/ui';
-import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
+import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from './project-detail/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
@@ -53,9 +57,12 @@ import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from '.
 import BudgetProjection from './BudgetProjection';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
 import BudgetLineItemEditor from './project-budget/BudgetLineItemEditor';
+import DistributionGrid, { type DistributionReadinessStatus, type DistributionSourceWitness } from './project-budget/DistributionGrid';
+import BudgetModeSwitchDialog, { type BudgetModeSwitchRequest } from './project-budget/BudgetModeSwitchDialog';
 import { useBudgetReadiness } from './project-budget/BudgetReadiness';
 import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
+import { repositories } from '@/src/lib/repositories';
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -63,6 +70,63 @@ import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repos
 interface ProjectBudgetProps {
   projectId: string;
   project: ProjectWithRefs;
+}
+
+type AuthoringRecoveryKind = 'saved-read-failed' | 'saved-changed' | 'stale-read-failed' | 'stale-rejected' | 'uncertain' | 'rereview';
+
+interface AuthoringSnapshotExpectation {
+  projectId: string;
+  versionNumber: number;
+  mode: 'whole_project' | 'per_year';
+  lines: DistributionSourceWitness[];
+  distribution: BudgetDistributionPlan | null;
+}
+
+interface AuthoringRecovery {
+  kind: AuthoringRecoveryKind;
+  versionId: string;
+  expected?: AuthoringSnapshotExpectation;
+}
+
+interface AuthoringRefreshResult {
+  status: 'current' | 'changed' | 'failed';
+}
+
+function sourceWitnesses(version: BudgetVersionWithItems): DistributionSourceWitness[] | null {
+  const lines = version.line_items.map((line) => {
+    const cents = parseExactCents(String(line.budgeted_amount));
+    if (cents === null) return null;
+    return {
+      id: line.id,
+      category: line.category,
+      budgeted_amount: formatExactCents(cents),
+      fiscal_year: line.fiscal_year ?? null,
+    };
+  });
+  if (lines.some((line) => line === null)) return null;
+  return (lines as DistributionSourceWitness[]).sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function canonicalBudgetPlan(plan: BudgetDistributionPlan | null): string {
+  if (!plan) return 'null';
+  const rows = [...plan.rows].sort((left, right) => left.category.localeCompare(right.category) || left.ordinal - right.ordinal || left.fiscal_year.localeCompare(right.fiscal_year));
+  const sortKeys = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(sortKeys);
+    if (typeof value !== 'object' || value === null) return value;
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry]) => [key, sortKeys(entry)]));
+  };
+  return JSON.stringify(sortKeys({ ...plan, rows }));
+}
+
+function expectedModeSnapshot(request: BudgetModeSwitchRequest, projectId: string, versionNumber: number): AuthoringSnapshotExpectation {
+  const assignmentById = new Map(request.assignments.map((assignment) => [assignment.id, assignment.fiscal_year]));
+  const lines = request.expectedLines.map((line) => ({
+    id: line.id,
+    category: line.category,
+    budgeted_amount: line.budgeted_amount,
+    fiscal_year: request.targetMode === 'whole_project' ? null : assignmentById.get(line.id) ?? null,
+  })).sort((left, right) => left.id.localeCompare(right.id));
+  return { projectId, versionNumber, mode: request.targetMode, lines, distribution: null };
 }
 
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
@@ -77,6 +141,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   // #1402 scopes ERP push status to Finance and Admin.
   const canViewBudgetEnforcement = realRole === 'Admin' || realRole === 'Finance';
   const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
   const usersQuery = useUsers();
   const erpBindingQuery = useErpnextBinding();
   const currentUserId = currentUser?.id ?? null;
@@ -116,6 +181,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
   const [hasOpenLineBuffers, setHasOpenLineBuffers] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
+  const [modeSwitchOpen, setModeSwitchOpen] = useState(false);
+  const [modeSwitchStaleNonce, setModeSwitchStaleNonce] = useState(0);
+  const [distributionReadiness, setDistributionReadiness] = useState<{ versionId: string | null; status: DistributionReadinessStatus }>({ versionId: null, status: 'loading' });
+  const [authoringRecovery, setAuthoringRecovery] = useState<AuthoringRecovery | null>(null);
+  const [authoringRefreshPending, setAuthoringRefreshPending] = useState(false);
+  const authoringRefreshNeeded = authoringRecovery !== null;
 
   const versions = useMemo<BudgetVersionWithItems[]>(
     () => (versionsQuery.data ?? []) as BudgetVersionWithItems[],
@@ -123,6 +194,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   );
   const activeVersion = versions.find((version) => version.status === 'Active');
   const draftVersion = versions.find((version) => version.status === 'Draft');
+  const draftMode = draftVersion?.budget_mode === 'whole_project' ? 'whole_project' : 'per_year';
+  const budgetDistributionQuery = useBudgetDistribution(
+    projectId,
+    draftVersion?.budget_mode === 'whole_project' ? draftVersion.id : undefined,
+  );
+  // FR-022: read-only look at the Active whole-project plan; nothing here writes or pushes.
+  const activeDistributionQuery = useBudgetDistribution(
+    projectId,
+    activeVersion?.budget_mode === 'whole_project' ? activeVersion.id : undefined,
+  );
   const archiveTargetsQuery = useBudgetArchiveTargets(
     versions.map((version) => version.id),
     versions.some((version) => version.status === 'Archived'),
@@ -156,24 +237,235 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ? activeVersion
     : versions.find((version) => version.id === selectedVersionId) ?? activeVersion ?? draftVersion ?? orderedVersions.at(-1);
 
-  const { readinessMessages, canConfirmActivation, canActivate, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers);
+  const distributionReadinessStatus: DistributionReadinessStatus = draftMode !== 'whole_project'
+    ? 'current'
+    : budgetDistributionQuery.isError
+      ? 'error'
+      : budgetDistributionQuery.isPending || budgetDistributionQuery.isFetching
+        ? 'loading'
+        : distributionReadiness.versionId === draftVersion?.id
+          ? distributionReadiness.status
+          : budgetDistributionQuery.data
+            ? 'stale'
+            : 'absent';
+  const acceptDistributionReadiness = useCallback((readiness: { versionId: string; status: DistributionReadinessStatus }) => {
+    setDistributionReadiness((current) => current.versionId === readiness.versionId && current.status === readiness.status
+      ? current
+      : readiness);
+  }, []);
+
+  const { readinessMessages, canConfirmActivation, canActivate, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers, distributionReadinessStatus);
 
   const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
 
+  const fiscalYears = activationPrecheckQuery.data?.fiscalYears ?? null;
+  const fiscalYearNames = (() => {
+    if (!project.start_date || !fiscalYears) return [];
+    try {
+      return yearsInSpan(project.start_date, project.end_date, fiscalYears).map((year) => year.name);
+    } catch {
+      return [];
+    }
+  })();
+  const staleActivePlan = activeVersion && activeDistributionQuery.data
+    ? staleDistributionBasis(activeDistributionQuery.data.basis, project.start_date ?? null, project.end_date ?? null, fiscalYears)
+    : null;
+  const modeSwitchContextKey = JSON.stringify([
+    modeSwitchStaleNonce,
+    draftVersion?.id,
+    draftMode,
+    currentUserId,
+    realRole,
+    canWrite,
+    project.start_date,
+    project.end_date,
+    fiscalYears,
+    draftVersion?.line_items.map((line) => [line.id, line.category, String(line.budgeted_amount), line.fiscal_year]),
+  ]);
+  const refreshAuthoringSnapshot = async (versionId: string, expected?: AuthoringSnapshotExpectation): Promise<AuthoringRefreshResult> => {
+    const results = await Promise.allSettled([
+      budgetQuery.refetch(),
+      versionsQuery.refetch(),
+      activationPrecheckQuery.refetch(),
+      queryClient.fetchQuery({
+        queryKey: ['budget-distribution', currentUser?.org_id, projectId, versionId],
+        queryFn: () => repositories.budget.getDistribution(versionId),
+        staleTime: 0,
+      }),
+    ]);
+    const healthy = results.every((result) => result.status === 'fulfilled' && !(
+      typeof result.value === 'object' && result.value !== null && 'isError' in result.value && result.value.isError
+    ));
+    if (!healthy) return { status: 'failed' };
+    const budgetRead = results[0].status === 'fulfilled' ? results[0].value as { data?: unknown } : undefined;
+    const versionsRead = results[1].status === 'fulfilled' ? results[1].value as { data?: unknown } : undefined;
+    const precheckRead = results[2].status === 'fulfilled' ? results[2].value as { data?: unknown } : undefined;
+    const distributionRead = results[3].status === 'fulfilled' ? results[3].value as BudgetDistributionPlan | null : undefined;
+    if (budgetRead?.data === undefined || !Array.isArray(versionsRead?.data) || precheckRead?.data === undefined || distributionRead === undefined) {
+      return { status: 'failed' };
+    }
+    if (!expected) return { status: 'current' };
+
+    const refreshedVersion = (versionsRead.data as BudgetVersionWithItems[]).find((version) => version.id === versionId);
+    const refreshedSource = refreshedVersion ? sourceWitnesses(refreshedVersion) : null;
+    if (!refreshedVersion || refreshedVersion.project_id !== expected.projectId || refreshedVersion.version !== expected.versionNumber ||
+      refreshedVersion.status !== 'Draft' || refreshedVersion.budget_mode !== expected.mode ||
+      refreshedSource === null || JSON.stringify(refreshedSource) !== JSON.stringify(expected.lines) ||
+      canonicalBudgetPlan(distributionRead) !== canonicalBudgetPlan(expected.distribution)) {
+      return { status: 'changed' };
+    }
+    return { status: 'current' };
+  };
+  const retryAuthoringRefresh = async () => {
+    if (!authoringRecovery) return;
+    setAuthoringRefreshPending(true);
+    try {
+      const refreshed = await refreshAuthoringSnapshot(authoringRecovery.versionId, authoringRecovery.expected);
+      if (refreshed.status === 'failed') {
+        if (authoringRecovery.kind === 'stale-read-failed') setAuthoringRecovery({ ...authoringRecovery, kind: 'stale-read-failed' });
+        return;
+      }
+      if (authoringRecovery.kind === 'saved-read-failed' && refreshed.status === 'current') {
+        setAuthoringRecovery(null);
+        toast(t('projectDetail.budget.budgetRefreshComplete', 'Budget data is current again.'), undefined, 'success');
+        return;
+      }
+      setAuthoringRecovery({ kind: refreshed.status === 'changed' && authoringRecovery.expected ? 'saved-changed' : 'rereview', versionId: authoringRecovery.versionId });
+      setDraftEditorOpen(true);
+    } finally {
+      setAuthoringRefreshPending(false);
+    }
+  };
+  const changeDraftMode = async (request: BudgetModeSwitchRequest) => {
+    const { versionId, targetMode, expectedLines, assignments } = request;
+    const expected = expectedModeSnapshot(request, projectId, draftVersion?.id === versionId ? draftVersion.version : -1);
+    try {
+      await mutations.switchDraftMode.mutateAsync({ versionId, targetMode, expectedLines, assignments });
+      setModeSwitchOpen(false);
+      setAuthoringRecovery({ kind: 'saved-read-failed', versionId, expected });
+      setDraftEditorOpen(true);
+      const refreshed = await refreshAuthoringSnapshot(versionId, expected);
+      if (refreshed.status === 'failed') return;
+      if (refreshed.status === 'changed') {
+        setAuthoringRecovery({ kind: 'saved-changed', versionId, expected });
+        setDraftEditorOpen(true);
+        return;
+      }
+      setAuthoringRecovery(null);
+      toast(t('projectDetail.budget.modeChanged', 'Budget mode changed'), undefined, 'success');
+    } catch (error) {
+      if ((error as { code?: string })?.code === '40001') {
+        setModeSwitchOpen(false);
+        setDraftEditorOpen(true);
+        setAuthoringRecovery({ kind: 'stale-read-failed', versionId });
+        const refreshed = await refreshAuthoringSnapshot(versionId);
+        setAuthoringRecovery({ kind: refreshed.status === 'failed' ? 'stale-read-failed' : 'stale-rejected', versionId });
+        setModeSwitchStaleNonce((current) => current + 1);
+        return;
+      }
+      if (!(error as { code?: string })?.code) {
+        setModeSwitchOpen(false);
+        setDraftEditorOpen(true);
+        setAuthoringRecovery({ kind: 'uncertain', versionId });
+        return;
+      }
+      const { headline, detail } = classifyMutationError(error);
+      toast(headline, detail, 'warning');
+    }
+  };
+  const saveDistribution = async (plan: BudgetDistributionPlan, source: DistributionSourceWitness[]) => {
+    if (!draftVersion) return false;
+    const expected: AuthoringSnapshotExpectation = {
+      projectId,
+      versionNumber: draftVersion.version,
+      mode: 'whole_project',
+      lines: source,
+      distribution: plan,
+    };
+    try {
+      await mutations.saveDistribution.mutateAsync({ versionId: draftVersion.id, plan });
+      setAuthoringRecovery({ kind: 'saved-read-failed', versionId: draftVersion.id, expected });
+      setDraftEditorOpen(true);
+      const refreshed = await refreshAuthoringSnapshot(draftVersion.id, expected);
+      if (refreshed.status === 'failed') return false;
+      if (refreshed.status === 'changed') {
+        setAuthoringRecovery({ kind: 'saved-changed', versionId: draftVersion.id, expected });
+        setDraftEditorOpen(true);
+        return false;
+      }
+      setAuthoringRecovery(null);
+      toast(t('projectDetail.budget.distributionSavedToast', 'Fiscal-year distribution saved'), undefined, 'success');
+      return true;
+    } catch (error) {
+      if ((error as { code?: string })?.code === '40001') {
+        setDraftEditorOpen(true);
+        setAuthoringRecovery({ kind: 'stale-read-failed', versionId: draftVersion.id });
+        const refreshed = await refreshAuthoringSnapshot(draftVersion.id);
+        setAuthoringRecovery({ kind: refreshed.status === 'failed' ? 'stale-read-failed' : 'stale-rejected', versionId: draftVersion.id });
+        setModeSwitchStaleNonce((current) => current + 1);
+        return false;
+      }
+      if (!(error as { code?: string })?.code) {
+        setDraftEditorOpen(true);
+        setAuthoringRecovery({ kind: 'uncertain', versionId: draftVersion.id });
+        return false;
+      }
+      const { headline, detail } = classifyMutationError(error);
+      toast(headline, detail, 'warning');
+      return false;
+    }
+  };
+
+  const authoringRecoveryMessage = authoringRecovery ? (() => {
+    switch (authoringRecovery.kind) {
+      case 'saved-read-failed': return t('projectDetail.budget.authoringSavedReadFailed', 'A change was saved, but a selected budget read failed. Refresh to reconcile the saved version and distribution before another write.');
+      case 'saved-changed': return t('projectDetail.budget.authoringSavedChanged', 'The change was saved, but the refreshed draft differs from what you reviewed. Review the current draft before continuing.');
+      case 'stale-read-failed': return t('projectDetail.budget.authoringStaleReadFailed', 'The server rejected this change because the draft changed; it was not saved. The current draft could not be refreshed. Retry the read before reviewing it.');
+      case 'stale-rejected': return t('projectDetail.budget.authoringStaleRejected', 'The server rejected this change because the draft changed; it was not saved. Review the current draft before trying again.');
+      case 'uncertain': return t('projectDetail.budget.authoringOutcomeUncertain', 'The save outcome is uncertain. Refresh budget data before deciding what to do; no write was retried.');
+      case 'rereview': return t('projectDetail.budget.authoringRereviewRequired', 'The current budget data is loaded. Review the draft before continuing.');
+    }
+  })() : null;
+  const authoringRecoveryNotice = authoringRecovery && authoringRecoveryMessage ? (
+    <div role="alert" className="rounded-md border border-warning/40 bg-warning/[0.07] px-3 py-3 text-sm text-foreground" data-testid="budget-authoring-recovery">
+      <p>{authoringRecoveryMessage}</p>
+      {['saved-read-failed', 'stale-read-failed', 'uncertain'].includes(authoringRecovery.kind) ? (
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => void retryAuthoringRefresh()} disabled={authoringRefreshPending}>
+          {authoringRefreshPending ? t('projectDetail.budget.budgetRefreshPending', 'Refreshing…') : t('projectDetail.budget.retryBudgetRefresh', 'Refresh budget data')}
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => {
+          setSelectedVersionId(authoringRecovery.versionId);
+          setDraftEditorOpen(true);
+          setModeSwitchStaleNonce((current) => current + 1);
+          setAuthoringRecovery(null);
+        }}>
+          {t('projectDetail.budget.reviewCurrentDraft', 'Review current draft')}
+        </Button>
+      )}
+    </div>
+  ) : null;
+
   if (budgetQuery.isPending || versionsQuery.isPending) {
-    return <div data-testid="budget-loading"><ListState variant="loading" shape="detail" rows={4} /></div>;
+    return <div data-testid="budget-loading" className="space-y-3">{authoringRecoveryNotice}<ListState variant="loading" shape="detail" rows={4} /></div>;
   }
   if (budgetQuery.isError || versionsQuery.isError) {
     return (
-      <ListState
-        variant="error"
-        title={t('financeCopy.budgetLoadFailed', "Couldn't load budget")}
-        sub={t('financeCopy.somethingWentWrongFetchingTheBudgetData', 'Something went wrong fetching the budget data.')}
-        onRetry={() => {
-          void budgetQuery.refetch();
-          void versionsQuery.refetch();
-        }}
-      />
+      <div className="space-y-3">
+        {authoringRecoveryNotice}
+        <ListState
+          variant="error"
+          title={t('financeCopy.budgetLoadFailed', "Couldn't load budget")}
+          sub={t('financeCopy.somethingWentWrongFetchingTheBudgetData', 'Something went wrong fetching the budget data.')}
+          onRetry={() => {
+            if (authoringRecovery) void retryAuthoringRefresh();
+            else {
+              void budgetQuery.refetch();
+              void versionsQuery.refetch();
+            }
+          }}
+        />
+      </div>
     );
   }
 
@@ -375,17 +667,21 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const versionMenu = (version: BudgetVersionWithItems): RowMenuItem[] => [
     { label: t('projectDetail.budget.openVersion', 'Open version'), onClick: () => { setBudgetView('actual'); setSelectedVersionId(version.id); setVersionsOpen(true); } },
     { label: t('projectDetail.budget.compare', 'Compare'), onClick: () => setVersionsOpen(true) },
-    ...(canWrite && !draftVersion && (version.status === 'Active' || version.status === 'Archived') ? [{ label: t('financeCopy.cloneToRevise', 'Clone to revise'), onClick: () => requestClone(version.id) }] : []),
-    ...(canWrite && version.status === 'Active' ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => requestArchive(version.id), danger: true }] : []),
-    ...(canWrite && version.status === 'Draft' && canActivate ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
-    ...(canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
+    ...(!authoringRefreshNeeded && canWrite && !draftVersion && (version.status === 'Active' || version.status === 'Archived') ? [{ label: t('financeCopy.cloneToRevise', 'Clone to revise'), onClick: () => requestClone(version.id) }] : []),
+    ...(!authoringRefreshNeeded && canWrite && version.status === 'Active' ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => requestArchive(version.id), danger: true }] : []),
+    ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' && canActivate ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
+    ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
   ];
 
   const draftEditor = draftVersion && canWrite ? (
     <section hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
+      <fieldset disabled={authoringRefreshNeeded} className="min-w-0 space-y-3 border-0 p-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
-        <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setModeSwitchOpen(true)}>{t('projectDetail.budget.changeBudgetMode', 'Change budget mode')}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
+        </div>
       </div>
       <BudgetLineItemEditor
         key={draftVersion.id}
@@ -403,8 +699,50 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           toast(headline, detail, 'warning');
         }}
         fiscalYearNames={activationPrecheckQuery.data?.fiscalYearNames ?? null}
+        // budget_mode is DB-check-constrained to 'whole_project' | 'per_year'; anything else (a
+        // legacy fixture without the column) must behave per_year — the historic default.
+        budgetMode={draftMode}
       />
+      {draftMode === 'whole_project' && (
+        <DistributionGrid
+          versionId={draftVersion.id}
+          lines={draftVersion.line_items}
+          projectStart={project.start_date}
+          projectEnd={project.end_date}
+          fiscalYears={fiscalYears}
+          currency={draftVersion.currency || project.currency}
+          editorIdentity={`${currentUserId ?? 'anonymous'}:${realRole}:${canWrite}`}
+          savedPlan={budgetDistributionQuery.data ?? null}
+          savedPlanLoading={budgetDistributionQuery.isPending || budgetDistributionQuery.isFetching}
+          savedPlanError={budgetDistributionQuery.isError}
+          saving={mutations.saveDistribution.isPending}
+          writesDisabled={authoringRefreshNeeded}
+          onRetryRead={() => { void budgetDistributionQuery.refetch(); }}
+          onReadinessChange={acceptDistributionReadiness}
+          onSave={saveDistribution}
+        />
+      )}
+      </fieldset>
     </section>
+  ) : null;
+  const readonlyDistributionReadiness = draftVersion && draftMode === 'whole_project' && !canWrite ? (
+    <div hidden aria-hidden="true">
+      <DistributionGrid
+        versionId={draftVersion.id}
+        lines={draftVersion.line_items}
+        projectStart={project.start_date}
+        projectEnd={project.end_date}
+        fiscalYears={fiscalYears}
+        currency={draftVersion.currency || project.currency}
+        editorIdentity={`${currentUserId ?? 'anonymous'}:${realRole}:read-only`}
+        savedPlan={budgetDistributionQuery.data ?? null}
+        savedPlanLoading={budgetDistributionQuery.isPending || budgetDistributionQuery.isFetching}
+        savedPlanError={budgetDistributionQuery.isError}
+        editable={false}
+        onReadinessChange={acceptDistributionReadiness}
+        onSave={async () => false}
+      />
+    </div>
   ) : null;
 
   if (!canReadMoney) {
@@ -426,6 +764,21 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         </div>
       </header>
 
+      {authoringRecoveryNotice}
+
+      {activeVersion && staleActivePlan && (
+        <section aria-label={t('projectDetail.budget.staleDistributionTitle', 'Budget no longer covers the project')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-stale-distribution">
+          <p role="status" className="min-w-0 text-sm text-foreground">
+            {staleActivePlan.projectEnd
+              ? t('projectDetail.budget.staleDistribution', 'The project now runs to {{date}}; this budget covers {{years}}.', { date: staleActivePlan.projectEnd, years: staleActivePlan.coveredYears.join(', ') })
+              : t('projectDetail.budget.staleDistributionOpenEnd', 'The project no longer has an end date; this budget covers {{years}}.', { years: staleActivePlan.coveredYears.join(', ') })}
+          </p>
+          {canWrite && !draftVersion && !authoringRefreshNeeded && (
+            <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.prepareNewDraft', 'Prepare new draft')}</Button>
+          )}
+        </section>
+      )}
+
       {draftVersion && (
         <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
           <div className="min-w-0">
@@ -440,10 +793,15 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-[13px] text-muted-foreground">
               {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
             </div>
+            {!canWrite && draftMode === 'whole_project' && budgetDistributionQuery.isError && (
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => { void budgetDistributionQuery.refetch(); }}>
+                {t('projectDetail.budget.retryDistributionRead', 'Retry saved distribution read')}
+              </Button>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
-            {canActivate && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
+            {canActivate && !authoringRefreshNeeded && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers || (draftMode === 'whole_project' && distributionReadinessStatus !== 'current')} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
           </div>
         </section>
       )}
@@ -492,12 +850,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               </select>
             </label>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
-            {canWrite && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
+            {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
             {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
           </div>
         </div>}
         {view === 'actual' && selectedVersion && selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
         {draftEditor}
+      {readonlyDistributionReadiness}
         {view === 'actual' ? (
           selectedVersion ? <>
             {!compatibleBasis && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.currencyBasisNotice', 'Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, projectCurrency: project.currency })}</p>}
@@ -536,7 +895,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       <Card role="region" aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0">
         <CardHead actions={<>
-            {canWrite && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => { dismissActivationNotice(); setShowNewVersionForm(true); }}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
+            {canWrite && !authoringRefreshNeeded && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => { dismissActivationNotice(); setShowNewVersionForm(true); }}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
             {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.manageVersions', 'Manage versions')}</Button>}
           </>}>
           {t('projectDetail.budget.versionsTitle', 'Budget versions')}
@@ -684,7 +1043,21 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         onClone={requestClone}
         onDeleteDraft={requestDeleteDraft}
       />
-      {budgetConfirm}
+      {draftVersion && (
+        <BudgetModeSwitchDialog
+          open={modeSwitchOpen && !authoringRefreshNeeded}
+          versionId={draftVersion.id}
+          currentMode={draftMode}
+          lines={draftVersion.line_items}
+          fiscalYearNames={fiscalYearNames}
+          currency={draftVersion.currency || project.currency}
+          contextKey={modeSwitchContextKey}
+          loading={mutations.switchDraftMode.isPending}
+          onConfirm={changeDraftMode}
+          onCancel={() => setModeSwitchOpen(false)}
+        />
+      )}
+      {!authoringRefreshNeeded && budgetConfirm}
     </div>
   );
 };

@@ -150,7 +150,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const invoices = useSalesInvoices();
   const payments = useIncomingPayments();
   // Shared-details select: the supplier invoice and payment rows behind the unpaid balance.
-  const procurements = useProcurements({ withSharedDetails: true });
+  const procurements = useProcurements({ lean: true });
   const workOrders = useUnbilledWorkOrders();
   const dateRange = periodDateRange(period);
   const winRateRange = useMemo(() => ({ ...dateRange, key: `period:${period.from ?? ''}:${period.to ?? ''}` }), [dateRange, period.from, period.to]);

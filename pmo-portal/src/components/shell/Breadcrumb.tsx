@@ -30,7 +30,7 @@ export interface BreadcrumbPart {
   i18nKey?: string;
 }
 
-export interface BreadcrumbProps {
+interface BreadcrumbProps {
   parts: BreadcrumbPart[];
   className?: string;
 }

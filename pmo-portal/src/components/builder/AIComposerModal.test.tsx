@@ -22,11 +22,30 @@ const {
 }));
 
 vi.mock('@/src/hooks/useAIComposer', () => ({
-  useAIComposer: () => ({
-    compose: mockCompose,
-    status: mockStatus.value,
-    error: mockError.value,
-  }),
+  // Mirror the REAL hook's observable contract: compose() transitions status and
+  // (on failure) sets the error through React state, so the consumer re-renders and
+  // reads the fresh values. The module-variable mock below forces that re-render
+  // explicitly — the component itself renders the hook's error directly.
+  useAIComposer: () => {
+    const [, rerender] = React.useReducer((n: number) => n + 1, 0);
+    return {
+      compose: async (prompt: string) => {
+        mockStatus.value = 'loading';
+        try {
+          return await mockCompose(prompt);
+        } finally {
+          mockStatus.value = mockError.value ? 'error' : 'idle';
+          rerender();
+        }
+      },
+      get status() {
+        return mockStatus.value;
+      },
+      get error() {
+        return mockError.value;
+      },
+    };
+  },
 }));
 
 import AIComposerModal from './AIComposerModal';
@@ -193,6 +212,29 @@ describe('AIComposerModal — error states', () => {
     await waitFor(() =>
       expect(screen.getByText(/limit/i)).toBeInTheDocument(),
     );
+  });
+
+  it('editing the prompt after a failed compose keeps the hook error visible until the next compose', async () => {
+    // Characterization (OE08-002): the modal displays the HOOK's error directly —
+    // no mirrored local copy. The hook clears its error only at the next compose()
+    // start, so editing the prompt leaves the last failure on screen (the shipped
+    // interaction semantics this component has always had).
+    mockCompose.mockImplementation(async () => {
+      mockError.value = "Couldn't generate a valid view for that description. Try rephrasing or being more specific.";
+      return null;
+    });
+    const { onComposed } = renderModal();
+
+    const textarea = screen.getByLabelText(/describe the view you want/i);
+    await userEvent.type(textarea, 'something vague');
+    await userEvent.click(screen.getByRole('button', { name: /generate/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/try rephrasing or being more specific/i)).toBeInTheDocument(),
+    );
+
+    await userEvent.type(textarea, ' — revised');
+    expect(screen.getByText(/try rephrasing or being more specific/i)).toBeInTheDocument();
+    expect(onComposed).not.toHaveBeenCalled();
   });
 });
 

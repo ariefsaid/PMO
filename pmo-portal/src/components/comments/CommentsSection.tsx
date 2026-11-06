@@ -20,6 +20,46 @@ function activeMention(body: string): string | null {
   return m ? m[1] : null;
 }
 
+/** A picked mention and the live span of its `@Name` text in the draft body. */
+interface MentionSlot {
+  id: string;
+  name: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Carry picked mentions across an edit and keep only the ones whose `@Name` text still stands at
+ * (possibly shifted) positions. Spans — not substring searches — are what keep a removed mention
+ * from surviving through similar remaining text, and keep same-named colleagues distinguishable.
+ */
+function reconcileMentions(prevBody: string, nextBody: string, slots: MentionSlot[]): MentionSlot[] {
+  let prefix = 0;
+  const min = Math.min(prevBody.length, nextBody.length);
+  while (prefix < min && prevBody[prefix] === nextBody[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < min - prefix &&
+    prevBody[prevBody.length - 1 - suffix] === nextBody[nextBody.length - 1 - suffix]
+  )
+    suffix += 1;
+  const editEnd = prevBody.length - suffix;
+  const delta = nextBody.length - prevBody.length;
+  return slots
+    .map((slot) => {
+      if (slot.end <= prefix) return slot; // untouched text before the edit
+      if (slot.start >= editEnd) return { ...slot, start: slot.start + delta, end: slot.end + delta }; // after the edit: shift
+      return { ...slot, end: slot.end + delta }; // edit overlaps the span: keep position, re-validated below
+    })
+    .filter(
+      (slot) =>
+        slot.start >= 0 &&
+        slot.end <= nextBody.length &&
+        slot.end - slot.start === slot.name.length + 1 &&
+        nextBody.slice(slot.start, slot.end) === `@${slot.name}`,
+    );
+}
+
 export interface CommentsSectionProps {
   entityType: CommentEntityType;
   entityId: string;
@@ -38,7 +78,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
   const profiles = useAssignableProfiles();
   const { post, remove } = useCommentMutations(entityType, entityId);
   const [body, setBody] = useState('');
-  const [picked, setPicked] = useState<{ id: string; name: string }[]>([]);
+  const [mentions, setMentions] = useState<MentionSlot[]>([]);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const query = activeMention(body);
@@ -50,25 +90,33 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
       .slice(0, 5);
   }, [query, profiles.data, currentUser?.id]);
 
-  const mentionCount = picked.filter((p) => body.includes(`@${p.name}`)).length;
+  const mentionCount = new Set(mentions.map((s) => s.id)).size;
   const mentionsFull = mentionCount >= MAX_MENTIONS;
 
   const pick = (id: string, name: string) => {
-    if (mentionsFull && !picked.some((x) => x.id === id)) return;
-    setBody((b) => b.replace(/@[^\s@]*$/, `@${name} `));
-    setPicked((p) => (p.some((x) => x.id === id) ? p : [...p, { id, name }]));
+    if (mentionsFull && !mentions.some((s) => s.id === id)) return;
+    const m = /(?:^|\s)@([^\s@]*)$/.exec(body);
+    if (!m) return;
+    const at = m.index + m[0].indexOf('@');
+    setBody(`${body.slice(0, at)}@${name} `);
+    setMentions((slots) => [...slots, { id, name, start: at, end: at + name.length + 1 }]);
+  };
+
+  const changeBody = (next: string) => {
+    setMentions((slots) => reconcileMentions(body, next, slots));
+    setBody(next);
   };
 
   const tooLong = body.length > MAX_LEN;
   const canPost = body.trim().length > 0 && !tooLong && !post.isPending;
 
   const submit = async () => {
-    // A mention counts only while its `@Name` is still in the text.
-    const mentions = picked.filter((p) => body.includes(`@${p.name}`)).map((p) => p.id);
+    // Recipients derive from surviving mention spans, never substring matching.
+    const mentionedIds = [...new Set(mentions.map((s) => s.id))];
     try {
-      await post.mutateAsync({ body, mentions });
+      await post.mutateAsync({ body, mentions: mentionedIds });
       setBody('');
-      setPicked([]);
+      setMentions([]);
     } catch {
       /* surfaced via post.isError */
     }
@@ -115,7 +163,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
           label={t('comments.label', 'Add a comment')}
           placeholder={t('comments.placeholder', 'Write a comment. Type @ to mention a colleague.')}
           value={body}
-          onChange={setBody}
+          onChange={changeBody}
           error={tooLong ? t('comments.tooLong', 'Comments are limited to 4000 characters.') : undefined}
           fullWidth
         />

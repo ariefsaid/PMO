@@ -349,7 +349,7 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     down_payment_amount: null, dp_recovery_amount: '0.00', dp_item_code: null, withdrawn_at: null,
   };
   const signedTimeMaterialsClaim = { id: CLAIM_ID, status: 'SignedOff', confirmed_by: APPROVER_ID, gross_amount: '6000000.00' };
-  const timeMaterialsLines = [{ line_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', rate_version: 1, kind: 'labour', label: 'Field labour', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' }];
+  const timeMaterialsLines = [{ line_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', rate_version: 1, kind: 'labour', basis: 'work', label: 'Field labour', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' }];
   const nativeTimeMaterialsLines = [{ item_code: 'Field labour', description: 'Field labour (hour)', qty: 120, rate: 50000, amount: 6000000, unit: 'hour' }];
   const timeMaterialsDraft = () => draftRow({ id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: null, native_lines: nativeTimeMaterialsLines });
 

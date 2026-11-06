@@ -323,6 +323,27 @@
   },
   "admin": {
     "users": {
+      "pager": {
+            "label": "Halaman",
+            "range": "{{from}}–{{to}} dari {{total}}",
+            "prev": "Halaman sebelumnya",
+            "next": "Halaman berikutnya"
+      },
+      "focus": {
+            "showing": "Menampilkan {{name}} — orang yang Anda ikuti dari halaman Anda.",
+            "return": "Kembali ke halaman Anda",
+            "locating": "Mencari {{name}}…",
+            "error": "Tidak dapat menemukan posisi {{name}} di direktori.",
+            "unavailable": "{{name}} sudah tidak ada di direktori Anda.",
+            "retry": "Coba lagi"
+      },
+      "managerForm": {
+        "choicesLoading": "Memuat orang…",
+        "choicesError": "Tidak dapat memuat daftar orang.",
+        "choicesRetry": "Coba lagi",
+        "awaitingChoices": "Tunggu daftar orang termuat sebelum menyimpan manajer.",
+        "currentUnavailable": "Manajer saat ini (nama tidak tersedia)"
+      },
       "inviteError": {
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."

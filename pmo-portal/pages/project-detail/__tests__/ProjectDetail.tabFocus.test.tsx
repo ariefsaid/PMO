@@ -22,6 +22,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppShell } from '@/src/components/shell';
 import type { Role } from '@/src/auth/AuthContext';
 import React from 'react';
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 

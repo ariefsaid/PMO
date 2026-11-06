@@ -353,7 +353,7 @@ describe('submitted query drives the rendered action', () => {
     authorityFrom.mockImplementation(() => {
       const result = { data: [row], error: null };
       const builder: Record<string, unknown> = {};
-      for (const op of ['select', 'eq', 'neq', 'order', 'or']) builder[op] = () => builder;
+      for (const op of ['select', 'eq', 'neq', 'order', 'or', 'gt', 'limit']) builder[op] = () => builder;
       builder.then = (resolve: (value: typeof result) => void) => Promise.resolve(result).then(resolve);
       return builder;
     });

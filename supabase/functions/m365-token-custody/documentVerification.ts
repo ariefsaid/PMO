@@ -44,9 +44,8 @@ interface ProjectDocumentForIssue {
   ms_item_id: string | null;
 }
 
-interface ItemSnapshot {
-  id: string;
-  driveId: string;
+interface ItemMetadata {
+  kind: "file" | "folder";
   name: string;
   webUrl: string;
   cTag: string | null;
@@ -228,12 +227,12 @@ export async function handleIssueMicrosoftDocument(
     path,
     query: { "$select": ITEM_SELECT },
   });
-  const before = decodeItemSnapshot(
+  const before = decodeItemMetadata(
     beforeResult,
     document.ms_drive_id,
     document.ms_item_id,
   );
-  if (!before) {
+  if (before?.kind !== "file") {
     return issueError(
       409,
       "SOURCE_CHANGED",
@@ -251,12 +250,12 @@ export async function handleIssueMicrosoftDocument(
     path,
     query: { "$select": ITEM_SELECT },
   });
-  const after = decodeItemSnapshot(
+  const after = decodeItemMetadata(
     afterResult,
     document.ms_drive_id,
     document.ms_item_id,
   );
-  if (!after) {
+  if (after?.kind !== "file") {
     return issueError(
       409,
       "SOURCE_CHANGED",
@@ -435,7 +434,11 @@ export async function handleRefreshReferences(
       path,
       query: { "$select": ITEM_SELECT },
     });
-    const snapshot = decodeReferenceMetadata(result, identity);
+    const snapshot = decodeItemMetadata(
+      result,
+      identity.drive_id,
+      identity.item_id,
+    );
     if (!snapshot) continue;
     for (const row of rows) {
       const args = {
@@ -528,25 +531,6 @@ function parseRefreshRequest(
   return { target, items: unique };
 }
 
-function decodeReferenceMetadata(
-  result: HandlerResult,
-  identity: ReferenceIdentity,
-): { name: string; webUrl: string } | null {
-  if (!result || result.status !== 200 || !isRecord(result.body)) return null;
-  const item = result.body;
-  const parent = isRecord(item.parentReference) ? item.parentReference : null;
-  const hasFile = item.file != null;
-  const hasFolder = item.folder != null;
-  const name = typeof item.name === "string" ? item.name : "";
-  const webUrl = typeof item.webUrl === "string" ? item.webUrl : "";
-  if (
-    item.id !== identity.item_id || parent?.driveId !== identity.drive_id ||
-    hasFile === hasFolder ||
-    !name.trim() || !validMicrosoftBrowserUrl(webUrl)
-  ) return null;
-  return { name, webUrl };
-}
-
 function identityKey(identity: ReferenceIdentity): string {
   return `${identity.drive_id}\u0000${identity.item_id}`;
 }
@@ -556,11 +540,12 @@ function isSafeIdentity(value: unknown): value is string {
     !/[\u0000-\u001f\u007f]/u.test(value);
 }
 
-function decodeItemSnapshot(
+// One decoder for the issue path (which requires a file) and the refresh path (file or folder).
+function decodeItemMetadata(
   result: HandlerResult,
-  expectedDriveId: string,
-  expectedItemId: string,
-): ItemSnapshot | null {
+  driveId: string,
+  itemId: string,
+): ItemMetadata | null {
   if (!result || result.status !== 200 || !isRecord(result.body)) return null;
   const item = result.body;
   const parent = isRecord(item.parentReference) ? item.parentReference : null;
@@ -569,13 +554,11 @@ function decodeItemSnapshot(
   const name = typeof item.name === "string" ? item.name : "";
   const webUrl = typeof item.webUrl === "string" ? item.webUrl : "";
   if (
-    item.id !== expectedItemId || parent?.driveId !== expectedDriveId ||
-    file === folder || !file || !name.trim() ||
-    !validMicrosoftBrowserUrl(webUrl)
+    item.id !== itemId || parent?.driveId !== driveId || file === folder ||
+    !name.trim() || !validMicrosoftBrowserUrl(webUrl)
   ) return null;
   return {
-    id: expectedItemId,
-    driveId: expectedDriveId,
+    kind: file ? "file" : "folder",
     name,
     webUrl,
     cTag: typeof item.cTag === "string" && item.cTag.trim() ? item.cTag : null,

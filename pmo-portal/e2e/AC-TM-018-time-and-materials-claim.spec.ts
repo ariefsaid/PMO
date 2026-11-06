@@ -9,6 +9,7 @@ import {
   pinEnglishLocale,
   requireServiceRoleKey,
   visibleToast,
+  waitForFonts,
 } from './helpers';
 
 const ENGINEER_EMAIL = 'tse-021-eng@acme.test';
@@ -263,6 +264,13 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
       body: JSON.stringify([{ id: randomUUID(), org_id: orgId, external_tier: 'erpnext', domain: 'revenue' }]),
     });
   });
+  // The Overview reads ownership through the one overview read; swap only that section for the same row.
+  await page.route('**/rest/v1/rpc/get_project_overview_read', async (route) => {
+    const res = await route.fetch();
+    const rows = await res.json();
+    const ownership = [{ id: randomUUID(), org_id: orgId, external_tier: 'erpnext', domain: 'revenue' }];
+    await route.fulfill({ response: res, json: Array.isArray(rows) ? rows.map((r: object) => ({ ...r, external_domain_ownership: ownership })) : { ...rows, external_domain_ownership: ownership } });
+  });
   await page.route('**/functions/v1/external-items', async (route) => {
     const request = route.request().postDataJSON() as { purpose?: string } | null;
     await route.fulfill({
@@ -394,6 +402,27 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await prepareDialog.getByLabel('Evidence document').selectOption(documentId);
   await prepareDialog.getByRole('button', { name: 'Prepare sign-off' }).click();
   await expect(prepareDialog).not.toBeVisible({ timeout: 15_000 });
+  // Issue 1816: the success toast fires while the claim drawer is still open, and the
+  // drawer's title AND sign-off actions all live in its header — the toast must tuck
+  // below that band, never on top of it. Asserted on desktop and again on a phone width
+  // (a wrapped header is taller; placement re-measures on resize).
+  const expectToastClearOfDrawerHeader = async () => {
+    const toastBox = await visibleToast(page, /client sign-off prepared/i).boundingBox();
+    const headerBox = await claimDrawer.locator('[data-drawer-header]').boundingBox();
+    expect(toastBox, 'the success toast rendered').toBeTruthy();
+    expect(headerBox, 'the claim drawer header rendered').toBeTruthy();
+    const overlaps = toastBox!.x < headerBox!.x + headerBox!.width
+      && headerBox!.x < toastBox!.x + toastBox!.width
+      && toastBox!.y < headerBox!.y + headerBox!.height
+      && headerBox!.y < toastBox!.y + toastBox!.height;
+    expect(overlaps, `toast ${JSON.stringify(toastBox)} covers drawer header ${JSON.stringify(headerBox)}`).toBe(false);
+  };
+  await expect(visibleToast(page, /client sign-off prepared/i)).toBeVisible({ timeout: 15_000 });
+  await expectToastClearOfDrawerHeader();
+  await page.setViewportSize({ width: 390, height: 800 });
+  await waitForFonts(page);
+  await expectToastClearOfDrawerHeader();
+  await page.setViewportSize({ width: 1280, height: 800 });
   await expect(claimDrawer.getByText('A different user must confirm this sign-off.')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Confirm sign-off' })).toHaveCount(0);
 

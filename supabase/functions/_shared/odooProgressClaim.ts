@@ -18,6 +18,7 @@ interface TimeMaterialsLine {
   line_key: string;
   rate_version: number;
   kind: string;
+  basis: 'work' | 'standby';
   label: string;
   unit: string;
   units: number | string;
@@ -140,8 +141,8 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
     }
 
     const { data: tmRows, error: tmLinesError } = await sc.from('tm_claim_lines')
-      .select('line_key,rate_version,kind,label,unit,units,rate,amount').eq('org_id', orgId).eq('claim_id', claim.id)
-      .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+      .select('line_key,rate_version,kind,basis,label,unit,units,rate,amount').eq('org_id', orgId).eq('claim_id', claim.id)
+      .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).order('basis', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
     if (tmLinesError) throw new AppError('The signed time-and-materials lines could not be read', 'gate-check-failed');
     const tmLines = (tmRows ?? []) as TimeMaterialsLine[];
     if (tmLines.length > MAX_CLAIM_LINES) throw new AppError(`A time-and-materials claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
@@ -156,11 +157,13 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
       const quantity = amountNumber(line.units);
       const rate = amountNumber(line.rate);
       const amount = amountNumber(line.amount);
-      if (!label || !unit || typeof line.kind !== 'string' || !line.kind.trim() || quantity <= 0 || rate < 0 || amount < 0) {
+      if (!label || !unit || !['labour', 'equipment'].includes(line.kind) || !['work', 'standby'].includes(line.basis)
+        || (line.basis === 'standby' && line.kind !== 'equipment') || quantity <= 0 || rate < 0 || amount < 0) {
         throw new AppError('The signed time-and-materials claim line is invalid', 'commit-rejected');
       }
       linesGross += amountInMinorUnits(line.amount);
-      return { item_code: label, description: `${label} (${unit})`, qty: quantity, rate, amount, unit };
+      const basisLabel = line.basis === 'standby' ? `${label} (${claim.currency === 'IDR' ? 'siaga' : 'standby'})` : label;
+      return { item_code: label, description: `${basisLabel} (${unit})`, qty: quantity, rate, amount, unit };
     });
     if (linesGross !== gross || linesGross !== tmGross) {
       throw new AppError('The signed time-and-materials claim header does not match its line amounts', 'commit-rejected');

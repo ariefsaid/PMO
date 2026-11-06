@@ -286,7 +286,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: () => repositories.revenue.listInvoices(),
     enabled: Boolean(orgId && companyRole),
   });
-  const procurementsQuery = useProcurements({ withSharedDetails: true, enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
+  const procurementsQuery = useProcurements({ lean: true, enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
   const workOrdersQuery = useUnbilledWorkOrders(Boolean(orgId && companyRole));
   const budgetReviewQuery = useQuery({
     queryKey: ['finance-budget-review', orgId],
@@ -305,8 +305,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: () => repositories.task.listDueRows(pmProjectIds),
     enabled: Boolean(orgId && role === 'Project Manager' && pmProjectsQuery.data),
   });
-  const timesheetsQuery = useTimesheets();
-  const myTasksQuery = useMyTasks();
+  // PERF-DASH-1: own timesheets and tasks feed the Engineer view only.
+  const timesheetsQuery = useTimesheets(role === 'Engineer');
+  const myTasksQuery = useMyTasks(role === 'Engineer');
   const expenseClaimsQuery = useQuery({
     queryKey: ['expense-claims', orgId, { status: 'Rejected' }],
     queryFn: () => repositories.expenseClaim.list({ status: 'Rejected' }),

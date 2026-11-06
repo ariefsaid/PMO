@@ -23,6 +23,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ERPNEXT_DISPATCH_DOMAINS, ERPNEXT_TIMESHEETS_DOMAIN, isErpDispatchDomain } from './erpnext/adapter';
 
 const INDEX = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/adapter-dispatch/index.ts'),
@@ -310,21 +311,22 @@ describe('WIRE #1505 P2: the tier that owns the domain picks the adapter, and th
 
 describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and rides every erp gate', () => {
   it('FR-TSP-005 ADAPTER_REGISTRY routes the timesheets domain to the ERPNext factory', () => {
-    expect(INDEX).toMatch(/import \{[^}]*ERPNEXT_TIMESHEETS_DOMAIN[^}]*\} from '[^']*\/erpnext\/adapter\.ts'/);
+    // The registry derives from the ONE shared list, and timesheets is in it.
+    expect(ERPNEXT_DISPATCH_DOMAINS).toContain(ERPNEXT_TIMESHEETS_DOMAIN);
     expect(INDEX).toMatch(/import \{[^}]*selectAdapterFactory[^}]*\} from '\.\/dispatchAdapters\.ts'/);
     const registry = DISPATCH_ADAPTERS_CODE.slice(DISPATCH_ADAPTERS_CODE.indexOf('export const ADAPTER_REGISTRY'));
     expect(
       registry.slice(0, registry.indexOf('};')),
       'without a registry entry a timesheet command answers UNSUPPORTED_DOMAIN, never a push',
-    ).toMatch(/\[ERPNEXT_TIMESHEETS_DOMAIN\]: resolveErpAdapter/);
+    ).toMatch(/ERPNEXT_DISPATCH_DOMAINS\.map\(\(domain\) => \[domain, resolveErpAdapter\]\)/);
     expectSourceOrder(CODE, 'await enforceTimesheetApproved(', 'selectAdapterFactory(employedTier, command.domain)');
     expectSourceOrder(CODE, 'selectAdapterFactory(employedTier, command.domain)', 'runDispatchAttempt({');
     expect(runDispatchAttemptArgs()).toMatch(/adapterFactory,/);
   });
 
   it('FR-TSP-012/013 isErpDomain includes timesheets, so authz + idempotency + target binding all apply', () => {
-    const decl = CODE.slice(at('const isErpDomain'));
-    expect(decl.slice(0, decl.indexOf(';'))).toContain('ERPNEXT_TIMESHEETS_DOMAIN');
+    expect(isErpDispatchDomain(ERPNEXT_TIMESHEETS_DOMAIN)).toBe(true);
+    expect(CODE).toMatch(/const isErpDomain = isErpDispatchDomain\(command\.domain\)/);
     // The three gates keyed on that predicate, each of which a timesheets push must pass.
     expect(CODE).toMatch(/await checkCommandAuthorization\(/);
     expect(CODE).toMatch(/await checkTransitionTargetBinding\(/);

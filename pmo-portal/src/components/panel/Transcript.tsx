@@ -13,7 +13,7 @@ import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { TranscriptItem } from './TranscriptItem';
 
 /** NFR-AP-PERF-003: maximum number of visible transcript entries before the cap kicks in. */
-export const TRANSCRIPT_CAP = 200;
+const TRANSCRIPT_CAP = 200;
 
 interface TranscriptProps {
   transcript: TranscriptEntry[];

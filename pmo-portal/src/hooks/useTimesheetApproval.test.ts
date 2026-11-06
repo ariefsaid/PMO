@@ -145,6 +145,28 @@ describe('useTimesheetMutations', () => {
     ).toBe(true);
   });
 
+  it('T18 I1: the REAL settleBatch invalidates each shared key once per batch and push-state once per id', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+    await act(async () => { await result.current.settleBatch(['a', 'b', 'c']); });
+    const keys = invalidateSpy.mock.calls.map(c => JSON.stringify(c[0]?.queryKey));
+    const count = (k: string) => keys.filter(x => x === k).length;
+    expect(count(JSON.stringify(['timesheets-reopenable-approved', 'org-1', 'u1']))).toBe(1);
+    expect(count(JSON.stringify(['timesheet-pushes-attention', 'org-1']))).toBe(1);
+    for (const id of ['a', 'b', 'c']) expect(count(JSON.stringify(['timesheet-push-state', id]))).toBe(1);
+    expect(keys).toHaveLength(2 + 3 + 2); // shared x2, push-state x3, invalidateBoth x2
+  });
+
+  it('T18 M1: settleBatch with no approved ids still refreshes the queue', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+    await act(async () => { await result.current.settleBatch([]); });
+    const keys = invalidateSpy.mock.calls.map(c => JSON.stringify(c[0]?.queryKey));
+    expect(keys).toContain(JSON.stringify(['timesheets-awaiting', 'org-1', 'u1']));
+  });
+
   // ── SHOULD-FIX 4 (Luna code review) — a successful re-open must clear the surfaces it invalidated.
   it('reopens an own timesheet through the same transition', async () => {
     const { Wrapper } = makeWrapper();

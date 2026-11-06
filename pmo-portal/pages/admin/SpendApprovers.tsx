@@ -21,6 +21,7 @@ import { can } from '@/src/auth/policy';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
+import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 
 /**
@@ -285,6 +286,7 @@ const SpendApprovers: React.FC = () => {
       {adding && (
         <AddApproverModal
           mode={adding}
+          eligible={eligible}
           submitError={saveError}
           onClose={() => setAdding(null)}
           onSubmit={async (profileId, projectId) => {
@@ -329,28 +331,22 @@ interface AddValues {
 
 interface AddApproverModalProps {
   mode: 'org' | 'project';
+  /** OE04-005: the parent's already-computed eligible profiles — the same list its route
+   * notes explain, so the picker can never disagree with the explanation. */
+  eligible: ProfileRow[];
   /** #559: owned by the parent (which owns the mutation), rendered here. */
   submitError: SubmitError | null;
   onClose: () => void;
   onSubmit: (profileId: string, projectId: string | null) => Promise<void>;
 }
 
-const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, submitError, onClose, onSubmit }) => {
+const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, submitError, onClose, onSubmit }) => {
   const { t } = useTranslation();
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  const { data: people } = useQuery({
-    queryKey: ['spend-approver-people', orgId],
-    queryFn: () => repositories.profile.listOrgProfiles(),
-    enabled: Boolean(orgId),
-  });
-  // UX mirror of the RLS rank floor (ADR-0070): the same predicate that offers the Approve button.
+  // UX mirror of the RLS rank floor (ADR-0070), mapped from the parent's eligibility — the
+  // modal does not re-query or re-filter (OE04-005).
   const personOptions = useMemo(
-    () =>
-      (people ?? [])
-        .filter((p) => p.status === 'active' && can('transition', 'procurement', { realRole: p.role as never }))
-        .map((p) => ({ value: p.id, label: p.full_name })),
-    [people],
+    () => eligible.map((p) => ({ value: p.id, label: p.full_name })),
+    [eligible],
   );
   const { data: projectOptions } = useProjectOptions();
   const loadProjects = useCallback(

@@ -946,3 +946,67 @@ describe('erpnext/client', () => {
     });
   });
 });
+
+describe('safe bounded diagnostic reads', () => {
+  it.each(['throw', 'redirect', 'cap', 'server'])('does not expose sensitive request or upstream content on %s', async kind => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchImpl = vi.fn(async () => {
+      if (kind === 'throw') throw new Error('secret-company');
+      if (kind === 'redirect') return new Response('', { status: 302 });
+      if (kind === 'cap') return new Response('secret-company'.repeat(100));
+      return new Response(JSON.stringify({ exc_type: 'secret-company', message: 'secret-company' }), { status: 500 });
+    });
+    try {
+      const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0 };
+      let error: unknown;
+      try { await erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list?company=secret-company', maxResponseBytes: 64, safeDiagnostic: true }); } catch (caught) { error = caught; }
+      expect(error).toBeInstanceOf(Error);
+      expect(String(error)).toBe('ErpError: Statement report request failed');
+      expect(log.mock.calls).toEqual([]);
+      expect(JSON.stringify([String(error), log.mock.calls])).not.toContain('secret-company');
+    } finally { log.mockRestore(); }
+  });
+});
+
+describe('diagnostic request cancellation', () => {
+  it('cleans up listeners after successful request', async () => {
+    const controller = new AbortController();
+    const add = vi.spyOn(controller.signal, 'addEventListener');
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const deps = { fetchImpl: vi.fn(async () => new Response('{}')) as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0 };
+    await erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, signal: controller.signal });
+    expect(add.mock.calls.filter(call => call[0] === 'abort').length).toBe(remove.mock.calls.filter(call => call[0] === 'abort').length);
+  });
+  it('does not invoke fetch after an aborted limiter acquisition resolves', async () => {
+    let release!: () => void;
+    const fetchImpl = vi.fn(async () => new Response('{}'));
+    const controller = new AbortController();
+    const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0, rateLimiter: { acquire: () => new Promise<void>(resolve => { release = resolve; }) } };
+    const result = erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, signal: controller.signal }).catch(error => error);
+    controller.abort();
+    expect(await result).toBeInstanceOf(Error);
+    release();
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+it('fences a diagnostic deadline immediately after acquisition even before a timer fires', async () => {
+  let now = 100;
+  const fetchImpl = vi.fn(async () => new Response('{}'));
+  const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0, now: () => now, rateLimiter: { acquire: async () => { now = 201; } } };
+  await expect(erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, deadlineAtMs: 200 })).rejects.toThrow();
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+it('consumes a limiter rejection when acquisition synchronously aborts its caller', async () => {
+  const controller = new AbortController();
+  let rejectAcquire!: (reason: Error) => void;
+  const fetchImpl = vi.fn(async () => new Response('{}'));
+  const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', rateLimiter: { acquire: () => { controller.abort(); return new Promise<void>((_, reject) => { rejectAcquire = reject; }); } } };
+  const result = await erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, signal: controller.signal }).catch(error => error);
+  expect(String(result)).toBe('ErpError: Statement report request failed');
+  rejectAcquire(new Error('sensitive limiter failure'));
+  await new Promise(resolve => setTimeout(resolve, 10));
+  expect(fetchImpl).not.toHaveBeenCalled();
+});

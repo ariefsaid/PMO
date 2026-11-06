@@ -26,6 +26,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyClickUpSignature } from '../../../pmo-portal/src/lib/adapterSeam/clickup/signature.ts';
 import { parseWebhookEnvelope, type ClickUpWebhookPayload } from '../../../pmo-portal/src/lib/adapterSeam/clickup/types.ts';
+import { readBodyBounded } from '../_shared/readBodyBounded.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // 256 KiB body cap (review fix #7b): reject an oversized payload BEFORE req.text() so a huge body
@@ -66,7 +67,8 @@ export async function handleClickUpWebhook(req: Request, deps: ClickUpWebhookHan
   // ── 1. The HMAC is the sole trust boundary: read the RAW body + the X-Signature header BEFORE any
   //    parse/enqueue. An absent/invalid signature ⇒ 401 with NO side effect (FR-CUA-041, NFR-CUA-SEC-002). ──
   const secret = Deno.env.get('CLICKUP_WEBHOOK_SECRET') ?? '';
-  const rawBody = await req.text();
+  const rawBody = await readBodyBounded(req, MAX_WEBHOOK_BODY_BYTES);
+  if (rawBody === null) return json({ error: 'PAYLOAD_TOO_LARGE' }, 413);
   const signatureHeader = req.headers.get('X-Signature') ?? '';
   if (!secret || !(await verifyClickUpSignature(rawBody, signatureHeader, secret))) {
     return json({ error: 'UNAUTHORIZED' }, 401);

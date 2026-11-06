@@ -1,7 +1,10 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, mapBounded } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
+
+const ELIGIBILITY_CHUNK = 100;
 
 /**
  * Work-order DAL (#566, over migrations `0193` + `0197`).
@@ -166,13 +169,18 @@ export function isOverCommitmentRefusal(err: unknown): boolean {
 async function attachIssueEligibility(rows: WorkOrderRow[]): Promise<WorkOrderRow[]> {
   const ids = rows.filter((row) => row.status === 'Draft').map((row) => row.id);
   if (ids.length === 0) return rows;
-  let decisions = new Map<string, string>();
-  try {
-    const { data, error } = await supabase.rpc('work_order_issue_eligibility', { p_ids: ids });
-    if (!error) decisions = new Map((data ?? []).map((item) => [item.work_order_id, item.reason]));
-  } catch {
-    // Keep the register readable; missing eligibility never enables Issue.
-  }
+  const decisions = new Map<string, string>();
+  // Chunked so no response passes db-max-rows; a failed chunk fails closed for its own ids only.
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += ELIGIBILITY_CHUNK) chunks.push(ids.slice(i, i + ELIGIBILITY_CHUNK));
+  await mapBounded(chunks, 4, async (chunk) => {
+    try {
+      const { data, error } = await supabase.rpc('work_order_issue_eligibility', { p_ids: chunk });
+      if (!error) for (const item of data ?? []) decisions.set(item.work_order_id, item.reason);
+    } catch {
+      // Keep the register readable; missing eligibility never enables Issue.
+    }
+  });
   return rows.map((row) => row.status === 'Draft'
     ? { ...row, issue_eligibility: decisions.get(row.id) ?? null }
     : row);
@@ -183,13 +191,18 @@ async function attachIssueEligibility(rows: WorkOrderRow[]): Promise<WorkOrderRo
  * (`org_id = auth_org_id() AND is_active_member()`) scopes the rows.
  */
 export async function listProjectWorkOrders(projectId: string): Promise<WorkOrderRow[]> {
-  const { data, error } = await supabase
-    .from('work_orders')
-    .select('*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false });
-  if (error) throwWrite(error);
-  return attachIssueEligibility(data ?? []);
+  // Complete keyset scan, then newest first in memory.
+  const rows = await fetchAllRowsByKeyset<WorkOrderRow>(async (afterId, limit) => {
+    let q = supabase
+      .from('work_orders')
+      .select('*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)')
+      .eq('project_id', projectId)
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit) as unknown as PromiseLike<{ data: WorkOrderRow[] | null; error: { message: string; code?: string } | null }>;
+  });
+  rows.sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id));
+  return attachIssueEligibility(rows);
 }
 
 /** One work order by id, or null when not found / not readable. RLS scopes the row. */

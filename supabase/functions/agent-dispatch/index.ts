@@ -233,10 +233,8 @@ serveWithErrorReporting('agent-dispatch', withJobRun('agent-dispatch', async (re
       // FR-AAN-020: the fired run persists as an ordinary run under the MINTED OWNER client (owner
       // RLS — the deputy invariant, never service_role). auditMint already created the thread+run +
       // the seq-0 audit event, so this resumes that run: startSeq=1, no journaled writes yet.
-      buildPersistence: (mintedClient, ownerId, _runId) => ({
+      buildPersistence: (mintedClient, _ownerId, _runId) => ({
         supabase: mintedClient,
-        ownerId,
-        orgId: '',
         now: () => new Date(),
         startSeq: 1,
         journaledWrites: [],

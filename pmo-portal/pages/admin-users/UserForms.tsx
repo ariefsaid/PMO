@@ -12,7 +12,7 @@ import {
 } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
+import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db/adminUsers';
 import { useRoleLabels } from './roleLabels';
 import { initialsOf, avatarHue } from './avatar';
 
@@ -135,11 +135,11 @@ interface RoleFormValues {
 }
 
 export const RoleFormModal: React.FC<{
-  user: UserRow;
+  user: UserDirectoryRow;
   /** #559: owned by the page (which owns the mutation), rendered here. */
   submitError: SubmitError | null;
   onClose: () => void;
-  onSubmit: (user: UserRow, role: UserRole) => void;
+  onSubmit: (user: UserDirectoryRow, role: UserRole) => void;
 }> = ({ user, submitError, onClose, onSubmit }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
@@ -198,12 +198,20 @@ interface ManagerFormValues {
 }
 
 export const ManagerFormModal: React.FC<{
-  user: UserRow;
-  candidates: UserRow[];
+  user: UserDirectoryRow;
+  /** The COMPLETE, minimal people list (id, name, role) — every page, never the visible page. */
+  choices: UserManagerChoice[];
+  /**
+   * The list's own load state. It is rendered as a first-class state: an unresolved or failed read
+   * must never look like "nobody is available", and it must not allow a write that the user cannot
+   * verify (including an accidental clear).
+   */
+  choicesState: 'loading' | 'error' | 'ready';
+  onRetryChoices: () => void;
   loading: boolean;
   onClose: () => void;
-  onSubmit: (user: UserRow, managerId: string | null) => void;
-}> = ({ user, candidates, loading, onClose, onSubmit }) => {
+  onSubmit: (user: UserDirectoryRow, managerId: string | null) => void;
+}> = ({ user, choices, choicesState, onRetryChoices, loading, onClose, onSubmit }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
   const form = useEntityForm<ManagerFormValues>({
@@ -212,10 +220,11 @@ export const ManagerFormModal: React.FC<{
     module: 'administration',
   });
   const managerId = form.values.managerId;
+  const choicesReady = choicesState === 'ready';
 
   // The manager picker offers everyone EXCEPT the user themselves (no self-management).
   const loadOptions = async (): Promise<ComboboxOption[]> =>
-    candidates
+    choices
       .filter((c) => c.id !== user.id)
       .map((c) => ({
         value: c.id,
@@ -225,17 +234,28 @@ export const ManagerFormModal: React.FC<{
         color: avatarHue(c.id),
       }));
 
+  // The saved manager is retained BY ID and NAMED from the row's own server embed, so the current
+  // reporting line stays visible when that person is on another page — and while the complete list
+  // is still loading or has failed. It must never render as "no manager" in those states.
   const selectedOption: ComboboxOption | null = managerId
     ? (() => {
-        const m = candidates.find((c) => c.id === managerId);
-        return m
-          ? { value: m.id, label: m.full_name, sub: roleNames.label(m.role), initials: initialsOf(m.full_name), color: avatarHue(m.id) }
-          : null;
+        const chosen = choices.find((c) => c.id === managerId);
+        if (chosen) {
+          return { value: chosen.id, label: chosen.full_name, sub: roleNames.label(chosen.role), initials: initialsOf(chosen.full_name), color: avatarHue(chosen.id) };
+        }
+        const embeddedName = user.manager_id === managerId ? user.manager?.full_name : undefined;
+        return {
+          value: managerId,
+          label:
+            embeddedName ??
+            t('administration:admin.users.managerForm.currentUnavailable', 'Current manager (name unavailable)'),
+        };
       })()
     : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!choicesReady) return;
     void form.handleSubmit((values) => {
       onSubmit(user, values.managerId);
     });
@@ -253,6 +273,11 @@ export const ManagerFormModal: React.FC<{
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={loading}
+      submitDisabled={!choicesReady}
+      disabledReason={t(
+        'administration:admin.users.managerForm.awaitingChoices',
+        'Wait for the people list to load before saving a manager.',
+      )}
       dirty={form.isDirty}
     >
       <FormSection legend={t('admin.users.managerForm.legend', 'Reporting line')}>
@@ -263,13 +288,27 @@ export const ManagerFormModal: React.FC<{
           selectedOption={selectedOption}
           onChange={(v) => form.setValue('managerId', v)}
           loadOptions={loadOptions}
+          disabled={!choicesReady}
           placeholder={t('admin.users.managerForm.placeholder', 'Assign a manager…')}
           searchPlaceholder={t('admin.users.managerForm.search', 'Search people…')}
         />
         <p className="mt-1.5 text-[12px] text-muted-foreground">
           {t('admin.users.managerForm.hint', 'Used for timesheet-approval routing.')}
         </p>
-        {managerId && (
+        {choicesState === 'loading' && (
+          <p role="status" className="mt-1.5 text-[12px] text-muted-foreground">
+            {t('administration:admin.users.managerForm.choicesLoading', 'Loading people…')}
+          </p>
+        )}
+        {choicesState === 'error' && (
+          <p role="alert" className="mt-1.5 text-[12px] text-destructive">
+            {t('administration:admin.users.managerForm.choicesError', "Couldn't load the people list.")}{' '}
+            <button type="button" onClick={onRetryChoices} className="font-semibold underline underline-offset-2">
+              {t('administration:admin.users.managerForm.choicesRetry', 'Retry')}
+            </button>
+          </p>
+        )}
+        {managerId && choicesReady && (
           <button
             type="button"
             onClick={() => form.setValue('managerId', null)}

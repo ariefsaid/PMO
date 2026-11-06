@@ -23,6 +23,7 @@
  * Both guards run in `index.ts` BEFORE adapter select / outbox insert / any ERP write.
  */
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { ERPNEXT_DISPATCH_DOMAINS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { decodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { isBudgetAccountArchiveKey, isBudgetAccountPushKey, isBudgetLegacyArchiveKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
@@ -40,13 +41,11 @@ export interface TransitionBindingResult {
 
 const OK: TransitionBindingResult = { ok: true, status: 200, message: '' };
 
-/** The PMO domains the erpnext tier owns. A P0/P1 domain (`reference`/`tasks`) is never guarded here —
- *  it has no ERP document identity to bind.
- *
- *  ⚑ This set MUST stay in step with `index.ts`'s `isErpDomain`: a domain that routes to the ERP adapter
- *  but is missing here makes BOTH guards return OK on their first line — INERT, not passing — which
- *  silently re-opens BLOCK #2 and BLOCK #4 for that domain. `budget` (P3c) was exactly that gap. */
-const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue', 'timesheets', 'budget']);
+/** The PMO domains the erpnext tier owns: the one dispatch list, shared with `index.ts`'s `isErpDomain` and the adapter
+ *  registry so they cannot drift (a domain routed to the ERP adapter but missing here would make BOTH guards return OK on
+ *  their first line, silently re-opening BLOCK #2 and BLOCK #4 for it; `budget` (P3c) was exactly that gap). A P0/P1
+ *  domain (`reference`/`tasks`) is never guarded here: it has no ERP document identity to bind. */
+const ERP_DOMAINS = new Set<string>(ERPNEXT_DISPATCH_DOMAINS);
 
 /**
  * P3b FR-TSP-013 — the domains that accept NO caller-supplied ERP target AT ALL.

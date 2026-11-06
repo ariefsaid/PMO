@@ -1,11 +1,9 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, FormGrid, FormSection, GateNotice, SelectField, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { useProjects } from '@/src/hooks/useProjects';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
 import { useExpenseCapture } from '@/src/hooks/useExpenseCapture';
 import { useImprestFloatChoices, useImprestProcurementLimit, useSetClaimFloat } from '@/src/hooks/useImprest';
@@ -24,6 +22,8 @@ import { expenseTypeLabel } from './expenses/expenseLabels';
 import { PostingReadinessNote } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { AdvanceLoadNotice } from './expenses/AdvanceLoadNotice';
+import { ProjectLoadNotice } from './expenses/ProjectLoadNotice';
+import { useProjectChoices } from './expenses/useProjectChoices';
 
 type DraftLine = { date: string; type: string; description: string; amount: string };
 const blankLine = (): DraftLine => ({ date: '', type: '', description: '', amount: '' });
@@ -36,7 +36,7 @@ const ExpenseClaimNew: React.FC = () => {
   const may = usePermission();
   const canCreate = may('create', 'expenseClaim');
   const currentUserId = useAuth().currentUser?.id;
-  const { data: projects } = useProjects();
+  const projectChoices = useProjectChoices();
   const { data: claims } = useExpenseClaims({ kind: 'claim' });
   const { data: advances } = useExpenseClaims({ kind: 'advance' });
   const capture = useExpenseCapture();
@@ -52,6 +52,8 @@ const ExpenseClaimNew: React.FC = () => {
   const ownAdvances = useOwnAdvanceOptions();
   // An unloaded list is "unknown", never "no advance": a new claim is not saved until it has loaded.
   const advancesNotReady = ownAdvances.isPending || ownAdvances.isError;
+  // Likewise the project list: an unloaded one must not let the claim save as "Overhead (no project)".
+  const projectsNotReady = projectChoices.isPending || projectChoices.isError;
   const currency = useOrgCurrency();
   const setClaimFloat = useSetClaimFloat();
   const floatChoices = useImprestFloatChoices(projectId || undefined, (category || null) as BudgetCategory | null).data ?? [];
@@ -63,7 +65,7 @@ const ExpenseClaimNew: React.FC = () => {
   const [blockedLeave, setBlockedLeave] = useState<(() => void) | null>(null);
   const dirty = Boolean(title || advanceId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setBlockedLeave(() => leave) });
-  const options = (projects ?? []).map((project) => ({ value: project.id, label: projectDisplayName(project) }));
+  const options = projectChoices.options;
   const categoryPrecedents = useMemo(() => {
     const newestByProject = new Map<string, { budgetCategory: BudgetCategory; sourceTitle: string }>();
     const ordered = [...(claims?.rows ?? [])].sort((left, right) =>
@@ -94,7 +96,7 @@ const ExpenseClaimNew: React.FC = () => {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (saveInFlight.current || advancesNotReady) return;
+    if (saveInFlight.current || advancesNotReady || projectsNotReady) return;
     if (!title.trim() || invalidLine) {
       setError(t('expenseClaims:new.validation', 'Enter a title and complete any expense line you start.')); return;
     }
@@ -164,6 +166,7 @@ const ExpenseClaimNew: React.FC = () => {
               {floatHint.overLimit && <p>{t('imprest:form.limitHint', 'Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.', { limit: formatCurrency(procurementLimit as number, currency) })}</p>}
             </div>}
           </>}
+          <ProjectLoadNotice projects={projectChoices} />
           <AdvanceLoadNotice advances={ownAdvances} />
           {advanceOptions.length > 0 && <SelectField label={t('expenses.form.advance.label', 'Settle against advance')} value={advanceId} onChange={setAdvanceId} options={[{ value: '', label: t('expenses.form.advance.none', 'No advance') }, ...advanceOptions]} />}
         </FormGrid>
@@ -182,7 +185,7 @@ const ExpenseClaimNew: React.FC = () => {
         <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
       </FormSection>
       {error && <p role="alert" className="mb-3 text-sm text-destructive-text">{error}</p>}
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background py-3"><Button type="button" variant="outline" onClick={() => guardLeave(() => navigate('/expenses'))}>{t('expenses.actions.cancel', 'Cancel')}</Button><Button type="submit" variant="primary" disabled={saving || advancesNotReady}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}</Button></div>
+      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background py-3"><Button type="button" variant="outline" onClick={() => guardLeave(() => navigate('/expenses'))}>{t('expenses.actions.cancel', 'Cancel')}</Button><Button type="submit" variant="primary" disabled={saving || advancesNotReady || projectsNotReady}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}</Button></div>
     </form>
     <ConfirmDialog open={blockedLeave !== null} tone="default" title={t('expenseClaims:new.discardTitle', 'Discard unsaved claim?')} description={t('expenseClaims:new.discardBody', 'Your claim details and lines have not been saved. Leave and discard them?')} confirmLabel={t('expenseClaims:new.discardLeave', 'Leave')} cancelLabel={t('expenseClaims:new.discardStay', 'Stay')} onCancel={() => setBlockedLeave(null)} onConfirm={() => { const leave = blockedLeave; setBlockedLeave(null); leave?.(); }} />
   </div>;

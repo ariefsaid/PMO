@@ -162,6 +162,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "contract_rate_lines_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_assets"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contract_rate_lines_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -3014,6 +3021,7 @@ export type Database = {
           party: string | null
           party_type: string | null
           posting_date: string | null
+          remarks: string | null
           project: string | null
           replay_seen_id: string | null
           voucher_no: string | null
@@ -3038,6 +3046,7 @@ export type Database = {
           party?: string | null
           party_type?: string | null
           posting_date?: string | null
+          remarks?: string | null
           project?: string | null
           replay_seen_id?: string | null
           voucher_no?: string | null
@@ -3062,6 +3071,7 @@ export type Database = {
           party?: string | null
           party_type?: string | null
           posting_date?: string | null
+          remarks?: string | null
           project?: string | null
           replay_seen_id?: string | null
           voucher_no?: string | null
@@ -3073,6 +3083,71 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_journal_line_links: {
+        Row: {
+          account: string
+          erp_doctype: string
+          id: string
+          linked_at: string
+          linked_by: string | null
+          org_id: string
+          procurement_id: string
+          project_id: string
+          voucher_no: string
+        }
+        Insert: {
+          account: string
+          erp_doctype: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          org_id: string
+          procurement_id: string
+          project_id: string
+          voucher_no: string
+        }
+        Update: {
+          account?: string
+          erp_doctype?: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          org_id?: string
+          procurement_id?: string
+          project_id?: string
+          voucher_no?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_journal_line_links_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_journal_line_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_journal_line_links_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_journal_line_links_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -3732,6 +3807,42 @@ export type Database = {
             columns: ["return_id"]
             isOneToOne: false
             referencedRelation: "expense_advance_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erpnext_payment_inflight_bills: {
+        Row: {
+          bill_name: string
+          id: string
+          org_id: string
+          outbox_id: string
+        }
+        Insert: {
+          bill_name: string
+          id?: string
+          org_id: string
+          outbox_id: string
+        }
+        Update: {
+          bill_name?: string
+          id?: string
+          org_id?: string
+          outbox_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erpnext_payment_inflight_bills_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erpnext_payment_inflight_bills_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "external_command_outbox"
             referencedColumns: ["id"]
           },
         ]
@@ -10170,6 +10281,7 @@ export type Database = {
       tm_claim_lines: {
         Row: {
           amount: number
+          basis: string
           claim_id: string
           id: string
           kind: string
@@ -10183,6 +10295,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          basis?: string
           claim_id: string
           id?: string
           kind: string
@@ -10196,6 +10309,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          basis?: string
           claim_id?: string
           id?: string
           kind?: string
@@ -11325,6 +11439,35 @@ export type Database = {
     }
     Functions: {
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
+      attach_erp_journal_lines: {
+        Args: { p_dry_run?: boolean; p_rows: Json }
+        Returns: Json
+      }
+      detach_erp_journal_line: {
+        Args: { p_link_id: string }
+        Returns: undefined
+      }
+      project_erp_journal_lines: {
+        Args: { p_project_id: string }
+        Returns: {
+          account: string
+          amount: number
+          category: Database["public"]["Enums"]["budget_category"]
+          currency: string
+          erp_doctype: string
+          erp_url: string
+          is_cancelled: boolean
+          link_id: string
+          party: string
+          posting_date: string
+          procurement_id: string
+          procurement_title: string
+          possibly_reversed: boolean
+          project_id: string
+          remarks: string
+          voucher_no: string
+        }[]
+      }
       unpair_invoice: { Args: { p_pmo_id: string }; Returns: undefined }
       assemble_tm_claim: {
         Args: {
@@ -11744,6 +11887,7 @@ export type Database = {
         }
         Returns: string
       }
+      request_financial_statement_refresh: { Args: never; Returns: Json }
       request_po_variation: {
         Args: {
           p_lines: Json
@@ -11830,17 +11974,19 @@ export type Database = {
         Args: { p_from: string; p_project: string; p_to: string }
         Returns: {
           entry_date: string
-          kind: string
-          label: string
-          line_key: string
-          rate: number
-          rate_version: number
+          basis: string
+          kind: string | null
+          label: string | null
+          line_key: string | null
+          rate: number | null
+          rate_version: number | null
           source_id: string
           source_kind: string
-          unit: string
+          unit: string | null
           units: number
           unrated_reason: string
-          user_id: string
+          user_id: string | null
+          asset_id: string | null
         }[]
       }
       tm_source_is_live: {
@@ -11875,6 +12021,10 @@ export type Database = {
       budget_version_read_totals: {
         Args: { p_project_id: string }
         Returns: { version_id: string; total: number }[]
+      }
+      get_budget_distribution_snapshot: {
+        Args: { p_version_id: string }
+        Returns: Json
       }
       _m365_disconnect_cascade_core: {
         Args: {
@@ -12919,6 +13069,28 @@ export type Database = {
           weight: number
         }[]
       }
+      get_project_overview_read: {
+        Args: {
+          p_include_budget?: boolean
+          p_include_commitments?: boolean
+          p_include_money?: boolean
+          p_project_id: string
+        }
+        Returns: {
+          billing: Json
+          boq_items: Json
+          budget_versions: Json
+          comment_count: number
+          committed_spend: Json
+          external_domain_ownership: Json
+          finances: Json
+          milestones: Json
+          org_default_currency: string
+          org_default_timezone: string
+          project_id: string
+          reads_erp_ledger: boolean
+        }[]
+      }
       get_project_vat_editability: { Args: { p_id: string }; Returns: Json }
       get_projects_delivery: {
         Args: { p_ids: string[] }
@@ -13220,11 +13392,14 @@ export type Database = {
         Returns: {
           entry_date: string | null
           entry_id: string
+          basis: string
           id: string
           is_selected: boolean
           line_label: string
           person_id: string | null
           person_name: string | null
+          asset_id: string | null
+          asset_name: string | null
           person_unit_total: number
           signoff_is_current: boolean
           total_count: number
@@ -13833,16 +14008,19 @@ export type Database = {
         Args: { p_from: string; p_project: string; p_to: string }
         Returns: {
           amount: number
-          kind: string
-          label: string
-          line_key: string
-          rate: number
-          rate_version: number
+          basis: string
+          kind: string | null
+          label: string | null
+          line_key: string | null
+          rate: number | null
+          rate_version: number | null
           source_count: number
-          unit: string
+          unit: string | null
           units: number
           unrated_reason: string
-          user_id: string
+          user_id: string | null
+          asset_id: string | null
+          asset_name: string | null
         }[]
       }
       procurement_evidenced_step: {
@@ -13877,6 +14055,15 @@ export type Database = {
           p_inputs: Json
           p_method: string
           p_rows: Json
+          p_version: string
+        }
+        Returns: undefined
+      }
+      switch_budget_draft_mode: {
+        Args: {
+          p_assignments: Json
+          p_expected_lines: Json
+          p_target_mode: string
           p_version: string
         }
         Returns: undefined

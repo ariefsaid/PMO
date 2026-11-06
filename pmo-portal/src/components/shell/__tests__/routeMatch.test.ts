@@ -73,7 +73,7 @@ describe('UXS-006 shared route vocabulary', () => {
   });
 
   it('keeps the filtered Vendors doorway vocabulary on its canonical breadcrumb', () => {
-    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, undefined, '?type=Vendor')).toEqual([
+    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, '?type=Vendor')).toEqual([
       { label: 'Vendors', i18nKey: 'shell.nav.vendors' },
     ]);
   });
@@ -277,7 +277,6 @@ describe('breadcrumbForPath — contextual list return', () => {
       'Example project',
       navigate,
       true,
-      undefined,
       contextualParent,
     );
 
@@ -358,11 +357,15 @@ describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
     expect(label).toBeUndefined();
   });
 
-  it('breadcrumbForPath for /views/:viewId returns [My Views, <name>]', () => {
+  it('breadcrumbForPath for /views/:viewId returns [My Views, <name>] linked to the /views index', () => {
     const crumbs = breadcrumbForPath('/views/v1', 'Revenue View', navigate);
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('My Views');
+    // The parent crumb leads to the /views index (the shipped My Views list), not Dashboard.
+    expect(crumbs[0].href).toBe('/views');
     expect(typeof crumbs[0].onClick).toBe('function');
+    crumbs[0].onClick?.();
+    expect(navigate).toHaveBeenCalledWith('/views');
     expect(crumbs[1].label).toBe('Revenue View');
   });
 

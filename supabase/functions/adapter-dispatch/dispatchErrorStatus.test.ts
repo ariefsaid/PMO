@@ -33,6 +33,7 @@ Deno.test('AC-TSP-031: the transport + conflict classes keep their own statuses'
   assert(dispatchErrorStatus('external-unreachable', 400) === 502, 'unreachable is 502');
   assert(dispatchErrorStatus('command-held', 500) === 409, 'held is a 409 conflict');
   assert(dispatchErrorStatus('command-in-flight-for-record', 500) === 409, 'in-flight is a 409 conflict');
+  assert(dispatchErrorStatus('payment-in-flight-for-bill', 500) === 409, 'per-bill payment conflict is a 409');
 });
 
 Deno.test('AC-TSP-031: an UNCLASSIFIED code keeps the caller\'s own fallback — never optimistically re-labelled', () => {

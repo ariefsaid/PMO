@@ -1,5 +1,5 @@
 // @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 import { login } from '../helpers';
 
 // AC-732 — curated journey: PM creates a Draft, adds line-items {600000,400000}, a second person
@@ -35,6 +35,10 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
           status: 'ready',
           erpCheck: 'available',
           fiscalYearNames: ['2026', '2027'],
+          fiscalYears: [
+            { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+            { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+          ],
           issues: [],
         }),
       });
@@ -100,7 +104,7 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await draftEditor.getByRole('button', { name: 'Save' }).click();
 
   // Wait for line-item row to appear (the cell in the table)
-  await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$600,000' })).toBeVisible({ timeout: 10_000 });
+  await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$600,000', exact: true })).toBeVisible({ timeout: 10_000 });
 
   // --- Step 4: Add second line-item (400,000) ---
   await draftEditor.getByRole('button', { name: '+ Add line item', exact: true }).click();
@@ -111,7 +115,76 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await draftEditor.getByRole('button', { name: 'Save' }).click();
 
   // Wait for second line-item to appear
-  await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$400,000' })).toBeVisible({ timeout: 10_000 });
+  await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$400,000', exact: true })).toBeVisible({ timeout: 10_000 });
+
+  // Whole-project Drafts need an explicit saved distribution before an eligible approver can
+  // review them. The source lines come from the seeded project; the adapter precheck below supplies
+  // a clearly controlled fiscal-year response so this journey never performs a live ERP write.
+  const distribution = draftEditor.getByTestId('budget-distribution-grid');
+  await distribution.getByRole('button', { name: 'Preview distribution', exact: true }).click();
+  await distribution.getByRole('status').filter({ hasText: 'Preview ready' }).waitFor({ state: 'visible' });
+  await expect(distribution).toContainText('$600,000');
+  await expect(distribution).toContainText('$400,000');
+  await expect(distribution.locator('tfoot')).toContainText('$1,000,000');
+
+  await distribution.getByRole('button', { name: 'Save reviewed distribution', exact: true }).click();
+  const distributionDialog = page.getByRole('dialog', { name: 'Save this distribution?' });
+  await distributionDialog.getByRole('button', { name: 'Save distribution', exact: true }).click();
+  await expect(distribution.getByText('Saved distribution', { exact: true })).toBeVisible({ timeout: 10_000 });
+
+  // The mode-conversion review remains a user-controlled confirmation and can be canceled safely.
+  await draftEditor.getByRole('button', { name: 'Change budget mode', exact: true }).click();
+  const modeDialog = page.getByRole('dialog', { name: 'Change budget mode' });
+  await expect(modeDialog).toBeVisible();
+  await expect(modeDialog.getByRole('combobox', { name: 'Fiscal year for Labor' })).toBeVisible();
+  await modeDialog.getByRole('combobox', { name: 'Fiscal year for Labor' }).selectOption('2026');
+  await modeDialog.getByRole('combobox', { name: 'Fiscal year for Materials' }).selectOption('2026');
+  await modeDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+  // Category override preview proves the inherited total remains exact while one category uses a custom allocation.
+  await distribution.getByRole('combobox', { name: 'Distribution method' }).selectOption('percent_by_year');
+  await distribution.getByRole('textbox', { name: 'Shared input for 2026' }).fill('100');
+  await distribution.getByRole('checkbox', { name: 'Use custom distribution for Materials' }).check();
+  await distribution.getByRole('textbox', { name: 'Materials input for 2026' }).fill('100');
+  await distribution.getByRole('button', { name: 'Preview distribution', exact: true }).click();
+  await expect(distribution.getByRole('status').filter({ hasText: 'Preview ready' })).toBeVisible();
+  await expect(distribution.locator('tfoot')).toContainText('$1,000,000');
+
+  // Close/reopen to reload only persisted by-days inputs before the stale and error scenarios.
+  await draftEditor.getByRole('button', { name: 'Close', exact: true }).click();
+  await draftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
+  const refreshedEditor = page.getByRole('region', { name: 'Draft budget editor' });
+  const refreshedDistribution = refreshedEditor.getByTestId('budget-distribution-grid');
+  await expect(refreshedDistribution.getByText('Saved distribution', { exact: true })).toBeVisible();
+
+  // A real source edit makes the persisted distribution stale; reverting the exact source amount restores it.
+  const laborRow = refreshedEditor.locator('tbody tr').filter({ hasText: 'Labor' }).first();
+  await laborRow.getByRole('button', { name: 'Edit line item Labor', exact: true }).click();
+  await refreshedEditor.getByRole('textbox', { name: 'Amount', exact: true }).fill('600001');
+  await laborRow.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(refreshedDistribution.getByText('Saved distribution needs review', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await laborRow.getByRole('button', { name: 'Edit line item Labor', exact: true }).click();
+  await refreshedEditor.getByRole('textbox', { name: 'Amount', exact: true }).fill('600000');
+  await laborRow.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(refreshedDistribution.getByText('Saved distribution', { exact: true })).toBeVisible({ timeout: 10_000 });
+
+  // Controlled read failure; retry reads the real saved plan again.
+  const failSnapshotRead = async (route: Route) => route.fulfill({
+    status: 500,
+    contentType: 'application/json',
+    body: JSON.stringify({ code: 'XX000', message: 'controlled authoring proof read failure' }),
+  });
+  await page.route('**/rest/v1/rpc/get_budget_distribution_snapshot*', failSnapshotRead);
+  await page.reload();
+  await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
+  const retryDraftBanner = page.getByRole('region', { name: 'Draft waiting for approval' });
+  await retryDraftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
+  const errorEditor = page.getByRole('region', { name: 'Draft budget editor' });
+  const errorDistribution = errorEditor.getByTestId('budget-distribution-grid');
+  await expect(errorDistribution.getByRole('alert')).toContainText("Couldn't load the saved distribution");
+  await page.unroute('**/rest/v1/rpc/get_budget_distribution_snapshot*', failSnapshotRead);
+  await errorDistribution.getByRole('button', { name: 'Retry saved distribution read', exact: true }).click();
+  await expect(errorDistribution.getByText('Saved distribution', { exact: true })).toBeVisible({ timeout: 10_000 });
 
   // --- Step 5: the drafter cannot activate their own version (OD-BUDGET-6) ---
   await expect(draftBanner.getByRole('button', { name: 'Activate' })).toHaveCount(0);
@@ -119,6 +192,33 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await expect(draftBanner.getByRole('status')).toHaveText(
     'You drafted or edited this version, so someone else must activate it.',
   );
+
+  // An Engineer's budget deep link falls back to the Project Overview before ProjectBudget mounts.
+  await login(page, 'engineer@acme.test');
+  await page.goto('/projects/40000000-0000-0000-0000-000000000001/budget');
+  const overviewTab = page.getByRole('tab', { name: 'Overview', exact: true });
+  await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Budget', exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('budget-option-a')).toHaveCount(0);
+  await expect(page.getByTestId('budget-empty')).toHaveCount(0);
+  await expect(page.getByTestId('budget-distribution-grid')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Draft budget editor' })).toHaveCount(0);
+
+  // The shipped server fence keeps whole-project activation unavailable until S45. Complete the
+  // explicit user-reviewed conversion so AC-732 stays a real per-year activation and the
+  // deployment fence stays intact.
+  await login(page, 'pm@acme.test');
+  await page.goto('/projects/40000000-0000-0000-0000-000000000001/budget');
+  await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
+  await page.getByRole('region', { name: 'Draft waiting for approval' }).getByRole('button', { name: 'Edit draft', exact: true }).click();
+  const convertEditor = page.getByRole('region', { name: 'Draft budget editor' });
+  await convertEditor.getByRole('button', { name: 'Change budget mode', exact: true }).click();
+  const activationModeDialog = page.getByRole('dialog', { name: 'Change budget mode' });
+  await activationModeDialog.getByRole('combobox', { name: 'Fiscal year for Labor' }).selectOption('2026');
+  await activationModeDialog.getByRole('combobox', { name: 'Fiscal year for Materials' }).selectOption('2026');
+  await activationModeDialog.getByRole('button', { name: 'Switch to per-year', exact: true }).click();
+  await expect(activationModeDialog).not.toBeVisible({ timeout: 10_000 });
+  await expect(convertEditor.getByTestId('budget-distribution-grid')).toHaveCount(0);
 
   // --- Step 6: a second person (Finance) opens the same Draft and activates it (confirm-gated) ---
   await login(page, 'finance@acme.test');

@@ -39,6 +39,7 @@ import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/apply
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { readBodyBounded } from '../_shared/readBodyBounded.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // 256 KiB body cap: reject an oversized payload so a huge body can't exhaust the isolate (mirrors
@@ -47,40 +48,6 @@ const MAX_WEBHOOK_BODY_BYTES = 262144;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-}
-
-/**
- * Read the request body with a HARD byte cap enforced on the STREAM (M-1 audit fix). The old
- * Content-Length-only check was bypassable: a chunked request (no/short/lying `Content-Length`) let
- * `req.text()` buffer an unbounded body. This reads the body stream and ABORTS once `maxBytes` is
- * exceeded, so the cap holds regardless of the declared length. Returns `null` when the cap is
- * exceeded (the caller replies 413). Falls back to `req.text()` when there is no stream body.
- */
-export async function readBodyBounded(req: Request, maxBytes: number): Promise<string | null> {
-  if (!req.body) {
-    const text = await req.text();
-    return new TextEncoder().encode(text).length > maxBytes ? null : text;
-  }
-  const reader = req.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const buf = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    buf.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(buf);
 }
 
 /** A candidate employing org + its resolved webhook secret (for the HMAC match). */
@@ -336,40 +303,39 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
   // contributes no HMAC key (webhook events for it are rejected until a secret is configured).
   // Merged with dev's admin-connect (Phase 1b): resolve the webhook HMAC secret Vault-first behind
   // EXTERNAL_CONNECT_ENABLED (tri-state — no-binding / resolved / vault-miss → empty → skip = fail
-  // closed for webhooks), falling back to the env resolver when the flag is off. The B4 company scoping
+  // closed for webhooks); the kill switch returned above, so the flag is always on here. The B4 company scoping
   // is preserved on top. A `.map` can't do the async Vault call, so this is an explicit loop.
   const candidates: Array<{ orgId: string; webhookSecret: string; company: string | null }> = [];
   for (const r of rows) {
     if (!r.activated_at || !r.webhook_secret_ref) continue;
     let webhookSecret = '';
-    if (connectEnabled) {
-      const result = await resolvePerOrgSecret({
-        connectEnabled,
-        orgId: r.org_id,
-        tier: 'erpnext',
-        column: 'webhook_secret_ref',
-        lookupBinding: async (orgId, tier) => {
-          const { data, error } = await serviceClient
-            .from('external_org_bindings')
-            .select('webhook_secret_ref')
-            .eq('org_id', orgId)
-            .eq('external_tier', tier)
-            .maybeSingle();
-          if (error) return null;
-          return data as { webhook_secret_ref?: string | null } | null;
-        },
-        readVaultSecret: async (ref) => {
-          const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-          if (error) {
-            console.error('read_vault_secret failed', error);
-            return null;
-          }
-          return (data as string | null) ?? null;
-        },
-      });
-      if (result.kind === 'resolved') webhookSecret = result.secret;
-      // no-binding / binding-vault-miss → webhookSecret stays empty → skipped (fail closed)
-    }
+    const result = await resolvePerOrgSecret({
+      connectEnabled,
+      orgId: r.org_id,
+      tier: 'erpnext',
+      column: 'webhook_secret_ref',
+      lookupBinding: async (orgId, tier) => {
+        const { data, error } = await serviceClient
+          .from('external_org_bindings')
+          .select('webhook_secret_ref')
+          .eq('org_id', orgId)
+          .eq('external_tier', tier)
+          .maybeSingle();
+        if (error) throw new AppError(error.message, error.code); // a failed read is retryable, not a missing secret
+        return data as { webhook_secret_ref?: string | null } | null;
+      },
+      readVaultSecret: async (ref) => {
+        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) {
+          console.error('read_vault_secret failed', error);
+          throw new AppError(error.message, error.code);
+        }
+        return (data as string | null) ?? null;
+      },
+    });
+    if (result.kind === 'read-failed') throw new AppError('webhook secret lookup failed', 'external-unreachable'); // → retryable 500
+    if (result.kind === 'resolved') webhookSecret = result.secret;
+    // no-binding / binding-vault-miss → webhookSecret stays empty → skipped (fail closed)
     if (webhookSecret === '') continue;
     // B4: carry the binding's ERP Company through — the per-document admission gate below scopes
     // adoption to it (a multi-company ERP site must not leak Company B's money into Company A's tenant).

@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import type { Database, Tables } from '@/src/lib/supabase/database.types';
+import { Constants, type Database, type Tables, type Json } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -16,6 +16,73 @@ export type BudgetVersionRow = Tables<'budget_versions'>;
 export type BudgetLineItemRow = Tables<'budget_line_items'>;
 export type BudgetDocumentLinkRow = Tables<'budget_version_document_links'>;
 export type BudgetActivationMode = 'allowed' | 'sole_operator' | 'blocked' | 'blocked_editor' | 'blocked_no_drafter';
+/** The persisted budget-mode column (0576 check constraint). `per_year` is the historic default. */
+export type BudgetVersionMode = 'whole_project' | 'per_year';
+
+/** Exact source-line witness sent with an explicit Draft budget-mode change. */
+export interface BudgetModeSwitchLineWitness {
+  id: string;
+  category: BudgetLineItemRow['category'];
+  budgeted_amount: string;
+  fiscal_year: string | null;
+}
+
+export interface BudgetModeSwitchAssignment {
+  id: string;
+  fiscal_year: string;
+}
+
+// ---------------------------------------------------------------------------
+// Distribution plan contract (#1472 S6A) — the accepted S3 API
+// (`save_budget_distribution`, migration 0577). Amounts travel as EXACT decimal
+// strings end to end; the server owns every validation and the org stamp.
+// ---------------------------------------------------------------------------
+
+export type BudgetDistributionMethod = 'by_days' | 'percent_by_year' | 'amount_by_year';
+
+/** One basis fiscal year: the org's actual ERP fiscal-year name and its date span. */
+export interface BudgetDistributionBasisYear {
+  name: string;
+  start: string;
+  end: string;
+}
+
+/** The exact date/calendar basis a plan was computed against (staleness oracle). */
+export interface BudgetDistributionBasis {
+  projectStart: string;
+  projectEnd: string | null;
+  years: BudgetDistributionBasisYear[];
+}
+
+/** Budget-wide entered weights: basis-year name → the operator's exact decimal string. */
+export type BudgetDistributionInputs = Record<string, string>;
+
+/** A per-category override: its own method and its own entered vector. */
+export interface BudgetCategoryOverride {
+  method: BudgetDistributionMethod;
+  inputs: BudgetDistributionInputs;
+}
+export type BudgetCategoryOverrides = Record<string, BudgetCategoryOverride>;
+
+export interface BudgetDistributionPlanRow {
+  category: BudgetLineItemRow['category'];
+  fiscal_year: string;
+  /** Zero-based position of this year in the basis (server-validated). */
+  ordinal: number;
+  /** EXACT decimal string — never a JS float (NFR-001). */
+  amount: string;
+  method: BudgetDistributionMethod;
+  is_override: boolean;
+}
+
+/** One whole-project distribution snapshot: exactly what the save RPC persists and the read returns. */
+export interface BudgetDistributionPlan {
+  method: BudgetDistributionMethod;
+  inputs: BudgetDistributionInputs;
+  categoryOverrides: BudgetCategoryOverrides;
+  basis: BudgetDistributionBasis;
+  rows: BudgetDistributionPlanRow[];
+}
 
 export type BudgetVersionWithItems = BudgetVersionRow & {
   /** All line-items belonging to this version. */
@@ -174,6 +241,181 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   return Number(data);
 }
 
+// ---------------------------------------------------------------------------
+// Distribution plan reads/writes (#1472 S6A)
+// ---------------------------------------------------------------------------
+
+function isJsonObject(value: unknown): value is { [key: string]: unknown } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const DISTRIBUTION_METHODS: readonly BudgetDistributionMethod[] = ['by_days', 'percent_by_year', 'amount_by_year'];
+const BUDGET_CATEGORIES: readonly string[] = Constants.public.Enums.budget_category;
+
+function isBudgetCategory(value: unknown): value is BudgetLineItemRow['category'] {
+  return typeof value === 'string' && BUDGET_CATEGORIES.includes(value);
+}
+
+function parseDistributionMethod(value: unknown, what: string): BudgetDistributionMethod {
+  if (typeof value !== 'string' || !DISTRIBUTION_METHODS.includes(value as BudgetDistributionMethod)) {
+    throw new AppError(`Saved budget distribution is malformed: ${what}`);
+  }
+  return value as BudgetDistributionMethod;
+}
+
+function parseDistributionInputs(value: unknown, what: string): BudgetDistributionInputs {
+  if (!isJsonObject(value)) throw new AppError(`Saved budget distribution is malformed: ${what}`);
+  const inputs: BudgetDistributionInputs = {};
+  for (const [year, entered] of Object.entries(value)) {
+    if (typeof entered !== 'string') throw new AppError(`Saved budget distribution is malformed: ${what}`);
+    inputs[year] = entered;
+  }
+  return inputs;
+}
+
+function parseDistributionBasis(value: unknown): BudgetDistributionBasis {
+  if (!isJsonObject(value)) throw new AppError('Saved budget distribution is malformed: basis');
+  const { projectStart, projectEnd, years } = value;
+  if (typeof projectStart !== 'string' || !(projectEnd === null || typeof projectEnd === 'string') || !Array.isArray(years)) {
+    throw new AppError('Saved budget distribution is malformed: basis');
+  }
+  return {
+    projectStart,
+    projectEnd,
+    years: years.map((year) => {
+      if (!isJsonObject(year) || typeof year.name !== 'string' || typeof year.start !== 'string' || typeof year.end !== 'string') {
+        throw new AppError('Saved budget distribution is malformed: basis year');
+      }
+      return { name: year.name, start: year.start, end: year.end };
+    }),
+  };
+}
+
+function parseCategoryOverrides(value: unknown): BudgetCategoryOverrides {
+  if (!isJsonObject(value)) throw new AppError('Saved budget distribution is malformed: category overrides');
+  const overrides: BudgetCategoryOverrides = {};
+  for (const [category, override] of Object.entries(value)) {
+    if (!isJsonObject(override)) throw new AppError(`Saved budget distribution is malformed: override for ${category}`);
+    overrides[category] = {
+      method: parseDistributionMethod(override.method, `override method for ${category}`),
+      inputs: parseDistributionInputs(override.inputs, `override inputs for ${category}`),
+    };
+  }
+  return overrides;
+}
+
+function parseDistributionRows(value: unknown): BudgetDistributionPlanRow[] {
+  if (!Array.isArray(value)) throw new AppError('Saved budget distribution is malformed: rows');
+  return value.map((row, index) => {
+    if (!isJsonObject(row)
+      || !isBudgetCategory(row.category)
+      || typeof row.fiscal_year !== 'string'
+      || row.fiscal_year.length === 0
+      || typeof row.ordinal !== 'number'
+      || !Number.isInteger(row.ordinal)
+      || row.ordinal < 0
+      || typeof row.amount !== 'string'
+      || typeof row.is_override !== 'boolean') {
+      throw new AppError(`Saved budget distribution is malformed: row ${index}`);
+    }
+    return {
+      category: row.category,
+      fiscal_year: row.fiscal_year,
+      ordinal: row.ordinal,
+      amount: row.amount,
+      method: parseDistributionMethod(row.method, `row method at ${index}`),
+      is_override: row.is_override,
+    };
+  });
+}
+
+/**
+ * Reads one version's whole-project distribution from one tenant-scoped SQL statement. Plan fields
+ * and every ordered row share the statement snapshot; the row aggregate is one JSON value, so the
+ * PostgREST response-row limit cannot silently cap the distribution. A version without a visible
+ * plan reads as `null`; any read failure propagates. org_id is NEVER sent — invoker RLS scopes the
+ * plan and rows via the existing policies (NFR-002).
+ */
+export async function getBudgetDistribution(versionId: string): Promise<BudgetDistributionPlan | null> {
+  const { data, error } = await supabase.rpc('get_budget_distribution_snapshot', { p_version_id: versionId });
+  if (error) throw toAppError(error);
+  if (data === null) return null;
+  if (!isJsonObject(data)) throw new AppError('Saved budget distribution is malformed: snapshot');
+  return {
+    method: parseDistributionMethod(data.method, 'method'),
+    inputs: parseDistributionInputs(data.inputs, 'inputs'),
+    categoryOverrides: parseCategoryOverrides(data.category_overrides),
+    basis: parseDistributionBasis(data.basis),
+    rows: parseDistributionRows(data.rows),
+  };
+}
+
+/**
+ * Saves one distribution snapshot atomically via the accepted S3 RPC (0577, six-argument form with
+ * per-category overrides). Rows, basis, inputs and overrides pass through VERBATIM — exact decimal
+ * strings, no numeric conversion, no invented fields. org_id is NEVER sent; the definer RPC stamps
+ * the org, validates the whole snapshot under lock against the live source lines, and records the
+ * editor (NFR-002). A rejection throws — the caller keeps its entered values and re-reviews.
+ */
+export async function saveBudgetDistribution(versionId: string, plan: BudgetDistributionPlan): Promise<void> {
+  // The wire format is jsonb; these rebuilds copy each field VERBATIM (no numeric conversion, no
+  // re-shaping) — they exist only to give the typed structures Json's index signature honestly.
+  const basisJson: Json = {
+    projectStart: plan.basis.projectStart,
+    projectEnd: plan.basis.projectEnd,
+    years: plan.basis.years.map((year) => ({ name: year.name, start: year.start, end: year.end })),
+  };
+  const overridesJson: Json = Object.fromEntries(
+    Object.entries(plan.categoryOverrides).map(([category, override]) => [
+      category,
+      { method: override.method, inputs: { ...override.inputs } },
+    ]),
+  );
+  const { error } = await supabase.rpc('save_budget_distribution', {
+    p_version: versionId,
+    p_method: plan.method,
+    p_inputs: { ...plan.inputs },
+    p_basis: basisJson,
+    p_rows: plan.rows.map((row) => ({
+      category: row.category,
+      fiscal_year: row.fiscal_year,
+      ordinal: row.ordinal,
+      amount: row.amount,
+      method: row.method,
+      is_override: row.is_override,
+    })),
+    p_category_overrides: overridesJson,
+  });
+  if (error) throw toAppError(error);
+}
+
+/**
+ * Changes a Draft's fiscal-year shape after the server matches the complete source-line witness.
+ * The RPC changes only fiscal_year and budget_mode; exact source amounts and line identities stay
+ * untouched, and the current editor is stamped for the activation SoD rule.
+ */
+export async function switchBudgetDraftMode(
+  versionId: string,
+  targetMode: BudgetVersionMode,
+  expectedLines: readonly BudgetModeSwitchLineWitness[],
+  assignments: readonly BudgetModeSwitchAssignment[],
+): Promise<void> {
+  const witnessJson: Json = expectedLines.map((line) => ({
+    id: line.id,
+    category: line.category,
+    budgeted_amount: line.budgeted_amount,
+    fiscal_year: line.fiscal_year,
+  }));
+  const assignmentJson: Json = assignments.map((assignment) => ({ ...assignment }));
+  const { error } = await supabase.rpc('switch_budget_draft_mode', {
+    p_version: versionId,
+    p_target_mode: targetMode,
+    p_expected_lines: witnessJson,
+    p_assignments: assignmentJson,
+  });
+  if (error) throw toAppError(error);
+}
+
 /**
  * Read all visible versions and their related rows.
  *
@@ -199,7 +441,7 @@ function isOverflowMarker(row: Record<string, unknown>): boolean {
 }
 
 /** Fail-closed mapping of one aggregate row. Any malformed page rejects; it never becomes empty data. */
-function mapAggregateRow(raw: unknown): BudgetVersionWithItems {
+export function mapAggregateRow(raw: unknown): BudgetVersionWithItems {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new AppError('Budget version read returned an unexpected row');
   }
@@ -542,11 +784,18 @@ function isVersionAllocationConflict(error: { code?: string; message?: string })
 /**
  * Creates a new Draft budget version at max(version)+1 for the project.
  * org_id is NEVER sent (AC-724, FR-BV-004).
+ *
+ * ⚠ #1472 FR-001: the UI names its mode EXPLICITLY (`budgetMode: 'whole_project'`) at the
+ * repository boundary; the import entry names `per_year` explicitly so future default changes
+ * cannot reinterpret imported history. Other mode-less callers and the CLI loader's fixed column
+ * list retain the database's `'per_year'` default. A clone inherits the source mode server-side
+ * (`clone_budget_version`, 0577).
  */
 export async function createBudgetVersion(
   projectId: string,
   name: string,
   provenance?: ImportProvenance,
+  budgetMode?: BudgetVersionMode,
 ): Promise<BudgetVersionRow> {
   for (let attempt = 0; attempt < VERSION_ALLOCATION_ATTEMPTS; attempt++) {
     // Step 1: read current max version for this project
@@ -569,6 +818,10 @@ export async function createBudgetVersion(
         version: nextVersion,
         name,
         status: 'Draft',
+        // #1472 FR-001: the UI names whole_project and import names per_year explicitly; other
+        // mode-less write paths keep the database's own 'per_year' default. The CLI load path is
+        // unchanged and still omits this column from its fixed allowlist.
+        ...(budgetMode ? { budget_mode: budgetMode } : {}),
         // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
         // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
         // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.

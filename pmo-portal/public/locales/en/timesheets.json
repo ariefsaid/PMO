@@ -16,6 +16,8 @@
     "loadError": "Couldn't load the approval queue",
     "loadErrorSub": "Something went wrong fetching timesheets awaiting your approval.",
     "heading": "Team approvals queue",
+    "bulkFailedLabel": "These weeks could not be approved",
+    "bulkFailedLead": "These weeks could not be approved (separation of duties or stale). They stay selected so you can retry.",
     "awaiting": "{{total}} awaiting you",
     "empty": "Nothing awaiting you",
     "emptySub": "Submitted timesheets from your reports will appear here for review.",

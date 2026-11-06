@@ -24,12 +24,14 @@
  * - 500: internal/upstream error
  */
 
+import { splitAuthPair } from '../_shared/erpAuthPair.ts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
   type JwksResolver,
+  bearerToken,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
@@ -38,10 +40,6 @@ import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 
 interface CompaniesBody {
   tier: 'erpnext';
-}
-
-interface CompaniesResponse {
-  companies: Array<{ name: string }>;
 }
 
 // Memoized JWKS resolver (same pattern as agent-chat, adapter-dispatch, external-connect)
@@ -66,16 +64,10 @@ export const testSupabaseOptions = {
   },
 };
 
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -98,6 +90,8 @@ interface ErpCompanyDeps {
   apiSecret: string;
 }
 
+const COMPANY_PAGE_SIZE = 200;
+const MAX_COMPANY_PAGES = 25; // ponytail: 5000 companies; beyond that the list fails loudly instead of truncating
 async function fetchErpNextCompanies(deps: ErpCompanyDeps): Promise<string[]> {
   let parsedUrl: URL;
   try {
@@ -116,20 +110,27 @@ async function fetchErpNextCompanies(deps: ErpCompanyDeps): Promise<string[]> {
   }
 
   try {
-    const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company?fields=["name"]&limit_page_length=200`;
-    const res = await deps.fetchImpl(url, {
-      headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
-      redirect: 'manual',
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) {
-      if (res.status === 404) {
-        throw new AppError('ERPNext site not found', 'NOT_FOUND');
+    // Paged by name until a short page; a failed page fails the whole list rather than returning a partial one.
+    const names: string[] = [];
+    for (let page = 0; page < MAX_COMPANY_PAGES; page++) {
+      const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company?fields=["name"]&limit_page_length=${COMPANY_PAGE_SIZE}&limit_start=${page * COMPANY_PAGE_SIZE}&order_by=name%20asc`;
+      const res = await deps.fetchImpl(url, {
+        headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new AppError('ERPNext site not found', 'NOT_FOUND');
+        }
+        throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
       }
-      throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
+      const data = (await res.json()) as { data?: Array<{ name: string }> };
+      const rows = data.data ?? [];
+      names.push(...rows.map((c) => c.name));
+      if (rows.length < COMPANY_PAGE_SIZE) return names;
     }
-    const data = (await res.json()) as { data?: Array<{ name: string }> };
-    return (data.data ?? []).map((c) => c.name);
+    throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
@@ -152,7 +153,7 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -255,11 +256,13 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
     return errorResponse('ERPNext credentials not found in Vault', 'CONFIG_REJECTED', 422);
   }
 
-  const stored = (vaultSecret as string).split(':');
-  if (stored.length !== 2) {
+  let apiKey: string;
+  let apiSecret: string;
+  try {
+    ({ apiKey, apiSecret } = splitAuthPair(vaultSecret as string));
+  } catch {
     return errorResponse('Invalid ERPNext credential format in Vault', 'CONFIG_REJECTED', 422);
   }
-  const [apiKey, apiSecret] = stored;
 
   // 8. Fetch Company list from ERPNext (SSRF-guarded)
   let companies: string[];
@@ -297,8 +300,6 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
 }
 
 // Export validation function for testing
-export { fetchErpNextCompanies, isPrivateOrReservedHost };
-export type { ErpCompanyDeps };
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {

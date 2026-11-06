@@ -39,6 +39,17 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } }); // #641
 }
 
+/** The canonical company fields mirrored into `companies`, shared by the insert and the update. */
+const companyMirrorFields = (canonical: PmoRecord) => ({
+  name: canonical.name,
+  type: canonical.type,
+  erp_party_type: canonical.erp_party_type ?? null,
+  erp_supplier_name: canonical.erp_supplier_name ?? null,
+  erp_customer_name: canonical.erp_customer_name ?? null,
+  erp_tax_id: canonical.erp_tax_id ?? null,
+  erp_payment_terms_days: canonical.erp_payment_terms_days ?? null,
+});
+
 export async function handleOnboardRequest(req: Request): Promise<Response> {
   // ── 1. Authorization: the caller (an Operator action) must present the service-role bearer. ──
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -93,9 +104,7 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
     const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref });
 
     const clientDeps: ErpClientDeps = {
-      fetchImpl: async (input, init) => {
-        return guardedErpFetch(binding.site_url)(input, init);
-      },
+      fetchImpl: guardedErpFetch(binding.site_url),
       apiKey,
       apiSecret,
       baseUrl: binding.site_url,
@@ -113,31 +122,13 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
       findPmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, 'companies', externalRecordId),
       findCandidates: (doctype: PartyDoctype, name: string, taxId?: string | null) => findCompanyCandidates(serviceClient, orgId, doctype, name, taxId),
       insertCompaniesMirror: async (canonical: PmoRecord) => {
-        const { error } = await serviceClient.from('companies').insert({
-          id: canonical.id,
-          org_id: orgId,
-          name: canonical.name,
-          type: canonical.type,
-          erp_party_type: canonical.erp_party_type ?? null,
-          erp_supplier_name: canonical.erp_supplier_name ?? null,
-          erp_customer_name: canonical.erp_customer_name ?? null,
-          erp_tax_id: canonical.erp_tax_id ?? null,
-          erp_payment_terms_days: canonical.erp_payment_terms_days ?? null,
-        });
+        const { error } = await serviceClient.from('companies').insert({ id: canonical.id, org_id: orgId, ...companyMirrorFields(canonical) });
         if (error) throw new AppError(error.message, error.code);
       },
       updateCompaniesMirror: async (pmoRecordId: string, canonical: PmoRecord) => {
         const { error } = await serviceClient
           .from('companies')
-          .update({
-            name: canonical.name,
-            type: canonical.type,
-            erp_party_type: canonical.erp_party_type ?? null,
-            erp_supplier_name: canonical.erp_supplier_name ?? null,
-            erp_customer_name: canonical.erp_customer_name ?? null,
-            erp_tax_id: canonical.erp_tax_id ?? null,
-            erp_payment_terms_days: canonical.erp_payment_terms_days ?? null,
-          })
+          .update(companyMirrorFields(canonical))
           .eq('org_id', orgId)
           .eq('id', pmoRecordId);
         if (error) throw new AppError(error.message, error.code);

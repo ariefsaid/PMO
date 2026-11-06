@@ -44,8 +44,6 @@ export interface BudgetSignal {
   afterRequest: number;
   /** Reserved EXCLUDING this case (what the "Reserved" tile shows). */
   otherReserved: number;
-  /** Whether this case's status already counts inside `reserved`. */
-  caseInReserved: boolean;
   /** FR-RB-040 — this request (not yet reserved) exceeds available. */
   overAvailable: boolean;
   /** Dollar amount by which the request exceeds available (0 when not over). */
@@ -93,7 +91,6 @@ export function computeBudgetSignal(input: BudgetSignalInput): BudgetSignal {
     available,
     afterRequest,
     otherReserved,
-    caseInReserved,
     overAvailable,
     overAvailableAmount,
     overBudgetReserved,

@@ -136,10 +136,7 @@ export default function ProcurementCreate() {
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
-  const projectOption = useMemo(
-    () => projects.find((option) => option.value === selectedProject) ?? null,
-    [projects, selectedProject],
-  );
+  const projectOption = projects.find((option) => option.value === selectedProject) ?? null;
 
   const choices = useMemo<IntakeChoice[]>(() => {
     const standardChoices: IntakeChoice[] = [

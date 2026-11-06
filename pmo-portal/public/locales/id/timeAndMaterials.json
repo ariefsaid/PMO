@@ -63,7 +63,10 @@
     "end": "Akhiri tarif",
     "endTitle": "Akhiri tarif ini?",
     "endDescription": "Jam kerja baru setelah hari ini tidak lagi dihargai dengan {{line}}. Klaim yang sudah disusun tetap memakai tarifnya.",
-    "ended": "Tarif diakhiri"
+    "ended": "Tarif diakhiri",
+    "equipmentKind": "Alat berat",
+    "standbyRate": "Siaga",
+    "assetUnavailable": "Alat tidak lagi terdaftar"
   },
   "assembly": {
     "title": "Susun klaim",
@@ -88,7 +91,8 @@
     "error": "Jam yang disetujui tidak dapat ditinjau",
     "empty": "Tidak ada jam yang disetujui pada periode ini.",
     "sourceCount_other": "{{count}} entri yang disetujui",
-    "sourceCount_one": "{{count}} entri yang disetujui"
+    "sourceCount_one": "{{count}} entri yang disetujui",
+    "noStandbyRate": "Belum ada tarif siaga untuk alat ini"
   },
   "claims": {
     "statusSignedOff": "Disetujui klien",
@@ -158,5 +162,8 @@
     "day_other": "{{amount}} hari",
     "hour_one": "{{amount}} jam",
     "day_one": "{{amount}} hari"
+  },
+  "basis": {
+    "standby": "siaga"
   }
 }

@@ -1,8 +1,8 @@
 /**
  * condition.ts — NL trigger-condition evaluation (ADR-0044 §4, FR-AAN-021..025,
  * NFR-AAN-PERF-003). Uses the cheap-tier ModelClient seam (the per-action model map,
- * batteries-A item 1), memoized with a TTL so a burst of matching events for the same
- * (automation_id, condition) is not re-billed per event within a tick. Fail-quiet-but-visible:
+ * batteries-A item 1), memoized with a TTL so a re-evaluation of the same
+ * (automation_id, event, condition) is not re-billed within a tick. Fail-quiet-but-visible:
  * a model error or an unparseable verdict is treated as no-fire + a warning, never a fire on
  * uncertainty (ADR-0044 §4). A condition is a grounding hint, never an authorization (FR-AAN-025) —
  * this module only returns a boolean fire decision, it never widens what a fired run can touch.
@@ -13,7 +13,7 @@ import type { ModelClient, ModelResponse } from '../_shared/modelClient.ts';
 import type { AutomationRow, StatusEventRow } from './dispatcher.ts';
 
 /** 60s = one tick window (ADR-0044 §2 ≤1min dispatcher latency) — caps re-billing to once per
- *  (automation_id, condition) per tick without persisting memo state across ticks (the dispatcher
+ *  (automation_id, event, condition) per tick without persisting memo state across ticks (the dispatcher
  *  is a fresh edge-fn invocation each tick; the memo is an in-invocation Map). */
 export const CONDITION_MEMO_TTL_MS = 60_000;
 
@@ -49,7 +49,8 @@ function parseVerdict(content: string | null | undefined): boolean | null {
   return null;
 }
 
-const memoKey = (automation: AutomationRow) => `${automation.id}::${automation.condition ?? ''}`;
+const memoKey = (automation: AutomationRow, event: StatusEventRow) =>
+  `${automation.id}::${event.id}::${automation.condition ?? ''}`;
 
 /**
  * The still-fresh memoized verdict for this automation's condition, if any. The dispatcher asks
@@ -59,8 +60,9 @@ export function peekConditionVerdict(
   memo: ConditionMemo,
   nowMs: number,
   automation: AutomationRow,
+  event: StatusEventRow,
 ): ConditionVerdict | undefined {
-  const cached = memo.get(memoKey(automation));
+  const cached = memo.get(memoKey(automation, event));
   return cached && nowMs - cached.at < CONDITION_MEMO_TTL_MS ? cached.verdict : undefined;
 }
 
@@ -75,7 +77,7 @@ export async function evaluateCondition(
   automation: AutomationRow,
   event: StatusEventRow,
 ): Promise<ConditionVerdict> {
-  const cachedVerdict = peekConditionVerdict(deps.memo, deps.now(), automation);
+  const cachedVerdict = peekConditionVerdict(deps.memo, deps.now(), automation, event);
   if (cachedVerdict) return cachedVerdict;
 
   let verdict: ConditionVerdict;
@@ -109,6 +111,6 @@ export async function evaluateCondition(
     verdict = { fire: false, warning: `couldn't evaluate the condition for automation ${automation.id}` };
   }
 
-  deps.memo.set(memoKey(automation), { verdict, at: deps.now() });
+  deps.memo.set(memoKey(automation, event), { verdict, at: deps.now() });
   return verdict;
 }

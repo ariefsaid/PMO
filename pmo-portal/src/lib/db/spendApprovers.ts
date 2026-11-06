@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 
 /** #803 — one row of `spend_approvers`: a project approver, or (projectId null) a senior-set member. */
 export interface SpendApproverRow {
@@ -24,9 +25,14 @@ const SELECT =
 
 /** Every active member reads (RLS). org_id is NEVER sent. Senior set first, then by project, then name. */
 export async function listSpendApprovers(): Promise<SpendApproverRow[]> {
-  const { data, error } = await supabase.from('spend_approvers').select(SELECT);
-  if (error) throw new AppError(error.message, error.code);
-  return ((data ?? []) as unknown as RawRow[])
+  // Complete keyset scan: one capped response would silently hide approvers past db-max-rows.
+  const data = await fetchAllRowsByKeyset<RawRow>(async (afterId, limit) => {
+    let q = supabase.from('spend_approvers').select(SELECT).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    const res = await q.limit(limit);
+    return { data: res.data as unknown as RawRow[] | null, error: res.error };
+  });
+  return data
     .map((r) => ({
       id: r.id,
       projectId: r.project_id,

@@ -771,6 +771,27 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     expect(result.externalRecordId).toBe('PI-0002');
   });
 
+  it('failed + the claim refused by the per-bill constraint → payment-in-flight-for-bill, no POST', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    await fake.deps.markOutboxFailed(id, 'payment-intent-expired-before-claim', claimed!.claimGeneration);
+    // Another payment now holds the bill: the claim's re-entry into the in-flight set raises 23505.
+    const inFlight = Object.assign(new AppError(
+      'duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"', '23505'), {});
+    fake.deps.claimOutboxForCommit = async () => { throw inFlight; };
+
+    const commit = vi.fn();
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    })).rejects.toMatchObject({ code: 'payment-in-flight-for-bill' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it('stale committing → quarantined (never reclaimed+re-POSTed); after the window with NO ERP hit, reissues under the same key', async () => {
     const fake = createFakeOutbox();
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');

@@ -289,6 +289,7 @@ else if (args.some(a => a === 'apikey: service')) {
   const expected = entry?.expect_denial?.[0];
   if (expected) { code = expected.http; body = {code: expected.sqlstate}; }
   else body = ['org_has_member_email', 'org_reads_erp_ledger'].includes(fn) ? false : [];
+  if (fn === 'get_budget_distribution_snapshot') body = mode === 'snapshot-leak' ? {method:'by_days',rows:[]} : null;
   if ((fn === 'org_credit_balance' && mode === 'unexpected-rpc') || (fn === 'activate_budget_version' && mode === 'unexpected-verified-target')) {code = 500; body = {code:'P0002'};}
   if (fn === 'org_credit_balance' && mode === 'run-401') {code = 401; body = {code:'42501'};}
   if (fn === 'org_credit_balance' && mode === 'unexpected-empty') {code = 200; body = null;}
@@ -347,6 +348,14 @@ for (const mode of ['unexpected-rpc', 'unexpected-verified-target', 'run-401', '
 test('service-read member fact is encoded as JSON, not interpolated', () => {
   const r = probeFixture('quoted-email');
   assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+test('nullable tenant read accepts an invisible snapshot and flags returned foreign data', () => {
+  const hidden = probeFixture('baseline');
+  assert.equal(hidden.status, 0, hidden.stdout + hidden.stderr);
+  assert.match(hidden.stderr, /get_budget_distribution_snapshot \(invisible tenant snapshot\)/);
+  const leaked = probeFixture('snapshot-leak');
+  assert.equal(leaked.status, 1, leaked.stdout + leaked.stderr);
+  assert.match(leaked.stderr, /LEAK.*get_budget_distribution_snapshot.*cross-tenant snapshot/);
 });
 test('non-empty operator list is counted across command substitution', () => {
   const r = probeFixture('subshell-leak');

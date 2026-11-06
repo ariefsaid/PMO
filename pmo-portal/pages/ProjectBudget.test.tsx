@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
@@ -24,6 +24,13 @@ const budgetState = {
 const versionsState = {
   data: undefined as unknown[] | undefined,
   isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+};
+const budgetDistributionState = {
+  data: null as unknown,
+  isPending: false,
+  isFetching: false,
   isError: false,
   refetch: vi.fn(),
 };
@@ -59,6 +66,7 @@ archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: arc
 const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
+const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null) }));
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
@@ -68,10 +76,14 @@ const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 const mockCreateLineItem = vi.fn().mockResolvedValue({ id: 'li-new' });
 const mockDeleteLineItem = vi.fn().mockResolvedValue(undefined);
 const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
+const mockSwitchBudgetDraftMode = vi.fn().mockResolvedValue(undefined);
+const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
+  // Like the real hook: disabled (no data) without a version id.
+  useBudgetDistribution: (_projectId: string, versionId?: string) => (versionId ? budgetDistributionState : { ...budgetDistributionState, data: undefined }),
   useBudgetActivationMode: () => activationModeState,
   useBudgetActivationPrecheck: () => activationPrecheckState,
   useBudgetArchiveTargets: () => archiveTargetsState,
@@ -84,10 +96,9 @@ vi.mock('@/src/hooks/useBudget', () => ({
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
     updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
     deleteLineItem: { mutateAsync: mockDeleteLineItem, isPending: false },
+    switchDraftMode: { mutateAsync: mockSwitchBudgetDraftMode, isPending: false },
+    saveDistribution: { mutateAsync: mockSaveBudgetDistribution, isPending: false },
   }),
-}));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { budget: { listArchiveTargets: (...args: unknown[]) => mockListArchiveTargets(...args) } },
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => procurementsState }));
@@ -98,6 +109,14 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   fetchBudgetPushStatus: () => Promise.resolve(budgetPushState.rows),
   retryActiveBudgetPush: vi.fn(),
   releaseActiveBudgetPushHold: vi.fn(),
+}));
+vi.mock('@/src/lib/repositories', () => ({
+  repositories: {
+    budget: {
+      ...mockBudgetRepository,
+      listArchiveTargets: (...args: unknown[]) => mockListArchiveTargets(...args),
+    },
+  },
 }));
 vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
   BudgetDocumentLinks: ({ versionId }: { versionId: string }) => <div data-testid={`evidence-${versionId}`}>Evidence documents</div>,
@@ -123,7 +142,7 @@ import { financeTestI18n } from './__tests__/financeI18nTestInstance';
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
-const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs;
+const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', start_date: '2026-01-01', end_date: '2027-12-31' } as unknown as ProjectWithRefs;
 const renderPage = (projectId = 'p-1') => {
   const result = render(
     <FinanceI18nTestProvider>
@@ -230,9 +249,16 @@ function resetState() {
   budgetState.data = undefined;
   budgetState.isPending = false;
   budgetState.isError = false;
+  budgetState.refetch.mockReset().mockImplementation(() => Promise.resolve({ data: budgetState.data, isError: budgetState.isError }));
   versionsState.data = undefined;
   versionsState.isPending = false;
   versionsState.isError = false;
+  versionsState.refetch.mockReset().mockImplementation(() => Promise.resolve({ data: versionsState.data, isError: versionsState.isError }));
+  budgetDistributionState.data = null;
+  budgetDistributionState.isPending = false;
+  budgetDistributionState.isFetching = false;
+  budgetDistributionState.isError = false;
+  budgetDistributionState.refetch.mockReset().mockImplementation(() => Promise.resolve({ data: budgetDistributionState.data, isError: budgetDistributionState.isError }));
   activationModeState.data = 'allowed';
   activationModeState.isPending = false;
   activationModeState.isFetching = false;
@@ -240,7 +266,7 @@ function resetState() {
   activationPrecheckState.data = readyActivationPrecheck;
   activationPrecheckState.isPending = false;
   activationPrecheckState.isError = false;
-  activationPrecheckState.refetch = vi.fn();
+  activationPrecheckState.refetch = vi.fn().mockImplementation(() => Promise.resolve({ data: activationPrecheckState.data, isError: activationPrecheckState.isError }));
   archiveTargetsState.data = [];
   archiveTargetsState.refetch = vi.fn().mockImplementation(() => Promise.resolve({ data: archiveTargetsState.data, error: null }));
   mockListArchiveTargets.mockReset();
@@ -256,6 +282,7 @@ function resetState() {
   procurementsState.isPending = false;
   procurementsState.isError = false;
   budgetPushState.rows = [];
+  mockBudgetRepository.getDistribution.mockReset().mockResolvedValue(null);
   roleState.realRole = 'Project Manager';
 }
 
@@ -278,7 +305,7 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
       { versions: [], trigger: /Buat anggaran/i, fill: true, confirm: /^Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
       { versions: [draftVersion], trigger: /Activate v2|Aktifkan v2/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
       { versions: [activeVersion], trigger: /Perbarui anggaran/i, confirm: /Salin versi/i, body: 'Ini menyalin Version 1 (v1) menjadi Draf baru' },
-      { versions: [activeVersion], trigger: /Arsipkan/i, confirm: /Arsipkan versi/i, body: 'Ini menonaktifkan Version 1 (v1) sebagai anggaran aktif', openVersions: true },
+      { versions: [activeVersion], trigger: /Arsipkan/i, confirm: /Arsipkan versi/i, body: 'Ini menonaktifkan Version 1 (v1) sebagai anggaran aktif', openVersions: true, waitForArchiveInventory: true },
       { versions: [draftVersion], trigger: /Hapus draf/i, confirm: /Hapus draf/i, body: 'Ini menghapus draf Draft v2 (v2) secara permanen', openVersions: true },
       { versions: [draftVersion], trigger: /Hapus item anggaran/i, confirm: /^Hapus$/i, body: 'Ini menghapus item anggaran dari draf secara permanen' },
     ];
@@ -293,6 +320,7 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
         if (scenario.openVersions) await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
         await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
       }
+      if (scenario.waitForArchiveInventory) await screen.findByRole('alertdialog');
       if (scenario.fill) await userEvent.click(screen.getByRole('button', { name: scenario.confirm }));
       const dialog = screen.queryByRole('dialog') ?? screen.getByRole('alertdialog');
       expect(dialog).toHaveTextContent(scenario.body);
@@ -873,7 +901,7 @@ describe('ProjectBudget Draft version actions', () => {
     roleState.realRole = 'Finance';
     budgetState.data = 0;
     versionsState.data = [draftVersion];
-    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], fiscalYears: [{ name: '2026', start: '2026-01-01', end: '2026-12-31' }], issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
+    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], fiscalYears: readyActivationPrecheck.fiscalYears, issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
     renderPage();
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(expected);
   });
@@ -886,10 +914,7 @@ describe('ProjectBudget Draft version actions', () => {
       status: 'blocked',
       erpCheck: 'available',
       fiscalYearNames: ['2026', '2027'],
-      fiscalYears: [
-        { name: '2026', start: '2026-01-01', end: '2026-12-31' },
-        { name: '2027', start: '2027-01-01', end: '2027-12-31' },
-      ],
+      fiscalYears: readyActivationPrecheck.fiscalYears,
       issues: [{
         code: 'budget-multi-fiscal-year-unphased',
         categories: ['Materials'],
@@ -976,6 +1001,7 @@ describe('ProjectBudget Active version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    await screen.findByRole('alertdialog');
     // Owner rule: nothing mutates on the first click; a destructive modal appears.
     expect(mockArchive).not.toHaveBeenCalled();
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
@@ -995,7 +1021,7 @@ describe('ProjectBudget Active version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    const confirm = screen.getByRole('alertdialog');
+    const confirm = await screen.findByRole('alertdialog');
     expect(within(confirm).getByRole('checkbox', { name: 'Also cancel 2 Budget documents in ERPNext' })).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(within(confirm).getByRole('checkbox', { name: 'Also cancel 2 Budget documents in ERPNext' }));
     await userEvent.click(within(confirm).getByRole('button', { name: /Archive version/i }));
@@ -1016,7 +1042,7 @@ describe('ProjectBudget Active version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    const dialog = screen.getByRole('alertdialog');
+    const dialog = await screen.findByRole('alertdialog');
     const cancelChoice = within(dialog).getByRole('checkbox', { name: 'Also cancel 1 Budget document in ERPNext' });
     expect(cancelChoice).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(within(dialog).getByRole('button', { name: /Archive version/i }));
@@ -1042,7 +1068,7 @@ describe('ProjectBudget Active version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    const dialog = screen.getByRole('alertdialog');
+    const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Also cancel 1 Budget document in ERPNext' }));
     await userEvent.click(within(dialog).getByRole('button', { name: /Archive version/i }));
 
@@ -1059,6 +1085,7 @@ describe('ProjectBudget Active version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    await screen.findByRole('alertdialog');
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /Archive version/i }));
 
     const toast = await findToastAnnouncement('alert', /Budget document/);
@@ -1076,6 +1103,7 @@ describe('ProjectBudget Active version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    await screen.findByRole('alertdialog');
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /Archive version/i }));
 
     const toast = await findToastAnnouncement('alert', /no ERPNext cancellation was queued/i);
@@ -1093,7 +1121,7 @@ describe('ProjectBudget Active version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    const confirm = screen.getByRole('alertdialog');
+    const confirm = await screen.findByRole('alertdialog');
     expect(within(confirm).getByText(/BUD-OLD/)).toBeInTheDocument();
     expect(within(confirm).getByText(/2026/)).toBeInTheDocument();
     expect(within(confirm).getByText(/older push/i)).toBeInTheDocument();
@@ -1142,7 +1170,7 @@ describe('ProjectBudget Active version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    const confirm = screen.getByRole('alertdialog');
+    const confirm = await screen.findByRole('alertdialog');
     expect(within(confirm).queryByRole('checkbox')).not.toBeInTheDocument();
     await userEvent.click(within(confirm).getByRole('button', { name: /Archive version/i }));
 
@@ -1291,6 +1319,7 @@ describe('ProjectBudget Active version actions', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    await screen.findByRole('alertdialog');
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(mockArchive).not.toHaveBeenCalled();
@@ -1469,7 +1498,7 @@ describe('ProjectBudget Create budget form (empty state)', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
     expect(mockCreateVersion).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
-    expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1' });
+    expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1', budgetMode: 'whole_project' });
     resetState();
   });
 
@@ -1551,7 +1580,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
 
   it.each([['FY1', false], ['A', false], ['FY1', true], ['A', true]] as const)('issue #1421: accepts custom fiscal-year label %s with live calendar %s', async (label, online) => {
     activationPrecheckState.data = online
-      ? { status: 'ready', erpCheck: 'available', fiscalYearNames: [label], fiscalYears: [{ name: label, start: '2026-01-01', end: '2026-12-31' }], issues: [] }
+      ? { status: 'ready', erpCheck: 'available', fiscalYearNames: [label], fiscalYears: [{ name: label, start: '2026-01-01', end: '2027-12-31' }], issues: [] }
       : { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     versionsState.data = [draftVersion];
     renderPage();
@@ -1642,5 +1671,504 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByTestId('evidence-v-active')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// budget-whole-project AC-001 (S6A) — whole-project default + phase-free source editor
+// ---------------------------------------------------------------------------
+describe('budget-whole-project AC-001 (S6A)', () => {
+  const wholeProjectDraft = {
+    ...draftVersion,
+    budget_mode: 'whole_project',
+    line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }],
+  };
+  const currentWholeProjectDistribution = {
+    method: 'by_days',
+    inputs: {},
+    categoryOverrides: {},
+    basis: {
+      projectStart: '2026-01-01',
+      projectEnd: '2027-12-31',
+      years: [
+        { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+        { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+      ],
+    },
+    rows: [
+      { category: 'Labor', fiscal_year: '2026', ordinal: 0, amount: '100000.00', method: 'by_days', is_override: false },
+      { category: 'Labor', fiscal_year: '2027', ordinal: 1, amount: '100000.00', method: 'by_days', is_override: false },
+    ],
+  };
+
+  afterEach(resetState);
+
+  it('a new budget created from the UI is created in whole_project mode', async () => {
+    budgetState.data = 0;
+    versionsState.data = [];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
+    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v1');
+    await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
+    expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1', budgetMode: 'whole_project' });
+  });
+
+  it('a whole-project Draft source editor omits the fiscal-year control and new lines save fiscal_year null', async () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    renderPage();
+    const editor = screen.getByTestId('budget-draft-editor');
+    expect(within(editor).queryByRole('columnheader', { name: 'Fiscal year' })).not.toBeInTheDocument();
+    await userEvent.click(within(editor).getByText(/\+ Add line item/i));
+    expect(within(editor).queryByLabelText(/line item fiscal year/i)).not.toBeInTheDocument();
+    await userEvent.type(within(editor).getByPlaceholderText(/Amount/i), '15000');
+    await userEvent.click(within(editor).getByRole('button', { name: /^Save$/i }));
+    await waitFor(() => expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      item: expect.objectContaining({ budgeted_amount: 15000, fiscal_year: null }),
+    }));
+  });
+
+  it('editing an existing line in a whole-project Draft never sends a fiscal-year patch', async () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line item Labor' }));
+    const amount = screen.getByLabelText('Amount');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '250000');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockUpdateLineItem).toHaveBeenCalledTimes(1));
+    const { patch } = mockUpdateLineItem.mock.calls[0][0] as { patch: Record<string, unknown> };
+    expect(patch).toMatchObject({ budgeted_amount: 250000 });
+    expect(patch).not.toHaveProperty('fiscal_year');
+  });
+
+  it('a per-year Draft keeps its fiscal-year control and still sends the entered year', async () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    renderPage();
+    const editor = screen.getByTestId('budget-draft-editor');
+    expect(within(editor).getByRole('columnheader', { name: 'Fiscal year' })).toBeInTheDocument();
+    await userEvent.click(within(editor).getByText(/\+ Add line item/i));
+    await userEvent.type(within(editor).getByLabelText(/line item fiscal year/i), '2026');
+    await userEvent.type(within(editor).getByPlaceholderText(/Amount/i), '5000');
+    await userEvent.click(within(editor).getByRole('button', { name: /^Save$/i }));
+    await waitFor(() => expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      item: expect.objectContaining({ budgeted_amount: 5000, fiscal_year: '2026' }),
+    }));
+  });
+
+  it('a whole-project Draft names its mode next to the source editor', () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    renderPage();
+    expect(screen.getByTestId('budget-whole-project-editor-hint')).toHaveTextContent(/whole-project/i);
+  });
+
+  it('AC-005 allocates unequal inherited totals, preserves zero, and applies then removes one category override', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    const wholeProjectWithTotals = {
+      ...wholeProjectDraft,
+      line_items: [
+        { ...wholeProjectDraft.line_items[0], id: 'li-labor', category: 'Labor', budgeted_amount: 100, description: 'Labor' },
+        { ...wholeProjectDraft.line_items[0], id: 'li-travel', category: 'Travel', budgeted_amount: 250, description: 'Travel' },
+        { ...wholeProjectDraft.line_items[0], id: 'li-zero', category: 'Contingency', budgeted_amount: 0, description: 'Zero reserve' },
+      ],
+    };
+    versionsState.data = [wholeProjectWithTotals];
+    renderPage();
+
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
+    expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/save a fiscal-year distribution/i);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Distribution method' }), 'amount_by_year');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Shared input for 2026' }), '1');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Shared input for 2027' }), '3');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Travel input for 2026' }), '100');
+    const travel2027 = screen.getByRole('textbox', { name: 'Travel input for 2027' });
+    await userEvent.type(travel2027, '140');
+    await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
+    expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/amounts must add up to the category total/i);
+    expect(screen.queryByTestId('budget-distribution-preview-status')).not.toBeInTheDocument();
+    await userEvent.clear(travel2027);
+    await userEvent.type(travel2027, '150');
+    await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
+
+    const grid = screen.getByRole('table', { name: 'Category fiscal-year distribution' });
+    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$25.00');
+    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$75.00');
+    expect(within(grid).getByRole('row', { name: /Travel/ })).toHaveTextContent('$100.00');
+    expect(within(grid).getByRole('row', { name: /Travel/ })).toHaveTextContent('$150.00');
+    expect(within(grid).getByRole('row', { name: /Contingency/ })).toHaveTextContent('$0.00');
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
+    const inheritedTravel = within(screen.getByRole('table', { name: 'Category fiscal-year distribution' })).getByRole('row', { name: /Travel/ });
+    expect(inheritedTravel).toHaveTextContent('$62.50');
+    expect(inheritedTravel).toHaveTextContent('$187.50');
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
+    expect(mockSaveBudgetDistribution).not.toHaveBeenCalled();
+  });
+
+  it('AC-006 identifies invalid distribution fields and keeps whole-project activation blocked', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    renderPage();
+
+    const activate = screen.getByRole('button', { name: /^Activate v2$/i });
+    expect(activate).toBeDisabled();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Distribution method' }), 'percent_by_year');
+    expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/enter a value for 2026/i);
+    const firstYear = screen.getByRole('textbox', { name: 'Shared input for 2026' });
+    const secondYear = screen.getByRole('textbox', { name: 'Shared input for 2027' });
+    await userEvent.type(firstYear, '-5');
+    await userEvent.type(secondYear, '105');
+    expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/zero or a positive value for 2026/i);
+    expect(firstYear).toHaveAttribute('aria-invalid', 'true');
+    expect(firstYear).toHaveAttribute('aria-describedby');
+    expect(activate).toBeDisabled();
+
+    await userEvent.clear(firstYear);
+    await userEvent.clear(secondYear);
+    await userEvent.type(firstYear, '110');
+    await userEvent.type(secondYear, '0');
+    expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/percentage from 0 to 100 for 2026/i);
+    expect(firstYear).toHaveAttribute('aria-invalid', 'true');
+
+    await userEvent.clear(firstYear);
+    await userEvent.clear(secondYear);
+    await userEvent.type(firstYear, 'Infinity');
+    await userEvent.type(secondYear, '40');
+    expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/enter a valid number for 2026/i);
+    expect(activate).toBeDisabled();
+
+    await userEvent.clear(firstYear);
+    await userEvent.type(firstYear, '50');
+    expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/percentages must total 100%/i);
+    expect(activate).toBeDisabled();
+
+    await userEvent.clear(firstYear);
+    await userEvent.clear(secondYear);
+    await userEvent.type(firstYear, '0');
+    await userEvent.type(secondYear, '100');
+    expect(screen.queryByTestId('distribution-validation-summary')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
+    expect(screen.getByTestId('budget-distribution-preview-status')).toBeInTheDocument();
+    const grid = screen.getByRole('table', { name: 'Category fiscal-year distribution' });
+    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$0.00');
+    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$200,000.00');
+    expect(activate).toBeDisabled();
+  });
+
+  it('AC-008 allows a distinct eligible approver when the saved whole-project distribution is current', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    budgetDistributionState.data = currentWholeProjectDistribution;
+    renderPage();
+
+    const activate = screen.getByRole('button', { name: /^Activate v2$/i });
+    await waitFor(() => expect(activate).toBeEnabled());
+    await userEvent.click(activate);
+    const confirm = screen.getByRole('button', { name: /Activate version/i });
+    expect(confirm).toBeEnabled();
+    await userEvent.click(confirm);
+    expect(mockActivate).toHaveBeenCalledWith('v-draft');
+  });
+
+  it('AC-006 blocks activation for a saved distribution whose fiscal-year basis is out of span', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    budgetDistributionState.data = {
+      ...currentWholeProjectDistribution,
+      basis: {
+        ...currentWholeProjectDistribution.basis,
+        projectStart: '2025-01-01',
+        years: [
+          { name: '2025', start: '2025-01-01', end: '2025-12-31' },
+          { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+        ],
+      },
+      rows: [
+        { category: 'Labor', fiscal_year: '2025', ordinal: 0, amount: '100000.00', method: 'by_days', is_override: false },
+        { category: 'Labor', fiscal_year: '2026', ordinal: 1, amount: '100000.00', method: 'by_days', is_override: false },
+      ],
+    };
+    renderPage();
+
+    expect(await screen.findByText(/saved fiscal-year distribution no longer matches this draft/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
+  });
+
+  it('keeps the confirmed distribution write visible when its refreshed plan does not match the reviewed plan', async () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    mockBudgetRepository.getDistribution.mockResolvedValueOnce(null);
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save reviewed distribution' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Save this distribution?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save distribution' }));
+
+    const recovery = await screen.findByTestId('budget-authoring-recovery');
+    expect(recovery).toHaveTextContent(/change was saved, but the refreshed draft differs/i);
+    expect(recovery).not.toHaveTextContent(/could not confirm whether/i);
+    expect(screen.queryByText('Fiscal-year distribution saved')).not.toBeInTheDocument();
+    expect(mockSaveBudgetDistribution).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(within(recovery).getByRole('button', { name: 'Review current draft' }));
+    expect(screen.queryByTestId('budget-authoring-recovery')).not.toBeInTheDocument();
+    expect(mockSaveBudgetDistribution).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an unknown distribution transport outcome uncertain and offers read reconciliation only', async () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    mockSaveBudgetDistribution.mockRejectedValueOnce(new Error('connection ended before a response'));
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save reviewed distribution' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Save this distribution?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save distribution' }));
+    const recovery = await screen.findByTestId('budget-authoring-recovery');
+    expect(recovery).toHaveTextContent(/save outcome is uncertain/i);
+    expect(recovery).not.toHaveTextContent(/was saved/i);
+    expect(mockSaveBudgetDistribution).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(within(recovery).getByRole('button', { name: 'Refresh budget data' }));
+    expect(await screen.findByText(/current budget data is loaded. review the draft/i)).toBeInTheDocument();
+    expect(mockSaveBudgetDistribution).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('budget draft mode switching (#1472 B2/B3)', () => {
+  afterEach(resetState);
+
+  it('waits for both source and distribution reads before reporting the committed mode change', async () => {
+    let finishVersionRead!: (value: unknown) => void;
+    let finishDistributionRead!: (value: unknown) => void;
+    const deferredVersionRead = new Promise<unknown>((resolve) => { finishVersionRead = resolve; });
+    const deferredDistributionRead = new Promise<unknown>((resolve) => { finishDistributionRead = resolve; });
+    versionsState.refetch.mockImplementation(() => deferredVersionRead);
+    mockBudgetRepository.getDistribution.mockReturnValueOnce(deferredDistributionRead);
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Switch to whole-project' }));
+    await waitFor(() => expect(mockBudgetRepository.getDistribution).toHaveBeenCalledWith('v-draft'));
+    expect(versionsState.refetch).toHaveBeenCalled();
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+    expect(screen.queryAllByText('Budget mode changed')).toHaveLength(0);
+
+    await act(async () => { finishDistributionRead(null); });
+    expect(screen.queryAllByText('Budget mode changed')).toHaveLength(0);
+    await act(async () => { finishVersionRead({
+      data: [{ ...draftVersion, budget_mode: 'whole_project', line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] }],
+      isError: false,
+    }); });
+    await waitFor(() => expect(screen.getAllByText('Budget mode changed').length).toBeGreaterThan(0));
+  });
+
+  it('shows refresh and review when only readback fails and does not replay the committed write', async () => {
+    const switchedDraft = { ...draftVersion, budget_mode: 'whole_project', line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] };
+    mockBudgetRepository.getDistribution.mockRejectedValueOnce(new Error('read after commit failed'));
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    versionsState.refetch.mockResolvedValue({ data: [switchedDraft], isError: false });
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Switch to whole-project' }));
+
+    const recovery = await screen.findByTestId('budget-authoring-recovery');
+    expect(recovery).toHaveTextContent(/A change was saved, but a selected budget read failed/i);
+    expect(recovery).not.toHaveTextContent(/not saved/i);
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Change budget mode' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget mode changed')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh budget data' }));
+    await waitFor(() => expect(screen.queryByTestId('budget-authoring-recovery')).not.toBeInTheDocument());
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps confirmed-save recovery above the global read error and retries reads only', async () => {
+    const switchedDraft = { ...draftVersion, budget_mode: 'whole_project', line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] };
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    versionsState.refetch.mockImplementationOnce(async () => {
+      versionsState.isError = true;
+      return { data: undefined, isError: true };
+    });
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Switch to whole-project' }));
+    const recovery = await screen.findByTestId('budget-authoring-recovery');
+    const globalError = screen.getByText("Couldn't load budget");
+    expect(recovery).toHaveTextContent(/A change was saved/i);
+    expect(recovery.compareDocumentPosition(globalError) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    versionsState.isError = false;
+    versionsState.refetch.mockImplementation(() => Promise.resolve({ data: [switchedDraft], isError: false }));
+    await userEvent.click(within(recovery).getByRole('button', { name: 'Refresh budget data' }));
+    await waitFor(() => expect(screen.queryByTestId('budget-authoring-recovery')).not.toBeInTheDocument());
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not describe a 40001 stale refusal as saved when its recovery read fails', async () => {
+    const staleRefusal = Object.assign(new Error('draft changed'), { code: '40001' });
+    mockSwitchBudgetDraftMode.mockRejectedValueOnce(staleRefusal);
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    versionsState.refetch.mockRejectedValueOnce(new Error('read after stale refusal failed'));
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Switch to whole-project' }));
+    const recovery = await screen.findByTestId('budget-authoring-recovery');
+    expect(recovery).toHaveTextContent(/server rejected this change because the draft changed; it was not saved/i);
+    expect(recovery).not.toHaveTextContent(/A change was saved/i);
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('per-year to whole-project presents the exact source totals and changes only after explicit confirmation', async () => {
+    budgetState.data = 0;
+    const perYearDraft = {
+      ...draftVersion,
+      budget_mode: 'per_year',
+      line_items: [
+        { ...draftVersion.line_items[0], id: 'li-labor', category: 'Labor', budgeted_amount: 200000, fiscal_year: '2026' },
+        { ...draftVersion.line_items[0], id: 'li-travel', category: 'Travel', description: 'Travel', budgeted_amount: 1000.25, fiscal_year: '2027' },
+      ],
+    };
+    versionsState.data = [perYearDraft];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    const review = within(dialog).getByRole('table', { name: 'Budget line review' });
+    expect(within(review).getByRole('row', { name: /Labor Developers 2026/ })).toHaveTextContent(/200,000\.00/);
+    expect(within(review).getByRole('row', { name: /Travel Travel 2027/ })).toHaveTextContent(/1,000\.25/);
+    expect(mockSwitchBudgetDraftMode).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(mockSwitchBudgetDraftMode).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const reopened = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(reopened).getByRole('button', { name: 'Switch to whole-project' }));
+    await waitFor(() => expect(mockSwitchBudgetDraftMode).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      targetMode: 'whole_project',
+      expectedLines: [
+        { id: 'li-labor', category: 'Labor', budgeted_amount: '200000.00', fiscal_year: '2026' },
+        { id: 'li-travel', category: 'Travel', budgeted_amount: '1000.25', fiscal_year: '2027' },
+      ],
+      assignments: [],
+    }));
+  });
+
+  it('whole-project to per-year requires an explicit fiscal year for every line before confirming', async () => {
+    budgetState.data = 0;
+    versionsState.data = [{
+      ...draftVersion,
+      budget_mode: 'whole_project',
+      line_items: [
+        { ...draftVersion.line_items[0], id: 'li-labor', budgeted_amount: 200000, fiscal_year: null },
+        { ...draftVersion.line_items[0], id: 'li-travel', category: 'Travel', description: 'Travel', budgeted_amount: 1000.25, fiscal_year: null },
+      ],
+    }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    expect(within(dialog).getByText(/all fiscal-year assignments are required/i)).toBeInTheDocument();
+    const confirm = within(dialog).getByRole('button', { name: 'Switch to per-year' });
+    expect(confirm).toBeDisabled();
+    expect(mockSwitchBudgetDraftMode).not.toHaveBeenCalled();
+
+    await userEvent.selectOptions(within(dialog).getByLabelText('Fiscal year for Developers'), '2026');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Fiscal year for Travel'), '2027');
+    expect(confirm).toBeEnabled();
+    await userEvent.click(confirm);
+    await waitFor(() => expect(mockSwitchBudgetDraftMode).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      targetMode: 'per_year',
+      expectedLines: [
+        { id: 'li-labor', category: 'Labor', budgeted_amount: '200000.00', fiscal_year: null },
+        { id: 'li-travel', category: 'Travel', budgeted_amount: '1000.25', fiscal_year: null },
+      ],
+      assignments: [
+        { id: 'li-labor', fiscal_year: '2026' },
+        { id: 'li-travel', fiscal_year: '2027' },
+      ],
+    }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// budget-whole-project AC-018 / FR-022 — stale Active distribution banner (plan 6.5)
+// ---------------------------------------------------------------------------
+describe('budget-whole-project FR-022 stale Active distribution banner', () => {
+  const wholeActive = { ...activeVersion, budget_mode: 'whole_project' };
+  const savedPlan = (projectEnd: string | null) => ({
+    method: 'by_days', inputs: {}, categoryOverrides: {}, rows: [],
+    basis: {
+      projectStart: '2026-01-01',
+      projectEnd,
+      years: [
+        { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+        ...(projectEnd === '2027-12-31' ? [{ name: '2027', start: '2027-01-01', end: '2027-12-31' }] : []),
+      ],
+    },
+  });
+
+  it('names the new end date and covered years, mutates nothing on read, and Prepare new draft clones after confirmation', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [wholeActive];
+    budgetDistributionState.data = savedPlan('2026-12-31');
+    renderPage();
+    const banner = screen.getByTestId('budget-stale-distribution');
+    expect(banner).toHaveTextContent('2027-12-31');
+    expect(banner).toHaveTextContent('2026');
+    expect(mockClone).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Prepare new draft' }));
+    expect(mockClone).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /Clone version/i }));
+    expect(mockClone).toHaveBeenCalledWith('v-active');
+  });
+
+  it('is absent when the saved basis still matches, for per-year budgets, and for read-only roles it offers no action', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [wholeActive];
+    budgetDistributionState.data = savedPlan('2027-12-31');
+    const { unmount } = renderPage();
+    expect(screen.queryByTestId('budget-stale-distribution')).not.toBeInTheDocument();
+    unmount();
+    versionsState.data = [activeVersion];
+    budgetDistributionState.data = savedPlan('2026-12-31');
+    const second = renderPage();
+    expect(screen.queryByTestId('budget-stale-distribution')).not.toBeInTheDocument();
+    second.unmount();
+    versionsState.data = [wholeActive];
+    roleState.realRole = 'Engineer';
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Prepare new draft' })).not.toBeInTheDocument();
   });
 });

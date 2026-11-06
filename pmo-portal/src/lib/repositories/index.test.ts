@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
+
 // ---------------------------------------------------------------------------
 // Mock the entire DAL surface the seam delegates to. Each repository method is a
 // thin wrapper, so the contract under test is: (a) the method exists, (b) it calls
@@ -52,6 +54,10 @@ vi.mock('@/src/lib/db/documents', () => ({
 vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn(), listOrgProfiles: vi.fn() }));
 vi.mock('@/src/lib/db/adminUsers', () => ({
   listUsers: vi.fn(),
+  listUsersPage: vi.fn(),
+  listManagerChoices: vi.fn(),
+  countActiveAdminsByOrg: vi.fn(),
+  findUserPage: vi.fn(),
   updateUserRole: vi.fn(),
   assignUserManager: vi.fn(),
   inviteUser: vi.fn(),
@@ -137,6 +143,8 @@ vi.mock('@/src/lib/db/budgets', () => ({
   activateVersion: vi.fn(),
   archiveVersion: vi.fn(),
   deleteDraftVersion: vi.fn(),
+  getBudgetDistribution: vi.fn(),
+  saveBudgetDistribution: vi.fn(),
 }));
 vi.mock('@/src/lib/db/budgetImportSkip', () => ({
   findImportTargetDraft: vi.fn(),
@@ -220,16 +228,16 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
-  it('financialStatements exposes catalogue and get through the public API seam', async () => {
+  it('financialStatements exposes catalogue, get and refreshNow through the public API seam', async () => {
     const catalogue = { state: 'unavailable', companyLabel: null, generation: null, periods: [], scopes: [] };
     vi.mocked(financialStatementsDal.getFinancialStatementCatalogue).mockResolvedValue(catalogue as never);
     await expect(repositories.financialStatements.catalogue()).resolves.toBe(catalogue);
     expect(financialStatementsDal.getFinancialStatementCatalogue).toHaveBeenCalledWith({});
-    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get']);
+    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get', 'refreshNow']);
   });
 
   it('companyCollections exposes both canonical-reference batch reads', () => {
@@ -304,7 +312,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.profile).sort()).toEqual(
-      ['assignUserManager', 'inviteUser', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'setUserStatus', 'updateUserRole'].sort(),
+      // 'listUsersPage'/'listManagerChoices'/'countActiveAdminsByOrg'/'findUserPage' added
+      // deliberately with the Administration › Users server-side page: the directory reads one
+      // projected page, the manager picker reads its own complete lazy list, and the sole-Admin
+      // predicate plus the manager jump are server counts. Exhaustive API-seam contract — extend
+      // only deliberately.
+      ['assignUserManager', 'countActiveAdminsByOrg', 'findUserPage', 'inviteUser', 'listManagerChoices', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'listUsersPage', 'setUserStatus', 'updateUserRole'].sort(),
     );
     expect(Object.keys(repositories.task).sort()).toEqual(
       // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018
@@ -365,7 +378,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
@@ -995,7 +1008,15 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.deleteLineItem).toHaveBeenCalledWith('li1');
 
     await repositories.budget.createVersion('p1', 'v2');
-    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2', undefined);
+    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2', undefined, undefined);
+
+    // #1472 S6A — the distribution seam delegates to the accepted S3 RPC wrapper.
+    const plan = { method: 'by_days', inputs: {}, categoryOverrides: {}, basis: { projectStart: '2026-01-01', projectEnd: null, years: [] }, rows: [] } as never;
+    vi.mocked(budgetsDal.getBudgetDistribution).mockResolvedValue(plan);
+    await expect(repositories.budget.getDistribution('v1')).resolves.toBe(plan);
+    expect(budgetsDal.getBudgetDistribution).toHaveBeenCalledWith('v1');
+    await repositories.budget.saveDistribution('v1', plan);
+    expect(budgetsDal.saveBudgetDistribution).toHaveBeenCalledWith('v1', plan);
 
     await repositories.budget.cloneVersion('v1');
     expect(budgetsDal.cloneVersion).toHaveBeenCalledWith('v1');

@@ -40,9 +40,10 @@ code=$(req "${hdr_service[@]}" "$BASE/rest/v1/platform_operators?select=user_id&
 A_MEMBER_EMAIL=''
 while IFS=$'\t' read -r table pk id; do
   [ -n "$table" ] || continue
+  [ "$table" != org_plans ] || { echo "skip org_plans (#1838)" >&2; continue; }
   select_columns=org_id; [ "$table" != profiles ] || select_columns=org_id,email
   code=$(req "${hdr_service[@]}" "$BASE/rest/v1/$table?select=$select_columns&$pk=eq.$id&limit=1")
-  [ "$code" = 200 ] && jq -e --arg org "$A_ORG" 'type=="array" and length==1 and .[0].org_id==$org' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: A_ROWS_JSON target not verified as belonging to A' >&2; exit 4; }
+  [ "$code" = 200 ] && jq -e --arg org "$A_ORG" 'type=="array" and length==1 and .[0].org_id==$org' "$BODY" >/dev/null 2>&1 || { echo "isolation-probe: A_ROWS_JSON target not verified as belonging to A: $table code=$code body=$(head -c 160 "$BODY")" >&2; exit 4; }
   [ "$table" != profiles ] || A_MEMBER_EMAIL=$(jq -r '.[0].email // ""' "$BODY")
 done < <(jq -r '.[] | [.table,.pk,.id] | @tsv' "$A_ROWS_JSON")
 [ "${ISOLATION_VALIDATE_ONLY:-0}" != 1 ] || exit 0
@@ -117,6 +118,10 @@ rpc(){
       if [ -n "$shape" ] && [ "$code" != 200 ]; then probe_error "rpc $fn unexpected shape HTTP $code"; return; fi
       if [ "$rpc_class" = read ]; then
         if [ "$shape" = must-deny ]; then flag "rpc $fn unexpectedly returned cross-tenant read data"; return; fi
+        if [ "$shape" = null ]; then
+          jq -e '.==null' "$BODY" >/dev/null && { say "  EXPECTED-DENIAL  rpc $fn (invisible tenant snapshot)" >&2; return; }
+          flag "rpc $fn returned a cross-tenant snapshot"; return
+        fi
         jq -e 'type=="boolean"' "$BODY" >/dev/null || { probe_error "rpc $fn expected boolean"; return; }
         say "  PASS  rpc $fn (own-org boolean read)" >&2
         return
@@ -299,10 +304,14 @@ if [ -n "$A_SLIP" ] && [ "$A_SLIP" != null ]; then
 else skip "correct_vendor_withholding_slip (vendor_withholding_slips)"; skip "void_vendor_withholding_slip (vendor_withholding_slips)"; fi
 if [ -n "$A_CLAIM" ] && [ "$A_CLAIM" != null ]; then c=$(rpc record_expense_advance_return "{\"p_id\":\"$A_CLAIM\",\"p_amount\":0.01,\"p_reference\":\"probe\"}"); else skip "record_expense_advance_return (expense_claims)"; fi
 if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then
+  c=$(rpc switch_budget_draft_mode "{\"p_version\":\"$A_BUDGET\",\"p_target_mode\":\"whole_project\",\"p_expected_lines\":[],\"p_assignments\":[]}")
+  c=$(rpc get_budget_distribution_snapshot "{\"p_version_id\":\"$A_BUDGET\"}")
   c=$(rpc budget_distribution_gaps "{\"p_version\":\"$A_BUDGET\"}")
   c=$(rpc save_budget_distribution "{\"p_version\":\"$A_BUDGET\",\"p_method\":\"by_days\",\"p_inputs\":{},\"p_basis\":{},\"p_rows\":[]}")
   c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}")
 else
+  skip "switch_budget_draft_mode (budget_versions)"
+  skip "get_budget_distribution_snapshot (budget_versions)"
   skip "budget_distribution_gaps (budget_versions)"
   skip "save_budget_distribution (budget_versions)"
   skip "activate_budget_version (budget_versions)"

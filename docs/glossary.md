@@ -286,10 +286,13 @@ become externally owned, and PMO-authoritative domains (timesheets, budgets) may
 into it. (Decided 2026-07-10; qualified 2026-11-03.)
 _Avoid_: ERP tier (too narrow).
 
-**Graph connection** — an org's standing authorization for PMO to act on Microsoft 365 on a user's
-behalf. It has **two independent legs**, and a claim about one says nothing about the other:
-the **connect leg** (the org grants consent and PMO takes custody of the authorization) and the
-**use leg** (PMO actually exercises that authorization to read Microsoft data). A connection can be
+**Graph connection** — one user's delegated authorization, within their org, for PMO to act on
+Microsoft 365 on that user's behalf; PMO holds it in custody per user. **Org approval** (the tenant
+admin's consent for the PMO app) is a separate step and is not a user's connection. A connection
+has **two independent legs**, and a claim about one says nothing about the other: the **connect
+leg** (the user consents and PMO takes custody of the authorization) and the **use leg** (PMO
+actually exercises that authorization to read Microsoft data). The **status** a card shows
+("Connected") is custody metadata only; it is not proof that any read succeeded. A connection can be
 established and yet unusable. (Clarified 2026-07-29 after "a proven live connection" was read as
 covering both legs when only the connect leg had ever run — four documents went stale on the
 ambiguity, and a feature was nearly built on the unproven leg.)
@@ -302,6 +305,14 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Bill of quantities item** — a project work item with a code, description, unit, quantity, rate and earning basis, used for measured work and billing.
 
 **Project progress entry** — a dated monthly record of a project's percent complete and an optional note.
+
+**Work order** — a client's purchase order against a project, with an order value, tax basis and a Draft, Issued, Closed or Cancelled status; it is the commitment that billing and acceptance run against.
+
+**Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
+
+**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
+
+**Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
 
 **Progress assessment quantity** — the quantity completed to date for a bill-of-quantities item in a project progress entry.
 

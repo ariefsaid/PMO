@@ -51,6 +51,7 @@ const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
+  useBudgetDistribution: () => ({ data: null, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn().mockResolvedValue({ data: [] }) }),
@@ -63,6 +64,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
     updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
     deleteLineItem: { mutateAsync: mockDeleteLineItem, isPending: false },
+    switchDraftMode: { mutateAsync: vi.fn(), isPending: false },
+    saveDistribution: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 
