@@ -19,6 +19,13 @@ describe('vendorChunkFor', () => {
     expect(vendorChunkFor('/repo/node_modules/scheduler/index.js')).toBe('vendor-react');
   });
 
+  it('keeps react-only shared shims OUT of vendor-recharts — otherwise every page preloads the chart bundle', () => {
+    // Rolldown parks an unassigned module shared by recharts and app code inside recharts' chunk,
+    // so the entry statically imports ~350 kB of charts on every route (incl. /login).
+    expect(vendorChunkFor('/repo/node_modules/use-sync-external-store/shim/index.js')).toBe('vendor-react');
+    expect(vendorChunkFor('/repo/node_modules/clsx/dist/clsx.mjs')).toBe('vendor-react'); // src/lib/cn.ts
+  });
+
   it('maps the other vendor families', () => {
     expect(vendorChunkFor('/repo/node_modules/@tanstack/react-query/build/index.js')).toBe('vendor-query');
     expect(vendorChunkFor('/repo/node_modules/@supabase/supabase-js/dist/main/index.js')).toBe('vendor-supabase');
