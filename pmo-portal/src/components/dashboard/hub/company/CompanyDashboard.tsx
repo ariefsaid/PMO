@@ -64,7 +64,7 @@ const EMPTY_PIPELINE_STAGES: PipelineStage[] = [];
 const EMPTY_PIPELINE_PROJECTS: PipelineProject[] = [];
 /** Value signature of a figure list: everything a panel renders for one figure. */
 const figureListSignature = (figures: DashboardFigure[]): string => figures
-  .map((figure) => [figure.id, figure.label, String(figure.value ?? ''), figure.exactValue ?? '', String(figure.subline ?? ''), figure.unavailableReason ?? '', figure.href ?? '', (figure.lines ?? []).join('|')].join('\u001f'))
+  .map((figure) => [figure.id, figure.label, String(figure.value ?? ''), figure.exactValue ?? '', String(figure.subline ?? ''), figure.title ?? '', figure.help ?? '', figure.unavailableReason ?? '', figure.href ?? '', (figure.lines ?? []).join('|')].join('\u001f'))
   .join('\u001e');
 /** The band's fixture order: the six figures every company role sees today. */
 const COMPANY_FIGURE_IDS = ['contract-on-hand', 'billed-margin', 'pipeline', 'client-overdue', 'supplier-payables', 'still-to-invoice'] as const;
@@ -475,9 +475,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const onPipelineRetry = useStableCallback(() => void figures.pipelineRetry());
   const onTrendRetry = useStableCallback(() => figures.trendRetry());
   const onTodayRetry = useStableCallback(() => figures.todayRetry());
-  // `t` is re-created by react-i18next on parent renders, so the figure arrays and the help lookup
-  // that depend on it are re-created too (their owning hook is another branch's). Re-key them on the
-  // values they render so the memoised panels keep their props across unrelated settles.
+  // Belt-and-braces on the figure arrays: react-i18next reuses its `t` snapshot across ordinary
+  // renders, so `useCompanyFigures` already returns stable arrays then — but its memos also key on a
+  // language switch or a store-load revision bump, and that hook belongs to another branch. Re-keying
+  // on the values the panels render keeps the boundaries stable in those cases without depending on
+  // that hook's dep list. `help` is a stable callback for the same reason (it closes over `t`).
   const periodFigures = useStableValue(figures.period, figureListSignature);
   const todayFigures = useStableValue(figures.today, figureListSignature);
   const winRateRange = useStableValue(figures.winRateRange, (range) => range.key);

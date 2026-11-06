@@ -90,8 +90,7 @@ beforeEach(() => {
 });
 
 describe('PM dashboard memoised panels still show changed data', () => {
-  it('KPI band: contract value and project count follow the project rows', () => {
-    const view = render(tree());
+  it('KPI band: contract value and project count follow the project rows', () => {    const view = render(tree());
     expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$100K');
     expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('1');
 
@@ -128,5 +127,25 @@ describe('PM dashboard memoised panels still show changed data', () => {
     const area = card('Project One');
     expect(within(area).getByRole('link', { name: /procurement waiting for your approval/i })).toHaveAttribute('href', '/procurement?open=pr1');
     expect(within(area).getByText('Inverter spares')).toBeInTheDocument();
+  });
+
+  it('approval strip: a changed approval count repaints its chip', () => {
+    state.needs.items = [{ id: 'approvals', count: 3, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' }];
+    const view = render(tree());
+    expect(screen.getByRole('link', { name: /3 approvals waiting for you/i })).toHaveAttribute('href', '/approvals');
+
+    state.needs.items = [{ id: 'approvals', count: 7, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' }];
+    view.rerender(tree());
+    expect(screen.getByRole('link', { name: /7 approvals waiting for you/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /3 approvals waiting for you/i })).not.toBeInTheDocument();
+  });
+
+  it('KPI band: the team-hours tile follows the approval queue', () => {
+    const view = render(tree());
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('2.5 h');
+
+    state.timesheets.data = [{ id: 'ts1', entries: [{ hours: 6 }, { hours: 5 }] }];
+    view.rerender(tree());
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('11 h');
   });
 });

@@ -34,10 +34,11 @@ export function useStableValue<T>(value: T, signature: (value: T) => string): T 
   return rendered.current;
 }
 
-/** Signature of an attention/approval list: everything either list renders. */
-export const itemsSignature = (items: ReadonlyArray<{ id: string; count: unknown; label: string; sub?: string; amount?: unknown; href: string; tooltip?: string }>): string =>
-  items.map((item) => [item.id, String(item.count), item.label, item.sub ?? '', String(item.amount ?? ''), item.href, item.tooltip ?? ''].join('\u001f')).join('\u001e');
-
-/** Signature of a per-project count map (`useNeedsYou().pmOverdueTasksByProject`). */
-export const countsSignature = (counts: Record<string, number>): string =>
-  Object.entries(counts).map(([id, count]) => `${id}=${count}`).join(';');
+/**
+ * Signature of an attention/approval list: every field either list renders — the count and label, the
+ * optional second line and amount, the link and its tooltip, plus the tone and glyph that colour the
+ * approval chip. Note `count`/`amount` are `React.ReactNode`: they stringify to `"[object Object]"`
+ * when an element is passed, so keep passing strings and numbers here (all current callers do).
+ */
+export const itemsSignature = (items: ReadonlyArray<{ id: string; count: unknown; label: string; tone?: string; icon?: string; sub?: string; amount?: unknown; href: string; tooltip?: string }>): string =>
+  items.map((item) => [item.id, String(item.count), item.label, item.tone ?? '', item.icon ?? '', item.sub ?? '', String(item.amount ?? ''), item.href, item.tooltip ?? ''].join('\u001f')).join('\u001e');

@@ -65,6 +65,9 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useOverdueInvoiceFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  // #1973's existence probes (empty-state evidence): answered, not loading, so the KPI band paints.
+  useHasAnySalesInvoice: () => ({ data: false, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
+  useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({
   useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }),
