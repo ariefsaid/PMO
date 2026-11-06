@@ -21,6 +21,14 @@ export interface TopProject {
   currency: string;
   budget: number | null;
   spent: number | null;
+  /**
+   * #1739 (0700): the PMO open commitment — the unpaid remainder of the project's committed purchases (the Budget
+   * tab's Committed). Null/absent for an ERP-ledger org, whose Actual is the ledger figure. Budget consumption is
+   * spent + this; a surface showing "at risk" must use that sum, never spent alone.
+   */
+  committed?: number | null;
+  /** Whether every committed purchase was readable in the project currency; false withholds the commitment. */
+  committed_complete?: boolean;
   actual_currency?: string | null;
   actual_complete?: boolean;
   budget_currency?: string | null;
@@ -273,6 +281,8 @@ export interface BudgetReviewRow {
   actual_coverage_count: number;
   actual_coverage_total: number;
   actual_as_of: string | null;
+  /** True when the org reads the ERP ledger (spent is the ledger Actual); false when spent is PMO's ordered..paid purchase totals. */
+  ledger_owned?: boolean;
 }
 
 /**

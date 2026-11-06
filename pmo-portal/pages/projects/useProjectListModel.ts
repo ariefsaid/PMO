@@ -13,7 +13,7 @@ import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
 import { activeClassificationCount, matchesProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
-import { isActualComplete } from '@/src/lib/projectFinances';
+import { deriveBudgetConsumption, isActualComplete } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
@@ -94,14 +94,23 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
   const isAtRiskActual = React.useCallback(
     (p: ProjectWithRefs) => {
       const money = projectMoney?.[p.id];
-      const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
       const budget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-      if (moneyPending || moneyError || !money || actual == null || budget == null) return false;
+      if (moneyPending || moneyError || !money || budget == null) return false;
+      // #1739 / 0700: at-risk is the share of the budget CONSUMED — PMO spent + open commitment on the project
+      // currency, the ledger Actual for a ledger org — so a half-paid order is not counted as if it were free.
+      const consumption = deriveBudgetConsumption({
+        ledgerBasis: money.ledgerBasis ?? 'erp',
+        spent: money.actuals.total,
+        committed: money.actuals.committedTotal,
+        spentComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
+          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }),
+        committedComplete: money.actuals.committedComplete,
+      });
+      if (!consumption.complete || consumption.amount == null) return false;
       return isMoneyAtRisk({ status: p.status as string, budget,
         budgetCurrency: money.activeBudgetCurrency, projectCurrency: p.currency,
-        spent: actual, actualCurrency: money.actuals.currency,
-        actualComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
-          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }) });
+        spent: Number(consumption.amount), actualCurrency: money.actuals.currency,
+        actualComplete: true });
     },
     [projectMoney, moneyPending, moneyError],
   );

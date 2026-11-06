@@ -2,6 +2,9 @@
 -- AC-PERF-Q12-001: get_executive_dashboard() and get_finance_budget_review() return, byte for byte, what the pre-0656
 -- row-per-project bodies returned, for every role, on an ERP-ledger org and on a PMO-basis org.
 -- The oracle functions below are the 0322 / 0396+0591 bodies verbatim, renamed; they live only in this transaction.
+-- 0700 (#1739) moved the PMO basis to spent + open commitment in BOTH dashboard bodies and added one output field to the
+-- finance review (ledger_owned, appended last); the oracle carries those and nothing else, so it still proves output parity.
+-- The basis itself is owned by 0700_pmo_spend_split.test.sql.
 begin;
 select plan(23);
 
@@ -35,7 +38,7 @@ AS $function$
         order by v.version desc,v.created_at desc,v.id desc limit 1) as budget_currency,
       case when public.org_reads_erp_ledger() then (select o.default_currency from public.organizations o where o.id=p.org_id)
         else p.currency end as actual_currency,
-      case when not public.org_reads_erp_ledger() then (select complete from public.project_pmo_commitment_position(p.id))
+      case when not public.org_reads_erp_ledger() then (select complete from public.project_pmo_spent_position(p.id))
         -- 0381 (#1374): no Active budget → the project header's rule: every cost category mapped and read.
         when not exists (select 1 from public.budget_versions v where v.project_id=p.id and v.status='Active') then
           (select count(*) > 0 and bool_and(x.mapped and x.actuals_to_date is not null) from pma x where x.project_id=p.id)
@@ -51,8 +54,12 @@ AS $function$
           then (select sum(x.actuals_to_date) from (select * from pma where pma.project_id=p.id) x
             where x.actuals_to_date is not null)
           else null end
-      else (select amount from public.project_pmo_commitment_position(p.id))
+      else (select amount from public.project_pmo_spent_position(p.id))
       end as actual,
+      case when not public.org_reads_erp_ledger() then (select amount from public.project_pmo_commitment_position(p.id))
+      else null end as committed,
+      case when not public.org_reads_erp_ledger() then coalesce((select complete from public.project_pmo_commitment_position(p.id)), false)
+      else true end as committed_complete,
       case when public.org_reads_erp_ledger() then
         (select count(*)::int from (select * from pma where pma.project_id=p.id) x
           where x.mapped and x.actuals_to_date is not null)
@@ -120,6 +127,7 @@ AS $function$
       coalesce(sum(actual_coverage_total),0)::int as active_delivery_actual_coverage_total,
       count(*) filter (where active_budget is null or active_budget <= 0
         or not actual_complete or actual is null
+        or not committed_complete
         or actual_currency is distinct from budget_currency
         or actual_currency is distinct from currency)::int as risk_unchecked_projects
     from delivery_risk_basis
@@ -129,7 +137,8 @@ AS $function$
     where p.status::text=any(public.active_delivery_project_statuses()) and p.archived_at is null
       and exists (select 1 from public.budget_versions v where v.project_id=p.id and v.status='Active')
       and (select v.currency=p.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc,v.created_at desc,v.id desc limit 1)
-      and ((not public.org_reads_erp_ledger() and (select complete from public.project_pmo_commitment_position(p.id))) or (public.org_reads_erp_ledger() and
+      and ((not public.org_reads_erp_ledger() and (select complete from public.project_pmo_spent_position(p.id))
+            and (select complete from public.project_pmo_commitment_position(p.id))) or (public.org_reads_erp_ledger() and
         (select o.default_currency=p.currency from public.organizations o where o.id=p.org_id)
         and (select v.currency=p.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc limit 1)
         and (select count(distinct li.category) > 0 and count(distinct li.category) = count(distinct li.category) filter
@@ -139,7 +148,8 @@ AS $function$
          where v.project_id=p.id and v.status='Active')))
       and (case when public.org_reads_erp_ledger() then
         (select sum(x.actuals_to_date) from (select * from pma where pma.project_id=p.id) x where x.actuals_to_date is not null)
-        else (select amount from public.project_pmo_commitment_position(p.id)) end)
+        else (select s.amount + c.amount from public.project_pmo_spent_position(p.id) s
+                cross join public.project_pmo_commitment_position(p.id) c) end)
         / nullif((select sum(li.budgeted_amount) from public.budget_versions v
           join public.budget_line_items li on li.budget_version_id=v.id
           where v.project_id=p.id and v.status='Active'),0) >= 0.9
@@ -183,6 +193,7 @@ AS $function$
     'top_projects',coalesce((select json_agg(t order by t.contract_value desc) from (
       select p.id,p.name,coalesce(nullif(btrim(c.short_name),''),c.name) as client_name,
         p.contract_value,p.currency,p.active_budget as budget,p.budget_currency,p.actual as spent,
+        p.committed,p.committed_complete,
         p.actual_currency,p.actual_complete,p.actual_coverage_count,p.actual_coverage_total,p.realized_margin,p.status
       from project_money p left join public.companies c on c.id=(select pr.client_id from public.projects pr where pr.id=p.id)
       where p.status::text = any(public.on_hand_project_statuses()) or p.status::text = 'Internal Project'
@@ -288,7 +299,8 @@ AS $function$
       case when p.ledger_owned then coalesce(a.actual_coverage_count, 0) else 1 end as actual_coverage_count,
       case when p.ledger_owned then coalesce(a.actual_coverage_total, 0) else 1 end as actual_coverage_total,
       case when p.ledger_owned then a.actual_as_of else null::timestamptz end as actual_as_of,
-      case when p.ledger_owned then p.default_currency else p.currency end as actual_currency
+      case when p.ledger_owned then p.default_currency else p.currency end as actual_currency,
+      p.ledger_owned
     from project_scope p
     join active_budget b on b.id = p.id and b.budget > 0
     left join erp_actuals a on a.id = p.id
@@ -305,7 +317,7 @@ AS $function$
         and b.currency = b.actual_currency
         then b.spent - b.budget else null::numeric end as variance,
       b.actual_currency, b.actual_complete, b.actual_coverage_count,
-      b.actual_coverage_total, b.actual_as_of
+      b.actual_coverage_total, b.actual_as_of, b.ledger_owned
     from review_basis b
     left join public.companies c on c.id = b.client_id and c.org_id = b.org_id
   )

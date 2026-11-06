@@ -460,6 +460,7 @@
       "readyToPayError": "Couldn't load ready-to-pay records",
       "budget": "Budget",
       "spent": "Spent",
+      "committedSpent": "Committed + spent",
       "spentUnknown": "Recorded spending is incomplete or uses a different currency.",
       "percentUsed": "% used",
       "budgetUsedUnknown": "Budget or recorded spending cannot be compared.",
