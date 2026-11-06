@@ -89,7 +89,8 @@ h1,h2,h3{color:var(--ink);font-weight:600;text-wrap:balance}
 .t .r{text-align:right;white-space:nowrap}
 .t .tot td{font-weight:600;border-bottom:0}
 .t .r.amt{min-width:130px}
-@media (max-width:760px){.t.wide{min-width:640px}.t.wide2{min-width:480px}.t.wide3{min-width:620px}}
+/* ponytail: phones drop secondary columns so every table fits without sideways scroll */
+@media (max-width:760px){.t.wide :is(th,td):is(:nth-child(2),:nth-child(3),:nth-child(4)),.t.wide2 :is(th,td):nth-child(2),.t.wide3 :is(th,td):is(:nth-child(4),:nth-child(5),:nth-child(6)){display:none}.t.wide{font-size:.8125rem}.t.wide :is(th,td){padding-inline:6px}}
 .bar-col{width:34%}
 .scroll{overflow-x:auto;max-width:100%}
 .track{display:flex;height:12px;border-radius:6px;background:#E6E9EE;overflow:hidden;margin:14px 0 4px;min-width:90px}
@@ -111,7 +112,6 @@ h1,h2,h3{color:var(--ink);font-weight:600;text-wrap:balance}
 .legend{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0 2px;font-size:.8125rem;color:var(--quiet)}
 .sub-screen{margin-top:20px}
 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-right:8px;border-radius:50%;background:var(--pri);color:#fff;font-size:.75rem;font-weight:600;line-height:1;vertical-align:1px;flex:none}
-.kpis .n{position:absolute;top:10px;right:10px;margin:0}
 
 /* problem */
 .ba{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,4vw,56px)}
