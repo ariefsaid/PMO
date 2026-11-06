@@ -110,7 +110,7 @@ select is(
   (select count(*)::int from pg_policies
      where tablename in ('agent_threads','agent_runs','agent_events')
        and cmd = 'SELECT'
-       and qual ilike '%owner_id = auth.uid()%'),
+       and qual ~* 'owner_id = (\( select )?auth\.uid\(\)'),
   3,
   'AC-AGP-006: every SELECT policy on the three tables gates on owner_id = auth.uid()');
 
