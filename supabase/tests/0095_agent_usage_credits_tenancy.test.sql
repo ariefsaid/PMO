@@ -196,7 +196,7 @@ select is(
 select is(
   (select count(*)::int from pg_policies
      where tablename = 'agent_usage' and cmd = 'SELECT'
-       and qual ilike '%owner_id = auth.uid()%'),
+       and qual ~* 'owner_id = (\( select )?auth\.uid\(\)'),
   1,
   'AC-AUC-005 agent_usage SELECT gates on owner_id = auth.uid() (owner-only wall unchanged)');
 -- credits SELECT now gates on org_id (org-pool, own-org Admin+Exec) — NOT owner_id.

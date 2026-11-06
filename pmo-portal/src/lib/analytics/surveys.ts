@@ -47,7 +47,7 @@ export const findSurvey = (key: SurveyKey, done: (id: string | null) => void): v
   analyticsClient.surveys.find(SURVEY_NAMES[key], done);
 
 /** PostHog's verdict on a prompted survey: running, targeted, wait period passed, not already seen. */
-export const canShowSurvey = (id: string): boolean => analyticsClient.surveys.canRender(id);
+export const canShowSurvey = (id: string): Promise<boolean> => analyticsClient.surveys.canRender(id);
 
 export const showSurvey = (id: string, context: SafeProperties, nextTo?: string): void =>
   analyticsClient.surveys.show(id, context, nextTo);

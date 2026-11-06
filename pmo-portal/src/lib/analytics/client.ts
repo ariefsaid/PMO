@@ -5,7 +5,7 @@
  * import the typed facade from `src/lib/analytics/index.ts` instead.
  */
 
-import posthog from 'posthog-js';
+import type posthog from 'posthog-js';
 import type { AnalyticsConfig } from './config';
 import type { AnalyticsEventName, SafeProperties } from './events';
 import { buildEventProperties, FORBIDDEN_PROPERTY_KEYS } from './events';
@@ -23,8 +23,28 @@ export const POSTHOG_PROPERTY_DENYLIST = Array.from(FORBIDDEN_PROPERTY_KEYS).fil
   (key) => key !== 'token',
 );
 
+// `initialized` = init was requested with consent (enabled, no DNT, not opted out). The SDK itself is a
+// dynamic import (#1885): until it resolves, calls queue as closures over ALREADY-sanitised payloads;
+// opt-out clears the queue, so nothing buffered before a revoke is ever sent.
+type Posthog = typeof posthog;
 let initialized = false;
 let activeConfig: AnalyticsConfig | null = null;
+let sdk: Posthog | null = null;
+let loading: Promise<void> | null = null;
+let queue: Array<(ph: Posthog) => void> = [];
+const MAX_QUEUE = 200;
+
+/** Run now if the SDK is loaded, else buffer until it is (bounded; oldest dropped). */
+function withSdk(fn: (ph: Posthog) => void): void {
+  if (sdk) return fn(sdk);
+  if (!loading) return;
+  if (queue.length >= MAX_QUEUE) queue.shift();
+  queue.push(fn);
+}
+
+/** Current SDK, only while analytics is live (init'd, enabled, not opted out). */
+const live = (): Posthog | null => (initialized && activeConfig?.enabled && !readOptOut() ? sdk : null);
+const isLive = (): boolean => initialized && !!activeConfig?.enabled && !readOptOut();
 
 const MAX_EXCEPTION_TEXT_LENGTH = 2000;
 
@@ -363,11 +383,38 @@ export function buildPosthogInitOptions(config: AnalyticsConfig): Parameters<typ
 
 function doInit(config: AnalyticsConfig): void {
   activeConfig = config;
-  if (!config.enabled || initialized || !config.posthogKey || readOptOut() || isDoNotTrack()) return;
-  posthog.init(config.posthogKey, buildPosthogInitOptions(config));
+  if (!config.enabled || initialized || loading || !config.posthogKey || readOptOut() || isDoNotTrack()) return;
   initialized = true;
-  // AC-PHO-012: same id the source-map upload uses, so PostHog filters issues by release.
-  posthog.register({ release: __GIT_SHA__ });
+  const key = config.posthogKey;
+  loading = import('posthog-js')
+    .then(({ default: ph }) => {
+      // Consent revoked (or DNT set) while the chunk loaded: never init, drop the buffer.
+      if (readOptOut() || isDoNotTrack()) {
+        queue = [];
+        initialized = false;
+        loading = null;
+        return;
+      }
+      ph.init(key, buildPosthogInitOptions(config));
+      // AC-PHO-012: same id the source-map upload uses, so PostHog filters issues by release.
+      ph.register({ release: __GIT_SHA__ });
+      sdk = ph;
+      const pending = queue;
+      queue = [];
+      for (const fn of pending) {
+        try {
+          fn(ph);
+        } catch {
+          /* one bad buffered call must not lose the rest */
+        }
+      }
+    })
+    .catch(() => {
+      // SDK failed to load (offline, blocked): analytics goes dark, the app is unaffected.
+      queue = [];
+      initialized = false;
+      loading = null;
+    });
 }
 
 export const analyticsClient = {
@@ -387,7 +434,9 @@ export const analyticsClient = {
     } catch {
       /* storage blocked — the in-session opt-out below still applies */
     }
-    if (initialized) posthog.opt_out_capturing();
+    // Revoke: drop everything buffered, never flush it later.
+    queue = [];
+    if (initialized) withSdk((ph) => ph.opt_out_capturing());
   },
 
   /** FR-CON-002: opt back in; initialise if the opt-out had suppressed init. */
@@ -399,7 +448,7 @@ export const analyticsClient = {
     }
     if (initialized) {
       // captureEventName:false — a billed $opt_in event tells us nothing we need.
-      posthog.opt_in_capturing({ captureEventName: false });
+      withSdk((ph) => ph.opt_in_capturing({ captureEventName: false }));
       return;
     }
     if (activeConfig) {
@@ -408,36 +457,44 @@ export const analyticsClient = {
       // call — without this, traffic to PostHog resumes (consent reads PENDING, not opted-out) but
       // EVENTS never do, because the SDK still privately believes this browser opted out. Analytics
       // would go permanently dark while looking opted back in.
-      if (initialized) posthog.opt_in_capturing({ captureEventName: false });
+      if (initialized) withSdk((ph) => ph.opt_in_capturing({ captureEventName: false }));
     }
   },
 
   capture(event: AnalyticsEventName, properties: SafeProperties = {}) {
-    if (!initialized || !activeConfig?.enabled || readOptOut()) return;
-    posthog.capture(event, buildEventProperties(event, properties, activeConfig.isProd));
+    if (!isLive()) return;
+    // Sanitise BEFORE buffering: a queued event is already clean (#1840, FR-OF-011).
+    const safe = buildEventProperties(event, properties, activeConfig!.isProd);
+    withSdk((ph) => {
+      if (!readOptOut()) ph.capture(event, safe);
+    });
   },
 
   captureException(input: CaptureExceptionInput) {
-    if (!initialized || !activeConfig?.enabled || readOptOut()) return;
+    if (!isLive()) return;
     const err = new Error(input.message) as Error & { componentStack?: string };
     err.name = input.name;
     if (input.componentStack !== undefined) {
       err.componentStack = input.componentStack;
     }
-    posthog.captureException(err);
+    withSdk((ph) => {
+      if (!readOptOut()) ph.captureException(err);
+    });
   },
 
   /** #1532 S9. Every method is inert unless analytics is live (init'd, enabled, not opted out). */
   surveys: {
     /** The id of the published survey with exactly this name, or null (not published / analytics off). */
     find(name: string, done: (id: string | null) => void) {
-      if (!initialized || !activeConfig?.enabled || readOptOut()) return done(null);
-      posthog.getSurveys((all) => done((all.find((x) => x?.name === name)?.id as string | undefined) ?? null));
+      if (!isLive()) return done(null);
+      withSdk((ph) => ph.getSurveys((all) => done((all.find((x) => x?.name === name)?.id as string | undefined) ?? null)));
     },
-    /** PostHog's own verdict: running, targeting flag, wait period passed, not already seen. */
-    canRender(id: string): boolean {
-      if (!initialized || !activeConfig?.enabled || readOptOut()) return false;
-      return posthog.canRenderSurvey(id)?.visible === true;
+    /** PostHog's own verdict: running, targeting flag, wait period passed, not already seen. Async: waits for the SDK. */
+    async canRender(id: string): Promise<boolean> {
+      if (!isLive()) return false;
+      await loading;
+      const ph = live();
+      return ph ? ph.canRenderSurvey(id)?.visible === true : false;
     },
     /**
      * Show survey `id` as PostHog's own popover (its chrome records shown / sent / dismissed and the
@@ -445,29 +502,43 @@ export const analyticsClient = {
      * Eligibility (wait period, targeting) is checked by the caller via `canRender` for prompted surveys.
      */
     show(id: string, properties: SafeProperties, nextTo?: string) {
-      if (!initialized || !activeConfig?.enabled || readOptOut()) return;
+      if (!isLive()) return;
       // The shipped SDK has `displaySurvey`; the published typings omit it.
-      (posthog as unknown as { displaySurvey: (id: string, o: object) => void }).displaySurvey(id, {
-        displayType: 'popover',
-        ignoreConditions: true,
-        ignoreDelay: true,
-        properties,
-        ...(nextTo ? { position: 'next_to_trigger', selector: nextTo } : {}),
-      });
+      withSdk((ph) =>
+        (ph as unknown as { displaySurvey: (id: string, o: object) => void }).displaySurvey(id, {
+          displayType: 'popover',
+          ignoreConditions: true,
+          ignoreDelay: true,
+          properties,
+          ...(nextTo ? { position: 'next_to_trigger', selector: nextTo } : {}),
+        }),
+      );
     },
     /** Calls `cb(event, properties)` for every event the SDK captures; returns the unsubscribe. No-op when analytics is off. */
     onCaptured(cb: (event: string, properties: Record<string, unknown>) => void): () => void {
-      if (!initialized || !activeConfig?.enabled || readOptOut()) return () => {};
-      return posthog.on('eventCaptured', (e: { event?: string; properties?: Record<string, unknown> }) => {
-        if (typeof e?.event === 'string') cb(e.event, e.properties ?? {});
+      if (!isLive()) return () => {};
+      let off = () => {};
+      let cancelled = false;
+      withSdk((ph) => {
+        if (cancelled) return;
+        off = ph.on('eventCaptured', (e: { event?: string; properties?: Record<string, unknown> }) => {
+          if (typeof e?.event === 'string') cb(e.event, e.properties ?? {});
+        });
       });
+      return () => {
+        cancelled = true;
+        off();
+      };
     },
   },
 
   identify(input: { userId: string; role: string; orgId: string }) {
-    if (!initialized || !activeConfig?.enabled || readOptOut()) return;
-    posthog.identify(input.userId, { role: input.role });
-    posthog.register({ role: input.role, org_id: input.orgId });
+    if (!isLive()) return;
+    withSdk((ph) => {
+      if (readOptOut()) return;
+      ph.identify(input.userId, { role: input.role });
+      ph.register({ role: input.role, org_id: input.orgId });
+    });
   },
 
   /**
@@ -480,28 +551,55 @@ export const analyticsClient = {
    * inits at all), so a group is never created for a user who has not consented.
    */
   group(type: string, key: string, properties: Record<string, string> = {}) {
-    if (!initialized || !activeConfig?.enabled || readOptOut()) return;
-    posthog.group(type, key, properties);
+    if (!isLive()) return;
+    withSdk((ph) => {
+      if (!readOptOut()) ph.group(type, key, properties);
+    });
   },
 
   register(properties: SafeProperties) {
-    if (!initialized || !activeConfig?.enabled || readOptOut()) return;
-    posthog.register(buildEventProperties('app_route_viewed', properties, activeConfig.isProd));
+    if (!isLive()) return;
+    const safe = buildEventProperties('app_route_viewed', properties, activeConfig!.isProd);
+    withSdk((ph) => {
+      if (!readOptOut()) ph.register(safe);
+    });
   },
 
   reset() {
     if (!initialized) return;
-    posthog.reset();
-    // `posthog.reset()` DELETES the SDK's own consent key, so its internal state reads PENDING
-    // (i.e. "allowed") again and `is_capturing()`/captures resume for the rest of the session even
-    // though this browser is still opted out in OUR storage. Log out → capture silently resumes —
-    // a privacy promise must not depend on SDK-internal state surviving a call we don't control.
-    if (readOptOut()) posthog.opt_out_capturing();
+    withSdk((ph) => {
+      ph.reset();
+      // `posthog.reset()` DELETES the SDK's own consent key, so its internal state reads PENDING
+      // (i.e. "allowed") again and `is_capturing()`/captures resume for the rest of the session even
+      // though this browser is still opted out in OUR storage. Log out → capture silently resumes —
+      // a privacy promise must not depend on SDK-internal state surviving a call we don't control.
+      if (readOptOut()) ph.opt_out_capturing();
+    });
+  },
+
+  /** Agent-chat consent flag source: the live SDK's session id, or undefined (not loaded / opted out). */
+  agentSession(): { sessionId?: string } | undefined {
+    try {
+      const ph = live();
+      if (!ph?.__loaded || ph.has_opted_out_capturing()) return undefined;
+      const sessionId = ph.get_session_id();
+      return sessionId ? { sessionId } : {};
+    } catch {
+      return undefined;
+    }
+  },
+
+  /** Resolves once the deferred SDK load settles (success or failure). Tests + canRender. */
+  ready(): Promise<void> {
+    return loading ?? Promise.resolve();
   },
 
   /** @internal Reset singleton state between tests */
   __resetForTests() {
     initialized = false;
     activeConfig = null;
+    sdk = null;
+    loading = null;
+    queue = [];
   },
 };
