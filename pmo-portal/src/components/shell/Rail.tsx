@@ -167,11 +167,11 @@ export interface RailProps {
   onPreloadHref?: (href: string) => void;
 }
 
-export const Rail: React.FC<RailProps> = (props) => {
+export const Rail: React.FC<RailProps> = React.memo(function Rail(props) {
   const auth = useContext(AuthContext);
   const { effectiveRole } = useEffectiveRole();
   return auth && effectiveRole === 'Engineer' ? <RailWithTimesheetEligibility {...props} /> : <RailContent {...props} />;
-};
+});
 
 const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
   const pending = useTimesheetsAwaitingApproval();
