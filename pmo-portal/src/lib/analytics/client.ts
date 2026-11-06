@@ -118,7 +118,23 @@ function redactExceptionProperties(
     }
   }
   sanitizeNestedEventValue(properties);
+  // Person properties are TOP-LEVEL on the capture result (`$set`, `$set_once`: `$initial_current_url`,
+  // `$initial_referrer`, ...), not inside `properties`, so they need the same pass.
+  sanitizeNestedEventValue(captureResult.$set);
+  sanitizeNestedEventValue(captureResult.$set_once);
   return captureResult;
+}
+
+/**
+ * posthog-js feeds `persistence.get_initial_props()` (`$initial_current_url`, `$initial_referrer`, ...)
+ * into every `/flags` request as `person_properties`, and into `$set_once`. It is rebuilt from the raw
+ * landing URL/referrer after every `reset()`, so wrap the reader (one choke point), not the stored copy.
+ */
+function sanitizeInitialPersonProps(ph: unknown): void {
+  const persistence = (ph as { persistence?: { get_initial_props?: () => unknown } }).persistence;
+  const read = persistence?.get_initial_props;
+  if (!persistence || typeof read !== 'function') return;
+  persistence.get_initial_props = () => sanitizeNestedEventValue(read.call(persistence));
 }
 
 function sanitizeNestedEventValue(value: unknown): unknown {
@@ -304,6 +320,7 @@ export function buildPosthogInitOptions(config: AnalyticsConfig): Parameters<typ
       maskCapturedNetworkRequestFn: redactUrl,
     },
     before_send: redactExceptionProperties,
+    loaded: (ph) => sanitizeInitialPersonProps(ph),
   };
 }
 
