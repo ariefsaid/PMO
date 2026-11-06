@@ -9,8 +9,11 @@
 -- sales_invoices_native_mirror_guard against every non-service caller, like the 0511 facts.
 -- Reversal: rollback/0695_sales_invoices_odoo_matched_payment_refs_down.sql.
 
+-- `default '{}'` (review M3): the writer treats null as empty, but a fresh row now states its own
+-- empty set — a default rewrites nothing on PG16 and keeps 'no references yet' from reading as
+-- 'never read' alongside the 0511 facts (which stay nullable: they are facts ABOUT a read, this is a SET).
 alter table public.sales_invoices
-  add column odoo_matched_payment_refs text[];
+  add column odoo_matched_payment_refs text[] default '{}';
 
 comment on column public.sales_invoices.odoo_matched_payment_refs is
   'Receipt references (account.payment:<id>) an Odoo read-back showed reconciled with this invoice; written by the receipt finalize mirror writer only. #1825: the awaiting-Odoo flag clears when the sent receipt''s own reference appears here.';
@@ -88,3 +91,48 @@ begin
   end if;
   return new;
 end; $$;
+
+
+-- #1825 (review I2): the receipt finalize's read-back merge is THIS ONE STATEMENT. The dispatch writer
+-- used to select the invoice's references, merge in JS, and update — two statements a second receipt
+-- finalizing on the same invoice could interleave: the loser's stale merge dropped the winner's
+-- reference, and with the clock fallback disabled that receipt's awaiting-Odoo flag never cleared.
+-- Concurrent callers here serialize on the invoice row lock — each update re-reads the committed
+-- references inside the statement, so every committed reference survives — and
+-- `array(select distinct …)` collapses a replay's duplicate (set semantics: the flag's oracle is
+-- `contains reference`, so order is unspecified and nothing may depend on it). A NULL fact argument
+-- keeps the column it would have written: an unreadable read-back header never erases what the ledger
+-- said (erp_modified / odoo_read_at included — review M1), and the money keys move only when the
+-- header carried a readable outstanding figure (p_outstanding / p_status non-null together, derived by
+-- the writer). A wrong org simply matches no row (the where clause is the org guard).
+create or replace function public.record_sales_invoice_receipt_read_back(
+  p_org          uuid,
+  p_invoice_id   uuid,
+  p_refs         text[],
+  p_erp_modified text,
+  p_outstanding  numeric,
+  p_status       text,
+  p_odoo_read_at timestamptz
+) returns void
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+begin
+  update public.sales_invoices set
+    odoo_matched_payment_refs = (select array(select distinct r from unnest(sales_invoices.odoo_matched_payment_refs || p_refs) as r)),
+    erp_modified             = coalesce(p_erp_modified, sales_invoices.erp_modified),
+    odoo_read_at             = coalesce(p_odoo_read_at, sales_invoices.odoo_read_at),
+    erp_outstanding_amount   = coalesce(p_outstanding, sales_invoices.erp_outstanding_amount),
+    status                   = coalesce(p_status, sales_invoices.status)
+  where sales_invoices.org_id = p_org
+    and sales_invoices.id = p_invoice_id;
+end $$;
+
+-- ── ACL discipline (0163 pattern): SECURITY DEFINER over a guard-pinned table; MACHINE-ONLY. The only
+-- caller is the service-role dispatch edge fn (the mirror writer). A client principal could otherwise
+-- forge the read-back evidence — the awaiting-Odoo flag's oracle — for any org's invoice. The 0511
+-- mirror guard above still governs the write itself: it passes only under service-role JWT claims,
+-- which is the only shape in which the edge fn can reach this function. ─────────────────────────────
+revoke all     on function public.record_sales_invoice_receipt_read_back(uuid, uuid, text[], text, numeric, text, timestamptz) from public, anon, authenticated;
+grant  execute on function public.record_sales_invoice_receipt_read_back(uuid, uuid, text[], text, numeric, text, timestamptz) to   service_role;

@@ -25,7 +25,7 @@ insert into sales_invoices (id, org_id, customer_id, invoice_date, amount, tax_a
   'a5110000-0000-0000-0000-0000000000a1', '[{"item_code":"ITEM-A","description":"original","qty":1,"rate":100,"amount":100}]'::jsonb);
 
 -- the columns exist with Odoo's vocabulary and start empty
-select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null and odoo_matched_payment_refs is null from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 the four Odoo facts start empty, and so do the matched receipt references (#1825)');
+select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null and odoo_matched_payment_refs = '{}'::text[] from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 the four Odoo facts start empty, and so do the matched receipt references (0695 default: an empty set, not null)');
 
 -- layer 1: grants. No client role can write the new columns (UPDATE is revoked on the table since 0176; INSERT is a column list)
 select is((select count(*)::int from unnest(array['odoo_state','odoo_attention','odoo_sent_total','odoo_read_at','odoo_matched_payment_refs']) c
@@ -53,7 +53,7 @@ delete from external_domain_ownership where org_id = 'a5110000-0000-0000-0000-00
 select throws_ok($$update sales_invoices set odoo_attention = 'money-unreadable' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '42501', 'the Odoo facts of an invoice are written only by the mirror', 'AC-OCI-070 the pin does not depend on revenue being externally owned');
 insert into external_domain_ownership (org_id, external_tier, domain) values ('a5110000-0000-0000-0000-000000000001', 'odoo', 'revenue');
 
-select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null and odoo_matched_payment_refs is null from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 every refused write left the row untouched');
+select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null and odoo_matched_payment_refs = '{}'::text[] from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 every refused write left the row untouched');
 
 -- the service role (the mirror writer) can
 set local request.jwt.claims = '{"role":"service_role"}';

@@ -86,6 +86,12 @@ function makeFakeClient(rows: Record<string, unknown> = {}, listRows: Record<str
         },
       };
     },
+    // Fenced outcome writers (0155) and the #1825 read-back merge (0695) route through
+    // security-definer RPCs — the fake records the call so tests assert the exact server-side args.
+    rpc(fn: string, args: Record<string, unknown>) {
+      calls.push({ table: 'rpc', method: fn, args: [args] });
+      return Promise.resolve({ error: null });
+    },
   };
   return { client, calls };
 }
@@ -1525,30 +1531,34 @@ const RECEIPT_READ_BACK_CANONICAL = {
 };
 
 Deno.test({
-  name: "#1825 — READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment) records the read-back on the invoice mirror: merged references plus the money the read showed",
+  name: "#1825 — READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment) records the read-back on the invoice mirror through the atomic merge RPC: this receipt's references plus the money the read showed",
   fn: async () => {
-    const { client, calls } = makeFakeClient({ sales_invoices: { org_id: 'org-1', odoo_matched_payment_refs: ['account.payment:7'] } });
+    const { client, calls } = makeFakeClient({ sales_invoices: { org_id: 'org-1' } });
     await getReadModelWriter('revenue').upsert(
       { serviceClient: client as never, orgId: 'org-1' },
       RECEIPT_READ_BACK_CANONICAL,
       { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1825', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
     );
-    const updates = calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update');
-    assertEquals(updates.length, 1, 'the invoice mirror must receive the read-back');
-    assertEquals(updates[0].args[0], {
-      odoo_matched_payment_refs: ['account.payment:7', 'account.payment:42'],
-      erp_modified: '2026-11-05 10:00:00',
-      erp_outstanding_amount: '0.00',
-      status: 'Paid',
-      odoo_read_at: '2026-11-05T10:00:01.000Z',
+    const rpcs = calls.filter((c) => c.table === 'rpc' && c.method === 'record_sales_invoice_receipt_read_back');
+    assertEquals(rpcs.length, 1, 'the read-back merge is one server-side statement (0695)');
+    assertEquals(rpcs[0].args[0], {
+      p_org: 'org-1',
+      p_invoice_id: 'si-1',
+      p_refs: ['account.payment:42'],
+      p_erp_modified: '2026-11-05 10:00:00',
+      p_outstanding: '0.00',
+      p_status: 'Paid',
+      p_odoo_read_at: '2026-11-05T10:00:01.000Z',
     });
-    const filters = calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update.eq').map((c) => c.args);
-    assertEquals(filters, [['org_id', 'org-1'], ['id', 'si-1']], 'the patch is org-scoped to the invoice');
+    // #1825 (review I2): the writer no longer updates the invoice to merge — the stale-read race that
+    // lost a concurrent receipt's ref lived exactly there.
+    assertEquals(calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update').length, 0,
+      'no read-merge-write on the invoice mirror: the merge is atomic server-side');
   },
 });
 
 Deno.test({
-  name: "#1825 — a receipt finalize whose read-back money is unreadable records the reference and the read facts, and no money keys",
+  name: "#1825 — a receipt finalize whose read-back money is unreadable records the reference and the read facts, leaving the money keys out (null never overwrites erp_modified/odoo_read_at either — review M1)",
   fn: async () => {
     const { client, calls } = makeFakeClient({ sales_invoices: { org_id: 'org-1' } });
     await getReadModelWriter('revenue').upsert(
@@ -1559,13 +1569,17 @@ Deno.test({
       },
       { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1825', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
     );
-    const updates = calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update');
-    assertEquals(updates.length, 1);
-    assertEquals(updates[0].args[0], {
-      odoo_matched_payment_refs: ['account.payment:42'],
-      erp_modified: '2026-11-05 10:00:00',
-      odoo_read_at: '2026-11-05T10:00:01.000Z',
-    }, 'an unreadable header leaves the money keys out whole (the mirror never erases what the ledger said)');
+    const rpcs = calls.filter((c) => c.table === 'rpc' && c.method === 'record_sales_invoice_receipt_read_back');
+    assertEquals(rpcs.length, 1);
+    assertEquals(rpcs[0].args[0], {
+      p_org: 'org-1',
+      p_invoice_id: 'si-1',
+      p_refs: ['account.payment:42'],
+      p_erp_modified: '2026-11-05 10:00:00',
+      p_outstanding: null,
+      p_status: null,
+      p_odoo_read_at: '2026-11-05T10:00:01.000Z',
+    }, 'an unreadable header passes null for the money keys (the RPC coalesces — the mirror never erases what the ledger said)');
   },
 });
 
@@ -1579,5 +1593,120 @@ Deno.test({
       { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-plain', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
     );
     assertEquals(calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update').length, 0, 'no invoice-mirror write without the read-back block');
+    assertEquals(calls.filter((c) => c.table === 'rpc').length, 0, 'no merge RPC without the read-back block');
+  },
+});
+
+Deno.test({
+  name: "#1825 (review I1) — a replay after a failed invoice write treats the duplicate payment row as already applied and still records the read-back, so the awaiting-Odoo flag's evidence lands",
+  fn: async () => {
+    const calls: { table: string; method: string; args: unknown[] }[] = [];
+    let inserts = 0;
+    let readBacks = 0;
+    const client = {
+      from(table: string) {
+        return {
+          insert: async () => {
+            calls.push({ table, method: 'insert', args: [] });
+            // Attempt 1 commits the payment row; the replay re-inserts the SAME id and hits its key.
+            return { error: inserts++ === 0 ? null : { message: 'duplicate key value violates unique constraint "incoming_payments_pkey"', code: '23505' } };
+          },
+          select(columns: string) {
+            calls.push({ table, method: 'select', args: [columns] });
+            const chain = {
+              eq(column: string, value: string) {
+                calls.push({ table, method: 'select.eq', args: [column, value] });
+                return chain;
+              },
+              async maybeSingle() {
+                calls.push({ table, method: 'maybeSingle', args: [] });
+                return { data: { id: 'pmo-ip-1825', org_id: 'org-1' }, error: null };
+              },
+            };
+            return chain;
+          },
+        };
+      },
+      rpc(fn: string, args: Record<string, unknown>) {
+        calls.push({ table: 'rpc', method: fn, args: [args] });
+        // Attempt 1's invoice write fails (the partial failure a replay must recover from).
+        return Promise.resolve(readBacks++ === 0 ? { error: { message: 'invoice write failed', code: 'XX000' } } : { error: null });
+      },
+    };
+    const writer = getReadModelWriter('revenue');
+    const command = { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1825', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } } as const;
+    // Attempt 1: the payment row commits, the invoice write fails — the caller sees the failure.
+    let firstError = '';
+    try {
+      await writer.upsert({ serviceClient: client as never, orgId: 'org-1' }, RECEIPT_READ_BACK_CANONICAL, command);
+    } catch (error) { firstError = error instanceof Error ? error.message : String(error); }
+    assertEquals(firstError, 'invoice write failed', 'the first attempt still fails loudly');
+    // The replay: the duplicate key is recognized as the already-applied receipt, and the read-back
+    // write runs — the flag's single-system evidence reaches the invoice (the FE clears on the ref).
+    await writer.upsert({ serviceClient: client as never, orgId: 'org-1' }, RECEIPT_READ_BACK_CANONICAL, command);
+    const readBackCalls = calls.filter((c) => c.table === 'rpc' && c.method === 'record_sales_invoice_receipt_read_back');
+    assertEquals(readBackCalls.length, 2, 'the read-back write ran on BOTH attempts');
+    assertEquals((readBackCalls[1].args[0] as Record<string, unknown>).p_refs, ['account.payment:42'],
+      'the replay still merges the receipt reference — the flag is not stuck');
+    const identity = calls.filter((c) => c.table === 'incoming_payments' && c.method === 'select.eq').map((c) => c.args);
+    assertEquals(identity, [['org_id', 'org-1'], ['id', 'pmo-ip-1825']],
+      'the duplicate row is identified by (org, id) before it is treated as applied');
+  },
+});
+
+Deno.test({
+  name: "#1825 (review I1) — a duplicate-key insert whose conflicting row is NOT this payment still fails the replay",
+  fn: async () => {
+    const calls: { table: string; method: string; args: unknown[] }[] = [];
+    const client = {
+      from(table: string) {
+        return {
+          insert: async () => ({ error: { message: 'duplicate key violates a constraint', code: '23505' } }),
+          select(columns: string) {
+            const chain = {
+              eq() { return chain; },
+              async maybeSingle() { return { data: null, error: null }; }, // no row with THIS id in THIS org
+            };
+            calls.push({ table, method: 'select', args: [columns] });
+            return chain;
+          },
+        };
+      },
+      rpc() { return Promise.resolve({ error: null }); },
+    };
+    let failed = false;
+    try {
+      await getReadModelWriter('revenue').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        RECEIPT_READ_BACK_CANONICAL,
+        { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-other', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
+      );
+    } catch { failed = true; }
+    assert(failed, 'an unresolved duplicate key is a fault, not an already-applied receipt');
+  },
+});
+
+Deno.test({
+  name: "#1825 — the receipt reference merge takes only string references (a malformed entry cannot abort the read-back), and the update (non-create) branch records none",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ sales_invoices: { org_id: 'org-1' } });
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { ...RECEIPT_READ_BACK_CANONICAL, odoo_matched_payment_refs: ['account.payment:42', 42, 'account.payment:42'] },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1825', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
+    );
+    const rpcs = calls.filter((c) => c.table === 'rpc' && c.method === 'record_sales_invoice_receipt_read_back');
+    assertEquals((rpcs[0].args[0] as Record<string, unknown>).p_refs, ['account.payment:42', 'account.payment:42'],
+      "non-strings are filtered; duplicates are the server-side distinct's job (pgTAP)");
+    // The update (non-create) branch of the payment mirror records no read-back: the settle evidence is
+    // produced at commit — a later status-sync update carries no read-back block to write.
+    const { client: updateClient, calls: updateCalls } = makeFakeClient();
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: updateClient as never, orgId: 'org-1' },
+      RECEIPT_READ_BACK_CANONICAL,
+      { domain: 'revenue', operation: 'update', record: { id: 'pmo-ip-1825', erp_doc_kind: 'incoming-payment' } },
+    );
+    assertEquals(updateCalls.filter((c) => c.table === 'rpc').length, 0, 'a payment update records no read-back');
+    assertEquals(updateCalls.filter((c) => c.table === 'sales_invoices').length, 0, 'a payment update never touches the invoice mirror');
   },
 });

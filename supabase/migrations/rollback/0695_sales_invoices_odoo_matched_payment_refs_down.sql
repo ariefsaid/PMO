@@ -1,5 +1,8 @@
 -- Reversal of 0695_sales_invoices_odoo_matched_payment_refs.sql (#1825).
--- Restore the 0511 guard (without the odoo_matched_payment_refs pin) and drop the column.
+-- Restore the 0511 guard (without the odoo_matched_payment_refs pin), drop the read-back merge RPC
+-- and the column (the column default drops with the column).
+
+drop function if exists public.record_sales_invoice_receipt_read_back(uuid, uuid, text[], text, numeric, text, timestamptz);
 
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
   language plpgsql set search_path = public as $$

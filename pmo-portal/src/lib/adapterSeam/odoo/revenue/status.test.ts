@@ -172,4 +172,22 @@ describe('AC-OCI-054 a receipt does not mark its invoice Paid before a fresh Odo
       receiptCommandCreatedAt: '2026-11-02T09:00:00.000Z',
     })).toBe(false);
   });
+
+  // #1825 (review I1): the replay-after-partial-failure path. Attempt 1 committed the payment row but
+  // failed the invoice read-back write, so the invoice's references hold nothing yet — the outbox's
+  // recorded read-back disables the clock fallback, and the flag would stay awaiting forever. The
+  // replay treats the duplicate payment row as already applied and writes the read-back; the reference
+  // arriving is what clears the flag — never a clock.
+  it('a replay that lands the read-back reference clears the flag a failed first attempt left stuck', () => {
+    const base = {
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:02:00.000Z', // even a read after outbox creation proves nothing without the reference
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+      receiptCommandExternalRef: 'account.payment:42',
+      receiptCommandRecordedReadBack: true,
+    } as const;
+    expect(invoiceReceiptAwaitingOdoo({ ...base, invoiceMatchedPaymentRefs: [] })).toBe(true);
+    expect(invoiceReceiptAwaitingOdoo({ ...base, invoiceMatchedPaymentRefs: ['account.payment:42'] })).toBe(false);
+  });
 });
