@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   effectiveRole: null as string | null,
   userId: 'u-fin',
   connected: true,
+  revenueMode: null as 'native' | 'erp' | null,
+  tmInvoice: vi.fn(),
   loadItems: vi.fn(),
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -36,7 +38,8 @@ vi.mock('@/src/auth/usePermission', async () => {
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
 });
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: h.loadItems }) }));
-vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
+// Who raises invoices follows the ERP connection unless a test pins it.
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.revenueMode ?? (h.connected ? 'erp' : 'native') }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectBilling: () => h.billing,
@@ -67,6 +70,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   usePrepareTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useWithdrawTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useConfirmTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useInvoiceTmClaimNative: () => ({ mutateAsync: h.tmInvoice, isPending: false }),
 }));
 import BillingTab from '../BillingTab';
 import { summarizeInvoiceSettlement } from '../../ContractCascade';
@@ -103,6 +107,7 @@ beforeEach(() => {
   h.ordersState = { isPending: false, isError: false, refetch: vi.fn() };
   h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.tmMutation.mockReset().mockResolvedValue(undefined);
+  h.revenueMode = null; h.tmInvoice.mockReset().mockResolvedValue('tm-1');
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
@@ -285,6 +290,92 @@ describe('BillingTab', () => {
 
     const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
     expect(within(dialog).getByText(/Claimed IDR/)).toBeInTheDocument();
+  });
+
+  describe('#1817 an organisation with no ERP invoices a signed-off T&M claim in PMO', () => {
+    const tmRow = (status: string) => ({
+      id: 'tm-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status,
+      currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: 'u-pm', confirmed_by: status === 'SignedOff' ? 'u-fin' : null,
+      confirm_basis: 'standard', document_id: 'doc-1', note: null, created_at: '2026-11-03T00:00:00Z', lines: [],
+    });
+    const given = (status: string, claimExtra: Record<string, unknown> = {}) => {
+      h.connected = false;
+      h.claims = [claim('tm-1', {
+        kind: 'time_materials', gross_amount: 400000, dp_recovery_amount: 0,
+        evidence: [{ id: 'tm-evidence', document_id: 'doc-1', document_status: 'active', document_revision: 'A' }], ...claimExtra,
+      })];
+      h.tmClaims = { data: { rows: [tmRow(status)], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    };
+
+    it('AC-TM-020 UI: no ERP, a signed-off unraised T&M claim shows "Create invoice" to Finance', async () => {
+      given('SignedOff');
+      renderTab();
+      expect(await screen.findByRole('button', { name: /Create invoice/ })).toBeInTheDocument();
+    });
+
+    it('AC-TM-020 UI: confirm calls the native mutation, not the ERP raise', async () => {
+      given('SignedOff');
+      const user = renderTab();
+      await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+      const dialog = screen.getByRole('dialog', { name: 'Create this claim\'s invoice?' });
+      expect(within(dialog).getByText(/A draft invoice is created in PMO from this claim/)).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
+      expect(h.tmInvoice).toHaveBeenCalledExactlyOnceWith('tm-1');
+      expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();
+      expect(await findToastAnnouncement('status', 'Invoice drafted in PMO')).toBeInTheDocument();
+    });
+
+    it('AC-TM-021 UI: no button for a Draft claim, a withdrawn claim or an already-invoiced claim', async () => {
+      given('Draft');
+      renderTab();
+      await screen.findByText(/Rate card/i);
+      expect(screen.queryByRole('button', { name: /Create invoice/ })).toBeNull();
+    });
+
+    it.each([
+      ['withdrawn', { withdrawn_at: '2026-11-04T00:00:00Z' }],
+      ['already invoiced', { invoice: { si_number: null, pmo_number: null, status: 'Draft', amount: 400000 } }],
+    ])('AC-TM-021 UI: no button for a %s claim', async (_name, extra) => {
+      given('SignedOff', extra);
+      renderTab();
+      await screen.findByText(/Rate card/i);
+      expect(screen.queryByRole('button', { name: /Create invoice/ })).toBeNull();
+    });
+
+    it('AC-TM-021 UI: an invoiced claim row reads the invoice status, then the PMO invoice number once approved', async () => {
+      given('SignedOff', { invoice: { si_number: null, pmo_number: 'INV-2611060001', status: 'Unpaid', amount: 400000 } });
+      renderTab();
+      expect(await screen.findByText('Invoiced · INV-2611060001')).toBeInTheDocument();
+    });
+
+    // An Engineer never sees the money section at all (canViewMoney), so only the Project Manager reaches the gate.
+    it('AC-TM-023 UI: no button for a Project Manager', async () => {
+      given('SignedOff');
+      h.role = 'Project Manager'; h.userId = 'pm-2';
+      renderTab();
+      await screen.findByText(/Rate card/i);
+      expect(screen.queryByRole('button', { name: /Create invoice/ })).toBeNull();
+    });
+
+    it('AC-TM-021 UI: a "claim already invoiced" refusal says so in plain words', async () => {
+      const { AppError } = await import('@/src/lib/appError');
+      given('SignedOff');
+      h.tmInvoice.mockRejectedValue(new AppError('this claim already has an invoice', 'claim-already-invoiced'));
+      const user = renderTab();
+      await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+      await user.click(within(screen.getByRole('dialog', { name: 'Create this claim\'s invoice?' })).getByRole('button', { name: 'Create invoice' }));
+      expect(await findToastAnnouncement('alert', 'This claim already has an invoice.')).toBeInTheDocument();
+    });
+
+    it('AC-TM-020 UI: with an ERP connected the ERP raise is used and the native one is never called', async () => {
+      given('SignedOff');
+      h.connected = true;
+      const user = renderTab();
+      await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+      await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
+      expect(h.m.raiseInvoice.mutateAsync).toHaveBeenCalledWith({ claimId: 'tm-1', customerId: 'c1', intent: { id: 'tm-1', idempotencyKey: expect.any(String) } });
+      expect(h.tmInvoice).not.toHaveBeenCalled();
+    });
   });
 
   it('AC-1402 restores a billing record drawer from the open URL', async () => {

@@ -203,6 +203,7 @@
         "billingEmptySub": "Klaim menagih uang muka atau kuantitas pekerjaan yang selesai sebagai satu faktur ERP.",
         "toast": {
           "raised": "Faktur diterbitkan di ERP",
+          "raisedNative": "Draf faktur dibuat di PMO",
           "evidenceAttached": "Bukti dilampirkan",
           "withdrawn": "Tagihan ditarik",
           "created": "Tagihan dibuat"
@@ -214,7 +215,10 @@
           "confirm": "Tarik tagihan"
         },
         "errors": {
-          "claimWithdrawn": "Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan."
+          "claimWithdrawn": "Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.",
+          "alreadyInvoiced": "Tagihan ini sudah memiliki faktur.",
+          "noClient": "Proyek ini belum punya klien untuk ditagih. Atur klien proyek terlebih dahulu.",
+          "totalMismatch": "Rincian tagihan ini tidak sesuai dengan totalnya. Tarik tagihan lalu susun ulang."
         },
         "withdrawn": "Ditarik",
         "kind": {
@@ -223,6 +227,11 @@
         },
         "errorSub": "Coba lagi, atau buka ulang proyek.",
         "empty": "Belum ada tagihan",
+        "confirmRaiseNative": {
+          "body": "Draf faktur dibuat di PMO dari tagihan ini. Pengguna Admin atau Finance lain yang menyetujuinya.",
+          "confirm": "Buat faktur",
+          "title": "Buat faktur tagihan ini?"
+        },
         "confirmRaise": {
           "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
           "body": "Draf faktur penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",

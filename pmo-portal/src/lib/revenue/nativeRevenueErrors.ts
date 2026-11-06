@@ -31,6 +31,9 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'sod-self-approval': t('financeCopy.sodSelfApproval', "You raised this invoice. A different person must approve it"),
     'sod-author-missing': t('financeCopy.sodAuthorMissing', "This invoice has no recorded author, so it cannot be approved"),
     'native-drafts-open': t('financeCopy.nativeDraftsOpen', "Invoices raised in PMO are still in draft"),
+    'claim-already-invoiced': t('project:projectDetail.billing.claims.errors.alreadyInvoiced', "This claim already has an invoice."),
+    'no-client': t('project:projectDetail.billing.claims.errors.noClient', "This project has no client to invoice. Set the client on the project first."),
+    'claim-total-mismatch': t('project:projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
   };
 }
 

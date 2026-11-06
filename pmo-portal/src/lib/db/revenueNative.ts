@@ -55,6 +55,8 @@ export const NATIVE_REVENUE_REFUSALS = [
   // State (P0001) and approval SoD.
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
+  // 0704 (#1817): a time-and-materials claim's invoice.
+  'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
 ] as const;
 export type NativeRevenueRefusal = (typeof NATIVE_REVENUE_REFUSALS)[number];
 const REFUSALS: ReadonlySet<string> = new Set(NATIVE_REVENUE_REFUSALS);
