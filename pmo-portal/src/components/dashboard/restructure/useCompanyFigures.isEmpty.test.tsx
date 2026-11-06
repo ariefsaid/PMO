@@ -22,8 +22,8 @@ vi.mock('@/src/hooks/useManagementPack', () => ({ useManagementPack: () => ({}) 
 vi.mock('@/src/hooks/useRevenue', () => ({
   useOverdueInvoiceFacts: () => ({ data: state.invoices }),
   usePaidPaymentFacts: () => ({ data: state.payments }),
-  useHasAnySalesInvoice: () => ({ data: state.anyInvoice, isPending: state.anyInvoicePending, isError: false, refetch: vi.fn() }),
-  useHasAnyIncomingPayment: () => ({ data: state.anyPayment, isPending: state.anyPaymentPending, isError: false, refetch: vi.fn() }),
+  useHasAnySalesInvoice: () => ({ data: state.anyInvoice, isPending: state.anyInvoicePending, isLoading: state.anyInvoicePending, isError: false, refetch: vi.fn() }),
+  useHasAnyIncomingPayment: () => ({ data: state.anyPayment, isPending: state.anyPaymentPending, isLoading: state.anyPaymentPending, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({}) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({}) }));
@@ -58,5 +58,8 @@ it('an org with no records at all keeps the empty state', () => {
 it('while the existence evidence is still loading the empty state waits (no zero-then-empty flash)', () => {
   state.invoices = []; state.payments = [];
   state.anyInvoice = undefined; state.anyInvoicePending = true; state.anyPayment = false; state.anyPaymentPending = false;
-  expect(render().result.current.isEmpty).toBe(false);
+  const rendered = render();
+  expect(rendered.result.current.isEmpty).toBe(false);
+  // Review finding 2: a pending probe must hold the KPI tiles too (todayPending), not just the empty state.
+  expect(rendered.result.current.todayPending).toBe(true);
 });

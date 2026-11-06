@@ -149,10 +149,6 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const orgDay = useFxOrgDay(true);
   const invoices = useOverdueInvoiceFacts();
   const payments = usePaidPaymentFacts();
-  // Issue 1973: the narrow facts reads see only open invoices / Paid receipts, so the empty state
-  // needs one existence probe each — an org with only closed records still has activity.
-  const anyInvoice = useHasAnySalesInvoice();
-  const anyPayment = useHasAnyIncomingPayment();
   // Shared-details select: the supplier invoice and payment rows behind the unpaid balance.
   const procurements = useProcurements({ lean: true });
   const workOrders = useUnbilledWorkOrders();
@@ -163,6 +159,27 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     from: period.from ? `${period.from}-01` : undefined,
     to: period.to ? `${period.to}-01` : undefined,
   });
+
+  // Issue 1973: the narrow facts reads see only open invoices / Paid receipts, so the empty state
+  // needs one existence probe each — an org with only closed records still has activity. Review perf
+  // finding 1: the probes' answer only matters once the dashboard is loaded AND every other activity
+  // signal has already resolved empty, so populated orgs never fetch them (each otherwise fires on
+  // every dashboard load). Every signal below must be LOADED-and-empty, not merely undefined. A
+  // disabled react-query probe stays isPending, so todayPending reads isLoading for them (below) or
+  // the tiles would skeleton forever.
+  const probesEnabled = Boolean(
+    dashboard.data
+    && !(dashboard.data.projects_by_status ?? []).some((row) => row.count > 0)
+    && !(dashboard.data.procurements_by_status ?? []).some((row) => row.count > 0)
+    && invoices.data?.length === 0
+    && payments.data?.length === 0
+    && procurements.data?.length === 0
+    && pipeline.data?.projects?.length === 0
+    && workOrders.data !== undefined && workOrders.data.incompleteCount === 0 && !workOrders.data.totals.some((row) => row.count > 0)
+    && pack.data?.totals.length === 0,
+  );
+  const anyInvoice = useHasAnySalesInvoice(probesEnabled);
+  const anyPayment = useHasAnyIncomingPayment(probesEnabled);
 
   const trendRange = trendWindow(orgDay.day);
   const trendPack = useManagementPack(trendRange, Boolean(trendRange.to));
@@ -306,7 +323,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
 
   return {
     today, period: periodFigures,
-    todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || orgDay.isPending || anyInvoice.isPending || anyPayment.isPending,
+    todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || orgDay.isPending || anyInvoice.isLoading || anyPayment.isLoading,
     todayError: dashboard.isError || invoices.isError || procurements.isError || workOrders.isError || orgDay.isError,
     periodPending, periodError,
     todayRetry: () => { void dashboard.refetch(); void invoices.refetch(); void procurements.refetch(); void workOrders.refetch(); void anyInvoice.refetch(); void anyPayment.refetch(); orgDay.retry(); },
