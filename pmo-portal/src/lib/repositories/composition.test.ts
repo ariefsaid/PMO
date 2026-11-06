@@ -81,7 +81,7 @@ vi.mock('@/src/lib/db/companyCollections', async (importOriginal) => ({ ...(awai
 vi.mock('@/src/lib/db/financialStatements', async (importOriginal) => ({ ...(await importOriginal<object>()), getFinancialStatementCatalogue: vi.fn() }));
 vi.mock('@/src/lib/pagedRead', async (importOriginal) => ({ ...(await importOriginal<object>()), fetchAllRowsByKeyset: vi.fn() }));
 
-import { repositories } from './index';
+import { repositories, loadAllRepositories } from './index';
 import type { Repositories } from './types';
 
 const SENTINEL = { wired: 'composition' } as unknown;
@@ -150,10 +150,12 @@ type AnyRepo = Record<string, (...args: unknown[]) => unknown>;
 describe('composition — every aggregate member is wired to its domain implementation (T-29)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('exposes a callable surface on every aggregate member', () => {
+  it('exposes a callable surface on every aggregate member', async () => {
     expect(AGGREGATE_MEMBERS.length).toBeGreaterThan(0);
+    // Lazy facade: method names exist only once each module loads, so read the loaded surface.
+    const loaded = await loadAllRepositories();
     for (const member of AGGREGATE_MEMBERS) {
-      const repo = repositories[member as keyof Repositories] as unknown as Record<string, unknown>;
+      const repo = loaded[member as keyof Repositories] as unknown as Record<string, unknown>;
       expect(Object.keys(repo as Record<string, unknown>).length, member).toBeGreaterThan(0);
       for (const [method, impl] of Object.entries(repo)) {
         // `stock` nests its methods one level down (`stock.master.*`); check those leaves.

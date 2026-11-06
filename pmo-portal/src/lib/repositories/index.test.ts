@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
 
@@ -176,7 +176,7 @@ vi.mock('@/src/lib/db/procurementFiles', () => ({
   cleanupStorageObject: vi.fn(),
 }));
 
-import { repositories } from './index';
+import { repositories, loadAllRepositories } from './index';
 import { AppError } from '@/src/lib/appError';
 import * as projectsDal from '@/src/lib/db/projects';
 import * as financialStatementsDal from '@/src/lib/db/financialStatements';
@@ -204,6 +204,13 @@ import * as incidentsDal from '@/src/lib/db/incidents';
 import * as milestonesDal from '@/src/lib/db/milestones';
 
 beforeEach(() => vi.clearAllMocks());
+
+// The facade is lazy (perf): per-entity method names exist only once the module loads, so the shape
+// assertions read the loaded modules; the top-level key set and call forwarding go through `repositories`.
+let loaded: Awaited<ReturnType<typeof loadAllRepositories>>;
+beforeAll(async () => {
+  loaded = await loadAllRepositories();
+});
 
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
@@ -237,27 +244,27 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     vi.mocked(financialStatementsDal.getFinancialStatementCatalogue).mockResolvedValue(catalogue as never);
     await expect(repositories.financialStatements.catalogue()).resolves.toBe(catalogue);
     expect(financialStatementsDal.getFinancialStatementCatalogue).toHaveBeenCalledWith({});
-    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get', 'refreshNow']);
+    expect(Object.keys(loaded.financialStatements).sort()).toEqual(['catalogue', 'get', 'refreshNow']);
   });
 
   it('companyCollections exposes both canonical-reference batch reads', () => {
-    expect(Object.keys(repositories.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds', 'listPartyIds']);
+    expect(Object.keys(loaded.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds', 'listPartyIds']);
   });
 
   it('m365DocumentSettings exposes the default-library repository methods', () => {
-    expect(Object.keys(repositories.m365DocumentSettings).sort()).toEqual(['getDefaultLibrary', 'setDefaultLibrary']);
+    expect(Object.keys(loaded.m365DocumentSettings).sort()).toEqual(['getDefaultLibrary', 'setDefaultLibrary']);
   });
 
   it('m365RecordFolders exposes ensure and linkExisting (#1020)', () => {
-    expect(Object.keys(repositories.m365RecordFolders).sort()).toEqual(['ensure', 'linkExisting']);
+    expect(Object.keys(loaded.m365RecordFolders).sort()).toEqual(['ensure', 'linkExisting']);
   });
 
   it('expensePostings exposes the two read methods (#775 phase B, ADR-0017)', () => {
-    expect(Object.keys(repositories.expensePostings).sort()).toEqual(['listAccountMap', 'listForClaim']);
+    expect(Object.keys(loaded.expensePostings).sort()).toEqual(['listAccountMap', 'listForClaim']);
   });
 
   it('exposes the equipment repository (#1519 S5): assets, usage, costing and allocations', () => {
-    expect(Object.keys(repositories.equipment).sort()).toEqual(
+    expect(Object.keys(loaded.equipment).sort()).toEqual(
       ['approveWeek', 'archiveUsage', 'createAsset', 'deleteAsset', 'endCosting', 'listAllocations', 'listAssets', 'listCosting',
         'listUsage', 'listUsageTotals', 'previewCosting', 'saveCosting', 'saveUsage', 'transitionUsage', 'updateAsset'].sort(),
     );
@@ -266,33 +273,33 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   it('contact exposes its expected methods (W3-CRM)', () => {
     // G3c: updateActivity + deleteActivity added (CD-1/CT-1 editable activity rows)
     // C3: listActivitiesForContacts batch method added (N+1 fix for useCompanyActivities)
-    expect(Object.keys(repositories.contact).sort()).toEqual(
+    expect(Object.keys(loaded.contact).sort()).toEqual(
       ['archive', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listActivities', 'listActivitiesForContacts', 'listByCompany', 'update', 'updateActivity'].sort(),
     );
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccount'].sort());
+    expect(Object.keys(loaded.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccount'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
-    expect(Object.keys(repositories.procurementFiles).sort()).toEqual(
+    expect(Object.keys(loaded.procurementFiles).sort()).toEqual(
       ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'prepareUpload'].sort(),
     );
   });
 
   it('each repository exposes its expected methods', () => {
-    expect(Object.keys(repositories.project).sort()).toEqual(
+    expect(Object.keys(loaded.project).sort()).toEqual(
       // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
       // task projection refresh). 'listNumbers' added deliberately with the PM dashboard batched
       // project-number read (#1890): one narrow request for the visible cards instead of one
       // full project read per card. Exhaustive API-seam contract — extend only deliberately.
       ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
     );
-    expect(Object.keys(repositories.company).sort()).toEqual(
+    expect(Object.keys(loaded.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
     );
-    expect(Object.keys(repositories.document).sort()).toEqual(
+    expect(Object.keys(loaded.document).sort()).toEqual(
       [
         'attachMicrosoftUpload',
         'cleanupObject',
@@ -311,7 +318,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'update',
       ].sort(),
     );
-    expect(Object.keys(repositories.profile).sort()).toEqual(
+    expect(Object.keys(loaded.profile).sort()).toEqual(
       // 'listUsersPage'/'listManagerChoices'/'countActiveAdminsByOrg'/'findUserPage' added
       // deliberately with the Administration › Users server-side page: the directory reads one
       // projected page, the manager picker reads its own complete lazy list, and the sole-Admin
@@ -319,7 +326,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // only deliberately.
       ['assignUserManager', 'countActiveAdminsByOrg', 'findUserPage', 'inviteUser', 'listManagerChoices', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'listUsersPage', 'setUserStatus', 'updateUserRole'].sort(),
     );
-    expect(Object.keys(repositories.task).sort()).toEqual(
+    expect(Object.keys(loaded.task).sort()).toEqual(
       // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018
       // soft-archive). 'listByMeeting' added deliberately with #526 (the /action seam, migration
       // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
@@ -328,7 +335,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // the repository surface must be an explicit change here, never an accident.
       ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
-    expect(Object.keys(repositories.meeting).sort()).toEqual(
+    expect(Object.keys(loaded.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
       // created and revoked, never edited; 0205 ships no UPDATE grant and no UPDATE policy).
       // 'listForContact' added with the I7 review round — the DD-MTG-6 contact-timeline union.
@@ -336,7 +343,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // mutation, and visible UI behavior are covered by focused meeting tests.
       ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'restore', 'revokeGrant', 'update'].sort(),
     );
-    expect(Object.keys(repositories.procurement).sort()).toEqual(
+    expect(Object.keys(loaded.procurement).sort()).toEqual(
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
       [
         'approveAmount',
@@ -374,16 +381,16 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'updateVendor',
       ].sort(),
     );
-    expect(Object.keys(repositories.timesheet).sort()).toEqual(
+    expect(Object.keys(loaded.timesheet).sort()).toEqual(
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
-    expect(Object.keys(repositories.budget).sort()).toEqual(
+    expect(Object.keys(loaded.budget).sort()).toEqual(
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
-    expect(Object.keys(repositories.incident).sort()).toEqual(
+    expect(Object.keys(loaded.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
     );
-    expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
+    expect(Object.keys(loaded.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
 });
 

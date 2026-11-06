@@ -164,7 +164,8 @@ describe('VAT editability is read on demand (AC-PERF-001, plan Step 1a)', () => 
     expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
 
     // Exactly ONE request for the whole open — the enabled-flip and the begin-edit refetch dedupe.
-    expect(stub.vatResolvers).toHaveLength(1);
+    // (the repository module loads lazily, so the call lands a tick after the editor opens)
+    await waitFor(() => expect(stub.vatResolvers).toHaveLength(1));
 
     // A live invoice resolves: the flag stays locked with the reason stated.
     resolveVat(0, { eligible: false, reason: 'vat-live-invoice', hasInvoices: true });

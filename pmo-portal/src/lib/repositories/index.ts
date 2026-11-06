@@ -15,61 +15,6 @@
  * modules, shared dispatch/error helpers in `./repositoryDispatch` / `./repositoryErrors`,
  * and the per-domain contracts in `./contracts/*` (re-exported through `./types`).
  */
-import { companyCollectionsRepository } from './companyCollections';
-import { recordHistoryRepository } from './recordHistory';
-import { projectStageRepository } from './projectStages';
-import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
-import { fxRatesRepository } from './fxRates';
-import { financialStatementsRepository } from './financialStatements';
-import { expensePostingsRepository } from './expensePostings';
-import { erpPurchasesRepository } from './erpPurchases';
-import { erpJournalLinesRepository } from './erpJournalLines';
-import { projectRepository } from './projects';
-import { projectMoneyRepository } from './projectMoney';
-import { projectOverviewRepository } from './projectOverview';
-import { dashboardRepository } from './dashboard';
-import { agentRunRepository } from './agentRuns';
-import { notificationRepository } from './notifications';
-import { companyRepository, contactRepository } from './companies';
-import {
-  documentRepository,
-  agentAttachmentRepository,
-  m365DocumentSettingsRepository,
-  m365RecordFoldersRepository,
-} from './documents';
-import {
-  profileRepository,
-  operatorRepository,
-  usageRepository,
-  userViewRepository,
-  orgFeatureRepository,
-  orgSettingsRepository,
-  creditsRepository,
-  externalDomainOwnershipRepository,
-} from './admin';
-import { taskRepository } from './tasks';
-import { commentRepository } from './comments';
-import { meetingRepository } from './meetings';
-import { incidentRepository } from './incidents';
-import { procurementRepository, procurementFilesRepository } from './procurement';
-import { subcontractRepository } from './subcontracts';
-import { revenueRepository } from './revenue';
-import { timesheetRepository } from './timesheets';
-import { stockRepository } from './stock';
-import { budgetRepository } from './budget';
-import {
-  milestoneRepository,
-  workOrderRepository,
-  progressBillingRepository,
-  workOrderAcceptanceRepository,
-} from './workOrders';
-import { expenseClaimRepository, expenseReceiptsRepository } from './expenses';
-import { imprestRepository } from './imprest';
-import { equipmentRepository } from './equipment';
-import { timeAndMaterialsRepository } from './timeAndMaterials';
-import { integrationsRepository } from './integrations';
-import { odooRepository } from './odoo';
-import { erpSnapshotsRepository, reportsRepository } from './reporting';
 import type { Repositories } from './types';
 
 // BLOCK 2 (MONEY-CRITICAL): `newCommandIntent()` lives in ./commandIntent (a leaf module) and is
@@ -88,62 +33,112 @@ export { newCommandIntent } from './commandIntent';
  */
 export { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 
-/** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
-export const repositories: Repositories = {
-  fxRates: fxRatesRepository,
-  m365DocumentSettings: m365DocumentSettingsRepository,
-  m365RecordFolders: m365RecordFoldersRepository,
-  recordHistory: recordHistoryRepository,
-  vendorWithholdingSlips: vendorWithholdingSlipsRepository,
-  project: projectRepository,
-  projectStage: projectStageRepository,
-  projectMoney: projectMoneyRepository,
-  projectOverview: projectOverviewRepository,
-  dashboard: dashboardRepository,
-  agentRun: agentRunRepository,
-  notification: notificationRepository,
-  company: companyRepository,
-  document: documentRepository,
-  agentAttachment: agentAttachmentRepository,
-  profile: profileRepository,
-  procurement: procurementRepository,
-  subcontracts: subcontractRepository,
-  revenue: revenueRepository,
-  timesheet: timesheetRepository,
-  budget: budgetRepository,
-  task: taskRepository,
-  incident: incidentRepository,
-  comment: commentRepository,
-  milestone: milestoneRepository,
-  workOrder: workOrderRepository,
-  progressBilling: progressBillingRepository,
-  stock: stockRepository,
-  workOrderAcceptance: workOrderAcceptanceRepository,
-  procurementFiles: procurementFilesRepository,
-  expenseClaim: expenseClaimRepository,
-  imprest: imprestRepository,
-  equipment: equipmentRepository,
-  timeAndMaterials: timeAndMaterialsRepository,
-  expenseReceipts: expenseReceiptsRepository,
-  expensePostings: expensePostingsRepository,
-  erpPurchases: erpPurchasesRepository,
-  erpJournalLines: erpJournalLinesRepository,
-  contact: contactRepository,
-  meeting: meetingRepository,
-  userView: userViewRepository,
-  operator: operatorRepository,
-  usage: usageRepository,
-  orgFeature: orgFeatureRepository,
-  orgSettings: orgSettingsRepository,
-  credits: creditsRepository,
-  externalDomainOwnership: externalDomainOwnershipRepository,
-  erpSnapshots: erpSnapshotsRepository,
-  companyCollections: companyCollectionsRepository,
-  financialStatements: financialStatementsRepository,
-  integrations: integrationsRepository,
-  odoo: odooRepository,
-  reports: reportsRepository,
+/**
+ * Per-entity lazy repository (perf): every method is async, so a route that uses `repositories.procurement`
+ * downloads only the procurement module (and its DAL), not all 50 repositories (105 kB gzip) on first paint.
+ * The module loads on first call; the typed seam and every `repositories.x.y(...)` call site are unchanged.
+ */
+type Loader = () => Promise<unknown>;
+
+/** Callable proxy at `path` inside the loaded repository: a property read descends, a call loads + forwards. */
+function lazyAt(load: Loader, path: string[]): unknown {
+  // Children are materialised on the target on first touch (get / descriptor), so they are real own
+  // properties: `vi.spyOn(repositories.x, 'm')` and restore work exactly as on the eager object.
+  const materialise = (target: Record<string, unknown>, key: PropertyKey) => {
+    if (typeof key !== 'string' || key === 'then' || Object.hasOwn(target, key)) return; // `then`: never thenable
+    target[key] = lazyAt(load, [...path, key]);
+  };
+  const call = async (...args: unknown[]) => {
+    let owner = (await load()) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const key of path.slice(0, -1)) owner = owner[key];
+    return owner[path[path.length - 1]](...args);
+  };
+  // Own `name`/`length` would shadow methods of those names; inherited Function members are shadowed once materialised.
+  Reflect.deleteProperty(call, 'name');
+  Reflect.deleteProperty(call, 'length');
+  return new Proxy(call as unknown as Record<string, unknown>, {
+    apply: (_t, _this, args) => call(...(args as unknown[])),
+    get: (target, key) => (materialise(target, key), target[key as string]),
+    getOwnPropertyDescriptor: (target, key) => (materialise(target, key), Reflect.getOwnPropertyDescriptor(target, key)),
+  });
+}
+
+/** One import per entity however many calls race it. */
+function memo(load: Loader): Loader {
+  let p: Promise<unknown> | undefined;
+  return () => (p ??= load());
+}
+
+const loaders: { [K in keyof Repositories]: () => Promise<Repositories[K]> } = {
+  fxRates: () => import('./fxRates').then((x) => x.fxRatesRepository),
+  m365DocumentSettings: () => import('./documents').then((x) => x.m365DocumentSettingsRepository),
+  m365RecordFolders: () => import('./documents').then((x) => x.m365RecordFoldersRepository),
+  recordHistory: () => import('./recordHistory').then((x) => x.recordHistoryRepository),
+  vendorWithholdingSlips: () => import('./vendorWithholdingSlips').then((x) => x.vendorWithholdingSlipsRepository),
+  project: () => import('./projects').then((x) => x.projectRepository),
+  projectStage: () => import('./projectStages').then((x) => x.projectStageRepository),
+  projectMoney: () => import('./projectMoney').then((x) => x.projectMoneyRepository),
+  projectOverview: () => import('./projectOverview').then((x) => x.projectOverviewRepository),
+  dashboard: () => import('./dashboard').then((x) => x.dashboardRepository),
+  agentRun: () => import('./agentRuns').then((x) => x.agentRunRepository),
+  notification: () => import('./notifications').then((x) => x.notificationRepository),
+  company: () => import('./companies').then((x) => x.companyRepository),
+  document: () => import('./documents').then((x) => x.documentRepository),
+  agentAttachment: () => import('./documents').then((x) => x.agentAttachmentRepository),
+  profile: () => import('./admin').then((x) => x.profileRepository),
+  procurement: () => import('./procurement').then((x) => x.procurementRepository),
+  subcontracts: () => import('./subcontracts').then((x) => x.subcontractRepository),
+  revenue: () => import('./revenue').then((x) => x.revenueRepository),
+  timesheet: () => import('./timesheets').then((x) => x.timesheetRepository),
+  budget: () => import('./budget').then((x) => x.budgetRepository),
+  task: () => import('./tasks').then((x) => x.taskRepository),
+  incident: () => import('./incidents').then((x) => x.incidentRepository),
+  comment: () => import('./comments').then((x) => x.commentRepository),
+  milestone: () => import('./workOrders').then((x) => x.milestoneRepository),
+  workOrder: () => import('./workOrders').then((x) => x.workOrderRepository),
+  progressBilling: () => import('./workOrders').then((x) => x.progressBillingRepository),
+  stock: () => import('./stock').then((x) => x.stockRepository),
+  workOrderAcceptance: () => import('./workOrders').then((x) => x.workOrderAcceptanceRepository),
+  procurementFiles: () => import('./procurement').then((x) => x.procurementFilesRepository),
+  expenseClaim: () => import('./expenses').then((x) => x.expenseClaimRepository),
+  imprest: () => import('./imprest').then((x) => x.imprestRepository),
+  equipment: () => import('./equipment').then((x) => x.equipmentRepository),
+  timeAndMaterials: () => import('./timeAndMaterials').then((x) => x.timeAndMaterialsRepository),
+  expenseReceipts: () => import('./expenses').then((x) => x.expenseReceiptsRepository),
+  expensePostings: () => import('./expensePostings').then((x) => x.expensePostingsRepository),
+  erpPurchases: () => import('./erpPurchases').then((x) => x.erpPurchasesRepository),
+  erpJournalLines: () => import('./erpJournalLines').then((x) => x.erpJournalLinesRepository),
+  contact: () => import('./companies').then((x) => x.contactRepository),
+  meeting: () => import('./meetings').then((x) => x.meetingRepository),
+  userView: () => import('./admin').then((x) => x.userViewRepository),
+  operator: () => import('./admin').then((x) => x.operatorRepository),
+  usage: () => import('./admin').then((x) => x.usageRepository),
+  orgFeature: () => import('./admin').then((x) => x.orgFeatureRepository),
+  orgSettings: () => import('./admin').then((x) => x.orgSettingsRepository),
+  credits: () => import('./admin').then((x) => x.creditsRepository),
+  externalDomainOwnership: () => import('./admin').then((x) => x.externalDomainOwnershipRepository),
+  erpSnapshots: () => import('./reporting').then((x) => x.erpSnapshotsRepository),
+  companyCollections: () => import('./companyCollections').then((x) => x.companyCollectionsRepository),
+  financialStatements: () => import('./financialStatements').then((x) => x.financialStatementsRepository),
+  integrations: () => import('./integrations').then((x) => x.integrationsRepository),
+  odoo: () => import('./odoo').then((x) => x.odooRepository),
+  reports: () => import('./reporting').then((x) => x.reportsRepository),
 };
+
+/** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). Each entity loads on first use. */
+export const repositories = Object.fromEntries(
+  Object.entries(loaders).map(([name, load]) => [name, lazyAt(memo(load), [])]),
+) as unknown as Repositories;
+
+/**
+ * Resolves every repository module, for tests that assert the full shape (`Object.keys`) of the aggregate.
+ * Sequential on purpose: concurrent first imports of a `vi.mock(..., importOriginal)` module can build it twice.
+ */
+export async function loadAllRepositories(): Promise<Repositories> {
+  const all: Record<string, unknown> = {};
+  for (const [name, load] of Object.entries(loaders)) all[name] = await load();
+  return all as unknown as Repositories;
+}
 
 export type {
   Repositories,

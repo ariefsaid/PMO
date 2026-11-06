@@ -36,7 +36,8 @@ describe('AC-OVERFETCH-001 caller-scoped procurement breadcrumb', () => {
     expect(shell.result.current.resolved).toBe(false);
     expect(qc.getQueryCache().getAll()).toHaveLength(0);
     const page = renderHook(() => useProcurementDetail('pr1'), { wrapper });
-    expect(getDetail).toHaveBeenCalledTimes(1);
+    // (the repository module loads lazily, so the DAL call lands a tick after mount)
+    await waitFor(() => expect(getDetail).toHaveBeenCalledTimes(1));
     const query = qc.getQueryCache().getAll()[0];
     expect(query.getObserversCount()).toBe(1);
     await act(async () => { resolve(record); });
