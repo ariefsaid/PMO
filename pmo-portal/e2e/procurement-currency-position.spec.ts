@@ -52,6 +52,7 @@ test.afterEach(async () => {
   projectId = '';
 });
 
+// Split (#1960): the two journeys together ran at 88% of the 30 s timeout with no request over 0.3 s.
 test('the budget position compares compatible currency and identifies foreign demand', async ({ page }) => {
   await signIn(page, 'finance@acme.test');
   const positionResponse = page.waitForResponse((response) => response.url().includes('/rpc/project_reserved_position') && response.request().method() === 'POST');
@@ -66,6 +67,10 @@ test('the budget position compares compatible currency and identifies foreign de
   await expect(page.getByRole('heading', { name: 'Budget impact' })).toBeVisible();
   await expect(page.getByText(/Other currencies:.*300/)).toBeVisible();
   await expect(page.getByTestId('stat-tile').filter({ hasText: 'After this procurement' })).toContainText('750');
+});
+
+test('a procurement in an incompatible currency shows no headroom comparison', async ({ page }) => {
+  await signIn(page, 'finance@acme.test');
   await page.goto(`/procurement/${ids[3]}`);
   await expect(page.getByText(/Budget comparison unavailable for these currencies/).first()).toBeVisible();
   await expect(page.getByText(/headroom remaining/)).not.toBeVisible();
