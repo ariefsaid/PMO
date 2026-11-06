@@ -74,6 +74,8 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
 
   return {
     tier: ODOO_TIER,
+    // a cost account's code carries the PMO project number (FR-ODC-072), so the matcher compares it with that (#1692)
+    projectCodeField: 'pmo_project_number',
 
     async listMasters(kind, cursor) {
       const s = spec(kind);
