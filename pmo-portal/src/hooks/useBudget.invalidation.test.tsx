@@ -120,7 +120,7 @@ describe('refreshBudgetQueries', () => {
     expect(calls[1]).toBeGreaterThanOrEqual(2);
   });
 
-  it('refreshes legacy and org-scoped forecast readers without refetching unrelated tenants or projects', async () => {
+  it('refreshes the org-scoped forecast readers without refetching unrelated tenants or projects', async () => {
     const queryClient = new QueryClient({
       queryCache: new QueryCache({ onError: () => undefined }),
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -134,7 +134,8 @@ describe('refreshBudgetQueries', () => {
       'budget-fiscal-years',
     ] as const;
     const cases = families.flatMap((family) => [
-      { key: [family, 'project-1', 'active-scope'], relevant: true },
+      // The readers all key by [family, orgId, projectId, ...]; a project-only key is not a real shape.
+      { key: [family, 'project-1', 'active-scope'], relevant: false },
       { key: [family, 'org-1', 'project-1', 'draft-1', 'annual-scope'], relevant: true },
       { key: [family, 'org-2', 'project-1', 'draft-1'], relevant: false },
       { key: [family, 'org-1', 'project-2', 'draft-1'], relevant: false },
@@ -155,7 +156,7 @@ describe('refreshBudgetQueries', () => {
     expect(calls).toEqual(cases.map(({ relevant }) => relevant ? 2 : 1));
   });
 
-  it('refetches a query only once when both legacy and scoped prefixes match it', async () => {
+  it('refetches a query only once when several prefixes match it', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });

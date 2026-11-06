@@ -66,7 +66,8 @@ archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: arc
 const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
-const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null) }));
+const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null), createLineItem: vi.fn() }));
+const mockRefreshBudgetQueries = vi.hoisted(() => vi.fn());
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
@@ -80,6 +81,7 @@ const mockSwitchBudgetDraftMode = vi.fn().mockResolvedValue(undefined);
 const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/src/hooks/useBudget', () => ({
+  refreshBudgetQueries: (...args: unknown[]) => mockRefreshBudgetQueries(...args),
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
   // Like the real hook: disabled (no data) without a version id.
@@ -130,10 +132,10 @@ vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-const roleState = { realRole: 'Project Manager' };
+const roleState: { realRole: string; effectiveRole?: string } = { realRole: 'Project Manager' };
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
-    effectiveRole: roleState.realRole,
+    effectiveRole: roleState.effectiveRole ?? roleState.realRole,
     realRole: roleState.realRole,
     canImpersonate: false,
     viewAs: vi.fn(),
@@ -290,7 +292,10 @@ function resetState() {
   procurementsState.isError = false;
   budgetPushState.rows = [];
   mockBudgetRepository.getDistribution.mockReset().mockResolvedValue(null);
+  mockBudgetRepository.createLineItem.mockReset().mockResolvedValue({ id: 'li-pasted' });
+  mockRefreshBudgetQueries.mockReset().mockResolvedValue(undefined);
   roleState.realRole = 'Project Manager';
+  roleState.effectiveRole = undefined;
 }
 
 beforeEach(async () => {
@@ -2177,5 +2182,222 @@ describe('budget-whole-project FR-022 stale Active distribution banner', () => {
     roleState.realRole = 'Engineer';
     renderPage();
     expect(screen.queryByRole('button', { name: 'Prepare new draft' })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #1473 slice C — paste rows dialog (AC-003/004/006/008)
+// ---------------------------------------------------------------------------
+describe('budget paste rows dialog (#1473 C)', () => {
+  const tsv = (...rows: string[][]) => rows.map((r) => r.join('\t')).join('\n');
+  const openPaste = async () => {
+    await userEvent.click(screen.getByRole('button', { name: 'Paste rows' }));
+    return screen.findByRole('dialog', { name: 'Paste rows' });
+  };
+  const paste = async (dialog: HTMLElement, text: string) => {
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /Rows pasted from a spreadsheet/i }), { target: { value: text } });
+  };
+  const setup = () => {
+    budgetState.data = 2000000;
+    versionsState.data = [activeVersion, draftVersion];
+    return renderPage();
+  };
+
+  it('AC-006 offers Paste rows for Admin, Executive, Project Manager and Finance on a Draft only', () => {
+    for (const role of ['Admin', 'Executive', 'Project Manager', 'Finance']) {
+      roleState.realRole = role;
+      const view = setup();
+      expect(screen.getByRole('button', { name: 'Paste rows' })).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('AC-006 hides Paste rows for Engineer, for an impersonated session, and when no Draft exists', () => {
+    roleState.realRole = 'Engineer';
+    let view = setup();
+    expect(screen.queryByRole('button', { name: 'Paste rows' })).not.toBeInTheDocument();
+    view.unmount();
+
+    roleState.realRole = 'Engineer';
+    roleState.effectiveRole = 'Admin';
+    view = setup();
+    expect(screen.queryByRole('button', { name: 'Paste rows' })).not.toBeInTheDocument();
+    view.unmount();
+
+    roleState.realRole = 'Finance';
+    roleState.effectiveRole = undefined;
+    versionsState.data = [activeVersion, { ...archivedVersion }];
+    budgetState.data = 2000000;
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Paste rows' })).not.toBeInTheDocument();
+  });
+
+  it('AC-003 previews a mixed set, lets the user map an unknown category, and Save names exactly the valid rows', async () => {
+    setup();
+    const dialog = await openPaste();
+    expect(within(dialog).getByRole('button', { name: /^Save 0 valid rows$/ })).toBeDisabled();
+    await paste(dialog, tsv(['Labor', 'Dev work', '1,200.50'], ['Hardware', 'Servers', '300'], ['Materials', 'Bad', '12.345'], ['', 'No category', '5']));
+
+    expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('1 valid, 3 invalid');
+    expect(within(dialog).getByText(/Unknown category/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Amount is not a valid positive number/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Category is required/)).toBeInTheDocument();
+
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /Map "Hardware" to/ }), 'Equipment');
+    expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('2 valid, 2 invalid');
+    expect(within(dialog).getByRole('button', { name: 'Save 2 valid rows' })).toBeEnabled();
+    expect(mockBudgetRepository.createLineItem).not.toHaveBeenCalled();
+  });
+
+  it('AC-003 treats the first row as data unless the header box is ticked, and calculates Quantity × Rate exactly', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Type', 'Item', 'Qty', 'Unit'], ['Labor', 'Dev', '2.5', '3.3']));
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Amount column' }), '');
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Quantity column' }), '2');
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Rate column' }), '3');
+    expect(within(dialog).getByRole('radio', { name: 'Use Quantity × Rate' })).toBeChecked();
+    expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('1 valid, 1 invalid');
+    expect(within(dialog).getByText(/Quantity must be a positive number/)).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'First row is a header' }));
+    expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('1 valid, 0 invalid');
+    expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('$8.25');
+    expect(within(dialog).getByText('8.25')).toBeInTheDocument();
+  });
+
+  it('AC-003 requires an explicit mode when both Amount and Quantity × Rate are mapped', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'Dev', '10', '2', '3']));
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Quantity column' }), '3');
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Rate column' }), '4');
+    expect(within(dialog).getByRole('radio', { name: 'Use Amount' })).not.toBeChecked();
+    expect(within(dialog).getByRole('radio', { name: 'Use Quantity × Rate' })).not.toBeChecked();
+    expect(within(dialog).getAllByText(/Choose Amount or Quantity × Rate/).length).toBeGreaterThan(0);
+    expect(within(dialog).getByRole('button', { name: /^Save \d+ valid rows?$/ })).toBeDisabled();
+
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Use Quantity × Rate' }));
+    expect(within(dialog).getByRole('button', { name: 'Save 1 valid row' })).toBeEnabled();
+    expect(within(dialog).getByText('6.00')).toBeInTheDocument();
+  });
+
+  it('AC-004 cannot confirm empty, unmapped, or over-500-row input', async () => {
+    setup();
+    const dialog = await openPaste();
+    const save = () => within(dialog).getByRole('button', { name: /^Save \d+ valid rows?$/ });
+    expect(save()).toBeDisabled();
+    await paste(dialog, tsv(['Labor', 'x', '5']));
+    expect(save()).toBeEnabled();
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Category column' }), '');
+    expect(save()).toBeDisabled();
+    expect(within(dialog).getByText(/Choose the required columns/)).toBeInTheDocument();
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Category column' }), '0');
+    await paste(dialog, Array.from({ length: 501 }, () => 'Labor\tx\t1.00').join('\n'));
+    expect(save()).toBeDisabled();
+    expect(within(dialog).getByText(/Paste at most 500 rows/)).toBeInTheDocument();
+    expect(mockBudgetRepository.createLineItem).not.toHaveBeenCalled();
+  });
+
+  it('AC-004 cancel writes nothing, asks before discarding pasted rows, and returns focus to the trigger', async () => {
+    setup();
+    const trigger = screen.getByRole('button', { name: 'Paste rows' });
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'x', '5']));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste rows' })).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+    expect(mockBudgetRepository.createLineItem).not.toHaveBeenCalled();
+  });
+
+  it('AC-004 drops the preview when the selected version changes', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'x', '5']));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Version' }), { target: { value: 'v-active' } });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste rows' })).not.toBeInTheDocument());
+    expect(mockBudgetRepository.createLineItem).not.toHaveBeenCalled();
+  });
+
+  it('FR-009/010 saves valid rows to the captured Draft with exact amounts, then refreshes budget data', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'Dev work', '1,200.50'], ['Materials', '', '300']));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save 2 valid rows' }));
+
+    await waitFor(() => expect(within(dialog).getByTestId('paste-result-summary')).toHaveTextContent('2 of 2 rows saved.'));
+    expect(mockBudgetRepository.createLineItem.mock.calls).toEqual([
+      ['v-draft', { category: 'Labor', description: 'Dev work', budgeted_amount: 1200.5 }],
+      ['v-draft', { category: 'Materials', description: null, budgeted_amount: 300 }],
+    ]);
+    expect(mockRefreshBudgetQueries).toHaveBeenCalledWith(expect.anything(), 'org-1', 'p-1');
+    expect(within(dialog).getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^Save/ })).toBeDisabled();
+  });
+
+  it('FR-010 reports a partial reject per row and a retry submits only the failure', async () => {
+    mockBudgetRepository.createLineItem
+      .mockResolvedValueOnce({ id: 'a' })
+      .mockRejectedValueOnce(Object.assign(new Error('out of range'), { code: '22003' }))
+      .mockResolvedValueOnce({ id: 'c' });
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'one', '10'], ['Labor', 'two', '20'], ['Labor', 'three', '30']));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save 3 valid rows' }));
+
+    await waitFor(() => expect(within(dialog).getByTestId('paste-result-summary')).toHaveTextContent('2 of 3 rows saved.'));
+    expect(within(dialog).getByText(/Row 2 · Labor · 20.00: Not saved/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Row 1 · Labor · 10.00: Saved/)).toBeInTheDocument();
+
+    mockBudgetRepository.createLineItem.mockResolvedValueOnce({ id: 'b' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Retry 1 failed row' }));
+    await waitFor(() => expect(within(dialog).getByTestId('paste-result-summary')).toHaveTextContent('3 of 3 rows saved.'));
+    expect(mockBudgetRepository.createLineItem).toHaveBeenCalledTimes(4);
+    expect(mockBudgetRepository.createLineItem.mock.calls[3][1]).toMatchObject({ description: 'two', budgeted_amount: 20 });
+    expect(within(dialog).queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument();
+  });
+
+  it('AC-010 marks an unconfirmed write uncertain, stops the batch, and offers no automatic retry', async () => {
+    mockBudgetRepository.createLineItem
+      .mockResolvedValueOnce({ id: 'a' })
+      .mockRejectedValueOnce(new Error('network lost'));
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'one', '10'], ['Labor', 'two', '20'], ['Labor', 'three', '30']));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save 3 valid rows' }));
+
+    await waitFor(() => expect(within(dialog).getByText(/Row 2 · Labor · 20.00: Not confirmed/)).toBeInTheDocument());
+    expect(within(dialog).getByText(/Row 3 · Labor · 30.00: Not submitted/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument();
+    expect(mockBudgetRepository.createLineItem).toHaveBeenCalledTimes(2);
+    expect(mockRefreshBudgetQueries).toHaveBeenCalled();
+  });
+
+  it('AC-008 has no axe violations, announces results in a live region, and reads in Bahasa', async () => {
+    await financeTestI18n.changeLanguage('id');
+    setup();
+    await userEvent.click(screen.getByRole('button', { name: 'Tempel baris' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Tempel baris' });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /Baris yang ditempel dari spreadsheet/i }), { target: { value: tsv(['Labor', 'x', '5'], ['Zzz', 'y', '6']) } });
+    expect(within(dialog).getByTestId('paste-summary')).toHaveTextContent('1 valid, 1 tidak valid');
+    expect(within(dialog).getByText(/Kategori tidak dikenal/)).toBeInTheDocument();
+    expect(await axe(dialog)).toHaveNoViolations();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan 1 baris valid' }));
+    const summary = await within(dialog).findByTestId('paste-result-summary');
+    await waitFor(() => expect(summary).toHaveTextContent('1 dari 1 baris tersimpan.'));
+    expect(summary).toHaveAttribute('role', 'status');
+    expect(summary).toHaveAttribute('aria-live', 'polite');
+    expect(await axe(dialog)).toHaveNoViolations();
+  });
+
+  it('AC-008 keeps the wide preview inside its own scroll container', async () => {
+    setup();
+    const dialog = await openPaste();
+    await paste(dialog, tsv(['Labor', 'x', '5']));
+    const region = within(dialog).getByRole('region', { name: 'Preview' });
+    expect(region).toHaveClass('overflow-auto');
+    expect(region).toHaveAttribute('tabindex', '0');
   });
 });

@@ -42,10 +42,7 @@ export function refreshBudgetQueries(
     ['budget-activation-precheck'],
     ['project-finances', orgId, projectId],
     budgetDistributionKey(orgId, projectId),
-    ...forecastFamilies.flatMap((family) => [
-      [family, projectId],
-      [family, orgId, projectId],
-    ]),
+    ...forecastFamilies.map((family) => [family, orgId, projectId] as const),
   ] as const;
   const matchedQueries = new Map(
     prefixes.flatMap((queryKey) => queryClient.getQueryCache()
