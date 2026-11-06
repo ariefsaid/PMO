@@ -12,21 +12,29 @@
 --       authenticated, so only their reads and the granted stock delete are reachable and probed) under the 0696 policies ("new"), then restore the
 --       pre-0696 definitions of exactly those policies ("old"), record again, and require the two to be identical.
 --       Each write probe runs in a rolled-back sub-transaction, so both phases see the same data.
---   Mutation check (recorded in the PR): drop the org predicate from notifications_select in the migration and §3 and
---   the guard-independent tenancy assertions go red.
+--   Mutation check (recorded in the PR): drop the org predicate from expense_claims_select in the migration and AC-OQ-EQ-002/003/008 go red
+--   (notifications_select is not a valid target: its owner_id predicate masks the org predicate).
 begin;
-select plan(25);
+select plan(26);
 
 create function pg_temp.q696_strip(expr text) returns text language sql immutable as $$
   select regexp_replace(coalesce(expr, ''), '''([^'']|'''')*''', '''''', 'g') $$;
 
 create function pg_temp.q696_bare(expr text) returns integer language plpgsql immutable as $$
-declare n text; v text := pg_temp.q696_strip(expr); total int := 0; wrapped int := 0;
+declare
+  i int; v text := pg_temp.q696_strip(expr); total int := 0; wrapped int := 0;
+  -- a call is counted by its head; it is "wrapped" only as the WHOLE of an uncorrelated scalar sub-select:
+  -- (select fn(..) [as x]) with nothing after the call, so (select fn() from t where t.x = col) stays bare.
+  heads text[] := array['auth\.uid[[:space:]]*\(','auth\.jwt[[:space:]]*\(','stock_admin[[:space:]]*\(','stock_master_writer[[:space:]]*\(',
+                        'holds_spend_approval_authority[[:space:]]*\([[:space:]]*\([[:space:]]*select'];
+  whole text[] := array['auth\.uid[[:space:]]*\([[:space:]]*\)','auth\.jwt[[:space:]]*\([[:space:]]*\)','stock_admin[[:space:]]*\([[:space:]]*\)','stock_master_writer[[:space:]]*\([[:space:]]*\)',
+                        'holds_spend_approval_authority[[:space:]]*\([[:space:]]*\([[:space:]]*select[[:space:]]+(public\.)?auth_role[[:space:]]*\([[:space:]]*\)[[:space:]]*(as[[:space:]]+[[:alnum:]_]+)?[[:space:]]*\)[[:space:]]*\)'];
 begin
   if v = '' then return 0; end if;
-  foreach n in array array['auth\.uid[[:space:]]*\(','auth\.jwt[[:space:]]*\(','stock_admin[[:space:]]*\(','stock_master_writer[[:space:]]*\(','holds_spend_approval_authority[[:space:]]*\([[:space:]]*\([[:space:]]*select'] loop
-    total   := total   + (select count(*) from regexp_matches(v, '(^|[^.[:alnum:]_])(public\.)?' || n, 'gi'));
-    wrapped := wrapped + (select count(*) from regexp_matches(v, '\([[:space:]]*select[[:space:]]+(public\.)?' || n, 'gi'));
+  for i in 1 .. array_length(heads, 1) loop
+    total   := total   + (select count(*) from regexp_matches(v, '(^|[^.[:alnum:]_])(public\.)?' || heads[i], 'gi'));
+    wrapped := wrapped + (select count(*) from regexp_matches(v,
+      '\([[:space:]]*select[[:space:]]+(public\.)?' || whole[i] || '[[:space:]]*(as[[:space:]]+[[:alnum:]_]+)?[[:space:]]*\)', 'gi'));
   end loop;
   return greatest(total - wrapped, 0);
 end $$;
@@ -56,6 +64,8 @@ create policy c_mixed   on pg_temp.q696_ctl for all using (owner_id = (select au
 create policy c_nested  on pg_temp.q696_ctl for select
   using (exists (select 1 from public.projects z where z.project_manager_id = auth.uid()));
 create policy c_other   on pg_temp.q696_ctl for select using (note = 'auth.uid()' or (auth.jwt() ->> 'role') is null);
+create policy c_corr    on pg_temp.q696_ctl for select
+  using (owner_id = (select auth.uid() from public.projects z where z.project_manager_id = pg_temp.q696_ctl.owner_id limit 1));
 create policy c_jwt     on pg_temp.q696_ctl for update using (((select auth.jwt()) ->> 'role') = 'service_role');
 
 select is((select pg_temp.q696_bare(qual) from pg_policies where tablename = 'q696_ctl' and policyname = 'c_bare'), 2,
@@ -72,6 +82,9 @@ select is((select pg_temp.q696_bare(qual) from pg_policies where tablename = 'q6
   'AC-OQ-GUARD-009 detector: a string literal that reads like a call is ignored, the real bare auth.jwt() is not');
 select is((select pg_temp.q696_bare(qual) from pg_policies where tablename = 'q696_ctl' and policyname = 'c_jwt'), 0,
   'AC-OQ-GUARD-010 detector: wrapped auth.jwt() with a trailing operator is clean');
+
+select is((select pg_temp.q696_bare(qual) from pg_policies where tablename = 'q696_ctl' and policyname = 'c_corr'), 1,
+  'AC-OQ-GUARD-011 detector: a correlated (select auth.uid() from t where ..) is NOT the once-per-statement form');
 
 -- ── §3 equivalence fixtures (postgres) ──
 insert into organizations (id, name) values
