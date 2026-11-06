@@ -62,6 +62,9 @@ import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
+import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
+import { preloadMinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
+import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -75,59 +78,188 @@ import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 
-// ── Lazy route chunks ──────────────────────────────────────────────────────
-const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
-const Projects = React.lazy(() => import('./pages/Projects'));
-const ProjectNew = React.lazy(() => import('./pages/ProjectNew'));
-const ProjectDetail = React.lazy(() => import('./pages/project-detail/ProjectDetail'));
-const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
-const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
-const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
-const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
-const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
-const ImprestFloatsPage = React.lazy(() => import('./pages/ImprestFloats'));
-const ImprestFloatDetailPage = React.lazy(() => import('./pages/ImprestFloatDetail'));
-const EquipmentUsagePage = React.lazy(() => import('./pages/equipment/EquipmentUsage'));
-const EquipmentAssetsPage = React.lazy(() => import('./pages/equipment/EquipmentAssets'));
-const EquipmentAssetDetailPage = React.lazy(() => import('./pages/equipment/EquipmentAssetDetail'));
-const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
-const CompaniesPage = React.lazy(() => import('./pages/Companies'));
-const MasterDataPage = React.lazy(() => import('./pages/MasterData'));
-const CompanyDetailPage = React.lazy(() => import('./pages/CompanyDetail'));
-const ContactsPage = React.lazy(() => import('./pages/Contacts'));
-const ContactDetailPage = React.lazy(() => import('./pages/ContactDetail'));
-const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
-const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
-const AdministrationPage = React.lazy(() => import('./pages/Administration'));
-const IntegrationsPage = React.lazy(() => import('./pages/Integrations'));
-const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
-const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
-const UserViewRenderer = React.lazy(() => import('./pages/UserViewRenderer'));
-const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
-const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
-const MeetingsPage = React.lazy(() => import('./pages/Meetings'));
-const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
-const MeetingCreatePage = React.lazy(() => import('./pages/MeetingCreate'));
-const ExpenseClaimsPage = React.lazy(() => import('./pages/ExpenseClaims'));
-const ExpenseClaimNewPage = React.lazy(() => import('./pages/ExpenseClaimNew'));
-const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
-const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
-const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
-const ErpPurchasesPage = React.lazy(() => import('./pages/ErpPurchases'));
-const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
-const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
-const FinanceHubPage = React.lazy(() => import('./pages/finance/FinanceHub'));
-const ReceivablesPage = React.lazy(() => import('./pages/finance/ReceivablesPage'));
-const PayablesPage = React.lazy(() => import('./pages/finance/PayablesPage'));
-const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
-const StockSetupPage = React.lazy(() => import('./pages/stock/StockSetup'));
-const StockOnHandPage = React.lazy(() => import('./pages/stock/StockOnHand'));
-const StockDocumentsPage = React.lazy(() => import('./pages/stock/StockDocuments'));
-const StockDocumentDetailPage = React.lazy(() => import('./pages/stock/StockDocumentDetail'));
-const StockLedgerPage = React.lazy(() => import('./pages/stock/StockLedger'));
-const StockMovementFormPage = React.lazy(() => import('./pages/stock/StockMovementForm'));
-const StockCountPage = React.lazy(() => import('./pages/stock/StockCount'));
-const StockReorderPage = React.lazy(() => import('./pages/stock/StockReorder'));
+// ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
+//    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
+//    the chunk downloads in parallel with the route's data instead of after it) ─
+const ExecutiveDashboard = lazyWithPreload(() => import('./pages/ExecutiveDashboard'));
+const Projects = lazyWithPreload(() => import('./pages/Projects'));
+const ProjectNew = lazyWithPreload(() => import('./pages/ProjectNew'));
+const ProjectDetail = lazyWithPreload(() => import('./pages/project-detail/ProjectDetail'));
+const SalesPipeline = lazyWithPreload(() => import('./pages/SalesPipeline'));
+const ProcurementPage = lazyWithPreload(() => import('./pages/Procurement'));
+const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDetails'));
+const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
+const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
+const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
+const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloatDetail'));
+const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
+const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
+const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
+const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
+const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
+const MasterDataPage = lazyWithPreload(() => import('./pages/MasterData'));
+const CompanyDetailPage = lazyWithPreload(() => import('./pages/CompanyDetail'));
+const ContactsPage = lazyWithPreload(() => import('./pages/Contacts'));
+const ContactDetailPage = lazyWithPreload(() => import('./pages/ContactDetail'));
+const IncidentsPage = lazyWithPreload(() => import('./pages/Incidents'));
+const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'));
+const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
+const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
+const MyTasksPage = lazyWithPreload(() => import('./pages/MyTasks'));
+const NotFoundPage = lazyWithPreload(() => import('./pages/NotFound'));
+const UserViewRenderer = lazyWithPreload(() => import('./pages/UserViewRenderer'));
+const MyViewsPage = lazyWithPreload(() => import('./pages/MyViewsPage'));
+const ViewBuilderPage = lazyWithPreload(() => import('./pages/ViewBuilderPage'));
+const MeetingsPage = lazyWithPreload(() => import('./pages/Meetings'));
+const MeetingDetailPage = lazyWithPreload(() => import('./pages/MeetingDetail'));
+const MeetingCreatePage = lazyWithPreload(() => import('./pages/MeetingCreate'));
+const ExpenseClaimsPage = lazyWithPreload(() => import('./pages/ExpenseClaims'));
+const ExpenseClaimNewPage = lazyWithPreload(() => import('./pages/ExpenseClaimNew'));
+const ExpenseClaimDetailPage = lazyWithPreload(() => import('./pages/ExpenseClaimDetail'));
+const SalesInvoicesPage = lazyWithPreload(() => import('./pages/SalesInvoices'));
+const IncomingPaymentsPage = lazyWithPreload(() => import('./pages/IncomingPayments'));
+const ErpPurchasesPage = lazyWithPreload(() => import('./pages/ErpPurchases'));
+const FinancialStatementsPage = lazyWithPreload(() => import('./pages/FinancialStatements'));
+const ManagementPackPage = lazyWithPreload(() => import('./pages/ManagementPack'));
+const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHub'));
+const ReceivablesPage = lazyWithPreload(() => import('./pages/finance/ReceivablesPage'));
+const PayablesPage = lazyWithPreload(() => import('./pages/finance/PayablesPage'));
+const ProfileSettingsPage = lazyWithPreload(() => import('./pages/ProfileSettings'));
+const StockSetupPage = lazyWithPreload(() => import('./pages/stock/StockSetup'));
+const StockOnHandPage = lazyWithPreload(() => import('./pages/stock/StockOnHand'));
+const StockDocumentsPage = lazyWithPreload(() => import('./pages/stock/StockDocuments'));
+const StockDocumentDetailPage = lazyWithPreload(() => import('./pages/stock/StockDocumentDetail'));
+const StockLedgerPage = lazyWithPreload(() => import('./pages/stock/StockLedger'));
+const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockMovementForm'));
+const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
+const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
+
+// ── Route-entry + nav-link preloads (#1834) ──────────────────────────────────
+/** Anything with the lazyWithPreload preload() handle (structural — the rules
+ * below mix route chunks and in-page chunks of different prop types). */
+interface PreloadableRouteChunk {
+  preload: () => Promise<unknown>;
+}
+
+/** The lazy chunks the contract deep-link tab pulls in one go (see lazyProjectChunks). */
+const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Object.fromEntries(
+  Object.entries(PROJECT_TAB_CHUNKS).map(([area, chunks]) => [
+    `/projects/:projectId/${area}`,
+    [ProjectDetail, ProjectSCurve, ...(chunks ?? [])],
+  ]),
+);
+
+/**
+ * What code each destination needs BEFORE its data can render, keyed by the same
+ * path patterns as `appRouteConfig` (first match wins — literals before params).
+ * Redirect routes list the TARGET's chunks so the code starts downloading at the
+ * old URL instead of one render later.
+ *
+ * `preloadForPath` fires each chunk's idempotent `preload()` from:
+ *  - route entry (an effect on the shell's pathname): deep links, Back/Forward,
+ *    ⌘K Navigate and every other navigation start the download at route START,
+ *    in parallel with the route's data, instead of when the data arrives;
+ *  - rail nav links on hover, focus and pointerdown (the `onPreloadHref` prop).
+ *
+ * Late IN-PAGE chunks ride along: the meeting routes include the MinutesEditor
+ * chunk and the project routes include the overview's ProjectSCurve (+ a
+ * deep-linked tab's chunks), so a data response never gates a second download.
+ */
+const PRELOAD_RULES: Array<{ path: string; chunks: PreloadableRouteChunk[] }> = [
+  { path: '/', chunks: [ExecutiveDashboard] },
+  { path: '/projects', chunks: [Projects] },
+  { path: '/projects/new', chunks: [ProjectNew] },
+  ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH).map(([path, chunks]) => ({ path, chunks })),
+  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve] },
+  { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve] },
+  { path: '/sales', chunks: [SalesPipeline] },
+  // /sales/:id redirects to /projects/:projectId — start that download now.
+  { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve] },
+  { path: '/procurement', chunks: [ProcurementPage] },
+  { path: '/procurement/new', chunks: [ProcurementCreate] },
+  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails] },
+  { path: '/procurement/:procurementId', chunks: [ProcurementDetails] },
+  { path: '/timesheets', chunks: [TimesheetsPage] },
+  { path: '/approvals', chunks: [ApprovalsPage] },
+  { path: '/companies', chunks: [CompaniesPage] },
+  { path: '/master-data/:kind', chunks: [MasterDataPage] },
+  { path: '/companies/:companyId', chunks: [CompanyDetailPage] },
+  { path: '/contacts', chunks: [ContactsPage] },
+  { path: '/contacts/:contactId', chunks: [ContactDetailPage] },
+  { path: '/incidents', chunks: [IncidentsPage] },
+  { path: '/incidents/:incidentId', chunks: [IncidentDetailPage] },
+  { path: '/my-tasks', chunks: [MyTasksPage] },
+  { path: '/meetings', chunks: [MeetingsPage] },
+  { path: '/meetings/new', chunks: [MeetingCreatePage, { preload: preloadMinutesEditor }] },
+  { path: '/meetings/:meetingId', chunks: [MeetingDetailPage, { preload: preloadMinutesEditor }] },
+  { path: '/expenses', chunks: [ExpenseClaimsPage] },
+  { path: '/expenses/new', chunks: [ExpenseClaimNewPage] },
+  { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage] },
+  { path: '/imprest', chunks: [ImprestFloatsPage] },
+  { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage] },
+  { path: '/equipment', chunks: [EquipmentUsagePage] },
+  { path: '/equipment/assets', chunks: [EquipmentAssetsPage] },
+  { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage] },
+  { path: '/reports', chunks: [ManagementPackPage] },
+  { path: '/administration/:section', chunks: [AdministrationPage] },
+  { path: '/administration', chunks: [AdministrationPage] },
+  { path: '/finance', chunks: [FinanceHubPage] },
+  { path: '/finance/receivables', chunks: [ReceivablesPage] },
+  { path: '/finance/payables', chunks: [PayablesPage] },
+  { path: '/finance/reports', chunks: [ManagementPackPage] },
+  { path: '/finance/statements', chunks: [FinancialStatementsPage] },
+  { path: '/sales-invoices/:invoiceId', chunks: [SalesInvoicesPage] },
+  { path: '/sales-invoices', chunks: [ReceivablesPage] },
+  { path: '/incoming-payments/:receiptId', chunks: [IncomingPaymentsPage] },
+  { path: '/incoming-payments', chunks: [PayablesPage] },
+  { path: '/revenue-by-project', chunks: [ManagementPackPage] },
+  { path: '/erp-purchases', chunks: [ErpPurchasesPage] },
+  { path: '/financial-statements', chunks: [FinancialStatementsPage] },
+  { path: '/integrations', chunks: [IntegrationsPage] },
+  { path: '/views', chunks: [MyViewsPage] },
+  { path: '/views/new', chunks: [ViewBuilderPage] },
+  { path: '/views/:viewId/edit', chunks: [ViewBuilderPage] },
+  { path: '/views/:viewId', chunks: [UserViewRenderer] },
+  { path: '/settings/profile', chunks: [ProfileSettingsPage] },
+  { path: '/stock/setup', chunks: [StockSetupPage] },
+  { path: '/stock/documents/:documentId/edit', chunks: [StockCountPage] },
+  { path: '/stock/documents/:documentId', chunks: [StockDocumentDetailPage] },
+  { path: '/stock/documents', chunks: [StockDocumentsPage] },
+  { path: '/stock/ledger', chunks: [StockLedgerPage] },
+  { path: '/stock/reorder', chunks: [StockReorderPage] },
+  { path: '/stock/new/:kind', chunks: [StockMovementFormPage] },
+  { path: '/stock', chunks: [StockOnHandPage] },
+  { path: '*', chunks: [NotFoundPage] },
+];
+
+/** Same semantics the router applies: `:param` matches one segment, `*` matches
+ * the rest, literals compare exactly; the pattern must consume the whole path. */
+function routePatternMatches(pattern: string, pathname: string): boolean {
+  const patternParts = pattern.split('/').filter(Boolean);
+  const pathParts = pathname.split('/').filter(Boolean);
+  let index = 0;
+  for (; index < patternParts.length; index++) {
+    if (patternParts[index] === '*') return true;
+    const segment = pathParts[index];
+    if (segment === undefined) return false;
+    if (patternParts[index].startsWith(':')) continue;
+    if (patternParts[index] !== segment) return false;
+  }
+  return index === pathParts.length;
+}
+
+/** The chunks `preloadForPath` will fire for this pathname (unit-test seam). */
+// eslint-disable-next-line react-refresh/only-export-components -- preload rules are shared with the rail (onPreloadHref) and route-entry tests
+export function preloadsForPath(pathname: string): PreloadableRouteChunk[] {
+  const path = pathname.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+  return (PRELOAD_RULES.find((rule) => routePatternMatches(rule.path, path))?.chunks) ?? [];
+}
+
+/** Fire every matching route's preload (idempotent per module). */
+// eslint-disable-next-line react-refresh/only-export-components -- same preload rules, consumed by the rail prop and the route-entry effect
+export function preloadForPath(pathname: string): void {
+  for (const chunk of preloadsForPath(pathname)) void chunk.preload();
+}
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -317,6 +449,14 @@ export const ShellChrome: React.FC = () => {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
+
+  // #1834: route entry fires the route's — and its late in-page chunks' —
+  // preload() immediately, so deep links, Back/Forward and ⌘K Navigate start
+  // downloading code in parallel with data instead of after it. Idempotent per
+  // module (lazyWithPreload memoizes the import promise).
+  useEffect(() => {
+    preloadForPath(pathname);
+  }, [pathname]);
 
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
   // These are stable callbacks (never change identity), safe to use here.
@@ -542,6 +682,7 @@ export const ShellChrome: React.FC = () => {
         rail={
           <Rail
             onNavigate={() => setRailOpen(false)}
+            onPreloadHref={preloadForPath}
             railActiveOverride={railActiveOverride}
             operatorAccessError={needsOperatorRecovery}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).

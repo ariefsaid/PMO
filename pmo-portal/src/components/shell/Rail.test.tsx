@@ -3,7 +3,7 @@
  * AC-VR-014, AC-VR-015, AC-VR-017 (FR-VR-060, FR-VR-061, FR-VR-062, FR-VR-064, FR-VR-065)
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
@@ -122,6 +122,34 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     const group = screen.getByRole('group', { name: /my views/i });
     const links = within(group).getAllByRole('link');
     expect(links).toHaveLength(8);
+  });
+});
+
+
+describe('#1834 nav-link preload (onPreloadHref)', () => {
+  it('fires with the link href on pointerover, focus and pointerdown', () => {
+    const onPreloadHref = vi.fn();
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Rail onPreloadHref={onPreloadHref} />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: 'Procurement' });
+    fireEvent.pointerOver(link);
+    fireEvent.focus(link);
+    fireEvent.pointerDown(link);
+    expect(onPreloadHref.mock.calls.map((call) => call[0])).toEqual(['/procurement', '/procurement', '/procurement']);
+  });
+
+  it('ignores non-link targets (group headings) — no href, no preload', () => {
+    const onPreloadHref = vi.fn();
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Rail onPreloadHref={onPreloadHref} />
+      </MemoryRouter>,
+    );
+    fireEvent.pointerOver(screen.getByText('Delivery'));
+    expect(onPreloadHref).not.toHaveBeenCalled();
   });
 });
 

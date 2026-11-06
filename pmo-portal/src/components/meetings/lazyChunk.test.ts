@@ -41,10 +41,15 @@ describe('the BlockNote editor stays out of the initial bundle (FR-MTG-026)', ()
     expect(offenders).toEqual([]);
   });
 
-  it('AC-MTG-024 MeetingDetail reaches the editor through MeetingMinutes React.lazy import', () => {
+  it('AC-MTG-024 MeetingDetail reaches the editor through the shared lazy chunk module — never a static import', () => {
     const detail = readFileSync(join(root, 'pages/MeetingDetail.tsx'), 'utf8');
     const minutes = readFileSync(join(root, 'src/components/meetings/MeetingMinutes.tsx'), 'utf8');
+    const chunk = readFileSync(join(root, 'src/components/meetings/minutesEditorChunk.ts'), 'utf8');
     expect(detail).toMatch(/import MeetingMinutes[^;]*from ['"]@\/src\/components\/meetings\/MeetingMinutes['"]/);
-    expect(minutes).toMatch(/React\.lazy\(\(\)\s*=>\s*import\('@\/src\/components\/meetings\/MinutesEditor'\)\)/);
+    // #1834 moved the lazy declaration into the shared minutesEditorChunk module
+    // (one memoized import + a preload the route entry fires); the ORACLE is
+    // unchanged — the editor is still reached only via import(), never statically.
+    expect(minutes).toMatch(/import \{ MinutesEditor \} from ['"]@\/src\/components\/meetings\/minutesEditorChunk['"]/);
+    expect(chunk).toMatch(/import\('\.\/MinutesEditor'\)/);
   });
 });
