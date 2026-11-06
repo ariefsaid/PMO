@@ -163,6 +163,12 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
       world.writes?.push({ table: 'sales_invoice_authors', method: 'UPSERT', body: { org_id: body.p_org_id, sales_invoice_id: body.p_si_id, user_id: body.p_actor_id } });
       return jsonResponse(null);
     }),
+    // #1825 (review I2): the receipt finalize's read-back lands through the atomic merge RPC — the
+    // route the OLD read-merge-write (select + PATCH) used to take is gone.
+    supabaseRpc('record_sales_invoice_receipt_read_back', (call) => {
+      world.writes?.push({ table: 'sales_invoices', method: 'RPC', body: call.bodyJson });
+      return jsonResponse(null);
+    }),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('external_org_bindings', (call) => bindingTiers.has(param(call, 'external_tier') ?? '')
       ? (world.odooBinding === null ? nullObjectResponse() : objectResponse({

@@ -80,6 +80,8 @@ export interface SalesInvoiceRow {
   odoo_attention?: string | null;
   odoo_sent_total?: number | null;
   odoo_read_at?: string | null;
+  /** #1825: the receipt references the last Odoo invoice read-back showed matched against this invoice (`account.payment:<id>`); the awaiting-Odoo flag clears on one of them. */
+  odoo_matched_payment_refs?: string[] | null;
   /** DD-EFK-1: PMO-owned tax-invoice reference (never mirrored to ERP). */
   efaktur_number: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice date (never mirrored to ERP). */
@@ -124,6 +126,10 @@ export interface IncomingPaymentRow {
   push_command_state?: string | null;
   push_command_created_at?: string | null;
   push_command_updated_at?: string | null;
+  /** #1825: the receipt's own Odoo reference the outbox recorded at commit (e.g. `account.payment:42`). */
+  push_command_external_record_id?: string | null;
+  /** #1825: the receipt references the committed command's Odoo read-back recorded (absent for rows finalized before the evidence existed). */
+  push_command_matched_payment_refs?: string[] | null;
 }
 
 export type SalesInvoiceStatus = SalesInvoiceRow['status'];
@@ -270,15 +276,19 @@ const RECEIPT_PUSH_STATES = ['pending', 'committing', 'committed', 'quarantined'
 
 /** Reads only the caller's RLS-visible Odoo receipt commands. Errors fail closed so the UI cannot
  *  claim an invoice is current when the command state could not be read. */
-async function receiptPushCommands(paymentIds: string[]): Promise<Map<string, { state: string; createdAt: string; updatedAt: string }>> {
-  const commands = new Map<string, { state: string; createdAt: string; updatedAt: string }>();
+async function receiptPushCommands(paymentIds: string[]): Promise<Map<string, {
+  state: string; createdAt: string; updatedAt: string; externalRecordId: string | null; matchedPaymentRefs: string[] | null;
+}>> {
+  const commands = new Map<string, {
+    state: string; createdAt: string; updatedAt: string; externalRecordId: string | null; matchedPaymentRefs: string[] | null;
+  }>();
   // Bound PostgREST URL size even when the incoming-payment list spans many pages.
   for (let i = 0; i < paymentIds.length; i += 500) {
     const ids = paymentIds.slice(i, i + 500);
     for (let from = 0; ; from += 500) {
       const { data, error } = await supabase
         .from('external_command_outbox')
-        .select('pmo_record_id, state, created_at, updated_at')
+        .select('pmo_record_id, state, created_at, updated_at, external_record_id, canonical')
         .eq('domain', 'revenue')
         .eq('external_tier', 'odoo')
         .in('pmo_record_id', ids)
@@ -286,11 +296,20 @@ async function receiptPushCommands(paymentIds: string[]): Promise<Map<string, { 
         .order('updated_at', { ascending: true })
         .range(from, from + 499);
       if (error) throwWrite(error);
-      const rows = (data ?? []) as Array<{ pmo_record_id: string; state: string; created_at: string; updated_at: string }>;
+      const rows = (data ?? []) as Array<{ pmo_record_id: string; state: string; created_at: string; updated_at: string; external_record_id: string | null; canonical: unknown }>;
       for (const row of rows) {
         const previous = commands.get(row.pmo_record_id);
         if (!previous || Date.parse(row.updated_at) > Date.parse(previous.updatedAt)) {
-          commands.set(row.pmo_record_id, { state: row.state, createdAt: row.created_at, updatedAt: row.updated_at });
+          // #1825: the read-back evidence lives on the committed canonical. Only an array of reference strings
+          // counts — anything else (including a bare string) is not evidence and maps to null.
+          const canonicalRefs = (row.canonical as { odoo_matched_payment_refs?: unknown } | null)?.odoo_matched_payment_refs;
+          const matchedPaymentRefs = Array.isArray(canonicalRefs) && canonicalRefs.every((ref) => typeof ref === 'string') && canonicalRefs.length > 0
+            ? (canonicalRefs as string[])
+            : null;
+          commands.set(row.pmo_record_id, {
+            state: row.state, createdAt: row.created_at, updatedAt: row.updated_at,
+            externalRecordId: row.external_record_id ?? null, matchedPaymentRefs,
+          });
         }
       }
       if (rows.length < 500) break;
@@ -306,7 +325,14 @@ async function withReceiptPushCommands(rows: IncomingPaymentRow[]): Promise<Inco
   return rows.map((row) => {
     const command = commands.get(row.id);
     return command
-      ? { ...row, push_command_state: command.state, push_command_created_at: command.createdAt, push_command_updated_at: command.updatedAt }
+      ? {
+          ...row,
+          push_command_state: command.state,
+          push_command_created_at: command.createdAt,
+          push_command_updated_at: command.updatedAt,
+          push_command_external_record_id: command.externalRecordId,
+          push_command_matched_payment_refs: command.matchedPaymentRefs,
+        }
       : row;
   });
 }

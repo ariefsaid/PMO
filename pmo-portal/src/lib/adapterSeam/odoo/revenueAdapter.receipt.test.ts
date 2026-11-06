@@ -39,14 +39,15 @@ const receiptCommand = (over: Record<string, unknown> = {}): AdapterCommand => (
   },
 });
 
-function rig({ receipt = input, inv = invoice, config = defaults, failAfter }: {
+function rig({ receipt = input, inv = invoice, config = defaults, failAfter, movePatch }: {
   receipt?: ReceiptInput; inv?: ReceiptInvoice | null; config?: ReceiptDefaults;
-  failAfter?: 'create' | 'anchor' | 'post' | 'reconcile';
+  failAfter?: 'create' | 'anchor' | 'post' | 'reconcile'; movePatch?: Record<string, unknown>;
 } = {}) {
   const fake = createFakeOdoo({ key: 'k' });
   fake.seed('account.move', [{
     id: INVOICE_ODOO_ID, name: 'INV/2026/00001', move_type: 'out_invoice', state: 'posted', partner_id: 41,
-    currency_id: [12, 'IDR'], amount_total: 111000, amount_residual: 111000, write_date: '2026-11-03 10:00:00',
+    currency_id: [12, 'IDR'], amount_untaxed: 111000, amount_tax: 0, amount_total: 111000, amount_residual: 111000, write_date: '2026-11-03 10:00:00',
+    ...movePatch,
   }]);
   fake.seed('account.move.line', [{
     id: INVOICE_MOVE_ID, move_id: INVOICE_ODOO_ID, account_type: 'asset_receivable', partner_id: 41,
@@ -259,5 +260,31 @@ describe('AC-OCI-046 the receipt recorder comes from the verified JWT subject', 
     const result = await adapter.commit(receiptCommand({ recorded_by: 'forged-user' }));
     expect(result.canonical).toMatchObject({ recorded_by_id: 'jwt-user' });
     expect(JSON.stringify(fake.calls)).not.toContain('forged-user');
+  });
+});
+
+describe('#1825 the settle canonical records the read-back evidence the awaiting-Odoo flag clears on', () => {
+  it('records the receipt\'s own Odoo reference and the invoice read-back it was reconciled against', async () => {
+    const { adapter } = rig();
+    const result = await adapter.commit(receiptCommand());
+    const paymentRef = result.externalRecordId;
+    expect(paymentRef).toMatch(/^account\.payment:\d+$/);
+    // The reference the outbox records is the one the invoice read-back will show matched.
+    expect(result.canonical.odoo_matched_payment_refs).toEqual([paymentRef]);
+    // The settle's own read of the invoice (after the reconcile) rides along, so the mirror writer can
+    // refresh the invoice read-back without any new Odoo call and no clock decides the flag.
+    expect(result.canonical.odoo_invoice_read_back).toMatchObject({
+      erp_modified: expect.any(String),
+      erp_outstanding_amount: '0.00',
+      odoo_read_at: expect.any(String),
+    });
+  });
+
+  it('keeps the money keys out of the read-back when Odoo\'s header is unreadable, and the reference in', async () => {
+    const { adapter } = rig({ movePatch: { amount_tax: false } });
+    const result = await adapter.commit(receiptCommand());
+    expect(result.canonical.odoo_matched_payment_refs).toHaveLength(1);
+    expect(result.canonical.odoo_invoice_read_back).toMatchObject({ erp_modified: expect.any(String), odoo_read_at: expect.any(String) });
+    expect(result.canonical.odoo_invoice_read_back).not.toHaveProperty('erp_outstanding_amount');
   });
 });
