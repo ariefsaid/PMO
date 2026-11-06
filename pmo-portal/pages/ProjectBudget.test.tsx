@@ -87,7 +87,6 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetActivationMode: () => activationModeState,
   useBudgetActivationPrecheck: () => activationPrecheckState,
   useBudgetArchiveTargets: () => archiveTargetsState,
-  useBudgetDistribution: () => ({ data: null, isPending: false, isError: false, isSuccess: true, refetch: vi.fn() }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },

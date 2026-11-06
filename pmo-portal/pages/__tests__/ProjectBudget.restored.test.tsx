@@ -31,7 +31,6 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => state.versions,
-  useBudgetDistribution: () => ({ data: null, isPending: false, isError: false }),
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => ({
     data: { status: 'ready', erpCheck: 'available', fiscalYearNames: ['FY-2026'], issues: [] },

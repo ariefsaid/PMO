@@ -42,7 +42,6 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => state.budget,
   useBudgetVersions: () => state.versions,
-  useBudgetDistribution: () => ({ data: null, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => state.activationPrecheck,
   useBudgetArchiveTargets: () => state.archiveTargets,

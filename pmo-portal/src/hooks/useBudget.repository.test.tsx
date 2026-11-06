@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import type { BudgetDistributionPlan } from '@/src/lib/db/budgets';
 
 const budget = vi.hoisted(() => ({
@@ -13,6 +13,7 @@ const budget = vi.hoisted(() => ({
   listLegacyArchiveLiveTargets: vi.fn().mockResolvedValue([]),
   listArchiveTargets: vi.fn().mockResolvedValue([]),
   createVersion: vi.fn().mockResolvedValue({ id: 'new' }),
+  activateVersion: vi.fn().mockResolvedValue({}),
   getDistribution: vi.fn(),
   saveDistribution: vi.fn().mockResolvedValue(undefined),
 }));
