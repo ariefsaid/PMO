@@ -68,7 +68,6 @@ import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyPr
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
-import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
 import { FeedbackWidget } from '@/src/components/feedback/FeedbackWidget';
 import { SurveyHost } from '@/src/components/feedback/SurveyHost';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
@@ -81,6 +80,11 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
 //    the chunk downloads in parallel with the route's data instead of after it) ─
+// Perf: the panel pulls markdown, the viewspec compiler and the chart widgets (recharts) — none needed for
+// first paint, and it mounts closed. Own chunk, fetched right after the shell renders.
+const AssistantPanel = lazyWithPreload(() =>
+  import('@/src/components/panel/AssistantPanel').then((m) => ({ default: m.AssistantPanel })),
+);
 const ExecutiveDashboard = lazyWithPreload(() => import('./pages/ExecutiveDashboard'));
 const Projects = lazyWithPreload(() => import('./pages/Projects'));
 const ProjectNew = lazyWithPreload(() => import('./pages/ProjectNew'));
@@ -704,7 +708,13 @@ export const ShellChrome: React.FC = () => {
         onCloseRail={() => setRailOpen(false)}
         assistantOpen={assistantEntitled ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
-        assistant={assistantEntitled ? <AssistantPanel /> : undefined}
+        assistant={
+          assistantEntitled ? (
+            <Suspense fallback={null}>
+              <AssistantPanel />
+            </Suspense>
+          ) : undefined
+        }
       >
         <AppRoutes />
       </AppShell>
