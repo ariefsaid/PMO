@@ -799,7 +799,7 @@ const USAGE = `usage:
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
                                                    voucher_no, account, project_id, procurement_id; link only)
   pmo purchases receive <procurement-id> [--line <item>=<qty> ...] [--status Partial|Complete] [--date <YYYY-MM-DD>] [--intent <uuid>] [--dry-run]
-                                                   (record a goods receipt; --line needs the Full plan and an Odoo-tier org;
+                                                   (record a goods receipt; --line needs the Full plan and an Odoo-tier org; PMO-only orgs: Admin/PM, whole purchase;
                                                     the intent is printed before sending — re-run with it to retry safely)
   pmo purchases link-file <json | @file | ->
   pmo erp readiness | list-projects | verify-links
@@ -1112,6 +1112,30 @@ async function m365(ctx, positionals) {
   return { default_library: settings?.[0] ?? null, connection, last_folder_sweep: sweeps?.[0] ?? null };
 }
 
+/**
+ * A PMO-owned organisation (no connected ERP) records the receipt through the RPC the app uses (#1866 B). Whole purchase
+ * only: the RPC takes no lines. The intent is the import batch id, so a retry with it is refused by the unique index
+ * instead of recording twice. Role, org and feature rules are the RPC's (and the guard's).
+ */
+async function receiveNative(ctx, { procurementId, status, date, intent, lines, dryRun }) {
+  if (lines.length) {
+    throw new CliError('--line is not available on an organisation that records purchases in PMO: the receipt covers the whole purchase.', {
+      exit: 2, code: 'receipt_lines_unsupported_tier', hint: 'Run again without --line, or enter the line quantities in the app: Procurement, open the purchase, Record goods receipt.' });
+  }
+  const body = { p_procurement_id: procurementId, p_status: status, p_receipt_date: date, p_import_key: 'cli-receipt', p_import_batch_id: intent, p_imported_at: new Date(ctx.now()).toISOString() };
+  if (dryRun) return { dry_run: true, intent, rpc: 'create_procurement_receipt', body };
+  ctx.stderr.write(`intent: ${intent}\n`);
+  try {
+    return { intent, receipt: await authed(ctx, 'POST', '/rest/v1/rpc/create_procurement_receipt', { body }) };
+  } catch (e) {
+    if (!(e instanceof CliError)) throw e;
+    e.hint ??= e.code === '42501' ? 'Only an Admin or Project Manager can record a goods receipt, and only in their own organisation.'
+      : e.code === '23505' ? 'This intent is already recorded: the receipt exists. Run again without --intent to record another.' : undefined;
+    e.details = { ...(e.details && typeof e.details === 'object' ? e.details : {}), intent };
+    throw e;
+  }
+}
+
 /** `pmo purchases receive` (#1866): the app's goods-receipt command, under one intent (record id = idempotency key). */
 async function receive(ctx, procurementId, flags) {
   if (!procurementId || !UUID.test(procurementId)) throw usage('purchases receive needs a purchase id: pmo purchases receive <procurement-id (uuid)> [--line <item>=<qty> ...] [--dry-run]');
@@ -1125,10 +1149,7 @@ async function receive(ctx, procurementId, flags) {
   if (!UUID.test(intent)) problems.push('--intent must be a uuid (the one printed by an earlier run)');
   if (problems.length) throw new CliError(`The receipt has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_receipt', details: problems });
   const owned = await authed(ctx, 'GET', '/rest/v1/external_domain_ownership?select=domain,external_tier&domain=eq.procurement');
-  if (!Array.isArray(owned) || owned.length === 0) {
-    throw new CliError('This organisation records purchases in PMO, and the CLI only receives against a connected accounting system.', {
-      code: 'procurement_not_erp_owned', hint: 'Record it in the app: Procurement, open the purchase, Record goods receipt.' });
-  }
+  if (!Array.isArray(owned) || owned.length === 0) return receiveNative(ctx, { procurementId, status, date, intent, lines: parsed.lines ?? [], dryRun: Boolean(flags['dry-run']) });
   // Per-line quantities are a tier capability, not a plan detail: only the Odoo receipt shape carries them.
   // On any other tier the server would ignore them and receive the whole open purchase.
   const lineRefusal = receiptLineTierRefusal(owned[0]?.external_tier, parsed.lines ?? []);

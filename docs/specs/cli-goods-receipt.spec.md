@@ -6,8 +6,8 @@
 > **Scope:** one CLI command that records a goods receipt through the already-served
 > `adapter-dispatch` surface (domain `procurement`, `operation create`, `erp_doc_kind goods-receipt`) —
 > the same command the app's Record goods receipt form sends. **Out of scope:** new edge functions, new
-> tables or RPCs, cancelling/reversing a receipt, and recording receipts on a PMO-owned (no-ERP)
-> organisation, which stays app-only.
+> tables, cancelling/reversing a receipt. Slice B (migration 0702) adds `create_procurement_receipt` to the API-client
+> guard for Admin and Project Manager, so a PMO-owned (no-ERP) organisation can receive from the CLI.
 
 ## 1. Job story
 
@@ -28,7 +28,8 @@ anyone retyping it in the app.
   send nothing, because that tier's receipt is built from the purchase order and would receive the whole
   purchase rather than the quantities asked for.
 - **FR-RCV-005** If the organisation records purchases in PMO (no connected accounting system), the CLI
-  shall refuse before dispatch and point at the app.
+  shall record a whole-purchase receipt through `create_procurement_receipt` (intent as import batch id) and
+  refuse `--line` with exit 2; the guard admits Admin and Project Manager only.
 - **FR-RCV-006** The CLI shall validate every input (purchase id, lines, status, date, intent) before any
   request, and exit 2 with nothing sent when any is invalid — including a calendar date that does not
   exist.
@@ -45,8 +46,10 @@ anyone retyping it in the app.
   org, then the command carries exactly those item/quantity pairs and defaults to status `Partial`.
 - **AC-RCV-003** Given no `--intent`, when the user receives, then a fresh uuid is minted and printed, and
   re-running with it sends the identical identity.
-- **AC-RCV-004** Given a PMO-owned purchase, when the user receives, then the CLI refuses with the
-  `procurement_not_erp_owned` code, an app pointer, and no dispatch.
+- **AC-RCV-004** Given a PMO-owned purchase, when the user receives, then the CLI records the whole-purchase
+  receipt through `create_procurement_receipt` (no dispatch); `--line` there is refused with exit 2.
+- **AC-RCV-013** Given a CLI token, when it calls `create_procurement_receipt`, then the guard admits an active
+  Admin or Project Manager only, and the RPC refuses another organisation's purchase and a repeated intent.
 - **AC-RCV-005** Given the Full plan is off, when the user sends `--line`, then the server's "require
   procurement full" refusal returns with an actionable hint and the intent to reuse.
 - **AC-RCV-006** Given a line quantity above what is open, when the user receives, then the refusal names
@@ -74,7 +77,8 @@ anyone retyping it in the app.
 | AC-RCV-001 | Unit | `AC-RCV-001 whole-purchase receipt sends the app's goods-receipt command…` |
 | AC-RCV-002 | Unit | `AC-RCV-002 line-level receipt carries itemRef/quantity lines…` |
 | AC-RCV-003 | Unit | `AC-RCV-003 without --intent a fresh one is minted and printed…` |
-| AC-RCV-004 | Unit | `AC-RCV-004 a purchase PMO owns is refused before any dispatch…` |
+| AC-RCV-004 | Unit | `AC-RCV-004 a purchase PMO owns is received through create_procurement_receipt…` |
+| AC-RCV-013 | pgTAP | `supabase/tests/1866_cli_native_receipt_guard.test.sql` |
 | AC-RCV-005 | Unit | `AC-RCV-005 plan off: the server refusal gets an actionable hint…` |
 | AC-RCV-006 | Unit | `AC-RCV-006 quantity over what is open is refused…` |
 | AC-RCV-007 | Unit | `AC-RCV-007 wrong state (nothing open / no order / pre-cutover)…` |
@@ -92,8 +96,7 @@ re-derives role, tier and ownership.
 
 ## 5. Known gaps
 
-- A PMO-owned (no-ERP) organisation cannot receive from the CLI; the app's Record goods receipt remains
-  the only route there (AC-RCV-004 refuses with that pointer).
+- A PMO-only organisation's receipt is whole-purchase only; a purchase's requester who is neither Admin nor Project Manager receives in the app.
 - `--line` is Odoo-tier only. The ERPNext receipt keys caller lines on `record.items`, a different shape
   this command does not build; supporting it is a separate change, and until then line-level receipts on
   an ERPNext org are entered in the app (AC-RCV-010).

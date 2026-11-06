@@ -97,15 +97,56 @@ test('AC-RCV-003 without --intent a fresh one is minted and printed; re-running 
   } finally { await s.close(); }
 });
 
-test('AC-RCV-004 a purchase PMO owns is refused before any dispatch, pointing at the app', async () => {
+test('AC-RCV-004 a purchase PMO owns is received through create_procurement_receipt, the intent as import batch id, no dispatch', async () => {
+  const s = await fake({
+    'GET /rest/v1/external_domain_ownership': [200, []],
+    'POST /rest/v1/rpc/create_procurement_receipt': [200, { id: 'r1', gr_number: 'GR-7', status: 'Complete' }],
+  });
+  try {
+    const r = await cli(['purchases', 'receive', PROC, '--intent', INTENT, '--date', '2026-11-05'], s);
+    assert.equal(r.code, 0);
+    assert.equal(r.json.receipt.gr_number, 'GR-7');
+    assert.equal(r.json.intent, INTENT);
+    assert.equal(dispatched(s).length, 0);
+    const call = s.requests.find((q) => q.path === '/rest/v1/rpc/create_procurement_receipt');
+    assert.deepEqual(call.body, { p_procurement_id: PROC, p_status: 'Complete', p_receipt_date: '2026-11-05', p_import_key: 'cli-receipt', p_import_batch_id: INTENT, p_imported_at: '2026-11-06T03:00:00.000Z' });
+  } finally { await s.close(); }
+});
+
+test('AC-RCV-004 on a purchase PMO owns --line is refused with exit 2 and nothing sent (the app form takes whole receipts there)', async () => {
   const s = await fake({ 'GET /rest/v1/external_domain_ownership': [200, []] });
   try {
-    const r = await cli(['purchases', 'receive', PROC], s);
-    assert.equal(r.code, 1);
-    assert.equal(r.error.code, 'procurement_not_erp_owned');
-    assert.match(r.error.hint, /Procurement/);
-    assert.equal(dispatched(s).length, 0);
+    const r = await cli(['purchases', 'receive', PROC, '--line', 'Pump=3'], s);
+    assert.equal(r.code, 2);
+    assert.equal(r.error.code, 'receipt_lines_unsupported_tier');
+    assert.equal(s.requests.filter((q) => q.path.includes('/rpc/')).length, 0);
   } finally { await s.close(); }
+});
+
+test('AC-RCV-004 on a purchase PMO owns --dry-run prints the RPC call and sends nothing', async () => {
+  const s = await fake({ 'GET /rest/v1/external_domain_ownership': [200, []] });
+  try {
+    const r = await cli(['purchases', 'receive', PROC, '--dry-run', '--intent', INTENT], s);
+    assert.equal(r.code, 0);
+    assert.equal(r.json.dry_run, true);
+    assert.equal(r.json.rpc, 'create_procurement_receipt');
+    assert.equal(s.requests.filter((q) => q.path.includes('/rpc/')).length, 0);
+  } finally { await s.close(); }
+});
+
+test('AC-RCV-004 on a purchase PMO owns, refusals carry hints: not authorized, already recorded under this intent', async () => {
+  for (const [body, re] of [
+    [{ code: '42501', message: 'not authorized' }, /Admin or Project Manager/],
+    [{ code: '23505', message: 'duplicate key value violates unique constraint "procurement_receipts_import_key_batch_uidx"' }, /already recorded/],
+  ]) {
+    const s = await fake({ 'GET /rest/v1/external_domain_ownership': [200, []], 'POST /rest/v1/rpc/create_procurement_receipt': [400, body] });
+    try {
+      const r = await cli(['purchases', 'receive', PROC, '--intent', INTENT], s);
+      assert.equal(r.code, 1);
+      assert.match(r.error.hint, re);
+      assert.equal(r.error.details.intent, INTENT);
+    } finally { await s.close(); }
+  }
 });
 
 test('AC-RCV-005 plan off: the server refusal gets an actionable hint and the intent to reuse', async () => {

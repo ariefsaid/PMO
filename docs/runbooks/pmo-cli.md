@@ -249,7 +249,7 @@ node scripts/pmo.mjs purchases attach-journals <rows.json>
 
 Each row names one line returned by `journals` plus the purchase: `{"voucher_no":"<journal number>","project_id":"<project-uuid>","account":"<ledger account>","procurement_id":"<purchase-uuid>"}`. The dry run reports `attach`, `skip` (already on that purchase) or `refused` with a reason per row and writes nothing.
 
-Record a goods receipt for a purchase (same command the app sends; organisations connected to an accounting system only. A PMO-only organisation records receipts in the app). Roles: Admin, Executive, Project Manager, Finance.
+Record a goods receipt for a purchase (same command the app sends; connected organisations send the app's accounting-system command; a PMO-only organisation, with no accounting system, records it through the app's own receipt function). Roles: Admin, Executive, Project Manager, Finance on a connected organisation; **Admin and Project Manager only** on a PMO-only one.
 
 ```bash
 node scripts/pmo.mjs purchases receive <procurement-uuid> --dry-run                      # whole purchase, everything open
@@ -258,6 +258,8 @@ node scripts/pmo.mjs purchases receive <procurement-uuid> --line "Pump=3" --line
 ```
 
 Whole-purchase receipts work on Basic and on every connected tier: leave `--line` out and the server receives everything still open. `--line <item>=<quantity>` (repeat per item, item exactly as the purchase order shows it) needs the Full plan **and an Odoo-tier organisation**; on a tier whose receipt is built from the purchase order itself the CLI refuses it (exit 2, nothing sent) rather than receive the whole purchase, so use the app there.
+
+On a PMO-only organisation the receipt is always for the whole purchase (`--line` is refused with exit 2, nothing sent; enter line quantities in the app), and the intent is stored on the receipt, so re-running with the same `--intent` is refused as already recorded instead of recording twice. Only the purchase's own organisation can receive.
 
 Each run prints an `intent` before it sends anything, so a run that hangs still leaves the uuid to retry with. **If the outcome is unknown (the command hangs, or the ERP could not be reached), re-run the identical command with `--intent <that uuid>`**: the same intent never records twice. Do not reuse an intent for a different receipt. Defaults: date today in **UTC** (the CLI does not read the organisation's time zone, so pass `--date` when the local business date differs), status Complete (Partial with `--line`). Refusals carry a hint: plan off, line quantities on a non-Odoo tier, nothing left to receive, quantity above the open quantity, no sent purchase order, ordered before the connection.
 
