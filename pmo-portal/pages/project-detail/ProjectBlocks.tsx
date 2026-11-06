@@ -62,7 +62,7 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
 type MarginReason = 'different-currencies' | 'work-unavailable' | 'restricted-rows' | 'actuals-unavailable';
 
-export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
   const [financeDetailsOpen, setFinanceDetailsOpen] = useState(false);
   const q = useProjectFinances(project.id);
@@ -242,7 +242,7 @@ const EstimatedBudgetBlock: React.FC<{ project: ProjectWithRefs }> = ({ project 
   );
 };
 
-export const CostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void; isPipeline?: boolean }> = ({ project, onOpenBudget, isPipeline = false }) => (
+const CostBlockView: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void; isPipeline?: boolean }> = ({ project, onOpenBudget, isPipeline = false }) => (
   isPipeline ? <EstimatedBudgetBlock project={project} /> : <ActiveCostBlock project={project} onOpenBudget={onOpenBudget} />
 );
 
@@ -397,7 +397,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
 
 /* ── Delivery: phase progress, dated task work, and phase planning ────────────────────────── */
 
-export const DeliveryBlock: React.FC<{ projectId: string; isPipeline?: boolean; children?: React.ReactNode }> = ({ projectId, isPipeline = false, children }) => {
+const DeliveryBlockView: React.FC<{ projectId: string; isPipeline?: boolean; children?: React.ReactNode }> = ({ projectId, isPipeline = false, children }) => {
   const { t } = useTranslation('project');
   const title = t('projectDetail.delivery.timelineTitle', 'Phase timeline');
   if (isPipeline) {
@@ -490,3 +490,9 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
     </Block>
   );
 };
+
+// The Overview re-renders on each attention-query settle; these blocks read their own data, so a re-render
+// that changes none of their props skips them.
+export const MoneyBlock = React.memo(MoneyBlockView);
+export const CostBlock = React.memo(CostBlockView);
+export const DeliveryBlock = React.memo(DeliveryBlockView);

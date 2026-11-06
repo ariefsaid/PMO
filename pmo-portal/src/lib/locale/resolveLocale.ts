@@ -8,8 +8,10 @@ export const FALLBACK_TIMEZONE = 'Asia/Jakarta';
 
 // Validity per distinct stored value. Resolution runs on every provider render; the inputs are a
 // handful of stored strings, so the cache stays tiny while sparing a repeated `Intl` lookup.
-const usableLocaleCache = new Map<string, boolean>();
-const usableTimeZoneCache = new Map<string, boolean>();
+// Seeded with the app's own fallbacks: they are known-good, and validating them costs ~15 ms of first-use ICU
+// setup inside the first render (measured at 4x CPU: 59 ms), ahead of the first paint.
+const usableLocaleCache = new Map<string, boolean>([[FALLBACK_LOCALE, true]]);
+const usableTimeZoneCache = new Map<string, boolean>([[FALLBACK_TIMEZONE, true]]);
 
 /**
  * True only for a BCP-47 tag this runtime's `Intl` can format numbers AND dates in. A malformed

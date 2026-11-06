@@ -11,10 +11,10 @@
  * setter here drives router navigation; the provider only ever READS the
  * location, never writes it, so agent-context can never move the user).
  */
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import type { RunContext } from '../runtime/port';
-import { AgentContextContext, type AgentContextValue } from './agentContextInternal';
+import { AgentContextContext, AgentContextPublisherContext, type AgentContextValue } from './agentContextInternal';
 
 interface AgentContextProviderProps {
   children: React.ReactNode;
@@ -55,5 +55,11 @@ export const AgentContextProvider: React.FC<AgentContextProviderProps> = ({ chil
   // provider render; getContext itself stays stable and safe for stale callers.
   const value: AgentContextValue = { getContext, setEntity, setSelection };
 
-  return <AgentContextContext.Provider value={value}>{children}</AgentContextContext.Provider>;
+  const publisher = useMemo(() => ({ setEntity, setSelection }), [setEntity, setSelection]);
+
+  return (
+    <AgentContextPublisherContext.Provider value={publisher}>
+      <AgentContextContext.Provider value={value}>{children}</AgentContextContext.Provider>
+    </AgentContextPublisherContext.Provider>
+  );
 };

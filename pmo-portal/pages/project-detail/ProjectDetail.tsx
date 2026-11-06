@@ -1,6 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, ProgressBar, Tooltip, useToast } from '@/src/components/ui';
@@ -10,7 +10,7 @@ import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import type { ProjectHeaderInput } from '@/src/lib/db/projects';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
@@ -132,7 +132,7 @@ const ProjectDetail: React.FC = () => {
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed project — grounding only
   // (NFR-AXP-SEC-003), never an authorization signal. Cleared on unmount/navigate.
-  const { setEntity } = useAgentContext();
+  const { setEntity } = useAgentContextPublisher();
   // Publish before paint. Combined with AgentContextProvider's ref-backed snapshot,
   // this closes both sides of the first-turn race: late publication and stale readers.
   useLayoutEffect(() => {
@@ -141,11 +141,11 @@ const ProjectDetail: React.FC = () => {
     return () => setEntity(undefined);
   }, [project, setEntity]);
 
-  const setArea = (next: Area) => {
+  const setArea = useCallback((next: Area) => {
     trackProjectTabViewed(next);
     // #682: keep the captured list-return context; #879: an in-page tab switch keeps focus in the tab bar.
     navigate(`/projects/${projectId}${next === 'overview' ? '' : `/${next}`}`, { replace: true, state: withTabSwitchNavState(location.state) });
-  };
+  }, [navigate, projectId, location.state]);
 
   // Back to the Projects index (AC-NAV-007/AC-LRC-003): `returnToList` navigates to the
   // captured Projects list URL when the record was opened from a narrowed list, and falls
