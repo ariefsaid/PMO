@@ -27,7 +27,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { siteUrl } from '../../src/lib/testing/erpBenchGuard';
+import { benchAuthHeaders, siteUrl } from '../../src/lib/testing/erpBenchGuard';
 
 // #1359: guarded — `seedSAR` POSTs a Customer to this origin, so a non-local bench refuses to load
 // unless `E2E_ALLOW_REMOTE_ERP=1`.
@@ -156,7 +156,7 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `token ${process.env.ERPNEXT_BENCH_API_KEY}:${process.env.ERPNEXT_BENCH_API_SECRET}`,
+        ...benchAuthHeaders(),
       },
       body: JSON.stringify({ customer_name: 'Spike Customer', customer_type: 'Company', customer_group: 'All Customer Groups', territory: 'All Territories' }),
     });

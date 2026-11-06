@@ -128,10 +128,10 @@ Skip when the lane is absent; **throw** when it is present but broken. A spec th
 
 Every serial helper or spec that builds an ERPNext bench URL reads it through
 `src/lib/testing/erpBenchGuard.ts` — `benchUrl()` (host-side), `siteUrl()` (the container-facing
-`ERPNEXT_SITE_URL`), or `guardBenchUrl(process.env.ERPNEXT_BENCH_URL ?? '')` when an unconfigured
-lane must still skip. Never read `ERPNEXT_BENCH_URL` / `ERPNEXT_SITE_URL` directly.
+`ERPNEXT_SITE_URL`), or `benchUrlOrEmpty()` / `siteUrlOrEmpty()` when an unconfigured lane must
+still skip. Never read `ERPNEXT_BENCH_URL` / `ERPNEXT_SITE_URL` directly.
 
-The guard accepts only `localhost`, `127.0.0.1` and `host.docker.internal`. Any other host refuses
+The guard accepts only `localhost`, `127.0.0.1`, `host.docker.internal` and `[::1]`. Any other host refuses
 to load unless the operator exports `E2E_ALLOW_REMOTE_ERP=1`; that opt-in also makes teardown delete
 the ERP Projects the run created (`trackErpProject` at creation → `deleteTrackedErpProjects()` in
 each `cleanup*`), so a run against a real bench leaves no `PMO-E2E-*` litter behind.

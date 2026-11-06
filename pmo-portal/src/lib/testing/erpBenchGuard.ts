@@ -7,7 +7,7 @@
  * run pointed at a real ERPNext — the 2026-09-14 crossing dry run did that deliberately — left
  * `PMO-E2E-*` Projects behind on it.
  *
- * So: a bench host that is not `localhost` / `127.0.0.1` / `host.docker.internal` is REFUSED unless
+ * So: a bench host that is not `localhost` / `127.0.0.1` / `host.docker.internal` / `[::1]` is REFUSED unless
  * the operator exports `E2E_ALLOW_REMOTE_ERP=1`. The opt-in also buys the cleanup: helpers register
  * every Project they create with `trackErpProject`, and their teardown calls
  * `deleteTrackedErpProjects()`, which DELETEs those documents from the bench.
@@ -32,9 +32,11 @@ export const SITE_URL_VAR = 'ERPNEXT_SITE_URL';
 const DEFAULT_BENCH_URL = 'http://localhost:8080';
 const DEFAULT_SITE_URL = 'http://host.docker.internal:8080';
 
-const LOCAL_BENCH_HOSTS = new Set(['localhost', '127.0.0.1', 'host.docker.internal']);
+// `[::1]` is IPv6 loopback — the WHATWG URL parser keeps the brackets in `hostname`, so that is the
+// form compared here (an unbracketed `::1` never reaches this set).
+const LOCAL_BENCH_HOSTS = new Set(['localhost', '127.0.0.1', 'host.docker.internal', '[::1]']);
 
-/** True when `hostname` is one of the three local bench hosts the helpers may write to freely. */
+/** True when `hostname` is one of the local bench hosts the helpers may write to freely. */
 export function isLocalBenchHost(hostname: string): boolean {
   return LOCAL_BENCH_HOSTS.has(hostname.toLowerCase());
 }
@@ -81,6 +83,32 @@ export function siteUrl(): string {
   return benchUrl(SITE_URL_VAR, DEFAULT_SITE_URL);
 }
 
+/**
+ * Guarded read that stays `''` when the variable is unset — for specs whose no-bench path must SKIP
+ * rather than fall back to the local default. A non-local value still throws.
+ */
+export function benchUrlOrEmpty(varName: string = BENCH_URL_VAR): string {
+  return guardBenchUrl(process.env[varName], varName);
+}
+
+/**
+ * Guarded `ERPNEXT_SITE_URL` that stays `''` when the variable is unset — for specs whose no-bench
+ * path must SKIP rather than fall back to the local default. A non-local value still throws.
+ */
+export function siteUrlOrEmpty(): string {
+  return benchUrlOrEmpty(SITE_URL_VAR);
+}
+
+/**
+ * The one place the bench token header is built (`Authorization: token key:secret`). The e2e helpers
+ * spread this into their own headers so credential plumbing cannot drift from the guard's DELETE.
+ */
+export function benchAuthHeaders(): Record<string, string> {
+  const key = process.env.ERPNEXT_BENCH_API_KEY ?? '';
+  const secret = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
+  return { Authorization: `token ${key}:${secret}` };
+}
+
 // ── ERP Project ledger (the opted-in cleanup) ────────────────────────────────────────────────
 // Per-process: each Playwright worker is its own process and the serial lane runs `--workers=1`,
 // so this ledger exactly mirrors "Projects this process's helpers created since the last cleanup".
@@ -106,11 +134,9 @@ export function forgetErpProjects(): void {
 export async function deleteErpProject(name: string): Promise<void> {
   const base = benchUrl();
   if (base === '') return;
-  const key = process.env.ERPNEXT_BENCH_API_KEY ?? '';
-  const secret = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
   const res = await fetch(`${base}/api/resource/Project/${encodeURIComponent(name)}`, {
     method: 'DELETE',
-    headers: { Authorization: `token ${key}:${secret}` },
+    headers: benchAuthHeaders(),
   });
   if (!res.ok) {
     throw new Error(`bench DELETE Project/${name} -> ${res.status} ${(await res.text()).slice(0, 200)}`);

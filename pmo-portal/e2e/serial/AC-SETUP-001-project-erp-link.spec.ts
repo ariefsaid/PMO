@@ -2,12 +2,12 @@
 import {test,expect} from '@playwright/test';
 import {createClient} from '@supabase/supabase-js';
 import {signInAdmin} from './_sarHelpers';
-import {guardBenchUrl} from '../../src/lib/testing/erpBenchGuard'; // #1359
+import {benchUrlOrEmpty} from '../../src/lib/testing/erpBenchGuard'; // #1359
 const FUNCTIONS_URL=process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL=process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
 const ANON_KEY=process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY=process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const BENCH_URL=guardBenchUrl(process.env.ERPNEXT_BENCH_URL ?? ''); // #1359: guarded; "" keeps the no-bench skip
+const BENCH_URL=benchUrlOrEmpty(); // #1359: guarded; "" keeps the no-bench skip
 const BENCH_KEY=process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_SECRET=process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 const ORG_ID=process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';

@@ -24,7 +24,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { refreshAging, type AgingScope } from '../../src/lib/adapterSeam/erpnext/agingSnapshot.ts';
-import { benchUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
+import { benchUrl, siteUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
 
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -32,7 +32,7 @@ const BENCH_URL = benchUrl();
 const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 // What the sweep uses as the per-org site_url when it dials ERPNext from inside Docker (host.docker.internal).
-const SITE_URL_FOR_BINDING = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
+const SITE_URL_FOR_BINDING = siteUrl();
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const COMPANY = 'PMO Smoke Co';

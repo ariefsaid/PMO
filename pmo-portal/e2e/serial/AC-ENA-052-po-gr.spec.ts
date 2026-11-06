@@ -24,7 +24,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { benchUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
+import { benchUrl, siteUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -38,7 +38,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 // (docs/environments.md "P2"). Two different network contexts, two INDEPENDENT env vars (neither
 // falls back to the other — that was the original bug: one var served both contexts).
 const ERPNEXT_BENCH_URL = benchUrl();
-const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
+const ERPNEXT_SITE_URL = siteUrl();
 // Bench creds NEVER live in this repo (NFR-ENA-SEC-002) — exported by the caller from
 // ~/Coding/frappe-docker-pmo/PMO-BENCH-NOTES.md (the same pair the served fn reads as
 // ERPNEXT_API_KEY/ERPNEXT_API_SECRET function secrets, `supabase/functions/.env.local`). The

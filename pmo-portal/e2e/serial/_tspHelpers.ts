@@ -29,7 +29,7 @@
  * HR-EMP-00001).
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { benchUrl, deleteTrackedErpProjects, siteUrl, trackErpProject } from '../../src/lib/testing/erpBenchGuard';
+import { benchAuthHeaders, benchUrl, deleteTrackedErpProjects, siteUrl, trackErpProject } from '../../src/lib/testing/erpBenchGuard';
 import { runFullSweep } from './_sweepHelpers';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -55,7 +55,7 @@ export const ADMIN_ID = '00000000-0000-0000-0000-0000000000a5';
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
 const benchHeaders = (): Record<string, string> => ({
-  Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`,
+  ...benchAuthHeaders(),
   'Content-Type': 'application/json',
 });
 

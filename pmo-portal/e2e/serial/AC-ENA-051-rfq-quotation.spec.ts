@@ -14,6 +14,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { requireLocalErpNextUrl } from '../../src/lib/testing/localErpNextUrl';
+import { siteUrlOrEmpty } from '../../src/lib/testing/erpBenchGuard'; // #1359
 import { requireLocalSupabaseUrl, requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const FUNCTIONS_TARGET = process.env.SUPABASE_FUNCTIONS_URL ?? '';
@@ -23,7 +24,7 @@ const FUNCTIONS_URL = requireLocalSupabaseUrl(FUNCTIONS_TARGET || undefined);
 const AUTH_URL = requireMatchingLocalSupabaseUrls(ADMIN_SUPABASE_TARGET || undefined, BROWSER_SUPABASE_TARGET || undefined);
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const ERPNEXT_SITE_URL = requireLocalErpNextUrl(process.env.ERPNEXT_SITE_URL);
+const ERPNEXT_SITE_URL = requireLocalErpNextUrl(siteUrlOrEmpty()); // #1359: guarded; "" keeps the no-bench skip
 
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';

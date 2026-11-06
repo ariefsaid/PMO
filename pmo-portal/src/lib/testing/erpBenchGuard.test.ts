@@ -11,13 +11,16 @@ import {
   BENCH_URL_VAR,
   E2E_ALLOW_REMOTE_ERP,
   SITE_URL_VAR,
+  benchAuthHeaders,
   benchUrl,
+  benchUrlOrEmpty,
   deleteErpProject,
   deleteTrackedErpProjects,
   forgetErpProjects,
   guardBenchUrl,
   isLocalBenchHost,
   siteUrl,
+  siteUrlOrEmpty,
   trackErpProject,
   trackedErpProjects,
 } from './erpBenchGuard';
@@ -66,6 +69,13 @@ describe('guardBenchUrl (#1359)', () => {
     expect(isLocalBenchHost(new URL('http://erp.example.com').hostname)).toBe(false);
   });
 
+  it('accepts IPv6 loopback [::1] as local (N1 — the WHATWG parser keeps the brackets)', () => {
+    expect(guardBenchUrl('http://[::1]:8080')).toBe('http://[::1]:8080');
+    expect(isLocalBenchHost(new URL('http://[::1]:8080').hostname)).toBe(true);
+    // a remote IPv6 host stays refused — only loopback is local
+    expect(() => guardBenchUrl('http://[2001:db8::1]:8080')).toThrowError(/E2E_ALLOW_REMOTE_ERP/);
+  });
+
   it('falls back to the local default when the env var is unset', () => {
     expect(benchUrl()).toBe('http://localhost:8080');
     expect(siteUrl()).toBe('http://host.docker.internal:8080');
@@ -75,6 +85,29 @@ describe('guardBenchUrl (#1359)', () => {
     expect(guardBenchUrl(undefined)).toBe('');
     expect(guardBenchUrl('')).toBe('');
     expect(guardBenchUrl('   ')).toBe('');
+  });
+
+  it('siteUrlOrEmpty keeps the no-bench skip while still guarding a configured site URL', () => {
+    expect(siteUrlOrEmpty()).toBe('');
+    process.env[SITE_URL_VAR] = 'http://host.docker.internal:8080';
+    expect(siteUrlOrEmpty()).toBe('http://host.docker.internal:8080');
+    process.env[SITE_URL_VAR] = 'http://erp.example.com:8080';
+    expect(() => siteUrlOrEmpty()).toThrowError(/ERPNEXT_SITE_URL/);
+  });
+
+  it('benchUrlOrEmpty keeps the no-bench skip while still guarding a configured bench URL', () => {
+    expect(benchUrlOrEmpty()).toBe('');
+    process.env[BENCH_URL_VAR] = 'http://localhost:8080';
+    expect(benchUrlOrEmpty()).toBe('http://localhost:8080');
+    process.env[BENCH_URL_VAR] = 'http://erp.example.com:8080';
+    expect(() => benchUrlOrEmpty()).toThrowError(/ERPNEXT_BENCH_URL/);
+  });
+
+  it('benchAuthHeaders is the single source of the bench token header', () => {
+    expect(benchAuthHeaders()).toEqual({ Authorization: 'token :' });
+    process.env.ERPNEXT_BENCH_API_KEY = 'test-key';
+    process.env.ERPNEXT_BENCH_API_SECRET = 'test-secret';
+    expect(benchAuthHeaders()).toEqual({ Authorization: 'token test-key:test-secret' });
   });
 
   it('refuses a remote bench host, naming the variable and the opt-in', () => {

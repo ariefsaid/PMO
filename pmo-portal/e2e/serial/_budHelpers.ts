@@ -20,7 +20,7 @@
  */
 import { expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { benchUrl, deleteTrackedErpProjects, siteUrl, trackErpProject } from '../../src/lib/testing/erpBenchGuard';
+import { benchAuthHeaders, benchUrl, deleteTrackedErpProjects, siteUrl, trackErpProject } from '../../src/lib/testing/erpBenchGuard';
 import { runFullSweep } from './_sweepHelpers';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -47,7 +47,7 @@ export const ACTIVATOR_EMAIL = 'finance@acme.test';
 export const SECOND_ACTIVATOR_EMAIL = 'admin@acme.test';
 
 const benchHeaders = (): Record<string, string> => ({
-  Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`,
+  ...benchAuthHeaders(),
   'Content-Type': 'application/json',
 });
 

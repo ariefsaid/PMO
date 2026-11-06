@@ -17,7 +17,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
-import { benchUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
+import { benchUrl, siteUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -77,7 +77,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       {
         org_id: ORG_ID,
         external_tier: 'erpnext',
-        site_url: process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080',
+        site_url: siteUrl(),
         secret_ref: 'local-bench',
         version_major: 15,
         config: bindingConfig,

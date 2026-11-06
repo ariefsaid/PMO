@@ -24,7 +24,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { benchUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
+import { benchUrl, siteUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -33,7 +33,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 // Two INDEPENDENT env vars (task 6.4 fix-round finding): SITE_URL (Docker-reachable, seeded into
 // external_org_bindings.site_url — what the served fn dials) vs BENCH_URL (host-reachable, this test
 // process's OWN optional verification fetch). Neither falls back to the other.
-const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
+const ERPNEXT_SITE_URL = siteUrl();
 const ERPNEXT_BENCH_URL = benchUrl();
 const ERPNEXT_ADMIN_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const ERPNEXT_ADMIN_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
