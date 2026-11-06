@@ -1,6 +1,8 @@
 -- 0698: recovery scan for confirmed posts the change trigger missed (#1932). The 0685 post-confirm trigger
--- fires only on UPDATE OF state, so a row inserted already-confirmed (or a confirmation that predates the
--- trigger, or whose bookkeeping failed) raises no statement intent and waits for the nightly full publish.
+-- fires only on UPDATE OF state, so a row inserted already-confirmed (or whose confirmation bookkeeping
+-- failed and rolled back) raises no statement intent and waits for the nightly full publish. Confirmations
+-- that PRE-date this migration are stamped by the backfill below — deliberately NOT left for the scan: NULL
+-- on a confirmed row means "missed after rollout", so the first scan raises no spurious replay of history.
 -- The scan reuses 0685's lease, intent_revision and backoff machinery unchanged: it stamps exactly the
 -- missed rows and raises ONE coalesced reserved-path intent, so the next sweep tick refreshes instead of
 -- waiting for the organization-local 02:00. The feature stays OFF by default (0681 per-org enable flag);
@@ -14,6 +16,20 @@ begin;
 alter table public.external_command_outbox add column statement_intent_at timestamptz;
 comment on column public.external_command_outbox.statement_intent_at is
  'Set by the post-confirm statement trigger (0685) when it recorded the change-driven refresh intent; NULL on a confirmed row means the recovery scan (0698) has not accounted for this confirmation yet.';
+
+-- Backfill the already-confirmed history at migration time (every tier — the post-confirm trigger stamps
+-- each confirmation it sees regardless of tier, and the column contract above is tier-agnostic): from
+-- rollout on, NULL must mean "confirmed after rollout and never seen by the trigger", never "confirmed
+-- before 0698 existed", so the first scan raises no extra refresh for the historical confirmations. The
+-- row's own updated_at keeps the stamp truthful about when that confirmation happened.
+update public.external_command_outbox set statement_intent_at=updated_at where state='confirmed';
+
+-- The scan's per-tick predicate gets its own partial index, created AFTER the backfill so it builds
+-- empty: confirmed rows never leave the outbox, so without this every sweep tick of an enabled
+-- organization would scan that organization's whole outbox history to find (usually) nothing.
+create index external_command_outbox_statement_recovery_idx
+ on public.external_command_outbox (org_id)
+ where external_tier='erpnext' and state='confirmed' and statement_intent_at is null;
 
 -- Same trigger contract as 0685, plus stamping the row as accounted. Stamp and intent bump are one
 -- subtransaction: if either fails, both roll back, the warning is swallowed and the confirmation is never

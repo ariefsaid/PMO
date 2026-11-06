@@ -8,6 +8,23 @@
 begin;
 select no_plan();
 
+-- migration-time contract (runs before any fixture insert, so it sees the outbox exactly as 0698
+-- left it): every confirmed row the database already had when 0698 applied is stamped by the
+-- migration backfill, so the first scan after rollout reports only real misses — no history replay
+select is((select count(*)::int from public.external_command_outbox
+   where state='confirmed' and statement_intent_at is null),0,
+  'the migration stamped every already-confirmed historical row, so the first scan raises no extra refresh');
+
+-- schema shape: the scan's per-tick predicate has its own partial index, so a sweep tick never
+-- degrades into a scan of the organization's whole (unbounded) outbox history
+select has_index('external_command_outbox', 'external_command_outbox_statement_recovery_idx', array['org_id'],
+  'the recovery scan''s per-tick predicate has its supporting partial index');
+select ok((select pg_get_expr(i.indpred,i.indrelid) from pg_index i
+   join pg_class c on c.oid=i.indexrelid join pg_class t on t.oid=i.indrelid
+  where c.relname='external_command_outbox_statement_recovery_idx' and t.relname='external_command_outbox')
+  ~ 'external_tier\s*=\s*''erpnext''.*state\s*=\s*''confirmed''.*statement_intent_at\s+IS\s+NULL',
+  'the partial index predicates exactly the scan''s recovery predicate (erpnext, confirmed, unstamped)');
+
 insert into public.organizations(id,name,default_currency,default_timezone) values
  ('06980000-0000-0000-0000-000000000001','Scan fixture A','IDR','UTC'),
  ('06980000-0000-0000-0000-000000000002','Scan fixture B','IDR','UTC');

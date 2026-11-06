@@ -1,6 +1,7 @@
 -- Restores the 0685 post-confirm trigger function (intent bump only, no stamp), drops the recovery scan
--- RPC and the stamp column. Stamps written by 0698 are lost with the column; a later re-apply recovers
--- the same rows again (the scan is derived state, no data loss).
+-- RPC, the scan's supporting partial index and the stamp column (index before column: the predicate
+-- depends on it). Stamps written by 0698 are lost with the column; a later re-apply recovers the same
+-- rows again (the scan is derived state, no data loss).
 begin;
 drop function if exists public.scan_erp_statement_confirmed_misses(uuid,uuid,uuid,timestamptz);
 create or replace function public.request_erp_statement_refresh_after_post()
@@ -16,5 +17,6 @@ begin
 end $$;
 alter function public.request_erp_statement_refresh_after_post() owner to postgres;
 revoke all on function public.request_erp_statement_refresh_after_post() from public,anon,authenticated,service_role;
+drop index if exists public.external_command_outbox_statement_recovery_idx;
 alter table public.external_command_outbox drop column if exists statement_intent_at;
 commit;
