@@ -102,3 +102,14 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     expect(h.procurementList).toHaveBeenCalledWith({ lean: true });
   });
 });
+
+describe('company dashboard layout stability (CLS)', () => {
+  it('holds each figure tile and the approvals line at their loaded height while loading', () => {
+    renderExec();
+    const tiles = screen.getAllByTestId('kpi-skeleton').map((bar) => bar.parentElement as HTMLElement);
+    expect(tiles).toHaveLength(6);
+    tiles.forEach((tile) => expect(tile.className).toMatch(/min-h-\[/));
+    const approvals = screen.getAllByTestId('liststate-loading')[0];
+    expect(approvals.className).toMatch(/min-h-11/);
+  });
+});

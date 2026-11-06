@@ -172,7 +172,7 @@ export const PMDashboard: React.FC = () => {
         )}
       />
 
-      <ApprovalStrip items={approvalItems} />
+      {needs.isPending ? <div data-testid="approvals-reserve" aria-hidden="true" className="min-h-11" /> : <ApprovalStrip items={approvalItems} />}
 
       <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className={marginKnown || projectsErrorReason ? 'grid-cols-2 min-[1280px]:grid-cols-5' : 'grid-cols-2 min-[1280px]:grid-cols-4'}>
         <KPITile
@@ -246,7 +246,7 @@ export const PMDashboard: React.FC = () => {
           help={t('hub.pm.teamHoursHelp', 'Sum of hours in team timesheets currently waiting for your approval.')}
         />
       </KPIRow>
-      {spendingIncomplete && !projectsErrorReason && !projectsQuery.isPending && projects.length > 0 && (
+      {spendingIncomplete && !projectsErrorReason && !primaryLoading && projects.length > 0 && (
         <p className="-mt-2 text-xs text-muted-foreground">{t('hub.pm.spendingIncompleteNote', 'Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known.')}</p>
       )}
 
