@@ -8,7 +8,13 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 type Entry = { category: BudgetProjectionCellRow['category']; amount: number };
 
-export function useForecastEditor(projectId: string, fiscalYear: string, rows: BudgetProjectionCellRow[]) {
+export function useForecastEditor(
+  projectId: string,
+  fiscalYear: string,
+  rows: BudgetProjectionCellRow[],
+  orgId?: string,
+  budgetVersionId?: string,
+) {
   const { t } = useTranslation('finance');
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -30,7 +36,7 @@ export function useForecastEditor(projectId: string, fiscalYear: string, rows: B
   const updateDraft = (next: Record<string, string>) => { draftRef.current = next; setDraft(next); };
   const closeEdit = () => { restoreFocus.current = true; setEditing(false); };
   const save = useMutation({
-    mutationFn: async ({ entries, year, project }: { entries: Entry[]; year: string; project: string; sessionId: number }) => {
+    mutationFn: async ({ entries, year, project }: { entries: Entry[]; year: string; project: string; sessionId: number; orgId?: string; budgetVersionId?: string }) => {
       const failed: Array<Entry & { reason: string }> = [];
       const saved: Entry[] = [];
       for (const entry of entries) {
@@ -39,8 +45,11 @@ export function useForecastEditor(projectId: string, fiscalYear: string, rows: B
       }
       return { failed, saved };
     },
-    onSuccess: ({ failed, saved }, { project, year, sessionId }) => {
-      void queryClient.invalidateQueries({ queryKey: ['budget-projection', project, year] });
+    onSuccess: ({ failed, saved }, { project, year, sessionId, orgId: savedOrgId, budgetVersionId: savedVersionId }) => {
+      const projectionKey = savedOrgId && savedVersionId
+        ? ['budget-projection', savedOrgId, project, savedVersionId, year]
+        : ['budget-projection', project, year];
+      void queryClient.invalidateQueries({ queryKey: projectionKey });
       if (editorKey.current?.project === project && editorKey.current.year === year) {
         for (const entry of saved) baseline.current[entry.category] = entry.amount;
       }
@@ -76,7 +85,7 @@ export function useForecastEditor(projectId: string, fiscalYear: string, rows: B
     if (!entries.length) { closeEdit(); return; }
     inFlight.current = true;
     setPending(true);
-    save.mutate({ entries, project: projectId, year: fiscalYear, sessionId: session.current });
+    save.mutate({ entries, project: projectId, year: fiscalYear, sessionId: session.current, orgId, budgetVersionId });
   };
   return { editing, draft, errors, sectionRef, triggerRef, beginEdit, cancelEdit, changeDraft, saveEdits, save: { ...save, isPending: pending } };
 }

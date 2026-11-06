@@ -87,6 +87,42 @@ export interface BudgetProjectionCell {
   projectedUtilization: number | null;
 }
 
+export interface BudgetComparisonForecastInput {
+  category: string;
+  /** Approved amount for the comparison scope; null means the amount is unknown. */
+  budgetTotal: number | null;
+  /** Ledger-recorded spending; null means no reliable figure is available. */
+  recorded: number | null;
+  /** Existing yearly PMO estimate to complete, defaulted to zero by the repository. */
+  pmoEtc: number;
+}
+
+export interface BudgetComparisonForecast {
+  category: string;
+  budgetTotal: number | null;
+  recorded: number | null;
+  pmoEtc: number;
+  projectedFinalCost: number | null;
+  projectedRemaining: number | null;
+  projectedUtilization: number | null;
+}
+
+export interface BudgetComparisonSummaryRow {
+  category: string;
+  budgetTotal: number | null;
+  recorded: number | null;
+}
+
+export interface BudgetComparisonSummary {
+  budget: number | null;
+  recorded: number | null;
+  remaining: number | null;
+  /** Recorded / approved as a fraction; null on an unknown input or a zero approved total. */
+  percentUsed: number | null;
+  unknownBudget: string[];
+  unknownRecorded: string[];
+}
+
 /** Exact decimal-string → integer cents. String-parsed (never `Number(v) * 100`). An absent value
  *  (`null`/`''`) is treated as zero — an absent actuals/ETC row is a legitimate "nothing yet", not an
  *  error (FR-BUD-151); an out-of-grammar string fails closed rather than silently becoming `NaN` → `0`. */
@@ -165,6 +201,73 @@ export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCe
   };
 }
 
+/**
+ * Add the existing PMO yearly ETC forecast to the canonical approved/recorded comparison.
+ * All arithmetic stays in integer cents, and a missing comparison input remains unknown.
+ */
+export function deriveBudgetComparisonForecast(
+  input: BudgetComparisonForecastInput,
+): BudgetComparisonForecast {
+  const budgetCents = input.budgetTotal === null ? null : toCents(String(input.budgetTotal));
+  const recordedCents = input.recorded === null ? null : toCents(String(input.recorded));
+  const etcCents = toCents(String(input.pmoEtc));
+  const asNumber = (cents: number): number => Number(fromCents(cents));
+
+  const budgetTotal = budgetCents === null ? null : asNumber(budgetCents);
+  const recorded = recordedCents === null ? null : asNumber(recordedCents);
+  const pmoEtc = asNumber(etcCents);
+  if (recordedCents === null) {
+    return {
+      category: input.category,
+      budgetTotal,
+      recorded: null,
+      pmoEtc,
+      projectedFinalCost: null,
+      projectedRemaining: null,
+      projectedUtilization: null,
+    };
+  }
+
+  const projectedFinalCostCents = recordedCents + etcCents;
+  return {
+    category: input.category,
+    budgetTotal,
+    recorded,
+    pmoEtc,
+    projectedFinalCost: asNumber(projectedFinalCostCents),
+    projectedRemaining: budgetCents === null ? null : asNumber(budgetCents - projectedFinalCostCents),
+    projectedUtilization:
+      budgetCents === null || budgetCents === 0 ? null : projectedFinalCostCents / budgetCents,
+  };
+}
+
+/** Summarize all-years comparison rows without turning a partial set into a project total. */
+export function summarizeBudgetComparison(
+  rows: readonly BudgetComparisonSummaryRow[],
+): BudgetComparisonSummary {
+  const unknownBudget = rows.filter((row) => row.budgetTotal === null).map((row) => row.category);
+  const unknownRecorded = rows.filter((row) => row.recorded === null).map((row) => row.category);
+  const sum = (field: 'budgetTotal' | 'recorded'): number | null => {
+    if (rows.length === 0 || rows.some((row) => row[field] === null)) return null;
+    const cents = rows.reduce((total, row) => total + toCents(String(row[field])), 0);
+    if (!Number.isSafeInteger(cents)) throw new Error('budgetProjection: comparison total exceeds safe cents range');
+    return cents;
+  };
+
+  const budgetCents = sum('budgetTotal');
+  const recordedCents = sum('recorded');
+  const remainingCents = budgetCents === null || recordedCents === null ? null : budgetCents - recordedCents;
+  const asNumber = (cents: number | null): number | null => cents === null ? null : Number(fromCents(cents));
+  return {
+    budget: asNumber(budgetCents),
+    recorded: asNumber(recordedCents),
+    remaining: asNumber(remainingCents),
+    percentUsed: budgetCents === null || recordedCents === null || budgetCents === 0 ? null : recordedCents / budgetCents,
+    unknownBudget,
+    unknownRecorded,
+  };
+}
+
 /** One category as the Forecast panel holds it (numbers off the repository seam). */
 export interface SummaryRow {
   category: string;
@@ -188,16 +291,84 @@ export interface ProjectionSummary {
   unknownRecorded: string[];
 }
 
+export interface BudgetProjectionYearOption {
+  fiscalYear: string;
+  /** The Active version has an approved amount recorded for this client-defined year. */
+  hasActiveBudget: boolean;
+}
+
+export type BudgetProjectionScope = { kind: 'all' } | { kind: 'year'; year: string };
+
+export interface BudgetProjectionScopeSelection {
+  projectId: string;
+  scope: BudgetProjectionScope;
+}
+
+/**
+ * Merge exact client-defined year names from the current project calendar, the saved approved
+ * distribution, and other years already offered for this project. Never infer or sort a year from
+ * its label. Approved rows remain selectable even after project dates change.
+ */
+export function mergeBudgetProjectionYears(
+  calendarYears: readonly string[] | null,
+  approvedDistributionYears: readonly string[],
+  observedYears: readonly BudgetProjectionYearOption[],
+  approvedBudgetYears: readonly string[] = [],
+): BudgetProjectionYearOption[] {
+  const ordered: BudgetProjectionYearOption[] = [];
+  const indexByYear = new Map<string, number>();
+  const add = (fiscalYear: string, hasActiveBudget: boolean) => {
+    if (!fiscalYear) return;
+    const existingIndex = indexByYear.get(fiscalYear);
+    if (existingIndex !== undefined) {
+      if (hasActiveBudget) ordered[existingIndex] = { fiscalYear, hasActiveBudget: true };
+      return;
+    }
+    indexByYear.set(fiscalYear, ordered.length);
+    ordered.push({ fiscalYear, hasActiveBudget });
+  };
+
+  for (const fiscalYear of calendarYears ?? []) add(fiscalYear, false);
+  for (const fiscalYear of approvedDistributionYears) add(fiscalYear, true);
+  for (const year of observedYears) add(year.fiscalYear, year.hasActiveBudget);
+  for (const fiscalYear of approvedBudgetYears) add(fiscalYear, true);
+  return ordered;
+}
+
+/** Multi-year work opens at the whole-project comparison; a single-year project keeps its year view. */
+export function chooseDefaultBudgetProjectionScope(
+  years: readonly BudgetProjectionYearOption[],
+  yearsWithSpending: ReadonlySet<string>,
+): BudgetProjectionScope {
+  if (years.length > 1) return { kind: 'all' };
+  const fiscalYear = chooseDefaultBudgetFiscalYear(years, yearsWithSpending);
+  return fiscalYear ? { kind: 'year', year: fiscalYear } : { kind: 'all' };
+}
+
+/** Preserve explicit scope through a refetch; a project change or a vanished year uses the new default. */
+export function resolveBudgetProjectionScope(
+  projectId: string,
+  selection: BudgetProjectionScopeSelection | null,
+  years: readonly BudgetProjectionYearOption[],
+  yearsWithSpending: ReadonlySet<string>,
+): BudgetProjectionScope {
+  const fallback = chooseDefaultBudgetProjectionScope(years, yearsWithSpending);
+  if (!selection || selection.projectId !== projectId) return fallback;
+  if (selection.scope.kind === 'all') return selection.scope;
+  const selectedYear = selection.scope.year;
+  return years.some((year) => year.fiscalYear === selectedYear) ? selection.scope : fallback;
+}
+
 /**
  * Choose the initial year for the budget projection. The repository returns fiscal years in
  * client-defined newest-first order; labels are opaque and are never parsed to infer dates.
  */
 export function chooseDefaultBudgetFiscalYear(
-  years: readonly { fiscalYear: string; isActivePush: boolean }[],
+  years: readonly { fiscalYear: string; hasActiveBudget: boolean }[],
   yearsWithSpending: ReadonlySet<string>,
 ): string | null {
   return years.find((year) => yearsWithSpending.has(year.fiscalYear))?.fiscalYear
-    ?? years.find((year) => year.isActivePush)?.fiscalYear
+    ?? years.find((year) => year.hasActiveBudget)?.fiscalYear
     ?? years[0]?.fiscalYear
     ?? null;
 }

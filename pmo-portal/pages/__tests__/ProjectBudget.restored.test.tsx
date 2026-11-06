@@ -20,7 +20,7 @@ const state = vi.hoisted(() => ({
   role: 'Project Manager',
   pushRows: [] as unknown[],
   projectionRows: [] as unknown[],
-  fiscalYears: [{ fiscalYear: 'FY-2026', isActivePush: true }] as unknown[],
+  fiscalYears: [{ fiscalYear: 'FY-2026', hasActiveBudget: true }] as unknown[],
   createVersion: vi.fn(),
   saveEtc: vi.fn(),
   retryPush: vi.fn(),
@@ -28,9 +28,9 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useBudget', () => ({
+  useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => state.versions,
-  useBudgetDistribution: () => ({ data: null, isPending: false, isError: false }),
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => ({
     data: { status: 'ready', erpCheck: 'available', fiscalYearNames: ['FY-2026'], issues: [] },
@@ -68,9 +68,27 @@ vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({ BudgetDocumentLink
 vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/repositories/budgetProjection')>()),
   fetchBudgetPushStatus: vi.fn().mockImplementation(() => Promise.resolve(state.pushRows)),
+  fetchProjectFiscalCalendar: vi.fn().mockResolvedValue({
+    status: 'resolved',
+    project: { start: '2026-01-01', end: '2026-12-31' },
+    years: [{ name: 'FY-2026', start: '2026-01-01', end: '2026-12-31' }],
+  }),
   retryActiveBudgetPush: state.retryPush,
   releaseActiveBudgetPushHold: state.releaseHold,
   fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
+  fetchBudgetComparison: vi.fn().mockImplementation((_projectId: string, _fiscalYear: string | null) => Promise.resolve(state.projectionRows.map((entry) => {
+    const row = entry as { category: string; pmoBudgetAmount: number | null; actualsToDate: number | null; actualsAsOf: string | null };
+    return {
+      category: row.category,
+      budgetTotal: row.pmoBudgetAmount,
+      recorded: row.actualsToDate,
+      recordedAsOf: row.actualsAsOf,
+      mapped: row.actualsToDate !== null,
+      hasLedger: row.actualsAsOf !== null,
+      remaining: null,
+      percentUsed: null,
+    };
+  }))),
   fetchActiveBudgetCategoryPhasing: vi.fn().mockImplementation(() => Promise.resolve({ years: { Labor: ['FY-2026'] }, unphased: {} })),
   listBudgetFiscalYears: vi.fn().mockImplementation(() => Promise.resolve(state.fiscalYears)),
   // PR-2 (ab08f2257 "Bound budget forecast default year selection") moved the first-spending-year
@@ -83,13 +101,13 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => ({
 import ProjectBudget from '../ProjectBudget';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null } as unknown as ProjectWithRefs;
+const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null, start_date: '2026-01-01', end_date: '2026-12-31' } as unknown as ProjectWithRefs;
 
 const line = (id: string, versionId: string, category: string, amount: number, fiscal_year: string | null = 'FY-2026') => ({
   id, budget_version_id: versionId, category, description: `${category} work`, budgeted_amount: amount, actual_amount: 0, fiscal_year, org_id: 'org-1',
 });
 const version = (id: string, status: 'Active' | 'Draft' | 'Archived', n: number, lines: ReturnType<typeof line>[]) => ({
-  id, status, name: `${status} plan`, version: n, project_id: 'p-1', org_id: 'org-1', currency: 'USD',
+  id, status, name: `${status} plan`, version: n, budget_mode: 'per_year', project_id: 'p-1', org_id: 'org-1', currency: 'USD',
   created_at: '2026-01-01T00:00:00Z', activated_at: status === 'Active' ? '2026-01-02T00:00:00Z' : null,
   created_by: 'u2', editor_ids: [], activation_basis: null, line_items: lines,
   total: lines.reduce((sum, item) => sum + item.budgeted_amount, 0),
@@ -121,7 +139,7 @@ beforeEach(() => {
   state.role = 'Project Manager';
   state.pushRows = [];
   state.projectionRows = [PROJECTION_ROW];
-  state.fiscalYears = [{ fiscalYear: 'FY-2026', isActivePush: true }];
+  state.fiscalYears = [{ fiscalYear: 'FY-2026', hasActiveBudget: true }];
   state.createVersion.mockResolvedValue({ id: 'v-new' });
   state.saveEtc.mockResolvedValue(undefined);
   state.retryPush.mockResolvedValue({ pushState: 'pushed' });
@@ -135,6 +153,49 @@ describe('the ERP Forecast is offered only where it can mean something (LOW-2, S
     expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
     const ledger = screen.getByRole('region', { name: 'Budget versions' });
     expect(forecast.compareDocumentPosition(ledger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('offers an unpushed year when the Active per-year version has an approved line there', async () => {
+    state.fiscalYears = [{ fiscalYear: 'FY-2026', hasActiveBudget: false }];
+    state.versions.data = [version('v-active', 'Active', 1, [line('a-future', 'v-active', 'Materials', 250, 'FY-2028')])];
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+
+    expect(await screen.findByRole('option', { name: 'FY-2028 · approved / historical' })).toBeInTheDocument();
+  });
+
+  it('exports the active budget comparison using its all-years scope and truthful column set', async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => 'blob:budget-comparison');
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    try {
+      state.fiscalYears = [
+        { fiscalYear: 'FY-2026', hasActiveBudget: true },
+        { fiscalYear: 'FY-2027', hasActiveBudget: false },
+      ];
+
+      renderPage(['/projects/p-1/budget?budgetView=forecast']);
+      await screen.findByTestId('budget-forecast-view');
+      await userEvent.selectOptions(
+        screen.getByRole('combobox', { name: 'Fiscal year' }),
+        screen.getByRole('option', { name: 'All years (project to date)' }),
+      );
+      await userEvent.click(await screen.findByRole('button', { name: 'Export' }));
+
+      expect(click).toHaveBeenCalledOnce();
+      const anchor = click.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor.download).toBe('ProjectBudgetComparison.csv');
+      expect(anchor.href).toBe('blob:budget-comparison');
+      expect(createObjectURL).toHaveBeenCalledOnce();
+      const csv = await (createObjectURL.mock.calls[0][0] as Blob).text();
+      expect(csv).toContain('"Scope","Fiscal year","Category","Approved total (USD)","Budget source","Recorded to date (USD)","Recorded source","Recorded as of","Remaining (USD)","% recorded"');
+      expect(csv).toContain('"All years (project to date)","","Labor","100","Active budget version","35","ERP ledger","2026-02-01T00:00:00Z","",""');
+      expect(csv).not.toMatch(/Cost to finish|Forecast final|Forecast remaining/);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:budget-comparison');
+    } finally {
+      vi.unstubAllGlobals();
+      click.mockRestore();
+    }
   });
 
   it.each([
@@ -173,9 +234,15 @@ describe('the ERP Forecast is offered only where it can mean something (LOW-2, S
     state.role = 'Finance';
     state.fiscalYears = [];
     state.projectionRows = [];
+    state.versions.data = [version('v-active', 'Active', 1, [])];
     state.pushRows = [{ ...PUSH, pushState: 'never-pushed', fiscalYear: null, erpBudgetName: null }];
     renderPage(['/projects/p-1/budget?budgetView=forecast']);
-    expect(await screen.findByText('Choose a fiscal year to view the ERP forecast')).toBeInTheDocument();
+    await screen.findByTestId('budget-forecast-view');
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Fiscal year' }),
+      screen.getByRole('option', { name: 'All years (project to date)' }),
+    );
+    expect(await screen.findByText('No approved budget or recorded spending is available yet')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Sources and budget enforcement'));
     expect(await screen.findByTestId('budget-erp-notice')).toHaveTextContent('No ERP budget yet');
   });

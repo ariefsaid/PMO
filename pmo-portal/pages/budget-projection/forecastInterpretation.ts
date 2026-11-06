@@ -21,7 +21,7 @@ export function interpretForecast(rows: BudgetProjectionCellRow[], year: string,
     rows: rows.map((row) => {
       const budgetReason = reasonFor(row, year, phasing);
       const budgetStatus = row.pmoBudgetAmount !== null ? 'present' :
-        budgetReason && ['other-year', 'no-budget-year', 'no-budget-line'].includes(budgetReason.kind) ? 'known-absent' : 'unknown';
+        budgetReason?.kind === 'no-budget-line' ? 'known-absent' : 'unknown';
       const reason: Reason | null = row.actualsToDate === null
         ? { kind: row.actualsAsOf === null ? 'no-ledger' : 'no-account' }
         : budgetReason;

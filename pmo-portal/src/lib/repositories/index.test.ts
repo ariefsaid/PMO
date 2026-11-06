@@ -981,6 +981,11 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.budget.listVersions('p1');
     expect(budgetsDal.listBudgetVersions).toHaveBeenCalledWith('p1');
 
+    const savedDistribution = { basis: 'contract_span', years: ['FY-A'], amounts: { Labor: { 'FY-A': 100 } } } as never;
+    vi.mocked(budgetsDal.getBudgetDistribution).mockResolvedValue(savedDistribution);
+    await expect(repositories.budget.getDistribution('v1')).resolves.toBe(savedDistribution);
+    expect(budgetsDal.getBudgetDistribution).toHaveBeenCalledWith('v1');
+
     const item = { category: 'Labour', description: null, budgeted_amount: 5 } as never;
     const importRequest = { versionId: 'v1', item, batchId: 'b1', importedAt: 'now', v2Key: 'v2', legacyKey: 'old', hasReference: true };
     vi.mocked(budgetsDal.importBudgetLine).mockResolvedValue({ outcome: 'created', line_id: 'line' });

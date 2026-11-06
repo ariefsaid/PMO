@@ -18,6 +18,7 @@ import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
 import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
 import { fetchAllPages } from '../../../pmo-portal/src/lib/pagedRead.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { isValidProjectDateBasis, readProjectFiscalCalendar } from './projectFiscalCalendar.ts';
 
 let jwks: JwksResolver | null = null;
 export function setTestJwks(resolver: JwksResolver): void {
@@ -34,6 +35,10 @@ function json(body: unknown, status = 200): Response {
       'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     },
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 export async function handleItemsRequest(req: Request): Promise<Response> {
@@ -69,15 +74,55 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
     .eq('id', userId)
     .maybeSingle();
   if (profileError || !profile?.org_id) return json({ error: 'FORBIDDEN' }, 403);
-  const service = createClient(url, key, clientOptions);
-  let purpose: unknown;
+  let body: unknown;
   try {
-    purpose = (await req.json()).purpose;
+    body = await req.json();
   } catch {
     return json({ error: 'BAD_REQUEST' }, 400);
   }
-  if (purpose !== 'sales' && purpose !== 'purchase' && purpose !== 'purchase-tax-templates' && purpose !== 'budget-accounts')
+  if (!isRecord(body)) return json({ error: 'BAD_REQUEST' }, 400);
+  const purpose = body.purpose;
+  if (purpose !== 'sales' && purpose !== 'purchase' && purpose !== 'purchase-tax-templates' && purpose !== 'budget-accounts' && purpose !== 'budget-project-calendar')
     return json({ error: 'BAD_REQUEST' }, 400);
+
+  if (purpose === 'budget-project-calendar') {
+    if (Object.keys(body).length !== 2 || typeof body.projectId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.projectId)) {
+      return json({ error: 'BAD_REQUEST' }, 400);
+    }
+    const { data: project, error: projectError } = await caller
+      .from('projects')
+      .select('id,org_id,start_date,end_date')
+      .eq('id', body.projectId)
+      .maybeSingle();
+    if (projectError) return json({ error: 'PROJECT_LOOKUP_FAILED' }, 500);
+    if (!project || project.org_id !== profile.org_id) return json({ error: 'FORBIDDEN' }, 404);
+    // Budgets are readable by any active member of the org; a deactivated member gets nothing.
+    const actor = createClient(url, key, clientOptions);
+    const { data: actorState, error: actorError } = await actor.rpc('actor_authorization_state', {
+      p_org_id: profile.org_id,
+      p_user_id: userId,
+    });
+    if (actorError || !(actorState as { active: boolean } | null)?.active) return json({ error: 'FORBIDDEN' }, 403);
+    const projectDates = { start: project.start_date ?? null, end: project.end_date ?? null };
+    if (!isValidProjectDateBasis(projectDates.start, projectDates.end)) {
+      return json({ status: 'bad-project-dates', project: projectDates });
+    }
+
+    // The caller-JWT project read above is the authority for the service binding and all ERP access.
+    const service = createClient(url, key, clientOptions);
+    const connection = await erpClientForOrg(service, profile.org_id, { requireCompany: true });
+    if ('refusal' in connection || (connection.client.versionMajor !== 15 && connection.client.versionMajor !== 16)) {
+      return json({ status: 'binding-unavailable', project: projectDates });
+    }
+    const company = connection.config?.company;
+    if (typeof company !== 'string' || company.trim() === '') {
+      return json({ status: 'binding-unavailable', project: projectDates });
+    }
+    return json(await readProjectFiscalCalendar(connection.client, company, projectDates.start, projectDates.end));
+  }
+
+  const service = createClient(url, key, clientOptions);
 
   if (purpose === 'budget-accounts') {
     // The lookup runs with the service client, keyed to the verified caller: an OAuth API client (the CLI) is not allowed
