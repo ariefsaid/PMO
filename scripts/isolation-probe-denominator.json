@@ -486,6 +486,7 @@
     "record_imprest_count(uuid,numeric,text)",
     "record_native_receipt(uuid,numeric,numeric,numeric,text,date)",
     "record_outbox_ref(uuid,integer,text,text,text,text)",
+    "record_sales_invoice_receipt_read_back(uuid,uuid,text[],text,numeric,text,timestamp with time zone)",
     "record_timesheet_command_held(uuid,uuid,timestamp with time zone,text,uuid,integer)",
     "record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])",
     "recover_external_connect_trap(uuid,text,boolean,boolean,uuid)",
