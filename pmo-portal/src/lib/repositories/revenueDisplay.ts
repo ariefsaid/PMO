@@ -8,6 +8,40 @@
 const DEFAULT_PAYMENT_TERMS_DAYS = 30;
 
 /**
+ * The row fields the overdue rule reads. Every client-invoice row shape in the app
+ * (SalesInvoiceRow, the dashboard's narrow OverdueInvoiceFact, the project-page
+ * invoice rows) satisfies it structurally, so callers pass their rows as-is.
+ */
+export interface ClientInvoiceOverdueInput {
+  status: string;
+  invoice_date: string | null | undefined;
+  erp_payment_terms_days: number | null | undefined;
+  erp_due_date: string | null | undefined;
+  received_date: string | null | undefined;
+}
+
+/**
+ * #1457 — THE one rule for "overdue client invoice" (#1457, extracted from seven
+ * inline copies). An open client invoice is overdue when it is Submitted or Unpaid
+ * and its derived due date (#767/FR-SAR-141, see deriveArDueDate) is strictly
+ * before the organization's current day. Due today is not overdue; neither is an
+ * undecidable due date. The org day (never a device-local day) decides the
+ * boundary, so every screen agrees; how much is outstanding stays each surface's
+ * own concern.
+ *
+ * Returns the whole days overdue, or null when the invoice is not overdue.
+ */
+export function clientInvoiceOverdueDays(
+  invoice: ClientInvoiceOverdueInput,
+  organizationToday: string | null | undefined,
+): number | null {
+  if (invoice.status !== 'Submitted' && invoice.status !== 'Unpaid') return null;
+  const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
+  const age = overdueAgeDays(dueDate, organizationToday);
+  return age !== null && age > 0 ? age : null;
+}
+
+/**
  * Whole calendar-day distance from the due date to the organization's current day.
  * No date-fns: an edge function (agent-chat) imports this file and Deno has no npm map for it.
  */

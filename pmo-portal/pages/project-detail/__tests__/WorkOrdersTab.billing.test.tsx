@@ -23,6 +23,10 @@ const h = vi.hoisted(() => ({
   synced: true,
   role: 'Finance' as string,
 }));
+// #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectWorkOrders: () => h.list,
   useProjectDrawdown: () => ({ data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() }),

@@ -41,7 +41,7 @@ import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { useAuth } from '@/src/auth/useAuth';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
@@ -221,8 +221,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       && inv.erp_outstanding_amount > 0
       && inv.erp_outstanding_amount < gross
     );
-    const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-    const lateDays = overdueAgeDays(due, organizationToday) ?? 0;
+    const lateDays = clientInvoiceOverdueDays(inv, organizationToday) ?? 0;
     if (inv.status === 'Draft') return result({
       label: canApproveDraft(inv)
         ? t('finance:receivables.statusDraftApproval', 'Draft · to approve')
@@ -449,9 +448,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         return true;
       })
       .filter((inv) => searchParams.get('overdue') !== 'true' || !organizationToday || (
-        (inv.status === 'Submitted' || inv.status === 'Unpaid')
-        && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday) !== null
-        && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday)! > 0
+        // #1457: the one shared overdue rule decides the "Overdue only" filter.
+        clientInvoiceOverdueDays(inv, organizationToday) !== null
       ))
       .filter((inv) => !q
         || invoiceNumber(inv)?.toLowerCase().includes(q)
@@ -470,10 +468,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       .map((invoice, index) => ({
         invoice,
         index,
-        age: overdueAgeDays(
-          deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
-          organizationToday,
-        ) ?? 0,
+        // #1457: the one shared overdue rule also provides the oldest-first sort age.
+        age: clientInvoiceOverdueDays(invoice, organizationToday) ?? 0,
       }))
       .sort((a, b) => b.age - a.age || a.index - b.index)
       .map(({ invoice }) => invoice);

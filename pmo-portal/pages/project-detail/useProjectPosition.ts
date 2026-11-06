@@ -14,7 +14,7 @@ import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 
 export interface CategoryPosition { category: string; budget: number; actual: number | null }
 
@@ -74,9 +74,10 @@ export function useOverdueReceivables(project: ProjectWithRefs, enabled = true) 
   const isError = canSeeInvoices && (invoices.isError || orgTodayQuery.isError);
   const data = useMemo(() => {
     if (!canSeeInvoices || isPending || isError) return null;
-    const overdue = (invoices.data ?? []).filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
-      .map((inv) => ({ inv, age: overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), orgToday) }))
-      .filter((x): x is { inv: typeof x.inv; age: number } => x.age !== null && x.age > 0);
+    // #1457: the one shared overdue rule decides and supplies each age.
+    const overdue = (invoices.data ?? [])
+      .map((inv) => ({ inv, age: clientInvoiceOverdueDays(inv, orgToday) }))
+      .filter((x): x is { inv: typeof x.inv; age: number } => x.age !== null);
     if (!overdue.length) return null;
     const balanceKnown = overdue.every((x) => x.inv.erp_outstanding_amount !== null);
     return {

@@ -1,6 +1,6 @@
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays, deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
 
@@ -121,7 +121,9 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
       buckets[bucket] += cents(outstanding);
     }
 
-    if (age == null || age <= 0) continue;
+    // #1457: the overdue decision is the one shared rule (status + derived due date + org day).
+    const overdueDays = clientInvoiceOverdueDays(invoice, today);
+    if (overdueDays === null) continue;
     if (outstanding == null || !Number.isFinite(outstanding)) {
       overdueUnknownCount += 1;
     } else {
@@ -129,7 +131,8 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     }
     overdue.push({
       invoice,
-      daysOverdue: age,
+      // The rule passed, so `age` here is the same positive day count the rule computed.
+      daysOverdue: age ?? 0,
       outstanding: outstanding == null || !Number.isFinite(outstanding) ? null : cents(outstanding),
     });
   }
