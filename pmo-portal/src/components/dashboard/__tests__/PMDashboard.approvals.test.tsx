@@ -71,7 +71,7 @@ vi.mock('@/src/lib/repositories', async () => {
       financeBudgetReview: () => dash.getFinanceBudgetReview(),
       pmProjects: () => dash.getPMDashboardProjects(),
     },
-    revenue: { listInvoices: () => Promise.resolve([]) },
+    revenue: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
     expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
     task: { list: () => Promise.resolve([]), listDueRows: () => Promise.resolve([]) },
   },

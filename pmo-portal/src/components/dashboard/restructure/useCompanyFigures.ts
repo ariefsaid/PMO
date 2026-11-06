@@ -7,14 +7,14 @@ import { periodDateRange } from './usePeriod';
 import { useDashboard, useSalesPipeline, useWinRate } from '@/src/hooks/useDashboard';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { selectInvoicedTrend, trendWindow, type InvoicedTrend } from '@/src/lib/dashboardTrend';
-import { useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
+import { useOverdueInvoiceFacts, usePaidPaymentFacts } from '@/src/hooks/useRevenue';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { useOrgCurrency, useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { formatDashboardPercent, moneyFigure } from '@/src/lib/dashboardMoney';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
-import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
+import type { PaidPaymentFact } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
 import { withLinkedDocuments } from '@/pages/procurement/blocks/procurementMoney';
@@ -65,7 +65,7 @@ export interface CollectedTotals {
   unknownCurrencies: string[];
 }
 
-export function selectCollectedTotals(payments: IncomingPaymentRow[] | undefined, from: string | null, to: string | null): CollectedTotals | undefined {
+export function selectCollectedTotals(payments: PaidPaymentFact[] | undefined, from: string | null, to: string | null): CollectedTotals | undefined {
   if (!payments || !from || !to) return undefined;
   const fromDate = `${from}-01`;
   const [year, month] = to.split('-').map(Number);
@@ -147,8 +147,8 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const orgCurrency = useOrgCurrency();
   const currencyState = useOrgCurrencyState();
   const orgDay = useFxOrgDay(true);
-  const invoices = useSalesInvoices();
-  const payments = useIncomingPayments();
+  const invoices = useOverdueInvoiceFacts();
+  const payments = usePaidPaymentFacts();
   // Shared-details select: the supplier invoice and payment rows behind the unpaid balance.
   const procurements = useProcurements({ lean: true });
   const workOrders = useUnbilledWorkOrders();

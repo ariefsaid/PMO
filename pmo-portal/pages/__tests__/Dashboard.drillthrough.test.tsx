@@ -57,7 +57,9 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useOverdueInvoiceFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
