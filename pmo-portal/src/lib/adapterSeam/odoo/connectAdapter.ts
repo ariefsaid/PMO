@@ -13,6 +13,15 @@ import {
 export const ODOO_TIER = 'odoo';
 export const LIST_PAGE = 200;
 
+/**
+ * The partners of the database's companies — PMO's own organisation — decided by the partner id, never the name
+ * (FR-ODC-052, #1690): a real vendor may share the company's name. Both the setup pass and the partner feed read it.
+ */
+export const odooOwnPartnerIds = async (call: OdooCall): Promise<Set<number>> => {
+  const companies = await call<Array<{ partner_id: [number, string] | false }>>('res.company', 'search_read', { domain: [], fields: ['partner_id'] });
+  return new Set(companies.flatMap((c) => (c.partner_id ? [c.partner_id[0]] : [])));
+};
+
 export interface OdooConnectCtx {
   companyId: number;
   /** The analytic plan whose accounts are PMO projects; null until the Admin chooses one. */
@@ -57,10 +66,7 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
     return hits[0]?.id ?? null;
   };
   const create = async (model: string, vals: Raw) => (await call<number[]>(model, 'create', { vals_list: [vals] }))[0];
-  const ownPartnerIds = async () => {
-    const companies = await call<Array<{ partner_id: [number, string] | false }>>('res.company', 'search_read', { domain: [], fields: ['partner_id'] });
-    return new Set(companies.flatMap((c) => (c.partner_id ? [c.partner_id[0]] : [])));
-  };
+  const ownPartnerIds = () => odooOwnPartnerIds(call);
   const norm = async (kind: MasterKind, rows: Raw[]): Promise<NormalisedMaster[]> => {
     if (kind === 'party') { const own = await ownPartnerIds(); return rows.flatMap((r) => normaliseParty(r, own)); }
     return rows.map(kind === 'project' ? normaliseProject : kind === 'item' ? normaliseItem : normaliseAccount);

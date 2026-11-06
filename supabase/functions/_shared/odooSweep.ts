@@ -31,7 +31,7 @@ const DAY_MS = 86_400_000;
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
 type Budget = { spend: (calls?: number) => boolean; left: () => boolean; canSpend?: (calls?: number) => boolean; refund?: (calls?: number) => void };
 /** Extension seams: S6 matches new partners after `partner` pages; S7/S8 add the link reconcile and accepted sends. */
-export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt: number) => Promise<void>>> = {
+export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt: number, call: OdooCall) => Promise<void>>> = {
   partner: matchNewPartners,
 };
 /** S6: one bounded step of the org's open setup run (census staging, proposals), the same loop ERPNext's sweep runs. It has its
@@ -228,7 +228,7 @@ export async function sweepOdooOrg(
         const deps = kindDeps(sc, orgId, kind, call, r.companyId!, kindBudget);
         const run = await runKind(KIND_SPECS[kind], await readCursor(sc, orgId, kind), deps);
         skippedRows += run.skipped;
-        await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget);
+        await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget, call);
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
       }
       for (const [i, domain] of purchase.entries()) {
