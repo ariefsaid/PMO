@@ -2,7 +2,7 @@
 -- AC-ECA-010 (DB half: one external reference per sent company, nothing written to accounts or taxes) and AC-ECA-012 (DB half:
 -- a rejected send becomes a review row with a plain reason and leaves the others alone), NFR-ECA-004 (a held send says so).
 begin;
-select plan(84);
+select plan(90);
 
 insert into organizations (id, name) values
  ('a4520000-0000-0000-0000-000000000001','Sends A'),
@@ -390,6 +390,45 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"a4520000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$select public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext')$$, '42501', null, 'an Admin on a user JWT cannot queue sends');
 reset role;
+
+-- 12. T12 follow-up (#1736): queueing and draining read ONE definition of an "open" purchase. The set lives in
+-- `connect_open_purchase_statuses()`, which the queue calls and the drain reads over RPC, so an item in a status the drain skips is never
+-- queued. The definition is approval and later: the send creates a permanent ERP Item, and a Draft line can still be renamed and a
+-- Rejected one is never ordered.
+select is(public.connect_open_purchase_statuses(),
+  array['Approved','Vendor Quoted','Quote Selected','Ordered','Received','Vendor Invoiced']::text[],
+  'FR-ECA-016 one definition of an open purchase: approval and later, never Draft, Requested, Rejected, Paid or Cancelled');
+insert into organizations (id, name) values ('a4520000-0000-0000-0000-000000000007','Sends G');
+insert into external_org_bindings (id, org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
+ ('a4520000-0000-0000-0000-0000000000c7','a4520000-0000-0000-0000-000000000007','erpnext','https://erp-g.example.test','a452_g','active','{"company":"Example G"}', now());
+insert into erp_connect_census (org_id, binding_id, external_tier, kind, pmo_count, erp_count, scenario) values
+ ('a4520000-0000-0000-0000-000000000007','a4520000-0000-0000-0000-0000000000c7','erpnext','item',0,0,'S-C');
+insert into procurements (id, org_id, title, status)
+  select ('a4520000-0000-0000-0000-00000000' || lpad(g::text, 4, '0'))::uuid, 'a4520000-0000-0000-0000-000000000007', 'Case ' || s.status::text, s.status
+    from unnest(enum_range(null::procurement_status)) with ordinality as s(status, g);
+insert into procurement_items (org_id, procurement_id, name, quantity, rate)
+  select 'a4520000-0000-0000-0000-000000000007', c.id, 'status ' || c.status::text, 1, 1
+    from procurements c where c.org_id = 'a4520000-0000-0000-0000-000000000007';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000007','erpnext'),
+  (select count(*)::int from procurements c where c.org_id = 'a4520000-0000-0000-0000-000000000007'
+      and c.status::text = any(public.connect_open_purchase_statuses())),
+  'FR-ECA-016 the queue sends exactly the statuses the drain calls open, one proposal each');
+reset role;
+select is((select array_agg(p.pmo_ids[1] order by p.pmo_ids[1]) from erp_connect_proposals p
+            where p.org_id = 'a4520000-0000-0000-0000-000000000007' and p.state = 'sending'),
+  (select array_agg('status ' || s.status::text order by 'status ' || s.status::text)
+     from unnest(enum_range(null::procurement_status)) s(status) where s.status::text = any(public.connect_open_purchase_statuses())),
+  'FR-ECA-016 queue and drain agree on one set: every open status is queued and no other status is');
+select is((select count(*)::int from erp_connect_proposals p join procurements c on 'status ' || c.status::text = p.pmo_ids[1]
+            where p.org_id = 'a4520000-0000-0000-0000-000000000007' and c.status::text <> all(public.connect_open_purchase_statuses())), 0,
+  'FR-ECA-016 an item in a status the drain skips is never queued');
+select is(has_function_privilege('service_role', 'public.connect_open_purchase_statuses()', 'execute'), true,
+  'connect_open_purchase_statuses is service-role callable');
+select is((has_function_privilege('authenticated', 'public.connect_open_purchase_statuses()', 'execute')
+        or has_function_privilege('anon', 'public.connect_open_purchase_statuses()', 'execute')), false,
+  'connect_open_purchase_statuses is not callable by a client role');
 
 select * from finish();
 rollback;

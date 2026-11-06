@@ -13,7 +13,7 @@ import { createErpnextConnectAdapter, erpnextSendProbe } from '../../../pmo-port
 import { createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
 import { erpReason } from '../_shared/erpReason.ts';
-import { OPEN_PROCUREMENT } from '../_shared/connectPmoMasters.ts';
+import { openPurchaseStatuses } from '../_shared/connectPmoMasters.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 
 const TIER = 'erpnext';
@@ -43,7 +43,7 @@ async function check<T>(q: PromiseLike<{ data: T; error: { code?: string } | nul
 }
 
 /** The master as PMO holds it now, scoped to the org; null when it is gone, archived, or (an item) no longer on an open purchase. */
-async function pmoMasterOf(sc: SupabaseClient, orgId: string, kind: SendKind, pmoId: string): Promise<PmoMaster | null> {
+async function pmoMasterOf(sc: SupabaseClient, orgId: string, kind: SendKind, pmoId: string, openStatuses: () => Promise<string[]>): Promise<PmoMaster | null> {
   if (kind === 'party') {
     const r = await check(sc.from('companies').select('id, name, type, erp_tax_id').eq('org_id', orgId).eq('id', pmoId)
       .in('type', ['Client', 'Vendor']).is('archived_at', null).maybeSingle(), 'company read') as { id: string; name: string; type: string; erp_tax_id: string | null } | null;
@@ -54,8 +54,9 @@ async function pmoMasterOf(sc: SupabaseClient, orgId: string, kind: SendKind, pm
     return r ? { id: r.id, name: r.name, code: r.code } : null;
   }
   if (kind === 'item') {
+    // #1736: the same definition the queue calls (connect_open_purchase_statuses, 0703) — never a second list here
     const rows = await check(sc.from('procurement_items').select('id, procurements!inner(status)').eq('org_id', orgId).eq('name', pmoId)
-      .not('procurements.status', 'in', OPEN_PROCUREMENT).limit(1), 'item read') as unknown[];
+      .in('procurements.status', await openStatuses()).limit(1), 'item read') as unknown[];
     return rows.length > 0 ? { id: pmoId, name: pmoId, code: pmoId } : null;
   }
   return null;
@@ -86,6 +87,10 @@ export async function drainConnectSends(sc: SupabaseClient, org: { orgId: string
   const company = String(conn.config?.company);
   const adapter = createErpnextConnectAdapter(conn.client, company);
   const deadline = clock.nowMs() + clock.budgetMs;
+  // #1736: the open-purchase definition is read once per tick and shared by every item in it; a failed read surfaces as that send's own
+  // failure, never as a tick that cannot start.
+  let openStatuses: Promise<string[]> | null = null;
+  const statuses = () => (openStatuses ??= openPurchaseStatuses(sc));
 
   const record = async (c: Claimed, externalId: string | null, text: string | null) => {
     await check(sc.rpc('record_connect_send_result', { p_org_id: org.orgId, p_id: c.id, p_external_id: externalId, p_rejection: text }), 'send result');
@@ -102,7 +107,7 @@ export async function drainConnectSends(sc: SupabaseClient, org: { orgId: string
       // C1: a record that already has its link is never sent again (a second send makes a second ERP record); the result writer treats the same id as reconciled
       const linked = await check(sc.rpc('connect_send_existing_link', { p_org_id: org.orgId, p_tier: TIER, p_kind: kind, p_pmo: c.pmo_ids[0] }), 'link read') as string | null;
       if (linked) { await record(c, linked, null); continue; }
-      const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0]);
+      const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0], statuses);
       if (!master) { await reject(c, CONNECT_SEND_REJECTION_TEXT.gone); continue; }
       // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
       const queuedBySweep = c.kind === 'item' && c.decided_by === null && c.snapshot?.auto === true;
