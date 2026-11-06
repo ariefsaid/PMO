@@ -322,7 +322,8 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     organizationDayPending: orgDay.isPending,
     isEmpty,
     invoicedTrend,
-    trendPending: Boolean(trendRange.to) && trendPack.isPending,
+    // Pending from the first paint: until the org day resolves there is no window to fetch, and a card that appears later shoves the page down.
+    trendPending: trendRange.to ? trendPack.isPending : Boolean(orgDay.isPending),
     trendError: trendPack.isError,
     trendRetry: () => { void trendPack.refetch(); },
   };

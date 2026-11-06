@@ -127,4 +127,9 @@ describe('PMDashboard approvals queue (ported N15)', () => {
     expect(screen.queryByRole('link', { name: /^\d+ approvals? waiting for you$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^\d+ team timesheets? to approve$/i })).not.toBeInTheDocument();
   });
+
+  it('CLS: holds the approvals line open while the queue loads, so the cards below do not jump', () => {
+    renderDashboard();
+    expect(screen.getByTestId('approvals-reserve').className).toMatch(/min-h-11/);
+  });
 });
