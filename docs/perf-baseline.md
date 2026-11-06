@@ -14,9 +14,26 @@ Baseline commit: `abfd61d0f` (origin/dev). Counts include React StrictMode doubl
 | `/finance/receivables` | Executive | 19 | 66,882 |
 | `/finance/payables` | Executive | 17 | 43,579 |
 
-Lighthouse (4x CPU throttle): **not recorded.** The CLI could not drive the logged-in tab through the
-remote-debugging port (navigation target closed / hang, three attempts, dev and production build). Needs
-its own slice: a Lighthouse user-flow script that signs in itself.
+## Lighthouse (4x CPU, desktop, production build)
+
+Measured 2026-11-06 with `scripts/perf/lighthouse-flow.mjs`: Lighthouse user flow, signs in through the real
+login form, one navigation step per page, desktop preset, 4x CPU slowdown, `vite build` + `vite preview`
+on the local stack with the seed data. Median-score run of 3 (scores swing 5-10 points run to run on a shared Mac).
+Baseline commit: origin/dev at `bbdfadb7d`.
+
+| Page | Role | LCP | TBT | CLS | Perf score | Largest JS chunk loaded (gzip) |
+|---|---|---|---|---|---|---|
+| `/` dashboard | Executive | 2.0 s | 1,330 ms | 0.267 | 47 | `repositories` 105.2 kB |
+| `/` dashboard | Project Manager | 1.9 s | 1,210 ms | 0.102 | 58 | `repositories` 105.2 kB |
+| `/projects/:id` | Executive | 2.1 s | 1,920 ms | 0.009 | 52 | `repositories` 105.2 kB |
+| `/procurement` | Executive | 1.7 s | 1,880 ms | 0.058 | 56 | `repositories` 105.2 kB |
+| `/finance/receivables` | Executive | 1.8 s | 1,710 ms | 0.005 | 58 | `repositories` 105.2 kB |
+
+Chunk size is the gzip of the built file (the preview server does not compress; Cloudflare Pages does).
+
+**How to re-run:** `cd pmo-portal && npx vite build --mode lh && npx vite preview --port 4199`, then from the
+repo root `scripts/with-db-lock.sh node scripts/perf/lighthouse-flow.mjs [baseUrl]` (`LH_RUNS=n` sets the run count; default 3).
+`--mode lh` keeps the build pointed at the local stack instead of `.env.production`.
 
 ## Audit result
 
