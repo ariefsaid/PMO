@@ -159,6 +159,12 @@ export interface RailProps {
    * Defaults to false when not provided.
    */
   assistantPanelOpen?: boolean;
+  /**
+   * #1834: fired with a rail link's `href` on hover, focus and pointerdown, so
+   * the destination's code starts downloading before the click. The app wires
+   * this to `preloadForPath`; absent, the rail never preloads (tests, storybook).
+   */
+  onPreloadHref?: (href: string) => void;
 }
 
 export const Rail: React.FC<RailProps> = (props) => {
@@ -173,7 +179,7 @@ const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
   return <RailContent {...props} hasEligibleTimesheets={Boolean(pending.data?.length || corrections.data?.length || pending.isPending || corrections.isPending || pending.isError || corrections.isError)} />;
 };
 
-const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false }) => {
+const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {
   const { t } = useTranslation();
   const location = useLocation();
   const { effectiveRole, realRole } = useEffectiveRole();
@@ -378,6 +384,15 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     );
   };
 
+  // #1834: hovering, focusing or pressing a rail link starts the destination's
+  // route chunk downloading BEFORE the click, so navigation pays only for the
+  // data. Container-level (focus via capture) covers every link variant —
+  // NavLink, Link, views, administration — without touching each one.
+  const preloadFromEvent = (event: React.PointerEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
+    const href = (event.target as HTMLElement).closest('a')?.getAttribute('href');
+    if (href) onPreloadHref?.(href);
+  };
+
   return (
     <aside
       className="flex min-h-0 flex-col border-r border-border bg-[hsl(var(--surface-panel))]"
@@ -399,6 +414,9 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
       <nav
         aria-label={t('shell.rail.primaryNavigation', 'Primary navigation')}
         className="flex min-h-0 flex-1 flex-col"
+        onPointerOver={preloadFromEvent}
+        onPointerDown={preloadFromEvent}
+        onFocusCapture={preloadFromEvent}
       >
         {items.some((item) => item.to === '/approvals') && (
           <div data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">

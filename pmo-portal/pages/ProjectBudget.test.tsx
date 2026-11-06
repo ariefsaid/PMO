@@ -106,7 +106,13 @@ vi.mock('./project-detail/useProjectPosition', () => ({ useBudgetPosition: () =>
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isPending: false }) }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
+  fetchActiveBudgetCategoryPhasing: vi.fn().mockResolvedValue({ years: {}, unphased: {} }),
+  fetchBudgetComparison: vi.fn().mockResolvedValue([]),
+  fetchBudgetProjection: vi.fn().mockResolvedValue([]),
   fetchBudgetPushStatus: () => Promise.resolve(budgetPushState.rows),
+  fetchProjectFiscalCalendar: vi.fn().mockResolvedValue({ status: 'bad-project-dates', project: { start: null, end: null } }),
+  listBudgetFiscalYears: vi.fn().mockResolvedValue([]),
+  upsertBudgetProjectionEtc: vi.fn().mockResolvedValue(undefined),
   retryActiveBudgetPush: vi.fn(),
   releaseActiveBudgetPushHold: vi.fn(),
 }));
@@ -203,6 +209,7 @@ const activeVersion = {
   status: 'Active' as const,
   name: 'Version 1',
   version: 1,
+  budget_mode: 'per_year',
   project_id: 'p-1',
   org_id: 'org-1',
   currency: 'USD',

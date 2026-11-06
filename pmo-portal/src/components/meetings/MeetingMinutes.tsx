@@ -14,9 +14,8 @@ import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { upgradeNotes, type NoteBlock } from '@/src/lib/meetingNotes';
 import type { MinutesEditorHandle } from '@/src/components/meetings/MinutesEditor';
+import { MinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
 import type { MeetingWithRefs } from '@/src/lib/db/meetings';
-
-const MinutesEditor = React.lazy(() => import('@/src/components/meetings/MinutesEditor'));
 
 export interface MeetingMinutesHandle {
   guardLeave: (leave: () => void) => void;

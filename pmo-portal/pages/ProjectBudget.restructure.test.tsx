@@ -22,7 +22,7 @@ const state = vi.hoisted(() => ({
   archiveTargets: { data: [] as unknown[], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) },
   projectionRows: [] as unknown[],
   phasing: { years: {} as Record<string, string[]>, unphased: {} as Record<string, true> },
-  fiscalYears: [{ fiscalYear: 'FY-2026', isActivePush: true }],
+  fiscalYears: [{ fiscalYear: 'FY-2026', hasActiveBudget: true }],
   retryPush: vi.fn().mockResolvedValue({ pushState: 'pushed' }),
   saveEtc: vi.fn().mockResolvedValue(undefined),
   releaseHold: vi.fn().mockResolvedValue(undefined),
@@ -39,9 +39,9 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useBudget', () => ({
+  useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => state.budget,
   useBudgetVersions: () => state.versions,
-  useBudgetDistribution: () => ({ data: null, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => state.activationPrecheck,
   useBudgetArchiveTargets: () => state.archiveTargets,
@@ -78,8 +78,26 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
     retryActiveBudgetPush: state.retryPush,
     releaseActiveBudgetPushHold: state.releaseHold,
     fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
+    fetchBudgetComparison: vi.fn().mockImplementation((_projectId: string, _fiscalYear: string | null) => Promise.resolve(state.projectionRows.map((entry) => {
+      const row = entry as { category: string; pmoBudgetAmount: number | null; actualsToDate: number | null; actualsAsOf: string | null };
+      return {
+        category: row.category,
+        budgetTotal: row.pmoBudgetAmount,
+        recorded: row.actualsToDate,
+        recordedAsOf: row.actualsAsOf,
+        mapped: row.actualsToDate !== null,
+        hasLedger: row.actualsAsOf !== null,
+        remaining: null,
+        percentUsed: null,
+      };
+    }))),
     fetchActiveBudgetCategoryPhasing: vi.fn().mockImplementation(() => Promise.resolve(state.phasing)),
     listBudgetFiscalYears: vi.fn().mockImplementation(() => Promise.resolve(state.fiscalYears)),
+    fetchProjectFiscalCalendar: vi.fn().mockResolvedValue({
+      status: 'resolved',
+      project: { start: '2026-01-01', end: '2026-12-31' },
+      years: [{ name: 'FY-2026', start: '2026-01-01', end: '2026-12-31' }],
+    }),
     fetchFirstSpendingYear: vi.fn().mockResolvedValue(null),
     upsertBudgetProjectionEtc: state.saveEtc,
   };
@@ -92,7 +110,7 @@ import { buildBudgetSummaryRows, committedTotal } from './project-detail/budget/
 
 const project = {
   id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null,
-  tax_base_numerator: 1, tax_base_denominator: 1,
+  tax_base_numerator: 1, tax_base_denominator: 1, start_date: '2026-01-01', end_date: '2026-12-31',
 } as unknown as ProjectWithRefs;
 
 const line = (id: string, category: string, description: string, amount: number) => ({
@@ -107,7 +125,7 @@ const line = (id: string, category: string, description: string, amount: number)
 });
 
 const active = (lines = [line('li-active', 'Labor', 'Design', 100)]) => ({
-  id: 'v-active', status: 'Active' as const, name: 'Approved plan', version: 1,
+  id: 'v-active', status: 'Active' as const, name: 'Approved plan', version: 1, budget_mode: 'per_year',
   project_id: 'p-1', org_id: 'org-1', currency: 'USD', created_at: '2026-01-01T00:00:00Z',
   activated_at: '2026-01-02T00:00:00Z', created_by: 'u2', activation_basis: null, editor_ids: [], line_items: lines,
   total: lines.reduce((sum, item) => sum + Number(item.budgeted_amount), 0),
@@ -149,7 +167,7 @@ beforeEach(() => {
   state.archiveTargets = { data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) };
   state.projectionRows = [];
   state.phasing = { years: { Labor: ['FY-2026'], Materials: ['FY-2027'], Travel: ['FY-2026'] }, unphased: {} };
-  state.fiscalYears = [{ fiscalYear: 'FY-2026', isActivePush: true }];
+  state.fiscalYears = [{ fiscalYear: 'FY-2026', hasActiveBudget: true }];
   state.role = 'Project Manager';
   state.binding = { status: 'active' };
 });
@@ -227,7 +245,7 @@ describe('ProjectBudget Option A', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Forecast' }));
 
     expect(await screen.findByRole('table', { name: 'Budget forecast by category' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('FY-2026');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-2026' }));
     expect(screen.getByRole('columnheader', { name: 'Cost to finish' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Forecast final' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Forecast remaining / (overrun)' })).toBeInTheDocument();

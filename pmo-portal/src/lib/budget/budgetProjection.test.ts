@@ -9,7 +9,15 @@
  * arithmetic in SQL `numeric` for the real read path — AC-BUD-050 and AC-BUD-053 must agree.
  */
 import { describe, it, expect } from 'vitest';
-import { chooseDefaultBudgetFiscalYear, deriveProjectionCell } from './budgetProjection';
+import {
+  chooseDefaultBudgetFiscalYear,
+  chooseDefaultBudgetProjectionScope,
+  deriveBudgetComparisonForecast,
+  deriveProjectionCell,
+  mergeBudgetProjectionYears,
+  resolveBudgetProjectionScope,
+  summarizeBudgetComparison,
+} from './budgetProjection';
 
 describe('budgetProjection (FR-BUD-151 — PMO forward view, never pushed)', () => {
   it('AC-BUD-050 EAC = actuals + etc; variance = PMO budget − EAC; utilization = EAC / PMO budget', () => {
@@ -329,21 +337,225 @@ describe('summarizeProjection (UX-036/S-04: unknown is never 0)', () => {
 });
 describe('AC-1424 default budget fiscal year selection', () => {
   const years = [
-    { fiscalYear: 'FY-2028', isActivePush: true },
-    { fiscalYear: 'FY-2026', isActivePush: false },
-    { fiscalYear: 'FY-2024', isActivePush: false },
+    { fiscalYear: 'FY-2028', hasActiveBudget: true },
+    { fiscalYear: 'FY-2026', hasActiveBudget: false },
+    { fiscalYear: 'FY-2024', hasActiveBudget: false },
   ];
 
   it('chooses the first listed year with recorded spending without parsing client labels', () => {
     expect(chooseDefaultBudgetFiscalYear(years, new Set(['FY-2026', 'FY-2024']))).toBe('FY-2026');
   });
 
-  it('falls back to the active-push year when no listed year has spending', () => {
+  it('falls back to a year with an approved budget when no listed year has spending', () => {
     expect(chooseDefaultBudgetFiscalYear(years, new Set())).toBe('FY-2028');
   });
 
-  it('falls back to the first listed year, or null for an empty list, when there is no spending or active push', () => {
-    expect(chooseDefaultBudgetFiscalYear(years.map((year) => ({ ...year, isActivePush: false })), new Set())).toBe('FY-2028');
+  it('falls back to the first listed year, or null for an empty list, when there is no spending or approved budget', () => {
+    expect(chooseDefaultBudgetFiscalYear(years.map((year) => ({ ...year, hasActiveBudget: false })), new Set())).toBe('FY-2028');
     expect(chooseDefaultBudgetFiscalYear([], new Set())).toBeNull();
+  });
+});
+
+describe('budget whole-project projection scope (AC-013/015)', () => {
+  it('keeps current calendar years, saved approved years, and observed years without parsing client labels', () => {
+    expect(mergeBudgetProjectionYears(
+      ['FY-2026', 'FY-2027'],
+      ['FY-2025', 'FY-2026'],
+      [
+        { fiscalYear: 'FY-2028', hasActiveBudget: false },
+        { fiscalYear: 'FY-2026', hasActiveBudget: true },
+      ],
+    )).toEqual([
+      { fiscalYear: 'FY-2026', hasActiveBudget: true },
+      { fiscalYear: 'FY-2027', hasActiveBudget: false },
+      { fiscalYear: 'FY-2025', hasActiveBudget: true },
+      { fiscalYear: 'FY-2028', hasActiveBudget: false },
+    ]);
+  });
+
+  it('does not invent calendar years when the calendar is unavailable', () => {
+    expect(mergeBudgetProjectionYears(null, [], [])).toEqual([]);
+    expect(mergeBudgetProjectionYears(null, ['FY-approved'], [])).toEqual([
+      { fiscalYear: 'FY-approved', hasActiveBudget: true },
+    ]);
+  });
+
+  it('retains calendar, approved line, and distribution years while leaving ledger-only years unapproved', () => {
+    expect(mergeBudgetProjectionYears(
+      ['FY-calendar'],
+      ['FY-distribution'],
+      [
+        { fiscalYear: 'FY-ledger-only', hasActiveBudget: false },
+        { fiscalYear: 'FY-on-record', hasActiveBudget: true },
+      ],
+      ['FY-line-unpushed'],
+    )).toEqual([
+      { fiscalYear: 'FY-calendar', hasActiveBudget: false },
+      { fiscalYear: 'FY-distribution', hasActiveBudget: true },
+      { fiscalYear: 'FY-ledger-only', hasActiveBudget: false },
+      { fiscalYear: 'FY-on-record', hasActiveBudget: true },
+      { fiscalYear: 'FY-line-unpushed', hasActiveBudget: true },
+    ]);
+  });
+
+  it('defaults multi-year projects to all years even when only one year has spending or an active budget', () => {
+    expect(chooseDefaultBudgetProjectionScope(
+      [
+        { fiscalYear: 'FY-2028', hasActiveBudget: true },
+        { fiscalYear: 'FY-2027', hasActiveBudget: false },
+      ],
+      new Set(['FY-2028']),
+    )).toEqual({ kind: 'all' });
+  });
+
+  it('keeps the existing year default for a single-year project', () => {
+    expect(chooseDefaultBudgetProjectionScope(
+      [{ fiscalYear: 'FY-opaque', hasActiveBudget: false }],
+      new Set(),
+    )).toEqual({ kind: 'year', year: 'FY-opaque' });
+  });
+
+  it('preserves an explicit scope on refetch and resets to the new project default when the project changes', () => {
+    const selection = { projectId: 'project-a', scope: { kind: 'year' as const, year: 'FY-A' } };
+    const years = [{ fiscalYear: 'FY-A', hasActiveBudget: true }];
+
+    expect(resolveBudgetProjectionScope('project-a', selection, years, new Set())).toEqual(selection.scope);
+    expect(resolveBudgetProjectionScope('project-b', selection, [
+      { fiscalYear: 'FY-B', hasActiveBudget: true },
+      { fiscalYear: 'FY-C', hasActiveBudget: false },
+    ], new Set())).toEqual({ kind: 'all' });
+  });
+
+  it('resets a selected year that no longer exists after a scope refresh', () => {
+    expect(resolveBudgetProjectionScope(
+      'project-a',
+      { projectId: 'project-a', scope: { kind: 'year', year: 'FY-removed' } },
+      [{ fiscalYear: 'FY-current', hasActiveBudget: true }],
+      new Set(),
+    )).toEqual({ kind: 'year', year: 'FY-current' });
+  });
+});
+
+describe('budget comparison yearly forecast keeps approved and recorded figures distinct (AC-013/015)', () => {
+  it('uses comparison budget and recorded spending with yearly ETC to derive a forecast, not recorded-as-forecast', () => {
+    expect(deriveBudgetComparisonForecast({
+      category: 'Labor',
+      budgetTotal: 120000,
+      recorded: 40000,
+      pmoEtc: 35000,
+    })).toEqual({
+      category: 'Labor',
+      budgetTotal: 120000,
+      recorded: 40000,
+      pmoEtc: 35000,
+      projectedFinalCost: 75000,
+      projectedRemaining: 45000,
+      projectedUtilization: 0.625,
+    });
+  });
+
+  it('keeps forecast-derived figures unknown when recorded spending is unknown', () => {
+    expect(deriveBudgetComparisonForecast({
+      category: 'Equipment',
+      budgetTotal: 20000,
+      recorded: null,
+      pmoEtc: 1000,
+    })).toEqual({
+      category: 'Equipment',
+      budgetTotal: 20000,
+      recorded: null,
+      pmoEtc: 1000,
+      projectedFinalCost: null,
+      projectedRemaining: null,
+      projectedUtilization: null,
+    });
+  });
+
+  it('keeps a zero approved budget known while suppressing percentage division by zero', () => {
+    expect(deriveBudgetComparisonForecast({
+      category: 'Materials',
+      budgetTotal: 0,
+      recorded: 10,
+      pmoEtc: 5,
+    })).toEqual({
+      category: 'Materials',
+      budgetTotal: 0,
+      recorded: 10,
+      pmoEtc: 5,
+      projectedFinalCost: 15,
+      projectedRemaining: -15,
+      projectedUtilization: null,
+    });
+  });
+
+  it('does not invent a variance or percentage from a null approved budget', () => {
+    expect(deriveBudgetComparisonForecast({
+      category: 'Travel',
+      budgetTotal: null,
+      recorded: 10,
+      pmoEtc: 5,
+    })).toEqual({
+      category: 'Travel',
+      budgetTotal: null,
+      recorded: 10,
+      pmoEtc: 5,
+      projectedFinalCost: 15,
+      projectedRemaining: null,
+      projectedUtilization: null,
+    });
+  });
+});
+
+describe('budget comparison totals preserve unknown money and scope semantics (AC-013/015)', () => {
+  it('sums approved and recorded amounts in cents, then derives remaining and recorded percent', () => {
+    expect(summarizeBudgetComparison([
+      { category: 'Labor', budgetTotal: 10.1, recorded: 4.25 },
+      { category: 'Travel', budgetTotal: 2.4, recorded: 0.75 },
+    ])).toEqual({
+      budget: 12.5,
+      recorded: 5,
+      remaining: 7.5,
+      percentUsed: 0.4,
+      unknownBudget: [],
+      unknownRecorded: [],
+    });
+  });
+
+  it('withholds each total when any category amount is unknown instead of showing a partial sum', () => {
+    expect(summarizeBudgetComparison([
+      { category: 'Labor', budgetTotal: 10, recorded: 4 },
+      { category: 'Travel', budgetTotal: null, recorded: null },
+    ])).toEqual({
+      budget: null,
+      recorded: null,
+      remaining: null,
+      percentUsed: null,
+      unknownBudget: ['Travel'],
+      unknownRecorded: ['Travel'],
+    });
+  });
+
+  it('keeps a known zero approved total distinct and leaves percentage unavailable', () => {
+    expect(summarizeBudgetComparison([
+      { category: 'Labor', budgetTotal: 0, recorded: 2 },
+    ])).toEqual({
+      budget: 0,
+      recorded: 2,
+      remaining: -2,
+      percentUsed: null,
+      unknownBudget: [],
+      unknownRecorded: [],
+    });
+  });
+
+  it('does not claim a zero total when the comparison has no categories', () => {
+    expect(summarizeBudgetComparison([])).toEqual({
+      budget: null,
+      recorded: null,
+      remaining: null,
+      percentUsed: null,
+      unknownBudget: [],
+      unknownRecorded: [],
+    });
   });
 });

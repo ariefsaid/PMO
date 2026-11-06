@@ -27,6 +27,7 @@ const config: AnalyticsConfig = {
 async function sentUrls(run: () => void): Promise<string[]> {
   const urls: string[] = [];
   analyticsClient.init(config);
+  await analyticsClient.ready();
   posthog.set_config({ request_batching: false });
   posthog._send_request = (options) => { urls.push(options.url); };
   run();

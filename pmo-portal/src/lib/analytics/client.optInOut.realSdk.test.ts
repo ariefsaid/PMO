@@ -28,7 +28,7 @@ const config: AnalyticsConfig = {
   demoAccount: 'local',
 };
 
-function withStubbedNetwork<T>(run: () => T): T {
+async function withStubbedNetwork<T>(run: () => Promise<T> | T): Promise<T> {
   const originalFetch = global.fetch;
   global.fetch = (async () => ({
     ok: true,
@@ -37,7 +37,7 @@ function withStubbedNetwork<T>(run: () => T): T {
     text: async () => '',
   })) as unknown as typeof fetch;
   try {
-    return run();
+    return await run();
   } finally {
     global.fetch = originalFetch;
   }
@@ -49,15 +49,21 @@ beforeEach(() => {
 });
 
 describe('opt-out/opt-in round trip — the REAL SDK, not a mock', () => {
-  it('AC-CON-003: optOut() makes the real SDK report has_opted_out_capturing() === true immediately, in the current session', () => {
-    withStubbedNetwork(() => analyticsClient.init(config));
+  it('AC-CON-003: optOut() makes the real SDK report has_opted_out_capturing() === true immediately, in the current session', async () => {
+    await withStubbedNetwork(async () => {
+      analyticsClient.init(config);
+      await analyticsClient.ready();
+    });
     analyticsClient.optOut();
     expect(posthog.has_opted_out_capturing()).toBe(true);
   });
 
-  it('AC-CON-002 (MEDIUM fix): opting back in AFTER A SIMULATED RELOAD flips the REAL SDK\'s own persisted consent state, not just our localStorage flag', () => {
+  it('AC-CON-002 (MEDIUM fix): opting back in AFTER A SIMULATED RELOAD flips the REAL SDK\'s own persisted consent state, not just our localStorage flag', async () => {
     // Session 1: opt out. This persists BOTH our own flag and the SDK's own consent key.
-    withStubbedNetwork(() => analyticsClient.init(config));
+    await withStubbedNetwork(async () => {
+      analyticsClient.init(config);
+      await analyticsClient.ready();
+    });
     analyticsClient.optOut();
     expect(posthog.has_opted_out_capturing()).toBe(true);
 
@@ -65,11 +71,15 @@ describe('opt-out/opt-in round trip — the REAL SDK, not a mock', () => {
     // module from scratch); real localStorage — where BOTH consent keys live — survives, exactly
     // like an actual browser reload. `init()` is skipped because our own flag still says opted out.
     analyticsClient.__resetForTests();
-    withStubbedNetwork(() => analyticsClient.init(config));
+    await withStubbedNetwork(async () => {
+      analyticsClient.init(config);
+      await analyticsClient.ready();
+    });
     expect(analyticsClient.hasOptedOut()).toBe(true);
 
     // The user opts back in.
     analyticsClient.optIn();
+    await analyticsClient.ready();
 
     expect(analyticsClient.hasOptedOut()).toBe(false);
     // The load-bearing assertion: the REAL SDK's own persisted consent state must ALSO have
