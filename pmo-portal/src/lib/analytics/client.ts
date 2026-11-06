@@ -138,7 +138,56 @@ function redactExceptionProperties(
     }
   }
   sanitizeNestedEventValue(properties);
+  // Same pass for person properties (`$set`, `$set_once`).
+  sanitizeNestedEventValue(captureResult.$set);
+  sanitizeNestedEventValue(captureResult.$set_once);
   return captureResult;
+}
+
+type PersistenceLike = {
+  props?: Record<string, unknown>;
+  save?: () => void;
+  get_initial_props?: () => unknown;
+};
+
+// Stored URL-bearing values (cookie / localStorage / sessionStorage copies).
+const PERSISTED_URL_KEYS = ['$initial_person_info', '$referrer', '$client_session_props'];
+
+function sanitizePersisted(persistence: PersistenceLike): void {
+  const props = persistence.props;
+  if (!props) return;
+  for (const key of PERSISTED_URL_KEYS) {
+    if (props[key] !== undefined) props[key] = sanitizeNestedEventValue(props[key]);
+  }
+}
+
+/**
+ * Sanitises initial person properties at their reader and at every write to the stored copies
+ * (wrapping `save`, the single sink all SDK writers go through); holds across `reset()` and for
+ * values written after init (session props, referrer).
+ */
+function sanitizeInitialPersonProps(ph: unknown): void {
+  const { persistence, sessionPersistence } = ph as {
+    persistence?: PersistenceLike;
+    sessionPersistence?: PersistenceLike;
+  };
+  const read = persistence?.get_initial_props;
+  if (!persistence || typeof read !== 'function') {
+    if (import.meta.env.DEV) console.warn('[analytics] posthog persistence hook missing; person properties unsanitised');
+    return;
+  }
+  persistence.get_initial_props = () => sanitizeNestedEventValue(read.call(persistence));
+  for (const store of [persistence, sessionPersistence]) {
+    if (!store) continue;
+    const save = store.save;
+    if (typeof save === 'function') {
+      store.save = () => {
+        sanitizePersisted(store);
+        save.call(store);
+      };
+    }
+    store.save?.();
+  }
 }
 
 function sanitizeNestedEventValue(value: unknown): unknown {
@@ -324,6 +373,8 @@ export function buildPosthogInitOptions(config: AnalyticsConfig): Parameters<typ
       maskCapturedNetworkRequestFn: redactUrl,
     },
     before_send: redactExceptionProperties,
+    disable_capture_url_hashes: true,
+    loaded: (ph) => sanitizeInitialPersonProps(ph),
   };
 }
 
