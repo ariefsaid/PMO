@@ -148,8 +148,6 @@ type PersistenceLike = {
   props?: Record<string, unknown>;
   save?: () => void;
   get_initial_props?: () => unknown;
-  set_initial_person_info?: () => void;
-  update_referrer_info?: () => void;
 };
 
 // Stored URL-bearing values (cookie / localStorage / sessionStorage copies).
@@ -161,12 +159,12 @@ function sanitizePersisted(persistence: PersistenceLike): void {
   for (const key of PERSISTED_URL_KEYS) {
     if (props[key] !== undefined) props[key] = sanitizeNestedEventValue(props[key]);
   }
-  persistence.save?.();
 }
 
 /**
- * Sanitises initial person properties at their reader and at their stored copies; holds across
- * `reset()` because the writers are wrapped too.
+ * Sanitises initial person properties at their reader and at every write to the stored copies
+ * (wrapping `save`, the single sink all SDK writers go through); holds across `reset()` and for
+ * values written after init (session props, referrer).
  */
 function sanitizeInitialPersonProps(ph: unknown): void {
   const { persistence, sessionPersistence } = ph as {
@@ -181,15 +179,14 @@ function sanitizeInitialPersonProps(ph: unknown): void {
   persistence.get_initial_props = () => sanitizeNestedEventValue(read.call(persistence));
   for (const store of [persistence, sessionPersistence]) {
     if (!store) continue;
-    for (const writer of ['set_initial_person_info', 'update_referrer_info'] as const) {
-      const original = store[writer];
-      if (typeof original !== 'function') continue;
-      store[writer] = () => {
-        original.call(store);
+    const save = store.save;
+    if (typeof save === 'function') {
+      store.save = () => {
         sanitizePersisted(store);
+        save.call(store);
       };
     }
-    sanitizePersisted(store);
+    store.save?.();
   }
 }
 

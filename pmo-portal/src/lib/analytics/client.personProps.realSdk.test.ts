@@ -93,6 +93,7 @@ describe('person properties are sanitised (real SDK, every transport)', () => {
       configurable: true,
     });
     analyticsClient.init(config);
+    await analyticsClient.ready();
     posthog.capture('app_route_viewed', { route: '/login' });
     posthog.identify('user-1', { role: 'admin', seen_at: `https://app.example/x?q=${QUERY_MARK}#h=${HASH_MARK}` });
     posthog.capture('after_identify');
