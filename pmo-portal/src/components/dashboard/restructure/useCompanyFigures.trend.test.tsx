@@ -7,7 +7,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({ useDashboard: () => ({}), useSalesP
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: (range: unknown, enabled?: boolean) => { h.pack(range, enabled); return { data: h.data, isPending: false, isError: false, refetch: vi.fn() }; },
 }));
-vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({}), useIncomingPayments: () => ({}) }));
+vi.mock('@/src/hooks/useRevenue', () => ({ useOverdueInvoiceFacts: () => ({}), usePaidPaymentFacts: () => ({}) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({}) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({}) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR', useOrgCurrencyState: () => ({ isResolved: true }) }));

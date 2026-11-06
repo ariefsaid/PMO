@@ -229,6 +229,28 @@ export async function getOverdueInvoiceCount(today: string): Promise<number> {
   }).length;
 }
 
+/** What the dashboard's overdue tile reads from an open client invoice; nothing else leaves the database. */
+export type OverdueInvoiceFact = Pick<SalesInvoiceRow, 'id' | 'status' | 'currency' | 'invoice_date' | 'erp_due_date' | 'received_date' | 'erp_outstanding_amount' | 'erp_payment_terms_days'>;
+
+/** Open (Submitted/Unpaid) client invoices as narrow facts: the rows `selectOverdueInvoices` keeps from the full list, without the authors/customer-name joins. */
+export async function listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]> {
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .in('status', ['Unpaid', 'Submitted'])
+      .is('paired_erp_invoice_id', null)
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
+  return rows.map((row) => ({
+    ...row,
+    erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
+    erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
+    received_date: (row.received_date as string | null | undefined) ?? null,
+  }) as unknown as OverdueInvoiceFact);
+}
+
 /**
  * Fetch a single sales invoice by id, or null when not found / not readable.
  * RLS scopes the row to the caller's org.
@@ -344,6 +366,21 @@ export async function listIncomingPayments(
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
   return withReceiptPushCommands(data.map(toIncomingPaymentRow));
+}
+
+/** What the dashboard's collected figure reads from a received payment. */
+export type PaidPaymentFact = Pick<IncomingPaymentRow, 'status' | 'date' | 'amount' | 'currency'>;
+
+/** Paid receipts as narrow facts: no customer join and no receipt-push command read (the dashboard shows neither). */
+export async function listPaidPaymentFacts(): Promise<PaidPaymentFact[]> {
+  return fetchAllPages<PaidPaymentFact>((from, to) =>
+    supabase
+      .from('incoming_payments')
+      .select('status,date,amount,currency')
+      .eq('status', 'Paid')
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<PaidPaymentFact>>,
+  );
 }
 
 /**
