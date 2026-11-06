@@ -249,7 +249,17 @@ node scripts/pmo.mjs purchases attach-journals <rows.json>
 
 Each row names one line returned by `journals` plus the purchase: `{"voucher_no":"<journal number>","project_id":"<project-uuid>","account":"<ledger account>","procurement_id":"<purchase-uuid>"}`. The dry run reports `attach`, `skip` (already on that purchase) or `refused` with a reason per row and writes nothing.
 
-**How to verify:** linked documents leave the default orphan list. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
+Record a goods receipt for a purchase (same command the app sends; organisations connected to an accounting system only. A PMO-only organisation records receipts in the app):
+
+```bash
+node scripts/pmo.mjs purchases receive <procurement-uuid> --dry-run                      # whole purchase, everything open
+node scripts/pmo.mjs purchases receive <procurement-uuid> [--date 2026-11-06] [--status Partial|Complete]
+node scripts/pmo.mjs purchases receive <procurement-uuid> --line "Pump=3" --line "Valve=1.5"   # line quantities (Full plan)
+```
+
+Whole-purchase receipts work on Basic. `--line <item>=<quantity>` (repeat per item, item exactly as the purchase order shows it) needs the Full plan. Each run prints an `intent`. **If the result is unknown (timeout, unreachable ERP), re-run the identical command with `--intent <that uuid>`**: the same intent never records twice. Do not reuse an intent for a different receipt. Defaults: date today, status Complete (Partial with `--line`). Refusals carry a hint: plan off, nothing left to receive, quantity above the open quantity, no sent purchase order.
+
+**How to verify:** linked documents leave the default orphan list; a receipt shows under the purchase in **Procurement**. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
 
 **Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, create purchases through **Procurement → New**; the CLI does not import PMO-native purchase history yet. Enhancement: [CLI purchase history import](https://github.com/ariefsaid/PMO/issues/1855).
 
@@ -332,6 +342,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases receive`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
 The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
