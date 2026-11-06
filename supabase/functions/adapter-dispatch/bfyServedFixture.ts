@@ -110,6 +110,9 @@ export interface ServedRoutesResult {
   /** Every ERP `Budget` document the mocked ERP now holds, in creation order. */
   erpBudgets: Array<{ name: string; body: Record<string, unknown>; docstatus: number }>;
   accountMirrorRows: Array<Record<string, unknown>>;
+  /** The per-year (`budget_version_erp_mirror`) rows upserted through this fixture — the v15 side mirror
+   *  whose grain is (org, version, fiscal year), failures included. */
+  budgetMirrorRows: Array<Record<string, unknown>>;
   /** The outbox rows this fixture holds, keyed `<pmo_record_id>|<idempotency_key>` — so a test can state the
    *  shape a row was left in (its saved canonical, its digest) by a writer outside this request. */
   outboxRows: Map<string, Record<string, unknown>>;
@@ -122,6 +125,7 @@ export interface ServedRoutesResult {
 export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_SITE_URL): ServedRoutesResult {
   const erpBudgets: ServedRoutesResult['erpBudgets'] = [];
   const accountMirrorRows: Array<Record<string, unknown>> = [];
+  const budgetMirrorRows: Array<Record<string, unknown>> = [];
   let mirrorSeq = 0;
   let outboxSeq = 0;
   const outboxRows = new Map<string, Record<string, unknown>>();
@@ -334,11 +338,36 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
     }),
 
     // ── the read-model mirror + the operator surface ─────────────────────────────────────────────
+    // The per-year side mirror. The only READ the served push makes of it is the budget writer's replay
+    // tombstone check (`select('erp_cancelled_at')…maybeSingle()`) — a Desk-cancelled Budget must stay
+    // cancelled even when a stored-canonical replay converges (BLOCKER 2/FU-2). Every write is an upsert
+    // on the mirror's own (org_id, budget_version_id, fiscal_year) grain.
+    supabaseSelect('budget_version_erp_mirror', (call) => {
+      const eq = (key: string) => {
+        const raw = call.url.searchParams.get(key);
+        return raw?.startsWith('eq.') ? decodeURIComponent(raw.slice(3)) : null;
+      };
+      const org = eq('org_id');
+      const version = eq('budget_version_id');
+      const year = eq('fiscal_year');
+      const row = budgetMirrorRows.find((candidate) => (!org || candidate.org_id === org) &&
+        (!version || candidate.budget_version_id === version) && (!year || candidate.fiscal_year === year));
+      return row ? objectResponse({ erp_cancelled_at: row.erp_cancelled_at ?? null }) : nullObjectResponse();
+    }),
     {
-      label: 'budget mirror upsert',
+      label: 'budget mirror upsert (per-year grain)',
       method: 'POST',
       pathname: '/rest/v1/budget_version_erp_mirror',
-      response: () => jsonResponse([]),
+      response: (call) => {
+        const incomingRows = (Array.isArray(call.bodyJson) ? call.bodyJson : [call.bodyJson]) as Array<Record<string, unknown>>;
+        for (const incoming of incomingRows) {
+          const keyOf = (row: Record<string, unknown>) => ['org_id', 'budget_version_id', 'fiscal_year'].map((field) => row[field]).join('|');
+          const old = budgetMirrorRows.find((row) => keyOf(row) === keyOf(incoming));
+          if (old) Object.assign(old, incoming);
+          else budgetMirrorRows.push({ ...incoming });
+        }
+        return jsonResponse([]);
+      },
     },
     supabaseRpc('surface_action_required', () => jsonResponse(null)),
     {
@@ -385,7 +414,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
     },
   ];
 
-  return { routes, erpBudgets, accountMirrorRows, outboxRows };
+  return { routes, erpBudgets, accountMirrorRows, budgetMirrorRows, outboxRows };
 }
 
 /** `?pmo_record_id=eq.<id>&idempotency_key=eq.<key>` → the map key the fixture stores rows under. */
