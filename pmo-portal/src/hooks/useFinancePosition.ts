@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -28,16 +28,23 @@ export function useFinancePosition(enabled = true, opts?: { withRoutes?: boolean
     }),
   }), [invoices.data, payments.data, procurements.data, orgDay.day, currentUser?.id, may]);
 
+  const invoicesRefetch = invoices.refetch;
+  const paymentsRefetch = payments.refetch;
+  const procurementsRefetch = procurements.refetch;
+  const orgDayRetry = orgDay.retry;
+  // Stable across renders so a consumer can memoise a block that receives `retry`.
+  const retry = useCallback(() => {
+    void invoicesRefetch();
+    void paymentsRefetch();
+    void procurementsRefetch();
+    orgDayRetry();
+  }, [invoicesRefetch, paymentsRefetch, procurementsRefetch, orgDayRetry]);
+
   return {
     position,
     today: orgDay.day,
     isPending: invoices.isPending || payments.isPending || procurements.isPending || orgDay.isPending,
     isError: invoices.isError || payments.isError || procurements.isError || orgDay.isError,
-    retry: () => {
-      void invoices.refetch();
-      void payments.refetch();
-      void procurements.refetch();
-      orgDay.retry();
-    },
+    retry,
   };
 }

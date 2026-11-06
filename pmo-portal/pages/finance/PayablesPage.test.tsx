@@ -84,14 +84,18 @@ function Location() {
 function renderPage(role = 'Finance', position: FinancePosition = payablesFixture()) {
   state.role = role;
   state.position = position;
-  return render(
+  return render(pageTree());
+}
+
+function pageTree() {
+  return (
     <MemoryRouter initialEntries={['/finance/payables']}>
       <Routes>
         <Route path="/finance/payables" element={<><PayablesPage /><Location /></>} />
         <Route path="/procurement/:id" element={<><p>PROCUREMENT RECORD</p><Location /></>} />
         <Route path="/companies/:id" element={<p>SUPPLIER RECORD</p>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -224,5 +228,47 @@ describe('Payables page', () => {
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).not.toHaveTextContent(/IDR\s?0\b/);
     expect(within(ageing).getByTestId('ageing-bucket-IDR-d0_30')).not.toHaveTextContent(/unknown/);
     expect(screen.getByRole('region', { name: 'Payables figures' })).toHaveTextContent('101 days');
+  });
+
+  // The figures tiles and the table are memoised so a settle that changes neither leaves them alone;
+  // these two drive new query data through the same tree and prove the memoised blocks still update.
+  it('the memoised figures tiles still show freshly loaded payables data', () => {
+    const first = payablesFixture();
+    const view = render(pageTree());
+    const figures = screen.getByRole('region', { name: 'Payables figures' });
+    expect(within(figures).getByText('IDR 62.4M')).toBeInTheDocument();
+
+    const next: FinancePosition = {
+      ...first,
+      payables: [{ ...first.payables[0], ageDays: 12, amount: 7_000_000_000 }],
+      payablesTotals: { IDR: 7_000_000_000 },
+      payablesAgeing: { IDR: { d0_30: 7_000_000_000, d31_60: 0, d61_90: 0, over90: 0 } },
+    };
+    state.position = next;
+    view.rerender(pageTree());
+
+    const updated = screen.getByRole('region', { name: 'Payables figures' });
+    expect(within(updated).getByText('IDR 70M')).toBeInTheDocument();
+    expect(updated).toHaveTextContent('12 days');
+    expect(within(updated).queryByText('IDR 62.4M')).not.toBeInTheDocument();
+  });
+
+  it('the memoised table still shows freshly loaded payables rows', () => {
+    const first = payablesFixture();
+    const view = render(pageTree());
+    expect(screen.getByText('Sinar Supplier')).toBeInTheDocument();
+
+    const next: FinancePosition = {
+      ...first,
+      payables: [{
+        ...first.payables[0],
+        procurement: { ...first.payables[0].procurement, id: 'procurement-9', title: 'Valve overhaul', code: 'PR-199', vendor: { name: 'Delta Marine' } },
+      }],
+    };
+    state.position = next;
+    view.rerender(pageTree());
+
+    expect(screen.getByText('Delta Marine')).toBeInTheDocument();
+    expect(screen.queryByText('Sinar Supplier')).not.toBeInTheDocument();
   });
 });

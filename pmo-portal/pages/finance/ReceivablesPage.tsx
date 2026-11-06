@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, Tooltip, ViewToggle } from '@/src/components/ui';
@@ -18,6 +18,15 @@ import SalesInvoices from '@/pages/SalesInvoices';
 import IncomingPayments from '@/pages/IncomingPayments';
 
 type ReceivablesView = 'invoices' | 'payments';
+
+/**
+ * The two list bodies read their own query data (and their own list URL state), so a settle on the
+ * page's KPI queries must not re-render them: the invoice list is ~950 lines and its DataTable is the
+ * most expensive subtree on this page. Their props are stable (`embedded` is a literal, the handlers
+ * are `useCallback`d), so new list data still reaches them through their own subscriptions.
+ */
+const MemoSalesInvoices = React.memo(SalesInvoices);
+const MemoIncomingPayments = React.memo(IncomingPayments);
 
 const OPEN_STATUSES = new Set<SalesInvoiceRow['status']>(['Submitted', 'Unpaid']);
 
@@ -171,36 +180,36 @@ export default function ReceivablesPage() {
   const cashIsGood = cashDeltaCents > 0;
   const cashIsBad = cashDeltaCents < 0;
 
-  const changeView = (nextView: ReceivablesView) => setSearchParams((current) => {
+  const changeView = useCallback((nextView: ReceivablesView) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
     if (nextView === 'invoices') next.delete('view');
     else next.set('view', nextView);
     next.delete('open');
     return next;
-  }, { replace: true });
-  const openNewInvoice = () => setSearchParams((current) => {
+  }, { replace: true }), [setSearchParams]);
+  const openNewInvoice = useCallback(() => setSearchParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('view');
     next.delete('open');
     next.set('create', '1');
     return next;
-  }, { replace: true });
-  const openNewPayment = () => setSearchParams((current) => {
+  }, { replace: true }), [setSearchParams]);
+  const openNewPayment = useCallback(() => setSearchParams((current) => {
     const next = new URLSearchParams(current);
     next.set('view', 'payments');
     next.set('create', '1');
     next.delete('open');
     next.delete('invoice');
     return next;
-  }, { replace: true });
-  const recordPayment = (invoice: SalesInvoiceRow) => setSearchParams((current) => {
+  }, { replace: true }), [setSearchParams]);
+  const recordPayment = useCallback((invoice: SalesInvoiceRow) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
     next.set('view', 'payments');
     next.set('invoice', invoice.id);
     next.set('create', '1');
     next.delete('open');
     return next;
-  }, { replace: true });
+  }, { replace: true }), [setSearchParams]);
 
   return (
     <div className="min-w-0 pb-24 sm:pb-0">
@@ -283,8 +292,8 @@ export default function ReceivablesPage() {
         </div>
         <div>
           {view === 'invoices'
-            ? <SalesInvoices embedded onRecordPayment={recordPayment} />
-            : <IncomingPayments embedded />}
+            ? <MemoSalesInvoices embedded onRecordPayment={recordPayment} />
+            : <MemoIncomingPayments embedded />}
         </div>
       </section>
 

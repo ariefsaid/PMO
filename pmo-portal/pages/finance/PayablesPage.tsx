@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -19,6 +19,12 @@ import { usePayablesPosition } from './payablesPosition';
 
 type PayableRow = FinancePosition['payables'][number];
 
+// The page re-renders once per finance/accounting-system query settle; the table and the KPI tiles
+// must not re-render with it when the props that actually decide their output are unchanged. Every
+// function/object below is a stable identity (or memoised on the value it derives), so React.memo at
+// the boundary still lets a real data change through — the rows, totals and figures are props.
+const MemoDataTable = React.memo(DataTable) as typeof DataTable;
+
 function initials(name: string | null | undefined): string {
   return (name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
 }
@@ -32,6 +38,54 @@ function currencyTotals(rows: PayableRow[]): Record<string, number> {
     return totals;
   }, {});
 }
+
+interface PayablesFiguresProps {
+  isPending: boolean;
+  totals: Record<string, number>;
+  supplierCount: number;
+  unknownCount: number;
+  oldestDays: number | null;
+  orgCurrency: string | null;
+}
+
+/** The two KPI tiles: they render from their own figures, so search/selection state never re-renders them. */
+const PayablesFigures = React.memo(function PayablesFigures({
+  isPending,
+  totals: totalsByCurrency,
+  supplierCount,
+  unknownCount,
+  oldestDays,
+  orgCurrency,
+}: PayablesFiguresProps) {
+  const { t } = useTranslation();
+  return (
+    <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 sm:grid-cols-2">
+      <article className="min-w-0 p-4">
+        <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}<Tooltip content={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+        {isPending ? <div role="status" aria-live="polite" className="mt-2"><span className="sr-only">{t('financeHub:hub.loadingFigure', 'Loading figure')}</span><span className="skel block h-7 w-36" /></div> : (() => {
+          const totals = Object.entries(totalsByCurrency).sort(([left], [right]) => left === orgCurrency ? -1 : right === orgCurrency ? 1 : left.localeCompare(right));
+          const [lead, ...others] = totals;
+          return <>
+            {/* F11: the figure tile shows the short amount; the exact amount stays for hover and screen readers. */}
+            <div className="mt-1 text-[20px] font-bold tabular">{lead ? (() => { const figure = moneyFigure(lead[1] / 100, lead[0], ''); return <FigureContent value={figure.value} exactValue={figure.exactValue} />; })() : t('financeHub:hub.fix.area.noBalance', 'No balance')}</div>
+            {others.map(([currency, cents]) => <div key={currency} className="text-xs text-muted-foreground" title={formatCurrencyWithCode(cents / 100, currency)}>{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: Math.abs(cents) < 100_000 ? formatCurrencyWithCode(cents / 100, currency) : formatShortMoney(cents / 100, currency, { code: true }) })}</div>)}
+            <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.supplierCount', { defaultValue: supplierCount === 1 ? '{{count}} supplier' : '{{count}} suppliers', count: supplierCount })}</div>
+            {unknownCount > 0 && <div className="text-xs text-muted-foreground">{t('financeHub:hub.fix.payables.unknownCount', { defaultValue: unknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknownCount })}</div>}
+          </>;
+        })()}
+
+      </article>
+      <article className="min-w-0 p-4">
+        <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.oldestWaiting', 'Oldest waiting')}<Tooltip content={t('financeHub:hub.payableBucketBasis', 'Calendar days since invoiced status was recorded, or last update if unavailable. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+        {isPending ? <div role="status" aria-live="polite" className="mt-2"><span className="sr-only">{t('financeHub:hub.loadingFigure', 'Loading figure')}</span><span className="skel block h-7 w-24" /></div> : <>
+          <div className="mt-1 text-[20px] font-bold tabular">{oldestDays === null ? '—' : t('financeHub:hub.daysWaiting', '{{count}} days', { count: oldestDays })}</div>
+          <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.oldestBasis', 'Calendar days since invoiced status was recorded, or last update if unavailable')}</div>
+        </>}
+
+      </article>
+    </KPIRow>
+  );
+});
 
 const PayablesPage: React.FC = () => {
   const { t } = useTranslation();
@@ -119,12 +173,27 @@ const PayablesPage: React.FC = () => {
   ], [projectManagers, t]);
 
   const totalValues = useMemo(() => currencyTotals(filteredRows), [filteredRows]);
-  const totals = Object.entries(totalValues).map(([currency, amount]) => ({
+  const totals = useMemo(() => Object.entries(totalValues).map(([currency, amount]) => ({
     key: `total-${currency}`,
     label: t('financeHub:hub.totalCurrency', 'Total · {{currency}}', { currency }),
     values: { amount: formatCurrency(amount / 100, currency) },
-  }));
-  const oldest = payablesPosition.payables[0];
+  })), [totalValues, t]);
+  const supplierCount = useMemo(
+    () => new Set(payablesPosition.payables.map(({ procurement }) => procurement.vendor_id ?? procurement.id)).size,
+    [payablesPosition.payables],
+  );
+  const oldestDays = payablesPosition.payables[0]?.ageDays ?? null;
+  const tableState = isPending ? 'loading' as const : finance.isError ? 'error' as const : filteredRows.length === 0 ? 'empty' as const : undefined;
+
+  const rowKey = useCallback((row: PayableRow) => row.procurement.id, []);
+  const rowLabel = useCallback((row: PayableRow) => t('financeHub:hub.openSupplierInvoice', 'Open supplier invoice for {{supplier}}', { supplier: row.procurement.vendor?.name ?? row.procurement.title }), [t]);
+  const openProcurement = useCallback((row: PayableRow) => navigate(`/procurement/${row.procurement.id}`), [navigate]);
+  const rowMenu = useCallback((row: PayableRow) => [
+    { label: t('financeHub:hub.openProcurement', 'Open procurement'), onClick: () => navigate(`/procurement/${row.procurement.id}`) },
+    ...(row.procurement.vendor_id ? [{ label: t('financeHub:hub.openSupplier', 'Open supplier'), onClick: () => navigate(`/companies/${row.procurement.vendor_id}`) }] : []),
+  ], [navigate, t]);
+  const selection = useMemo(() => ({ selectedIds: selectedKeys, onChange: setSelectedKeys }), [selectedKeys]);
+  const onSearch = useCallback((event: React.ChangeEvent<HTMLInputElement>) => setSearch(event.target.value), []);
 
   if (!canView) {
     return <AccessDenied title={t('financeHub:hub.noAccessTitle', 'Finance')} sub={t('financeHub:hub.noAccessDescription', 'Finance is available to Finance, Executive and Admin roles.')} onBack={() => navigate('/')} />;
@@ -137,53 +206,30 @@ const PayablesPage: React.FC = () => {
       count={filteredRows.length}
       total={payablesPosition.payables.length}
     >
-      <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 sm:grid-cols-2">
-        <article className="min-w-0 p-4">
-          <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}<Tooltip content={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          {isPending ? <div role="status" aria-live="polite" className="mt-2"><span className="sr-only">{t('financeHub:hub.loadingFigure', 'Loading figure')}</span><span className="skel block h-7 w-36" /></div> : (() => {
-            const totals = Object.entries(payablesPosition.payablesTotals).sort(([left], [right]) => left === orgCurrency ? -1 : right === orgCurrency ? 1 : left.localeCompare(right));
-            const [lead, ...others] = totals;
-            return <>
-              {/* F11: the figure tile shows the short amount; the exact amount stays for hover and screen readers. */}
-              <div className="mt-1 text-[20px] font-bold tabular">{lead ? (() => { const figure = moneyFigure(lead[1] / 100, lead[0], ''); return <FigureContent value={figure.value} exactValue={figure.exactValue} />; })() : t('financeHub:hub.fix.area.noBalance', 'No balance')}</div>
-              {others.map(([currency, cents]) => <div key={currency} className="text-xs text-muted-foreground" title={formatCurrencyWithCode(cents / 100, currency)}>{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: Math.abs(cents) < 100_000 ? formatCurrencyWithCode(cents / 100, currency) : formatShortMoney(cents / 100, currency, { code: true }) })}</div>)}
-              {(() => {
-                const count = new Set(payablesPosition.payables.map(({ procurement }) => procurement.vendor_id ?? procurement.id)).size;
-                return <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.supplierCount', { defaultValue: count === 1 ? '{{count}} supplier' : '{{count}} suppliers', count })}</div>;
-              })()}
-              {payablesPosition.payablesUnknownCount > 0 && <div className="text-xs text-muted-foreground">{t('financeHub:hub.fix.payables.unknownCount', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: payablesPosition.payablesUnknownCount })}</div>}
-            </>;
-          })()}
-          
-        </article>
-        <article className="min-w-0 p-4">
-          <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.oldestWaiting', 'Oldest waiting')}<Tooltip content={t('financeHub:hub.payableBucketBasis', 'Calendar days since invoiced status was recorded, or last update if unavailable. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          {isPending ? <div role="status" aria-live="polite" className="mt-2"><span className="sr-only">{t('financeHub:hub.loadingFigure', 'Loading figure')}</span><span className="skel block h-7 w-24" /></div> : <>
-            <div className="mt-1 text-[20px] font-bold tabular">{oldest ? t('financeHub:hub.daysWaiting', '{{count}} days', { count: oldest.ageDays }) : '—'}</div>
-            <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.oldestBasis', 'Calendar days since invoiced status was recorded, or last update if unavailable')}</div>
-          </>}
-          
-        </article>
-      </KPIRow>
+      <PayablesFigures
+        isPending={isPending}
+        totals={payablesPosition.payablesTotals}
+        supplierCount={supplierCount}
+        unknownCount={payablesPosition.payablesUnknownCount}
+        oldestDays={oldestDays}
+        orgCurrency={orgCurrency}
+      />
       {!isPending && !finance.isError && <AgeingStrip kind="payables" values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
       <div className="min-w-0" data-testid="finance-payables-table-card">
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
-        <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={filteredRows.length} />
+        <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={onSearch} searchSurface="finance-payables" module="finance" resultCount={filteredRows.length} />
         <div className="ml-auto flex flex-wrap gap-2"><Button variant="outline" size="sm" loading={busy} onClick={() => void exportXlsx(filteredRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>{selectedKeys.size > 0 && <Button variant="outline" size="sm" loading={busy} onClick={() => void exportXlsx(payablesPosition.payables.filter((row) => selectedKeys.has(row.procurement.id)), columns, 'Payables')}>{t('financeHub:hub.exportSelected', 'Export selected')}</Button>}</div>
       </Toolbar>
-      <DataTable
+      <MemoDataTable<PayableRow>
         rows={filteredRows}
         columns={columns}
-        rowKey={(row) => row.procurement.id}
-        rowLabel={(row) => t('financeHub:hub.openSupplierInvoice', 'Open supplier invoice for {{supplier}}', { supplier: row.procurement.vendor?.name ?? row.procurement.title })}
-        onActivate={(row) => navigate(`/procurement/${row.procurement.id}`)}
-        selection={{ selectedIds: selectedKeys, onChange: setSelectedKeys }}
-        rowMenu={(row) => [
-          { label: t('financeHub:hub.openProcurement', 'Open procurement'), onClick: () => navigate(`/procurement/${row.procurement.id}`) },
-          ...(row.procurement.vendor_id ? [{ label: t('financeHub:hub.openSupplier', 'Open supplier'), onClick: () => navigate(`/companies/${row.procurement.vendor_id}`) }] : []),
-        ]}
+        rowKey={rowKey}
+        rowLabel={rowLabel}
+        onActivate={openProcurement}
+        selection={selection}
+        rowMenu={rowMenu}
         totals={totals}
-        state={isPending ? 'loading' : finance.isError ? 'error' : filteredRows.length === 0 ? 'empty' : undefined}
+        state={tableState}
         emptyTitle={search ? t('financeHub:hub.noPayablesMatch', 'No payables match this search.') : t('financeHub:hub.noPayables', 'No supplier invoices waiting to be paid.')}
         errorTitle={t('financeHub:hub.payablesLoadError', "Couldn't load supplier invoices")}
         onRetry={finance.retry}
