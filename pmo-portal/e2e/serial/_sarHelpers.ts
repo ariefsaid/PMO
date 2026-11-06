@@ -27,8 +27,11 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { siteUrl } from '../../src/lib/testing/erpBenchGuard';
 
-const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
+// #1359: guarded — `seedSAR` POSTs a Customer to this origin, so a non-local bench refuses to load
+// unless `E2E_ALLOW_REMOTE_ERP=1`.
+const ERPNEXT_SITE_URL = siteUrl();
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 
 const ADMIN_EMAIL = 'admin@acme.test';

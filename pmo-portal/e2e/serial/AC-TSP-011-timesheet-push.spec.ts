@@ -250,8 +250,11 @@ test.describe('AC-TSP-011: approving a week in the app puts it on the client led
       try {
         if (seeded) await cleanupTsp(admin, seeded);
         if (pushedName) {
-          const cancelled = await benchGet<ErpTimesheetDoc>(`/api/resource/Timesheet/${encodeURIComponent(pushedName)}`);
-          expect(cancelled.docstatus, 'the run-owned ERP document is cancelled').toBe(2);
+          // #1359: cleanup now REMOVES the run's ERP documents (cancel + delete), so the readback is a
+          // 404 — a stronger form of the same oracle: no run-owned document survives the run on the bench.
+          await expect(
+            benchGet<ErpTimesheetDoc>(`/api/resource/Timesheet/${encodeURIComponent(pushedName)}`),
+          ).rejects.toThrowError(/404/);
         }
       } finally {
         await restoreRate();

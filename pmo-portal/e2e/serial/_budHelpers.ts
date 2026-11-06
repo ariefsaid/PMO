@@ -20,13 +20,15 @@
  */
 import { expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { benchUrl, deleteTrackedErpProjects, siteUrl, trackErpProject } from '../../src/lib/testing/erpBenchGuard';
 import { runFullSweep } from './_sweepHelpers';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 /** The local seed password every e2e user shares (`supabase/seed.sql`). */
 export const SEED_PASSWORD = 'Passw0rd!dev';
-export const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
-export const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
+/** #1359: guarded reads — a non-local bench refuses to load unless `E2E_ALLOW_REMOTE_ERP=1`. */
+export const ERPNEXT_SITE_URL = siteUrl();
+export const BENCH_URL = benchUrl();
 export const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 export const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 
@@ -210,7 +212,9 @@ export async function seedBud(
   opts: { projectStart: string; projectEnd: string },
 ): Promise<BudSeed> {
   const projectId = crypto.randomUUID();
+  // #1359: ledgered — cleanup DELETEs it from the bench when the remote opt-in is set.
   const erpProject = ((await benchPost('Project', { project_name: `PMO-E2E-BUD-${suffix}`, company: ERP_COMPANY })) as { name: string }).name;
+  trackErpProject(erpProject);
 
   const { error: projErr } = await admin.from('projects').insert({
     id: projectId,
@@ -412,6 +416,9 @@ export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<
   } else {
     await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
   }
+  // #1359: when E2E_ALLOW_REMOTE_ERP=1, this also DELETEs the ERP Project `seedBud` created —
+  // best-effort: a Project still linked by a pushed Budget tombstone is reported as failed, never thrown.
+  await deleteTrackedErpProjects();
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { benchUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -46,7 +47,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 // default matches AC-ENA-053's (the Docker-reachable alias) — the earlier fallback-to-BENCH_URL
 // seeded a container-unreachable localhost URL whenever ERPNEXT_SITE_URL wasn't exported, failing
 // this spec with external-unreachable while its siblings passed (found 2026-07-13).
-const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
+const BENCH_URL = benchUrl();
 const SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
 const BENCH_API_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_API_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';

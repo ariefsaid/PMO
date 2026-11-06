@@ -18,11 +18,12 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAR_CURRENCY } from './_sarHelpers';
+import { benchUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
+const BENCH_URL = benchUrl();
 const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 const SITE_URL_FOR_BINDING = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';

@@ -29,11 +29,13 @@
  * HR-EMP-00001).
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { benchUrl, deleteTrackedErpProjects, siteUrl, trackErpProject } from '../../src/lib/testing/erpBenchGuard';
 import { runFullSweep } from './_sweepHelpers';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
-export const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
-export const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
+/** #1359: guarded reads — a non-local bench refuses to load unless `E2E_ALLOW_REMOTE_ERP=1`. */
+export const ERPNEXT_SITE_URL = siteUrl();
+export const BENCH_URL = benchUrl();
 export const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 export const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 export const SWEEP_SECRET = process.env.ERPNEXT_SWEEP_SECRET ?? 'e2e-erpnext-sweep-secret';
@@ -96,6 +98,15 @@ export async function benchPut<T = unknown>(doctype: string, name: string, body:
   return parsed.data as T;
 }
 
+/** DELETE a bench document — the Desk-legal removal of a CANCELLED doc this run owns. */
+export async function benchDelete(doctype: string, name: string): Promise<void> {
+  const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: benchHeaders(),
+  });
+  if (!res.ok) throw new Error(`bench DELETE ${doctype}/${name} -> ${res.status} ${(await res.text()).slice(0, 200)}`);
+}
+
 /** Every ERPNext `Timesheet` whose recovery ANCHOR (`note`, doctypeRegistry) carries this run's key.
  *  The run-scoped duplicate oracle: two originators minting two documents is visible HERE, in ERP,
  *  and nowhere in PMO. */
@@ -114,9 +125,11 @@ export async function countErpTimesheets(): Promise<number> {
   return rows.length;
 }
 
-/** Create a run-scoped ERPNext `Project` and return its ERP `name` (PROJ-#####). */
+/** Create a run-scoped ERPNext `Project` and return its ERP `name` (PROJ-#####). ⚑ #1359: ledgered —
+ *  cleanup (`deleteTrackedErpProjects`) DELETEs it from the bench when the remote opt-in is set. */
 export async function createErpProject(label: string): Promise<string> {
   const doc = (await benchPost('Project', { project_name: label, company: ERP_COMPANY })) as { name: string };
+  trackErpProject(doc.name);
   return doc.name;
 }
 
@@ -291,6 +304,10 @@ async function cancelErpTimesheetsFor(timesheetId: string): Promise<void> {
     const docs = await listErpTimesheetsByAnchor(timesheetId);
     for (const doc of docs) {
       if (doc.docstatus === 1) await benchPut('Timesheet', doc.name, { docstatus: 2 });
+      // #1359: also REMOVE the cancelled doc — an opted-in remote cleanup then deletes this run's
+      // ERP Projects (a Timesheet still linked to a Project blocks its deletion), and the bench
+      // keeps no cancelled tombstones for a document PMO already tombstoned itself.
+      await benchDelete('Timesheet', doc.name);
     }
   } catch {
     // Best effort: teardown must never mask the test's own result.
@@ -317,6 +334,9 @@ export async function cleanupTsp(admin: SupabaseClient, seed: TspSeed): Promise<
   await admin.from('projects').delete().in('id', [seed.projectAId, seed.projectBId]);
   await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'timesheets');
   await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+  // #1359: when E2E_ALLOW_REMOTE_ERP=1, this also DELETEs the ERP Projects `createErpProject` made —
+  // the leak the issue fixes (a run pointed at a real ERPNext left PMO-E2E-* Projects behind).
+  await deleteTrackedErpProjects();
 }
 
 /**

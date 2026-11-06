@@ -124,6 +124,18 @@ if (FUNCTIONS_URL && !READY) throw new Error('served lane is up but misconfigure
 Skip when the lane is absent; **throw** when it is present but broken. A spec that mocks
 `functions/v1` via `page.route` needs no gate at all — prefer that.
 
+### Bench writes go through one guard (#1359)
+
+Every serial helper or spec that builds an ERPNext bench URL reads it through
+`src/lib/testing/erpBenchGuard.ts` — `benchUrl()` (host-side), `siteUrl()` (the container-facing
+`ERPNEXT_SITE_URL`), or `guardBenchUrl(process.env.ERPNEXT_BENCH_URL ?? '')` when an unconfigured
+lane must still skip. Never read `ERPNEXT_BENCH_URL` / `ERPNEXT_SITE_URL` directly.
+
+The guard accepts only `localhost`, `127.0.0.1` and `host.docker.internal`. Any other host refuses
+to load unless the operator exports `E2E_ALLOW_REMOTE_ERP=1`; that opt-in also makes teardown delete
+the ERP Projects the run created (`trackErpProject` at creation → `deleteTrackedErpProjects()` in
+each `cleanup*`), so a run against a real bench leaves no `PMO-E2E-*` litter behind.
+
 Targeted failing-spec reruns and `scripts/e2e-local.sh` are inner-loop tools — never a substitute
 for this gate. Environment gotchas the script enforces/documents: node ≥22 (node 18 fails inside
 vitest with a misleading `node:util`/`styleText` error), and `SUPABASE_FUNCTIONS_URL` stays UNSET

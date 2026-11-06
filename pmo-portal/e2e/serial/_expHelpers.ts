@@ -3,6 +3,7 @@
 // map, plus the Engineer's confirmed ERP Employee link. The org row itself is NEVER touched — the claims, the
 // advance and the project state their currency (IDR, the bench company's books) explicitly instead.
 import { type SupabaseClient } from '@supabase/supabase-js';
+import { deleteTrackedErpProjects } from '../../src/lib/testing/erpBenchGuard';
 import { benchGet, benchPost, createErpProject, ERP_COMPANY, ERPNEXT_SITE_URL, ORG_ID } from './_tspHelpers';
 import { SAR_CURRENCY } from './_sarHelpers';
 
@@ -157,4 +158,7 @@ export async function cleanupExp(admin: SupabaseClient, seed: ExpSeed, claimIds:
     await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
   }
   await admin.from('projects').delete().eq('id', seed.projectId);
+  // #1359: when E2E_ALLOW_REMOTE_ERP=1, this also DELETEs the ERP Project `createErpProject` made
+  // (ledgered there) — best-effort, never thrown.
+  await deleteTrackedErpProjects();
 }

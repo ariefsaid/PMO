@@ -24,10 +24,11 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { refreshAging, type AgingScope } from '../../src/lib/adapterSeam/erpnext/agingSnapshot.ts';
+import { benchUrl } from '../../src/lib/testing/erpBenchGuard'; // #1359
 
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
+const BENCH_URL = benchUrl();
 const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 // What the sweep uses as the per-org site_url when it dials ERPNext from inside Docker (host.docker.internal).
