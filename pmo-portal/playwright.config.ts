@@ -16,6 +16,9 @@ const consentLane = process.env.E2E_CONSENT_LANE !== '0';
 // one output directory. The commands call vite directly (not `npm run build`) to skip the postbuild
 // sourcemap step — it is a deploy-only concern (AC-PHO-011) and would read the wrong outDir here.
 const e2eServer = process.env.E2E_SERVER ?? (process.env.CI ? 'build' : 'dev');
+if (e2eServer !== 'dev' && e2eServer !== 'build') {
+  throw new Error(`E2E_SERVER must be 'dev' or 'build', got '${e2eServer}'`);
+}
 
 // Acceptance (BDD) layer. Each spec maps 1:1 to an AC-### from docs/specs/*.spec.md.
 export default defineConfig({

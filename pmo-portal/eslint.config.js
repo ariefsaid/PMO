@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results'] },
+  { ignores: ['dist', 'dist-consent', 'node_modules', 'coverage', 'playwright-report', 'test-results'] },
   // ── posthog-js import boundary: only client.ts may import the SDK ──────
   {
     files: ['**/*.{ts,tsx}'],

@@ -23,20 +23,34 @@ const discoverModes = [
   { width: 1440, height: 900, locale: 'id', theme: 'dark' },
 ] as const;
 
+// The product locale comes from the authenticated profile (FR-L10N-003). For this private synthetic
+// render, rewrite the profile read the AuthProvider makes instead of importing app modules into the
+// page: `/src/...` only resolves on the Vite dev server, never in a production build (#1968). The
+// stored row is unchanged. Callers reload after changing presentation so the app re-reads it.
+let discoverLocale: DiscoverLocale = 'en';
+
+async function pinDiscoverLocale(page: Page) {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
+    const response = await route.fetch({ maxRetries: 2 });
+    const body = await response.json().catch(() => null);
+    if (!body || Array.isArray(body) || typeof body !== 'object' || !('locale' in body)) return route.fulfill({ response, json: body });
+    return route.fulfill({
+      response,
+      json: discoverLocale === 'id'
+        ? { ...body, locale: 'id', number_locale: 'id-ID', timezone: 'Asia/Jakarta' }
+        : { ...body, locale: 'en', number_locale: 'en-US', timezone: 'UTC' },
+    });
+  });
+}
+
 async function setDiscoverPresentation(page: Page, locale: DiscoverLocale, theme: DiscoverTheme) {
-  await page.evaluate(async ({ language, colorScheme }) => {
-    // The product locale comes from the authenticated profile. For this private synthetic render,
-    // switch the already-loaded i18next instance and formatter locale without changing that row.
-    const i18nModule = await import(new URL('/src/lib/i18n/index.ts', window.location.origin).href);
-    const activeLocaleModule = await import(new URL('/src/lib/locale/activeLocale.ts', window.location.origin).href);
-    await i18nModule.i18next.changeLanguage(language);
-    activeLocaleModule.setActiveLocale(language === 'id'
-      ? { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' }
-      : { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
-    document.documentElement.lang = language;
+  discoverLocale = locale;
+  await page.evaluate((colorScheme) => {
     document.documentElement.classList.toggle('dark', colorScheme === 'dark');
     window.localStorage.setItem('theme', colorScheme);
-  }, { language: locale, colorScheme: theme });
+  }, theme);
+  await page.reload();
 }
 
 async function captureDiscoverScreen(page: Page, outputDir: string, name: string) {
@@ -193,6 +207,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     await page.route('**/api/resource/**', (route) => route.abort());
 
     if (discoverOutputDir) {
+      await pinDiscoverLocale(page);
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto('/projects/' + projectId + '/overview');
       await expect(page.getByRole('heading', { name: projectName })).toBeVisible();
@@ -228,6 +243,9 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
       for (const mode of discoverModes) {
         await page.setViewportSize({ width: mode.width, height: mode.height });
         await setDiscoverPresentation(page, mode.locale, mode.theme);
+        // the reload closed the form; reopen it from the same entry URL the contract link uses
+        await page.goto(`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`);
+        await expect(contractForm).toBeVisible();
         await expect(contractForm.getByRole('combobox', { name: localized('Customer', 'Pelanggan') })).toContainText(companyName);
         await expect(contractForm.getByRole('combobox', { name: localized('Project', 'Proyek') })).toContainText(projectName);
         await expect(contractForm.getByText('€')).toBeVisible();
