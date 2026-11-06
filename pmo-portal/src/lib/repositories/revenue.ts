@@ -9,6 +9,8 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import {
   listSalesInvoices,
   getOverdueInvoiceCount,
+  listOverdueInvoiceFacts,
+  listPaidPaymentFacts,
   getSalesInvoice,
   listIncomingPayments,
   getIncomingPayment,
@@ -45,6 +47,8 @@ export const revenueRepository: RevenueRepository = {
   // Read methods (ADR-0017)
   listInvoices: (params) => wrap(() => listSalesInvoices(params)),
   countOverdueInvoices: (today) => wrap(() => getOverdueInvoiceCount(today)),
+  listOverdueInvoiceFacts: () => wrap(() => listOverdueInvoiceFacts()),
+  listPaidPaymentFacts: () => wrap(() => listPaidPaymentFacts()),
   getInvoice: (id) => wrap(() => getSalesInvoice(id)),
   listPayments: (params) => wrap(() => listIncomingPayments(params)),
   getPayment: (id) => wrap(() => getIncomingPayment(id)),

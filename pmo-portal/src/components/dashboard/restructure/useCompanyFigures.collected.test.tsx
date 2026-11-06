@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({ payments: [
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }) }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useDashboard: () => ({}), useSalesPipeline: () => ({}), useWinRate: () => ({}) }));
 vi.mock('@/src/hooks/useManagementPack', () => ({ useManagementPack: () => ({}) }));
-vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({}), useIncomingPayments: () => ({ data: state.payments }) }));
+vi.mock('@/src/hooks/useRevenue', () => ({ useOverdueInvoiceFacts: () => ({}), usePaidPaymentFacts: () => ({ data: state.payments }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({}) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({}) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ isResolved: true }) }));
