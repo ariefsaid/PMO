@@ -107,7 +107,7 @@ const OutOfCreditsCard: React.FC = () => (
 
 // ── Main panel component ──────────────────────────────────────────────────────
 
-export const AssistantPanel: React.FC = () => {
+export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement | null> }> = ({ openerRef }) => {
   const {
     consumePrefill,
     open,
@@ -302,7 +302,9 @@ export const AssistantPanel: React.FC = () => {
   useEffect(() => {
     if (open) {
       // Capture the trigger element before we move focus
-      triggerRef.current = document.activeElement as HTMLElement | null;
+      // A lazily mounted panel can land after focus left the opener; the slot remembers it.
+      const active = document.activeElement as HTMLElement | null;
+      triggerRef.current = active && active !== document.body ? active : (openerRef?.current ?? active);
       // Defer past the render commit so the DOM is committed (AppShell pattern)
       const t = setTimeout(() => {
         const root = panelRef.current;
@@ -327,7 +329,7 @@ export const AssistantPanel: React.FC = () => {
       triggerRef.current.focus();
       triggerRef.current = null;
     }
-  }, [open]);
+  }, [open, openerRef]);
 
   // ── Esc closes the panel (D-A2-4 — never cancels) ───────────────────────
   useEffect(() => {
