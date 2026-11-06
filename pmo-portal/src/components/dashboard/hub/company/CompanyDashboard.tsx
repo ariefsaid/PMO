@@ -64,7 +64,7 @@ const money = (value: number | null, currency: string, unavailable = '—') =>
  * figure. `null` = unknown (never 0).
  */
 function useSupplierUnpaid(enabled: boolean): (row: ProcurementWithRefs) => number | null {
-  const finance = useFinancePosition(enabled);
+  const finance = useFinancePosition(enabled, { withRoutes: true });
   const payables = usePayablesPosition(finance.position, enabled);
   const byId = React.useMemo(() => new Map(payables.payables.map((p) => [p.procurement.id, p.amount])), [payables.payables]);
   return React.useCallback((row: ProcurementWithRefs) => {
@@ -249,7 +249,7 @@ const snapshotEmpty = (query: { data?: unknown[]; isPending: boolean; isError: b
 
 function ClientAgingBlock() {
   const arAging = useArAgingSnapshot();
-  const finance = useFinancePosition();
+  const finance = useFinancePosition(true, { withRoutes: true });
   const { data: clientCompanies } = useCompanies('Client');
   const clientCompanyIds = React.useMemo(() => (clientCompanies ?? []).map((company) => company.id), [clientCompanies]);
   const { customerLinks } = useCompanyCollections(clientCompanyIds);
@@ -263,7 +263,7 @@ function FinanceAccountingBlocks() {
   const actuals = useActualsSnapshot();
   const apAging = useApAgingSnapshot();
   const arAging = useArAgingSnapshot();
-  const finance = useFinancePosition();
+  const finance = useFinancePosition(true, { withRoutes: true });
   const projects = useProjects();
   const projectNames = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, projectDisplayName(project)])), [projects.data]);
   // L12(b): the same payables ageing as the finance hub — linked accounting documents read, unknown balances counted by age.

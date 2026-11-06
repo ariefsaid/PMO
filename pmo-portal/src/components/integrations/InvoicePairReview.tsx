@@ -25,23 +25,26 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Pairing exists only while an ERP owns revenue; the three reads below return nothing otherwise, so skip them. Same key as the
-  // app-shell ownership read: a cache hit, no extra request.
+  // Proposals and unpaired invoices exist only while an ERP owns revenue (the server returns nothing otherwise), so skip those two
+  // once ownership has loaded without it. Same key as the app-shell ownership read: a cache hit, no extra request. A failed
+  // ownership read reads them anyway, as before. Accepted pairs stay undoable after a release (0498 §10), so they always read.
   const ownership = useQuery({
     queryKey: externalDomainOwnershipKey(orgId),
     queryFn: () => repositories.externalDomainOwnership.listOwn(),
     enabled: Boolean(orgId && canPair),
   });
-  const enabled = Boolean(orgId && canPair && ownership.data?.some((row) => row.domain === 'revenue'));
+  const pairingOpen = Boolean(orgId && canPair && !ownership.isPending
+    && (ownership.isError || ownership.data?.some((row) => row.domain === 'revenue')));
+  const enabled = Boolean(orgId && canPair);
   const proposals = useQuery({
     queryKey: ['invoicePairs', 'propose', orgId],
     queryFn: () => repositories.revenue.proposeInvoicePairs(),
-    enabled, retry: false,
+    enabled: pairingOpen, retry: false,
   });
   const unpaired = useQuery({
     queryKey: ['invoicePairs', 'unpaired', orgId],
     queryFn: () => repositories.revenue.listUnpairedNativeInvoices(),
-    enabled, retry: false,
+    enabled: pairingOpen, retry: false,
   });
   const accepted = useQuery({
     queryKey: ['invoicePairs', 'accepted', orgId],
@@ -50,17 +53,18 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   });
 
   if (!canPair) return null;
-  const rows = proposals.data ?? [];
+  // Ignore pairing data cached from an ERP era once the gate closes (no stale "Count each once" button).
+  const rows = pairingOpen ? proposals.data ?? [] : [];
   const clear = rows.filter((r) => !r.ambiguous);
   const ambiguous = rows.filter((r) => r.ambiguous);
-  const stillPmo = unpaired.data ?? [];
+  const stillPmo = pairingOpen ? unpaired.data ?? [] : [];
   const done = accepted.data ?? [];
   // A failed read is never shown as an empty or complete list: unresolved duplicates would vanish while totals double count.
   const failed = [
     { query: proposals, text: t('invoicePairs.loadFailed.propose', 'Could not load the matching invoices.') },
     { query: unpaired, text: t('invoicePairs.loadFailed.unpaired', 'Could not load the invoices still counted as PMO invoices.') },
     { query: accepted, text: t('invoicePairs.loadFailed.accepted', 'Could not load the invoices that already count once.') },
-  ].filter((f) => f.query.isError);
+  ].filter((f) => f.query.isError && (pairingOpen || f.query === accepted));
   if (clear.length + ambiguous.length + stillPmo.length + done.length + failed.length === 0 && !notice) return null;
 
   const money = (amount: number, currency: string) => formatCurrency(amount, currency);

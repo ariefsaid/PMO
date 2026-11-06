@@ -6,13 +6,14 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useIncomingPayments, useSalesInvoices } from '@/src/hooks/useRevenue';
 import { buildFinancePosition } from '@/src/lib/finance/financePosition';
 
-export function useFinancePosition(enabled = true) {
+/** `withRoutes` shares the routed lean list with the dashboards, so a page that mounts both fetches the org's procurements once. */
+export function useFinancePosition(enabled = true, opts?: { withRoutes?: boolean }) {
   const { currentUser } = useAuth();
   const may = usePermission();
   const invoices = useSalesInvoices(undefined, { enabled });
   const payments = useIncomingPayments(undefined, enabled);
   // Shared-details select: the supplier invoice and payment rows behind the unpaid balance.
-  const procurements = useProcurements({ lean: true, withoutRoutes: true, enabled });
+  const procurements = useProcurements({ lean: true, withoutRoutes: opts?.withRoutes !== true, enabled });
   const orgDay = useFxOrgDay(enabled);
 
   const position = useMemo(() => buildFinancePosition({
