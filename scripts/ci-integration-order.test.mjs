@@ -353,6 +353,31 @@ test('authoritative browser runs own their Vite servers', () => {
   assert.equal((config.match(/reuseExistingServer:\s*false/g) ?? []).length, 2);
 });
 
+test('#1968 CI browser e2e serves a production build; the dev server stays local', () => {
+  const config = readFileSync(new URL('../pmo-portal/playwright.config.ts', import.meta.url), 'utf8');
+  // The mode switch: E2E_SERVER=dev|build, CI defaults to the production build, local keeps dev.
+  assert.match(config, /E2E_SERVER/, 'the e2e server mode must be switchable via E2E_SERVER');
+  assert.match(
+    config,
+    /process\.env\.CI\s*\?\s*'build'\s*:\s*'dev'/,
+    'CI must default to the production build; local runs keep the dev server (E2E_SERVER=dev|build)',
+  );
+  // Build mode must serve a REAL production bundle: vite build, then vite preview on the same ports.
+  assert.match(config, /vite build/, 'build mode must run vite build');
+  assert.match(config, /vite preview/, 'build mode must serve the bundle with vite preview');
+  // The dev-server command stays available for local runs (E2E_SERVER=dev).
+  assert.match(config, /'npm run dev/, 'local runs must keep the dev server');
+  // The two lanes build to SEPARATE output dirs: Playwright starts both webServers concurrently,
+  // and two concurrent vite builds cannot share one dist/.
+  assert.match(
+    config,
+    /dist-consent/,
+    'the analytics (:3100) lane must build to its own outDir — it cannot share dist/ with the :3000 lane',
+  );
+  // Polarity: CI must never pin the dev server — the whole point of #1968 is serving the build there.
+  assert.doesNotMatch(workflow, /E2E_SERVER:\s*['"]?dev/);
+});
+
 test('auth setup exposes transient login failures to Playwright flake detection', () => {
   const setup = readFileSync(new URL('../pmo-portal/e2e/auth.setup.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(setup, /SIGN_IN_ATTEMPTS|SIGN_IN_BACKOFF_MS/);
