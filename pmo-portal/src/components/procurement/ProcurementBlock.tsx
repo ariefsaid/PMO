@@ -312,7 +312,14 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange }) => {
+/**
+ * The company-wide procurement list also appears on the project detail page; both surfaces read their own
+ * data (`useProcurements` / `useProjectProcurements` + `useErpPurchases`), so this block is memoised on its
+ * PROPS only. A host page re-rendering for a reason the list does not care about (a reference-query settle,
+ * a wizard opening) now skips the whole table, while a change to its own query data or a filter callback
+ * still re-renders it — the queries and the store subscriptions trigger it directly.
+ */
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(function ProcurementBlock({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange }) {
   const { t } = useTranslation('procurement');
   // The state main action reuses the record page's labels, which live in the common catalogue.
   const { t: tCommon } = useTranslation();
@@ -1204,6 +1211,6 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       />
     </div>
   );
-};
+});
 
 export default ProcurementBlock;
