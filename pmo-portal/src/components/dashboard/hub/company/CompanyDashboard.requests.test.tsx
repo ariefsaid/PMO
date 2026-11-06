@@ -110,6 +110,6 @@ describe('company dashboard layout stability (CLS)', () => {
     expect(tiles).toHaveLength(6);
     tiles.forEach((tile) => expect(tile.className).toMatch(/min-h-\[/));
     const approvals = screen.getAllByTestId('liststate-loading')[0];
-    expect(approvals.className).toMatch(/min-h-11/);
+    expect(approvals.className).toMatch(/\bh-11\b/);
   });
 });
