@@ -7,6 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useOverdueInvoiceFacts } from '@/src/hooks/useRevenue';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
@@ -23,7 +24,7 @@ import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
-import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { supplierUnpaid, withLinkedDocuments } from '@/pages/procurement/blocks/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
@@ -206,7 +207,7 @@ function activeTask(status: string): boolean {
   return !['Done', 'Complete', 'Completed', 'Cancelled'].includes(status);
 }
 
-export function selectOverdueInvoices(rows: SalesInvoiceRow[] | undefined, organizationToday: string | null): OverdueInvoiceNeeds | undefined {
+export function selectOverdueInvoices(rows: OverdueInvoiceFact[] | undefined, organizationToday: string | null): OverdueInvoiceNeeds | undefined {
   if (!rows || !organizationToday) return undefined;
   const overdue = rows.filter((invoice) => {
     if (invoice.status !== 'Submitted' && invoice.status !== 'Unpaid') return false;
@@ -281,11 +282,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: getExecutiveDashboard,
     enabled: Boolean(orgId && companyRole),
   });
-  const salesInvoiceQuery = useQuery({
-    queryKey: ['salesInvoices', orgId, 'all'],
-    queryFn: () => repositories.revenue.listInvoices(),
-    enabled: Boolean(orgId && companyRole),
-  });
+  const salesInvoiceQuery = useOverdueInvoiceFacts(Boolean(orgId && companyRole));
   const procurementsQuery = useProcurements({ lean: true, enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
   const workOrdersQuery = useUnbilledWorkOrders(Boolean(orgId && companyRole));
   const budgetReviewQuery = useQuery({

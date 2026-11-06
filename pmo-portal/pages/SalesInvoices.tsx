@@ -194,6 +194,12 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       invoiceErpModified: inv.erp_modified,
       receiptCommandState: payment.push_command_state,
       receiptCommandCreatedAt: payment.push_command_created_at,
+      // #1825: single-clock evidence — the receipt's own Odoo reference appearing in the invoice read-back
+      // (`odoo_matched_payment_refs`, recorded by the receipt finalize from its settle read) clears the flag;
+      // the wall-clock comparison inside is only the fallback for commands without that evidence.
+      invoiceMatchedPaymentRefs: inv.odoo_matched_payment_refs,
+      receiptCommandExternalRef: payment.push_command_external_record_id,
+      receiptCommandRecordedReadBack: (payment.push_command_matched_payment_refs?.length ?? 0) > 0,
     }),
   );
   const invoiceStatus = (inv: SalesInvoiceRow) => {

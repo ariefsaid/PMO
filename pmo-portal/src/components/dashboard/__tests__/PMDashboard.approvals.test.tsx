@@ -71,7 +71,7 @@ vi.mock('@/src/lib/repositories', async () => {
       financeBudgetReview: () => dash.getFinanceBudgetReview(),
       pmProjects: () => dash.getPMDashboardProjects(),
     },
-    revenue: { listInvoices: () => Promise.resolve([]) },
+    revenue: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
     expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
     task: { list: () => Promise.resolve([]), listDueRows: () => Promise.resolve([]) },
   },
@@ -126,5 +126,10 @@ describe('PMDashboard approvals queue (ported N15)', () => {
     expect(await screen.findByRole('link', { name: 'Project One' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^\d+ approvals? waiting for you$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^\d+ team timesheets? to approve$/i })).not.toBeInTheDocument();
+  });
+
+  it('CLS: holds the approvals line open while the queue loads, so the cards below do not jump', () => {
+    renderDashboard();
+    expect(screen.getByTestId('approvals-reserve').className).toMatch(/min-h-11/);
   });
 });

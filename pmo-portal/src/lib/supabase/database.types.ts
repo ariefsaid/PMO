@@ -8976,6 +8976,7 @@ export type Database = {
           odoo_attention: string | null
           odoo_read_at: string | null
           odoo_sent_total: number | null
+          odoo_matched_payment_refs: string[] | null
           odoo_state: string | null
           org_id: string
           overpaid_amount: number | null
@@ -9024,6 +9025,7 @@ export type Database = {
           odoo_attention?: string | null
           odoo_read_at?: string | null
           odoo_sent_total?: number | null
+          odoo_matched_payment_refs?: string[] | null
           odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null
@@ -9072,6 +9074,7 @@ export type Database = {
           odoo_attention?: string | null
           odoo_read_at?: string | null
           odoo_sent_total?: number | null
+          odoo_matched_payment_refs?: string[] | null
           odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null

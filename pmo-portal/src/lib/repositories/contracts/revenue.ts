@@ -1,7 +1,7 @@
 /** Revenue (sales invoices / incoming payments) repository contract. */
 import type { CommandIntent } from './commandIntent';
 import type {
-  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow,
+  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow, OverdueInvoiceFact, PaidPaymentFact,
   InvoicePairProposal, UnpairedNativeInvoice, AcceptedInvoicePair,
 } from '@/src/lib/db/revenue';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
@@ -49,6 +49,10 @@ export interface RevenueRepository {
   listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
   /** Count overdue open client invoices from a narrow projection for the navigation rail. */
   countOverdueInvoices(today: string): Promise<number>;
+  /** Dashboard: open client invoices, only the columns the overdue tile reads. */
+  listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]>;
+  /** Dashboard: Paid receipts, only the columns the collected figure reads. */
+  listPaidPaymentFacts(): Promise<PaidPaymentFact[]>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */

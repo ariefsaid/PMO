@@ -11,7 +11,7 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
+import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow, OverdueInvoiceFact, PaidPaymentFact } from '@/src/lib/db/revenue';
 import type { SalesInvoiceEvidence } from '@/src/lib/adapterSeam/erpnext/invoiceEvidence';
 import { getSalesInvoiceEvidence } from '@/src/lib/repositories/invoiceEvidence';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -35,6 +35,30 @@ export function useSalesInvoices(projectId?: string, { enabled = true }: { enabl
   return useQuery<SalesInvoiceRow[]>({
     queryKey: ['salesInvoices', orgId, projectId ?? 'all'],
     queryFn: () => repositories.revenue.listInvoices(projectId ? { projectId } : undefined),
+    enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
+/** Dashboard: open client invoices, narrow columns. Same `salesInvoices` key prefix, so every revenue mutation refreshes it. */
+export function useOverdueInvoiceFacts(enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<OverdueInvoiceFact[]>({
+    queryKey: ['salesInvoices', orgId, 'overdue-facts'],
+    queryFn: () => repositories.revenue.listOverdueInvoiceFacts(),
+    enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
+/** Dashboard: Paid receipts, narrow columns. Same `incomingPayments` key prefix as the full list. */
+export function usePaidPaymentFacts(enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<PaidPaymentFact[]>({
+    queryKey: ['incomingPayments', orgId, 'paid-facts'],
+    queryFn: () => repositories.revenue.listPaidPaymentFacts(),
     enabled: enabled && Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });

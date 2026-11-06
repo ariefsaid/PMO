@@ -45,6 +45,8 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useOverdueInvoiceFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({
   useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -100,5 +102,16 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
         expect(h.procurementList).toHaveBeenCalledTimes(1);
     expect(h.procurementList).toHaveBeenCalledWith({ lean: true });
+  });
+});
+
+describe('company dashboard layout stability (CLS)', () => {
+  it('holds each figure tile and the approvals line at their loaded height while loading', () => {
+    renderExec();
+    const tiles = screen.getAllByTestId('kpi-skeleton').map((bar) => bar.parentElement as HTMLElement);
+    expect(tiles).toHaveLength(6);
+    tiles.forEach((tile) => expect(tile.className).toMatch(/min-h-\[/));
+    const approvals = screen.getAllByTestId('liststate-loading')[0];
+    expect(approvals.className).toMatch(/\bh-11\b/);
   });
 });
