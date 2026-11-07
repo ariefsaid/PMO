@@ -475,6 +475,8 @@ export const FormSection: React.FC<FormSectionProps> = ({ legend, children, clas
 export interface FormActionsProps {
   submitLabel: string;
   cancelLabel?: string;
+  /** Read-only dialogs: the submit is the one dismiss control, so no Cancel beside it. */
+  hideCancel?: boolean;
   onCancel: () => void;
   /** When omitted, the submit button is type=submit (form submit path). */
   onSubmit?: () => void;
@@ -494,6 +496,7 @@ export interface FormActionsProps {
 export const FormActions: React.FC<FormActionsProps> = ({
   submitLabel,
   cancelLabel = 'Cancel',
+  hideCancel,
   onCancel,
   onSubmit,
   disabled,
@@ -508,9 +511,11 @@ export const FormActions: React.FC<FormActionsProps> = ({
       className,
     )}
   >
-    <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
-      {cancelLabel}
-    </Button>
+    {!hideCancel && (
+      <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+        {cancelLabel}
+      </Button>
+    )}
     <Button
       type={onSubmit ? 'button' : 'submit'}
       variant="primary"
