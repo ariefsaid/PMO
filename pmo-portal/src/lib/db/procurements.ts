@@ -157,14 +157,15 @@ export async function getProjectReservedSpend(projectId: string): Promise<Projec
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
  * scopes rows (FR-DAL-PROC-001). Reads every page by keyset (ordered by id) so the list is never cut at the row cap: the ⌘K CommandPalette record search indexes
- * the full cached list.
+ * the full cached list. `status` filters server-side (the approvals queue reads only `Requested`).
  */
 export async function listProcurements(
-  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean },
+  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: ProcurementRow['status'] },
 ): Promise<ProcurementWithRefs[]> {
   const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
     let query = supabase.from('procurements').select(selection).order('id', { ascending: true }).limit(limit);
+    if (opts?.status) query = query.eq('status', opts.status);
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
   });

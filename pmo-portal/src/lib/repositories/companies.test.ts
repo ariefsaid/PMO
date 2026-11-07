@@ -97,6 +97,8 @@ describe('contactRepository', () => {
     ['delete', 'deleteContact', ['k1']],
     ['listActivities', 'listActivities', ['k1']],
     ['listActivitiesForContacts', 'listActivitiesForContacts', [['k1', 'k2']]],
+    ['listActivitiesPage', 'listActivitiesPage', ['k1', null]],
+    ['listActivitiesForContactsPage', 'listActivitiesForContactsPage', [['k1', 'k2'], null]],
     ['createActivity', 'createActivity', [{ contactId: 'k1', note: 'n' }, 'u1']],
     ['updateActivity', 'updateActivity', ['a1', { note: 'm' }]],
     ['deleteActivity', 'deleteActivity', ['a1']],
