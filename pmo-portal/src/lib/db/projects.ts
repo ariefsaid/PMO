@@ -246,7 +246,7 @@ export async function listProjectPickerOptions(): Promise<ProjectPickerOption[]>
     supabase
       .from('projects')
       .select('id,name,short_name,code,status,project_manager_id')
-      .in('status', ACTIVE_PROJECT_STATUSES as string[])
+      .in('status', ACTIVE_PROJECT_STATUSES)
       .is('archived_at', null)
       .order('id', { ascending: true })
       .range(from, to),
