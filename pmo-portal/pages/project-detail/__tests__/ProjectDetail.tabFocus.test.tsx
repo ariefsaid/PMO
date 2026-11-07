@@ -14,7 +14,7 @@
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -155,7 +155,13 @@ const renderAs = async (realRole: Role, path: string) => {
       </ToastProvider>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). Tab surfaces are stubbed modules, so once the record lands the
+  // fallback clears in microtasks — the wait just refuses to assert before it has.
+  const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 

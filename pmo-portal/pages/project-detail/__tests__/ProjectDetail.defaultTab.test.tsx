@@ -186,7 +186,7 @@ const renderAs = async (realRole: Role, path: string) => {
   // removed with the demand-loading change (#1469), which left the assertion vacuous and let a
   // chunk still in flight through to the assertions. Same 1 s default: no timeout increase.
   const panel = screen.getByRole('tabpanel');
-  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 
@@ -270,7 +270,7 @@ describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W
     const view = render(detailRoute('Engineer', '/projects/p1/materials'));
     try {
       expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
-      expect(within(screen.getByRole('tabpanel')).getByTestId('liststate-loading')).toBeInTheDocument();
+      expect(within(screen.getByRole('tabpanel')).getByTestId('project-detail-panel-loading')).toBeInTheDocument();
     } finally {
       view.unmount();
     }
