@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sodGateMessage } from '../mainAction';
+import { sodGateMessage } from './mainAction';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 
 const p = (status: string, name?: string) =>

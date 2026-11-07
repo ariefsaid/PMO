@@ -111,7 +111,7 @@ vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () =>
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
   useOverdueReceivables: () => null,
 }));

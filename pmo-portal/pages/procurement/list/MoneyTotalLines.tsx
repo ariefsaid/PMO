@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency, formatNumber, formatShortMoney } from '@/src/lib/format';
-import { shownAmount, type CurrencyTotal } from './model';
+import { shownAmount, type CurrencyTotal } from '@/src/lib/procurement/listModel';
 
 interface MoneyTotalLinesProps {
   totals: CurrencyTotal[];

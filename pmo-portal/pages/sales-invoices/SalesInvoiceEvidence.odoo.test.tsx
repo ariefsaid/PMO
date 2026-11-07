@@ -30,7 +30,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-me' } }) }));
 
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
-import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const invoice = (over: Partial<SalesInvoiceRow> = {}) => ({
   id: 'si-1', org_id: 'org-1', project_id: 'p-1', customer_id: 'c-1', customer_name: 'Northwind',

@@ -85,8 +85,8 @@ vi.mock('react-router', async (importOriginal) => {
 
 import SalesInvoices from '../SalesInvoices';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { FinanceI18nTestProvider } from './financeI18nTestProvider';
-import { financeTestI18n } from './financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };

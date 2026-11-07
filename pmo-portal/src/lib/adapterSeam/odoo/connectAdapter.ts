@@ -3,7 +3,7 @@
  * retry after a lost response finds the first attempt's record (NFR-ECA-001). The send key is the outbox caller's (S8).
  */
 import { AdapterError } from '../contract.ts';
-import type { ConnectAdapter, MasterKind, NormalisedMaster } from '../connect/types.ts';
+import type { ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
 import { OdooError, type OdooCall } from './client.ts';
 import {
   ACCOUNT_FIELDS, ITEM_FIELDS, normaliseAccount, normaliseItem, normaliseParty, normaliseProject, partyExternalId, PARTY_FIELDS,
@@ -59,12 +59,41 @@ function spec(kind: string): KindSpec {
   return s;
 }
 
-export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): ConnectAdapter {
+/**
+ * The Odoo record a send of this PMO master would find (lookup half of `sendMaster`), or null. Two records answering
+ * one anchor is `ambiguous`. party: `ref = pmo:<id>`; project: `code` in the plan and company; item: `default_code`.
+ */
+async function findSent(call: OdooCall, ctx: OdooConnectCtx, kind: MasterKind, record: PmoMaster): Promise<string | null> {
   const one = async (model: string, domain: unknown[]) => {
     const hits = await call<{ id: number }[]>(model, 'search_read', { domain, fields: ['id'], limit: 2, context: { active_test: false } });
     if (hits.length > 1) throw new AdapterError('commit-rejected', 'ambiguous');
     return hits[0]?.id ?? null;
   };
+  if (kind === 'party') {
+    const id = await one('res.partner', [['ref', '=', `pmo:${record.id}`]]);
+    return id === null ? null : partyExternalId(record.role === 'client' ? 'client' : 'vendor', id);
+  }
+  if (kind === 'project') {
+    const id = await one('account.analytic.account', [['code', '=', record.code], ...SPECS.project!.domain(ctx)]);
+    return id === null ? null : String(id);
+  }
+  if (kind === 'item') {
+    const id = await one('product.product', [['default_code', '=', record.code], ...SPECS.item!.domain(ctx)]);
+    return id === null ? null : String(id);
+  }
+  return null;
+}
+
+/** The money outbox's recovery probe for an Odoo send (ADR-0058 §3): same lookup as `sendMaster`, so a lost answer is adopted, never re-created. */
+export async function odooSendProbe(call: OdooCall, ctx: OdooConnectCtx, kind: MasterKind, record: PmoMaster): Promise<{ externalRecordId: string } | null> {
+  if (kind === 'project') planOf(ctx);
+  try {
+    const id = await findSent(call, ctx, kind, record);
+    return id === null ? null : { externalRecordId: id };
+  } catch (err) { toAdapterError(err); }
+}
+
+export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): ConnectAdapter {
   const create = async (model: string, vals: Raw) => (await call<number[]>(model, 'create', { vals_list: [vals] }))[0];
   const ownPartnerIds = () => odooOwnPartnerIds(call);
   const norm = async (kind: MasterKind, rows: Raw[]): Promise<NormalisedMaster[]> => {
@@ -96,23 +125,24 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
       if (kind === 'item' && record.unit && !ctx.unitMap[record.unit]) throw new AdapterError('commit-rejected', 'unit-unmapped');
       if (kind === 'project') planOf(ctx);
       try {
+        const found = await findSent(call, ctx, kind, record);
+        if (found !== null) return { externalId: found };
         if (kind === 'party') {
           const role = record.role === 'client' ? 'client' : 'vendor';
-          const anchor = `pmo:${record.id}`;
-          const id = (await one('res.partner', [['ref', '=', anchor]])) ?? await create('res.partner', {
-            name: record.name, vat: record.taxId || false, ref: anchor, is_company: true, [role === 'vendor' ? 'supplier_rank' : 'customer_rank']: 1,
+          const id = await create('res.partner', {
+            name: record.name, vat: record.taxId || false, ref: `pmo:${record.id}`, is_company: true, [role === 'vendor' ? 'supplier_rank' : 'customer_rank']: 1,
           });
           return { externalId: partyExternalId(role, id) };
         }
         if (kind === 'project') {
-          const id = (await one('account.analytic.account', [['code', '=', record.code], ...SPECS.project!.domain(ctx)])) ?? await create('account.analytic.account', {
+          const id = await create('account.analytic.account', {
             name: `${record.code} ${record.name}`, code: record.code, plan_id: ctx.analyticPlanId, company_id: ctx.companyId,
           });
           return { externalId: String(id) };
         }
         if (kind === 'item') {
           const uom = record.unit ? Number(ctx.unitMap[record.unit]) : undefined;
-          const id = (await one('product.product', [['default_code', '=', record.code], ...SPECS.item!.domain(ctx)])) ?? await create('product.product', {
+          const id = await create('product.product', {
             default_code: record.code, name: record.name, purchase_ok: true, ...(uom ? { uom_id: uom } : {}),
           });
           return { externalId: String(id) };
