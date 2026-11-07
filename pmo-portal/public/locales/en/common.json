@@ -993,6 +993,12 @@
       "client": "Client",
       "internal": "Internal",
       "vendor": "Supplier"
+    },
+    "pager": {
+      "label": "Pages",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous page",
+      "next": "Next page"
     }
   },
   "companyDetail": {
@@ -1282,7 +1288,13 @@
       "deleted": "Contact deleted",
       "updated": "Contact updated"
     },
-    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable."
+    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable.",
+    "pager": {
+      "label": "Pages",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous page",
+      "next": "Next page"
+    }
   },
   "dashboard": {
     "winRate": {

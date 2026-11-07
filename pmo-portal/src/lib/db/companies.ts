@@ -31,6 +31,110 @@ function throwWrite(error: PostgrestErrorLike): never {
 }
 
 /**
+ * The exact columns the Companies DIRECTORY renders, searches, exports and edits on — nothing
+ * else (#1989, the Master-data/AdminUsers pattern). It is deliberately NOT `select('*')`: the
+ * company row carries columns the directory never reads (org_id, ERP anchors, tax defaults,
+ * timestamps), and the directory is a whole-org list — the wide row WAS its response cost.
+ */
+export type CompanyListRow = Pick<
+  CompanyRow,
+  'id' | 'name' | 'short_name' | 'type' | 'client_number_segment'
+>;
+
+export const COMPANY_LIST_COLUMNS = 'id,name,short_name,type,client_number_segment';
+
+/** The directory's display row for pickers/exports that must offer EVERY company. */
+export type CompanyOptionRow = Pick<CompanyRow, 'id' | 'name' | 'short_name'>;
+
+/** One server page of the directory + the exact total matching the filter/search. */
+export interface CompanyDirectoryPage {
+  rows: CompanyListRow[];
+  /** The exact count of companies matching the filter/search over the WHOLE org — never the page length. */
+  total: number;
+}
+
+/**
+ * Escape a user-typed term for a quoted PostgREST `ilike` pattern: `%`/`_` are LIKE
+ * metacharacters, `\\` is the escape character they are escaped with, and `"` would terminate the
+ * quoted value. Without this, a search for `100%` would match every row.
+ */
+function likeAny(value: string): string {
+  return `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
+}
+
+/**
+ * ONE server page of the Companies directory (issue #1989, the Master-data pattern): the type
+ * filter and the name/short-name search are applied on the SERVER *before* the range (so a match
+ * on page 7 is found and counted). Ordering is TOTAL: `name` then `id` — equal names are common
+ * in a directory, and an OFFSET page over a non-total order can repeat one company and skip
+ * another. Archived rows are hidden. org_id is NEVER sent — RLS scopes the rows.
+ *
+ * A missing exact count is an ERROR (`COUNT_UNRESOLVED`), never `0`: a count the server failed to
+ * answer must not render a verified-looking empty directory (the AdminUsers ruling).
+ */
+export async function listCompaniesPage(input: {
+  page: number;
+  pageSize: number;
+  type?: CompanyType;
+  search?: string;
+}): Promise<CompanyDirectoryPage> {
+  const from = Math.max(0, input.page - 1) * input.pageSize;
+  let query = supabase
+    .from('companies')
+    .select(COMPANY_LIST_COLUMNS, { count: 'exact' })
+    .is('archived_at', null);
+  if (input.type) query = query.eq('type', input.type);
+  const term = input.search?.trim();
+  if (term) {
+    const pattern = likeAny(term);
+    query = query.or(`name.ilike.${pattern},short_name.ilike.${pattern}`);
+  }
+  const { data, error, count } = await query
+    .order('name')
+    .order('id')
+    .range(from, from + input.pageSize - 1);
+  if (error) throwWrite(error);
+  if (count === null || count === undefined) {
+    throw new AppError('The companies directory total could not be resolved.', 'COUNT_UNRESOLVED');
+  }
+  return { rows: (data ?? []) as CompanyListRow[], total: count };
+}
+
+/**
+ * The exact number of non-archived companies in the org — the "of Y" behind a filtered
+ * "Showing X of Y" on the directory (#1989). A head count: `head: true` sends no body bytes.
+ */
+export async function countCompanies(): Promise<number> {
+  const { count, error } = await supabase
+    .from('companies')
+    .select('id', { count: 'exact', head: true })
+    .is('archived_at', null);
+  if (error) throwWrite(error);
+  return count ?? 0;
+}
+
+/**
+ * EVERY non-archived company as a display row (id + name fields only) — the Contacts page's
+ * filter options, export names and create/edit select (#1989). A picker must offer everyone,
+ * not one page (the AdminUsers ruling), so this traverses EVERY keyset page like `listCompanies`
+ * and restores the name-ordered contract in memory over the complete set. The narrow projection
+ * keeps the whole-directory picker read at a fraction of the wide row's size.
+ */
+export async function listCompanyOptions(): Promise<CompanyOptionRow[]> {
+  const rows = await fetchAllRowsByKeyset<CompanyOptionRow>((afterId, limit) => {
+    let query = supabase
+      .from('companies')
+      .select('id,name,short_name')
+      .is('archived_at', null)
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<CompanyOptionRow>>;
+  });
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
  * Client companies in the caller's org (for the client filter dropdown / FK picker). RLS scopes org.
  * Kept for the existing project/opportunity FK pickers (FR-DAL-005). Archived companies
  * (archived_at IS NOT NULL) are excluded so a soft-archived company can never be selected as the
@@ -66,11 +170,18 @@ export async function listClientCompanies(): Promise<CompanyRow[]> {
  * restored in memory. Throws an `AppError` (code preserved) on failure — never a partial set.
  */
 export async function listCompanies(
-  params?: { type?: CompanyType },
+  params?: { type?: CompanyType; search?: string },
 ): Promise<CompanyRow[]> {
+  // The search is applied SERVER-side inside the keyset read (#1989) so the full-set export
+  // matches exactly what the directory's server page shows for the same filter/search.
+  const term = params?.search?.trim();
   const rows = await fetchAllRowsByKeyset<CompanyRow>((afterId, limit) => {
     let query = supabase.from('companies').select('*').is('archived_at', null).order('id', { ascending: true }).limit(limit);
     if (params?.type) query = query.eq('type', params.type);
+    if (term) {
+      const pattern = likeAny(term);
+      query = query.or(`name.ilike.${pattern},short_name.ilike.${pattern}`);
+    }
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<PageResult<CompanyRow>>;
   });

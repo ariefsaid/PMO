@@ -1,6 +1,6 @@
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
   SearchMini,
@@ -17,20 +17,20 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
+import { useCompaniesExportAll, useCompaniesPage, useCompaniesTotal, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
-import type { CompanyRow } from '@/src/lib/db/companies';
+import type { CompanyListRow } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
 import { CompanyFormModal } from './company/CompanyFormModal';
 import { typeLabels } from './company/companyTypeLabels';
@@ -41,6 +41,9 @@ import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
  *  working set (list-working-set-return, #683) never drift into two shapes for the same filter. */
 type TypeFilter = CompanyTypeFilter;
 const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
+
+/** The server page size (#1989): 50, the established Odoo-directory/AdminUsers page size. */
+const PAGE_SIZE = 50;
 
 // Company-type pill comes from the single status registry's CATEGORY family
 // (`companyTypeVariant`): Client = categorical `violet` (the highlighted type),
@@ -56,9 +59,9 @@ const Companies: React.FC = () => {
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useCompanies();
   // `?? IDLE_PENDING_PUSH` — existing hook mocks (RBAC/export test suites) predate this field.
   const { create, update, setProjectNumberSegment, archive, remove, pendingPush = IDLE_PENDING_PUSH } = useCompanyMutations();
+  const exportAll = useCompaniesExportAll();
 
   // A-5 (rbac-visibility §D): Companies directory view = Admin·Exec·PM·Finance; Engineer = ○
   // (no nav, no page). The rail hides it but the ROUTE does not — so an Engineer reaching
@@ -72,17 +75,40 @@ const Companies: React.FC = () => {
   // Back return restores the list's scroll once its rows have loaded (`contentReady`).
   const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
     useListSearchWorkingSet('companies');
-  const { openRecord } = useListReturn({ list: 'companies', contentReady: !isPending && !isError });
   const filter = workingSet.type;
+  const [page, setPage] = useState(1);
+  // #1989 (the Master-data pattern): the directory reads ONE server page with the type filter and
+  // search applied SERVER-side, plus the exact matching total. The whole directory is no longer
+  // loaded to filter it in the browser.
+  const directory = useCompaniesPage({ type: filter, search, page, pageSize: PAGE_SIZE });
+  const { openRecord } = useListReturn({ list: 'companies', contentReady: !directory.isPending && !directory.isError });
+  const unfiltered = filter === 'All' && !search.trim();
+  // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
+  // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
+  const totalCount = useCompaniesTotal({ enabled: !unfiltered });
+  const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
+  const total = directory.data?.total ?? 0;
+  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
+
+  // A committed filter/search change (typing pause, a tab switch, or a Back-restore of the URL
+  // working set) makes the old page number meaningless — always land on page 1.
+  useEffect(() => { setPage(1); }, [filter, search]);
+
+  // Out-of-range correction (the AdminUsers ruling): a deletion or a narrowing filter can leave
+  // `page` past the last page — an empty page-N is corrected down instead of shown as truth.
+  useEffect(() => {
+    if (!directory.data || pageRows.length > 0 || total === 0 || page <= 1) return;
+    setPage(Math.max(1, Math.ceil(total / PAGE_SIZE)));
+  }, [directory.data, pageRows.length, total, page]);
 
   // Modal: null = closed; { company: null } = create; { company } = edit.
-  const [formTarget, setFormTarget] = useState<{ company: CompanyRow | null } | null>(null);
-  const [archiveTarget, setArchiveTarget] = useState<CompanyRow | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CompanyRow | null>(null);
+  const [formTarget, setFormTarget] = useState<{ company: CompanyListRow | null } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<CompanyListRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CompanyListRow | null>(null);
   // In-use delete block (23503): the company whose hard-delete the RPC refused
   // because it is still referenced. Drives the inline GateNotice + Archive-instead
   // recovery path (crud-components §5.3).
-  const [blockedCompany, setBlockedCompany] = useState<CompanyRow | null>(null);
+  const [blockedCompany, setBlockedCompany] = useState<CompanyListRow | null>(null);
 
   const canCreate = ownershipReady && may('create', 'company');
   const canEdit = ownershipReady && may('edit', 'company');
@@ -90,28 +116,20 @@ const Companies: React.FC = () => {
   const canDelete = ownership.mode === 'pmo' && may('delete', 'company');
   const canRowWrite = canEdit || canArchive || canDelete;
 
-  const all = useMemo(() => data ?? [], [data]);
-
   const typeLabel = typeLabels(t);
   const filterLabel = (f: TypeFilter) => (f === 'All' ? t('companies.filters.all', 'All') : typeLabel[f]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return all
-      .filter((c) => filter === 'All' || c.type === filter)
-      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.short_name ?? '').toLowerCase().includes(q));
-  }, [all, search, filter]);
-
-  // AC-LRC-012: the DataTable's `empty` branch below (with `clearFilters`) only ever renders when
-  // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'`), so a
+  // AC-LRC-012 (server-page form): the DataTable's `empty` branch below (with `clearFilters`)
+  // only ever renders when the DIRECTORY holds rows (`unfiltered` false ⇒ the zero-match is a
+  // filtered zero-match; the collection-empty case is the page-level `state === 'empty'`), so a
   // zero-match result there is always a filtered zero-match — clearing both controls is safe.
 
   // ── States ──────────────────────────────────────────────────────────────
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
+  const state: 'loading' | 'empty' | 'error' | undefined = directory.isPending
     ? 'loading'
-    : isError || !data
+    : directory.isError || !directory.data
       ? 'error'
-      : all.length === 0
+      : total === 0 && unfiltered
         ? 'empty'
         : undefined;
 
@@ -130,7 +148,7 @@ const Companies: React.FC = () => {
     );
   }
 
-  const columns: Column<CompanyRow>[] = [
+  const columns: Column<CompanyListRow>[] = [
     {
       key: 'name',
       header: t('companies.columns.name', 'Company'),
@@ -154,7 +172,7 @@ const Companies: React.FC = () => {
     },
   ];
 
-  const rowMenu = (c: CompanyRow): RowMenuItem[] => {
+  const rowMenu = (c: CompanyListRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     if (canEdit)
       items.push({
@@ -223,8 +241,8 @@ const Companies: React.FC = () => {
   return (
     <ListPage
       title={t('companies.title', 'Companies')}
-      count={data ? filtered.length : undefined}
-      total={data ? all.length : undefined}
+      count={directory.data ? total : undefined}
+      total={directory.data && !unfiltered ? directoryTotal : undefined}
       description={t(
         'companies.description',
         'Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.',
@@ -290,7 +308,7 @@ const Companies: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             searchSurface="companies-list"
             module="companies"
-            resultCount={filtered.length}
+            resultCount={total}
             // Below `sm` the toolbar stacks: `basis-full` forces the search onto
             // its own full-width row and `min-w-0` drops the base min-w-[190px]
             // clip, so it shrinks to the viewport and stays reachable at 375px. At
@@ -301,9 +319,21 @@ const Companies: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={columns} entity="Companies" />
+          // #1989: the page holds ONE server page, but Export still delivers EVERY company
+          // matching the current filter/search — the full set is read at click time.
+          <ExportAllButton
+            entity="Companies"
+            columns={columns}
+            hasRows={total > 0}
+            fetchRows={() =>
+              exportAll.mutateAsync({
+                type: filter === 'All' ? undefined : filter,
+                search: search.trim() || undefined,
+              })
+            }
+          />
         )
-      }
+ }
       /* Bulk import (ADR-0027): role-gated via can('create','company'); reuses the
          entity's create repository so RLS stamps org_id + gates the write role. On a
          successful import the wizard close refetches the list. */
@@ -312,7 +342,7 @@ const Companies: React.FC = () => {
           <ImportButton
             entity="company"
             descriptor={companyImportDescriptor}
-            onImported={() => void refetch()}
+            onImported={() => void directory.refetch()}
           />
         )
       }
@@ -331,7 +361,7 @@ const Companies: React.FC = () => {
           variant="error"
           title={t('companies.states.errorTitle', "Couldn't load companies")}
           sub={t('companies.states.errorSub', 'The request failed. Check your connection and try again.')}
-          onRetry={() => refetch()}
+          onRetry={() => directory.refetch()}
         />
       )}
 
@@ -359,23 +389,58 @@ const Companies: React.FC = () => {
       )}
 
       {state === undefined && (
-        <DataTable<CompanyRow>
-          rows={filtered}
-          columns={columns}
-          rowKey={(c) => c.id}
-          // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
-          // drawer-as-record is retired). Create/edit-in-modal are unchanged.
-          // list-working-set-return (#683): capture the current filtered/searched Companies URL
-          // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
-          onActivate={(c) => openRecord(`/companies/${c.id}`)}
-          // ⚑ Not extracted — embeds a value; see the interpolation note above.
-          rowLabel={(c) => `Open ${companyDisplayName(c)}`}
-          rowMenu={canRowWrite ? rowMenu : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
-          emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
-          emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        tableId="companies-table" />
+        <>
+          <DataTable<CompanyListRow>
+            rows={pageRows}
+            columns={columns}
+            rowKey={(c) => c.id}
+            // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
+            // drawer-as-record is retired). Create/edit-in-modal are unchanged.
+            // list-working-set-return (#683): capture the current filtered/searched Companies URL
+            // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
+            onActivate={(c) => openRecord(`/companies/${c.id}`)}
+            // ⚑ Not extracted — embeds a value; see the interpolation note above.
+            rowLabel={(c) => `Open ${companyDisplayName(c)}`}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            state={pageRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
+            emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
+            emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
+          tableId="companies-table" />
+
+          {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
+          <nav aria-label={t('companies.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+            <span>
+              {total === 0
+                ? ''
+                : t('companies.pager.range', '{{from}}–{{to}} of {{total}}', {
+                    from: (page - 1) * PAGE_SIZE + 1,
+                    to: Math.min(page * PAGE_SIZE, total),
+                    total,
+                  })}
+            </span>
+            <span className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || directory.isFetching}
+                onClick={() => setPage((p) => p - 1)}
+                aria-label={t('companies.pager.prev', 'Previous page')}
+              >
+                <Icon name="back" aria-hidden="true" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page * PAGE_SIZE >= total || directory.isFetching}
+                onClick={() => setPage((p) => p + 1)}
+                aria-label={t('companies.pager.next', 'Next page')}
+              >
+                <Icon name="chev" aria-hidden="true" />
+              </Button>
+            </span>
+          </nav>
+        </>
       )}
 
       {/* Create / edit modal — the ONE shared company form (PGA02-003/OE01-005). The record
