@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, percentile, summarize } from './perf/load-run.mjs';
+import fs from 'node:fs';
+import { parseArgs, percentile, summarize, dateVars, fill } from './perf/load-run.mjs';
 
 test('parseArgs defaults and flags', () => {
   assert.deepEqual(parseArgs([]).users, 50);
@@ -22,4 +23,18 @@ test('percentile is nearest-rank', () => {
 test('summarize excludes failed pages from latency, counts failures', () => {
   const s = summarize([{ ms: 10, failed: 0 }, { ms: 20, failed: 0 }, { ms: 9999, failed: 2 }]);
   assert.equal(s.pages, 3); assert.equal(s.p95, 20); assert.equal(s.failedCalls, 2); assert.equal(s.failedPages, 1);
+});
+test('dateVars derives the windows from today, not capture time', () => {
+  const d = dateVars(new Date('2027-03-15T12:00:00Z'));
+  assert.deepEqual(d, { yearStart: '2027-01-01', monthStart: '2027-03-01', monthEnd: '2027-03-31', monthStartMinus1: '2027-02-01', monthStartMinus12: '2026-03-01' });
+});
+test('fill substitutes every placeholder and leaves none behind', () => {
+  const out = fill('/x?id=eq.{userId}&o={orgId}&a={userId}&{projectId}{yearStart}', { userId: 'U', orgId: 'O', projectId: 'P', yearStart: 'Y' });
+  assert.equal(out, '/x?id=eq.U&o=O&a=U&PY');
+  assert.throws(() => fill('{nope}', {}), /unresolved/);
+});
+test('fixture has no captured user/org ids or capture-time dates', () => {
+  const raw = fs.readFileSync(new URL('./perf/load-routes.json', import.meta.url), 'utf8');
+  assert.doesNotMatch(raw, /0000000000a[12]|00000000-0000-0000-0000-000000000001/);
+  assert.doesNotMatch(raw, /\b20\d\d-\d\d-\d\d\b/);
 });

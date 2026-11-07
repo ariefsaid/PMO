@@ -5,7 +5,7 @@
   "calls": [
    {
     "method": "GET",
-    "path": "/rest/v1/profiles?select=*&id=eq.00000000-0000-0000-0000-0000000000a1",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
     "headers": {
      "accept": "application/vnd.pgrst.object+json",
      "accept-profile": "public"
@@ -61,7 +61,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.00000000-0000-0000-0000-000000000001&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
     "headers": {
      "accept-profile": "public"
     }
@@ -95,7 +95,7 @@
      "content-profile": "public",
      "content-type": "application/json"
     },
-    "body": "{\"p_from\":\"2026-01-01\",\"p_to\":\"2026-11-30\"}"
+    "body": "{\"p_from\":\"{yearStart}\",\"p_to\":\"{monthEnd}\"}"
    },
    {
     "method": "POST",
@@ -152,7 +152,7 @@
      "content-profile": "public",
      "content-type": "application/json"
     },
-    "body": "{\"p_from\":\"2026-01-01\",\"p_to\":\"2026-11-01\"}"
+    "body": "{\"p_from\":\"{yearStart}\",\"p_to\":\"{monthStart}\"}"
    },
    {
     "method": "POST",
@@ -161,7 +161,7 @@
      "content-profile": "public",
      "content-type": "application/json"
     },
-    "body": "{\"p_from\":\"2025-11-01\",\"p_to\":\"2026-10-01\"}"
+    "body": "{\"p_from\":\"{monthStartMinus12}\",\"p_to\":\"{monthStartMinus1}\"}"
    },
    {
     "method": "GET",
@@ -181,7 +181,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/timesheets?select=*%2Cowner%3Aprofiles%21timesheets_user_id_fkey%21inner%28full_name%2Cmanager_id%29%2Centries%3Atimesheet_entries%28*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%29%29&status=eq.Submitted&user_id=neq.00000000-0000-0000-0000-0000000000a1&order=id.asc&owner.or=%28manager_id.eq.00000000-0000-0000-0000-0000000000a1%2Cmanager_id.is.null%29&limit=1000",
+    "path": "/rest/v1/timesheets?select=*%2Cowner%3Aprofiles%21timesheets_user_id_fkey%21inner%28full_name%2Cmanager_id%29%2Centries%3Atimesheet_entries%28*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%29%29&status=eq.Submitted&user_id=neq.{userId}&order=id.asc&owner.or=%28manager_id.eq.{userId}%2Cmanager_id.is.null%29&limit=1000",
     "headers": {
      "accept-profile": "public"
     }
@@ -207,7 +207,7 @@
      "content-profile": "public",
      "content-type": "application/json"
     },
-    "body": "{\"p_from\":\"2026-01-01\",\"p_to\":\"2026-11-30\"}"
+    "body": "{\"p_from\":\"{yearStart}\",\"p_to\":\"{monthEnd}\"}"
    },
    {
     "method": "POST",
@@ -226,7 +226,7 @@
   "calls": [
    {
     "method": "GET",
-    "path": "/rest/v1/profiles?select=*&id=eq.00000000-0000-0000-0000-0000000000a2",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
     "headers": {
      "accept": "application/vnd.pgrst.object+json",
      "accept-profile": "public"
@@ -234,7 +234,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/profiles?select=*&id=eq.00000000-0000-0000-0000-0000000000a2",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
     "headers": {
      "accept": "application/vnd.pgrst.object+json",
      "accept-profile": "public"
@@ -282,7 +282,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.00000000-0000-0000-0000-000000000001&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
     "headers": {
      "accept-profile": "public"
     }
@@ -313,7 +313,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/timesheets?select=*%2Cowner%3Aprofiles%21timesheets_user_id_fkey%21inner%28full_name%2Cmanager_id%29%2Centries%3Atimesheet_entries%28*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%29%29&status=eq.Submitted&user_id=neq.00000000-0000-0000-0000-0000000000a2&order=id.asc&owner.manager_id=eq.00000000-0000-0000-0000-0000000000a2&limit=1000",
+    "path": "/rest/v1/timesheets?select=*%2Cowner%3Aprofiles%21timesheets_user_id_fkey%21inner%28full_name%2Cmanager_id%29%2Centries%3Atimesheet_entries%28*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%29%29&status=eq.Submitted&user_id=neq.{userId}&order=id.asc&owner.manager_id=eq.{userId}&limit=1000",
     "headers": {
      "accept-profile": "public"
     }
@@ -396,7 +396,7 @@
   "calls": [
    {
     "method": "GET",
-    "path": "/rest/v1/profiles?select=*&id=eq.00000000-0000-0000-0000-0000000000a1",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
     "headers": {
      "accept": "application/vnd.pgrst.object+json",
      "accept-profile": "public"
@@ -452,7 +452,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.00000000-0000-0000-0000-000000000001&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
     "headers": {
      "accept-profile": "public"
     }
@@ -504,7 +504,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/external_org_bindings?select=org_id%2Cexternal_tier%2Csite_url%2Cstatus%2Cconnected_by%2Cconnected_at%2Cdisconnected_at%2Cconfig&org_id=eq.00000000-0000-0000-0000-000000000001",
+    "path": "/rest/v1/external_org_bindings?select=org_id%2Cexternal_tier%2Csite_url%2Cstatus%2Cconnected_by%2Cconnected_at%2Cdisconnected_at%2Cconfig&org_id=eq.{orgId}",
     "headers": {
      "accept-profile": "public"
     }
@@ -565,7 +565,7 @@
   "calls": [
    {
     "method": "GET",
-    "path": "/rest/v1/profiles?select=*&id=eq.00000000-0000-0000-0000-0000000000a1",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
     "headers": {
      "accept": "application/vnd.pgrst.object+json",
      "accept-profile": "public"
@@ -621,7 +621,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.00000000-0000-0000-0000-000000000001&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
     "headers": {
      "accept-profile": "public"
     }
@@ -693,7 +693,7 @@
   "calls": [
    {
     "method": "GET",
-    "path": "/rest/v1/profiles?select=*&id=eq.00000000-0000-0000-0000-0000000000a1",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
     "headers": {
      "accept": "application/vnd.pgrst.object+json",
      "accept-profile": "public"
@@ -749,7 +749,7 @@
    },
    {
     "method": "GET",
-    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.00000000-0000-0000-0000-000000000001&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
     "headers": {
      "accept-profile": "public"
     }
