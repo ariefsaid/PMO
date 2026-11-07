@@ -5,8 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 
-const transport = vi.hoisted(() => ({ clients: vi.fn(), projects: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { company: { listClients: transport.clients }, project: { list: transport.projects } } }));
+const transport = vi.hoisted(() => ({ clients: vi.fn(), projects: vi.fn(), allCompanies: vi.fn() }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { company: { listClients: transport.clients, list: transport.allCompanies }, project: { list: transport.projects } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-test' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false }) }));
@@ -49,6 +49,20 @@ describe('invoice picker query recovery', () => {
     await act(async () => resolve([]));
     expect(await screen.findByText('No customer matches.')).toBeInTheDocument();
     expect(screen.queryByTestId('combo-loading')).not.toBeInTheDocument();
+    view.unmount(); client.clear();
+  });
+
+  it('#2003 feeds the customer picker from the client list only — never the all-companies read', async () => {
+    transport.clients.mockReset().mockResolvedValue([customer]);
+    transport.allCompanies.mockReset().mockResolvedValue([{ id: 'v1', name: 'Vendor Only Co', short_name: null }]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 1 } } });
+    const user = userEvent.setup();
+    const view = render(<QueryClientProvider client={client}><MemoryRouter><SalesInvoiceFormModal onClose={vi.fn()} onCreate={vi.fn()} native pendingPush={{ status: 'idle', error: null }} /></MemoryRouter></QueryClientProvider>);
+    await user.click(screen.getByRole('combobox', { name: 'Customer' }));
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByRole('option', { name: /Customer One/ })).toBeInTheDocument();
+    expect(within(listbox).queryByRole('option', { name: /Vendor Only Co/ })).not.toBeInTheDocument();
+    expect(transport.allCompanies).not.toHaveBeenCalled();
     view.unmount(); client.clear();
   });
 

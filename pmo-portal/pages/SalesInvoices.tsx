@@ -98,7 +98,12 @@ const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: Inco
     },
     ...orderedPayments.map((payment) => ({
       stage: 'payment', state: 'done' as const,
-      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—'}</span></>,
+      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{(() => {
+        // #1415: a split PMO receipt shows what reached THIS invoice, not the whole receipt.
+        const share = payment.pmo_native ? payment.allocations?.find((a) => a.sales_invoice_id === invoice.id) : undefined;
+        if (share) return formatCurrencyCents(share.cash_amount, payment.currency);
+        return payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—';
+      })()}</span></>,
     })),
     {
       stage: 'paid',
@@ -582,7 +587,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     if (canRecordReceipt && !frozen && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
     // FIN-S3: a Draft has no issued tax invoice yet, so there is nothing to record.
-    if (canRecordEfaktur && inv.status !== 'Cancelled' && inv.status !== 'Draft')
+    // An e-Faktur is a VAT document: a sale outside VAT (project not subject to VAT) has none to record (AC-OCI-081).
+    // A zero-rated invoice on a VAT-subject project still needs one, so tax_amount 0 does not hide it.
+    if (canRecordEfaktur && inv.project_subject_to_vat !== false && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(inv) });
     // A Paid PMO invoice is not cancellable (FR-NAR-009); an ERP one follows the ERP.
     if (!odooOffline && canCancel && !frozen && inv.status !== 'Cancelled' && !(inv.pmo_native && inv.status === 'Paid'))
@@ -607,8 +614,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   };
 
   const panelPayments = panelInvoice
-    ? paymentRows.filter((payment) => payment.sales_invoice_id === panelInvoice.id
-      || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === panelInvoice.id)))
+    ? paymentRows.filter((payment) => (!payment.pmo_native && payment.sales_invoice_id === panelInvoice.id)
+      || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === panelInvoice.id))
+      // #1415: a PMO receipt reaches an invoice through its live allocations, never through its own invoice pointer.
+      || Boolean(payment.allocations?.some((allocation) => allocation.sales_invoice_id === panelInvoice.id)))
     : [];
   const panelPrimary = !odooOffline && panelInvoice
     ? canApproveDraft(panelInvoice)

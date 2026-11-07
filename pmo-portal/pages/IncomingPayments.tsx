@@ -43,6 +43,7 @@ import { receiptColumns, displayStatus, matchesStatus, incomingPaymentStatusLabe
 import { monthWindowFromParams, monthWindowExclusiveEnd } from '@/src/lib/finance/invoicePeriod';
 import { OdooReceiptStatus } from './incoming-payments/OdooReceiptStatus';
 import { IncomingPaymentFormModal } from './incoming-payments/IncomingPaymentFormModal';
+import { ApplyReceiptForm } from './incoming-payments/ApplyReceiptForm';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 
@@ -63,7 +64,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
-  const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
+  const { createPayment, cancelPayment, applyReceipt, unapplyAllocation, pendingPush } = useRevenueMutations();
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
   const mode = useRevenueMode();
   const revenueOwnership = useExternalDomainOwnership().data ?? [];
@@ -102,6 +103,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const [formOpen, setFormOpen] = useState(false);
   const [initialInvoiceId, setInitialInvoiceId] = useState<string | undefined>();
   const [cancelTarget, setCancelTarget] = useState<IncomingPaymentRow | null>(null);
+  // #1415: apply a PMO receipt across invoices / take one allocation back (org without an ERP).
+  const [applyTarget, setApplyTarget] = useState<IncomingPaymentRow | null>(null);
+  const [unapplyTarget, setUnapplyTarget] = useState<{ id: string; invoice: string } | null>(null);
+  const [unapplying, setUnapplying] = useState(false);
   const [localSelectedKeys, setLocalSelectedKeys] = useState<Set<string>>(() => new Set());
   const effectiveSelectedKeys = selectedKeys ?? localSelectedKeys;
   const handleSelectionChange = (next: Set<string>) => {
@@ -129,6 +134,12 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const panelInvoice = panelPayment?.sales_invoice_id
     ? (invoiceList ?? []).find((invoice) => invoice.id === panelPayment.sales_invoice_id)
     : undefined;
+  const invoiceNumberOfPanel = (invoiceId: string) => invoiceNumberById.get(invoiceId) ?? null;
+  const panelAllocations = panelPayment ? displayAllocations(panelPayment, invoiceNumberOfPanel) : null;
+  const panelUnapplied = panelPayment ? knownUnappliedCash({ ...panelPayment, allocation_details: panelAllocations }) : null;
+  // #1415 AC-NPA-010/011: Apply and Unapply exist only for a PMO receipt in an org whose revenue no ERP owns, for the revenue writers;
+  // an ERP's allocation is read-only here. This is UX only — the RPCs enforce role, ownership and balances.
+  const canApplyHere = native && Boolean(panelPayment?.pmo_native) && !panelPayment?.cancelled_at && canCreate && !odooOffline;
 
   useEffect(() => {
     if (searchParams.get('create') !== '1' || !canCreate || odooOffline || mode === undefined || invoiceListPending) return;
@@ -428,6 +439,46 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         onCancel={() => setCancelTarget(null)}
       />
 
+      {/* Apply a PMO receipt across invoices (#1415) */}
+      {applyTarget && (
+        <ApplyReceiptForm
+          receipt={applyTarget}
+          unapplied={knownUnappliedCash({ ...applyTarget, allocation_details: displayAllocations(applyTarget, invoiceNumberOf) }) ?? 0}
+          invoices={invoiceList ?? []}
+          onClose={() => setApplyTarget(null)}
+          onApply={async (allocations, requestId) => {
+            await applyReceipt.mutateAsync({ receiptId: applyTarget.id, allocations, requestId });
+            toast(t('finance:receipts.apply.done', 'Payment applied'), receiptNumber(applyTarget) ?? applyTarget.id, 'success');
+            setApplyTarget(null);
+          }}
+        />
+      )}
+
+      {/* Unapply confirm (#1415) */}
+      <ConfirmDialog
+        open={unapplyTarget !== null}
+        tone="destructive"
+        title={t('finance:receipts.unapply.confirmTitle', 'Take this payment off the invoice?')}
+        description={t('finance:receipts.unapply.confirmBody', 'The amount goes back to "Not yet applied" on the payment, and {{invoice}} owes it again.', { invoice: unapplyTarget?.invoice ?? '' })}
+        confirmLabel={t('finance:receipts.unapply.action', 'Unapply')}
+        loading={unapplying}
+        onConfirm={async () => {
+          if (!unapplyTarget) return;
+          setUnapplying(true);
+          try {
+            await unapplyAllocation.mutateAsync({ allocationId: unapplyTarget.id });
+            toast(t('finance:receipts.unapply.done', 'Payment taken off the invoice'), unapplyTarget.invoice, 'success');
+            setUnapplyTarget(null);
+          } catch (err) {
+            const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t));
+            toast(headline, detail, 'warning');
+          } finally {
+            setUnapplying(false);
+          }
+        }}
+        onCancel={() => setUnapplyTarget(null)}
+      />
+
       <Drawer
         open={Boolean(panelPayment)}
         title={panelPayment ? t('finance:receivables.paymentDrawerTitle', '{{client}} · {{amount}}', {
@@ -451,23 +502,46 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         onClose={closePaymentPanel}
         width="lg"
         loading={cancelPayment.isPending}
-        nestedOpen={Boolean(formOpen || cancelTarget)}
+        nestedOpen={Boolean(formOpen || cancelTarget || applyTarget || unapplyTarget)}
       >
         {panelPayment && <div className="space-y-5 p-4 sm:p-5">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) }) == null ? notReported : formatCurrencyCents(knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) })!, panelPayment.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrencyCents(panelUnapplied, panelPayment.currency)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
           </dl>
           <section aria-labelledby="receivable-payment-invoices">
-            <h2 id="receivable-payment-invoices" className="mb-2 text-sm font-semibold">{t('finance:receivables.settledInvoices', 'Invoices settled')}</h2>
-            {displayAllocations(panelPayment, invoiceNumberOf)?.length ? <ul className="divide-y divide-border/70">
-              {displayAllocations(panelPayment, invoiceNumberOf)!.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex justify-between gap-3 py-2 text-sm">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h2 id="receivable-payment-invoices" className="text-sm font-semibold">{t('finance:receivables.settledInvoices', 'Invoices settled')}</h2>
+              {canApplyHere && (panelUnapplied ?? 0) > 0 && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setApplyTarget(panelPayment)}>
+                  {t('finance:receipts.apply.action', 'Apply to invoices')}
+                </Button>
+              )}
+            </div>
+            {panelAllocations?.length ? <ul className="divide-y divide-border/70">
+              {panelAllocations.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span className="font-mono">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
-                <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported}</span>
+                <span className="flex items-center gap-2">
+                  <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported}</span>
+                  {canApplyHere && panelPayment.allocations?.[index] && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t('finance:receipts.unapply.actionFor', 'Unapply {{invoice}}', { invoice: allocation.invoice_number })}
+                      onClick={() => setUnapplyTarget({ id: panelPayment.allocations![index].id, invoice: allocation.invoice_number })}
+                    >
+                      {t('finance:receipts.unapply.action', 'Unapply')}
+                    </Button>
+                  )}
+                </span>
               </li>)}
             </ul> : <p className="text-sm text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</p>}
+            {!panelPayment.pmo_native && (
+              <p className="mt-2 text-xs text-muted-foreground">{t('finance:receivables.allocatedInErp', 'Allocated in your accounting system; read-only here.')}</p>
+            )}
           </section>
         </div>}
       </Drawer>
