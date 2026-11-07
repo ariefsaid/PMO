@@ -40,19 +40,24 @@ select throws_ok('select pg_temp.run_pa_down()', 'P0001', 'on-account PMO receip
 select has_table('public', 'incoming_payment_allocations', 'a refused rollback leaves the allocation table in place');                      -- 4
 delete from public.incoming_payments where id = '07310000-0000-0000-0000-0000000000f9';
 
--- 2. split across two invoices: refuses
+-- 2. split across two invoices: refuses (the 30 receipt re-applied as 20 + 10)
+update public.incoming_payment_allocations set reversed_at = now() where sales_invoice_id = '07310000-0000-0000-0000-0000000000e1';
 insert into public.incoming_payment_allocations (org_id, incoming_payment_id, sales_invoice_id, amount, cash_amount, withheld_amount, currency, request_id)
-  select org_id, id, '07310000-0000-0000-0000-0000000000e2', 0.01, 0.01, 0, 'IDR', gen_random_uuid()
+  select org_id, id, '07310000-0000-0000-0000-0000000000e1', 20, 20, 0, 'IDR', gen_random_uuid()
+    from public.incoming_payments where sales_invoice_id = '07310000-0000-0000-0000-0000000000e1' and pmo_native;
+insert into public.incoming_payment_allocations (org_id, incoming_payment_id, sales_invoice_id, amount, cash_amount, withheld_amount, currency, request_id)
+  select org_id, id, '07310000-0000-0000-0000-0000000000e2', 10, 10, 0, 'IDR', gen_random_uuid()
     from public.incoming_payments where sales_invoice_id = '07310000-0000-0000-0000-0000000000e1' and pmo_native;
 select throws_ok('select pg_temp.run_pa_down()', 'P0001', 'a live PMO receipt is partly applied, split or applied elsewhere; rollback refused - unapply or cancel it first',
   'rollback refuses while a receipt is split across two invoices');                                                                         -- 5
-delete from public.incoming_payment_allocations where amount = 0.01;
 
--- 3. partly applied (unapplied in part): refuses
-update public.incoming_payment_allocations set reversed_at = now() where sales_invoice_id = '07310000-0000-0000-0000-0000000000e1';
+-- 3. partly applied (10 of 30 taken off): refuses
+delete from public.incoming_payment_allocations where amount = 10 and sales_invoice_id = '07310000-0000-0000-0000-0000000000e2' and reversed_at is null
+  and incoming_payment_id in (select id from public.incoming_payments where sales_invoice_id = '07310000-0000-0000-0000-0000000000e1');
 select throws_ok('select pg_temp.run_pa_down()', 'P0001', 'a live PMO receipt is partly applied, split or applied elsewhere; rollback refused - unapply or cancel it first',
-  'rollback refuses while a receipt has been taken off its invoice');                                                                       -- 6
-update public.incoming_payment_allocations set reversed_at = null, reversed_by = null where sales_invoice_id = '07310000-0000-0000-0000-0000000000e1';
+  'rollback refuses while a receipt has been taken off its invoice in part');                                                               -- 6
+delete from public.incoming_payment_allocations where amount = 20 and reversed_at is null;
+update public.incoming_payment_allocations set reversed_at = null where sales_invoice_id = '07310000-0000-0000-0000-0000000000e1';
 
 -- 4. only 1:1 receipts remain: runs
 select lives_ok('select pg_temp.run_pa_down()', 'rollback runs once only 1:1 receipts remain');                                             -- 7

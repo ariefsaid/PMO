@@ -151,7 +151,7 @@ create or replace function public.native_receipt_allocations_backfill() returns 
     insert into public.incoming_payment_allocations
       (org_id, incoming_payment_id, sales_invoice_id, amount, cash_amount, withheld_amount, currency, request_id,
        created_at, reversed_at, reversed_by)
-    select ip.org_id, ip.id, ip.sales_invoice_id, ip.amount, ip.received_amount, ip.withheld_amount, ip.currency,
+    select ip.org_id, ip.id, ip.sales_invoice_id, ip.amount, coalesce(ip.received_amount, ip.amount - coalesce(ip.withheld_amount, 0)), coalesce(ip.withheld_amount, 0), ip.currency,
            ip.id,                                   -- request_id: the receipt's own id (deterministic, replay-safe)
            ip.created_at, ip.cancelled_at, null::uuid
       from public.incoming_payments ip
@@ -619,9 +619,14 @@ begin
     perform public.native_invoice_restate(v_id);
   end loop;
 
+  -- outstanding_after / overpaid_after: the origin invoice's restated figures (the 0275 audit shape); 'invoices' lists every restated invoice.
   perform public.log_audit('incoming_payment.cancel', v_rc.org_id, v_uid, p_receipt_id,
     jsonb_build_object('sales_invoice_id', v_rc.sales_invoice_id, 'amount', v_rc.amount, 'pmo_number', v_rc.pmo_number,
-                       'allocations_reversed', v_revd));
+                       'allocations_reversed', v_revd,
+                       'outstanding_after', (select si.erp_outstanding_amount from public.sales_invoices si where si.id = v_rc.sales_invoice_id and si.id = any(v_inv)),
+                       'overpaid_after', (select si.overpaid_amount from public.sales_invoices si where si.id = v_rc.sales_invoice_id and si.id = any(v_inv)),
+                       'invoices', (select coalesce(jsonb_agg(jsonb_build_object('id', si.id, 'outstanding_after', si.erp_outstanding_amount) order by si.id), '[]'::jsonb)
+                                      from public.sales_invoices si where si.id = any(v_inv))));
 end; $$;
 
 revoke all on function public.record_native_on_account_receipt(uuid, numeric, numeric, numeric, text, date, uuid) from public, anon;
