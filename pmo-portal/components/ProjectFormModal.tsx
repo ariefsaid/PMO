@@ -3,6 +3,7 @@ import type { ProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
+import { initials } from '@/src/lib/initials';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
@@ -61,12 +62,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** A two-letter avatar for a combobox option (client / PM chips). */
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+const initialsOf = (name: string): string => initials(name, { style: 'tile' });
 
 /** Pre-filled values when editing an existing project header. */
 export interface ProjectFormInitial extends ProjectClassification {

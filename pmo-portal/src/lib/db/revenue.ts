@@ -7,6 +7,7 @@ import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay'
 import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
+import { OPEN_CLIENT_INVOICE_STATUSES } from '@/src/lib/revenue/clientInvoiceStatus';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
 /** Row shapes matching the DB schema (snake_case) from migration 0104. */
@@ -237,7 +238,7 @@ export async function getOverdueInvoiceCount(today: string): Promise<number> {
     supabase
       .from('sales_invoices')
       .select('id,status,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
-      .in('status', ['Unpaid', 'Submitted'])
+      .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
       .is('paired_erp_invoice_id', null)
       .order('id', { ascending: true })
       .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
@@ -264,7 +265,7 @@ export async function listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]> {
     supabase
       .from('sales_invoices')
       .select('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
-      .in('status', ['Unpaid', 'Submitted'])
+      .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
       .is('paired_erp_invoice_id', null)
       .order('id', { ascending: true })
       .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,

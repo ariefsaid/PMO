@@ -106,7 +106,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
 import ProjectBudget from './ProjectBudget';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
-import { buildBudgetSummaryRows, committedTotal } from './project-detail/budget/budgetModel';
+import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
 
 const project = {
   id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null,

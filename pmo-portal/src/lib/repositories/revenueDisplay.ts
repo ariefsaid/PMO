@@ -5,6 +5,8 @@
  * only derive display values from mirrored data.
  */
 
+import { isOpenClientInvoiceStatus } from '../revenue/clientInvoiceStatus.ts';
+
 const DEFAULT_PAYMENT_TERMS_DAYS = 30;
 
 /**
@@ -35,7 +37,7 @@ export function clientInvoiceOverdueDays(
   invoice: ClientInvoiceOverdueInput,
   organizationToday: string | null | undefined,
 ): number | null {
-  if (invoice.status !== 'Submitted' && invoice.status !== 'Unpaid') return null;
+  if (!isOpenClientInvoiceStatus(invoice.status)) return null;
   const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
   const age = overdueAgeDays(dueDate, organizationToday);
   return age !== null && age > 0 ? age : null;
