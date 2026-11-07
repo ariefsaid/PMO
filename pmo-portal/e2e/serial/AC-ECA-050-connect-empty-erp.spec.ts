@@ -86,8 +86,11 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
     await page.getByRole('button', { name: 'Approve' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Approve', exact: true }).click();
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 30_000 });
+    // An ERP-owned purchase places its order through the Purchase Order capture, which sends it to the ERP.
     await page.getByRole('button', { name: 'Record order' }).click();
-    await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 30_000 });
+    await page.getByTestId('purchase_order-ref-input').fill(`PO-NEW-${suffix}`);
+    await page.getByTestId('purchase_order-amount-input').fill('5000000');
+    await page.getByTestId('purchase_order-save-btn').click();
 
     // -- Then: the ERP holds the Purchase Order ------------------------------------------------------------------------
     let poName = '';
@@ -102,6 +105,11 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
       const { data: pr } = await admin.from('procurements').select('title,status').eq('org_id', org.orgId);
       throw new Error(`${(err as Error).message}; own: ${JSON.stringify(own)} pos: ${JSON.stringify(pos)} pr: ${JSON.stringify(pr)}; outbox: ${JSON.stringify(rows).slice(0, 3000)}`, { cause: err });
     });
+    // The order is sent to the ERP; the purchase turns Ordered once the sweep delivers it.
+    await untilWithSweep(org.orgId, async () => {
+      await page.reload();
+      await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 5_000 });
+    }, 90_000);
     const po = await benchDoc('Purchase Order', poName);
     expect(po.supplier_name ?? po.supplier).toBe(v[1].name);
     const erpProject = String(po.project ?? (po.items as Array<Json>)[0].project);
