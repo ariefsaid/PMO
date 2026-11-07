@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
-import SalesLayoutRoute from './SalesLayoutRoute';
+import SalesLayoutRoute from '../SalesLayoutRoute';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -48,7 +48,7 @@ describe('#1426 sales layout options carry the floor actions', () => {
     expect(screen.getByTestId(layout === 'a' ? 'sales-a-weighted' : 'pipeline-weighted-total')).toHaveTextContent('600,000');
     expect(screen.getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Table' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Table' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();
   });
 

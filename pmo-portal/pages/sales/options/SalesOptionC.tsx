@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { AccessDenied, Badge, ListState, RowMenu, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Badge, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
+import { RowMenu } from '@/src/components/ui/RowMenu';
 import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
