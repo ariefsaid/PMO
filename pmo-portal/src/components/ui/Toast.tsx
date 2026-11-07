@@ -33,14 +33,17 @@ export const ToastView: React.FC<{
   sub?: string;
   announce?: boolean;
   moreCount?: number;
-}> = ({ kind, title, sub, announce = true, moreCount = 0 }) => {
+  leaving?: boolean;
+}> = ({ kind, title, sub, announce = true, moreCount = 0, leaving = false }) => {
   const { t } = useTranslation('common');
   return (
     <div
       {...(announce ? { role: kind === 'warning' || kind === 'error' ? 'alert' : 'status', 'aria-live': kind === 'warning' || kind === 'error' ? 'assertive' : 'polite' } : {})}
       className={cn(
         'toast-anim flex min-w-[230px] max-w-[360px] items-center gap-2 rounded-overlay border border-border bg-popover px-3 py-3 text-control shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
-        KIND_ICON_TONE[kind]
+        KIND_ICON_TONE[kind],
+        kind === 'success' && 'save-pulse',
+        leaving && 'out'
       )}
     >
       <Icon name={KIND_ICON[kind]} />
@@ -226,6 +229,22 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [alertAnnouncement, dismiss]);
 
+  // Exit animation (#1970): play the shorter exit, then drop the toast. Keyed by id so a
+  // replacement toast arriving mid-exit is never dismissed by the old timer.
+  const [leavingId, setLeavingId] = useState<number | null>(null);
+  const leaveThenDismiss = useCallback(() => {
+    const id = itemRef.current?.id;
+    if (id === undefined) return;
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ms = reduced ? 0 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-toast-out')) || 0;
+    if (ms <= 0) return dismiss();
+    setLeavingId(id);
+    setTimeout(() => {
+      setLeavingId((cur) => (cur === id ? null : cur));
+      if (itemRef.current?.id === id) dismiss();
+    }, ms);
+  }, [dismiss]);
+
   const clear = useCallback(() => {
     queue.current = [];
     setQueueCount(0);
@@ -247,13 +266,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         style={{ transform: 'translateY(calc(0px - var(--mobile-action-bar-height, 0px)))' }}
       >
         {item && (
-          <AutoDismiss key={item.id} kind={item.kind} textLength={item.title.length + (item.sub?.length ?? 0)} onDone={dismiss}>
+          <AutoDismiss key={item.id} kind={item.kind} textLength={item.title.length + (item.sub?.length ?? 0)} onDone={leaveThenDismiss}>
             <div className={cn("flex max-w-[min(360px,calc(100vw-40px))] items-start gap-1",
               item.kind === 'warning' || item.kind === 'error' ? 'pointer-events-auto' : 'pointer-events-none')}>
               <div aria-hidden="true" data-toast="visible" className="min-w-0 flex-1">
-                <ToastView kind={item.kind} title={item.title} sub={item.sub} announce={false} moreCount={item.kind === 'warning' || item.kind === 'error' ? queueCount : 0} />
+                <ToastView kind={item.kind} title={item.title} sub={item.sub} announce={false} leaving={leavingId === item.id} moreCount={item.kind === 'warning' || item.kind === 'error' ? queueCount : 0} />
               </div>
-              <DismissButton onClick={dismiss} />
+              <DismissButton onClick={leaveThenDismiss} />
             </div>
           </AutoDismiss>
         )}

@@ -51,6 +51,7 @@ import { UnknownFigure } from './UnknownFigure';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
@@ -282,6 +283,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   menuContent,
 }) => {
   const { t } = useTranslation('project');
+  // #1339: the status pill names the project status in the viewer's language; the enum itself is data.
+  const projectStatusLabel = useProjectStatusLabel();
 
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -702,7 +705,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
+        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.

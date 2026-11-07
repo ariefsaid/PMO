@@ -85,7 +85,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => ({ data: s
 vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: state.tasks, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 
-import { useBudgetPosition, useOverdueReceivables, useProjectAttention } from '../useProjectPosition';
+import { useBudgetPosition, useOverdueReceivables, useProjectAttention } from '@/src/hooks/useProjectPosition';
 import { buildBudgetSummaryRows } from '../budget/budgetModel';
 import { CostBlock, DeliveryBlock, MoneyBlock } from '../ProjectBlocks';
 import { PrimaryProjectAction } from '../ProjectSections';

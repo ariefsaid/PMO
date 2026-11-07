@@ -7,7 +7,7 @@ import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { DetailRow } from './ProcurementOverviewTab';
 import { erpDoctypeLabel } from './erpLinkReasons';
-import { stageForStatus } from './blocks/stage';
+import { stageForStatus } from '@/src/lib/procurement/stage';
 
 // Tabbed record shell (mirrors ProjectDetail's `/projects/:id/:tab`). An absent/unknown :tab
 // defaults to the timeline and is role-invariant (CW-7); an explicit :tab always wins.

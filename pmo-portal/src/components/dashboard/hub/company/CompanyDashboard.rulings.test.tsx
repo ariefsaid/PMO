@@ -253,3 +253,18 @@ describe('L6: the ageing source note is said once', () => {
     expect(screen.getAllByText(/From invoices recorded in PMO/)).toHaveLength(1);
   });
 });
+
+describe('#1240 D-005: the budget sits beside the contract-denominated bar', () => {
+  const project = (over: Record<string, unknown> = {}) => ({
+    id: 'p1', name: 'Meridian', status: 'Ongoing Project', currency: 'USD', contract_value: 1_000_000, budget: 800_000, budget_currency: 'USD',
+    spent: 920_000, actual_complete: true, actual_currency: 'USD', ...over,
+  });
+  it('shows the active budget under the bar, or says there is none', () => {
+    state.figures = figures({ top_projects: [project(), project({ id: 'p2', name: 'Harbor', budget: null })] });
+    renderDashboard('Executive');
+    const list = screen.getByRole('list', { name: 'Spending vs contract' });
+    const [first, second] = within(list).getAllByRole('listitem');
+    expect(first).toHaveTextContent('Active budget: $800,000');
+    expect(second).toHaveTextContent('No active budget');
+  });
+});

@@ -15,8 +15,10 @@ const ODOO_REVENUE = 1506;
 const ODOO_ACTUALS_AND_BUDGET = 1507;
 const ODOO_LABOUR = 1510;
 const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
-const ODOO_P2P = 1505;
 const ODOO_REVENUE_CUTOVER = 1602;
+
+/** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
+export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
@@ -30,9 +32,9 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'account.match': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
   'employee.match': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'employee.send': { status: 'pending', version: 1, issue: ODOO_LABOUR },
-  'purchase.push': { status: 'pending', version: 1, issue: ODOO_P2P },
-  'bill.push': { status: 'pending', version: 1, issue: ODOO_P2P },
-  'vendor-payment.push': { status: 'pending', version: 1, issue: ODOO_P2P },
+  'purchase.push': { status: 'supported', version: 1 },
+  'bill.push': { status: 'supported', version: 1 },
+  'vendor-payment.push': { status: 'supported', version: 1 },
   // AC-OPP-072's shipped page-apply proof covers newest figures and one stored row (`odoo_purchase_page_apply.test.sql`).
   'purchase.link-existing': { status: 'supported', version: 1 },
   'cutover.purchase': { status: 'supported', version: 1 },
@@ -40,10 +42,10 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   // The production resolver rejects a binding until it is active and company-scoped.
   'cutover.activation': { status: 'supported', version: 1 },
   'invoice.push': { status: 'supported', version: 1 },
-  'receipt.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
+  'receipt.read': { status: 'supported', version: 1 },
   'invoice.pair-existing': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'cutover.revenue': { status: 'pending', version: 1, issue: ODOO_REVENUE_CUTOVER },
-  'tax-document.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
+  'tax-document.read': { status: 'unavailable', version: 1, reason: ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON },
   'actuals.read': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'budget.push': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   // O4 decides: Odoo Community has no budget object (DD-ODC-5), so this likely becomes unavailable.
@@ -51,5 +53,5 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'budget.resolve-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'timesheet.push': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'imprest.transfer': { status: 'pending', version: 1, issue: ODOO_SITE_CASH },
-  'purchase-order.revise': { status: 'pending', version: 1, issue: ODOO_P2P },
+  'purchase-order.revise': { status: 'supported', version: 1 },
 };

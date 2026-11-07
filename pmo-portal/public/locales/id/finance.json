@@ -676,6 +676,9 @@
     "creditNotes": "Nota kredit",
     "amountUnavailable": "Jumlah tidak tersedia",
     "creditNotesUnavailable": "Nota kredit tidak dapat dibaca saat ini.",
+    "taxDocument": "Dokumen pajak",
+    "taxDocumentUnavailable": "Dokumen pajak tidak tersedia di Odoo.",
+    "taxDocumentRecorded": "Odoo tidak membuat dokumen pajak. Nomor e-Faktur yang dicatat di atas tetap berlaku.",
     "next": {
       "pending": "Odoo belum mengonfirmasinya. PMO akan memeriksa kembali otomatis; tidak ada tindakan yang perlu dilakukan.",
       "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Finance perlu memeriksa Odoo dan menentukan langkah berikutnya.",

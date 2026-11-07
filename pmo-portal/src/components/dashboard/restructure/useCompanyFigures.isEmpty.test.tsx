@@ -31,7 +31,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useO
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({}) }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({}) }));
 vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, selectSupplierInvoices: () => undefined }));
-vi.mock('@/pages/procurement/blocks/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
+vi.mock('@/src/lib/procurement/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
 
 import { useCompanyFigures } from './useCompanyFigures';
 

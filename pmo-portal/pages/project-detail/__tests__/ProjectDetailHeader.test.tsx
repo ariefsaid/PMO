@@ -9,6 +9,7 @@ import { AppError } from '@/src/lib/appError';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
+import { BahasaProvider } from '@/test/bahasa';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 vi.mock('@/src/components/fx/FxEquivalent', () => ({
@@ -130,6 +131,21 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it('#1339: the status pill names the project status in the viewer\'s language', () => {
+    render(
+      <BahasaProvider>
+        <MemoryRouter>
+          <ToastProvider>
+            <ProjectDetailHeader project={onHand} />
+          </ToastProvider>
+        </MemoryRouter>
+      </BahasaProvider>,
+    );
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Proyek berjalan')).toBeInTheDocument();
+    expect(within(header).queryByText('Ongoing Project')).not.toBeInTheDocument();
+  });
+
   it('gives the full-width project title priority on mobile and keeps status below metadata', () => {
     roleBox.value = 'Project Manager';
     render(
