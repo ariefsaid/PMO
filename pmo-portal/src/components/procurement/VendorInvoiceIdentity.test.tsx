@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 import { VendorInvoiceIdentity } from './VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from './vendorInvoiceIdentityLabels';
 

@@ -133,7 +133,7 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
     const rows = await listSalesInvoices();
 
     expect(h.state.calls[0].columns).toBe(
-      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)',
+      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat)',
     );
     expect(rows[0].customer_name).toBe('Acme');
   });
@@ -180,10 +180,41 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
 
     await listIncomingPayments({ salesInvoiceId: 'inv-123' });
 
-    expect(h.state.calls).toHaveLength(1);
-    expect(h.state.calls[0].or).toEqual(['sales_invoice_id.eq.inv-123,allocation_details.cs.[{"invoice_id":"inv-123"}]']);
-    expect(h.state.calls[0].neq).toContainEqual(['status', 'Scheduled']);
-    expect(h.state.calls[0].is).toEqual([['erp_cancelled_at', null], ['cancelled_at', null]]);
+    // #1415: the live allocations on the invoice are read first (own request), then the receipts.
+    const receiptRead = h.state.calls.find((c) => c.table === 'incoming_payments')!;
+    expect(h.state.calls.map((c) => c.table)).toEqual(['incoming_payment_allocations', 'incoming_payments']);
+    expect(receiptRead.or).toEqual(['and(sales_invoice_id.eq.inv-123,pmo_native.eq.false),allocation_details.cs.[{"invoice_id":"inv-123"}]']);
+    expect(receiptRead.neq).toContainEqual(['status', 'Scheduled']);
+    expect(receiptRead.is).toEqual([['erp_cancelled_at', null], ['cancelled_at', null]]);
+  });
+
+  it('AC-NPA-008 (#1415) a PMO receipt reaches an invoice through its live allocations, not its own invoice pointer', async () => {
+    h.state.pages.incoming_payment_allocations = [[{ incoming_payment_id: 'rc-1' }, { incoming_payment_id: 'rc-2' }, { incoming_payment_id: 'rc-1' }]];
+    h.state.pages.incoming_payments = [paymentRows(1)];
+
+    await listIncomingPayments({ salesInvoiceId: 'inv-123' });
+
+    const allocationRead = h.state.calls.find((c) => c.table === 'incoming_payment_allocations')!;
+    expect(allocationRead.eq).toEqual([['sales_invoice_id', 'inv-123']]);
+    expect(allocationRead.is).toEqual([['reversed_at', null]]);
+    const receiptRead = h.state.calls.find((c) => c.table === 'incoming_payments')!;
+    expect(receiptRead.or).toEqual([
+      'and(sales_invoice_id.eq.inv-123,pmo_native.eq.false),allocation_details.cs.[{"invoice_id":"inv-123"}],id.in.(rc-1,rc-2)',
+    ]);
+  });
+
+  it('AC-NPA-008 (#1415) the embed carries only LIVE allocations into the row; a reversed one never settles anything', async () => {
+    h.state.pages.incoming_payments = [[{
+      id: 'ip-1', customer: null,
+      allocations: [
+        { id: 'a1', sales_invoice_id: 'si-1', amount: 60, cash_amount: 60, withheld_amount: 0, currency: 'IDR', reversed_at: null },
+        { id: 'a2', sales_invoice_id: 'si-2', amount: 40, cash_amount: 40, withheld_amount: 0, currency: 'IDR', reversed_at: '2026-11-07T00:00:00Z' },
+      ],
+    }]];
+
+    const rows = await listIncomingPayments();
+
+    expect(rows[0].allocations).toEqual([{ id: 'a1', sales_invoice_id: 'si-1', amount: 60, cash_amount: 60, withheld_amount: 0, currency: 'IDR' }]);
   });
 
   it('returns EVERY payment past the 1000-row cap', async () => {
@@ -217,7 +248,7 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
 
     const rows = await listIncomingPayments();
 
-    expect(h.state.calls[0].columns).toBe('*, customer:companies!incoming_payments_customer_id_fkey(name)');
+    expect(h.state.calls[0].columns).toBe('*, customer:companies!incoming_payments_customer_id_fkey(name), allocations:incoming_payment_allocations(id,sales_invoice_id,amount,cash_amount,withheld_amount,currency,reversed_at)');
     expect(rows[0].customer_name).toBe('Acme Co');
   });
 

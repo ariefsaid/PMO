@@ -57,7 +57,7 @@ vi.mock('@/src/hooks/useCommandIntent', () => ({
 
 import { SalesInvoiceApprovalSection } from './SalesInvoiceApprovalSection';
 import { SalesInvoiceApprovalPreview } from './SalesInvoiceApprovalRow';
-import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { MemoryRouter } from 'react-router';
 import { within } from '@testing-library/react';
 

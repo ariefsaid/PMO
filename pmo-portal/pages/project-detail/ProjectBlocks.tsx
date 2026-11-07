@@ -18,7 +18,7 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { deriveMargin } from '@/src/lib/projectFinances';
 import MilestoneStrip from './MilestoneStrip';
-import { useBudgetPosition } from './useProjectPosition';
+import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import { summarizeInvoiceSettlement } from './ContractCascade';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';

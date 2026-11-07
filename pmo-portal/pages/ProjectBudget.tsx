@@ -50,7 +50,7 @@ import {
 } from '@/src/components/ui';
 import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { useBudgetPosition } from './project-detail/useProjectPosition';
+import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from './project-detail/budget/budgetModel';

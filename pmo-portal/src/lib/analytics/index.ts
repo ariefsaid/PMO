@@ -26,6 +26,7 @@ export * from './surveyPolicy';
 
 import { analyticsClient } from './client';
 import { isFeatureEnabled } from '@/src/lib/features';
+import type { CaptureExceptionInput } from './client';
 import type { AuthMethod, AuthFailureReason, DemoPersonaLabel } from './events';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { SAFE_TAB_ID } from './route';
@@ -246,3 +247,21 @@ export function analyticsOptIn(): void { analyticsClient.optIn(); }
 /** AC-CON-011 — the three-state (+active) consent surface; see `client.ts`'s `getConsentState` doc. */
 export { getConsentState } from './client';
 export type { ConsentState } from './client';
+
+// ── App-level error + group helpers (the client.ts import boundary) ──────
+// ErrorBoundary and the org-plan group registration need the low-level client,
+// which only analytics internals may import. These two helpers keep those
+// callers on the facade, so consent/redaction stay on the single client path.
+
+/** Capture a handled render/route error; the consent gate lives in `client.ts`. */
+export function captureHandledError(input: CaptureExceptionInput): void {
+  analyticsClient.captureException(input);
+}
+
+/** PostHog group type for the organisation — one group per org, shared by every member. */
+export const ORG_GROUP_TYPE = 'organisation';
+
+/** FR-PLN-016 — register the caller's plan as the organisation's group property. */
+export function trackOrgGroupPlan(orgId: string, planId: string): void {
+  analyticsClient.group(ORG_GROUP_TYPE, orgId, { plan: planId });
+}
