@@ -260,7 +260,7 @@ describe('#1240 D-005: the budget sits beside the contract-denominated bar', () 
     spent: 920_000, actual_complete: true, actual_currency: 'USD', ...over,
   });
   it('shows the active budget under the bar, or says there is none', () => {
-    state.figures = figures({ top_projects: [project(), project({ id: 'p2', name: 'Harbor', budget: null })] });
+    state.figures = figures({ attention_projects: [project(), project({ id: 'p2', name: 'Harbor', budget: null })] });
     renderDashboard('Executive');
     const list = screen.getByRole('list', { name: 'Spending vs contract' });
     const [first, second] = within(list).getAllByRole('listitem');
