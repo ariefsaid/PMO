@@ -64,8 +64,10 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 
 // ── Incidents mocks ──────────────────────────────────────────────────────────
 vi.mock('@/src/hooks/useIncidents', () => ({
-  useIncidents: () => ({
-    data: [
+  useIncidentsPage: () => ({
+    allTotal: 1,
+    list: {
+    data: { total: 1, rows: [
       {
         id: 'i1',
         type: 'Slip',
@@ -75,11 +77,13 @@ vi.mock('@/src/hooks/useIncidents', () => ({
         location: 'Site A',
         description: '',
       },
-    ],
+    ] },
     isPending: false,
     isError: false,
     refetch: vi.fn(),
+    },
   }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useIncidentMutations: () => ({
     create: { mutateAsync: vi.fn() },
     update: { mutateAsync: vi.fn(), isPending: false },

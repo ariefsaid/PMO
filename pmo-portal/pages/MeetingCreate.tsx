@@ -11,7 +11,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useListReturn } from '@/src/hooks/useListReturn';
@@ -41,7 +41,7 @@ const MeetingCreate: React.FC = () => {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { returnToList } = useListReturn({ list: 'meetings' });
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjectPickerOptions();
   const { create, update, addAttendee } = useMeetingMutations();
   const [members, setMembers] = useState<ComboboxOption[]>([]);
   const [guests, setGuests] = useState<string[]>([]);

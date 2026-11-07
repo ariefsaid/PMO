@@ -401,6 +401,7 @@ const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/expense_posting_queue',
   '/rest/v1/rpc/enqueue_new_item_sends', // ECA3-T12 pass (8b): one DB call per tick, before the lease; it reads PMO tables only
   '/rest/v1/rpc/claim_connect_sends', // ECA3-T7 pass (8b): one DB lease per tick; the ERP is reached only when a send is waiting
+  '/rest/v1/rpc/connect_open_purchase_statuses', // #1736: the one definition of an open purchase, read once per tick for a waiting item send; a DB read, never ERP
   '/rest/v1/rpc/service_resolved_org_features', // 0534: the per-org entitlement read the money passes need to hold a switched-off module — a DB read, never ERP/hourly work
 ];
 

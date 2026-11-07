@@ -79,4 +79,34 @@ describe('fakeOdoo', () => {
     expect(Object.keys(await call<Record<string, unknown>>('res.partner', 'fields_get', {}))).toContain('supplier_rank');
     await expect(call('res.partner', 'no_such_method', {})).rejects.toMatchObject({ errorClass: 'missing-model' });
   });
+
+  it('aggregates grouped move lines in group order without float drift and respects domain', async () => {
+    const { fake, call } = setup();
+    fake.seed('account.move.line', [
+      { id: 1, account_id: [101, '101000 Cash'], debit: 0.1, credit: 0.05 },
+      { id: 2, account_id: [101, '101000 Cash'], debit: 0.2, credit: 0.15 },
+      { id: 3, account_id: [201, '201000 Accounts Payable'], debit: 15.25, credit: 10.1 },
+      { id: 4, account_id: [201, '201000 Accounts Payable'], debit: 5.75, credit: 20.2 },
+      { id: 5, account_id: [201, '201000 Accounts Payable'], debit: 100, credit: 100 },
+    ]);
+
+    const groups = await call<Array<Record<string, unknown>>>('account.move.line', 'formatted_read_group', {
+      groupby: ['account_id'],
+      aggregates: ['debit:sum', 'credit:sum'],
+      domain: [['id', '!=', 5]],
+    });
+
+    expect(groups).toEqual([
+      {
+        account_id: [101, '101000 Cash'],
+        'debit:sum': 0.3,
+        'credit:sum': 0.2,
+      },
+      {
+        account_id: [201, '201000 Accounts Payable'],
+        'debit:sum': 21,
+        'credit:sum': 30.3,
+      },
+    ]);
+  });
 });

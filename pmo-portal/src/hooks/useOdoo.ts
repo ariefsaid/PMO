@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { MirrorKind, ListMasterInput } from '@/src/lib/repositories/types';
+import type { MirrorKind, ListMasterInput, OdooConfigProposalRead, OdooProjectLinksRead } from '@/src/lib/repositories/types';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -97,5 +97,27 @@ export function useOdooJournalProposal(enabled = true) {
     queryKey: ['odoo', 'journal-proposal', orgId],
     queryFn: () => repositories.odoo.setup<JournalProposal>('propose-config'),
     enabled: Boolean(orgId) && enabled,
+  });
+}
+
+/** The one-time map's proposal (FR-ODC-090): read when the screen opens, read again after a save or a sync (`['odoo']` is invalidated). */
+export function useOdooConfigProposal(enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['odoo', 'config-proposal', orgId],
+    queryFn: () => repositories.odoo.setup<OdooConfigProposalRead>('propose-config', { map: true }),
+    enabled: Boolean(orgId) && enabled,
+    retry: false,
+  });
+}
+
+/** Cost accounts of the chosen plan and which project holds each (FR-ODC-070/071). Reads PMO's mirror; Odoo is not called. */
+export function useOdooProjectLinks(enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['odoo', 'project-links', orgId],
+    queryFn: () => repositories.odoo.setup<OdooProjectLinksRead>('list-projects'),
+    enabled: Boolean(orgId) && enabled,
+    retry: false,
   });
 }
