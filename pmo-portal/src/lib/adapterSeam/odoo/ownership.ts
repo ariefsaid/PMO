@@ -7,6 +7,9 @@ export const odooOwnsProcurementTier = (tier: unknown): boolean => tier === ODOO
 export const odooOwnsRevenueTier = (tier: unknown): boolean => tier === ODOO_TIER;
 /** Keep the companies tier identity check inside the adapter seam (AC-ECA-043). */
 export const odooOwnsCompaniesTier = (tier: unknown): boolean => tier === ODOO_TIER;
+/** Keep the projects tier identity check inside the adapter seam (AC-ECA-043). */
+export const odooOwnsProjectsTier = (tier: unknown): boolean => tier === ODOO_TIER;
+export const odooOwnsProjectTier = odooOwnsProjectsTier;
 
 /** True once the ownership cache says Odoo runs procurement. The tier name stays in this directory (AC-ECA-043); screens ask this. */
 export const odooOwnsProcurement = (): boolean => domainTier('procurement') === 'odoo';
