@@ -2398,12 +2398,9 @@
         "milestones_other": "{{count}} fase",
         "scale": "skala: {{scale}}",
         "tasks_one": "{{count}} task",
-        "tasks_other": "{{count}} task",
-        "today": "hari ini di {{pct}}% dari rentang"
+        "tasks_other": "{{count}} task"
       },
-      "targetWord": "target",
       "taskColumn": "Tugas",
-      "taskTableAriaLabel": "Tabel tugas",
       "tasksOnTimeline_one": "{{count}} task di timeline",
       "tasksOnTimeline_other": "{{count}} task di timeline",
       "today": "Hari ini",

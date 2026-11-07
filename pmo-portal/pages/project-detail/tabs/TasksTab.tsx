@@ -32,7 +32,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import ProjectGantt from '../ProjectGantt';
 import TaskBoard from './TaskBoard';
@@ -297,6 +297,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         }),
         'success',
       );
+      return true;
+    } catch (err) {
+      const { headline, detail } = classifyWriteError(err);
+      toast(headline, detail, 'warning');
+      return false;
+    }
+  };
+
+  // Timeline drag / edge-resize (#1980): same gate as editing the task, same classifier as every
+  // other task write. Resolves false on failure so the bar snaps back.
+  const onReschedule = async (task: TaskWithRefs, patch: TaskPatch): Promise<boolean> => {
+    if (!canEditTask(task)) return false;
+    try {
+      await update.mutateAsync({ id: task.id, patch });
       return true;
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
@@ -610,6 +624,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           onSwitchView={setTaskView}
           onActivateTask={openTask}
           rowMenu={rowMenu}
+          canReschedule={canEditTask}
+          onReschedule={onReschedule}
         />
       )}
       </Card>
