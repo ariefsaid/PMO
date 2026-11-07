@@ -23,7 +23,8 @@ export interface OdooCtx {
 
 const adminOrOperator = (c: OdooCtx) => c.role === 'Admin' || c.operator;
 const adminOrFinance = (c: OdooCtx) => c.role === 'Admin' || c.role === 'Finance';
-const saveDefaultsGate = (c: OdooCtx) => Object.hasOwn(c.body, 'tax_prepaid_account_id')
+// The one-time map keys (FR-ODC-090) are Admin/Finance only; the RPC re-checks the role against the live profile.
+const saveDefaultsGate = (c: OdooCtx) => ['tax_prepaid_account_id', 'account_defaults', 'unit_map', 'default_warehouse_id'].some((k) => Object.hasOwn(c.body, k))
   ? adminOrFinance(c)
   : adminOrFinance(c) || c.operator;
 const GATES: Record<string, (c: OdooCtx) => boolean> = {
@@ -31,7 +32,7 @@ const GATES: Record<string, (c: OdooCtx) => boolean> = {
   // The actor-checked RPCs decide who may link or un-link (the Admin, an Operator, the project's own PM); the plan is an Admin's choice.
   'list-projects': () => true, 'link-project': () => true, 'unlink-project': () => true, 'set-analytic-plan': adminOrOperator,
   // The journal setter keeps 0509's platform Operator path; tax-prepaid is Admin/Finance only, while the advance setter enforces that role in its RPC.
-  'employ-domain': adminOrOperator, 'propose-config': (c) => adminOrFinance(c) || c.operator, 'save-defaults': saveDefaultsGate,
+  'employ-domain': adminOrOperator, 'propose-config': (c) => adminOrFinance(c) || (c.operator && c.body.map !== true), 'save-defaults': saveDefaultsGate,
 };
 const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {
   'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind,

@@ -30,7 +30,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>>; ledgerLines?: number; failLedgerApply?: boolean; unswitched?: boolean; failCompanyYearRead?: boolean }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; reconcileError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>>; ledgerLines?: number; failLedgerApply?: boolean; unswitched?: boolean; failCompanyYearRead?: boolean }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -167,6 +167,7 @@ function harness(o: Opts = {}) {
     supabaseRpc('replace_connect_proposals', () => jsonResponse(null)),
     supabaseRpc('fail_connect_run', () => jsonResponse('staging')),
     supabaseRpc('apply_connect_outcome', () => jsonResponse(null)),
+    supabaseRpc('reconcile_odoo_links', () => (o.reconcileError ? jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) : jsonResponse(0))),
     ...(o.failCompanyYearRead ? [{ label: 'odoo-company-year', host: ODOO, pathname: '/json/2/res.company/read', match: (c: FetchCall) => String(c.bodyText).includes('fiscalyear_last_month'), response: () => jsonResponse({ name: 'x' }, { status: 500 }) }] : []),
     { label: 'odoo-json2', host: ODOO, pathname: /^\/json\/2\//, response: (c: FetchCall) => {
       odooCalls++;
@@ -740,6 +741,34 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
   });
 });
 
+describe('odooSweep — #1504 S7 link reconciliation (AC-ODC-054)', () => {
+  it('a clean tick reconciles this org\'s project links once, after the directory pages are saved', async () => {
+    const r = await sweep();
+    const calls = rpcCall(r.calls, 'reconcile_odoo_links');
+    assertEquals(calls.map((c) => c.bodyJson), [{ p_org_id: ORG }]);
+    const lastPage = r.calls.map((c) => c.url.pathname === '/rest/v1/rpc/apply_odoo_master_page').lastIndexOf(true);
+    assert(lastPage >= 0 && lastPage < r.calls.indexOf(calls[0]));
+  });
+
+  it('a tick that cannot reach Odoo still reconciles from the mirror it already holds', async () => {
+    const r = await sweep({ rejectAfter: 0 });
+    assertEquals('ok' in r.result && r.result.failed, 'key-rejected');
+    assertEquals(rpcCall(r.calls, 'reconcile_odoo_links').length, 1);
+  });
+
+  it('a setup step whose store read fails does not skip the reconciliation after it', async () => {
+    const r = await sweep({ runError: true });
+    assertEquals(rpcCall(r.calls, 'reconcile_odoo_links').length, 1);
+  });
+
+  it('a reconcile that fails does not fail the tick: the connection state is still stored and the lock released', async () => {
+    const r = await sweep({ reconcileError: true });
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals(stored(r.calls)?.connection.state, 'healthy');
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+});
+
 describe('odooSweep — #1504 S8-T4 accepted sends run after the passes', () => {
   const party = (n: number) => ({ id: `prop-${n}`, kind: 'party', pmo_ids: [`c-${n}`], decided_by: 'admin-1', snapshot: {} });
   const claims = (calls: FetchCall[]) => rpcCall(calls, 'claim_connect_sends').map((c) => c.bodyJson as { p_org_id: string; p_tier: string; p_limit: number });
@@ -835,3 +864,4 @@ describe('odooSweep — #1507 S3 ledger feed', () => {
     assert(r.fake.calls.some((c) => c.method === 'fields_get'), 're-discovery ran');
   });
 });
+
