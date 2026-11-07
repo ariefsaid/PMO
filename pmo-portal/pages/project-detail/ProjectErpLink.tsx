@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ProjectMatchReview } from '@/src/components/integrations/ProjectMatchReview';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
+import { odooOwnsProjectsTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { ProjectOdooLink } from './ProjectOdooLink';
 
 /**
@@ -22,6 +23,6 @@ export function ProjectErpLink({ projectId, managerId = null }: { projectId: str
   if (!orgId) return null;
   if (bindings.isPending) return null;
   const list = bindings.data ?? [];
-  if (list.some((b) => b.external_tier === 'odoo' && b.status === 'active')) return <ProjectOdooLink projectId={projectId} managerId={managerId} />;
-  return <ProjectMatchReview projectId={projectId} orgId={orgId} binding={bindings.isError ? undefined : list.find((b) => b.external_tier === 'erpnext') ?? null} />;
+  if (list.some((b) => odooOwnsProjectsTier(b.external_tier) && b.status === 'active')) return <ProjectOdooLink projectId={projectId} managerId={managerId} />;
+  return <ProjectMatchReview projectId={projectId} orgId={orgId} binding={bindings.isError ? undefined : list.find((b) => !odooOwnsProjectsTier(b.external_tier)) ?? null} />;
 }
