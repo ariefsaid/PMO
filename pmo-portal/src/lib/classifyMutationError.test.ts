@@ -26,6 +26,13 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(out.rawDetail).toBe('permission denied for transition_procurement');
   });
 
+  it('#1607: the ERP-owned order refusal reads as a pointer to the purchase order, not a permission error', () => {
+    const msg = 'This purchase is managed in your connected system. Record the purchase order to place the order there.';
+    const out = classifyMutationError(Object.assign(new Error(msg), { code: '42501' }));
+    expect(out.headline).toBe('Record the purchase order instead');
+    expect(out.detail).toBe(msg);
+  });
+
   it('23505 → duplicate headline', () => {
     const e = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
     const out = classifyMutationError(e);
