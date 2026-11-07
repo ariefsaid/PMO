@@ -19,9 +19,12 @@ insert into public.profiles (id,org_id,full_name,email,role,status) values
 insert into public.projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,tax_rate,tax_base_numerator,tax_base_denominator,subject_to_vat) values
  ('03070000-0000-0000-0000-0000000000d1','03070000-0000-0000-0000-000000000001','ERP project','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false),
  ('03070000-0000-0000-0000-0000000000d2','03070000-0000-0000-0000-000000000002','PMO project','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false);
-insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id) values
- ('03070000-0000-0000-0000-0000000000f1','03070000-0000-0000-0000-000000000001','ERP PO','Ordered',75,'03070000-0000-0000-0000-0000000000d1','03070000-0000-0000-0000-0000000000a1'),
- ('03070000-0000-0000-0000-0000000000f2','03070000-0000-0000-0000-000000000002','PMO PO','Ordered',75,'03070000-0000-0000-0000-0000000000d2','03070000-0000-0000-0000-0000000000a5');
+insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id,budget_category) values
+ ('03070000-0000-0000-0000-0000000000f1','03070000-0000-0000-0000-000000000001','ERP PO','Ordered',75,'03070000-0000-0000-0000-0000000000d1','03070000-0000-0000-0000-0000000000a1','Labor'),
+ ('03070000-0000-0000-0000-0000000000f2','03070000-0000-0000-0000-000000000002','PMO PO','Ordered',75,'03070000-0000-0000-0000-0000000000d2','03070000-0000-0000-0000-0000000000a5','Labor');
+-- #1739 (0700): the PMO Actual is the pre-tax paid amount, so the PMO purchase is fully paid.
+insert into public.payments (id,org_id,procurement_id,status,date,amount,currency) values
+ ('03070000-0000-0000-0000-0000000000c1','03070000-0000-0000-0000-000000000002','03070000-0000-0000-0000-0000000000f2','Paid','2026-10-10',75,'USD');
 insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
 values
  ('03070000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active','03070000-0000-0000-0000-0000000000a1',now()),
@@ -49,7 +52,7 @@ select is((select (x->>'spent')::numeric from json_array_elements(public.get_exe
 
 set local request.jwt.claims to '{"sub":"03070000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select ok(not public.org_reads_erp_ledger(),'org without ERPNext binding selects PMO basis');
-select is((select (x->>'spent')::numeric from json_array_elements(public.get_executive_dashboard()->'top_projects') x where x->>'id'='03070000-0000-0000-0000-0000000000d2'),75::numeric,'PMO dashboard Actual uses committed POs');
+select is((select (x->>'spent')::numeric from json_array_elements(public.get_executive_dashboard()->'top_projects') x where x->>'id'='03070000-0000-0000-0000-0000000000d2'),75::numeric,'PMO dashboard Actual uses the paid purchase, not a ledger read');
 
 reset role;
 update public.external_org_bindings set status='disconnected' where org_id='03070000-0000-0000-0000-000000000001' and external_tier='erpnext';

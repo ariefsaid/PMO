@@ -12,7 +12,7 @@ import {
   ProcurementTab, ProjectSCurve, TasksTab, WorkOrdersTab, preloadProjectTab,
 } from './lazyProjectChunks';
 import { ProjectAttention } from './ProjectAttention';
-import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
+import { useOverdueReceivables, useProjectAttention } from '@/src/hooks/useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
@@ -41,7 +41,7 @@ function useLens(): Lens {
 }
 
 const Suspended: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" />}>{children}</React.Suspense>
+  <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>{children}</React.Suspense>
 );
 
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */

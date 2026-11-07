@@ -139,7 +139,7 @@ insert into external_refs (org_id, domain, pmo_record_id, external_tier, externa
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
 select throws_ok($$select public.unlink_odoo_cost_account('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','a6050000-0000-0000-0000-0000000000c1')$$, 'P0001', 'project link is in use',
-  'AC-ODC-053 a project with an ERP document reference cannot be un-linked (the shared check)');
+  'AC-OCI-032 AC-ODC-053 a project with an ERP document reference cannot be un-linked (the shared check)');
 select is((select count(*)::int from external_project_bindings where project_id='a6050000-0000-0000-0000-0000000000c1'), 1, 'and its link stays');
 
 -- grants: service role only

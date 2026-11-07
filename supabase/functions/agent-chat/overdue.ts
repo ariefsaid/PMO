@@ -8,6 +8,7 @@
  */
 import type { AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { deriveArDueDate } from '../../../pmo-portal/src/lib/repositories/revenueDisplay.ts';
+import { OPEN_CLIENT_INVOICE_STATUSES } from '../../../pmo-portal/src/lib/revenue/clientInvoiceStatus.ts';
 import { AGENT_REVENUE_VIEW_ROLES } from '../../../pmo-portal/src/auth/agentRoles.ts';
 import { WHATS_OVERDUE_SCHEMA } from './schema.ts';
 import { asLoose, readOne, readRows, withTimeout, UUID_RE, type LooseClient, type LooseQuery } from './looseClient.ts';
@@ -118,7 +119,7 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
     } else {
       let q = sb.from('sales_invoices')
         .select('id, si_number, invoice_date, received_date, erp_due_date, erp_outstanding_amount, currency, tax_treatment, project_id, companies!sales_invoices_customer_id_fkey(name, erp_payment_terms_days)')
-        .eq('status', 'Unpaid')
+        .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])   // #2015: the shared #1457 open-client-invoice rule — same set the app's overdue count reads
         .is('paired_erp_invoice_id', null);   // ECA-5: a paired PMO copy is its ERP invoice's, which is reported once
       if (managedIds) q = q.in('project_id', managedIds);
       const scanned = await readRows<InvoiceRow>(

@@ -1,0 +1,151 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
+import { ToastProvider } from '@/src/components/ui';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+import type { Role } from '@/src/auth/AuthContext';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
+
+/**
+ * A-1 DealBand write-affordance gate (AC-W2-RBAC-001/002, rbac-visibility §B2):
+ *   Pipeline lifecycle control (Advance / Mark won / Mark lost) is Admin·Exec·PM (delivery).
+ *   Finance·Engineer = ○ (read-only). The gate reads the REAL JWT role.
+ *
+ * Two-sided gating-invariant: the AUTHORIZED role (PM) sees + can act; the DENIED role
+ * (Engineer) sees the stage + journey but NO reject-bound lifecycle control — instead a clean
+ * read-only note. RLS stays the authority (ADR-0016); this is FE clarity.
+ */
+const { transitionProject } = vi.hoisted(() => ({
+  transitionProject: vi.fn().mockResolvedValue(undefined),
+}));
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => false }));
+vi.mock('@/src/lib/repositories', async (orig) => {
+  const actual = await orig() as typeof import('@/src/lib/repositories');
+  return { ...actual, repositories: { ...actual.repositories, project: { ...actual.repositories.project, transition: transitionProject } } };
+});
+vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, transitionProject };
+});
+
+const pipelineState = {
+  data: {
+    stages: [],
+    projects: [
+      { id: 'd1', name: 'Acme Tender Bid', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
+    ] as Array<Record<string, unknown>>,
+  },
+};
+vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineState }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
+}));
+vi.mock('@tanstack/react-query', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+});
+
+import DealBand from '../../sales/DealBand';
+
+const dealRow = {
+  id: 'd1',
+  name: 'Acme Tender Bid',
+  code: 'OPP-0042',
+  status: 'Tender Submitted',
+  client_id: 'c1',
+  project_manager_id: 'u-alice',
+  contract_value: 1200000, currency: 'USD',
+  budget: 0,
+  spent: 0,
+  decided_at: null,
+  client: { name: 'Acme' },
+  pm: { full_name: 'Alice Manager' },
+} as unknown as ProjectWithRefs;
+
+const renderAs = (realRole: Role) =>
+  render(
+    <MemoryRouter>
+      <ImpersonationProvider realRole={realRole}>
+        <ToastProvider>
+          <DealBand project={dealRow} />
+        </ToastProvider>
+      </ImpersonationProvider>
+    </MemoryRouter>,
+  );
+
+beforeEach(() => transitionProject.mockClear());
+
+describe('DealBand — RBAC write-affordance gate (A-1)', () => {
+  it('AC-W2-RBAC-002: a PM sees Advance / Mark won / Mark lost (authorized)', async () => {
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByText('More project details'));
+    expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
+    // #1638: the deal page carries the stage history; it opens on demand.
+    expect(screen.getByText('Sales history')).toBeInTheDocument();
+  });
+
+  it('AC-W2-RBAC-001: an Engineer sees the stage + journey but NO lifecycle control (denied)', async () => {
+    renderAs('Engineer');
+    await userEvent.click(screen.getByText('More project details'));
+    // The deal still renders its stats + journey (read-only surface).
+    expect(screen.getByRole('list', { name: /Project stage journey/i })).toBeInTheDocument();
+    // No reject-bound lifecycle control is rendered.
+    expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark lost/i })).not.toBeInTheDocument();
+    // A clean read-only note explains who manages the pipeline (not a wall of dead buttons).
+    expect(screen.getByText(/managed by the project owner/i)).toBeInTheDocument();
+  });
+
+  it('keeps deal value and weighted money out of the Engineer delivery lens', async () => {
+    renderAs('Engineer');
+    await userEvent.click(screen.getByText('More project details'));
+    expect(screen.queryByText('Value')).not.toBeInTheDocument();
+    expect(screen.queryByText('Weighted')).not.toBeInTheDocument();
+    expect(screen.queryByText('$1,200,000')).not.toBeInTheDocument();
+  });
+
+  it('leads the phone view with the current stage and one next action, with detail closed', async () => {
+    renderAs('Project Manager');
+    expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
+    const details = screen.getByText('More project details').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).not.toHaveTextContent('Weighted');
+    const journey = screen.getByRole('list', { name: /Project stage journey/i });
+    expect(journey.closest('details')).toBeNull();
+    await userEvent.click(screen.getByText('More project details'));
+    expect(details).toHaveTextContent('Weighted');
+    expect(journey).toBeInTheDocument();
+  });
+
+  it('keeps the full read-only explanation inside the phone disclosure and the summary to one line', async () => {
+    renderAs('Engineer');
+    const summary = screen.getByText('More project details');
+    const details = summary.closest('details');
+    expect(details).not.toHaveAttribute('open');
+    await userEvent.click(summary);
+    expect(details).toHaveTextContent('lifecycle changes are made by the project manager');
+    expect(screen.getByText('Project manager manages this pipeline.')).toHaveClass('line-clamp-1');
+  });
+
+  it('AC-W2-RBAC-001: Finance is read-only on the pipeline lens too (denied)', () => {
+    renderAs('Finance');
+    expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark lost/i })).not.toBeInTheDocument();
+  });
+});

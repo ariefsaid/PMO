@@ -1,5 +1,5 @@
 /**
- * Odoo purchasing setup verbs (#1505 P2): employ procurement under Odoo (FR-OPP-001, PQ-12 parity with ERPNext's `employ-domain`),
+ * Odoo purchasing setup verbs (#1505 P2): employ procurement or companies under Odoo (FR-OPP-001, FR-ODC-055, PQ-12 parity with ERPNext's `employ-domain`),
  * the org's default payment journal (FR-OPP-093, OQ-OPP-6), the C5 tax-prepaid account, and customer-advance account. Odoo is not called:
  * the lists are mirrored, and writes go through actor-checked RPCs (0505, 0509, 0512, 0540) that enforce their role and scope.
  */
@@ -8,15 +8,20 @@ import { odooError, type OdooCtx } from './router.ts';
 
 const JOURNAL_TYPES = new Set(['bank', 'cash']);
 
+/** The domains an Admin may employ under Odoo. The database (0743) refuses a companies employ while partner sends are still waiting. */
+const EMPLOYABLE = new Set(['procurement', 'companies']);
+
 export async function employDomain(c: OdooCtx): Promise<Response> {
-  if (c.body.domain !== 'procurement') return odooError(c, 'Choose a supported ERP domain', 'BAD_REQUEST', 400);
+  const domain = c.body.domain;
+  if (typeof domain !== 'string' || !EMPLOYABLE.has(domain)) return odooError(c, 'Choose a supported ERP domain', 'BAD_REQUEST', 400);
   const { error } = await c.sc.rpc('admin_change_domain_ownership', {
-    p_org_id: c.orgId, p_external_tier: 'odoo', p_domain: 'procurement', p_action: 'employ', p_actor_id: c.userId,
+    p_org_id: c.orgId, p_external_tier: 'odoo', p_domain: domain, p_action: 'employ', p_actor_id: c.userId,
   });
   if (!error) return c.respond({ ok: true });
   if (error.code === '42501') return odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403);
   if (error.code === 'P0001') {
     // The refusals are the database's plain words (0505). A model the stored snapshot lacks is usually an old snapshot.
+    if (/^Some records are still being sent/.test(error.message)) return odooError(c, error.message, 'sends-pending', 409);
     const hint = /^Odoo is missing /.test(error.message) ? `${error.message}. Check the connection again, then retry.` : error.message;
     return odooError(c, hint, 'config-rejected', 422);
   }

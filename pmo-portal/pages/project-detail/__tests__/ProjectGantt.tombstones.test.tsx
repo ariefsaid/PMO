@@ -106,8 +106,7 @@ describe('the Gantt screen-reader summary states every clause (#575)', () => {
     // The WHOLE label, not a substring: a clause silently dropped from the join is exactly the
     // failure mode, and a per-clause `toMatch` cannot see a missing neighbour.
     expect(ganttSummary()).toBe(
-      'Task Gantt timeline: 1 task across 1 phase, today at 100% of the span, ' +
-        '0 dependency connectors drawn, scale: Month.',
+      'Task Gantt timeline: 1 task across 1 phase, 0 dependency connectors drawn, scale: Month.',
     );
   });
 

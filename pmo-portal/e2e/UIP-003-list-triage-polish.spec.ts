@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { login, waitForFonts } from './helpers';
+import { addBuilderFilter, builderChip } from './support/filter-builder';
 
 // No shared seed row or org setting is mutated. Closed award values and row-local locations need no setup change.
 test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications on return, and expose phone opportunities above the fold', async ({ page }, testInfo) => {
@@ -26,18 +27,24 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
     for (const route of ['projects', 'sales']) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(`/${route}?view=table`);
-      // PL-A: Projects folds classification into its one Filters trigger; the Pipeline keeps its own.
-      const triggerName = route === 'projects' ? 'Filters' : 'Classification';
+      // Projects filters through the one filter builder (#1983); the Pipeline keeps its Classification disclosure.
+      const triggerName = 'Classification';
       const disclosure = page.getByRole('button', { name: new RegExp(`^${triggerName}`) });
-      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
-      await disclosure.click();
-      await page.getByLabel('Filter by award type').selectOption('tender');
-      await page.getByLabel('Filter by location').fill(location);
+      if (route === 'projects') {
+        await addBuilderFilter(page, 'Award type', { option: 'Tender' });
+        await addBuilderFilter(page, 'Location', { operator: 'contains', text: location });
+        await expect(builderChip(page, 'Location')).toBeVisible();
+      } else {
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+        await disclosure.click();
+        await page.getByLabel('Filter by award type').selectOption('tender');
+        await page.getByLabel('Filter by location').fill(location);
+        // Open the record directly from expanded filters: outside dismissal must not move
+        // the target between pointer-down and click.
+        await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);
+        await expect(page.getByText(`Location: ${location}`, { exact: true })).toBeVisible();
+      }
       await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe(location);
-      // Open the record directly from expanded filters: outside dismissal must not move
-      // the target between pointer-down and click.
-      await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);
-      await expect(page.getByText(`Location: ${location}`, { exact: true })).toBeVisible();
       const table = page.getByRole('table');
       const intended = route === 'projects'
         ? table.getByRole('button', { name: names[1], exact: true })
@@ -71,14 +78,22 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
       if (route === 'projects') await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Projects', exact: true }).click();
       else await page.getByRole('link', { name: /Back to Sales Pipeline/i }).click();
       await expect(page).toHaveURL(narrowed);
-      await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);
-      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
-      await disclosure.click();
-      await expect(page.getByLabel('Filter by award type')).toHaveValue('tender');
-      await expect(page.getByLabel('Filter by location')).toHaveValue(location);
-      await page.keyboard.press('Escape');
-      await page.getByRole('button', { name: 'Clear classifications' }).click();
-      await expect(disclosure).toHaveAccessibleName(triggerName);
+      if (route === 'projects') {
+        // Back from the record rebuilds the same chips from the URL.
+        await expect(builderChip(page, 'Award type')).toBeVisible();
+        await expect(builderChip(page, 'Location')).toBeVisible();
+        await page.getByRole('button', { name: 'Clear all', exact: true }).click();
+        await expect(builderChip(page, 'Location')).toHaveCount(0);
+      } else {
+        await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+        await disclosure.click();
+        await expect(page.getByLabel('Filter by award type')).toHaveValue('tender');
+        await expect(page.getByLabel('Filter by location')).toHaveValue(location);
+        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: 'Clear classifications' }).click();
+        await expect(disclosure).toHaveAccessibleName(triggerName);
+      }
       await expect.poll(() => new URL(page.url()).searchParams.has('location')).toBe(false);
     }
     await page.setViewportSize({ width: 390, height: 844 });

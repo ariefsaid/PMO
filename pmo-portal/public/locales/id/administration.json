@@ -290,6 +290,7 @@
       "errorTitle": "Tidak dapat membaca data",
       "errorDescription": "Tidak dapat membaca data dari sistem yang terhubung. Periksa koneksi dan coba lagi.",
       "retry": "Coba lagi",
+      "recheck": "Periksa lagi",
       "emptyTitle": "Tidak ada yang perlu diatur",
       "emptyDescription": "Tidak ada data untuk diatur. Semua data sudah terhubung.",
       "allClearTitle": "Semua data terhubung",
