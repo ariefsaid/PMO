@@ -67,10 +67,10 @@ insert into project_milestones (id, org_id, project_id, name, target_date, input
   ('07320000-0000-0000-0000-0000000000f5', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d5', 'Big not started',    ((now() at time zone 'UTC')::date - 6), null);
 
 -- Invoices on P_OVERDUE: one overdue (Submitted, 60 days old on 30-day terms), one paid, one not yet due.
-insert into sales_invoices (id, org_id, project_id, customer_id, invoice_date, status, amount) values
-  ('07320000-0000-0000-0000-000000000101', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d2', '07320000-0000-0000-0000-0000000000c1', ((now() at time zone 'UTC')::date - 60), 'Submitted', 1000),
-  ('07320000-0000-0000-0000-000000000102', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d2', '07320000-0000-0000-0000-0000000000c1', ((now() at time zone 'UTC')::date - 90), 'Paid',      1000),
-  ('07320000-0000-0000-0000-000000000103', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d2', '07320000-0000-0000-0000-0000000000c1', ((now() at time zone 'UTC')::date - 2),  'Submitted', 1000);
+insert into sales_invoices (id, org_id, project_id, customer_id, invoice_date, status, amount, tax_treatment, tax_amount) values
+  ('07320000-0000-0000-0000-000000000101', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d2', '07320000-0000-0000-0000-0000000000c1', ((now() at time zone 'UTC')::date - 60), 'Submitted', 1000, 'exclusive', 0),
+  ('07320000-0000-0000-0000-000000000102', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d2', '07320000-0000-0000-0000-0000000000c1', ((now() at time zone 'UTC')::date - 90), 'Paid',      1000, 'exclusive', 0),
+  ('07320000-0000-0000-0000-000000000103', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d2', '07320000-0000-0000-0000-0000000000c1', ((now() at time zone 'UTC')::date - 2),  'Submitted', 1000, 'exclusive', 0);
 
 -- Waiting approvals: one Requested procurement on P_ALL, one Requested + one Submitted claim elsewhere.
 insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
