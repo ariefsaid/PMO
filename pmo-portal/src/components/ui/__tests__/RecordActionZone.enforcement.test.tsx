@@ -10,7 +10,7 @@
  *      procurement record restructure (#1404) they live in the RecordHeader actions slot
  *      (`record-header-actions`, the header's canonical placement contract), not RecordActionZone.
  *   2. IncidentDetail — the "Start Investigating" / "Close Incident" advance button
- *   3. PipelineLens (pre-win) — the "Advance" / "Mark won" / "Mark lost" buttons
+ *   3. DealBand (pre-win) — the "Advance" / "Mark won" / "Mark lost" buttons
  *
  * ProjectDetail (delivery) has no delivery-advance verb at the record level
  * (delivery progress is tracked via tasks/milestone stepper, not a status button),
@@ -226,7 +226,7 @@ describe('Enforcement: IncidentDetail renders advance verbs through RecordAction
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. PipelineLens
+// 3. DealBand
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { pipelineMock, pipelineTransitionMock } = vi.hoisted(() => ({
@@ -252,9 +252,9 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject: pipelineTransitionMock };
 });
-// The merged tree's PipelineLens consumes react-query; render under a real QueryClientProvider
+// The merged tree's DealBand consumes react-query; render under a real QueryClientProvider
 // (as the ProcurementDetails section above already does) and stub the eligibility read at the
-// hook seam, mirroring the PipelineLens.queryStatus harness.
+// hook seam, mirroring the DealBand.queryStatus harness.
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectWinEligibility: () => ({ data: 'allowed' }),
 }));
@@ -278,15 +278,15 @@ const pipelineProject = {
   pm: { full_name: 'PM User' },
 } as never;
 
-import PipelineLens from '../../../../pages/project-detail/PipelineLens';
+import DealBand from '../../../../pages/sales/DealBand';
 
-describe('Enforcement: PipelineLens renders advance verbs through RecordActionZone', () => {
+describe('Enforcement: DealBand renders advance verbs through RecordActionZone', () => {
   it('AC-ENFORCE-PIPE: Advance / Mark won / Mark lost buttons live inside data-testid="record-action-zone"', () => {
     render(
       <QueryClientProvider client={makeClient()}>
         <ImpersonationProvider realRole="Project Manager">
           <ToastProvider>
-            <MemoryRouter><PipelineLens project={pipelineProject} /></MemoryRouter>
+            <MemoryRouter><DealBand project={pipelineProject} /></MemoryRouter>
           </ToastProvider>
         </ImpersonationProvider>
       </QueryClientProvider>,

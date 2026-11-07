@@ -27,7 +27,7 @@ vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => 
  * project detail layout (header + the five delivery tabs) at EVERY stage.
  *
  *  - pipeline (pre-win) → the delivery tabs (Overview/Budget/Procurement/Tasks/Documents) ARE
- *    rendered AND the PipelineLens deal banner (stepper + Advance/Mark won/Mark lost) renders
+ *    rendered AND the DealBand deal banner (stepper + Advance/Mark won/Mark lost) renders
  *    ABOVE them, so a PM can plan budget/tasks/procurement while pursuing the deal. The delivery
  *    stat tiles + contract-value SoD editor stay delivery-only (the deal figures live in the banner).
  *  - onHand → the delivery tabs + SoD editor ARE rendered; the deal banner is NOT.
@@ -80,7 +80,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineState }));
-// PipelineLens calls useQueryClient to invalidate after a transition.
+// DealBand calls useQueryClient to invalidate after a transition.
 vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn(), getQueryData: vi.fn() }) };
@@ -302,7 +302,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a pipeline record shows PipelineLens with Overview, Budget, Tasks and Documents', async () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a pipeline record shows DealBand with Overview, Budget, Tasks and Documents', async () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -328,10 +328,10 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
   });
 
   // list-working-set-return (#682, AC-LRC-004): ProjectDetail forwards its OWN router
-  // location.state down to PipelineLens, so a project opened from a narrowed Sales Pipeline
-  // resolves its quiet Sales link to that captured URL end-to-end (not just at PipelineLens's
+  // location.state down to DealBand, so a project opened from a narrowed Sales Pipeline
+  // resolves its quiet Sales link to that captured URL end-to-end (not just at DealBand's
   // own isolated-render level, proven separately in wave5-c3-pr2.test.tsx).
-  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the PipelineLens Sales link', async () => {
+  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the DealBand Sales link', async () => {
     projectsState.data = [pipelineRow];
     pipelineState.data = {
       stages: [],

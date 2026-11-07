@@ -50,7 +50,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const dealRow = {
   id: 'd1',
@@ -79,7 +79,7 @@ const renderLens = (project: ProjectWithRefs = dealRow) =>
     <MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={project} />
+          <DealBand project={project} />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>,
@@ -90,7 +90,7 @@ beforeEach(() => {
   transitionProject.mockResolvedValue(undefined);
 });
 
-describe('PipelineLens - Lost Reason (AC-LR-011, 013, 014)', () => {
+describe('DealBand - Lost Reason (AC-LR-011, 013, 014)', () => {
   it('AC-LR-011: "Mark lost" confirm shows reason picker, disabled until valid, sends transition with reason', async () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Mark lost/i }));

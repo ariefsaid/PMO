@@ -75,7 +75,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries }) };
 });
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const dealRow = {
   id: 'd1',
@@ -101,7 +101,7 @@ const renderLens = (project: ProjectWithRefs = dealRow) =>
     <MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={project} />
+          <DealBand project={project} />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>,
@@ -126,7 +126,7 @@ beforeEach(() => {
   };
 });
 
-describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
+describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
   it('AC-1796: edits the independent % Get estimate for this opportunity', async () => {
     const user = userEvent.setup();
     renderLens();
@@ -163,7 +163,7 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
     const user = userEvent.setup();
     const view = renderLens();
     await user.click(screen.getByRole('button', { name: /Mark won/i }));
-    const refresh = () => view.rerender(<MemoryRouter><ImpersonationProvider realRole="Project Manager"><ToastProvider><PipelineLens project={dealRow} /></ToastProvider></ImpersonationProvider></MemoryRouter>);
+    const refresh = () => view.rerender(<MemoryRouter><ImpersonationProvider realRole="Project Manager"><ToastProvider><DealBand project={dealRow} /></ToastProvider></ImpersonationProvider></MemoryRouter>);
     winEligibility.isFetching = true; refresh();
     expect(screen.queryByLabelText(/Customer contract reference/i)).not.toBeInTheDocument();
     expect(screen.getAllByText('Checking win eligibility…').length).toBeGreaterThan(0);
@@ -216,7 +216,7 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
   });
 });
 
-describe('PipelineLens — a transition refreshes the detail page (AC-OVERFETCH-001)', () => {
+describe('DealBand — a transition refreshes the detail page (AC-OVERFETCH-001)', () => {
   it('AC-OVERFETCH-001: Advance invalidates the project detail key the page reads', async () => {
     const client = new QueryClient();
     client.setQueryData(['won-deals', 'org-1'], 'old');
