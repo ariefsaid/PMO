@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // (the awaited one) resolves the queued result; we assert the recorded calls.
 // Mirrors src/lib/db/companies.test.ts (the reference template).
 const h = vi.hoisted(() => {
-  const result = { value: { data: null as unknown, error: null as unknown, count: undefined as number | null | undefined } };
+  const result = { value: { data: null as unknown, error: null as unknown, count: undefined as number | null | undefined } as { data: unknown; error: unknown; count?: number | null } };
   const calls = {
     from: [] as unknown[],
     select: [] as unknown[],
