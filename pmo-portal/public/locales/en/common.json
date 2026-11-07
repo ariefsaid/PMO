@@ -2725,7 +2725,8 @@
       "view": {
         "board": "Board",
         "list": "List",
-        "timeline": "Timeline"
+        "timeline": "Timeline",
+        "calendar": "Calendar"
       },
       "viewAriaLabel": "Task view",
       "noMilestone": "No phase"
@@ -3295,7 +3296,8 @@
       "expenses": "Expenses",
       "financialStatements": "Financial statements",
       "managementPack": "Reports",
-      "stock": "Stock"
+      "stock": "Stock",
+      "calendar": "Calendar"
     },
     "notifications": {
       "empty": "No notifications yet.",

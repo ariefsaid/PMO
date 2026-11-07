@@ -61,6 +61,8 @@ const ALLOW = [
   //    invisible.
   { file: 'src/lib/db/incidents.ts', name: 'IncidentInput',
     reason: 'Raising an incident requires a location and a description; the columns are nullable for legacy rows.' },
+  { file: 'src/lib/db/tasks.ts', name: 'CalendarTask',
+    reason: 'The calendar query filters on end_date (gte/lt), so every row it returns has one; the column is nullable for undated tasks.' },
 
   // ── FORM-STATE shapes. A controlled input holds '' for "empty", never null, so non-null here is
   //    the correct type for the STATE — it is converted at submit. ⚑ Written as plain interfaces

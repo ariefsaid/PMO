@@ -2725,7 +2725,8 @@
       "view": {
         "board": "Papan",
         "list": "Daftar",
-        "timeline": "Timeline"
+        "timeline": "Timeline",
+        "calendar": "Kalender"
       },
       "viewAriaLabel": "Tampilan tugas",
       "noMilestone": "Tanpa fase"
@@ -3295,7 +3296,8 @@
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
       "managementPack": "Laporan",
-      "stock": "Stok"
+      "stock": "Stok",
+      "calendar": "Kalender"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
