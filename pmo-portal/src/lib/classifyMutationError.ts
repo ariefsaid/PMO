@@ -187,6 +187,8 @@ function boundReasonCode(code: string | undefined): string {
 /** The four org purchase rules (0360 `procurement_gate_message`). Their refusal text is server-authored product copy. */
 const PURCHASE_RULE_DETAILS: ReadonlySet<string> = new Set([
   'gate_request_before_order', 'gate_approval_before_order', 'gate_receipt_before_invoice', 'gate_approval_before_payment',
+  // #1935 (migration 0699): moving a purchase that has attached journal lines; the message names who can detach.
+  'purchase-move-has-journal-lines',
 ]);
 
 const POSTGRES_GENERATED_DETAIL: Record<string, string> = {
