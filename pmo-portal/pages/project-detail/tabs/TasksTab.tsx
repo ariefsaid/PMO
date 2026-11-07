@@ -305,6 +305,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     }
   };
 
+  // Timeline drag / edge-resize (#1980): same gate as editing the task, same classifier as every
+  // other task write. Resolves false on failure so the bar snaps back.
+  const onReschedule = async (task: TaskWithRefs, patch: TaskPatch): Promise<boolean> => {
+    if (!canEditTask(task)) return false;
+    try {
+      await update.mutateAsync({ id: task.id, patch });
+      return true;
+    } catch (err) {
+      const { headline, detail } = classifyWriteError(err);
+      toast(headline, detail, 'warning');
+      return false;
+    }
+  };
+
   const onArchive = async (task: TaskWithRefs) => {
     if (!canArchive || externallyOwned) return;
     try {
@@ -610,6 +624,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           onSwitchView={setTaskView}
           onActivateTask={openTask}
           rowMenu={rowMenu}
+          canReschedule={canEditTask}
+          onReschedule={onReschedule}
         />
       )}
       </Card>

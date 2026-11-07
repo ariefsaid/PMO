@@ -2374,20 +2374,34 @@
     },
     "gantt": {
       "boardView": "Tampilan papan",
+      "continues": "berlanjut",
+      "datesColumn": "Tanggal",
       "dependsOn": "bergantung pada",
+      "durationDays_one": "{{count}} hari",
+      "durationDays_other": "{{count}} hari",
       "emptySub": "Tambahkan tanggal mulai/tenggat pada tugas atau tanggal target pada fase untuk melihat timeline.",
       "emptyTitle": "Belum ada pekerjaan bertanggal",
+      "goToDate": "Ke tanggal",
+      "jumpToBar": "Gulir ke \"{{title}}\"",
       "listView": "Tampilan daftar",
+      "loading": "Memuat",
+      "milestoneTarget": "Tanggal target",
       "milestoneWord": "fase",
       "mobileSub": "Timeline paling baik dilihat di layar yang lebih lebar. Beralih ke tampilan yang sesuai perangkat Anda:",
       "mobileTitle": "Buka di layar lebih besar",
+      "next": "Berikutnya",
       "openTask": "Buka",
+      "previous": "Sebelumnya",
+      "progress": "{{percent}}% selesai",
+      "resizePanel": "Ubah lebar panel tugas",
       "scale": {
         "day": "Hari",
         "month": "Bulan",
         "quarter": "Kuartal",
-        "week": "Minggu"
+        "week": "Minggu",
+        "year": "Tahun"
       },
+      "statusColumn": "Status",
       "summary": {
         "connectors_one": "{{count}} konektor dependensi digambar",
         "connectors_other": "{{count}} konektor dependensi digambar",
@@ -2398,17 +2412,17 @@
         "milestones_other": "{{count}} fase",
         "scale": "skala: {{scale}}",
         "tasks_one": "{{count}} task",
-        "tasks_other": "{{count}} task",
-        "today": "hari ini di {{pct}}% dari rentang"
+        "tasks_other": "{{count}} task"
       },
-      "targetWord": "target",
       "taskColumn": "Tugas",
-      "taskTableAriaLabel": "Tabel tugas",
       "tasksOnTimeline_one": "{{count}} task di timeline",
       "tasksOnTimeline_other": "{{count}} task di timeline",
       "today": "Hari ini",
       "undated": "Tanpa tanggal",
-      "zoomAriaLabel": "Zoom timeline"
+      "ungrouped": "Tanpa fase",
+      "zoomAriaLabel": "Zoom timeline",
+      "zoomIn": "Perbesar",
+      "zoomOut": "Perkecil"
     },
     "header": {
       "action": {
