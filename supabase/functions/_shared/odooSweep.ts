@@ -30,7 +30,7 @@ const DAY_MS = 86_400_000;
 
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
 type Budget = { spend: (calls?: number) => boolean; left: () => boolean; canSpend?: (calls?: number) => boolean; refund?: (calls?: number) => void };
-/** Extension seams: S6 matches new partners after `partner` pages; S7/S8 add the link reconcile and accepted sends. */
+/** Extension seams: S6 matches new partners after `partner` pages; S7 reconciles links after the sweep; S8 adds accepted sends. */
 export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt: number, call: OdooCall) => Promise<void>>> = {
   partner: matchNewPartners,
 };
@@ -43,7 +43,13 @@ const advanceSetupRun = async (sc: SupabaseClient, orgId: string, r: Resolved) =
     console.error('odoo setup run step failed');   // the run counts its own failures; a store outage is retried next tick
   }
 };
-export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun];
+/** S7 (AC-ODC-054): a linked cost account that was archived, deleted or moved company in Odoo marks its project link "needs attention"
+ *  (and clears the mark when fixed). It reads the mirror only, so it runs on a failed tick too, and never fails the tick. */
+const reconcileLinks = async (sc: SupabaseClient, orgId: string) => {
+  const { error } = await sc.rpc('reconcile_odoo_links', { p_org_id: orgId });
+  if (error) console.error('odoo link reconciliation failed');
+};
+export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun, reconcileLinks];
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
