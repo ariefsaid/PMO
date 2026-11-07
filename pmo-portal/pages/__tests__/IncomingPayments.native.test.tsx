@@ -700,6 +700,14 @@ describe('Incoming Payments — apply a PMO receipt to invoices (#1415)', () => 
     expect(within(drawer).getByText('Allocated in your accounting system; read-only here.')).toBeInTheDocument();
   });
 
+  it('AC-NPA-011 once an ERP owns revenue, even a PMO-recorded receipt with money left has no Apply', () => {
+    h.route = 'external';
+    h.payments.data = [onAccount()];
+    renderPage(true, DRAWER);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply to invoices' })).toBeNull();
+  });
+
   it('AC-NPA-010 a fully applied receipt has no Apply', () => {
     h.payments.data = [receipt()];
     renderPage(true, DRAWER);
