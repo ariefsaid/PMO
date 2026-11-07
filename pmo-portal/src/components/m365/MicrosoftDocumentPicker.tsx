@@ -503,13 +503,14 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
                         {item.item_kind === 'folder' ? (
                           <Button variant="ghost" className={ROW_BUTTON} title={item.name} aria-label={t('m365Documents.picker.browseNamed', 'Browse {{name}}', { name: item.name })} onClick={() => openItems(drive, [...path, item])}>
                             <Icon name="folder" className="shrink-0" />{item.name}
+                            <Icon name="chev" aria-hidden className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
                           </Button>
                         ) : (
                           <span title={item.name} className={`flex min-w-0 items-start gap-1.5 ${WRAP} px-3 py-1 text-[13.5px] text-foreground`}><Icon name="doc" className="mt-0.5 shrink-0" />{item.name}</span>
                         )}
                         {isSelected && <span className="ml-3 inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><Icon name="check" />{t('m365Documents.picker.selected', 'Selected')}</span>}
                       </div>
-                      <Button variant="outline" className="touch-target shrink-0" aria-pressed={isSelected} aria-label={t('m365Documents.picker.selectNamed', 'Select {{kind}} {{name}}', { kind: kindLabel(item.item_kind), name: item.name })} onClick={() => select(item)}>{t('m365Documents.picker.select', 'Select')}</Button>
+                      <Button variant="outline" className="touch-target shrink-0" aria-pressed={isSelected} aria-label={item.item_kind === 'folder' ? t('m365Documents.picker.linkFolderNamed', 'Link this folder {{name}}', { name: item.name }) : t('m365Documents.picker.linkFileNamed', 'Link this file {{name}}', { name: item.name })} onClick={() => select(item)}>{item.item_kind === 'folder' ? t('m365Documents.picker.linkFolder', 'Link this folder') : t('m365Documents.picker.linkFile', 'Link this file')}</Button>
                     </li>
                   );
                 })}
