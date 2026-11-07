@@ -20,7 +20,7 @@ export const Crossfade: React.FC<{ swapKey: string; children: React.ReactNode }>
   }, [leaving]);
 
   return (
-    <span className="icon-swap" aria-hidden>
+    <span className="icon-swap shrink-0" aria-hidden>
       {leaving && <span className="icon-swap-out">{leaving}</span>}
       <span key={swapKey} className={leaving ? 'icon-swap-in' : undefined}>
         {children}
