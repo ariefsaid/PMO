@@ -62,7 +62,7 @@ describe('listProcurements', () => {
     expect(result[0].vendor).toBeNull();
   });
 
-  it('PERF-APPR-1: { status } filters server-side with the lean select and still attaches routes', async () => {
+  it('PERF-APPR-1: { status } filters server-side and keeps the default select', async () => {
     makeBuilder({ data: [], error: null });
     await listProcurements({ status: 'Requested' });
     expect(mockEq).toHaveBeenCalledWith('status', 'Requested');

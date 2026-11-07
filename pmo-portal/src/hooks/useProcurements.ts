@@ -12,7 +12,7 @@ export { procurementsKey } from './approvalsQueryKeys';
  * under its own cache key, so Approvals/dashboards keep the lean payload. Both keys share the
  * `['procurements', orgId]` prefix, so existing invalidations still refetch it. `lean` is the dashboards' list (PERF-DASH-1). `withSharedDetails`
  * adds the batched money/stage inputs needed by the shared procurement block under a third cache key.
- * `status: 'Requested'` is the approvals queue (Approvals page, nav count, approval tiles): the lean row, server-filtered, under its own key.
+ * `status: 'Requested'` is the approvals queue (Approvals page, nav count, approval tiles): the default row, server-filtered, under its own key.
  */
 export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: 'Requested'; enabled?: boolean }) {
   const { currentUser } = useAuth();

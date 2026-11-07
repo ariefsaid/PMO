@@ -45,7 +45,7 @@ export interface ProcurementListOptions {
   lean?: boolean;
   /** With `lean`: skip the approval-route read for callers that never show an approve/reject affordance (the finance position). */
   withoutRoutes?: boolean;
-  /** Server-side status filter (the approvals queue reads only `Requested`); same lean row shape. */
+  /** Server-side status filter (the approvals queue reads only `Requested`); same row shape as the unfiltered list. */
   status?: Tables<'procurements'>['status'];
 }
 
