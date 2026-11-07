@@ -5,7 +5,7 @@ import { cn } from '@/src/components/ui/cn';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { pillVariantForStatus } from '../../../components/salesPipeline';
 import {
-  DealPreview, DealResults, NewProjectButton, PhoneControls, SalesClassification, SalesExport,
+  DealPreview, DealResults, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
   SalesSearch, SalesViewToggle,
 } from './SalesParts';
 import type { SalesModel } from './useSalesModel';
@@ -58,7 +58,25 @@ const SalesOptionB: React.FC<{ m: SalesModel }> = ({ m }) => {
         {m.state !== 'loading' && m.isDesktop && <SalesViewToggle m={m} />}
         <NewProjectButton m={m} />
       </div>
-      {!m.isDesktop && m.state !== 'loading' && <div className="mb-4"><PhoneControls m={m} /></div>}
+      <PhoneFigures m={m} />
+      {!m.isDesktop && m.state !== 'loading' && (
+        <div className="mb-4 space-y-2">
+          <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+            <span className="shrink-0">{t('uxs24.stageLabel', 'Pipeline stage')}</span>
+            <select
+              data-testid="sales-phone-stage-selector"
+              aria-label={t('uxs24.stageLabel', 'Pipeline stage')}
+              value={rail.find((r) => r.active)?.key ?? (m.scope === 'Needs attention' ? 'attention' : 'all')}
+              onChange={(e) => (e.currentTarget.value === 'attention' ? m.setScope('Needs attention') : rail.find((r) => r.key === e.currentTarget.value)?.onClick())}
+              className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              {rail.map((r) => <option key={r.key} value={r.key}>{`${r.label} (${r.count})`}</option>)}
+              <option value="attention">{`${t('sales.scope.needsAttention', 'Needs attention')} (${attention.length})`}</option>
+            </select>
+          </label>
+          <PhoneControls m={m} stage={false} scope={false} search={false} />
+        </div>
+      )}
       <div className={cn('flex min-w-0 gap-6', board && 'flex-col gap-4')}>
         {m.isDesktop && ready && (
           <nav aria-label={t('sales:options.stageNav', 'Pipeline stages')} className={cn('shrink-0', board ? 'w-full' : 'w-56')}>

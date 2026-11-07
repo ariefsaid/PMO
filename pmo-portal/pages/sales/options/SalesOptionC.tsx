@@ -7,7 +7,7 @@ import {
   SALES_COLUMNS, formatPercent, isNeedsAttention, isStaleBid, pillVariantForStatus, weightedValue,
 } from '../../../components/salesPipeline';
 import {
-  DealPreview, DealResults, Figure, NewProjectButton, PhoneControls, SalesClassification, SalesExport,
+  DealPreview, DealResults, Figure, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
   SalesScope, SalesSearch,
 } from './SalesParts';
 import type { SalesModel } from './useSalesModel';
@@ -50,6 +50,7 @@ const SalesOptionC: React.FC<{ m: SalesModel }> = ({ m }) => {
         <h1 className="mr-auto text-xl font-semibold text-foreground">{t('shell.nav.sales', 'Sales Pipeline')}</h1>
         <NewProjectButton m={m} />
       </div>
+      <PhoneFigures m={m} />
       {ready && m.isDesktop && (
         <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card mb-4 p-[var(--panel-inset)]">
           <div className="flex flex-wrap items-end gap-x-10 gap-y-3">

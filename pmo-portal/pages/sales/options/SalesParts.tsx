@@ -13,7 +13,7 @@ import {
 import { PipelineResults } from '../../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import type { SalesModel } from './useSalesModel';
-import { attentionReason, dash } from './salesLogic';
+import { attentionReason, dash, openValueTotal } from './salesLogic';
 
 export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, className }) => (
   <SearchMini
@@ -98,14 +98,28 @@ export const PhoneStageSelect: React.FC<{ m: SalesModel }> = ({ m }) => (
 );
 
 /** Phone controls shared by all layouts: stage selector, scope, search, classification. */
-export const PhoneControls: React.FC<{ m: SalesModel }> = ({ m }) => (
+export const PhoneControls: React.FC<{ m: SalesModel; stage?: boolean; scope?: boolean; search?: boolean }> = ({ m, stage = true, scope = true, search = true }) => (
   <div className="w-full min-w-0 space-y-2">
-    {m.scope !== 'Lost' && m.scope !== 'Won' && <PhoneStageSelect m={m} />}
-    <SalesScope m={m} />
-    <SalesSearch m={m} className="min-w-0! flex-1" />
+    {stage && m.scope !== 'Lost' && m.scope !== 'Won' && <PhoneStageSelect m={m} />}
+    {scope && <SalesScope m={m} />}
+    {search && <SalesSearch m={m} className="min-w-0! flex-1" />}
     <SalesClassification m={m} inline />
   </div>
 );
+
+/** Phone: the figures that lead on desktop, as one compact row. */
+export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m }) => {
+  if (m.isDesktop || m.state !== undefined) return null;
+  const total = openValueTotal(m);
+  const cur = m.funnel.effectiveCurrency;
+  return (
+    <section aria-label={m.t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 grid grid-cols-2 gap-4 p-[var(--panel-inset)]">
+      <Figure label={m.t('sales:options.weightedForecast', 'Weighted forecast')} value={total === null ? dash : formatCurrency(m.funnel.totalWeighted, cur)} />
+      <Figure label={m.t('sales:options.openValue', 'Open value')} value={total === null ? dash : formatCurrency(total, cur)}
+        note={m.t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length })} />
+    </section>
+  );
+};
 
 /** The deals body: board / table / phone stage list, with every state (the default page's component). */
 export const DealResults: React.FC<{ m: SalesModel; view?: PipelineView; onOpen?: (p: PipelineProject) => void }> = ({ m, view, onOpen }) => (

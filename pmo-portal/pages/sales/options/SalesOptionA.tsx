@@ -4,7 +4,7 @@ import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { PipelineFunnel } from '../../sales-pipeline/PipelineFunnel';
 import {
-  DealPreview, DealResults, Figure, NewProjectButton, PhoneControls, SalesClassification, SalesExport,
+  DealPreview, DealResults, Figure, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
   SalesScope, SalesSearch, SalesViewToggle,
 } from './SalesParts';
 import type { SalesModel } from './useSalesModel';
@@ -50,7 +50,7 @@ const SalesOptionA: React.FC<{ m: SalesModel }> = ({ m }) => {
           </section>
           <PipelineFunnel projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
         </>
-      ) : null}
+      ) : <PhoneFigures m={m} />}
       mobileToolbar={m.state !== 'loading' && <PhoneControls m={m} />}
       filters={m.state !== 'loading' && m.view === 'table' && <SalesScope m={m} />}
       secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}
