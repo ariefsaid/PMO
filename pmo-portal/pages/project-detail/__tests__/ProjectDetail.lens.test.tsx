@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeAll, describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
@@ -183,9 +183,25 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </ToastProvider>
     </MemoryRouter>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). When a tabpanel is up, its demand-loaded chunk must have landed
+  // before any panel assertion; the not-found path has no tabpanel, and its settled
+  // not-found view renders straight from the mocked record, so the wait is satisfied there.
+  await waitFor(() => {
+    const panel = screen.queryByRole('tabpanel');
+    if (panel) expect(within(panel).queryAllByTestId('liststate-loading')).toHaveLength(0);
+  });
   return view;
 };
+
+// #1905 pattern (as in ProjectDetail.scurve-demote): the /projects/p1/tasks case renders the
+// real, lazy TasksTab chunk. Priming the import here keeps the helper's boundary wait off
+// the cold transform window, so the wait binds the fallback, not machine speed.
+beforeAll(async () => {
+  await import('../tabs/TasksTab');
+});
 
 beforeEach(() => {
   roleBox.value = 'Project Manager';

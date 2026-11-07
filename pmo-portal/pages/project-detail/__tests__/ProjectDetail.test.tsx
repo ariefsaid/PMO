@@ -195,7 +195,17 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). When a tabpanel is up, its demand-loaded chunk (primed by preloadTab
+  // above) must have landed before any panel assertion. The pending-skeleton, not-found and
+  // load-error paths have no tabpanel — their settled views render straight from the mocked
+  // record and several tests assert exactly those — so the wait is satisfied there.
+  await waitFor(() => {
+    const panel = screen.queryByRole('tabpanel');
+    if (panel) expect(within(panel).queryAllByTestId('liststate-loading')).toHaveLength(0);
+  }, { timeout: LAZY_TAB_TIMEOUT });
   return view;
 };
 
