@@ -266,8 +266,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   it('contact exposes its expected methods (W3-CRM)', () => {
     // G3c: updateActivity + deleteActivity added (CD-1/CT-1 editable activity rows)
     // C3: listActivitiesForContacts batch method added (N+1 fix for useCompanyActivities)
+    // #1989: listPage/count/listAll — the server-paged directory read, its head count, and the
+    // full-set export read.
     expect(Object.keys(repositories.contact).sort()).toEqual(
-      ['archive', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listActivities', 'listActivitiesForContacts', 'listByCompany', 'update', 'updateActivity'].sort(),
+      ['archive', 'count', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listAll', 'listActivities', 'listActivitiesForContacts', 'listByCompany', 'listPage', 'update', 'updateActivity'].sort(),
     );
   });
 
@@ -290,7 +292,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
+      // #1989: count/listAll/listOptions/listPage — the server-paged directory read, its head
+      // count, the whole-directory picker rows, and the full-set export read.
+      ['archive', 'count', 'create', 'delete', 'get', 'getMany', 'list', 'listAll', 'listClients', 'listOptions', 'listPage', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
@@ -326,7 +330,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // (My Tasks projection). 'listDueRows' added with #1741 (one batched read for the PM dashboard
       // overdue count). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is

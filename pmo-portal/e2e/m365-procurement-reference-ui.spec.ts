@@ -74,7 +74,7 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
 
   const picker = page.getByRole('dialog', { name: /Choose a Microsoft document/ });
   await picker.getByRole('button', { name: 'My OneDrive' }).click();
-  await picker.getByRole('button', { name: `Select folder ${FOLDER_NAME}` }).click();
+  await picker.getByRole('button', { name: `Link this folder ${FOLDER_NAME}` }).click();
   await picker.getByRole('button', { name: 'Link from Microsoft 365' }).click();
 
   const open = section.getByRole('button', { name: /Open folder in/ });

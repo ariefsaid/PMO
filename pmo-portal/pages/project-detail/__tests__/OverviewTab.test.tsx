@@ -34,7 +34,7 @@ vi.mock('../ProjectActivity', () => ({
   MyOpenTasks: () => <section aria-label="My open tasks" />,
   ProjectActivity: () => <section aria-label="Project activity" />,
 }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectAttention: () => ({ items: [], isPending: false, error: null, myVisibleTaskKeys: new Set() }),
 }));

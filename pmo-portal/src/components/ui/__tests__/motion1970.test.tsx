@@ -1,0 +1,58 @@
+import { readFileSync } from 'node:fs';
+import { render, screen, act } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { Crossfade } from '../Crossfade';
+import { useExitPresence } from '../useExitPresence';
+import { buttonClasses } from '../buttonClasses';
+
+const css = readFileSync('index.css', 'utf8');
+
+describe('#1970 motion', () => {
+  it('buttons press to 0.97 and skip it under reduced motion', () => {
+    const c = buttonClasses();
+    expect(c).toContain('active:scale-[0.97]');
+    expect(c).toContain('motion-reduce:active:scale-100');
+  });
+
+  it('every new animation is switched off under prefers-reduced-motion', () => {
+    const block = css.slice(css.indexOf('Every #1970 animation is off'));
+    for (const cls of ['.menu-pop-anim', '.save-pulse::after', '.icon-swap-in', '.icon-swap-out', '.drawer-anim[data-closing]', '.confirm-anim[data-ending-style]']) {
+      expect(block).toContain(cls);
+    }
+  });
+
+  it('exit tokens are about 20% shorter than their entrances', () => {
+    const ms = (n: string) => Number(new RegExp(`--motion-${n}:\\s*(\\d+)ms`).exec(css)?.[1]);
+    for (const k of ['dialog', 'sheet', 'drawer', 'toast']) {
+      const ratio = ms(`${k}-out`) / ms(`${k}-in`);
+      expect(ratio).toBeGreaterThan(0.75);
+      expect(ratio).toBeLessThan(0.85);
+    }
+  });
+
+  it('Crossfade keeps the old child while the new one fades in, then drops it', () => {
+    vi.useFakeTimers();
+    const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);
+    rerender(<Crossfade swapKey="b"><i>new</i></Crossfade>);
+    expect(screen.getByText('old')).toBeTruthy();
+    expect(screen.getByText('new')).toBeTruthy();
+    act(() => { vi.advanceTimersByTime(250); });
+    expect(screen.queryByText('old')).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('useExitPresence stays mounted for the exit, then unmounts', () => {
+    vi.useFakeTimers();
+    document.documentElement.style.setProperty('--motion-test-out', '100ms');
+    const Probe = ({ open }: { open: boolean }) => {
+      const { mounted, closing } = useExitPresence(open, '--motion-test-out');
+      return mounted ? <p>{closing ? 'closing' : 'open'}</p> : null;
+    };
+    const { rerender } = render(<Probe open />);
+    rerender(<Probe open={false} />);
+    expect(screen.getByText('closing')).toBeTruthy();
+    act(() => { vi.advanceTimersByTime(120); });
+    expect(screen.queryByText('closing')).toBeNull();
+    vi.useRealTimers();
+  });
+});

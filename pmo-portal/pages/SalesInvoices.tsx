@@ -25,6 +25,7 @@ import {
   type RowMenuItem,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
+import { issuedWithinMonthWindow, monthWindowFromParams } from '@/src/lib/finance/invoicePeriod';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
@@ -41,7 +42,7 @@ import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { useAuth } from '@/src/auth/useAuth';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
@@ -97,7 +98,12 @@ const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: Inco
     },
     ...orderedPayments.map((payment) => ({
       stage: 'payment', state: 'done' as const,
-      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—'}</span></>,
+      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{(() => {
+        // #1415: a split PMO receipt shows what reached THIS invoice, not the whole receipt.
+        const share = payment.pmo_native ? payment.allocations?.find((a) => a.sales_invoice_id === invoice.id) : undefined;
+        if (share) return formatCurrencyCents(share.cash_amount, payment.currency);
+        return payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—';
+      })()}</span></>,
     })),
     {
       stage: 'paid',
@@ -221,8 +227,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       && inv.erp_outstanding_amount > 0
       && inv.erp_outstanding_amount < gross
     );
-    const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-    const lateDays = overdueAgeDays(due, organizationToday) ?? 0;
+    const lateDays = clientInvoiceOverdueDays(inv, organizationToday) ?? 0;
     if (inv.status === 'Draft') return result({
       label: canApproveDraft(inv)
         ? t('finance:receivables.statusDraftApproval', 'Draft · to approve')
@@ -436,9 +441,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // #1461: a dashboard 'Invoiced · excl. tax' drill carries its window (`from`/`to` month
+    // tokens). The list then shows exactly the issued, non-cancelled invoices dated in that
+    // window — the records the management-pack figure sums.
+    const periodWindow = monthWindowFromParams(searchParams.get('from'), searchParams.get('to'));
     return all
       .filter((inv) => searchParams.get('attribution') !== 'unassigned' || inv.project_id === null)
       .filter((inv) => matchesStatus(inv, statusFilter))
+      .filter((inv) => (periodWindow ? issuedWithinMonthWindow(inv, periodWindow) : true))
       .filter((inv) => !searchParams.get('project') || inv.project_id === searchParams.get('project'))
       .filter((inv) => !searchParams.get('customer') || inv.customer_id === searchParams.get('customer'))
       .filter((inv) => {
@@ -449,9 +459,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         return true;
       })
       .filter((inv) => searchParams.get('overdue') !== 'true' || !organizationToday || (
-        (inv.status === 'Submitted' || inv.status === 'Unpaid')
-        && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday) !== null
-        && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday)! > 0
+        // #1457: the one shared overdue rule decides the "Overdue only" filter.
+        clientInvoiceOverdueDays(inv, organizationToday) !== null
       ))
       .filter((inv) => !q
         || invoiceNumber(inv)?.toLowerCase().includes(q)
@@ -470,10 +479,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       .map((invoice, index) => ({
         invoice,
         index,
-        age: overdueAgeDays(
-          deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
-          organizationToday,
-        ) ?? 0,
+        // #1457: the one shared overdue rule also provides the oldest-first sort age.
+        age: clientInvoiceOverdueDays(invoice, organizationToday) ?? 0,
       }))
       .sort((a, b) => b.age - a.age || a.index - b.index)
       .map(({ invoice }) => invoice);
@@ -576,7 +583,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     if (canRecordReceipt && !frozen && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
     // FIN-S3: a Draft has no issued tax invoice yet, so there is nothing to record.
-    if (canRecordEfaktur && inv.status !== 'Cancelled' && inv.status !== 'Draft')
+    // An e-Faktur is a VAT document: a sale outside VAT (project not subject to VAT) has none to record (AC-OCI-081).
+    // A zero-rated invoice on a VAT-subject project still needs one, so tax_amount 0 does not hide it.
+    if (canRecordEfaktur && inv.project_subject_to_vat !== false && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(inv) });
     // A Paid PMO invoice is not cancellable (FR-NAR-009); an ERP one follows the ERP.
     if (!odooOffline && canCancel && !frozen && inv.status !== 'Cancelled' && !(inv.pmo_native && inv.status === 'Paid'))
@@ -601,8 +610,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   };
 
   const panelPayments = panelInvoice
-    ? paymentRows.filter((payment) => payment.sales_invoice_id === panelInvoice.id
-      || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === panelInvoice.id)))
+    ? paymentRows.filter((payment) => (!payment.pmo_native && payment.sales_invoice_id === panelInvoice.id)
+      || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === panelInvoice.id))
+      // #1415: a PMO receipt reaches an invoice through its live allocations, never through its own invoice pointer.
+      || Boolean(payment.allocations?.some((allocation) => allocation.sales_invoice_id === panelInvoice.id)))
     : [];
   const panelPrimary = !odooOffline && panelInvoice
     ? canApproveDraft(panelInvoice)
@@ -677,7 +688,11 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
                   <span role="status" className="min-w-0 break-words text-sm">
                     {t('dashboard.uxs36CustomerFilterLabel', 'Customer')}: <span className="font-medium">
-                      {selectedCustomer?.label ?? t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}
+                      {selectedCustomer?.label ?? (customerOptionsQuery.isPending
+                        // #1175: a still-loading option request has not decided anything yet — claim
+                        // "loading", not "unavailable", until it resolves.
+                        ? t('dashboard.uxs36CustomerFilterLoading', 'Loading customer…')
+                        : t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable'))}
                     </span>
                   </span>
                   <Button

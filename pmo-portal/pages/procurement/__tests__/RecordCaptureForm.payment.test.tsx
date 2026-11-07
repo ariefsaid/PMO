@@ -38,8 +38,8 @@ import { ToastProvider } from '@/src/components/ui';
 import { RecordCaptureForm, type CreatePaymentInput } from '../RecordCaptureForm';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 

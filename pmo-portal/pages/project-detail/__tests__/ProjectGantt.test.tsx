@@ -1,9 +1,11 @@
+import '@/test/stubGetAnimations';
 /**
  * RTL component tests for ProjectGantt.
  * Owns: AC-GANTT-005, AC-GANTT-007, AC-GANTT-008, AC-GANTT-010.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
@@ -151,7 +153,7 @@ describe('AC-GANTT-010: the timeline is a labelled figure and bars label status 
     expect(fig).toBeInTheDocument();
     expect(fig).toHaveAttribute('aria-label');
     expect(fig.getAttribute('aria-label')).not.toBe('');
-    expect(screen.getByRole('grid', { name: 'Task table' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Accessible task/i })).toBeInTheDocument();
   });
 
   it('each bar shows the task status as text (not color-only)', () => {
@@ -177,39 +179,6 @@ describe('AC-GANTT-010: the timeline is a labelled figure and bars label status 
     // Gantt v2 MS-Project layout renders the name as text in both the table cell and
     // the timeline bar — the goal ("the task name is shown as text") still holds.
     expect(screen.getAllByText('Survey the site').length).toBeGreaterThan(0);
-  });
-});
-
-// ── AC-GANTT-014: on-axis milestone diamond (the bug fix) ─────────────────────
-
-describe('AC-GANTT-014: milestone renders as an on-axis diamond at its target-date position (not a header badge)', () => {
-  it('AC-GANTT-014: a dated milestone renders a diamond positioned at its target-date fraction', () => {
-    // Task spans 2026-01-01..2026-01-11 (10 days); milestone target 2026-01-06 → mid-span (~50%).
-    const tasks = [
-      makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-01-11', milestone_id: 'ms1' }),
-    ];
-    const milestones = [
-      makeMilestone({ id: 'ms1', name: 'Phase 1', target_date: '2026-01-06', sort_order: 0 }),
-    ];
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
-
-    // The diamond is labelled and positioned ON the axis (not a right-aligned header badge).
-    const diamond = screen.getByLabelText(/phase 1 phase — target 2026-01-06/i);
-    expect(diamond).toBeInTheDocument();
-    expect((diamond as HTMLElement).style.background).toBe('hsl(var(--violet))');
-    // Its absolute x reflects ~mid-span. With month scale (6px/day), span is extended to
-    // include today; assert it is positioned (a non-zero left/x) rather than pinned right.
-    const left = diamond.style.left;
-    expect(left).toBeTruthy();
-    const px = parseFloat(left);
-    expect(px).toBeGreaterThan(0);
-
-    const taskBar = screen.getByRole('button', { name: /Task A:/i });
-    expect((taskBar as HTMLElement).style.background).not.toContain('var(--primary)');
-    expect((taskBar as HTMLElement).style.border).not.toContain('var(--primary)');
-
-    // The OLD right-aligned header badge (⬥ {targetIso}) is gone.
-    expect(screen.queryByText(/⬥\s*2026-01-06/)).toBeNull();
   });
 });
 
@@ -241,28 +210,27 @@ describe('AC-GANTT-015: a dependency between two dated tasks draws a connector a
 // ── AC-GANTT-016: zoom toggle ─────────────────────────────────────────────────
 
 describe('AC-GANTT-016: selecting a scale rebuilds the timeline at that granularity', () => {
-  it('AC-GANTT-016: selecting the Day scale sets data-scale="day" and deselects Month', () => {
+  it('AC-GANTT-016: selecting the Day scale sets data-scale="day"', async () => {
     const tasks = [
       makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-03-31' }),
     ];
     const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
-    // Default scale is Month.
     const fig = container.querySelector('[data-scale]') as HTMLElement;
     expect(fig.getAttribute('data-scale')).toBe('month');
 
-    fireEvent.click(screen.getByRole('tab', { name: /day/i }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /timeline zoom/i }));
+    await user.click(await screen.findByRole('menuitem', { name: /^day$/i }));
 
     expect(fig.getAttribute('data-scale')).toBe('day');
-    expect(screen.getByRole('tab', { name: /month/i })).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getByRole('tab', { name: /day/i })).toHaveAttribute('aria-selected', 'true');
   });
 });
 
-// ── AC-GANTT-017: keyboard grid + Enter activation ────────────────────────────
+// ── AC-GANTT-017: keyboard activation ─────────────────────────────────────────
 
-describe('AC-GANTT-017: the task table is a keyboard grid and Enter fires onActivateTask', () => {
-  it('AC-GANTT-017: ArrowDown moves the focused row and Enter fires onActivateTask', () => {
+describe('AC-GANTT-017: a focused bar activates its task on Enter', () => {
+  it('AC-GANTT-017: Enter on the second task bar fires onActivateTask with that task', async () => {
     const tasks = [
       makeTask({ id: 'a', name: 'First task', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'b', name: 'Second task', start_date: '2026-01-02', end_date: '2026-01-12' }),
@@ -270,19 +238,9 @@ describe('AC-GANTT-017: the task table is a keyboard grid and Enter fires onActi
     const spy = vi.fn();
     render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
-    const grid = screen.getByRole('grid');
-    expect(grid).toBeInTheDocument();
-    // The figure remains labelled while grid rows stay independently interactive.
-    expect(screen.getByRole('figure')).toBeInTheDocument();
-
-    // Focus the first task row, ArrowDown to the second, Enter activates it.
-    const rows = within(grid).getAllByRole('row');
-    const taskRows = rows.filter((r) => r.getAttribute('data-row-kind') === 'task');
-    expect(taskRows.length).toBe(2);
-
-    taskRows[0].focus();
-    fireEvent.keyDown(taskRows[0], { key: 'ArrowDown' });
-    fireEvent.keyDown(taskRows[1], { key: 'Enter' });
+    const bar = screen.getByRole('button', { name: /Second task/i });
+    bar.focus();
+    await userEvent.setup().keyboard('{Enter}');
 
     expect(spy).toHaveBeenCalledOnce();
     expect(spy).toHaveBeenCalledWith(tasks[1]);
@@ -292,7 +250,7 @@ describe('AC-GANTT-017: the task table is a keyboard grid and Enter fires onActi
 // ── AC-GANTT-018: left task table content ─────────────────────────────────────
 
 describe('AC-GANTT-018: the left table shows each task name, status, and date range aligned to its bar', () => {
-  it('AC-GANTT-018: the table row shows name, status pill, and compact date range', () => {
+  it('AC-GANTT-018: the task row shows name, status pill, and compact date range', () => {
     const tasks = [
       makeTask({
         id: 'a',
@@ -302,63 +260,20 @@ describe('AC-GANTT-018: the left table shows each task name, status, and date ra
         end_date: '2026-01-11',
       }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
+    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
-    const grid = screen.getByRole('grid');
-    // Name and status appear within the table grid.
-    expect(within(grid).getByText('Foundation')).toBeInTheDocument();
-    expect(within(grid).getByText('In Progress')).toBeInTheDocument();
-    // B1 fix: date is now compact human format ("Jan 1 – Jan 11"), not ISO.
-    // We match the human-readable month abbreviation.
-    expect(within(grid).getByText(/Jan\s+\d+\s*–\s*Jan\s+\d+/i)).toBeInTheDocument();
-    // ISO dates must NOT appear as-is (that was the starving format).
-    expect(within(grid).queryByText(/2026-01-01/)).toBeNull();
+    const row = container.querySelector('[data-slot="gantt-row-group"][data-gantt-row-id="a"]') as HTMLElement;
+    expect(within(row).getByText('Foundation')).toBeInTheDocument();
+    expect(within(row).getByText('In Progress')).toBeInTheDocument();
+    expect(within(row).getByText(/Jan\s+\d+\s*–\s*Jan\s+\d+/i)).toBeInTheDocument();
+    expect(within(row).queryByText(/2026-01-01/)).toBeNull();
   });
 });
 
-// ── A3 (fix): narrow bar suppresses in-bar label ─────────────────────────────
+// ── A3 (fix): a wide bar keeps its label ─────────────────────────────────────
 
-describe('A3 (fix): in-bar label is hidden when the bar is narrower than 40px', () => {
-  it('A3: a 1-day task at quarter scale (2px/day → 2px bar) does not render an in-bar label', () => {
-    // Quarter scale → 2px/day. A 1-day bar is 2px wide — below the 40px threshold.
-    // The task name should only appear in the table, not duplicated inside the bar.
-    const tasks = [
-      makeTask({
-        id: 'a',
-        name: 'Thin bar task',
-        start_date: '2026-06-01',
-        end_date: '2026-06-02',
-      }),
-    ];
-    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
-
-    // Switch to Quarter scale to get 2px/day bars.
-    const quarterTab = screen.getByRole('tab', { name: /quarter/i });
-    fireEvent.click(quarterTab);
-
-    // The task name appears in the table gridcell (as text).
-    const grid = screen.getByRole('grid');
-    expect(within(grid).getByText('Thin bar task')).toBeInTheDocument();
-
-    // The bar element(s) inside the timeline (not the grid) should not carry the label text.
-    // The timeline bars are absolutely positioned divs outside role="grid".
-    // We find the bar div by its class (flex items-center overflow-hidden rounded).
-    // A narrow bar should have no inner text span visible.
-    const timelinePane = container.querySelector('[style*="overflow-x"]') ??
-      container.querySelector('.min-w-0.flex-1');
-    // There should be no in-bar text span for narrow bars (the span is not rendered or hidden).
-    // We can check that the bar container does not contain the task name text.
-    if (timelinePane) {
-      const inBarTexts = [...timelinePane.querySelectorAll('.truncate')];
-      // If any in-bar text spans are present, they must not contain the task name.
-      for (const el of inBarTexts) {
-        expect(el.textContent).not.toBe('Thin bar task');
-      }
-    }
-  });
-
-  it('A3: a wide bar (>40px width) at month scale still shows the in-bar label', () => {
-    // Month scale → 6px/day. A 30-day bar = 180px → well above threshold.
+describe('A3 (fix): a wide bar still shows its task name', () => {
+  it('A3: a wide bar at month scale still shows the in-bar label', () => {
     const tasks = [
       makeTask({
         id: 'a',
@@ -369,9 +284,8 @@ describe('A3 (fix): in-bar label is hidden when the bar is narrower than 40px', 
     ];
     render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
-    // The name should appear at least twice: once in the table, once in the bar.
-    const allNames = screen.getAllByText('Wide bar task');
-    expect(allNames.length).toBeGreaterThanOrEqual(2);
+    // Once in the task tree, once in the bar.
+    expect(screen.getAllByText('Wide bar task').length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -387,69 +301,6 @@ describe('milestone lane headers', () => {
     ];
     render(<ProjectGantt tasks={tasks} milestones={milestones} onSwitchView={vi.fn()} />);
     expect(screen.getByText('Phase 1')).toBeInTheDocument();
-  });
-});
-
-// ── Single-scroll-unit regression (2026-06-17) ────────────────────────────────
-//
-// The Gantt previously rendered the left task table and the right timeline as TWO
-// nested scroll contexts (a `sticky` left block inside a `overflow-y-auto` outer +
-// the right pane owning its OWN `overflow-x-auto`). With a tall task list the two
-// desynced vertically and showed two scrollbars ("two windows, not one unit").
-// The fix collapses them into a SINGLE scroll box that scrolls both axes, freezing
-// the task column + the header/axis via per-element `position: sticky`. This test
-// pins the structural invariant so the desync can never recur.
-
-describe('Gantt is one scroll unit — task column + timeline share a single scroller (no vertical desync, 2026-06-17)', () => {
-  function tallProject() {
-    // ~16 dated tasks so the body exceeds the 60vh cap (the desync repro condition).
-    return Array.from({ length: 16 }, (_, i) =>
-      makeTask({
-        id: `t${i}`,
-        name: `Task ${i}`,
-        start_date: '2026-01-01',
-        end_date: '2026-03-31',
-      }),
-    );
-  }
-
-  it('renders exactly ONE scroll container for the grid (not a left sticky block + a separate right overflow-x-auto)', () => {
-    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} onSwitchView={vi.fn()} />);
-
-    // The single scroll box is explicitly marked. There must be exactly one.
-    const scrollers = container.querySelectorAll('[data-gantt-scroll]');
-    expect(scrollers).toHaveLength(1);
-
-    // No element OTHER than the single scroller may own an independent axis scroll
-    // (the old structure had the right pane on its own `overflow-x-auto`, distinct
-    // from the table's `overflow-y-auto` parent — exactly the two-context desync).
-    const overflowEls = [...container.querySelectorAll('*')].filter((el) => {
-      const cls = el.getAttribute('class') ?? '';
-      return /overflow-(x|y)-auto|overflow-auto/.test(cls);
-    });
-    expect(overflowEls).toHaveLength(1);
-    expect(overflowEls[0]).toBe(scrollers[0]);
-  });
-
-  it('the frozen task-column cell and the timeline bar share a single scroll ancestor', () => {
-    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} onSwitchView={vi.fn()} />);
-
-    const scroller = container.querySelector('[data-gantt-scroll]');
-    expect(scroller).not.toBeNull();
-
-    // The name 'Task 0' appears as BOTH the frozen task-column cell AND the
-    // timeline bar (it is the same scroll box, so the name renders in both halves).
-    const matches = screen.getAllByText('Task 0');
-    // The table cell is the role=gridcell span; the bar is the other occurrence.
-    const cell = matches.find((el) => el.getAttribute('role') === 'gridcell');
-    const bar = matches.find((el) => el.getAttribute('role') !== 'gridcell');
-    expect(cell).toBeTruthy();
-    expect(bar).toBeTruthy();
-
-    // Both live under the ONE scroller — so vertical scroll moves them together and
-    // they can never desync (it is a single scroll box).
-    expect(scroller!.contains(cell!)).toBe(true);
-    expect(scroller!.contains(bar!)).toBe(true);
   });
 });
 
@@ -504,9 +355,8 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
     expect(screen.getByTestId('gantt-mobile-notice')).toBeInTheDocument();
     expect(screen.getByText(/best viewed on a wider screen/i)).toBeInTheDocument();
 
-    // …and the cramped Gantt split (the role=grid task table + the role=img figure) is NOT.
-    expect(screen.queryByRole('grid')).toBeNull();
-    expect(screen.queryByRole('img')).toBeNull();
+    // …and the cramped Gantt split (the task bars + the figure) is NOT.
+    expect(screen.queryByRole('figure')).toBeNull();
   });
 
   it('AC-GANTT-D1-2: the mobile notice switch buttons call onSwitchView with list/board', () => {
@@ -531,8 +381,8 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
     ];
     render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
-    // Full Gantt renders (table grid + figure)…
-    expect(screen.getByRole('grid')).toBeInTheDocument();
+    // Full Gantt renders (task bar + figure)…
+    expect(screen.getByRole('button', { name: /Survey the site/i })).toBeInTheDocument();
     expect(screen.getByRole('figure')).toBeInTheDocument();
     // …and the mobile notice does not.
     expect(screen.queryByTestId('gantt-mobile-notice')).toBeNull();

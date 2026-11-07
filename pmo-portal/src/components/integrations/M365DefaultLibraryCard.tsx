@@ -1,5 +1,6 @@
 import { LinkExistingRecordFolders } from '@/src/components/m365/LinkExistingRecordFolders';
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, ConfirmDialog, EntityFormModal, FormGrid, Icon, ListState, SelectField, useEntityForm, type SubmitError } from '@/src/components/ui';
@@ -49,6 +50,7 @@ export const M365DefaultLibraryCard: React.FC = () => {
   }
 
   return (
+    <>
     <Card id="m365-default-library" className="mb-3.5 scroll-mt-4 p-4" data-testid="m365-default-library">
       <div className="flex items-center gap-2">
         <Icon name="folder" aria-hidden="true" />
@@ -90,12 +92,14 @@ export const M365DefaultLibraryCard: React.FC = () => {
               {t('m365Documents.defaultLibrary.clear', 'Clear default')}
             </Button>
           )}
-          <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary) && !readFailed} />
         </div>
       )}
       {canManage && !connected && !isPending && (
         <p className="mt-2 text-[12px] text-muted-foreground">
-          {t('m365Documents.defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}
+          {t('m365Documents.defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}{' '}
+          <Link to="/integrations" className="font-medium text-foreground underline underline-offset-2">
+            {t('m365Documents.defaultLibrary.connectLink', 'Open My integrations')}
+          </Link>
         </p>
       )}
 
@@ -121,6 +125,23 @@ export const M365DefaultLibraryCard: React.FC = () => {
         onCancel={() => { setClearOpen(false); setClearError(null); }}
       />
     </Card>
+    {canManage && (
+      <Card className="mb-3.5 p-4" data-testid="m365-link-existing-folders-card">
+        <div className="flex items-center gap-2">
+          <Icon name="folder" aria-hidden="true" />
+          <h3 className="text-[15px] font-semibold text-foreground">
+            {t('m365Documents.linkFolders.heading', 'Link existing folders to records')}
+          </h3>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('m365Documents.linkFolders.description', 'Match folders already in the default library to projects and cases that have none. This links folders only; it never creates one.')}
+        </p>
+        <div className="mt-3">
+          <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary)} readFailed={readFailed} />
+        </div>
+      </Card>
+    )}
+    </>
   );
 };
 

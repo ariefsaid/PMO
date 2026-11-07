@@ -39,6 +39,26 @@ export interface TopProject {
 }
 
 /**
+ * #1418: one row of the Delivery list, ranked server-side over the WHOLE active population by how much it needs
+ * attention. The ranking order is the array order — never re-sorted by the client.
+ */
+export interface AttentionProject extends TopProject {
+  /** Distinct signal kinds present: overdue work, over budget, waiting approvals (0–3). The primary sort key. */
+  attention_signals: number;
+  /** Overdue tasks + overdue milestones + overdue client invoices. */
+  overdue_items: number;
+  overdue_tasks: number;
+  overdue_milestones: number;
+  overdue_invoices: number;
+  /** Project-scoped pending approvals: Requested procurements + Submitted expense claims. */
+  waiting_approvals: number;
+  /** Budget consumption past the Active budget; false when the comparison cannot be made. */
+  over_budget: boolean;
+  /** Consumption / Active budget on the dashboard's at-risk basis; null when the basis is incomplete or mixed. */
+  budget_used_ratio: number | null;
+}
+
+/**
  * Aggregates computed in SQL by get_executive_dashboard() (FR-SPD-001/002/003/004/005).
  * avg_gross_margin REMOVED (OBS-SPD-002 / FR-SPD-004); replaced by OD-MARGIN-1 dual-lens fields.
  * snake_case mirrors the RPC payload.
@@ -77,6 +97,11 @@ export interface ExecutiveDashboard {
   projects_by_status: StatusCount<ProjectStatus>[];
   procurements_by_status: StatusCount<ProcurementStatus>[];
   top_projects: TopProject[];
+  /**
+   * #1418: the true top five projects by attention, computed server-side over every active project (0732). The
+   * array is already ordered and cut to five; render it as given.
+   */
+  attention_projects?: AttentionProject[];
 }
 
 /**

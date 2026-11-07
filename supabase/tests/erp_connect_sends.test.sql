@@ -2,7 +2,7 @@
 -- AC-ECA-010 (DB half: one external reference per sent company, nothing written to accounts or taxes) and AC-ECA-012 (DB half:
 -- a rejected send becomes a review row with a plain reason and leaves the others alone), NFR-ECA-004 (a held send says so).
 begin;
-select plan(84);
+select plan(107);
 
 insert into organizations (id, name) values
  ('a4520000-0000-0000-0000-000000000001','Sends A'),
@@ -391,5 +391,108 @@ set local request.jwt.claims = '{"sub":"a4520000-0000-0000-0000-0000000000a1","r
 select throws_ok($$select public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext')$$, '42501', null, 'an Admin on a user JWT cannot queue sends');
 reset role;
 
+-- ===== #1504 S8-T5: the same three service-only functions under tier `odoo` (AC-ECA-010 / AC-ECA-012, Odoo half) =====
+insert into organizations (id, name) values
+ ('a4520000-0000-0000-0000-000000000007','Sends Odoo C'),
+ ('a4520000-0000-0000-0000-000000000008','Sends Odoo D');
+insert into auth.users (id, email) values ('a4520000-0000-0000-0000-0000000000a7','a452-odoo-admin@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+ ('a4520000-0000-0000-0000-0000000000a7','a4520000-0000-0000-0000-000000000007','Odoo Admin','a452-odoo-admin@example.com','Admin','active');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
+ ('a4520000-0000-0000-0000-000000000007','odoo','https://odoo.example.test','a452_c','active','{"database":"db1","odoo_company_id":1,"analytic_plan_id":7}', now()),
+ ('a4520000-0000-0000-0000-000000000008','odoo','https://odoo-d.example.test','a452_d','active','{"database":"db1","odoo_company_id":1,"analytic_plan_id":7}', now());
+insert into companies (id, org_id, name, type) values
+ ('a4520000-0000-0000-0000-0000000000c7','a4520000-0000-0000-0000-000000000007','PT Sinar Baja','Vendor'),
+ ('a4520000-0000-0000-0000-0000000000c8','a4520000-0000-0000-0000-000000000007','PT Klien Baru','Client'),
+ ('a4520000-0000-0000-0000-0000000000cd','a4520000-0000-0000-0000-000000000008','D Co','Vendor');
+insert into projects (id, org_id, name, status) values
+ ('a4520000-0000-0000-0000-0000000000f7','a4520000-0000-0000-0000-000000000007','Jembatan','Ongoing Project'),
+ ('a4520000-0000-0000-0000-0000000000f8','a4520000-0000-0000-0000-000000000007','Gedung','Ongoing Project');
+insert into external_master_records (org_id, external_tier, kind, external_id, name, code, parent_external_id, active, tombstoned_at, source_write_date) values
+ ('a4520000-0000-0000-0000-000000000007','odoo','analytic_plan','7','Projects',null,null,true,null,'2026-11-01 00:00:00'),
+ ('a4520000-0000-0000-0000-000000000007','odoo','analytic_account','701','PRJ-7 Jembatan','PRJ-7','7',true,null,'2026-11-01 00:00:00');
+insert into erp_connect_proposals (id, org_id, binding_id, external_tier, kind, outcome, state, identity, pmo_ids, decided_by, decided_at)
+select v.id, v.org, (select id from external_org_bindings where org_id = v.org and external_tier = 'odoo'), 'odoo', v.kind, 'send', 'sending', 'send|' || v.kind || '|' || v.pmo, array[v.pmo], v.who, now()
+  from (values
+    ('a4520000-0000-0000-0000-0000000000e7'::uuid,'a4520000-0000-0000-0000-000000000007'::uuid,'party','a4520000-0000-0000-0000-0000000000c7','a4520000-0000-0000-0000-0000000000a7'::uuid),
+    ('a4520000-0000-0000-0000-0000000000e8'::uuid,'a4520000-0000-0000-0000-000000000007'::uuid,'party','a4520000-0000-0000-0000-0000000000c8','a4520000-0000-0000-0000-0000000000a7'::uuid),
+    ('a4520000-0000-0000-0000-0000000000e9'::uuid,'a4520000-0000-0000-0000-000000000007'::uuid,'project','a4520000-0000-0000-0000-0000000000f7','a4520000-0000-0000-0000-0000000000a7'::uuid),
+    ('a4520000-0000-0000-0000-0000000000ea'::uuid,'a4520000-0000-0000-0000-000000000007'::uuid,'project','a4520000-0000-0000-0000-0000000000f8','a4520000-0000-0000-0000-0000000000a7'::uuid),
+    ('a4520000-0000-0000-0000-0000000000eb'::uuid,'a4520000-0000-0000-0000-000000000008'::uuid,'party','a4520000-0000-0000-0000-0000000000cd',null::uuid)
+  ) as v(id, org, kind, pmo, who);
+
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is((select count(*)::int from public.claim_connect_sends('a4520000-0000-0000-0000-000000000007','erpnext',10)), 0, 'AC-ECA-010 (odoo) a claim for tier erpnext never returns an odoo send');
+select is((select count(*)::int from public.claim_connect_sends('a4520000-0000-0000-0000-000000000007','odoo',10)), 4, 'AC-ECA-010 (odoo) claim_connect_sends(org, odoo) returns the odoo sends of an activated binding');
+select is((select count(*)::int from public.claim_connect_sends('a4520000-0000-0000-0000-000000000007','odoo',10)), 0, 'AC-ECA-010 (odoo) a second claim within the lease returns none');
+reset role;
+select is((select count(*)::int from erp_connect_proposals where id = 'a4520000-0000-0000-0000-0000000000eb' and send_claimed_at is null), 1, 'AC-ECA-010 (odoo) another organisation''s odoo send was not leased');
+
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.record_connect_send_result('a4520000-0000-0000-0000-000000000007','a4520000-0000-0000-0000-0000000000e7','Vendor:41',null);
+select public.record_connect_send_result('a4520000-0000-0000-0000-000000000007','a4520000-0000-0000-0000-0000000000e8','Client:42',null);
+select public.record_connect_send_result('a4520000-0000-0000-0000-000000000007','a4520000-0000-0000-0000-0000000000e9','701',null);
+reset role;
+select results_eq($$select pmo_record_id, external_record_id from external_refs where org_id='a4520000-0000-0000-0000-000000000007' and domain='companies' and external_tier='odoo' order by external_record_id$$,
+  $$values ('a4520000-0000-0000-0000-0000000000c8'::text,'Client:42'::text),('a4520000-0000-0000-0000-0000000000c7'::text,'Vendor:41'::text)$$,
+  'AC-ECA-010 (odoo) a sent vendor and a sent client each have exactly one odoo external reference, Vendor:<id> and Client:<id>');
+select results_eq($$select external_tier, external_container_id from external_project_bindings where org_id='a4520000-0000-0000-0000-000000000007' and project_id='a4520000-0000-0000-0000-0000000000f7'$$,
+  $$values ('odoo'::text,'701'::text)$$, 'AC-ECA-010 (odoo) a sent project is linked to its mirrored cost account through connect_link_project');
+select is((select count(*)::int from erp_connect_proposals where org_id='a4520000-0000-0000-0000-000000000007' and state='applied'), 3, 'AC-ECA-010 (odoo) the three confirmed sends are applied');
+select is((select state from erp_connect_proposals where id='a4520000-0000-0000-0000-0000000000eb'), 'sending', 'AC-ECA-010 (odoo) the other organisation''s send is untouched');
+select is((select count(*)::int from external_refs where org_id='a4520000-0000-0000-0000-000000000008'), 0, 'AC-ECA-010 (odoo) nothing was linked in the other organisation');
+
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.connect_send_existing_link('a4520000-0000-0000-0000-000000000007','odoo','party','a4520000-0000-0000-0000-0000000000c7'), 'Vendor:41', 'AC-ECA-011 (odoo) a company that already has its link is answered by it, so it is never sent twice');
+select is(public.connect_send_existing_link('a4520000-0000-0000-0000-000000000007','odoo','project','a4520000-0000-0000-0000-0000000000f7'), '701', 'AC-ECA-011 (odoo) a project that already has its link is answered by it');
+select is(public.connect_send_existing_link('a4520000-0000-0000-0000-000000000007','odoo','party','a4520000-0000-0000-0000-0000000000c9'), null, 'AC-ECA-011 (odoo) a company with no link is answered with nothing');
+
+select is(public.connect_send_existing_link('a4520000-0000-0000-0000-000000000008','odoo','project','a4520000-0000-0000-0000-0000000000f7'), null, 'I2 tenancy: another organisation''s project id is never answered with this organisation''s cost account');
+-- a project whose new cost account the directory has not mirrored yet cannot be linked: it ends as an open review row in plain words, never a half link
+select public.record_connect_send_result('a4520000-0000-0000-0000-000000000007','a4520000-0000-0000-0000-0000000000ea','799',null);
+reset role;
+select results_eq($$select outcome, reason, state, reason_text from erp_connect_proposals where id='a4520000-0000-0000-0000-0000000000ea'$$,
+  $$values ('review'::text,'rejected'::text,'open'::text,'not a cost account of the chosen plan'::text)$$,
+  'AC-ECA-012 (odoo) an account the mirror does not hold is an open review row, not a link (the drain mirrors a sent account first)');
+select is((select count(*)::int from external_project_bindings where project_id='a4520000-0000-0000-0000-0000000000f8'), 0, 'AC-ECA-012 (odoo) no link was written for it');
+
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok($$select public.record_connect_send_result('a4520000-0000-0000-0000-000000000007','a4520000-0000-0000-0000-0000000000eb','Vendor:9',null)$$, 'P0002', null, 'AC-ECA-010 (odoo) a result for another organisation''s proposal is refused');
+reset role;
+
+-- ===== #1504 S8 fix I1/M3: employing `companies` is guarded by the database (0743) =====
+insert into organizations (id, name) values
+ ('a4520000-0000-0000-0000-000000000009','Employ no Odoo'),
+ ('a4520000-0000-0000-0000-00000000000a','Employ with ERPNext'),
+ ('a4520000-0000-0000-0000-00000000000b','Employ ERPNext owns');
+insert into auth.users (id, email) values
+ ('a4520000-0000-0000-0000-0000000000b8','a452-emp8@example.com'),('a4520000-0000-0000-0000-0000000000b9','a452-emp9@example.com'),
+ ('a4520000-0000-0000-0000-0000000000ba','a452-empa@example.com'),('a4520000-0000-0000-0000-0000000000bb','a452-empb@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+ ('a4520000-0000-0000-0000-0000000000b8','a4520000-0000-0000-0000-000000000008','Admin D','a452-emp8@example.com','Admin','active'),
+ ('a4520000-0000-0000-0000-0000000000b9','a4520000-0000-0000-0000-000000000009','Admin 9','a452-emp9@example.com','Admin','active'),
+ ('a4520000-0000-0000-0000-0000000000ba','a4520000-0000-0000-0000-00000000000a','Admin A','a452-empa@example.com','Admin','active'),
+ ('a4520000-0000-0000-0000-0000000000bb','a4520000-0000-0000-0000-00000000000b','Admin B','a452-empb@example.com','Admin','active');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
+ ('a4520000-0000-0000-0000-00000000000a','odoo','https://odoo-a.example.test','a452_ea','active','{"database":"db1"}', now()),
+ ('a4520000-0000-0000-0000-00000000000a','erpnext','https://erp-a.example.test','a452_ea2','active','{"company":"Example"}', now()),
+ ('a4520000-0000-0000-0000-00000000000b','odoo','https://odoo-b.example.test','a452_eb','active','{"database":"db1"}', now());
+insert into external_domain_ownership (org_id, external_tier, domain) values ('a4520000-0000-0000-0000-00000000000b','erpnext','companies');
+
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok($$select public.admin_change_domain_ownership('a4520000-0000-0000-0000-000000000009','odoo','companies','employ','a4520000-0000-0000-0000-0000000000b9')$$, 'P0001', 'Odoo connection is not activated', 'I1 companies are not employed under Odoo before its connection is activated');
+select throws_ok($$select public.admin_change_domain_ownership('a4520000-0000-0000-0000-00000000000a','odoo','companies','employ','a4520000-0000-0000-0000-0000000000ba')$$, 'P0001', 'an ERPNext connection is active for this organization', 'I1 companies are not employed under Odoo while an ERPNext connection is active');
+select throws_ok($$select public.admin_change_domain_ownership('a4520000-0000-0000-0000-00000000000b','odoo','companies','employ','a4520000-0000-0000-0000-0000000000bb')$$, 'P0001', 'companies is already employed on another ERP', 'I1 companies are not employed under Odoo while ERPNext owns them');
+select throws_ok($$select public.admin_change_domain_ownership('a4520000-0000-0000-0000-000000000008','odoo','companies','employ','a4520000-0000-0000-0000-0000000000b8')$$, 'P0001', 'Some records are still being sent to Odoo. Wait for them to finish, then try again.', 'M3 companies are not employed while a partner send is waiting (checked inside the employ itself)');
+select lives_ok($$select public.admin_change_domain_ownership('a4520000-0000-0000-0000-000000000007','odoo','companies','employ','a4520000-0000-0000-0000-0000000000a7')$$, 'I1 an activated Odoo connection with nothing waiting employs companies');
+select throws_ok($$select public.admin_change_domain_ownership('a4520000-0000-0000-0000-000000000007','erpnext','companies','employ','a4520000-0000-0000-0000-0000000000a7')$$, 'P0001', 'companies is already employed on another ERP', 'I1 ERPNext cannot also employ companies once Odoo owns them');
+select is((select count(*)::int from external_domain_ownership where org_id in ('a4520000-0000-0000-0000-000000000009','a4520000-0000-0000-0000-00000000000a','a4520000-0000-0000-0000-000000000008') and domain = 'companies'), 0, 'I1 a refused employ leaves no ownership row');
+
+reset role;
 select * from finish();
 rollback;

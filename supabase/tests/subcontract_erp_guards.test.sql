@@ -3,7 +3,7 @@
 -- Fixture F1 + F2 + F3 of docs/plans/2026-11-01-subcontract-acceptance.md, plus S4 extras for the PQ-5 payer check.
 begin;
 create extension if not exists pgtap;
-select plan(63);
+select plan(65);
 
 -- F1: org A (multi-member), org B (other tenant), org S (sole member). Inserted as superuser, before `set local role`.
 insert into organizations (id, name, default_currency) values
@@ -384,6 +384,12 @@ select is(po_revision_push_refusal('15130000-0000-0000-0000-00000000000a', '1513
 select is(po_revision_push_refusal('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-000000000101', null, true), 'revision_not_issued',
   'AC-SCA-012 an unreadable revision is refused');
 select is(po_revision_push_refusal(null, null, 2, true), 'po_not_found', 'AC-SCA-012 null inputs are refused');
+
+-- #1505 O2: only the effective (highest issued) revision may be pushed; PO …101 has revisions 1 and 2, both Issued.
+select is(po_revision_push_refusal('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-000000000101', 1, false), 'revision_superseded',
+  'AC-SCA-012 a stale issued revision is refused as superseded');
+select is(po_revision_push_refusal('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-000000000101', 2, false), null,
+  'AC-SCA-012 the effective issued revision is allowed');
 
 select * from finish();
 rollback;

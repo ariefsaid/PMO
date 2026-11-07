@@ -13,6 +13,7 @@
  */
 import React from 'react';
 import type { TrailStep } from '@/src/hooks/useAssistantPanel';
+import { Crossfade } from '@/src/components/ui/Crossfade';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 
 interface ActivityTrailProps {
@@ -48,14 +49,16 @@ export const ActivityTrail: React.FC<ActivityTrailProps> = ({ items }) => {
           key={step.id}
           className="flex items-center gap-1.5 motion-reduce:animate-none"
         >
-          {step.done ? (
-            // ✓ glyph — aria-hidden; the friendly label is the accessible text.
-            <span aria-hidden className="shrink-0 text-muted-foreground/70">
-              ✓
-            </span>
-          ) : (
-            <Spinner />
-          )}
+          <Crossfade swapKey={step.done ? 'done' : 'busy'}>
+            {step.done ? (
+              // ✓ glyph — aria-hidden; the friendly label is the accessible text.
+              <span aria-hidden className="shrink-0 text-muted-foreground/70">
+                ✓
+              </span>
+            ) : (
+              <Spinner />
+            )}
+          </Crossfade>
           <span className={step.done ? 'text-muted-foreground/70' : 'text-muted-foreground'}>
             {friendlyActivity(step.label)}
             {!step.done && '…'}
