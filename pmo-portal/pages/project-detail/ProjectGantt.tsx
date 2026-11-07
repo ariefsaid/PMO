@@ -290,6 +290,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             events={events}
             resources={model.resources}
             defaultDate={defaultDate}
+            treePanel={{ width: 440, nameColumnWidth: 208 }}
             scale={scale}
             onScaleChange={setScale}
             interactions={{ drag: writable, resize: writable, selectSlot: false }}
