@@ -9,5 +9,8 @@
   "ownershipError": "Kepemilikan tidak dapat dimuat. Coba lagi.",
   "retry": "Coba lagi",
   "chooseParty": "Pilih klien atau pemasok untuk melanjutkan.",
-  "ownershipChanged": "Kepemilikan berubah saat Anda mengedit. Tutup dan buka kembali formulir untuk melanjutkan."
+  "ownershipChanged": "Kepemilikan berubah saat Anda mengedit. Tutup dan buka kembali formulir untuk melanjutkan.",
+  "activityShowMore": "Tampilkan lebih banyak",
+  "activityShownAll": "Menampilkan semua {{shown}}",
+  "activityShownRecent": "Menampilkan {{shown}} terbaru"
 }
