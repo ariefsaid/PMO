@@ -91,8 +91,9 @@ non-localhost `--url` unless `--allow-remote`).
 Routes: `dashboard-exec`, `dashboard-pm`, `project`, `procurement`, `receivables`. DB top statements come from
 `pg_stat_statements` in the local DB container (skipped if unavailable). Re-capture the fixture after a page's
 queries change: start `vite` on the local stack, then `scripts/with-db-lock.sh node scripts/perf/load-capture.mjs <baseUrl>`.
-Fixture limits: the capture-time date filters and the capturing user's profile id are replayed as-is; virtual users
-on a route share one signed-in session; the project page uses the oldest project.
+Fixture: user id, org id and date windows are placeholders resolved at run time (per signed-in user, from today);
+virtual users on a route share one signed-in session; the project page uses the oldest project. The numbers below
+were taken before the placeholders (same queries, same user).
 
 First result, 2026-11-08, origin/dev at `44a0c0f8c` (+ this script), 50 users, 60 s per route, think 1 s,
 Mac shared with other workers and a local Docker stack (not a dedicated host):

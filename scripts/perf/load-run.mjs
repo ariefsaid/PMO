@@ -45,6 +45,20 @@ export function summarize(pages) {
   };
 }
 
+// date windows the dashboards ask for, relative to today (the fixture stores placeholders, not capture-time dates)
+export function dateVars(now = new Date()) {
+  const iso = (y, m, d) => new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10);
+  const y = now.getUTCFullYear(), m = now.getUTCMonth();
+  return { yearStart: iso(y, 0, 1), monthStart: iso(y, m, 1), monthEnd: iso(y, m + 1, 0), monthStartMinus1: iso(y, m - 1, 1), monthStartMinus12: iso(y - 1, m, 1) };
+}
+
+export function fill(s, vars) {
+  return s.replace(/\{(\w+)\}/g, (_, k) => {
+    if (vars[k] === undefined) throw new Error(`unresolved placeholder {${k}}`);
+    return vars[k];
+  });
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
@@ -57,13 +71,18 @@ async function main() {
   if (!anon) throw new Error('no anon key: start the local stack or set SUPABASE_ANON_KEY');
 
   const tokens = {}; // one session per seeded email, shared by the virtual users on that route
+  const who = {}; // per email: userId + orgId resolved at run time (never stored in the fixture)
   for (const email of new Set(keys.map((k) => fixture[k].email))) {
     const r = await fetch(`${o.url}/auth/v1/token?grant_type=password`, {
       method: 'POST', headers: { apikey: anon, 'content-type': 'application/json' },
       body: JSON.stringify({ email, password: 'Passw0rd!dev' }), // seeded local-only password
     });
     if (!r.ok) throw new Error(`sign-in ${email} failed: ${r.status}`);
-    tokens[email] = (await r.json()).access_token;
+    const body = await r.json();
+    tokens[email] = body.access_token;
+    const pr = await fetch(`${o.url}/rest/v1/profiles?select=org_id&id=eq.${body.user.id}`, { headers: { apikey: anon, authorization: `Bearer ${body.access_token}` } });
+    who[email] = { userId: body.user.id, orgId: (await pr.json())[0]?.org_id };
+    if (!who[email].orgId) throw new Error(`no profile/org for ${email}`);
   }
 
   const psql = (sql) => spawnSync('docker', ['exec', 'supabase_db_pmo-portal', 'psql', '-U', 'postgres', '-At', '-F', '\t', '-c', sql], { encoding: 'utf8' });
@@ -73,7 +92,7 @@ async function main() {
     const hdr = { apikey: anon, authorization: `Bearer ${tokens[route.email]}` };
     const t0 = performance.now();
     const res = await Promise.all(route.calls.map(async (c) => {
-      const sub = (s) => s.replaceAll('{projectId}', vars.projectId ?? '');
+      const sub = (s) => fill(s, vars);
       try {
         const r = await fetch(`${o.url}${sub(c.path)}`, { method: c.method, headers: { ...c.headers, ...hdr }, body: c.body ? sub(c.body) : undefined });
         await r.arrayBuffer();
@@ -86,7 +105,7 @@ async function main() {
   const results = [];
   for (const k of keys) {
     const route = fixture[k];
-    const vars = {};
+    const vars = { ...dateVars(), ...who[route.email] };
     if (route.calls.some((c) => c.path.includes('{projectId}'))) {
       const r = await fetch(`${o.url}/rest/v1/projects?select=id&order=created_at.asc&limit=1`, { headers: { apikey: anon, authorization: `Bearer ${tokens[route.email]}` } });
       vars.projectId = (await r.json())[0]?.id;
