@@ -1,6 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -28,7 +28,23 @@ const ExpenseClaims: React.FC = () => {
   const navigate = useNavigate();
   const may = usePermission();
   const { toast } = useToast();
-  const [status, setStatus] = useState('');
+  // #1461: the dashboard 'Expense claims returned' figure counts Rejected claims and drills with
+  // `?status=Rejected`, so the list opens exactly that set. The select keeps the URL shareable.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const VALID_STATUSES = Constants.public.Enums.expense_claim_status;
+  const requestedStatus = searchParams.get('status');
+  const [status, setStatusState] = useState(
+    requestedStatus && (VALID_STATUSES as readonly string[]).includes(requestedStatus) ? requestedStatus : '',
+  );
+  const setStatus = (next: string) => {
+    setStatusState(next);
+    setSearchParams((current) => {
+      const nextParams = new URLSearchParams(current);
+      if (next) nextParams.set('status', next);
+      else nextParams.delete('status');
+      return nextParams;
+    }, { replace: true });
+  };
   const [kind, setKind] = useState('');
   const [category, setCategory] = useState('');
   const filters = useMemo<ExpenseClaimFilters>(

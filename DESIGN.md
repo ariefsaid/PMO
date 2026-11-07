@@ -86,6 +86,15 @@ spacing:
   section: "32px"
 motion:
   ds-ease: "120ms cubic-bezier(0.16, 1, 0.3, 1)"
+  ease-out: "cubic-bezier(0.16, 1, 0.3, 1)"
+  press: "100ms (button active:scale-[0.97])"
+  dialog: "150ms in / 120ms out"
+  sheet: "220ms in / 176ms out"
+  drawer: "200ms in / 160ms out"
+  toast: "200ms in / 160ms out"
+  menu-in: "120ms (grows from its trigger)"
+  icon-swap: "180ms crossfade, scale 0.25 + blur 4px"
+  save-pulse: "450ms"
 elevation:
   xs: "0 2px 4px 0 + 0 0 2px 0"
   sm: "0 10px 15px -3px + 0 4px 6px -2px"
@@ -223,7 +232,7 @@ Hanken Grotesk remains self-hosted and is used without stylistic alternates. The
 
 **Elevation:** panels, drawers, and modals stay flat by default. `--shadow-xs` is for tooltips, `--shadow-sm` for dropdowns, and `--shadow-lg` for toasts; each uses a soft offset shadow tinted to its theme. `--shadow-overlay` is `none`. Do not add a global card shadow.
 
-**Motion:** `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)` remains the shared easing token. Reduced-motion preferences continue to remove transitions and animations.
+**Motion:** `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)` remains the shared easing token. Reduced-motion preferences continue to remove transitions and animations. Motion timings are tokens (`--motion-*` in `index.css`), never inline: buttons press to 0.97; exits run about 20% shorter than entrances (dialog 150/120ms, sheet 220/176ms, drawer 200/160ms, toast 200/160ms); menus and popovers set `--menu-origin` so they grow from the trigger; one `save-pulse` ring confirms a save; icon swaps (`Crossfade`) overlap old and new with a scale + blur crossfade. Only `transform`, `opacity` and `filter` animate, and each new animation is switched off under `prefers-reduced-motion`.
 
 ## 5. Components
 

@@ -444,3 +444,24 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 });
+
+describe('ProcurementCreate landmarks (#1339)', () => {
+  // The app shell owns the one <main>; the page nests inside it, so a page-level <main> is a second landmark.
+  const mainCount = (path: string) => {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <main><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></main>
+      </MemoryRouter>,
+    );
+    return screen.getAllByRole('main').length;
+  };
+
+  it.each([
+    ['intake', '/procurement/new', true],
+    ['form', '/procurement/new?have=need', true],
+    ['denied', '/procurement/new', false],
+  ])('adds no second main landmark on the %s view', (_view, path, allowed) => {
+    mocks.canCreate = allowed;
+    expect(mainCount(path)).toBe(1);
+  });
+});

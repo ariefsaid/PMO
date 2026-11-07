@@ -519,7 +519,7 @@ describe('currency-aware budget position', () => {
     budgetState.data = 1000;
     committedState.data = 100;
     renderPanel({ projectId: 'proj-1', totalValue: 200, projectName: 'Project', currency: 'EUR' });
-    expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/not compared with the budget/i)).toBeInTheDocument();
     expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
   });
 });
@@ -547,6 +547,20 @@ it('does not compare a budget in a different currency to project commitments', (
   reservedState.budgetCurrency = 'EUR';
   renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
   expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+});
+
+it('#1354 labels each figure in its own currency: the request in its currency, budget figures in the budget currency, no cross-currency After', () => {
+  budgetState.data = 1000;
+  committedState.data = 300;
+  reservedState.data = 200;
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project', currency: 'EUR' });
+  const valueOf = (label: RegExp) => within(screen.getByText(label).closest('[data-testid="stat-tile"]') as HTMLElement);
+  expect(valueOf(/^this procurement$/i).getByText(/€50\b/)).toBeInTheDocument();
+  expect(valueOf(/^project budget$/i).getByText(/\$1,000\b/)).toBeInTheDocument();
+  expect(valueOf(/^available$/i).getByText(/\$500\b/)).toBeInTheDocument();
+  expect(valueOf(/^reserved$/i).getByText(/\$200\b/)).toBeInTheDocument();
+  expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/over available budget/i)).not.toBeInTheDocument();
 });
 
 it('does not compare amounts when the project currency is missing', () => {

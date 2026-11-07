@@ -362,6 +362,9 @@ export async function openPipelineCard(page: Page, dealName: string, within?: Lo
   await expect(card).toBeVisible({ timeout: 15_000 });
   await expect(async () => {
     await card.click();
+    // Desktop: a card opens the quick view; "Open deal" goes to the record. Phone goes straight there.
+    const openDeal = page.getByRole('button', { name: 'Open deal' });
+    if (await openDeal.isVisible().catch(() => false)) await openDeal.click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/, { timeout: 3_000 });
   }).toPass({ timeout: 30_000 });
 }

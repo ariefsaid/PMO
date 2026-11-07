@@ -56,24 +56,20 @@ describe('UIP-003 project recognition', () => {
   });
 });
 
-it.each([true, false])('UIP-004 Projects folds classification into its one collapsed Filters disclosure (desktop=%s) with URL-owned summary, count and clear', async (desktop) => {
+it.each([true, false])('UIP-004 Projects keeps classification in its one filter builder (desktop=%s) with URL-owned chips and clear', async (desktop) => {
   viewport(desktop);
   page('/projects?view=table&serviceLine=Engineering&sector=Energy');
   const user = userEvent.setup();
   expect(screen.queryByRole('button', { name: /^Classification/ })).not.toBeInTheDocument();
-  const trigger = screen.getByRole('button', { name: /^Filters\s*2/ });
-  expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  expect(screen.queryByLabelText('Filter by service line')).not.toBeInTheDocument();
-  expect(screen.getByText('Service line: Engineering')).toBeVisible();
-  expect(screen.getByText('Sector: Energy')).toBeVisible();
+  const chips = screen.getByRole('toolbar', { name: /active filters/i });
+  expect(within(chips).getByRole('button', { name: 'Service line filter options' })).toBeVisible();
+  expect(within(chips).getByRole('button', { name: 'Sector filter options' })).toBeVisible();
+  expect(within(chips).getByText('Engineering')).toBeVisible();
+  expect(within(chips).getByText('Energy')).toBeVisible();
   expect(screen.queryByRole('button', { name: state.data[1].name })).not.toBeInTheDocument();
-  await user.click(trigger);
-  expect(screen.getByLabelText('Filter by service line')).toHaveValue('Engineering');
-  await user.keyboard('{Escape}');
-  expect(trigger).toHaveFocus();
-  await user.click(screen.getByRole('button', { name: 'Clear classifications' }));
+  await user.click(screen.getByRole('button', { name: 'Clear all' }));
   expect(screen.getByRole('button', { name: state.data[1].name })).toBeVisible();
-  expect(screen.getByRole('button', { name: /^Filters$/ })).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('toolbar', { name: /active filters/i })?.querySelectorAll('[data-rule-id]') ?? []).toHaveLength(0);
 });
 
 it('UIP-004 shared classifications summarize all five selections, retain missing options, remove individually and clear a pending location', async () => {

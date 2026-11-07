@@ -55,6 +55,12 @@ export const NATIVE_REVENUE_REFUSALS = [
   // State (P0001) and approval SoD.
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
+  // 0704 (#1817): a time-and-materials claim's invoice.
+  'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
+  // #1415 (migration 0731): applying a receipt to invoices.
+  'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
+  'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
+  'request-id-reused',
 ] as const;
 export type NativeRevenueRefusal = (typeof NATIVE_REVENUE_REFUSALS)[number];
 const REFUSALS: ReadonlySet<string> = new Set(NATIVE_REVENUE_REFUSALS);
@@ -107,5 +113,58 @@ export async function recordNativeReceipt(input: NativeReceiptInput): Promise<st
 
 export async function cancelNativeReceipt(id: string): Promise<void> {
   const { error } = await supabase.rpc('cancel_native_receipt', { p_receipt_id: id });
+  if (error) fail(error);
+}
+
+/** #1415: a receipt for a customer with no invoice. `receiptId` is minted once per form open: it is the replay key. */
+export interface NativeOnAccountReceiptInput {
+  customerId: string;
+  amount: number;
+  receivedAmount?: number;
+  withheldAmount?: number;
+  withholdingSlipNumber?: string | null;
+  date: string;
+  receiptId: string;
+}
+
+export async function recordNativeOnAccountReceipt(input: NativeOnAccountReceiptInput): Promise<string> {
+  const slip = input.withholdingSlipNumber?.trim();
+  const { data, error } = await supabase.rpc('record_native_on_account_receipt', {
+    p_customer_id: input.customerId,
+    p_amount: input.amount,
+    ...(input.receivedAmount !== undefined ? { p_received_amount: input.receivedAmount } : {}),
+    ...(input.withheldAmount !== undefined ? { p_withheld_amount: input.withheldAmount } : {}),
+    ...(slip ? { p_withholding_slip_number: slip } : {}),
+    p_date: input.date,
+    p_receipt_id: input.receiptId,
+  });
+  if (error) fail(error);
+  return newId(data, 'receipt');
+}
+
+/** A type alias (not an interface) so an allocation is assignable to the generated `Json` the RPC takes. */
+export type NativeAllocationInput = { invoiceId: string; amount: number };
+
+export interface ApplyNativeReceiptInput {
+  receiptId: string;
+  allocations: NativeAllocationInput[];
+  /** Minted once per form open and reused on a retry: the same request replays, never double-applies. */
+  requestId: string;
+}
+
+/** Apply a receipt across one or more invoices. Returns the new allocation ids. */
+export async function applyNativeReceipt(input: ApplyNativeReceiptInput): Promise<string[]> {
+  const { data, error } = await supabase.rpc('apply_native_receipt', {
+    p_receipt_id: input.receiptId,
+    p_allocations: input.allocations.map((a) => ({ invoice_id: a.invoiceId, amount: a.amount })),
+    p_request_id: input.requestId,
+  });
+  if (error) fail(error);
+  if (!Array.isArray(data) || data.length === 0) throw new AppError('the server applied the receipt but returned no allocation ids');
+  return data as string[];
+}
+
+export async function unapplyNativeAllocation(allocationId: string): Promise<void> {
+  const { error } = await supabase.rpc('unapply_native_allocation', { p_allocation_id: allocationId });
   if (error) fail(error);
 }

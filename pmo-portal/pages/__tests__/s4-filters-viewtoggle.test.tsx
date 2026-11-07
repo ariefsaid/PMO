@@ -107,7 +107,11 @@ const incState = {
   isPending: false, isError: false, refetch: vi.fn(),
 };
 vi.mock('@/src/hooks/useIncidents', () => ({
-  useIncidents: () => incState,
+  useIncidentsPage: () => ({
+    list: { data: { rows: incState.data, total: incState.data.length }, isPending: false, isError: false, refetch: incState.refetch },
+    allTotal: incState.data.length,
+  }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useIncidentMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },

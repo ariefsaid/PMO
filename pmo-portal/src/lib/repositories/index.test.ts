@@ -152,6 +152,8 @@ vi.mock('@/src/lib/db/budgetImportSkip', () => ({
 }));
 vi.mock('@/src/lib/db/incidents', () => ({
   listIncidents: vi.fn(),
+  listIncidentsPage: vi.fn(),
+  countIncidents: vi.fn(),
   getIncident: vi.fn(),
   createIncident: vi.fn(),
   updateIncident: vi.fn(),
@@ -266,8 +268,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   it('contact exposes its expected methods (W3-CRM)', () => {
     // G3c: updateActivity + deleteActivity added (CD-1/CT-1 editable activity rows)
     // C3: listActivitiesForContacts batch method added (N+1 fix for useCompanyActivities)
+    // #1989: listPage/count/listAll — the server-paged directory read, its head count, and the
+    // full-set export read.
     expect(Object.keys(repositories.contact).sort()).toEqual(
-      ['archive', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listActivities', 'listActivitiesForContacts', 'listByCompany', 'update', 'updateActivity'].sort(),
+      ['archive', 'count', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listAll', 'listActivities', 'listActivitiesForContacts', 'listActivitiesForContactsPage', 'listActivitiesPage', 'listByCompany', 'listPage', 'update', 'updateActivity'].sort(),
     );
   });
 
@@ -287,10 +291,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // task projection refresh). 'listNumbers' added deliberately with the PM dashboard batched
       // project-number read (#1890): one narrow request for the visible cards instead of one
       // full project read per card. Exhaustive API-seam contract — extend only deliberately.
-      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPickerOptions', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
+      // #1989: count/listAll/listOptions/listPage — the server-paged directory read, its head
+      // count, the whole-directory picker rows, and the full-set export read.
+      ['archive', 'count', 'create', 'delete', 'get', 'getMany', 'list', 'listAll', 'listClients', 'listOptions', 'listPage', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
@@ -326,7 +332,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // (My Tasks projection). 'listDueRows' added with #1741 (one batched read for the PM dashboard
       // overdue count). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
@@ -381,7 +387,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
-      ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
+      ['count', 'create', 'delete', 'get', 'list', 'listPage', 'transition', 'update'].sort(),
     );
     expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
@@ -1039,6 +1045,8 @@ describe('delegation — methods pass args through and return the DAL result', (
   it('AC-IN-001..005: incident methods delegate to the incidents DAL fns', async () => {
     vi.mocked(incidentsDal.listIncidents).mockResolvedValue([] as never);
     vi.mocked(incidentsDal.getIncident).mockResolvedValue({ id: 'i1' } as never);
+    vi.mocked(incidentsDal.listIncidentsPage).mockResolvedValue({ rows: [], total: 0 } as never);
+    vi.mocked(incidentsDal.countIncidents).mockResolvedValue(0);
     vi.mocked(incidentsDal.createIncident).mockResolvedValue({ id: 'new' } as never);
     vi.mocked(incidentsDal.updateIncident).mockResolvedValue(undefined);
     vi.mocked(incidentsDal.transitionIncident).mockResolvedValue(undefined);
@@ -1052,6 +1060,10 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(incidentsDal.listIncidents).toHaveBeenLastCalledWith(undefined);
 
     await repositories.incident.get('i1');
+    const pageArgs = { page: 2, pageSize: 50, status: 'Open' as const, search: 'x' };
+    await expect(repositories.incident.listPage(pageArgs)).resolves.toEqual({ rows: [], total: 0 });
+    expect(incidentsDal.listIncidentsPage).toHaveBeenCalledWith(pageArgs);
+    await expect(repositories.incident.count()).resolves.toBe(0);
     expect(incidentsDal.getIncident).toHaveBeenCalledWith('i1');
 
     const input = { incident_date: '2026-06-08', type: 'Near Miss', severity: 'Low' as never };

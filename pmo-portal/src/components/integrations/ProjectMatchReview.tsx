@@ -64,10 +64,13 @@ export function ProjectMatchReview({
   projectId,
   orgId,
   projects: queueProjects,
+  binding: knownBinding,
 }: {
   projectId?: string;
   orgId?: string;
   projects?: ReviewProject[];
+  /** The org's ERPNext binding when the caller already read it (null = none); skips this component's own read. */
+  binding?: IntegrationBinding | null;
 }) {
   const { t } = useTranslation();
   const may = usePermission();
@@ -95,6 +98,7 @@ export function ProjectMatchReview({
     queryFn: () => repositories.integrations.getBinding(orgId!, 'erpnext'),
     enabled: Boolean(orgId),
     retry: false,
+    ...(knownBinding !== undefined && { initialData: knownBinding, staleTime: Infinity }),
   });
   const setup = useQuery({
     queryKey: ['integrations', 'setup', orgId],

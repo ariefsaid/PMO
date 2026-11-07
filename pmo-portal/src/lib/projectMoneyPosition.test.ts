@@ -22,9 +22,9 @@ const input = (overrides: Partial<ProjectMoneyPositionInput> = {}): ProjectMoney
   contractValue: 0.3,
   activeBudget: 1,
   ledgerBasis: 'erp',
-  committedSpend: 10,
-  commitmentPending: false,
-  commitmentError: false,
+  pmoSpent: 10,
+  pmoSpentPending: false,
+  pmoSpentError: false,
   actuals: erpActuals(),
   ...overrides,
 });
@@ -111,16 +111,16 @@ describe('buildProjectMoneyPosition', () => {
   });
 
   it.each([
-    { label: 'a successful zero', committedSpend: 0, pending: false, error: false, amount: '0.00', complete: true, headline: 'available' },
-    { label: 'a pending read', committedSpend: undefined, pending: true, error: false, amount: null, complete: false, headline: 'loading' },
-    { label: 'a failed read', committedSpend: 10, pending: false, error: true, amount: null, complete: false, headline: 'unavailable' },
-    { label: 'a nonfinite reading', committedSpend: Number.NaN, pending: false, error: false, amount: null, complete: false, headline: 'unavailable' },
-  ] as const)('AC-PMP-001 preserves PMO actual state for $label', ({ committedSpend, pending, error, amount, complete, headline }) => {
+    { label: 'a successful zero', pmoSpent: 0, pending: false, error: false, amount: '0.00', complete: true, headline: 'available' },
+    { label: 'a pending read', pmoSpent: undefined, pending: true, error: false, amount: null, complete: false, headline: 'loading' },
+    { label: 'a failed read', pmoSpent: 10, pending: false, error: true, amount: null, complete: false, headline: 'unavailable' },
+    { label: 'a nonfinite reading', pmoSpent: Number.NaN, pending: false, error: false, amount: null, complete: false, headline: 'unavailable' },
+  ] as const)('AC-PMP-001 preserves PMO actual state for $label', ({ pmoSpent, pending, error, amount, complete, headline }) => {
     expect(buildProjectMoneyPosition(input({
       ledgerBasis: 'pmo',
-      committedSpend,
-      commitmentPending: pending,
-      commitmentError: error,
+      pmoSpent,
+      pmoSpentPending: pending,
+      pmoSpentError: error,
       actuals: undefined,
     }))).toMatchObject({
       actual: { amount, basis: 'pmo', complete },

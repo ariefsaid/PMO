@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 const h = vi.hoisted(() => ({ data: { pages: [] as unknown[] }, contexts: {} as Record<string, { state: 'ready' | 'pending' | 'unavailable'; caseTitle?: string; projectName?: string; pmoProjectNumber?: string }>, isError: false, hasNextPage: false, orgTimezone: 'UTC', refetch: vi.fn(), fetchNextPage: vi.fn(), save: vi.fn() }));
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({ useVendorWithholdingCandidates: () => ({ data: h.data, isLoading: false, isError: h.isError, hasNextPage: h.hasNextPage, refetch: h.refetch, fetchNextPage: h.fetchNextPage, isFetchingNextPage: false }), useVendorWithholdingBillContexts: () => h.contexts }));
 vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => h.orgTimezone }));

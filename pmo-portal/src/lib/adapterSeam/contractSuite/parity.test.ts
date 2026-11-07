@@ -6,7 +6,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { WORKFLOWS, type TierWorkflows } from '../connect/workflows.ts';
 import { ERPNEXT_WORKFLOWS } from '../erpnext/workflowDeclarations.ts';
-import { ODOO_WORKFLOWS } from '../odoo/workflowDeclarations.ts';
+import { ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON, ODOO_WORKFLOWS } from '../odoo/workflowDeclarations.ts';
 import { SUITES } from './index.ts';
 import { parityProblems, suiteRunProblems, tierRegistrationProblems } from './parity.ts';
 import { TIER_HARNESSES, TIER_WORKFLOWS } from './tiers.ts';
@@ -28,8 +28,8 @@ describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions',
     expect(ODOO_WORKFLOWS['invoice.push']).toEqual({ status: 'supported', version: WORKFLOWS['invoice.push'].version });
   });
 
-  it('leaves receipt.read pending while the production feed does not classify vendor payments', () => {
-    expect(ODOO_WORKFLOWS['receipt.read']).toEqual({ status: 'pending', version: WORKFLOWS['receipt.read'].version, issue: 1506 });
+  it('declares receipt.read supported now that the production feeds classify both payment directions', () => {
+    expect(ODOO_WORKFLOWS['receipt.read']).toEqual({ status: 'supported', version: WORKFLOWS['receipt.read'].version });
   });
 
   it('leaves invoice pairing pending until its shared contract uses the production page mapping', () => {
@@ -42,6 +42,13 @@ describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions',
     expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'supported', version: WORKFLOWS['cutover.activation'].version });
   });
 
+  it('AC-OPP-084 declares the procurement push workflows supported at their shared suite version', () => {
+    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase-order.revise'] as const) {
+      expect(SUITES[id], id).toBeDefined();
+      expect(ODOO_WORKFLOWS[id], id).toEqual({ status: 'supported', version: WORKFLOWS[id].version });
+    }
+  });
+
   it('keeps revenue cutover pending on its owning issue until a shared suite exists', () => {
     expect(SUITES['cutover.revenue']).toBeUndefined();
     expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: WORKFLOWS['cutover.revenue'].version, issue: 1602 });
@@ -52,7 +59,9 @@ describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions',
       version: 1, summary: 'read tax-document facts from the ERP',
     });
     expect(SUITES['tax-document.read']).toBeUndefined();
-    expect((ODOO_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect((ODOO_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({
+      status: 'unavailable', version: 1, reason: ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON,
+    });
     expect((ERPNEXT_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
   });
 });

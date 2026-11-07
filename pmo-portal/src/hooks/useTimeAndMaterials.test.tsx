@@ -14,7 +14,7 @@ const { tm } = vi.hoisted(() => ({
   tm: {
     listRateLines: vi.fn(), listRateAssignees: vi.fn(), saveContractRateLine: vi.fn(), endContractRateLine: vi.fn(),
     setContractRateAssignee: vi.fn(), endContractRateAssignee: vi.fn(), assembleTmClaim: vi.fn(), deselectTmSource: vi.fn(),
-    prepareTmSignoff: vi.fn(), withdrawTmSignoff: vi.fn(), confirmTmSignoff: vi.fn(), listTmClaims: vi.fn(),
+    prepareTmSignoff: vi.fn(), withdrawTmSignoff: vi.fn(), confirmTmSignoff: vi.fn(), invoiceNativeTmClaim: vi.fn(), listTmClaims: vi.fn(),
     previewTmClaim: vi.fn(), listTmClaimSources: vi.fn(),
   },
 }));
@@ -25,7 +25,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 import {
   TM_QUERY_ROOTS, useTmRateLines, useTmRateAssignees, useTmClaims, useTmClaimPreview, useTmClaimSources,
   useSaveTmRateLine, useEndTmRateLine, useSetTmRateAssignee, useEndTmRateAssignee, useAssembleTmClaim,
-  useDeselectTmSource, usePrepareTmSignoff, useWithdrawTmSignoff, useConfirmTmSignoff,
+  useDeselectTmSource, usePrepareTmSignoff, useWithdrawTmSignoff, useConfirmTmSignoff, useInvoiceTmClaimNative,
 } from './useTimeAndMaterials';
 
 const wrap = (client: QueryClient) =>
@@ -91,6 +91,18 @@ describe('#1514 T7.1 time-and-materials hooks', () => {
     expect(keys).toContain(JSON.stringify(['tm-claims']));
     expect(keys).toContain(JSON.stringify(['project-finances']));
     expect(keys).toContain(JSON.stringify(['progress-claims']));
+  });
+
+  it('AC-TM-020 invoicing a claim in PMO refreshes the claim list, the invoices and the work-order billing', async () => {
+    const client = fresh();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useInvoiceTmClaimNative(), { wrapper: wrap(client) });
+    await act(async () => { await result.current.mutateAsync('c1'); });
+    expect(tm.invoiceNativeTmClaim).toHaveBeenCalledWith('c1');
+    const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    for (const root of ['tm-claims', 'project-finances', 'progress-claims', 'salesInvoices', 'salesInvoice', 'revenueByProject', 'work-order-billing']) {
+      expect(keys).toContain(JSON.stringify([root]));
+    }
   });
 
   it('T7.1 every write invalidates every T&M root plus project finances', async () => {

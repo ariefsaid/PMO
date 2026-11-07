@@ -47,7 +47,8 @@ export function vendorPartnerId(vendor: string | null): number {
 export function lineVals(line: OrderLineInput, ctx: OrderCtx, plannedAt: string): Record<string, unknown> {
   const qty = Number(line.quantity), price = Number(line.rate);
   if (!(qty > 0) || !(price >= 0) || !Number.isFinite(price)) refuse(`line-invalid: ${line.name}`);
-  const unit = line.unit ? (odooId(Object.hasOwn(ctx.unitMap, line.unit) ? ctx.unitMap[line.unit] : undefined) ?? refuse(`unit-unmapped: ${line.unit}`)) : null;
+  const key = line.unit?.trim();   // the map's keys are trimmed texts (odoo_pmo_units)
+  const unit = key ? (odooId(Object.hasOwn(ctx.unitMap, key) ? ctx.unitMap[key] : undefined) ?? refuse(`unit-unmapped: ${key}`)) : null;
   return {
     product_id: productIdOf(ctx, line.name),
     name: line.description || line.name,

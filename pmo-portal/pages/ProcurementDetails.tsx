@@ -46,7 +46,7 @@ import { ProcurementLedger } from './procurement/ProcurementLedger';
 import { OdooCaseStatus } from './procurement/OdooCaseStatus';
 import { useProcurementGates } from '@/src/hooks/useProcurementGates';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
-import { purchaseHasValue } from './procurement/purchaseValue';
+import { purchaseHasValue } from '@/src/lib/procurement/purchaseValue';
 import { recordableFirstKinds } from './procurement/firstDocument';
 import { useLinkedErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { LinkedErpDocuments } from './procurement/LinkedErpDocuments';
@@ -71,7 +71,7 @@ import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { pillVariantForStatus, stageLabelForStatus, selectedQuotation } from '../components/procurement';
-import { stageForStatus } from './procurement/blocks/stage';
+import { stageForStatus } from '@/src/lib/procurement/stage';
 import {
   allowedActions,
   canApproveReject,
@@ -81,7 +81,7 @@ import {
   sodGateMessage,
   sortActions,
   stateMainAction,
-} from './procurement/blocks/mainAction';
+} from '@/src/lib/procurement/mainAction';
 // ---------------------------------------------------------------------------
 // Tabbed record shell (mirrors ProjectDetail's `/projects/:id/:tab`). Default tab =
 // Overview (status-at-a-glance: stepper above + the Overview bento). An absent/unknown
@@ -544,6 +544,11 @@ const ProcurementDetails: React.FC = () => {
     }
     if (mainAction.to === 'Vendor Invoiced') {
       setShowVICapture(true);
+      return;
+    }
+    // #1607: an ERP-owned purchase places its order through the Purchase Order capture (which dispatches to the ERP), never the PMO-only transition.
+    if (mainAction.to === 'Ordered' && ownership.mode === 'external' && !p.pre_cutover) {
+      setCaptureKind('purchase_order');
       return;
     }
     onActionClick(transitionMainAction ?? mainAction);

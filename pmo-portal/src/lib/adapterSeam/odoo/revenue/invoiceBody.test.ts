@@ -24,6 +24,12 @@ const ready = (inv: PmoInvoice, m: InvoiceMaps = maps) => {
   return r.body;
 };
 
+describe('a unit text with stray spaces looks up the trimmed key the map is saved under', () => {
+  it('invoice lines', () => {
+    expect(lineOf(ready({ ...invoice, lines: [{ ...invoice.lines[0], unit: ' km ' }] })).product_uom_id).toBe(11);
+  });
+});
+
 describe('AC-OCI-023 the builder transports the record, never recomputes it', () => {
   it('maps partner, line, unit, product, explicit taxes and the cost account onto the create payload', () => {
     expect(ready(invoice)).toEqual({

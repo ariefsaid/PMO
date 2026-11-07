@@ -5,7 +5,7 @@ import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { NeedsYouReason } from '@/pages/procurement/blocks/needsYou';
 import { useTranslation } from 'react-i18next';
-import { figureForListRow, totalsByCurrency, type ProcurementListRole } from '@/pages/procurement/list/model';
+import { figureForListRow, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { MoneyTotalLines } from '@/pages/procurement/list/MoneyTotalLines';
 
 interface ProcurementBoardProps {

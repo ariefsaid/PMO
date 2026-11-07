@@ -101,6 +101,8 @@ export function createErpnextConnectAdapter(client: ErpClientDeps, company: stri
   const filters = (company_: boolean, after: string | null) => [...(company_ ? [['company', '=', company]] : []), ...(after ? [['name', '>', after]] : [])];
   return {
     tier: 'erpnext',
+    // an ERPNext project is named by the client project code, so the matcher compares it with PMO's `code` (#1692)
+    projectCodeField: 'code',
     async listMasters(kind, cursor) {
       const specs = specOf(kind);
       const [doctype, after] = cursor ? [cursor.slice(0, cursor.indexOf(':')), cursor.slice(cursor.indexOf(':') + 1)] : [specs[0].doctype, null];
