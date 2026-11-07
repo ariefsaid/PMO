@@ -3710,9 +3710,9 @@ whats_overdue rule; an overdue milestone is the project-detail rule (target past
 overdue invoice is the AR due-date rule; "over budget" is the dashboard's own at-risk basis (spent + open commitment, ledger
 Actual for an ERP-ledger org) past 100% of the Active budget, with the ratio null — never a false zero — when the basis
 cannot be compared; "today" is the org-local day. Money size is deliberately not an ingredient of the ranking (that was
-the defect); contract value only breaks a tie between equally pressing projects. The population stays the delivery set
-(on-hand ∪ internal), and tenancy and role visibility are exactly as before: the function is still SECURITY INVOKER so
-every signal read runs under the caller's RLS, and the function adds no per-role filter of its own — a ranking cannot
-depend on who is looking, while the role-aware queues stay on the "waiting for you" line. Proven in
-`supabase/tests/0732_executive_attention_ranking.test.sql` (AC-1418-01..16) and
+the defect); contract value only breaks a tie between equally pressing projects. The population is the active delivery set
+(active_delivery_project_statuses(): Won Pending KoM, Ongoing, On Hold, Internal; Close Out is out), and tenancy and role visibility are exactly as before: the function is still SECURITY INVOKER so
+every signal read runs under the caller's RLS, and the function adds no per-role filter of its own, so each viewer sees the
+ranking over the projects and signals their role can read (as with top_projects); the role-aware queues stay on the "waiting for you" line. Proven in
+`supabase/tests/0732_executive_attention_ranking.test.sql` (AC-1418-01..18) and
 `pmo-portal/pages/ExecutiveDashboard.test.tsx` (F2/#1418, returned order rendered).
