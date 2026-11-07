@@ -6,7 +6,7 @@ import { lostReasonLabel, lostReasonValid } from '@/src/lib/lostReasons';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
 import { formatPercent, dealJourneySteps, weightedValue } from '../../components/salesPipeline';
 import StageHistory from '../project-detail/StageHistory';
-import { NEXT_STAGE_LABEL, type DealActions } from './useDealActions';
+import { useStageJourneyStepLabel, type DealActions } from './useDealActions';
 
 type Fig = { key: string; label: string; value: React.ReactNode; sub?: React.ReactNode };
 
@@ -91,10 +91,11 @@ export const DealFigures: React.FC<{ d: DealActions; className?: string }> = ({ 
 
 export const DealJourney: React.FC<{ d: DealActions; history?: boolean }> = ({ d, history = true }) => {
   const { t } = useTranslation('project');
+  const stepLabel = useStageJourneyStepLabel();
   return (
     <section className="min-w-0 space-y-3">
       <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</h2>
-      <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
+      <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, stepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
       {history && <StageHistory projectId={d.project.id} />}
     </section>
   );
@@ -104,7 +105,7 @@ export const DealJourney: React.FC<{ d: DealActions; history?: boolean }> = ({ d
 export const DealActionButtons: React.FC<{ d: DealActions; primaryOnly?: boolean; secondaryOnly?: boolean }> = ({ d, primaryOnly, secondaryOnly }) => {
   const { t } = useTranslation('project');
   if (d.isTerminal) return null;
-  const advanceLabel = d.nextStage ? `${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_STAGE_LABEL[d.status] ?? d.nextStage}` : null;
+  const advanceLabel = d.nextStage ? `${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${d.nextStageLabel}` : null;
   return (
     <div className="flex flex-wrap gap-2">
       {!secondaryOnly && d.nextStage && (
