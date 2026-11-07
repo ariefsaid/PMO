@@ -70,12 +70,10 @@ function createSeamStore(): SeamStore {
   };
 }
 
-/** The separation gradient, rendered only while content remains hidden to the right. A layout effect
- *  subscribes (children's layout effects run before the parent's measurement), so the first flip lands
- *  before paint, as the old state update did. */
+/** The separation gradient, rendered only while content remains hidden to the right. useSyncExternalStore
+ *  re-reads on subscribe, so a flip between render and subscription is never missed. */
 function RowMenuSeam({ store }: { store: SeamStore }) {
-  const [visible, setVisible] = React.useState(store.get);
-  React.useLayoutEffect(() => store.subscribe(() => setVisible(store.get())), [store]);
+  const visible = React.useSyncExternalStore(store.subscribe, store.get, () => false);
   return visible ? <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} /> : null;
 }
 
