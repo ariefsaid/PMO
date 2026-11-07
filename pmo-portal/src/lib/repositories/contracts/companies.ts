@@ -9,7 +9,13 @@ import type {
   CompanyInput,
 } from '@/src/lib/db/companies';
 import type { ContactDirectoryPage, ContactRow, ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
+import type {
+  CrmActivityRow,
+  CrmActivityInput,
+  CrmActivityPatch,
+  ActivityCursor,
+  ActivityPage,
+} from '@/src/lib/db/crmActivities';
 import type { CompanyCustomerRef } from '@/src/lib/db/companyCollections';
 
 export interface CompanyRepository {
@@ -68,6 +74,10 @@ export interface ContactRepository {
   listActivities(contactId: string): Promise<CrmActivityRow[]>;
   /** Batch-fetch activities for N contacts in one query (C3 N+1 fix), merged newest-first. */
   listActivitiesForContacts(contactIds: string[]): Promise<CrmActivityRow[]>;
+  /** One page of a contact's timeline, newest-first (#1990); pass the previous page's nextCursor for the next. */
+  listActivitiesPage(contactId: string, cursor: ActivityCursor | null): Promise<ActivityPage>;
+  /** One page of the merged timeline for N contacts in one query (#1990). */
+  listActivitiesForContactsPage(contactIds: string[], cursor: ActivityCursor | null): Promise<ActivityPage>;
   /** Log an activity (org_id trigger-stamped from the parent; logged_by from the caller). */
   createActivity(input: CrmActivityInput, loggedById: string | null): Promise<CrmActivityRow>;
   /** Update an activity's editable fields (kind/subject/body/occurred_at). */

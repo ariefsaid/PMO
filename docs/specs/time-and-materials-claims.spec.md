@@ -134,6 +134,15 @@
   releases the sources; once the invoice is cancelled the claim withdraws as for progress claims.
 - FR-TM-037 A T&M claim shall carry no down-payment recovery (OQ-TM-8) and shall be refused when the claim currency
   differs from the project currency.
+- FR-TM-038 Where no ERP owns revenue, the system shall let Admin or Finance create the Draft invoice from a signed-off
+  claim in PMO, with the claim's lines, at most one per claim.
+
+> **No-ERP orgs (#1817, migration 0704).** `create_native_tm_invoice(claim)` makes the PMO-native Draft invoice with the
+> claim's id, lines (label, unit, approved units, signed rate; standby marked in the text) and the project's VAT. The
+> claim must be signed off, live and evidenced (the outbox fence's rules, repeated because no outbox row exists here). A
+> second call for the same claim is refused, even after the invoice is cancelled: withdraw the claim and assemble it again.
+> The approver must differ from the creator, the assembler, the sign-off preparer and the confirmer. Volume (BoQ)
+> claims without an ERP stay out of scope.
 
 **AC-5 Access and SoD**
 - FR-TM-040 Rate lines, assignments, claims and sign-offs shall be readable by Admin, Finance, Executive and the PM of the
@@ -211,8 +220,15 @@
 | AC-TM-015 | **After #1519.** Given approved equipment usage 40 h work and 6 h standby on an asset with rate 800,000.00/h and no standby rate, then the claim bills 40 h and lists 6 h standby as unbilled | pgTAP |
 | AC-TM-016 | Given the rate card and assemble screens, when a Finance user sets a rate, assigns a person, a PM prepares and a second user confirms, then the claim detail and the "create invoice" action reflect it; keyboard-only operable | Vitest/RTL + axe |
 | AC-TM-017 | CLI `tm rates list`, `tm claim preview` (read-only), `tm claim list` | Vitest (CLI) |
-| AC-TM-018 | One curated e2e journey: set rate and assignee, approve a week, assemble, sign off, raise the invoice, see approved units and rate on it | Playwright (one) |
+| AC-TM-018 | One curated e2e journey: set rate and assignee, approve a week, assemble, sign off, invoice it in PMO (no-ERP lane), a second user approves it, see approved units and rate on it | Playwright (one) |
 | AC-TM-019 | Given the extended claim fence, when the sign-off is a mutation (fence returns true unconditionally), then AC-TM-002 turns red (mutation check, recorded in the PR) | pgTAP |
+| AC-TM-020 | Given a no-ERP org and a signed-off claim, when Finance creates the invoice, then a PMO-native Draft exists with the claim's id, lines, total, `billing_kind = contract` (mutation check: sign-off fence) | pgTAP + Vitest (DAL, UI) |
+| AC-TM-021 | Given an unsigned, withdrawn, evidence-less, foreign or client-less claim, or a header that differs from its lines, then the call is refused and no invoice exists; the UI offers no button | pgTAP + Vitest (UI) |
+| AC-TM-022 | Given a claim already invoiced (even cancelled), then a second call is refused with `claim-already-invoiced`; after withdrawal a new claim from the released hours is invoiced once (mutation check: double-billing guard) | pgTAP |
+| AC-TM-023 | Given a Project Manager, Engineer, Executive, disabled Admin or an org whose ERP owns revenue, or the sales-invoice module off, then the call is refused; anon cannot execute (mutation check: role gate and ERP-owns refusal) | pgTAP + Vitest (UI) |
+| AC-TM-024 | Given the invoice, then the creator, assembler, sign-off preparer and confirmer cannot approve it and a different Admin can | pgTAP |
+| AC-TM-025 | Given a VAT project, then tax and currency equal the generic native creator's for the same body; a VAT project with no rate is refused; a work-order claim does not change the work order's billed total | pgTAP |
+| AC-TM-026 | Given an invoice, then header = sum of lines = claim gross, claim, progress claim and invoice share one id, creation is audited, standby is marked | pgTAP |
 
 ## 9. Risks the build must design against
 

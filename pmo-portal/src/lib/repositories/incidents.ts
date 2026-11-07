@@ -1,6 +1,8 @@
 /** Incident repository implementation. */
 import {
   listIncidents,
+  listIncidentsPage,
+  countIncidents,
   getIncident,
   createIncident,
   updateIncident,
@@ -12,6 +14,8 @@ import type { IncidentRepository } from './contracts/incidents';
 
 export const incidentRepository: IncidentRepository = {
   list: (params) => wrap(() => listIncidents(params)),
+  listPage: (params) => wrap(() => listIncidentsPage(params)),
+  count: () => wrap(() => countIncidents()),
   get: (id) => wrap(() => getIncident(id)),
   create: (input) => wrap(() => createIncident(input)),
   update: (id, input) => wrap(() => updateIncident(id, input)),

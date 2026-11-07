@@ -203,6 +203,7 @@
         "billingEmptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
         "toast": {
           "raised": "Invoice raised in the ERP",
+          "raisedNative": "Invoice drafted in PMO",
           "evidenceAttached": "Evidence attached",
           "withdrawn": "Claim withdrawn",
           "created": "Billing claim created"
@@ -214,7 +215,10 @@
           "confirm": "Withdraw claim"
         },
         "errors": {
-          "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised."
+          "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
+          "alreadyInvoiced": "This claim already has an invoice.",
+          "noClient": "This project has no client to invoice. Set the client on the project first.",
+          "totalMismatch": "This claim's lines do not add up to its total. Withdraw it and assemble it again."
         },
         "withdrawn": "Withdrawn",
         "kind": {
@@ -223,6 +227,11 @@
         },
         "errorSub": "Retry, or reopen the project.",
         "empty": "No billing claims yet",
+        "confirmRaiseNative": {
+          "body": "A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.",
+          "confirm": "Create invoice",
+          "title": "Create this claim's invoice?"
+        },
         "confirmRaise": {
           "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",

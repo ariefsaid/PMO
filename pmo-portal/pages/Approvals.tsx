@@ -62,7 +62,7 @@ const ApprovalsPage: React.FC = () => {
   const canApproveExpenses = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
   const canApproveInvoices = may('transition', 'salesInvoice');
 
-  const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
+  const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements({ status: 'Requested' });
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
   const { data: correctionSheets, isPending: correctionPending, isError: correctionError } = useReopenableApprovedTimesheets();
   const canApproveTimesheets = hasTimesheetRole || Boolean(timesheets?.length || correctionSheets?.length || tsPending || tsError || correctionPending || correctionError);

@@ -24,14 +24,15 @@ export async function listProjects(c: OdooCtx): Promise<Response> {
   }
   const [accounts, links] = await Promise.all([
     mirror(c, 'analytic_account').eq('parent_external_id', String(plan)).order('code').limit(ACCOUNT_LIMIT + 1),   // one more than a page, to know whether there is more
-    c.sc.from('external_project_bindings').select('project_id, external_container_id').eq('org_id', c.orgId).eq('external_tier', 'odoo'),
+    c.sc.from('external_project_bindings').select('project_id, external_container_id, config').eq('org_id', c.orgId).eq('external_tier', 'odoo'),
   ]);
   if (accounts.error || links.error) return odooError(c, 'The cost accounts could not be read', 'STORE_FAILED', 500);
   return c.respond({
     planId: plan,
     accounts: (accounts.data ?? []).slice(0, ACCOUNT_LIMIT).map((a) => ({ id: a.external_id, code: a.code, name: a.name })),
     truncated: (accounts.data ?? []).length > ACCOUNT_LIMIT,
-    linked: (links.data ?? []).map((l) => ({ projectId: l.project_id, accountId: l.external_container_id })),
+    // `attention` is why a link needs a person's eye (archived, tombstoned, moved-company), set by the sweep's reconciliation (AC-ODC-054)
+    linked: (links.data ?? []).map((l) => ({ projectId: l.project_id, accountId: l.external_container_id, attention: ((l.config as Record<string, unknown> | null)?.attention as string | undefined) ?? null })),
   });
 }
 
