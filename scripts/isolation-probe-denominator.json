@@ -327,7 +327,7 @@
     "finish_erp_ple_voucher_backfill(uuid,text)",
     "finish_odoo_census(uuid,text,timestamp with time zone,text)",
     "finish_odoo_purchase_census(uuid,text,timestamp with time zone,text)",
-    "finish_odoo_ledger_census(uuid,timestamp with time zone)",
+    "finish_odoo_ledger_census(uuid,timestamp with time zone,integer)",
     "finish_odoo_revenue_census(uuid,text,timestamp with time zone,text)",
     "get_budget_archive_targets(uuid)",
     "get_process_gates(uuid)",

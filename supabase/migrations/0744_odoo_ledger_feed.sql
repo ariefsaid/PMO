@@ -17,8 +17,8 @@ create table public.odoo_ledger_census_seen (
 alter table public.odoo_ledger_census_seen enable row level security;
 alter table public.odoo_ledger_census_seen force row level security;
 create policy odoo_ledger_census_seen_service on public.odoo_ledger_census_seen
-  for all using ((auth.jwt() ->> 'role') = 'service_role')
-  with check ((auth.jwt() ->> 'role') = 'service_role');
+  for all using (((select auth.jwt()) ->> 'role') = 'service_role')
+  with check (((select auth.jwt()) ->> 'role') = 'service_role');
 revoke all on public.odoo_ledger_census_seen from public, anon, authenticated;
 revoke all on public.odoo_ledger_census_seen from service_role;
 
@@ -29,6 +29,11 @@ language sql immutable set search_path = public, pg_catalog as $$
 $$;
 revoke all on function public.odoo_ledger_line_id(text) from public, anon, authenticated;
 grant execute on function public.odoo_ledger_line_id(text) to service_role;
+
+-- Bounds the per-page sibling lookup and the stale-page guard to the page's own lines (partial: no ERPNext row enters it).
+create index erp_gl_entry_mirror_odoo_line_idx
+  on public.erp_gl_entry_mirror (org_id, public.odoo_ledger_line_id(erp_name))
+  where voucher_type = 'account.move';
 
 -- Page of attribution rows (S1 `fanOutLine`). One transaction: any bad row aborts the rows and the cursor.
 -- A line's rows are replaced by line id, so a reset-to-draft + repost with another distribution leaves no row of the old split.
@@ -47,7 +52,11 @@ begin
   exception when others then
     raise exception 'malformed ledger cursor' using errcode = '22023';
   end;
-  if jsonb_typeof(v_new) is distinct from 'object' then raise exception 'malformed ledger cursor' using errcode = '22023'; end if;
+  if jsonb_typeof(v_new) is distinct from 'object'
+     or coalesce(v_new->>'w','2000-01-01 00:00:00') !~ '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'
+     or coalesce(v_new->>'id','0') !~ '^\d{1,15}$' then
+    raise exception 'malformed ledger cursor' using errcode = '22023';
+  end if;
   if exists (select 1 from jsonb_array_elements(p_rows) r
               where public.odoo_ledger_line_id(r->>'erp_name') is null
                  or coalesce(r->>'voucher_no','') = '' or coalesce(r->>'account','') = ''
@@ -70,7 +79,10 @@ begin
                                                  posting_date, debit, credit, is_cancelled, erp_docstatus, erp_modified)
     select p_org_id, erp_name, account, project, case when party is null then null else 'Partner' end, party, 'account.move',
            voucher_no, posting_date, debit, credit, is_cancelled, case when is_cancelled then 0 else 1 end, w
-      from page
+      from page p
+     where not exists (select 1 from public.erp_gl_entry_mirror x
+                        where x.org_id = p_org_id and x.voucher_type = 'account.move'
+                          and public.odoo_ledger_line_id(x.erp_name) = p.line_id and x.erp_modified > p.w)
     on conflict (org_id, erp_name) do update set
       account = excluded.account, project = excluded.project, party_type = excluded.party_type, party = excluded.party,
       voucher_no = excluded.voucher_no, posting_date = excluded.posting_date, debit = excluded.debit, credit = excluded.credit,
@@ -82,12 +94,18 @@ begin
   select count(*) into v_n from up;
 
   -- Rows of a page line that the page no longer carries, unless a newer write already replaced them.
+  -- Candidates come from the per-line index (= any of the page's line ids), never a scan of the org's account.move set.
+  with page as materialized (
+    select r->>'erp_name' as erp_name, public.odoo_ledger_line_id(r->>'erp_name') as line_id, r->>'source_write_date' as w
+      from jsonb_array_elements(p_rows) r
+  ), lines as materialized (
+    select line_id, max(w) as w from page group by line_id
+  )
   delete from public.erp_gl_entry_mirror m
    where m.org_id = p_org_id and m.voucher_type = 'account.move'
-     and public.odoo_ledger_line_id(m.erp_name) in (select public.odoo_ledger_line_id(r->>'erp_name') from jsonb_array_elements(p_rows) r)
-     and not exists (select 1 from jsonb_array_elements(p_rows) r where r->>'erp_name' = m.erp_name)
-     and m.erp_modified <= (select max(r->>'source_write_date') from jsonb_array_elements(p_rows) r
-                             where public.odoo_ledger_line_id(r->>'erp_name') = public.odoo_ledger_line_id(m.erp_name));
+     and public.odoo_ledger_line_id(m.erp_name) = any (array(select line_id from lines))
+     and not exists (select 1 from page pg where pg.erp_name = m.erp_name)
+     and m.erp_modified <= (select l.w from lines l where l.line_id = public.odoo_ledger_line_id(m.erp_name));
 
   -- Never rewind: the cursor moves only to an equal or later (w, id).
   select w.watermark_cursor::jsonb into v_old from public.external_sync_watermarks w
@@ -120,7 +138,7 @@ revoke all on function public.mark_odoo_ledger_census_seen(uuid,timestamptz,text
 grant execute on function public.mark_odoo_ledger_census_seen(uuid,timestamptz,text[]) to service_role;
 
 -- Only a finished census deletes: rows of lines Odoo no longer returns, written before the run began.
-create or replace function public.finish_odoo_ledger_census(p_org_id uuid, p_run timestamptz)
+create or replace function public.finish_odoo_ledger_census(p_org_id uuid, p_run timestamptz, p_expected_lines integer default null)
 returns integer language plpgsql security definer set search_path = public, pg_catalog as $$
 declare
   v_cut text := to_char((p_run - interval '10 minutes') at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS');
@@ -135,6 +153,13 @@ begin
   if v_eligible > 0 and not exists (select 1 from public.odoo_ledger_census_seen s where s.org_id = p_org_id and s.run_at = p_run) then
     raise exception 'ledger census saw no lines' using errcode = 'P0001';
   end if;
+  -- The caller says how many lines the census listed; fewer seen means it stopped early.
+  if p_expected_lines is not null
+     and (select count(*) from public.odoo_ledger_census_seen s where s.org_id = p_org_id and s.run_at = p_run) <> p_expected_lines then
+    raise exception 'ledger census saw % lines, expected %',
+      (select count(*) from public.odoo_ledger_census_seen s where s.org_id = p_org_id and s.run_at = p_run), p_expected_lines
+      using errcode = 'P0001';
+  end if;
   delete from public.erp_gl_entry_mirror m
    where m.org_id = p_org_id and m.voucher_type = 'account.move' and m.erp_modified < v_cut
      and public.odoo_ledger_line_id(m.erp_name) is not null
@@ -144,8 +169,8 @@ begin
   delete from public.odoo_ledger_census_seen where org_id = p_org_id and run_at = p_run;
   return v_n;
 end $$;
-revoke all on function public.finish_odoo_ledger_census(uuid,timestamptz) from public, anon, authenticated;
-grant execute on function public.finish_odoo_ledger_census(uuid,timestamptz) to service_role;
+revoke all on function public.finish_odoo_ledger_census(uuid,timestamptz,integer) from public, anon, authenticated;
+grant execute on function public.finish_odoo_ledger_census(uuid,timestamptz,integer) to service_role;
 
 notify pgrst, 'reload schema';
 

@@ -1,6 +1,6 @@
 -- #1507 S2 AC-ODA-006: a finished census removes rows of unseen lines only; an unfinished one removes nothing; org-scoped.
 begin;
-select plan(8);
+select plan(10);
 
 insert into organizations (id, name) values
  ('a7450000-0000-0000-0000-000000000001','Census A'),
@@ -37,6 +37,13 @@ select throws_ok($$select finish_odoo_ledger_census('a7450000-0000-0000-0000-000
   'P0001', null, 'AC-ODA-006 an empty census is refused');
 select throws_ok($$select mark_odoo_ledger_census_seen('a7450000-0000-0000-0000-000000000001', now(), array['x'])$$,
   '22023', null, 'AC-ODA-006 a malformed census id is refused');
+
+-- Expected line count: a census that stopped early is refused and deletes nothing.
+select mark_odoo_ledger_census_seen('a7450000-0000-0000-0000-000000000001','2026-11-11 12:00:00+00', array['1']);
+select throws_ok($$select finish_odoo_ledger_census('a7450000-0000-0000-0000-000000000001','2026-11-11 12:00:00+00', 5)$$,
+  'P0001', null, 'AC-ODA-006 a census that saw fewer lines than expected is refused');
+select is(finish_odoo_ledger_census('a7450000-0000-0000-0000-000000000001','2026-11-11 12:00:00+00', 1), 1,
+  'AC-ODA-006 a census that saw the expected count finishes and removes the unseen line');
 
 reset role;
 set local role authenticated;

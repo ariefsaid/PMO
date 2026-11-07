@@ -1,6 +1,6 @@
 -- #1507 S2 AC-ODA-004/005: service-only ledger page application, idempotency, stale guard, cursor, line replacement, tenancy.
 begin;
-select plan(23);
+select plan(28);
 
 insert into organizations (id, name) values
  ('a7440000-0000-0000-0000-000000000001','Ledger A'),
@@ -14,6 +14,8 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
 
 select has_index('public','erp_gl_entry_mirror','erp_gl_entry_mirror_org_voucher_date_account_idx',
   'AC-ODA-004 the statement index exists');
+select has_index('public','erp_gl_entry_mirror','erp_gl_entry_mirror_odoo_line_idx',
+  'AC-ODA-005 the per-line index bounds the sibling lookup');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a7440000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -71,6 +73,8 @@ select is((select watermark_cursor from external_sync_watermarks where org_id='a
   '{"w":"2026-11-03 08:00:00","id":11}', 'AC-ODA-004 a failed page leaves the cursor');
 select throws_ok($$select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', '[]', 'not json')$$, '22023', null,
   'AC-ODA-004 a malformed cursor is refused');
+select throws_ok($$select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', '[]', '{"w":"zzzz","id":1}')$$, '22023', null,
+  'AC-ODA-004 a cursor with a malformed write date is refused, so it cannot pin the cursor forward');
 
 -- Tenancy: org B's page never touches org A, and an unbound org is refused.
 select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000002', $j$[
@@ -80,6 +84,8 @@ select is((select debit from erp_gl_entry_mirror where org_id='a7440000-0000-000
   'AC-ODA-004 org B''s row with the same name does not touch org A');
 select is((select debit from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000002' and erp_name='odoo:10:101'), 7.00::numeric,
   'AC-ODA-004 org B has its own row');
+select is((select sum(debit) from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name='odoo:10:-'), 400.00::numeric,
+  'AC-ODA-004 org B''s page of line 10 does not delete org A''s sibling row of line 10');
 select throws_ok($$select apply_odoo_ledger_page('a7440000-0000-0000-0000-0000000000ff','[]','{"w":null,"id":0}')$$, null, null,
   'AC-ODA-004 an org without an active Odoo binding is refused');
 
@@ -103,6 +109,19 @@ select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[
  ]$j$::jsonb, '{"w":"2026-11-02 10:00:00","id":10}');
 select is((select count(*)::int from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name like 'odoo:10:%'), 2,
   'AC-ODA-005 a stale page of the line does not delete the newer split');
+
+-- A stale page read before a repost must not bring back a sibling the repost removed (per line, not per row).
+select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[
+ {"erp_name":"odoo:30:-","voucher_type":"account.move","voucher_no":"BILL/30","account":"5100","project":null,"debit":"1000.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-09 10:00:00"}
+ ]$j$::jsonb, '{"w":"2026-11-09 10:00:00","id":30}');
+select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[
+ {"erp_name":"odoo:30:101","voucher_type":"account.move","voucher_no":"BILL/30","account":"5100","project":"101","debit":"600.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-02 10:00:00"},
+ {"erp_name":"odoo:30:-","voucher_type":"account.move","voucher_no":"BILL/30","account":"5100","project":null,"debit":"400.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-02 10:00:00"}
+ ]$j$::jsonb, '{"w":"2026-11-02 10:00:00","id":30}');
+select is((select count(*)::int from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name like 'odoo:30:%'), 1,
+  'AC-ODA-005 a stale page does not bring back a sibling a newer repost removed');
+select is((select sum(debit) from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name like 'odoo:30:%'), 1000.00::numeric,
+  'AC-ODA-005 the line still sums to the newer state');
 
 select * from finish();
 rollback;
