@@ -917,6 +917,27 @@
         "import": "Import",
         "backfill": "Backfill"
       }
+    },
+    "gantt": {
+      "continues": "continues",
+      "datesColumn": "Dates",
+      "durationDays_one": "{{count}} day",
+      "durationDays_other": "{{count}} days",
+      "goToDate": "Go to date",
+      "jumpToBar": "Scroll to \"{{title}}\"",
+      "loading": "Loading",
+      "milestoneTarget": "Target date",
+      "next": "Next",
+      "previous": "Previous",
+      "progress": "{{percent}}% complete",
+      "resizePanel": "Resize task panel",
+      "scale": {
+        "year": "Year"
+      },
+      "statusColumn": "Status",
+      "ungrouped": "Ungrouped",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out"
     }
   },
   "common": {

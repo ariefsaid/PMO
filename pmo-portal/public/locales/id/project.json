@@ -917,6 +917,27 @@
         "import": "Impor",
         "backfill": "Pengisian awal"
       }
+    },
+    "gantt": {
+      "continues": "berlanjut",
+      "datesColumn": "Tanggal",
+      "durationDays_one": "{{count}} hari",
+      "durationDays_other": "{{count}} hari",
+      "goToDate": "Ke tanggal",
+      "jumpToBar": "Gulir ke \"{{title}}\"",
+      "loading": "Memuat",
+      "milestoneTarget": "Tanggal target",
+      "next": "Berikutnya",
+      "previous": "Sebelumnya",
+      "progress": "{{percent}}% selesai",
+      "resizePanel": "Ubah lebar panel tugas",
+      "scale": {
+        "year": "Tahun"
+      },
+      "statusColumn": "Status",
+      "ungrouped": "Tanpa fase",
+      "zoomIn": "Perbesar",
+      "zoomOut": "Perkecil"
     }
   },
   "common": {

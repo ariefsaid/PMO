@@ -2411,12 +2411,9 @@
         "milestones_other": "{{count}} phases",
         "scale": "scale: {{scale}}",
         "tasks_one": "{{count}} task",
-        "tasks_other": "{{count}} tasks",
-        "today": "today at {{pct}}% of the span"
+        "tasks_other": "{{count}} tasks"
       },
-      "targetWord": "target",
       "taskColumn": "Task",
-      "taskTableAriaLabel": "Task table",
       "tasksOnTimeline_one": "{{count}} task on the timeline",
       "tasksOnTimeline_other": "{{count}} tasks on the timeline",
       "today": "Today",
