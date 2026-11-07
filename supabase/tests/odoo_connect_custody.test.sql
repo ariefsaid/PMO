@@ -1,7 +1,7 @@
 -- Odoo connect custody (#1504 S2, migration 0420): the atomic stage → finalize commit, set-once activation,
 -- reconnect/discard, disconnect, and the reference column hidden from every signed-in reader.
 begin;
-select plan(72);
+select plan(74);
 
 insert into organizations (id, name) values
  ('a4200000-0000-0000-0000-000000000001','Odoo Org A'),
@@ -211,6 +211,13 @@ select lives_ok($$select status, config from public.external_org_bindings$$, 'AC
 set local request.jwt.claims = '{"sub":"a4200000-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select throws_ok($$select webhook_secret_ref from public.external_org_bindings$$, '42501', null, 'AC-ODC-009 an Engineer JWT cannot read webhook_secret_ref');
 select is((select count(*)::int from public.external_org_bindings where external_tier='odoo'), 1, 'AC-ODC-009 an Engineer JWT still sees the org''s binding rows');
+reset role;
+
+-- AC-ODC-092 (scenario S-B, the P half): a connected org that has employed nothing leaves company writes in PMO.
+-- Org B holds no Odoo binding; org A's was disconnected above, which released its ownership.
+set local role service_role;
+select is(public.domain_owned_by_tier('a4200000-0000-0000-0000-000000000002','companies','odoo'), false, 'AC-ODC-092 with no Odoo binding Odoo does not own companies');
+select is(public.domain_owned_by_tier('a4200000-0000-0000-0000-000000000001','companies','odoo'), false, 'AC-ODC-092 with no companies ownership row company writes stay PMO-local');
 reset role;
 
 select * from finish();
