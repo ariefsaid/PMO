@@ -1337,6 +1337,7 @@
     "uxs36AgeingBasis": "Ageing basis",
     "uxs36Unavailable": "Unavailable",
     "uxs36CustomerFilterLabel": "Customer",
+    "uxs36CustomerFilterLoading": "Loading customer…",
     "uxs36CustomerFilterUnavailable": "Selected customer is unavailable",
     "uxs36CustomerFilterClear": "Clear customer filter",
     "uxs36CollectionsHeading": "Customer collections",

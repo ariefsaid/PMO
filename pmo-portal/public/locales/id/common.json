@@ -1337,6 +1337,7 @@
     "uxs36AgeingBasis": "Dasar umur piutang",
     "uxs36Unavailable": "Tidak tersedia",
     "uxs36CustomerFilterLabel": "Pelanggan",
+    "uxs36CustomerFilterLoading": "Memuat pelanggan…",
     "uxs36CustomerFilterUnavailable": "Pelanggan yang dipilih tidak tersedia",
     "uxs36CustomerFilterClear": "Hapus filter pelanggan",
     "uxs36CollectionsHeading": "Piutang pelanggan",
