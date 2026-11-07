@@ -4,12 +4,15 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
-import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { formatDateOnly } from '@/src/lib/format';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
+import { axe } from 'jest-axe';
+import en from '../../public/locales/en/finance.json';
+import id from '../../public/locales/id/finance.json';
 
 const h = vi.hoisted(() => ({
   invoices: [] as SalesInvoiceRow[],
@@ -17,6 +20,7 @@ const h = vi.hoisted(() => ({
   projectOptionsPending: false,
   projectOptionsError: false,
   setEfaktur: vi.fn().mockResolvedValue(undefined),
+  ownership: [] as { domain: string; externalTier: string }[],
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -33,7 +37,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-test', org_id: 'org-test' } }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
-vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: h.ownership, isError: false }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useInvoiceProjectOptions: () => ({ data: h.projectOptions, isPending: h.projectOptionsPending, isError: h.projectOptionsError }),
   useClientCompanyOptions: () => ({ data: [] }),
@@ -50,7 +54,7 @@ import SalesInvoices from '../SalesInvoices';
 const invoice = (id: string, status: SalesInvoiceRow['status'], number: string | null, date: string | null): SalesInvoiceRow => ({
   id, org_id: 'org-test', project_id: null, erp_project: null, billing_kind: 'contract', customer_id: null, customer_name: 'Customer',
   si_number: `SI-${id}`, reference_number: null, invoice_date: '2026-10-01', amount: 100,
-  currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, erp_outstanding_amount: 100,
+  currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 11, erp_outstanding_amount: 100,
   status, erp_docstatus: status === 'Cancelled' ? 2 : 1, erp_modified: null, erp_amended_from: null,
   erp_cancelled_at: status === 'Cancelled' ? '2026-10-01T00:00:00Z' : null,
   created_at: '2026-10-01T00:00:00Z', author_user_id: null, author_user_ids: [],
@@ -88,6 +92,7 @@ beforeEach(async () => {
   h.projectOptions = [{ value: 'project-1', label: 'Project North', contractualName: 'Project North' }];
   h.projectOptionsPending = false;
   h.projectOptionsError = false;
+  h.ownership = [];
   h.setEfaktur.mockReset().mockResolvedValue(undefined);
 });
 
@@ -222,5 +227,105 @@ describe('SalesInvoices e-Faktur details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('alert', { name: 'Save failed' })).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('AC-OCI-081 an issued invoice with no VAT offers no e-Faktur control', () => {
+    h.invoices = [{ ...invoice('novat', 'Submitted', null, null), tax_amount: 0, project_subject_to_vat: false }];
+    renderAs('Finance');
+    fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+  });
+
+  it('AC-OCI-081 a zero-rated invoice on a VAT-subject project still offers the e-Faktur control', () => {
+    h.invoices = [{ ...invoice('zero', 'Submitted', null, null), tax_amount: 0, project_subject_to_vat: true }];
+    renderAs('Finance');
+    fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
+  });
+
+  describe('Odoo tier', () => {
+    const odooInvoice = (id: string, status: SalesInvoiceRow['status'], taxAmount: number): SalesInvoiceRow =>
+      ({ ...invoice(id, status, null, null), tax_amount: taxAmount, tax_treatment: 'exclusive' });
+    beforeEach(() => { h.ownership = [{ domain: 'revenue', externalTier: 'odoo' }]; });
+
+    it('AC-OCI-081 a numbered VAT-bearing invoice accepts an e-Faktur number and date together', async () => {
+      h.invoices = [odooInvoice('vat', 'Submitted', 11)];
+      renderAs('Finance');
+      fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
+      fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: '010.001-26.12345678' } });
+      fireEvent.change(screen.getByLabelText('e-Faktur date'), { target: { value: '2026-09-28' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(h.setEfaktur).toHaveBeenCalledWith({
+        siId: 'vat', efakturNumber: '010.001-26.12345678', efakturDate: '2026-09-28',
+      }));
+    });
+
+    it('AC-OCI-081 an Odoo-tier issued invoice with no VAT offers no e-Faktur control', () => {
+      h.invoices = [{ ...odooInvoice('novat', 'Submitted', 0), project_subject_to_vat: false }];
+      renderAs('Finance');
+      fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+      expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+    });
+
+    it('AC-OCI-081 an unnumbered (draft) invoice offers no e-Faktur control', () => {
+      h.invoices = [odooInvoice('draft', 'Draft', 11)];
+      renderAs('Finance');
+      fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+      expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+    });
+
+    describe('AC-OCI-092 role gating, i18n parity and a11y', () => {
+      const ViewAs: React.FC<{ role: Role }> = ({ role }) => {
+        const { viewAs } = useEffectiveRole();
+        return <button onClick={() => viewAs(role)}>View as {role}</button>;
+      };
+      const menuLabels = () => {
+        const trigger = screen.queryByRole('button', { name: 'Row actions' });
+        if (!trigger) return []; // no row action is allowed for this role
+        fireEvent.click(trigger);
+        return screen.getAllByRole('menuitem').map((item) => item.textContent);
+      };
+
+      it.each([['Admin', true], ['Finance', true], ['Project Manager', false], ['Executive', false], ['Engineer', false]] as const)(
+        'AC-OCI-092 %s sees the Odoo-tier e-Faktur control: %s', (role, allowed) => {
+          h.invoices = [odooInvoice('vat', 'Submitted', 11)];
+          renderAs(role);
+          expect(menuLabels().includes('Record e-Faktur')).toBe(allowed);
+        });
+
+      it('AC-OCI-092 an impersonating Admin keeps the real role\'s controls, never the viewed role\'s', () => {
+        h.invoices = [odooInvoice('vat', 'Submitted', 11)];
+        render(
+          <FinanceI18nTestProvider>
+            <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+              <ImpersonationProvider realRole="Admin" demoEligibility="eligible">
+                <MemoryRouter><ToastProvider><ViewAs role="Engineer" /><SalesInvoices /></ToastProvider></MemoryRouter>
+              </ImpersonationProvider>
+            </QueryClientProvider>
+          </FinanceI18nTestProvider>,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
+        expect(menuLabels()).toContain('Record e-Faktur');
+      });
+
+      it('AC-OCI-092 every Odoo string in the finance namespace exists in en and id, translated', () => {
+        const flat = (o: Record<string, unknown>, prefix = ''): [string, unknown][] =>
+          Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? flat(v as Record<string, unknown>, `${prefix}${k}.`) : [[`${prefix}${k}`, v]]));
+        const enOdoo = flat(en).filter(([k]) => /odoo/i.test(k));
+        const idFlat = new Map(flat(id));
+        expect(enOdoo.length).toBeGreaterThan(0);
+        for (const [key, value] of enOdoo) {
+          expect(idFlat.has(key), `id is missing ${key}`).toBe(true);
+          expect(idFlat.get(key), `id ${key} is untranslated`).not.toBe(value);
+        }
+      });
+
+      it('AC-OCI-092 the Odoo-tier invoice list has no axe violations', async () => {
+        h.invoices = [odooInvoice('vat', 'Submitted', 11)];
+        const { container } = renderAs('Finance');
+        expect((await axe(container)).violations).toEqual([]);
+      });
+    });
   });
 });
