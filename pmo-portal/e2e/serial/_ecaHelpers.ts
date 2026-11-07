@@ -86,8 +86,16 @@ export async function createOrg(admin: SupabaseClient, suffix: string): Promise<
 
 /** Activate the org's ERPNext connection on `company`, employing the given process/revenue domains (the connect instant). */
 export async function activateBinding(admin: SupabaseClient, orgId: string, company: string, domains: string[]): Promise<void> {
+  // The credentials live in Vault under a per-org ref, as a real connect stores them (the setup checklist reads Vault only).
+  const { data: adminProfile } = await admin.from('profiles').select('id').eq('org_id', orgId).eq('role', 'Admin').single();
+  const secretRef = `eca-bench-${orgId}`;
+  const { error: vaultErr } = await admin.rpc('create_vault_secret_for_org', {
+    p_org_id: orgId, p_external_tier: 'erpnext', p_secret_value: `${BENCH_KEY}:${BENCH_SECRET}`, p_secret_name: secretRef,
+    p_actor_id: adminProfile?.id,
+  });
+  if (vaultErr) throw new Error(`seed Vault secret failed: ${vaultErr.message}`);
   const { error } = await admin.from('external_org_bindings').upsert({
-    org_id: orgId, external_tier: 'erpnext', site_url: SITE_URL, secret_ref: 'local-bench',
+    org_id: orgId, external_tier: 'erpnext', site_url: SITE_URL, secret_ref: secretRef,
     webhook_secret_ref: 'DEMO_ERP_WEBHOOK_SECRET', version_major: 15, config: { company },
     status: 'active', connected_at: new Date().toISOString(), activated_at: new Date().toISOString(),
   }, { onConflict: 'org_id,external_tier' });
@@ -120,7 +128,10 @@ export async function untilWithSweep(orgId: string, check: () => Promise<void>, 
     } catch (err) {
       if (Date.now() > deadline) throw err;
     }
-    await runFullSweep(FUNCTIONS_URL, orgId);
+    // A tick that overlaps another holds the org's lock and runs no pass: that is only a missed turn, so look again.
+    await runFullSweep(FUNCTIONS_URL, orgId).catch((err: Error) => {
+      if (!/overlapping tick/.test(err.message)) throw err;
+    });
   }
 }
 
@@ -155,3 +166,6 @@ export async function openMatchRecords(page: Page, org: EcaOrg): Promise<void> {
   }
   await button.click();
 }
+
+/** Parties the bench already holds before the test adds any: ERPNext suppliers/customers are site-wide, not per Company. */
+export const benchPartyCount = async (): Promise<number> => (await benchCount('Supplier')) + (await benchCount('Customer'));

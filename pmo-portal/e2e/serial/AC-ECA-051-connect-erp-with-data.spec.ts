@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import {
   ANON_KEY, AUTH_URL, SERVICE_KEY, FUNCTIONS_URL, READY, activateBinding, benchCount, benchCreate, benchDoc, benchList,
-  createBenchCompany, createOrg, dropOrg, loginAs, openMatchRecords, untilWithSweep,
+  benchPartyCount, createBenchCompany, createOrg, dropOrg, loginAs, openMatchRecords, untilWithSweep,
 } from './_ecaHelpers';
 
 if (FUNCTIONS_URL && !READY) throw new Error('AC-ECA-051: the served lane is up but its disposable ERP fixture env is incomplete: never a silent skip.');
@@ -30,6 +30,7 @@ test('AC-ECA-051 an Admin connects a live PMO org to an ERP that holds some of t
   const org = await createOrg(admin, suffix);
   try {
     const company = await createBenchCompany(suffix);
+    const partiesBefore = await benchPartyCount(); // the bench is shared: its suppliers/customers are not per Company
     const must = async (q: PromiseLike<{ error: { message: string } | null }>, what: string) => {
       const { error } = await q; if (error) throw new Error(`seed ${what} failed: ${error.message}`);
     };
@@ -78,12 +79,17 @@ test('AC-ECA-051 an Admin connects a live PMO org to an ERP that holds some of t
     const review = page.getByTestId('connect-proposal-review');
     const partyCard = review.getByTestId('connect-kind-party');
     await untilWithSweep(org.orgId, async () => {
-      await expect(partyCard).toContainText('4 in PMO, 3 in the connected system', { timeout: 3_000 }); // 3 vendors + 1 client; 2 suppliers + 1 customer
+      await expect(partyCard).toContainText(`4 in PMO, ${partiesBefore + 3} in the connected system: 3 are the same, 1 will be sent`, { timeout: 3_000 }); // 3 vendors + 1 client; 2 suppliers + 1 customer
     }, 120_000);
     await review.getByRole('button', { name: 'Accept all' }).first().click();
     await page.getByRole('dialog').getByRole('button', { name: 'Accept all' }).click();
+    // The sweep sends the masters; then the Admin re-reads both sides (the census is a snapshot) and sees the ERP side hold them. The bed's other parties are brought in too, so the PMO-side count is bed-dependent; links are asserted on the records below.
     await untilWithSweep(org.orgId, async () => {
-      await expect(partyCard).toContainText('4 vendors in PMO, 4 in the connected system, 4 are the same', { timeout: 3_000 });
+      expect(await benchPartyCount(), 'the sends reached the ERP').toBe(partiesBefore + 4);
+    }, 90_000);
+    await review.getByRole('button', { name: 'Check again' }).click();
+    await untilWithSweep(org.orgId, async () => {
+      await expect(partyCard).toContainText(`${partiesBefore + 4} in the connected system`, { timeout: 3_000 });
     }, 90_000);
 
     // -- When: both sides hold the invoice, Finance counts each once ----------------------------------------------------------
