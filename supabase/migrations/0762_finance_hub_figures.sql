@@ -203,7 +203,7 @@ begin
   -- currency (the same latest-candidate row the read names in its envelope).
   with readable as materialized (
     select s.id, s.snapshot_id, s.as_of, s.capture_completed_at, s.currency,
-           s.period_kind, s.current_start, s.payload
+           s.period_kind, s.current_start, s.payload, s.statement, s.view_kind
       from public.erp_financial_statement_availability a
       join public.erp_financial_statement_snapshot s on s.snapshot_id = a.snapshot_id and s.org_id = v_org
      where a.snapshot_id is not null and s.capture_started_at is not null
@@ -214,6 +214,7 @@ begin
   ), selected as (
     select payload from readable
      where period_kind = 'month' and current_start = v_period_start
+       and statement = 'profit_and_loss' and view_kind = 'account_breakdown'
      limit 1
   )
   select (select currency from generation_row), (select payload from selected)
@@ -222,12 +223,18 @@ begin
   -- the client's own netProfit extraction: the first row whose label matches /profit for the period/i
   -- after apostrophe removal, at the first visible non-total currency column.
   if v_payload is not null then
-    select c->>'fieldname' into v_col
-      from jsonb_array_elements(v_payload->'current'->'columns') c
-     where c->>'type' = 'currency' and c->>'fieldname' <> 'total' and coalesce(jsonb_typeof(c->'hidden') <> 'boolean' or (c->'hidden') <> 'true'::jsonb, true)
+    select c.value->>'fieldname' into v_col
+      from jsonb_array_elements(v_payload->'current'->'columns') with ordinality c(value, ord)
+     where c.value->>'type' = 'currency' and c.value->>'fieldname' <> 'total'
+       -- JS `!column.hidden`: absent, null, false, 0 and "" are visible
+       and coalesce(c.value->'hidden', 'null'::jsonb) in ('null'::jsonb, 'false'::jsonb, '0'::jsonb, '""'::jsonb)
+     order by c.ord
      limit 1;
     if v_col is not null then
-      select case when jsonb_typeof(cell) in ('number', 'string') then (cell #>> '{}')::numeric end
+      -- Number(value) is null for non-numeric text; a bare cast would abort the whole read
+      select case when jsonb_typeof(cell) = 'number'
+                    or (jsonb_typeof(cell) = 'string' and (cell #>> '{}') ~ '^\s*-?[0-9]+(\.[0-9]+)?\s*$')
+                  then btrim(cell #>> '{}')::numeric end
         into v_net
         from (
           select row_value -> v_col as cell

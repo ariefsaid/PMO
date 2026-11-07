@@ -9,7 +9,7 @@
 --       · XFIN b1 Finance, org B.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(26);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('07620000-0000-0000-0000-000000000001', 'Hub Figures Org', 'IDR', 'Asia/Jakarta'),
@@ -67,7 +67,7 @@ insert into project_progress_entries (org_id, project_id, month, pct_complete) v
 -- Org A statements: one binding, a company trial balance and a company P&L for 2026-01. The P&L's
 -- columns exercise the client's extraction: a 'total' column is skipped by name, a hidden currency
 -- column is skipped by flag, so the first visible one ('mine') owns the figure; the profit row is
--- matched case-insensitively BEFORE a later same-named row and before an account-only fallback row.
+-- matched case-insensitively (the trial balance carries its own profit row at 777.77: only the P&L counts) BEFORE a later same-named row and before an account-only fallback row.
 set local role service_role;
 insert into public.external_org_bindings
   (id, org_id, external_tier, site_url, secret_ref, version_major, config, activated_at,
@@ -83,11 +83,6 @@ insert into public.erp_financial_statement_snapshot
    source_report, report_version, filters, settings, payload, has_activity,
    display_precision, display_rounding_method, capture_started_at, capture_completed_at, raw_reports)
 values
-  ('07620000-0000-0000-0000-000000000001', 'Hub Figures Co', '07620000-0000-0000-0000-000000000101', '07620000-0000-0000-0000-000000000201',
-   'trial_balance', 'company', null, 'account_breakdown', 'month', '2026-01-01', '2026-01-31', '2025-12-01', '2025-12-31',
-   'IDR', '2026-02-01 00:00:00+00', 'Trial Balance', '16.33.0/16.31.0', '{"current":{},"prior":{}}', '{"precision":2}',
-   '{"current":{"reportName":"Trial Balance","company":"Hub Figures Co","side":"current","rows":[],"columns":[]},"prior":{"reportName":"Trial Balance","company":"Hub Figures Co","side":"prior","rows":[],"columns":[]}}',
-   true, 2, 'Commercial Rounding', '2026-01-31 23:59:00+00', '2026-02-01 00:00:00+00', '{"current":"{}","prior":"{}"}'),
   ('07620000-0000-0000-0000-000000000001', 'Hub Figures Co', '07620000-0000-0000-0000-000000000102', '07620000-0000-0000-0000-000000000201',
    'profit_and_loss', 'company', null, 'account_breakdown', 'month', '2026-01-01', '2026-01-31', '2025-12-01', '2025-12-31',
    'IDR', '2026-02-01 00:00:00+00', 'Profit and Loss', '16.33.0/16.31.0', '{"current":{},"prior":{}}', '{"precision":2}',
@@ -98,6 +93,11 @@ values
               {"account_name":"PROFIT FOR THE PERIOD (restated)","mine":"999.99","total":"999.99"},
               {"account_name":null,"account":"profit for the period (alt)","mine":"0.01","total":"0.01"}]},
     "prior":{"reportName":"Profit and Loss Statement","company":"Hub Figures Co","side":"prior","rows":[],"columns":[]}}',
+   true, 2, 'Commercial Rounding', '2026-01-31 23:59:00+00', '2026-02-01 00:00:00+00', '{"current":"{}","prior":"{}"}'),
+  ('07620000-0000-0000-0000-000000000001', 'Hub Figures Co', '07620000-0000-0000-0000-000000000101', '07620000-0000-0000-0000-000000000201',
+   'trial_balance', 'company', null, 'account_breakdown', 'month', '2026-01-01', '2026-01-31', '2025-12-01', '2025-12-31',
+   'IDR', '2026-02-01 00:00:00+00', 'Trial Balance', '16.33.0/16.31.0', '{"current":{},"prior":{}}', '{"precision":2}',
+   '{"current":{"reportName":"Trial Balance","company":"Hub Figures Co","side":"current","rows":[{"account_name":"Profit for the period","mine":"777.77"}],"columns":[{"fieldname":"mine","label":"This Period","type":"currency"}]},"prior":{"reportName":"Trial Balance","company":"Hub Figures Co","side":"prior","rows":[],"columns":[]}}',
    true, 2, 'Commercial Rounding', '2026-01-31 23:59:00+00', '2026-02-01 00:00:00+00', '{"current":"{}","prior":"{}"}');
 reset role;
 
@@ -277,6 +277,29 @@ set local request.jwt.claims = '{"sub":"07620000-0000-0000-0000-0000000000a3","r
 select lives_ok('select public.get_finance_hub_figures()',
   'AC-1988 an Executive reads the hub figures');                                                          -- 22
 
+-- ═══ only the company P&L counts: a later month with just a trial balance has no net profit ═══
+reset role;
+set local request.jwt.claims = '{}';
+set local role service_role;
+insert into public.erp_financial_statement_snapshot
+  (org_id, company, snapshot_id, source_generation, statement, scope_kind, project_id, view_kind,
+   period_kind, current_start, current_end, prior_start, prior_end, currency, as_of,
+   source_report, report_version, filters, settings, payload, has_activity,
+   display_precision, display_rounding_method, capture_started_at, capture_completed_at, raw_reports)
+values
+  ('07620000-0000-0000-0000-000000000001', 'Hub Figures Co', '07620000-0000-0000-0000-000000000102', '07620000-0000-0000-0000-000000000201',
+   'trial_balance', 'company', null, 'account_breakdown', 'month', '2026-02-01', '2026-02-28', '2026-01-01', '2026-01-31',
+   'IDR', '2026-02-01 00:00:00+00', 'Trial Balance', '16.33.0/16.31.0', '{"current":{},"prior":{}}', '{"precision":2}',
+   '{"current":{"rows":[{"account_name":"Profit for the period","mine":"777.77"}],"columns":[{"fieldname":"mine","type":"currency"}]},"prior":{"rows":[],"columns":[]}}',
+   true, 2, 'Commercial Rounding', '2026-01-31 23:59:00+00', '2026-02-01 00:00:00+00', '{"current":"{}","prior":"{}"}');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"07620000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.get_finance_hub_figures()->'statement'->>'period_start', '2026-02-01',
+  'AC-1988 the latest month period is picked over every statement kind, like the catalogue');                -- 23
+select is(public.get_finance_hub_figures()->'statement'->>'net_profit', null,
+  'AC-1988 a trial balance profit row is never reported as the company P&L net profit');                     -- 24
+
 -- ═══ an inconsistent snapshot set refuses BOTH reads with the same error (0321's contract) ═══
 reset role;
 set local request.jwt.claims = '{}';
@@ -295,9 +318,9 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07620000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok('select public.get_finance_hub_figures()', '22023',
-  'Invalid statement selection', 'AC-1988 an inconsistent snapshot set is refused like the full read');   -- 23
+  'Invalid statement selection', 'AC-1988 an inconsistent snapshot set is refused like the full read');   -- 25
 select throws_ok('select public.get_financial_statement(''month'',''2026-01-01'',''profit_and_loss'',null,''account_breakdown'',false)',
-  '22023', 'Invalid statement selection', 'AC-1988 the full read refuses the same inconsistent snapshot set'); -- 24
+  '22023', 'Invalid statement selection', 'AC-1988 the full read refuses the same inconsistent snapshot set'); -- 26
 
 reset role;
 
