@@ -19,13 +19,23 @@ export interface OdooOutcome {
 
 const IN_FLIGHT = new Set(['pending', 'committing', 'committed', 'quarantined']);
 
+export function matchRefusalReasonKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (/revision[-_]superseded/i.test(raw)) return 'revision_superseded';
+  if (/po_has_submitted_bill/i.test(raw)) return 'po_has_submitted_bill';
+  if (/revision_not_issued/i.test(raw)) return 'revision_not_issued';
+  if (/po_not_found/i.test(raw)) return 'po_not_found';
+  if (/below-received/i.test(raw)) return 'below-received';
+  return null;
+}
+
 export function odooOutcome(i: OdooOutcomeInput): OdooOutcome | null {
   const sent = i.outboxUpdatedAt ?? null;
   // Whatever PMO has sent and not yet seen settled comes first: it is what a person must act on.
-  if (i.outboxState === 'held') return { cls: 'held', asOf: sent, reason: null };
+  if (i.outboxState === 'held') return { cls: 'held', asOf: sent, reason: i.lastError ?? null };
   if (i.outboxState && IN_FLIGHT.has(i.outboxState)) return { cls: 'pending', asOf: sent, reason: null };
   if (i.outboxState === 'failed') {
-    return /rejected|refused/.test(i.lastError ?? '')
+    return /rejected|refused/.test(i.lastError ?? '') || matchRefusalReasonKey(i.lastError) !== null
       ? { cls: 'refused', asOf: sent, reason: i.lastError ?? null }
       : { cls: 'pending', asOf: sent, reason: null };
   }

@@ -3,7 +3,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill, type StatusVariant } from '@/src/components/ui';
 import { formatRelativeTime } from '@/src/lib/format';
-import type { OdooOutcome as Outcome, OdooOutcomeClass } from '@/src/lib/procurement/odooOutcome';
+import { matchRefusalReasonKey, type OdooOutcome as Outcome, type OdooOutcomeClass } from '@/src/lib/procurement/odooOutcome';
 
 const VARIANT: Record<OdooOutcomeClass, StatusVariant> = { confirmed: 'won', pending: 'progress', held: 'warn', 'needs-attention': 'warn', refused: 'lost' };
 const LABEL_KEY: Record<OdooOutcomeClass, string> = { confirmed: 'confirmed', pending: 'pending', held: 'held', 'needs-attention': 'attention', refused: 'refused' };
@@ -17,10 +17,19 @@ const NEXT: Partial<Record<OdooOutcomeClass, string>> = {
   refused: 'Check what you entered, then record it again.',
 };
 
+const DEFAULT_REASON: Record<string, string> = {
+  revision_superseded: 'A newer revision already exists for this purchase order.',
+  po_has_submitted_bill: 'This purchase order has a submitted bill in the ERP.',
+  revision_not_issued: 'This purchase order revision has not been issued yet.',
+  po_not_found: 'The purchase order could not be found.',
+  'below-received': 'Quantity cannot be reduced below the quantity already received or billed.',
+};
+
 /** `quiet`: a settled record in a dense table reads as one muted line, not a second pill (the attention classes always keep theirs). */
 export const OdooOutcome: React.FC<{ outcome: Outcome; quiet?: boolean }> = ({ outcome, quiet = false }) => {
   const { t } = useTranslation('procurement');
   const { cls, asOf } = outcome;
+  const reasonKey = matchRefusalReasonKey(outcome.reason);
   const approval = cls === 'pending' && outcome.reason === 'awaiting-approval';
   const next = approval ? 'An approver in Odoo has to approve the order. Nothing to do in PMO.' : NEXT[cls];
   const nextKey = approval ? 'approval' : LABEL_KEY[cls];
@@ -41,6 +50,11 @@ export const OdooOutcome: React.FC<{ outcome: Outcome; quiet?: boolean }> = ({ o
       {asOf && (
         <span className="text-[12px] text-muted-foreground">
           {sent ? t('odoo.outcome.sent', 'Sent {{age}}', { age: formatRelativeTime(asOf) }) : t('odoo.outcome.read', 'Read {{age}}', { age: formatRelativeTime(asOf) })}
+        </span>
+      )}
+      {reasonKey && (
+        <span data-testid="odoo-outcome-reason" className="text-[12px] text-foreground">
+          {t(`odoo.outcome.reason.${reasonKey}`, DEFAULT_REASON[reasonKey])}
         </span>
       )}
       {next && <span data-testid="odoo-outcome-next" className="text-[12px] text-muted-foreground">{t(`odoo.outcome.next.${nextKey}`, next)}</span>}

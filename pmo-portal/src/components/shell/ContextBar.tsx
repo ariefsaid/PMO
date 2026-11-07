@@ -17,12 +17,12 @@ interface ContextBarProps {
 /** Top context bar: hamburger (mobile), breadcrumb, ⌘K, notifications, and the single
  *  account menu (AC-ACCT-001). All personal/identity/theme/sign-out/legal controls live
  *  in the one responsive AccountMenu; no inline desktop cluster or phone-only menus. */
-export const ContextBar: React.FC<ContextBarProps> = ({
+export const ContextBar: React.FC<ContextBarProps> = React.memo(function ContextBar({
   breadcrumb,
   onOpenPalette,
   onToggleRail,
   beforeBell,
-}) => {
+}: ContextBarProps) {
   const { t } = useTranslation();
 
   return (
@@ -71,4 +71,4 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       <AccountMenu />
     </header>
   );
-};
+});

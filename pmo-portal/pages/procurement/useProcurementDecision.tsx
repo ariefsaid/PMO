@@ -12,7 +12,7 @@ import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import type { ProcurementStatus, ProcurementDetail, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { toastStateLabel } from '../../components/procurement';
 import { classifySubcontractBillError } from './subcontractBillError';
-import type { ActionVariant } from './blocks/mainAction';
+import type { ActionVariant } from '@/src/lib/procurement/mainAction';
 import type { VendorInvoiceCapture } from './ProcurementDecisionZone';
 
 
@@ -178,7 +178,7 @@ export function useProcurementDecision(
     }
     // O3 (AC-W3-O3): "Mark Vendor Invoiced" opens an inline capture so the invoice
     // reference + date + status are recorded BEFORE the transition fires (co-locate
-    // capture with the action, mirroring the PipelineLens Mark-won pattern).
+    // capture with the action, mirroring the DealBand Mark-won pattern).
     if (action.to === 'Vendor Invoiced') {
       setShowVICapture(true);
       return;

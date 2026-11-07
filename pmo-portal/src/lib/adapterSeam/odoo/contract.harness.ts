@@ -12,6 +12,7 @@ import { bindCall } from './client.ts';
 import { createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo, type FakeOdoo } from './fakeOdoo.ts';
 import { createOdooProcurementAdapter, readOrderLines, type PaymentFacts } from './procurementAdapter.ts';
+import { readActuals } from './contract.ledger.harness.ts';
 import { productionProcurement, productionPurchase } from './contract.production.harness.ts';
 import type { BillCtx, BillInput } from './purchase/billBody.ts';
 import { parseOdooExternalRef } from './purchase/anchors.ts';
@@ -207,6 +208,7 @@ export function createOdooRevenueHarness() {
 }
 
 const pending = (workflow: string, issue: number) => new Error(`odoo ${workflow} is pending (#${issue})`);
+const unavailable = (workflow: string) => new Error(`odoo ${workflow} is unavailable: Odoo Community has no budget object`);
 
 export function createOdooHarness(): ErpHarness {
   // The suite's opaque party ids → stable Odoo partner ids, so a repeat run sees the same partner.
@@ -269,7 +271,7 @@ export function createOdooHarness(): ErpHarness {
     },
 
     resolveProjectLink() { throw pending('project.match', 1504); },
-    pushBudget() { return Promise.reject(pending('budget.unowned-occupant', 1507)); },
+    pushBudget() { return Promise.reject(unavailable('budget.unowned-occupant')); },
     pushPurchase: productionPurchase,
     async pushPurchaseStep(step, beforeCutover) {
       const purchase = purchaseConnection();
@@ -335,19 +337,24 @@ export function createOdooHarness(): ErpHarness {
       if (!row) throw new Error('Odoo invoice did not produce a readable pair candidate');
       return { ...row };
     },
-    pushBudgetVersion() { return Promise.reject(pending('budget.push', 1507)); },
-    readActuals() { return Promise.reject(pending('actuals.read', 1507)); },
+    pushBudgetVersion() { return Promise.reject(unavailable('budget.push')); },
+    readActuals,
     classifyPayment(direction) {
       const fields = {
         received: ['inbound', 'customer'], paid: ['outbound', 'supplier'], unrecognised: ['transfer', 'customer'],
         blank: ['', ''], absent: [undefined, undefined],
       } as const;
       const [paymentType, partnerType] = fields[direction];
-      const row = REVENUE_FEED_SPECS['incoming-payment'].parse({
+      const raw = {
         id: 1, name: 'PAY/1', state: 'paid', partner_id: [41, 'Client'], payment_type: paymentType,
         partner_type: partnerType, amount: 100, date: '2026-11-01', currency_id: [1, 'IDR'], write_date: '2026-11-02 10:00:00',
-      });
-      return row ? { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' } : { kind: 'skipped' };
+      };
+      if (REVENUE_FEED_SPECS['incoming-payment'].parse(raw)) return { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' };
+      // The purchase feed selects vendor payments by its search filter, so a row belongs to it only when the filter holds.
+      const terms = PURCHASE_SPECS.payment.filter as Array<[string, string, unknown]>;
+      if (terms.some(([, op]) => op !== '=')) throw new Error('classifyPayment evaluates "=" terms only; extend it for the new operator');
+      const outbound = terms.every(([field, , value]) => (raw as Record<string, unknown>)[field] === value);
+      return outbound && PURCHASE_SPECS.payment.parse(raw) ? { kind: 'vendor-payment', domain: 'procurement', table: 'payments' } : { kind: 'skipped' };
     },
     async mirrorPurchases(docs) {
       const latest = new Map<string, { kind: 'purchase-order' | 'bill'; reference: string; total: string; modifiedAt: string }>();

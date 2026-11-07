@@ -7,8 +7,8 @@ import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
-import type { CategoryPosition } from '../useProjectPosition';
-import { buildBudgetSummaryRows, type BudgetSummaryRow } from './budgetModel';
+import type { CategoryPosition } from '@/src/hooks/useProjectPosition';
+import { buildBudgetSummaryRows, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 
 interface BudgetSummaryProps {
   project: ProjectWithRefs;

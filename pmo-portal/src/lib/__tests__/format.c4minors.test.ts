@@ -2,13 +2,13 @@
  * C4 — Format edge-case unit tests.
  *
  * 1. formatCompactCurrency: values near the $1M boundary must not produce "$1000.0K".
- * 2. Gantt reversed-range: buildGanttModel clamps bar.width to 0 when end < start.
+ * 2. Gantt reversed-range: the Gantt model never yields a negative-length bar when end < start.
  * (formatDocNumber removed, #1710 — AC-803 lives at pgTAP,
  * supabase/tests/procurement_doc_number_format.test.sql.)
  */
 import { describe, it, expect } from 'vitest';
 import { formatCompactCurrency } from '../format';
-import { buildGanttModel } from '../gantt/ganttLayout';
+import { buildReuiGanttModel } from '../gantt/reuiModel';
 import type { TaskWithRefs } from '../db/tasks';
 
 // ── 1. formatCompactCurrency $1M boundary ────────────────────────────────────
@@ -72,40 +72,19 @@ function makeTask(overrides: Partial<TaskWithRefs> & { id: string; name: string 
   };
 }
 
-describe('C4: Gantt reversed-range bar.width is clamped to 0', () => {
-  it('end before start → bar.width = 0 (not negative)', () => {
-    const task = makeTask({
-      id: 't1',
-      name: 'Reversed',
-      start_date: '2026-06-10',
-      end_date: '2026-06-05', // end < start
-    });
+const LABELS = { ungrouped: 'Ungrouped', milestoneTarget: 'Target date', dependsOn: () => '' };
 
-    const model = buildGanttModel([task], [], '2026-06-08', { scale: 'month', rowHeight: 40, laneHeaderHeight: 36 });
-    const lane = model.lanes.find((l) =>
-      l.bars.some((b) => b.id === 't1'),
-    );
-    const bar = lane?.bars.find((b) => b.id === 't1');
-
-    expect(bar).toBeDefined();
-    expect(bar!.width).toBe(0);
+describe('C4: Gantt reversed-range bar is clamped to zero length', () => {
+  it('end before start → zero-length bar (end never precedes start)', () => {
+    const task = makeTask({ id: 't1', name: 'Reversed', start_date: '2026-06-10', end_date: '2026-06-05' });
+    const ev = buildReuiGanttModel([task], [], LABELS).events.find((e) => e.id === 't1');
+    expect(ev).toBeDefined();
+    expect(ev!.end.getTime()).toBe(ev!.start.getTime());
   });
 
-  it('normal bar (start < end) has positive width', () => {
-    const task = makeTask({
-      id: 't2',
-      name: 'Normal',
-      start_date: '2026-06-01',
-      end_date: '2026-06-10',
-    });
-
-    const model = buildGanttModel([task], [], '2026-06-05', { scale: 'month', rowHeight: 40, laneHeaderHeight: 36 });
-    const lane = model.lanes.find((l) =>
-      l.bars.some((b) => b.id === 't2'),
-    );
-    const bar = lane?.bars.find((b) => b.id === 't2');
-
-    expect(bar).toBeDefined();
-    expect(bar!.width).toBeGreaterThan(0);
+  it('normal bar (start < end) has positive length', () => {
+    const task = makeTask({ id: 't2', name: 'Normal', start_date: '2026-06-01', end_date: '2026-06-10' });
+    const ev = buildReuiGanttModel([task], [], LABELS).events.find((e) => e.id === 't2');
+    expect(ev!.end.getTime()).toBeGreaterThan(ev!.start.getTime());
   });
 });

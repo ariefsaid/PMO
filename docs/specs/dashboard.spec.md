@@ -191,6 +191,12 @@ Single JSON object (snake_case keys; numbers as JSON numbers):
   "top_projects": [
     { "id": "...", "name": "Innovate Corp HQ Fit-Out", "client_name": "Innovate Corp",
       "contract_value": 5000000, "budget": 4700000, "spent": 2100000, "status": "Ongoing Project" }
+  ],
+  "attention_projects": [
+    { "id": "...", "name": "...", "client_name": "...", "contract_value": 200000, "budget": 100000,
+      "spent": 150000, "status": "Ongoing Project", "attention_signals": 3, "overdue_items": 4,
+      "overdue_tasks": 2, "overdue_milestones": 1, "overdue_invoices": 1, "waiting_approvals": 2,
+      "over_budget": true, "budget_used_ratio": 1.5 }
   ]
 }
 ```
@@ -200,6 +206,14 @@ Single JSON object (snake_case keys; numbers as JSON numbers):
   status='Ongoing Project' and budget>0 and spent/budget>0.9.
 - `projects_by_status` / `procurements_by_status` = `count(*) group by status` (only present statuses).
 - `top_projects` = top 5 by contract_value, client_name via `left join companies`.
+- `attention_projects` (#1418, DD-1418-ATTENTION) = the Delivery five ranked in the read model over the WHOLE active
+  population: more distinct signal kinds first (`attention_signals` 0–3), then more overdue items (`overdue_items` =
+  `overdue_tasks` + `overdue_milestones` + `overdue_invoices`), then more `waiting_approvals`, then a higher
+  `budget_used_ratio`, then contract value, then id (deterministic). Each signal reuses an existing definition
+  (agent-chat overdue tasks, the project-detail milestone rule, the AR due-date rule, the dashboard's at-risk basis
+  past 100% for `over_budget`, project-scoped Requested procurements + Submitted expense claims for approvals);
+  `budget_used_ratio` is null when the basis cannot be checked. The same project fields as `top_projects` plus the
+  signal fields; client_name via `left join companies`. The screen renders the returned order and never re-sorts.
 - All reads run under the caller's RLS (invoker) ⇒ org-scoped automatically.
 
 ## Seed enrichment required (verified `supabase/seed.sql`)

@@ -374,6 +374,7 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
     expect(card).not.toBeNull();
     expect(within(wonColumn).getByText(formatCurrency(400_000, 'USD'))).toBeVisible();
     await userEvent.click(card!);
+    await userEvent.click(await screen.findByRole('button', { name: 'Open deal' }));
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects/won-route-1'));
   });
 
@@ -492,6 +493,7 @@ describe('SalesPipeline drill-down (Model B canonical route)', () => {
   it('AC-IXD-PROJ-001 / AC-LRC-004: clicking a card navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
+    await userEvent.click(await screen.findByRole('button', { name: 'Open deal' }));
     const probe = screen.getByTestId('location-probe');
     await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
     const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
@@ -502,6 +504,7 @@ describe('SalesPipeline drill-down (Model B canonical route)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
+    await userEvent.click(await screen.findByRole('button', { name: 'Open deal' }));
     const probe = screen.getByTestId('location-probe');
     await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
     const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;

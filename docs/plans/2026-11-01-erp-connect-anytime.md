@@ -1810,5 +1810,5 @@ Verify (both): `scripts/with-erpnext-lock.sh scripts/e2e-local.sh AC-ECA-05` →
 | `cutover.purchase` | supported (ECA4) | O2 (#1505) |
 | `cutover.revenue` | pending #1609 (SQL guard, ECA4-T6) | O3 |
 | `invoice.pair-existing` | supported (ECA5-T5) | O3 (#1506) |
-| `budget.resolve-occupant` | supported (ECA6-T6) | O4 decides (#1507) |
+| `budget.resolve-occupant` | supported (ECA6-T6) | unavailable, no budget object (#1507, DD-ODA-6) |
 | the 10 shipped workflows | pending #1609 | per Odoo route items |

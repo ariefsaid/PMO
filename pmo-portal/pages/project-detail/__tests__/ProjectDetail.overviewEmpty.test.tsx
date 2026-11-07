@@ -64,7 +64,7 @@ vi.mock('@/src/hooks/useMilestones', () => ({
   useMilestoneMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, remove: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectAttention: () => ({ items: [], isPending: false, error: null, myVisibleTaskKeys: new Set() }),
   useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: false, canSeeActual: true, rows: [], unknown: 0 }),
@@ -84,8 +84,12 @@ const renderOverview = async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: bind the wait to the boundary ProjectSections actually renders (see #1198) — the
+  // retired project-detail-panel-loading id asserted nothing, so the findBy below could run
+  // while the panel still showed its loading skeleton. The Overview content is static, so
+  // the fallback clears with the record commit.
   const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   await within(panel).findByRole('heading', { level: 2, name: 'Phase timeline' });
   return panel;
 };

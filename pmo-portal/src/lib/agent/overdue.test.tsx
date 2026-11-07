@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildOverdueModelResult, loadOverdueFacts, renderOverdueMarkdown, runWhatsOverdue, type OverdueFacts } from '../../../../supabase/functions/agent-chat/overdue';
+import { OPEN_CLIENT_INVOICE_STATUSES } from '../revenue/clientInvoiceStatus';
 import { render } from '@testing-library/react';
 import { Markdown } from '../../components/panel/Markdown';
 import { fakeSupabase, opsOf, type FakeCall } from './testing/fakeSupabase';
@@ -115,16 +116,34 @@ describe('loadOverdueFacts — invoices (#787)', () => {
     tax_treatment: 'inclusive', project_id: P1, companies: { name: 'PT Client', erp_payment_terms_days: terms },
   });
 
-  it('AC-AIN-013 overdue = Unpaid and due before today, by deriveArDueDate', async () => {
+  it('AC-AIN-013 overdue = an OPEN client invoice (the shared #1457 set) due before today, by deriveArDueDate', async () => {
     const { client, calls } = fakeSupabase(world({
       sales_invoices: () => [inv('SI-1', '2026-09-01', 30), inv('SI-2', '2026-09-20', 30), inv('SI-3', '2026-08-20', null)],
     }));
     const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
-    expect(opsOf(calls, 'sales_invoices')[0]).toContainEqual(['eq', 'status', 'Unpaid']);
+    // #2015/#1457: the assistant reads the SAME open set the app's overdue count reads — no Unpaid-only copy.
+    expect(opsOf(calls, 'sales_invoices')[0]).toContainEqual(['in', 'status', [...OPEN_CLIENT_INVOICE_STATUSES]]);
     expect(facts.invoices?.map((i) => [i.siNumber, i.dueDate, i.daysOverdue])).toEqual([
       ['SI-3', '2026-09-19', 17],
       ['SI-1', '2026-10-01', 5],
     ]);
+  });
+
+  it('#2015 a Submitted invoice past due counts overdue; a Paid one does not — the wire status filter decides, as PostgREST would', async () => {
+    const rows = [
+      inv('SI-SUB', '2026-08-20', 30, { status: 'Submitted' }), // due 2026-09-19 — open and past due
+      inv('SI-PAID', '2026-08-20', 30, { status: 'Paid' }), // past due, but outside the open set
+    ];
+    const { client, calls } = fakeSupabase(world({
+      // honour the `.in('status', …)` filter the tool asked for, as PostgREST would
+      sales_invoices: (c) => rows.filter((r) => {
+        const statusIn = c.ops.find((o) => o[0] === 'in' && o[1] === 'status')?.[2] as string[] | undefined;
+        return !statusIn || statusIn.includes(String((r as Record<string, unknown>).status));
+      }),
+    }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(opsOf(calls, 'sales_invoices')[0]).toContainEqual(['in', 'status', [...OPEN_CLIENT_INVOICE_STATUSES]]);
+    expect(facts.invoices?.map((i) => i.siNumber)).toEqual(['SI-SUB']);
   });
 
   it('AC-ECA-030 an unpaid PMO copy paired to an ERP invoice is not reported overdue next to its ERP twin', async () => {

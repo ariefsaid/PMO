@@ -1,5 +1,7 @@
 -- 0493 — get_projects_money_collection: same output as the 0396 definition, each project's
 -- finances / mapped actuals read once. The 0396 body is copied below as a reference oracle (test-only).
+-- 0700 (#1739) moved the PMO basis from the whole ordered purchase total to spent + open commitment; the oracle
+-- carries the same basis so the equivalence still proves the single-read implementation, not the old figure.
 begin;
 create extension if not exists pgtap;
 select plan(21);
@@ -40,10 +42,12 @@ begin
                ))
                else jsonb_build_object(
                  'currency', (select p.currency from public.projects p where p.id = v_project_id),
-                 'total', (select amount::text from public.project_pmo_commitment_position(v_project_id)),
+                 'total', (select amount::text from public.project_pmo_spent_position(v_project_id)),
                  'as_of', null,
                  'excludes_restricted_rows', false,
-                 'complete', (select complete from public.project_pmo_commitment_position(v_project_id)),
+                 'complete', (select complete from public.project_pmo_spent_position(v_project_id)),
+                 'committed_total', (select amount::text from public.project_pmo_commitment_position(v_project_id)),
+                 'committed_complete', (select complete from public.project_pmo_commitment_position(v_project_id)),
                  'categories', '[]'::jsonb
                )
              end,
@@ -99,8 +103,11 @@ from generate_series(1,4) n;
 insert into public.projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,tax_rate,
                              tax_base_numerator,tax_base_denominator,subject_to_vat,customer_contract_ref)
 values ('04930000-0000-0000-0000-0000000000d9','04930000-0000-0000-0000-000000000002','Foreign project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'SINGLE-READ-FOREIGN');
-insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id,currency) values
- ('04930000-0000-0000-0000-0000000000f1','04930000-0000-0000-0000-000000000001','Committed PO','Ordered',45,'04930000-0000-0000-0000-0000000000d1','04930000-0000-0000-0000-0000000000a4','USD');
+insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id,currency,budget_category) values
+ ('04930000-0000-0000-0000-0000000000f1','04930000-0000-0000-0000-000000000001','Committed PO','Ordered',45,'04930000-0000-0000-0000-0000000000d1','04930000-0000-0000-0000-0000000000a4','USD','Labor');
+-- 0700: the PMO read is paid spend. A fully paid 45 on the committed PO keeps the PMO figure non-zero and known.
+insert into public.payments (id,org_id,procurement_id,status,date,amount,currency) values
+ ('04930000-0000-0000-0000-0000000000f9','04930000-0000-0000-0000-000000000001','04930000-0000-0000-0000-0000000000f1','Paid','2026-10-10',45,'USD');
 insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
 values ('04930000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active','04930000-0000-0000-0000-0000000000a1',now());
 set local request.jwt.claims='{}';
@@ -228,7 +235,7 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims='{"sub":"04930000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((select ledger_basis from public.get_projects_money_collection(array['04930000-0000-0000-0000-0000000000d1'::uuid])),'pmo','T12 disconnected org returns PMO basis');
-select is((select actuals->>'total' from public.get_projects_money_collection(array['04930000-0000-0000-0000-0000000000d1'::uuid])),'45.00','T12 PMO basis reads the committed procurement');
+select is((select actuals->>'total' from public.get_projects_money_collection(array['04930000-0000-0000-0000-0000000000d1'::uuid])),'45.00','T12 PMO basis reads the paid procurement spend');
 set local request.jwt.claims='{"sub":"04930000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok($$select * from public.get_projects_money_collection(array['04930000-0000-0000-0000-0000000000d1'::uuid])$$,'42501',null,
   'T12 Engineer still cannot read collection finances');
