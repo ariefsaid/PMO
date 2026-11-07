@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { IncidentRow, IncidentStatus, IncidentInput } from '@/src/lib/db/incidents';
 import { useAuth } from '@/src/auth/useAuth';
@@ -17,6 +17,30 @@ export function useIncidents(status?: IncidentStatus, opts?: { enabled?: boolean
     queryFn: () => repositories.incident.list(status ? { status } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
+}
+
+/**
+ * One server page of the Incidents register (#1991) plus the unfiltered total for "Showing x of y".
+ * Both keys sit under `['incidents', orgId, …]` so every incident mutation's invalidation refetches
+ * them. The previous page stays on screen while the next loads. The unfiltered count is only fetched
+ * while a filter is active; unfiltered, the page total IS the denominator.
+ */
+export function useIncidentsPage(args: { page: number; pageSize: number; status?: IncidentStatus; search?: string }) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const filtered = Boolean(args.status || args.search);
+  const list = useQuery({
+    queryKey: ['incidents', orgId, 'page', args.status ?? 'all', args.search ?? '', args.page, args.pageSize],
+    queryFn: () => repositories.incident.listPage(args),
+    enabled: Boolean(orgId),
+    placeholderData: keepPreviousData,
+  });
+  const all = useQuery({
+    queryKey: ['incidents', orgId, 'count'],
+    queryFn: () => repositories.incident.count(),
+    enabled: Boolean(orgId) && filtered,
+  });
+  return { list, allTotal: filtered ? all.data : list.data?.total };
 }
 
 /**
