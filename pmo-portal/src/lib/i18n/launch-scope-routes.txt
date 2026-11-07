@@ -71,6 +71,9 @@
 # ── The other half of the tasks launch item: the IC's own cross-project list, opened daily.
 /my-tasks                      pages/MyTasks.tsx
 
+# ── Calendar (#1982): tasks by due date + milestones by target date across projects.
+/calendar                      pages/Calendar.tsx src/components/calendar/WorkCalendar.tsx pages/project-detail/tabs/TaskCalendarView.tsx
+
 # ── Work orders (#566): the client's inbound PO and the DRAWDOWN it makes against the project's
 #    contract ceiling — the number the PM manages by day one (OD-CR-13). The tab component is
 #    already covered by the `tabs/*.tsx` glob above; the three files named here are its siblings

@@ -31,7 +31,7 @@ describe('redesigned mobile dashboard accessible names in Bahasa', () => {
   });
 
   it('formats the accessible spend with the configured number locale rather than the UI language', () => {
-    dashboardHarness.dashboard!.top_projects = [
+    dashboardHarness.dashboard!.attention_projects = [
       { id: 'locale', name: 'Locale', contract_value: 3_000, currency: 'USD', spent: 1_500, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
     ];
     setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });

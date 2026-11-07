@@ -107,9 +107,10 @@ const OutOfCreditsCard: React.FC = () => (
 
 // ── Main panel component ──────────────────────────────────────────────────────
 
-export const AssistantPanel: React.FC = () => {
+export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement | null> }> = ({ openerRef }) => {
   const {
-    consumePrefill,
+    pendingPrefill,
+    clearPrefill,
     open,
     transcript,
     phase,
@@ -130,25 +131,24 @@ export const AssistantPanel: React.FC = () => {
     lastProgressAt,
     hasPendingQuestion,
     openThread,
-    prefillVersion,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
   const panelRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
-  const [composerValue, setComposerValue] = React.useState('');
+  const [composerValue, setComposerValue] = React.useState(pendingPrefill ?? '');
   const [pendingAttachmentIds, setPendingAttachmentIds] = React.useState<string[]>([]);
   const titleId = useId();
   const attachments = useAgentAttachments(null);
 
   useEffect(() => {
     if (!open) return;
-    const prefill = consumePrefill();
-    if (!prefill) return;
-    setComposerValue(prefill);
+    // The draft is held in the runtime context, so it survives the lazy chunk mounting after openPanel(prefill).
+    if (!pendingPrefill) return;
+    setComposerValue(pendingPrefill);
     const textarea = panelRef.current?.querySelector<HTMLTextAreaElement>('textarea');
     textarea?.focus();
-  }, [open, prefillVersion, consumePrefill]);
+  }, [open, pendingPrefill]);
 
   // ── Drawer UX (Track D, §2.5) — resizable width + dock/overlay mode ─────
   // Desktop-only (D1/D3 guard via isDesktop below); per-device localStorage
@@ -302,7 +302,9 @@ export const AssistantPanel: React.FC = () => {
   useEffect(() => {
     if (open) {
       // Capture the trigger element before we move focus
-      triggerRef.current = document.activeElement as HTMLElement | null;
+      // A lazily mounted panel can land after focus left the opener; the slot remembers it.
+      const active = document.activeElement as HTMLElement | null;
+      triggerRef.current = active && active !== document.body ? active : (openerRef?.current ?? active);
       // Defer past the render commit so the DOM is committed (AppShell pattern)
       const t = setTimeout(() => {
         const root = panelRef.current;
@@ -327,7 +329,7 @@ export const AssistantPanel: React.FC = () => {
       triggerRef.current.focus();
       triggerRef.current = null;
     }
-  }, [open]);
+  }, [open, openerRef]);
 
   // ── Esc closes the panel (D-A2-4 — never cancels) ───────────────────────
   useEffect(() => {
@@ -380,12 +382,13 @@ export const AssistantPanel: React.FC = () => {
     const text = composerValue;
     const attachmentIds = pendingAttachmentIds;
     setComposerValue('');
+    clearPrefill();
     setPendingAttachmentIds([]);
     void send(text, {
       attachmentIds,
       threadId: attachments.threadId ?? undefined,
     });
-  }, [attachments.isUploading, attachments.threadId, composerValue, pendingAttachmentIds, phase, send]);
+  }, [attachments.isUploading, attachments.threadId, clearPrefill, composerValue, pendingAttachmentIds, phase, send]);
 
   const handleStop = useCallback(() => {
     void stop();

@@ -216,3 +216,10 @@ describe('#1606 sends file under the ERP\'s default non-group group, never a har
     expect(res.status).toBe(417);
   });
 });
+
+describe('#1692 which PMO field ERPNext matches its project code on', () => {
+  it('an ERPNext project is named by the client project code, so it matches PMO\'s `code`', () => {
+    const { client } = fakeErp({});
+    expect(createErpnextConnectAdapter(client, 'Test Co').projectCodeField).toBe('code');
+  });
+});

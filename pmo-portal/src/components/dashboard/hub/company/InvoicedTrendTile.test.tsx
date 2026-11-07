@@ -41,13 +41,14 @@ describe('AC-DTR-002 less than three months', () => {
 });
 
 describe('AC-DTR-003 readable without sight or a pointer', () => {
-  it('states first, last and direction as text; the drawing itself is hidden from assistive tech', () => {
+  it('states first, last and direction as text; the drawing has a concise name', () => {
     const { container } = render(<InvoicedTrendTile trend={trendOf([100_000_000_00, 200_000_000_00, 450_000_000_00])} />);
     const summary = screen.getByTestId('invoiced-trend-summary');
     expect(summary).toHaveTextContent('Latest month, Mar 2026: IDR 450M');
     expect(summary).toHaveTextContent('from Jan 2026: IDR 100M');
     expect(summary).toHaveTextContent(/rising/i);
-    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByRole('img', { name: 'Invoiced trend, Jan 2026 to Mar 2026: Rising' })).toBeInTheDocument();
+    expect(container.querySelector('svg')).not.toHaveAttribute('focusable', 'true');
   });
 
   it('labels the first and last points on the chart with month (4-digit year) and amount', () => {

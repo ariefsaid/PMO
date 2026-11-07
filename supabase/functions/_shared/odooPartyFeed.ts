@@ -10,6 +10,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { proposeMatches, reviewReasonText } from '../../../pmo-portal/src/lib/adapterSeam/connect/match.ts';
 import type { NormalisedMaster, PmoMaster } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
+import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { odooOwnPartnerIds } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import type { DirectoryRow } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
 import { normaliseParty } from '../../../pmo-portal/src/lib/adapterSeam/odoo/normalise.ts';
 import { findCompanyCandidates } from './companyCandidates.ts';
@@ -33,12 +35,6 @@ const rawPartner = (r: DirectoryRow) => ({
 
 const accepted = async (sc: SupabaseClient, orgId: string) =>
   (await check(sc.from('erp_connect_census').select('accepted_at').eq('org_id', orgId).eq('external_tier', TIER).eq('kind', 'party').maybeSingle()) as { accepted_at: string | null } | null)?.accepted_at != null;
-
-/** A company's partner carries the company's name, and the mirror holds the database's companies: PMO's own organisation is never brought in. */
-async function ownNames(sc: SupabaseClient, orgId: string): Promise<Set<string>> {
-  const rows = await check(sc.from('external_master_records').select('name').eq('org_id', orgId).eq('external_tier', TIER).eq('kind', 'company')) as Array<{ name: string }>;
-  return new Set(rows.map((r) => r.name.toLowerCase()));
-}
 
 async function withoutRef(sc: SupabaseClient, orgId: string, parties: NormalisedMaster[]): Promise<NormalisedMaster[]> {
   const known = new Set<string>();
@@ -73,12 +69,16 @@ async function review(sc: SupabaseClient, orgId: string, pmoIds: string[], exter
   if (error) console.error('record_connect_review failed', error.code ?? 'unknown');
 }
 
-export async function matchNewPartners(sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt = Infinity): Promise<void> {
+export async function matchNewPartners(sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt = Infinity, call: OdooCall): Promise<void> {
   try {
-    const mine = rows.flatMap((r) => normaliseParty(rawPartner(r))).filter((p) => p.role !== undefined && p.active);
+    const mine = rows.flatMap((r) => normaliseParty(rawPartner(r)).map((p) => ({ partnerId: Number(r.external_id), p })))
+      .filter((x) => x.p.role !== undefined && x.p.active);
     if (mine.length === 0 || !(await accepted(sc, orgId))) return;
-    const own = await ownNames(sc, orgId);
-    const fresh = await withoutRef(sc, orgId, mine.filter((p) => !own.has(p.name.toLowerCase())));
+    // PMO's own organisation is told apart by its partner id, exactly as the setup pass decides (#1690, FR-ODC-052) —
+    // never by the name, which a real vendor may share. A failure to read it skips the tick's matching (fail closed);
+    // the next overlap read repeats the decision.
+    const own = await odooOwnPartnerIds(call);
+    const fresh = await withoutRef(sc, orgId, mine.filter((x) => !own.has(x.partnerId)).map((x) => x.p));
     const byId = new Map(fresh.map((p) => [p.externalId, p]));
     const snapshot = (id: string) => { const p = byId.get(id)!; return { name: p.name, taxId: p.taxId ?? null, code: p.code ?? null, role: p.role }; };
     // The database work is bounded by the tick's deadline, checked between chunks of CHUNK partners. A partner left over keeps no

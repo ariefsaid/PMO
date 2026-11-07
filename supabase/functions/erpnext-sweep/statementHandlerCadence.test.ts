@@ -401,6 +401,7 @@ const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/expense_posting_queue',
   '/rest/v1/rpc/enqueue_new_item_sends', // ECA3-T12 pass (8b): one DB call per tick, before the lease; it reads PMO tables only
   '/rest/v1/rpc/claim_connect_sends', // ECA3-T7 pass (8b): one DB lease per tick; the ERP is reached only when a send is waiting
+  '/rest/v1/rpc/connect_open_purchase_statuses', // #1736: the one definition of an open purchase, read once per tick for a waiting item send; a DB read, never ERP
   '/rest/v1/rpc/service_resolved_org_features', // 0534: the per-org entitlement read the money passes need to hold a switched-off module — a DB read, never ERP/hourly work
 ];
 
@@ -999,5 +1000,58 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
       `publication readiness failure was not logged: ${JSON.stringify(result.errors)}`);
     assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
       'unknown readiness did not fail toward running the whole cycle');
+  });
+});
+
+// #1495: the seeded sample org keeps ids like 00000000-0000-0000-0000-000000000001, which carry no
+// RFC-4122 version/variant nibbles. The shipped binding guard must accept any canonical 8-4-4-4-12
+// hex UUID (identity is the database's job) while still refusing non-UUID strings, exactly like the
+// refreshStatementReportBatch input guard it mirrors.
+Deno.test('AC-1495: the shipped binding guard accepts canonical seed-style ids and still refuses non-UUID org ids', async (t) => {
+  const SEED_ORG = '00000000-0000-0000-0000-000000000001';
+  const SEED_BINDING = '00000000-0000-0000-0000-000000000002';
+
+  await t.step('a seed-style org and binding hold the first-publication cadence and reach the native collector', async () => {
+    const seedBinding = binding(SEED_ORG, SEED_BINDING, 'PMO Smoke Co', undefined, {});
+    const published: PublishedContext[] = [];
+    const result = await invokeHandler('2026-10-19T07:35:00.000Z', [seedBinding], published, {
+      lastStatementPassAt: null,
+      // Midhour first-publication cadence: a recent matching batch keeps an unpublished binding on full.
+      statementBatches: [statementBatchFor(seedBinding, '2026-10-19T07:10:00.000Z')],
+    });
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
+      `a seed-style binding was dropped from native eligibility: ${result.status} ${JSON.stringify(result.body)}`);
+    const claim = result.requests.find(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock'));
+    assert(claim && (claim.body as Record<string, unknown> | null)?.p_org_id === SEED_ORG,
+      `the seed org never claimed the sweep lock: ${JSON.stringify(result.requests.map(({ path }) => path))}`);
+    const claimHolder = (claim!.body as Record<string, unknown> | null)?.p_holder;
+    const admission = result.requests.find(({ path }) => path.startsWith('/rest/v1/rpc/mark_erp_statement_report_refresh_attempt'));
+    assert(admission && (admission.body as Record<string, unknown> | null)?.p_org_id === SEED_ORG
+      && (admission.body as Record<string, unknown> | null)?.p_holder === claimHolder,
+      'the seed org never reached the fenced native collector admission');
+    assert(published.some((row) => row.org_id === SEED_ORG && row.context.binding !== undefined),
+      'the seed org did not publish its first native generation');
+    assert(!result.errors.some((message) => message.includes('native-statement:native-context-unavailable')),
+      `the binding guard refused a canonical seed-style id: ${JSON.stringify(result.errors)}`);
+  });
+
+  await t.step('a malformed non-UUID org id stays outside native collection', async () => {
+    const malformed = binding('not-a-uuid', SEED_BINDING, 'Malformed Co', undefined, {});
+    const published: PublishedContext[] = [];
+    const result = await invokeHandler('2026-10-19T07:35:00.000Z', [malformed], published, { lastStatementPassAt: null });
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only',
+      `a malformed org id was treated as native-eligible: ${result.status} ${JSON.stringify(result.body)}`);
+    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/mark_erp_statement_report_refresh_attempt')),
+      'a malformed org id reached the native collector');
+    assert(published.length === 0, 'a malformed org id published a native generation');
+
+    // Forced full mode pins the shipped refresh guard itself: the pass runs, but the malformed id is
+    // refused before the fenced collector admission.
+    const forced = await invokeHandler('2026-10-19T07:35:00.000Z', [malformed], [],
+      { body: '{"mode":"full"}', lastStatementPassAt: null });
+    assert(forced.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
+      'the forced full-mode run never entered the cycle');
+    assert(!forced.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/mark_erp_statement_report_refresh_attempt')),
+      'the shipped refresh guard admitted a malformed org id');
   });
 });

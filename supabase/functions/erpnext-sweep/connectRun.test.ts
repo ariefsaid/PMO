@@ -6,6 +6,7 @@ import { afterAll, describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { advanceConnectRuns, CONNECT_CALLS_PER_TICK } from './connectRun.ts';
+import { advanceConnectRuns as advanceForTier } from '../_shared/connectRun.ts';
 import {
   countResponse, installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute,
 } from '../_shared/testing/edgeTestKit.ts';
@@ -27,6 +28,8 @@ interface RunRow { id: string; state: string; cursor: Record<string, string | nu
 const NEW_RUN = (over: Partial<RunRow> = {}): RunRow => ({ id: 'run-a', state: 'staging', cursor: {}, proposed_kinds: [], started_at: new Date().toISOString(), ...over });
 const DONE = { party: null, item: null, project: null, employee: null, account: null };
 
+type Tier = 'erpnext' | 'odoo';
+
 interface Opts {
   run?: RunRow | null;
   suppliers?: number;
@@ -34,13 +37,18 @@ interface Opts {
   staged?: Array<Record<string, unknown>>;
   fail?: Response;
   rpc?: Record<string, (call: FetchCall) => Response>;
+  tier?: Tier;
 }
 
 function routes(o: Opts): MockRoute[] {
   const rpc = (fn: string, fallback: unknown = null) => supabaseRpc(fn, o.rpc?.[fn] ?? (() => jsonResponse(fallback)));
+  const odoo = o.tier === 'odoo';
   return [
-    supabaseSelect('external_org_bindings', () => one({ site_url: `https://${ERP}`, secret_ref: 'ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { company: 'Example Co' } })),
-    supabaseRpc('read_vault_secret', () => jsonResponse('key:secret')),
+    supabaseSelect('external_org_bindings', () => one(odoo
+      ? { id: 'binding-a', site_url: 'https://odoo.example.test', secret_ref: 'ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: 'db1', odoo_company_id: 1, analytic_plan_id: 7 } }
+      : { site_url: `https://${ERP}`, secret_ref: 'ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { company: 'Example Co' } })),
+    // an Odoo key is one token: a `a:b` pair under its reference is another tier's secret and is refused
+    supabaseRpc('read_vault_secret', () => jsonResponse(odoo ? 'odoo-token' : 'key:secret')),
     supabaseSelect('erp_connect_runs', () => (o.run === null ? none() : one(o.run ?? NEW_RUN()))),
     // the keyset-paged PMO and staged reads: a page under 1,000 rows ends the walk
     supabaseSelect('companies', (c) => {
@@ -49,6 +57,7 @@ function routes(o: Opts): MockRoute[] {
       return jsonResponse(all.filter((r) => r.id > after).slice(0, 1000));
     }),
     ...['projects', 'profiles', 'procurement_items'].map((t) => supabaseSelect(t, () => jsonResponse([]))),
+    rpc('connect_open_purchase_statuses', ['Approved', 'Vendor Quoted', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced']),
     { label: 'categories-in-use', method: 'HEAD', pathname: '/rest/v1/budget_line_items', response: () => countResponse(0) },
     supabaseSelect('erp_connect_staged', () => jsonResponse((o.staged ?? []).map((row) => ({ external_id: String(row.externalId), row })))),
     {
@@ -112,6 +121,20 @@ describe('ECA2-T13 advanceConnectRuns', () => {
   it('the fifth kind reports ready', async () => {
     const { result } = await tick({ run: NEW_RUN({ state: 'proposing', cursor: DONE, proposed_kinds: ['party', 'item', 'project', 'employee'] }) });
     assertEquals(result, { state: 'ready' });
+  });
+
+  it('#1692 the project matcher reads the PMO field each tier\'s own adapter declares, with no table above it', async () => {
+    // ERPNext's project name is the client project code; an Odoo cost account's code is the PMO project number.
+    const declared: Array<[Tier, string]> = [['erpnext', 'code'], ['odoo', 'pmo_project_number']];
+    for (const [tier, field] of declared) {
+      const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { result, calls } = await withFetchMock(routes({ tier, run: NEW_RUN({ state: 'proposing', cursor: DONE, proposed_kinds: ['party', 'item'] }) }), async ({ calls }) => ({
+        result: await advanceForTier(sc, org, tier), calls,
+      }));
+      assertEquals(result, { state: 'more' }, tier);
+      const read = calls.find((c) => c.url.pathname === '/rest/v1/projects')!;
+      assertEquals([read.url.searchParams.get('org_id'), (read.url.searchParams.get('select') ?? '').replace(/\s+/g, '')], [`eq.${ORG}`, `id,name,${field}`], tier);
+    }
   });
 
   it('NFR-ECA-005 2,500 outcomes for one kind reach replace_connect_proposals as three chunks, only the last marking the kind proposed', async () => {
