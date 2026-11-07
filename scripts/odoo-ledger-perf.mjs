@@ -21,7 +21,7 @@ try {
     insert into organizations (id, name) values ('${ORG}', 'Perf');
     insert into auth.users (id, email) values ('${USER}', 'perf-fin@example.test');
     insert into profiles (id, org_id, full_name, email, role, status) values ('${USER}', '${ORG}', 'Perf Finance', 'perf-fin@example.test', 'Finance', 'active');
-    insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values ('${ORG}', 'odoo', 'https://odoo.example.test', 'perf', 'active', '{}', now());
+    insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values ('${ORG}', 'odoo', 'https://odoo.example.test', 'perf', 'active', '{"ledger_basis_at":"2026-11-05T00:00:00Z"}', now());
     insert into external_master_records (org_id, external_tier, kind, external_id, code, name, attrs, source_write_date)
       select '${ORG}', 'odoo', 'account', g::text, (1000 + g * 10)::text, 'Account ' || g,
              jsonb_build_object('account_type', case g % 5 when 0 then 'asset_cash' when 1 then 'liability_payable' when 2 then 'equity' when 3 then 'income' else 'expense' end),
