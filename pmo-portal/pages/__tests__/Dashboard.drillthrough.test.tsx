@@ -135,7 +135,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
   // #1461: each href opens exactly the record set its figure sums/counts.
   // - Contract on hand / Margin on billed work sum the ON-HAND projects (Won-Pending-KoM,
   //   Ongoing, On Hold, Close Out) → the `on-hand` list filter, not the narrower Ongoing tab.
-  // - Pipeline is the open-stage set → /sales (the open pipeline).
+  // - Pipeline is the open-stage set → /sales (the open pipeline board).
   // - Overdue counts submitted/unpaid invoices past due → the receivables overdue filter.
   // - Supplier payables count Vendor Invoiced procurements → the exact status filter.
   // - Still to invoice counts work orders, which have no org-wide list — /projects stays (deviation).

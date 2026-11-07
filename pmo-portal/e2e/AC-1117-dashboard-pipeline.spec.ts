@@ -98,8 +98,8 @@ test('AC-1461: overdue and supplier-payable figures drill to lists whose count e
   // ── Owed by clients · overdue → the receivables overdue filter ──────────────
   const overdueTile = companyFigures.getByText('Owed by clients · overdue', { exact: true }).locator('xpath=../..');
   await expect(overdueTile).toBeVisible();
-  const overdueFigure = (await overdueTile.locator('div.tabular > span[aria-hidden="true"]').textContent())?.trim() ?? '';
-  await overdueTile.getByRole('link').click();
+  const overdueFigure = (await overdueTile.getByText(/^\d+$/).textContent())?.trim() ?? '';
+  await companyFigures.getByRole('link', { name: 'Open related records for Owed by clients · overdue.', exact: true }).click();
   await expect(page).toHaveURL(/\/finance\/receivables\?overdue=true/);
   expect(await countFromBadge()).toBe(overdueFigure);
 
@@ -110,7 +110,7 @@ test('AC-1461: overdue and supplier-payable figures drill to lists whose count e
   const supplierSubline = await supplierTile.getByText(/supplier invoices? awaiting payment/).textContent();
   const supplierFigure = supplierSubline?.match(/(\d+)/)?.[1] ?? '';
   expect(supplierFigure, 'seed has awaiting-payment supplier invoices').not.toBe('');
-  await supplierTile.getByRole('link').click();
+  await companyFigures.getByRole('link', { name: 'Open related records for Owed to suppliers.', exact: true }).click();
   await expect(page).toHaveURL(/[?&]status=Vendor\+Invoiced/);
   expect(await countFromBadge()).toBe(supplierFigure);
 
@@ -118,6 +118,6 @@ test('AC-1461: overdue and supplier-payable figures drill to lists whose count e
   await page.goto('/');
   const contractTile = companyFigures.getByText('Contract on hand', { exact: true }).locator('xpath=../..');
   await expect(contractTile).toBeVisible();
-  await contractTile.getByRole('link').click();
+  await companyFigures.getByRole('link', { name: 'Open related records for Contract on hand.', exact: true }).click();
   await expect(page).toHaveURL(/[?&]filter=on-hand/);
 });
