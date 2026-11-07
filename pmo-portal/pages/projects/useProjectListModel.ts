@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import type { TFunction } from 'i18next';
 import type { Role } from '@/src/auth/AuthContext';
 import { useProjects, useClientCompanies, useProjectManagers, useProjectsMilestoneDates } from '@/src/hooks/useProjects';
@@ -10,7 +10,7 @@ import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorking
 import { readProjectView, writeProjectView, type ProjectView } from '@/src/hooks/useProjectView';
 import { currentMonthToken, parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
-import { activeClassificationCount, matchesProjectClassification } from '@/src/lib/projectClassification';
+import { activeBuilderCount, matchesProjectBuilder } from '@/src/lib/projects/projectFilterQuery';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
 import { deriveBudgetConsumption, isActualComplete } from '@/src/lib/projectFinances';
@@ -50,7 +50,7 @@ export function projectDecidedWithinMonthWindow(
   return decidedAt >= `${from}-01T00:00:00` && decidedAt < exclusiveEnd;
 }
 
-export function useProjectListModel(effectiveRole: Role | null, currentUser: { id: string } | null, t: TFunction) {
+export function useProjectListModel(effectiveRole: Role | null, currentUser: { id: string } | null, t: TFunction, canViewMoney = false) {
   const isEngineer = effectiveRole === 'Engineer';
   // B-11 fix: an IC's "My Projects" means projects they are ASSIGNED to (have a task on),
   // NOT projects they manage (an Engineer manages none → the old PM-scoped filter was always
@@ -176,18 +176,9 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
             return true;
         }
       })
-      .filter((p) => matchesProjectClassification(p, workingSet))
-      .filter((p) => filterClient === 'All' || p.client_id === filterClient)
-      // #758: end-customer filter mirrors the client filter on the nullable end_client_id.
-      .filter((p) => filterEndCustomer === 'All' || p.end_client_id === filterEndCustomer)
-      // FR-PRJUX-005: three explicit PM branches — All bypasses; the sentinel matches
-      // ONLY `project_manager_id == null`; a real ID matches equality. An unnamed-but-
-      // ASSIGNED profile therefore never reads as unassigned.
-      .filter((p) => {
-        if (filterPM === 'All') return true;
-        if (filterPM === UNASSIGNED_PROJECT_MANAGER) return p.project_manager_id == null;
-        return p.project_manager_id === filterPM;
-      })
+      // #1983: customer, end customer, project manager, status, dates, contract value and the
+      // classification fields all come from the filter builder's URL keys (projectFilterQuery).
+      .filter((p) => matchesProjectBuilder(p, workingSet, canViewMoney))
       .filter(
         (p) =>
           !q ||
@@ -204,7 +195,7 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
     return rows.sort((a, b) => (isAtRiskActual(a) ? 0 : 1) - (isAtRiskActual(b) ? 0 : 1));
-  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual]);
+  }, [all, workingSet, filter, search, canViewMoney, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -299,12 +290,9 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     [projectManagers, t],
   );
 
-  const [classificationResetToken, setClassificationResetToken] = useState(0);
-  const classificationCount = activeClassificationCount(workingSet);
-  const filtersActive =
-    classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
-  const hasNonDefaultFilter =
-    classificationCount > 0 || filter !== roleDefault || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
+  const builderCount = activeBuilderCount(workingSet, canViewMoney);
+  const filtersActive = builderCount > 0 || filter !== 'All' || search.trim() !== '';
+  const hasNonDefaultFilter = builderCount > 0 || filter !== roleDefault || search.trim() !== '';
 
   // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
   // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
@@ -312,7 +300,6 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
   // controls move together and no second event drops the first call. Keeps the view.
   const clearFilters = () => {
     setSearch('');
-    setClassificationResetToken((n) => n + 1);
     setWorkingSet(() =>
       parseListWorkingSet('projects', '', {
         projectsDefaultFilter: roleDefault,
@@ -326,6 +313,5 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     filter, filterClient, filterEndCustomer, filterPM, view, onViewChange, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
     isAtRiskActual, milestoneDates, datesPending, datesError, refetchDates, filterLabels, customerFilterOptions,
-    endCustomerFilterOptions, pmFilterOptions, importDescriptor, budgetImportDescriptor, classificationResetToken,
-    classificationCount, filtersActive, hasNonDefaultFilter, clearFilters };
+    endCustomerFilterOptions, pmFilterOptions, importDescriptor, budgetImportDescriptor, builderCount, filtersActive, hasNonDefaultFilter, clearFilters };
 }

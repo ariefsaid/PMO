@@ -18,6 +18,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { addBuilderFilter } from './projectFilterBuilder.helpers';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const projectsState = {
@@ -112,12 +113,6 @@ const renderPage = () =>
     </MemoryRouter>,
   );
 
-const pmSelect = () =>
-  screen.getByRole('combobox', { name: /filter by project manager/i }) as HTMLSelectElement;
-const revealManagerFilter = async () => {
-  await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
-};
-
 describe('AC-PRJUX-004 — blank-name manager profiles get a readable label and filter by ID', () => {
   beforeEach(() => {
     projectsState.data = seed;
@@ -127,18 +122,17 @@ describe('AC-PRJUX-004 — blank-name manager profiles get a readable label and 
 
   it('AC-PRJUX-004: the PM option for a blank-name profile has a nonempty, readable label', async () => {
     renderPage();
-    await revealManagerFilter();
-    const select = pmSelect();
-    const blankOption = Array.from(select.options).find((o) => o.value === 'b1a2c3d4-1111-4eee-8000-000000000001');
-    expect(blankOption).toBeTruthy();
-    expect(blankOption!.textContent!.trim().length).toBeGreaterThan(0);
-    expect(blankOption!.textContent).toContain('Unnamed user');
+    await userEvent.click(screen.getByRole('button', { name: /^add filter$/i }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Project manager' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'is' }));
+    const blankOption = await screen.findByRole('option', { name: /unnamed user/i });
+    expect(blankOption.textContent!.trim().length).toBeGreaterThan(0);
+    expect(blankOption.textContent).toContain('Unnamed user');
   });
 
   it('AC-PRJUX-004: selecting the blank-name profile filters by its real ID (only its project remains)', async () => {
     renderPage();
-    await revealManagerFilter();
-    await userEvent.selectOptions(pmSelect(), 'b1a2c3d4-1111-4eee-8000-000000000001');
+    await addBuilderFilter(userEvent.setup(), 'Project manager', { value: /unnamed user/i });
     expect(screen.getByText('Blank PM Project')).toBeInTheDocument();
     expect(screen.queryByText('Named Manager Project')).not.toBeInTheDocument();
     expect(screen.queryByText('No Manager Project')).not.toBeInTheDocument();
@@ -154,11 +148,7 @@ describe('AC-PRJUX-005 — Unassigned is distinct from an anonymous assigned pro
 
   it('AC-PRJUX-005: the Unassigned option exists and selecting it shows only null-manager projects', async () => {
     renderPage();
-    await revealManagerFilter();
-    const select = pmSelect();
-    const unassignedOption = Array.from(select.options).find((o) => o.textContent === 'Unassigned');
-    expect(unassignedOption).toBeTruthy();
-    await userEvent.selectOptions(select, unassignedOption!.value);
+    await addBuilderFilter(userEvent.setup(), 'Project manager', { value: 'Unassigned' });
     expect(screen.getByText('No Manager Project')).toBeInTheDocument();
     expect(screen.queryByText('Blank PM Project')).not.toBeInTheDocument();
     expect(screen.queryByText('Named Manager Project')).not.toBeInTheDocument();

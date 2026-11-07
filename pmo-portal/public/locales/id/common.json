@@ -49,7 +49,6 @@
     "m365ApprovalDescription": "Organisasi Anda mungkin perlu menyetujui aplikasi PMO Portal sebelum anggota tim menghubungkan Microsoft 365. Mulai langkah ini hanya jika Microsoft meminta persetujuan organisasi; persetujuan yang sudah ada tidak perlu diulang."
   },
   "uxs14": {
-    "filters": "Filter",
     "moreActions": "Tindakan lainnya",
     "projectReferences": "Referensi proyek lainnya",
     "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}",
@@ -3012,12 +3011,9 @@
       "ariaLabel": "Filter status",
       "atRisk": "Berisiko",
       "completed": "Selesai",
-      "customerLabel": "Filter berdasarkan klien",
       "myProjects": "Proyek Saya",
       "ongoing": "Berjalan",
-      "pmLabel": "Filter berdasarkan manajer proyek",
-      "allEndCustomers": "Semua pelanggan akhir",
-      "endCustomerLabel": "Saring berdasarkan pelanggan akhir"
+      "allEndCustomers": "Semua pelanggan akhir"
     },
     "importBudgets": "Impor anggaran",
     "noPhasesYet": "Belum ada fase",
@@ -3059,17 +3055,10 @@
     "export": "Ekspor",
     "import": "Impor",
     "mobile": {
-      "activeCount": "Filter aktif",
-      "customer": "Klien",
-      "manager": "Manajer proyek",
-      "removeCustomer": "Hapus filter klien",
-      "removeManager": "Hapus filter manajer proyek",
       "clearAll": "Hapus semua",
       "error": "Gagal memuat opsi",
       "retry": "Coba lagi",
-      "unavailable": "Pilihan tidak tersedia",
-      "endCustomer": "Pelanggan akhir",
-      "removeEndCustomer": "Hapus filter pelanggan akhir"
+      "unavailable": "Pilihan tidak tersedia"
     },
     "card": {
       "delivery": "Penyelesaian",
