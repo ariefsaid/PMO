@@ -1146,7 +1146,7 @@ function EventCalendarMoreIndicator({
               "flex shrink-0 items-center border border-dashed",
               dropInto.valid
                 ? "text-foreground border-(--ec-event-color)/50 bg-(--ec-event-color)/8"
-                : "border-destructive/70 bg-destructive/10 text-destructive"
+                : "border-destructive/70 bg-destructive/10 text-destructive-text"
             ),
           viewConfig.classNames?.moreIndicator
         )}
