@@ -289,26 +289,22 @@ export const FinanceDashboard: React.FC = () => {
   // column-header re-sort, then slice to the top 5 for the card. The RPC default = variance desc,
   // so the initial render shows the worst bleeders without any client sort.
   const topByVariance = useMemo(() => {
-    const sorted = [...(budgetReview ?? [])];
     const direction = budgetSort.dir === 'desc' ? -1 : 1;
-    sorted.sort((a, b) => {
-      if (budgetSort.key === 'variance') {
-        return compareNullable(Number.isFinite(a.variance) ? a.variance : null,
-          Number.isFinite(b.variance) ? b.variance : null, direction, a.id, b.id);
-      }
-      if (budgetSort.key === 'budget') {
-        return compareNullable(Number.isFinite(a.budget) ? a.budget : null,
-          Number.isFinite(b.budget) ? b.budget : null, direction, a.id, b.id);
-      }
-      if (budgetSort.key === 'spent') {
-        return compareNullable(hasKnownActual(a) ? a.spent : null,
-          hasKnownActual(b) ? b.spent : null, direction, a.id, b.id);
-      }
-      const utilization = (project: BudgetReviewRow) => canCompareActual(project) && project.spent !== null
-        ? project.spent / project.budget
-        : null;
-      return compareNullable(utilization(a), utilization(b), direction, a.id, b.id);
-    });
+    // #1459: each row's sort value (a money ratio or an amount) is computed once per row, never
+    // once per comparison — a comparator that re-derives money does O(n log n) derivations.
+    const utilization = (project: BudgetReviewRow) => canCompareActual(project) && project.spent !== null
+      ? project.spent / project.budget
+      : null;
+    const sortValue = (project: BudgetReviewRow): number | null => {
+      if (budgetSort.key === 'variance') return Number.isFinite(project.variance) ? project.variance : null;
+      if (budgetSort.key === 'budget') return Number.isFinite(project.budget) ? project.budget : null;
+      if (budgetSort.key === 'spent') return hasKnownActual(project) ? project.spent : null;
+      return utilization(project);
+    };
+    const rows = budgetReview ?? [];
+    const values = new Map(rows.map((project) => [project.id, sortValue(project)]));
+    const sorted = [...rows];
+    sorted.sort((a, b) => compareNullable(values.get(a.id) ?? null, values.get(b.id) ?? null, direction, a.id, b.id));
     return sorted.slice(0, 5);
   }, [budgetReview, budgetSort]);
 

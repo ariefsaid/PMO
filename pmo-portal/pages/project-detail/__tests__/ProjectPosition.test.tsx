@@ -86,7 +86,7 @@ vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: state.tasks, i
 vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 
 import { useBudgetPosition, useOverdueReceivables, useProjectAttention } from '@/src/hooks/useProjectPosition';
-import { buildBudgetSummaryRows } from '../budget/budgetModel';
+import { buildBudgetSummaryRows } from '@/src/lib/budget/budgetModel';
 import { CostBlock, DeliveryBlock, MoneyBlock } from '../ProjectBlocks';
 import { PrimaryProjectAction } from '../ProjectSections';
 import { ProjectAttention } from '../ProjectAttention';
