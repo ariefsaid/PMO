@@ -171,7 +171,7 @@ const Loaded: React.FC<LoadedProps> = ({ layout, project, area, setArea, back, b
     <div>
       <BackBar label={t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')} phoneOnly onBack={back} />
       {aside && layout !== 'b' ? (
-        <div className={layout === 'c' ? 'grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]' : 'grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]'}>
+        <div className={layout === 'c' ? 'grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[320px_minmax(0,1fr)]' : 'grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_320px]'}>
           {layout === 'c' && aside}
           <div className="min-w-0">{tabs}</div>
           {layout === 'a' && aside}

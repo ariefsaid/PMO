@@ -47,6 +47,7 @@ const SalesOptionB: React.FC<{ m: SalesModel }> = ({ m }) => {
     { key: 'lost', label: m.scopeLabels.Lost, count: m.lost.length, active: m.scope === 'Lost', onClick: pick('Lost') },
   ];
   const ready = m.state === undefined;
+  const board = m.isDesktop && m.view === 'kanban';
   return (
     <div className="min-w-0">
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -58,10 +59,10 @@ const SalesOptionB: React.FC<{ m: SalesModel }> = ({ m }) => {
         <NewProjectButton m={m} />
       </div>
       {!m.isDesktop && m.state !== 'loading' && <div className="mb-4"><PhoneControls m={m} /></div>}
-      <div className="flex min-w-0 gap-6">
+      <div className={cn('flex min-w-0 gap-6', board && 'flex-col gap-4')}>
         {m.isDesktop && ready && (
-          <nav aria-label={t('sales:options.stageNav', 'Pipeline stages')} className="w-56 shrink-0">
-            <ul className="space-y-0.5">
+          <nav aria-label={t('sales:options.stageNav', 'Pipeline stages')} className={cn('shrink-0', board ? 'w-full' : 'w-56')}>
+            <ul className={board ? 'flex flex-wrap items-baseline gap-1' : 'space-y-0.5'}>
               {rail.map((r) => (
                 <li key={r.key}>
                   <button
@@ -76,7 +77,7 @@ const SalesOptionB: React.FC<{ m: SalesModel }> = ({ m }) => {
                     <span className="truncate">{r.label}</span>
                     <span className="tabular text-xs">{r.count}</span>
                   </button>
-                  {r.value && <p className="px-3 pb-1 text-xs tabular text-muted-foreground">{r.value}</p>}
+                  {r.value && !board && <p className="px-3 pb-1 text-xs tabular text-muted-foreground">{r.value}</p>}
                 </li>
               ))}
               <li>
@@ -84,7 +85,7 @@ const SalesOptionB: React.FC<{ m: SalesModel }> = ({ m }) => {
                   type="button"
                   onClick={() => m.setScope('Needs attention')}
                   aria-current={m.scope === 'Needs attention' ? 'true' : undefined}
-                  className={cn('mt-2 flex w-full items-baseline justify-between gap-2 rounded-md px-3 py-2 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
+                  className={cn(board ? 'flex' : 'mt-2 flex w-full', 'items-baseline justify-between gap-2 rounded-md px-3 py-2 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
                     m.scope === 'Needs attention' ? 'bg-secondary font-semibold text-foreground' : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground')}
                 >
                   <span>{t('sales.scope.needsAttention', 'Needs attention')}</span>
@@ -92,9 +93,9 @@ const SalesOptionB: React.FC<{ m: SalesModel }> = ({ m }) => {
                 </button>
               </li>
             </ul>
-            <p className="mt-4 px-3 text-xs text-muted-foreground">
+            <p className={cn('px-3 text-xs text-muted-foreground', board ? 'mt-2 flex items-baseline gap-2' : 'mt-4')}>
               {t('sales:options.weightedForecast', 'Weighted forecast')}
-              <span data-testid="pipeline-weighted-total" className="mt-0.5 block text-base font-semibold tabular text-foreground">
+              <span data-testid="pipeline-weighted-total" className={cn('text-base font-semibold tabular text-foreground', !board && 'mt-0.5 block')}>
                 {mixedPipeline ? dash : formatCurrency(m.funnel.totalWeighted, effectiveCurrency)}
               </span>
             </p>

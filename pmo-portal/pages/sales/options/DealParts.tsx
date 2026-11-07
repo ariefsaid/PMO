@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, GateNotice, Icon, LifecycleStepper, RecordActionZone, TaxBasisLabel } from '@/src/components/ui';
+import { Button, ConfirmDialog, Icon, LifecycleStepper, RecordActionZone, TaxBasisLabel } from '@/src/components/ui';
 import { LostReasonFields } from '@/components/project-status/LostReasonFields';
 import { lostReasonLabel, lostReasonValid } from '@/src/lib/lostReasons';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
@@ -169,17 +169,17 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
         <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</h2>
       </div>
       {!d.canTransition ? (
-        <GateNotice variant="ready">
+        <p className="text-sm text-muted-foreground">
           {t('projectDetail.pipeline.readOnlyNotice', 'Pipeline managed by the project owner. You can review this project’s stage and journey here; lifecycle changes are made by the project manager.')}
-        </GateNotice>
+        </p>
       ) : (
         <>
           {d.isTerminal && (
-            <GateNotice variant="ready">
+            <p className="text-sm text-muted-foreground">
               {p.status === 'Loss Tender' || p.status === 'Declined'
                 ? t('projectDetail.pipeline.lostNotice', 'This project is marked lost. It has left the active pipeline.')
                 : t('projectDetail.pipeline.terminalNotice', 'This project has reached a terminal stage. No further pipeline actions.')}
-            </GateNotice>
+            </p>
           )}
           {!d.isTerminal && d.winReason && <p role="status" className="text-sm text-muted-foreground">{d.winReason}</p>}
           {children ?? (!d.isTerminal && <RecordActionZone sticky={false}><DealActionButtons d={d} /></RecordActionZone>)}
