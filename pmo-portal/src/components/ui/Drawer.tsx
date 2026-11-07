@@ -6,6 +6,7 @@ import { Button } from './Button';
 import { RecordHeader } from './RecordHeader';
 import { overlayBackdropClassName, overlayBackdropStyle } from './OverlaySurface';
 import { acquireBackgroundInert } from './backgroundInert';
+import { useExitPresence } from './useExitPresence';
 
 // ---------------------------------------------------------------------------
 // Drawer — a right-side quick-view sheet (Wave-5 Cluster 6, D11/D12).
@@ -81,6 +82,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   headerActions,
   children,
 }) => {
+  const { mounted, closing } = useExitPresence(open, '--motion-drawer-out');
   const titleId = useId();
   const subId = useId();
 
@@ -166,7 +168,7 @@ export const Drawer: React.FC<DrawerProps> = ({
     [nestedOpen],
   );
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   // CW-3a: when record-header props are supplied the drawer header renders the shared
   // RecordHeader anatomy (icon + name + status + top-right action zone) instead of the
@@ -179,6 +181,7 @@ export const Drawer: React.FC<DrawerProps> = ({
       <div
         data-testid="drawer-scrim"
         aria-hidden
+        data-closing={closing || undefined}
         onClick={requestClose}
         className={overlayBackdropClassName}
         style={overlayBackdropStyle}
@@ -198,8 +201,9 @@ export const Drawer: React.FC<DrawerProps> = ({
         onKeyDown={onTrapKeyDown}
         // While a nested ConfirmDialog/Modal is open it owns focus + AT; make
         // the panel inert so the background can't be tabbed into or read.
-        inert={nestedOpen || undefined}
-        aria-hidden={nestedOpen || undefined}
+        inert={nestedOpen || closing || undefined}
+        aria-hidden={nestedOpen || closing || undefined}
+        data-closing={closing || undefined}
         className={cn(
           // Edge-anchored: full-height right panel, square against the viewport
           // edge (inner cards keep their own radius); the left border is the only seam.
