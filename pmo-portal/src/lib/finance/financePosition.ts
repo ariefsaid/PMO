@@ -1,6 +1,6 @@
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays, deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
 import { toCents } from '@/src/lib/moneyCents';
@@ -119,7 +119,9 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
       buckets[ageingBucket(age ?? 0, 'receivables')] += toCents(outstanding);
     }
 
-    if (age == null || age <= 0) continue;
+    // #1457: the overdue decision is the one shared rule (status + derived due date + org day).
+    const overdueDays = clientInvoiceOverdueDays(invoice, today);
+    if (overdueDays === null) continue;
     if (outstanding == null || !Number.isFinite(outstanding)) {
       overdueUnknownCount += 1;
     } else {
@@ -127,7 +129,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     }
     overdue.push({
       invoice,
-      daysOverdue: age,
+      daysOverdue: overdueDays,
       outstanding: outstanding == null || !Number.isFinite(outstanding) ? null : toCents(outstanding),
     });
   }

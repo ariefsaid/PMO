@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetLinesByCategory, buildBudgetSummaryRows, committedTotal, compareBudgetVersions } from '../budgetModel';
+import { budgetLinesByCategory, buildBudgetSummaryRows, committedTotal, compareBudgetVersions } from './budgetModel';
 
 const line = (category: string, description: string, budgeted_amount: number) => ({
   category,
