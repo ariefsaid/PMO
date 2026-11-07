@@ -11,6 +11,7 @@ import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odo
 import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
 import { resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooPaymentFacts, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
+import { assertCommandLinksSameOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchPreflight.ts';
 import { assertOdooRevenueCommandScope } from './odooRevenueGate.ts';
 import { revenueOutboxRowExists } from './odooRevenueOutbox.ts';
 import { resolveOdooInvoiceInputs, resolveOdooReceiptInputs } from '../_shared/odooRevenueRefs.ts';
@@ -37,13 +38,15 @@ async function outboxRowExists(ctx: AdapterSelectContext): Promise<boolean> {
 }
 
 /**
- * Adapter selection for an org that employs procurement under tier `odoo` (DD-OPP-1). It refuses, before any outbox row and any
+ * Adapter selection for an org that employs procurement under tier `odoo` (DD-OPP-1). It first runs the shared same-org link check (AC-OPP-003),
+ * then refuses, before any outbox row and any
  * Odoo request (DD-OPP-8, FR-OPP-002), a connection that is switched off, not activated, unusable, or whose stored capability
  * snapshot lacks a model a purchase needs; the refusal names the model. A step the Odoo adapter does not push yet is refused the
  * same way: failing closed here means a gate-passing command can never reach the ERPNext adapter by default, and a step with no
  * Odoo implementation leaves no outbox row.
  */
 export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  await assertCommandLinksSameOrg({ command: ctx.command, serviceClient: ctx.serviceClient as never, orgId: ctx.orgId });   // the shared link check, before any Odoo read
   const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
   if ('refusal' in resolved) throw new AppError(`The Odoo connection is not usable (${resolved.refusal})`, 'config-rejected');
   const gap = procurementCapabilityGap(resolved.config.capabilities as Parameters<typeof procurementCapabilityGap>[0]);

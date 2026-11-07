@@ -101,8 +101,8 @@ export interface UseAssistantPanel {
   openPanel(prefill?: string): void;
   closePanel(): void;
   togglePanel(): void;
-  prefillVersion: number;
-  consumePrefill(): string | null;
+  pendingPrefill: string | null;
+  clearPrefill(): void;
   send(text: string, input?: { attachmentIds?: string[]; threadId?: string }): Promise<void>;
   stop(): Promise<void>;
   retry(): Promise<void>;
@@ -177,8 +177,8 @@ export function useAssistantPanel(): UseAssistantPanel {
     openPanel,
     closePanel,
     togglePanel,
-    prefillVersion = 0,
-    consumePrefill = () => null,
+    pendingPrefill = null,
+    clearPrefill = () => {},
   } = ctx;
   // ADR-0045 §3 (FR-ATC-015/020): live context (route/entity/selection) — a
   // no-op read outside AgentContextProvider (agentContext.getContext() → {}).
@@ -690,8 +690,8 @@ export function useAssistantPanel(): UseAssistantPanel {
     openPanel,
     closePanel,
     togglePanel,
-    prefillVersion,
-    consumePrefill,
+    pendingPrefill,
+    clearPrefill,
     send,
     stop,
     retry,
