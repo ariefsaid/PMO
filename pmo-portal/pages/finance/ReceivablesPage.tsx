@@ -14,12 +14,11 @@ import { KPIRow } from '@/src/components/ui/KPITile';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import type { CurrencyTotals } from '@/src/lib/finance/financePosition';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
+import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
 import SalesInvoices from '@/pages/SalesInvoices';
 import IncomingPayments from '@/pages/IncomingPayments';
 
 type ReceivablesView = 'invoices' | 'payments';
-
-const OPEN_STATUSES = new Set<SalesInvoiceRow['status']>(['Submitted', 'Unpaid']);
 
 function monthStart(day: string): string {
   return `${day.slice(0, 7)}-01`;
@@ -133,7 +132,7 @@ export default function ReceivablesPage() {
   const canCreateInvoice = may('create', 'salesInvoice');
   const canCreatePayment = may('create', 'incomingPayment');
   const owed = useMemo(() => owedTotals(finance.position), [finance.position]);
-  const openInvoices = useMemo(() => invoices.filter((invoice) => OPEN_STATUSES.has(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
+  const openInvoices = useMemo(() => invoices.filter((invoice) => isOpenClientInvoiceStatus(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
   const clientsCount = new Set(openInvoices.map((invoice) => invoice.customer_id).filter(Boolean)).size;
   const owedUnknown = finance.position.receivablesUnknownCount;
   const overdueUnknown = finance.position.overdueUnknownCount;

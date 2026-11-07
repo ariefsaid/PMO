@@ -93,8 +93,8 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false, v
           </Button>
         )}
         {!compact && !isFolder && (
-          <Button variant="ghost" size="sm" aria-label={t('m365Documents.cell.versionsOf', 'Versions of {{name}}', { name: label })} onClick={() => setVersionsOpen(true)}>
-            {t('m365Documents.cell.versions', 'Versions')}
+          <Button variant="ghost" size="sm" aria-label={t('m365Documents.cell.versionsOf', 'Show all versions of {{name}}', { name: label })} onClick={() => setVersionsOpen(true)}>
+            {t('m365Documents.cell.versions', 'Show all versions')}
           </Button>
         )}
       </div>

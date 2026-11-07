@@ -224,7 +224,7 @@ describe('DocumentsTab — folders are reference-only (AC-M365DOC-058/063)', () 
     h.docs.data = [folder({ status: 'Issued' })];
     renderAs('Admin');
     const items = within(await menu());
-    for (const name of ['Issue', 'Approve', 'Reject', 'Close', 'New revision', 'Make new revision from latest file update']) {
+    for (const name of ['Issue', 'Approve', 'Reject', 'Close', 'New revision', 'New revision from updated file']) {
       expect(items.queryByRole('menuitem', { name })).not.toBeInTheDocument();
     }
     await userEvent.keyboard('{Escape}');
@@ -252,7 +252,7 @@ describe('DocumentsTab — changed-content revision (AC-M365DOC-064/068)', () =>
     h.docs.data = [drifted()];
     h.getItem.mockResolvedValue({ ...SELECTED, name: 'Synthetic v2.pdf', parent_path: null, content_tag: 'ctag-2', sharepoint_ids: null });
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ToastProvider><ViewAsControl /><DocumentsTab projectId="p1" projectCode="PRJ-1" /></ToastProvider></ImpersonationProvider></MemoryRouter></QueryClientProvider>);
-    await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'Make new revision from latest file update' }));
+    await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'New revision from updated file' }));
     const modal = await screen.findByRole('dialog');
     await userEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
     expect(within(modal).getByRole('button', { name: 'Create revision' })).toBeDisabled();
@@ -264,7 +264,7 @@ describe('DocumentsTab — changed-content revision (AC-M365DOC-064/068)', () =>
     h.docs.data = [drifted()];
     h.getItem.mockResolvedValue({ ...SELECTED, item_id: 'synthetic-item', name: 'Synthetic v2.pdf', parent_path: null, content_tag: 'ctag-2', sharepoint_ids: null });
     renderAs('Project Manager');
-    await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'Make new revision from latest file update' }));
+    await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'New revision from updated file' }));
     expect(h.getItem).toHaveBeenCalledWith(expect.objectContaining({ drive_id: 'synthetic-drive', item_id: 'synthetic-item' }));
     const modal = await screen.findByRole('dialog');
     expect(within(modal).getByText(/will reference the latest Microsoft file: Synthetic v2\.pdf/)).toBeInTheDocument();
@@ -281,6 +281,6 @@ describe('DocumentsTab — changed-content revision (AC-M365DOC-064/068)', () =>
     renderAs('Project Manager');
     const items = within(await menu());
     expect(items.getByRole('menuitem', { name: 'New revision' })).toBeInTheDocument();
-    expect(items.queryByRole('menuitem', { name: 'Make new revision from latest file update' })).not.toBeInTheDocument();
+    expect(items.queryByRole('menuitem', { name: 'New revision from updated file' })).not.toBeInTheDocument();
   });
 });

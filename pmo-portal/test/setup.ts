@@ -170,3 +170,13 @@ setActiveLocale(TEST_LOCALE);
 afterEach(() => {
   setActiveLocale(TEST_LOCALE);
 });
+
+// jsdom has no ResizeObserver; the ReUI gantt measures its viewport with one. A no-op is enough:
+// jsdom reports zero sizes either way.
+if (typeof window !== 'undefined' && !('ResizeObserver' in window)) {
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

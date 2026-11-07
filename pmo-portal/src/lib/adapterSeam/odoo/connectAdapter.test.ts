@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AdapterError } from '../contract.ts';
 import { bindCall } from './client.ts';
-import { createOdooConnectAdapter, createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
+import { createOdooConnectAdapter, createOdooSetupAdapter, LIST_PAGE, odooSendProbe, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo } from './fakeOdoo.ts';
 
 const CTX: OdooConnectCtx = { companyId: 1, analyticPlanId: 7, unitMap: { sak: '11' } };
@@ -193,5 +193,40 @@ describe('#1692 which PMO field Odoo matches its project code on', () => {
     const fake = createFakeOdoo({ key: 'k' });
     const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: fake.fetch });
     expect(createOdooSetupAdapter(call, CTX).projectCodeField).toBe('pmo_project_number');
+  });
+});
+
+describe('odooSendProbe — the lookup half of sendMaster (S8-T1)', () => {
+  it('party: an anchor hit answers the role-prefixed id; no hit is null; two hits are ambiguous', async () => {
+    const { fake, call } = setup();
+    expect(await odooSendProbe(call, CTX, 'party', { id: 'p1', name: 'PT Sinar Baja', role: 'vendor' })).toBeNull();
+    fake.seed('res.partner', [partner(41, { ref: 'pmo:p1' }), partner(42, { ref: 'pmo:p2' })]);
+    expect(await odooSendProbe(call, CTX, 'party', { id: 'p1', name: 'x', role: 'vendor' })).toEqual({ externalRecordId: 'Vendor:41' });
+    expect(await odooSendProbe(call, CTX, 'party', { id: 'p2', name: 'x', role: 'client' })).toEqual({ externalRecordId: 'Client:42' });
+    fake.seed('res.partner', [partner(43, { ref: 'pmo:p1' })]);
+    await expect(odooSendProbe(call, CTX, 'party', { id: 'p1', name: 'x', role: 'vendor' })).rejects.toEqual(new AdapterError('commit-rejected', 'ambiguous'));
+  });
+
+  it('project: finds the code inside the plan and company; none is null; two are ambiguous', async () => {
+    const { fake, call } = setup();
+    const acct = (id: number, plan: number, company: number | false) => ({ id, name: 'a', code: 'PRJ-1', plan_id: [plan, 'P'], company_id: company === false ? false : [company, 'C'] });
+    fake.seed('account.analytic.account', [acct(5, 7, 1), acct(6, 8, 1), acct(7, 7, 2)]);
+    expect(await odooSendProbe(call, CTX, 'project', { id: 'x', name: 'x', code: 'PRJ-1' })).toEqual({ externalRecordId: '5' });
+    expect(await odooSendProbe(call, CTX, 'project', { id: 'x', name: 'x', code: 'PRJ-2' })).toBeNull();
+    fake.seed('account.analytic.account', [acct(8, 7, false)]);
+    await expect(odooSendProbe(call, CTX, 'project', { id: 'x', name: 'x', code: 'PRJ-1' })).rejects.toEqual(new AdapterError('commit-rejected', 'ambiguous'));
+  });
+
+  it('item: a default_code hit is the id; none is null', async () => {
+    const { fake, call } = setup();
+    fake.seed('product.product', [{ id: 9, default_code: 'SMN-50', name: 'Semen', company_id: false }]);
+    expect(await odooSendProbe(call, CTX, 'item', { id: 'i', name: 'Semen', code: 'SMN-50' })).toEqual({ externalRecordId: '9' });
+    expect(await odooSendProbe(call, CTX, 'item', { id: 'i', name: 'x', code: 'NOPE' })).toBeNull();
+  });
+
+  it('is read-only: it never creates', async () => {
+    const { fake, call } = setup();
+    await odooSendProbe(call, CTX, 'party', { id: 'p1', name: 'x', role: 'vendor' });
+    expect(fake.rows('res.partner')).toHaveLength(0);
   });
 });

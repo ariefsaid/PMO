@@ -2,8 +2,8 @@ import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '../__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const state = vi.hoisted(() => ({
   detail: { isLoading: false, isError: false, data: null as unknown, refetch: vi.fn() },

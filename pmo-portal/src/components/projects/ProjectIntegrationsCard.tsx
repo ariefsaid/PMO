@@ -62,7 +62,9 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
   // UI state
   const [linkError, setLinkError] = useState<string | null>(null);
   // Failed-unlink detail lives on the card (the link modal is closed), separate from linkError.
-  const [unlinkError, setUnlinkError] = useState<string | null>(null);
+  // #1223: `unconfirmed` marks the timeout family — the request ended without a usable answer, so
+  // the card may not claim the link survived; it re-reads the bindings instead.
+  const [unlinkFailure, setUnlinkFailure] = useState<{ detail: string; unconfirmed: boolean } | null>(null);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isUnlinkConfirmOpen, setIsUnlinkConfirmOpen] = useState(false);
 
@@ -101,13 +103,21 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
   const handleUnlinkConfirm = async () => {
     try {
       await unlinkProject.mutateAsync({ tier: 'clickup', projectId });
-      setUnlinkError(null);
+      setUnlinkFailure(null);
       setIsUnlinkConfirmOpen(false);
       refetchBindings();
     } catch (err) {
-      const { detail } = classifyMutationError(err);
-      setUnlinkError(detail);
+      // AC-ERR-002: the classification decides the wording — a REQUEST_TIMEOUT means we never heard
+      // back, so the outcome is unknown. #1223: neutral copy for that family, and the bindings are
+      // re-read so the card shows the state the server actually holds rather than the one it assumed.
+      const { detail, classification } = classifyMutationError(err, undefined, {
+        detailOverrides: {
+          REQUEST_TIMEOUT: t('uxs21.unlinkTimeoutDetail', 'The request timed out before the server answered.'),
+        },
+      });
+      setUnlinkFailure({ detail, unconfirmed: classification === 'timeout' });
       setIsUnlinkConfirmOpen(false);
+      void refetchBindings();
     }
   };
 
@@ -165,7 +175,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             </Button>
           </div>
         )}
-        {unlinkError && (
+        {unlinkFailure && (
           <div
             role="alert"
             className="flex max-w-[65ch] items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3 py-2 text-sm"
@@ -173,9 +183,11 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
             <div className="min-w-0">
               <p className="font-medium text-destructive-text">
-                {t('uxs21.unlinkFailed', 'Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.')}
+                {unlinkFailure.unconfirmed
+                  ? t('uxs21.unlinkUnconfirmed', "We couldn't confirm the unlink. The link details are refreshing — check the current state before trying again.")
+                  : t('uxs21.unlinkFailed', 'Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.')}
               </p>
-              <p className="mt-0.5 text-muted-foreground">{unlinkError}</p>
+              <p className="mt-0.5 text-muted-foreground">{unlinkFailure.detail}</p>
             </div>
           </div>
         )}

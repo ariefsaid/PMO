@@ -5,8 +5,8 @@ import React from 'react';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { BudgetLineItemRow } from '@/src/lib/db/budgets';
 import { fromPercents } from '@/src/lib/budget/budgetDistribution';
-import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
-import { financeTestI18n } from '../__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import DistributionGrid from './DistributionGrid';
 
 const EN = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };

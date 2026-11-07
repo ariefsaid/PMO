@@ -1,27 +1,24 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { usePermission } from '@/src/auth/usePermission';
-import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Toolbar, Tooltip, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Toolbar, Tooltip, type Column } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
+import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
+import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
 import { useExport } from '@/src/components/export/useExport';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
-import { formatCurrency, formatDateOnly, formatShortMoney } from '@/src/lib/format';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { currencyLead } from '@/src/lib/finance/currencyFigures';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { KPIRow } from '@/src/components/ui/KPITile';
-import { formatCurrencyWithCode } from '@/src/lib/finance/format';
+import { initials } from '@/src/lib/initials';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { usePayablesPosition } from './payablesPosition';
+import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
 type PayableRow = FinancePosition['payables'][number];
-
-function initials(name: string | null | undefined): string {
-  return (name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
-}
 
 /** Known unpaid balances by currency; unknown balances are counted separately, never as zero. */
 function currencyTotals(rows: PayableRow[]): Record<string, number> {
@@ -36,8 +33,7 @@ function currencyTotals(rows: PayableRow[]): Record<string, number> {
 const PayablesPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const may = usePermission();
-  const canView = may('view', 'finance');
+  const { canView } = useFinanceAccess();
   const finance = useFinancePosition(canView);
   // L12: supplier invoices kept in the accounting system count here exactly as on the procurement record.
   const payablesPosition = usePayablesPosition(finance.position, canView);
@@ -83,7 +79,7 @@ const PayablesPage: React.FC = () => {
       size: 210,
       cell: (row) => {
         const manager = projectManagers.get(row.procurement.project_id ?? '') ?? '';
-        return <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 whitespace-normal break-words text-muted-foreground">{row.procurement.project ? projectDisplayName(row.procurement.project) : '—'}</span>{manager && <span role="img" aria-label={manager} title={manager} className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">{initials(manager)}</span>}</div>;
+        return <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 whitespace-normal break-words text-muted-foreground">{row.procurement.project ? projectDisplayName(row.procurement.project) : '—'}</span>{manager && <span role="img" aria-label={manager} title={manager} className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">{initials(manager, { fallback: '' })}</span>}</div>;
       },
       exportValue: (row) => row.procurement.project ? projectDisplayName(row.procurement.project) : '',
     },
@@ -126,9 +122,7 @@ const PayablesPage: React.FC = () => {
   }));
   const oldest = payablesPosition.payables[0];
 
-  if (!canView) {
-    return <AccessDenied title={t('financeHub:hub.noAccessTitle', 'Finance')} sub={t('financeHub:hub.noAccessDescription', 'Finance is available to Finance, Executive and Admin roles.')} onBack={() => navigate('/')} />;
-  }
+  if (!canView) return <FinanceAccessDenied />;
 
   return (
     <ListPage
@@ -141,12 +135,11 @@ const PayablesPage: React.FC = () => {
         <article className="min-w-0 p-4">
           <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}<Tooltip content={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           {isPending ? <div role="status" aria-live="polite" className="mt-2"><span className="sr-only">{t('financeHub:hub.loadingFigure', 'Loading figure')}</span><span className="skel block h-7 w-36" /></div> : (() => {
-            const totals = Object.entries(payablesPosition.payablesTotals).sort(([left], [right]) => left === orgCurrency ? -1 : right === orgCurrency ? 1 : left.localeCompare(right));
-            const [lead, ...others] = totals;
+            const { lead, others } = currencyLead(payablesPosition.payablesTotals, orgCurrency);
             return <>
               {/* F11: the figure tile shows the short amount; the exact amount stays for hover and screen readers. */}
-              <div className="mt-1 text-[20px] font-bold tabular">{lead ? (() => { const figure = moneyFigure(lead[1] / 100, lead[0], ''); return <FigureContent value={figure.value} exactValue={figure.exactValue} />; })() : t('financeHub:hub.fix.area.noBalance', 'No balance')}</div>
-              {others.map(([currency, cents]) => <div key={currency} className="text-xs text-muted-foreground" title={formatCurrencyWithCode(cents / 100, currency)}>{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: Math.abs(cents) < 100_000 ? formatCurrencyWithCode(cents / 100, currency) : formatShortMoney(cents / 100, currency, { code: true }) })}</div>)}
+              <div className="mt-1 text-[20px] font-bold tabular">{lead ? <FigureContent value={lead.value} exactValue={lead.exactValue} /> : t('financeHub:hub.fix.area.noBalance', 'No balance')}</div>
+              {others.map((other) => <div key={other.exactValue} className="text-xs text-muted-foreground" title={other.exactValue}>{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: other.value })}</div>)}
               {(() => {
                 const count = new Set(payablesPosition.payables.map(({ procurement }) => procurement.vendor_id ?? procurement.id)).size;
                 return <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.supplierCount', { defaultValue: count === 1 ? '{{count}} supplier' : '{{count}} suppliers', count })}</div>;

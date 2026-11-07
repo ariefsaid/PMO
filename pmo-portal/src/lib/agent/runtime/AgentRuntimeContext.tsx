@@ -16,10 +16,10 @@ export interface AgentRuntimeContextValue {
   openPanel(prefill?: string): void;
   closePanel(): void;
   togglePanel(): void;
-  /** Increments when a new one-shot prefill is available. */
-  prefillVersion?: number;
-  /** One-shot draft prefill consumed by AssistantPanel after openPanel(prefill). */
-  consumePrefill?: () => string | null;
+  /** Draft from openPanel(prefill), held as state so a lazily mounted panel still finds it. Never auto-sent. */
+  pendingPrefill?: string | null;
+  /** Drops the held draft (panel calls it on send; closePanel/openPanel() also reset it). */
+  clearPrefill?: () => void;
   /** git SHA of the deployed agent-chat fn (from its x-deploy-version header); null until the first turn. */
   edgeVersion?: string | null;
 }
@@ -30,8 +30,8 @@ export const AgentRuntimeContext = React.createContext<AgentRuntimeContextValue>
   openPanel: () => {},
   closePanel: () => {},
   togglePanel: () => {},
-  prefillVersion: 0,
-  consumePrefill: () => null,
+  pendingPrefill: null,
+  clearPrefill: () => {},
   edgeVersion: null,
 });
 

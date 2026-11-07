@@ -55,7 +55,7 @@ const BINDING_GATED_DOMAINS = new Set(['budget']);
  * to ask about. A domain not listed is the ERPNext tier's alone (byte for byte). One ERP per domain is enforced where it is
  * employed (`admin_change_domain_ownership`, 0505 and 0510 for revenue), so at most one answer is true; ERPNext is asked first and wins a tie.
  */
-const OWNING_TIERS: Readonly<Record<string, readonly string[]>> = { procurement: [ERPNEXT_TIER, ODOO_TIER], revenue: [ERPNEXT_TIER, ODOO_TIER] };
+const OWNING_TIERS: Readonly<Record<string, readonly string[]>> = { procurement: [ERPNEXT_TIER, ODOO_TIER], revenue: [ERPNEXT_TIER, ODOO_TIER], companies: [ERPNEXT_TIER, ODOO_TIER] };
 
 /** Structural client for the two authorization RPCs (`domain_owned_by_tier`,
  *  `actor_authorization_state` — mig 0117). Satisfied by the deputy (caller-JWT) client on the
