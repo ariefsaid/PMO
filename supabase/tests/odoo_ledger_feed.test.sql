@@ -1,6 +1,6 @@
 -- #1507 S2 AC-ODA-004/005: service-only ledger page application, idempotency, stale guard, cursor, line replacement, tenancy.
 begin;
-select plan(28);
+select plan(36);
 
 insert into organizations (id, name) values
  ('a7440000-0000-0000-0000-000000000001','Ledger A'),
@@ -122,6 +122,21 @@ select is((select count(*)::int from erp_gl_entry_mirror where org_id='a7440000-
   'AC-ODA-005 a stale page does not bring back a sibling a newer repost removed');
 select is((select sum(debit) from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name like 'odoo:30:%'), 1000.00::numeric,
   'AC-ODA-005 the line still sums to the newer state');
+
+-- AC-ODA-003: the page carries each row's fiscal year into the mirror (the actuals refresh groups by it).
+select is(apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[{"erp_name":"odoo:81:-","voucher_type":"account.move","voucher_no":"FY/81","account":"5100","project":null,"fiscal_year":"2027","debit":"5.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-10 10:00:00"}]$j$::jsonb, '{"w":"2026-11-10 10:00:00","id":81}'), 1, 'AC-ODA-003 a page with a fiscal year applies');
+select is((select fiscal_year from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name='odoo:81:-'), '2027', 'AC-ODA-003 the row carries the fiscal year');
+select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[{"erp_name":"odoo:81:-","voucher_type":"account.move","voucher_no":"FY/81","account":"5100","project":null,"fiscal_year":"2026","debit":"5.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-11 10:00:00"}]$j$::jsonb, '{"w":"2026-11-11 10:00:00","id":81}');
+select is((select fiscal_year from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name='odoo:81:-'), '2026', 'AC-ODA-003 a repost updates the fiscal year');
+select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[{"erp_name":"odoo:82:-","voucher_type":"account.move","voucher_no":"FY/82","account":"5100","project":null,"debit":"5.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-12 10:00:00"}]$j$::jsonb, '{"w":"2026-11-12 10:00:00","id":82}');
+select is((select fiscal_year from erp_gl_entry_mirror where org_id='a7440000-0000-0000-0000-000000000001' and erp_name='odoo:82:-'), null, 'AC-ODA-003 a row without a fiscal year stays undated');
+select throws_ok($$select apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', '[{"erp_name":"odoo:83:-","voucher_type":"account.move","voucher_no":"FY/83","account":"5100","project":null,"fiscal_year":"FY-26","debit":"5.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-13 10:00:00"}]', '{"w":"2026-11-13 10:00:00","id":83}')$$,
+  '22023', 'malformed ledger row', 'AC-ODA-003 a malformed fiscal year aborts the page');
+
+-- The page returns rows actually inserted, changed or removed: an unchanged re-read is 0 (the sweep refreshes actuals only on > 0).
+select is(apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[{"erp_name":"odoo:84:-","voucher_type":"account.move","voucher_no":"FY/84","account":"5100","project":null,"fiscal_year":"2026","debit":"5.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-14 10:00:00"}]$j$::jsonb, '{"w":"2026-11-14 10:00:00","id":84}'), 1, 'AC-ODA-003 a new line counts');
+select is(apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[{"erp_name":"odoo:84:-","voucher_type":"account.move","voucher_no":"FY/84","account":"5100","project":null,"fiscal_year":"2026","debit":"5.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-14 10:00:00"}]$j$::jsonb, '{"w":"2026-11-14 10:00:00","id":84}'), 0, 'AC-ODA-003 an unchanged re-read counts 0');
+select is(apply_odoo_ledger_page('a7440000-0000-0000-0000-000000000001', $j$[{"erp_name":"odoo:84:101","voucher_type":"account.move","voucher_no":"FY/84","account":"5100","project":"101","fiscal_year":"2026","debit":"5.00","credit":"0.00","posting_date":"2026-11-01","is_cancelled":false,"source_write_date":"2026-11-14 10:00:00"}]$j$::jsonb, '{"w":"2026-11-14 10:00:00","id":84}'), 2, 'AC-ODA-003 a changed split counts the insert and the removed sibling');
 
 select * from finish();
 rollback;

@@ -261,11 +261,13 @@ export async function sweepOdooOrg(
         }
       }
       if (ledger) {
+        const passBudget: Budget = { left: () => calls < maxCalls && left(), spend: () => calls < maxCalls && budget.spend() };   // last pass: takes what the others left, capped like them
         try {
-          ledgerResult = await runLedgerPass(sc, orgId, call, r.companyId!, { left, spend: () => budget.spend() });
+          ledgerResult = await runLedgerPass(sc, orgId, call, r.companyId!, passBudget);
         } catch (err) {
-          if (err instanceof OdooError) throw err;
-          console.error('odoo ledger pass failed');   // the cursor did not move; the next tick retries from it
+          // Fails only this pass, never the tick: the other passes already ran, re-discovery below still runs, the cursor stays and the next tick retries.
+          console.error('odoo ledger pass failed');
+          if (err instanceof OdooError) ledgerResult = { rows: 0, caughtUp: false, skipped: 0, failed: err.errorClass };
         }
       }
       await runAfterSweep();

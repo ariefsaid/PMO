@@ -19,7 +19,7 @@ const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KE
 
 interface PageRow { erp_name: string; account: string; project: string | null; fiscal_year: string; debit: string; credit: string; is_cancelled: boolean; posting_date: string }
 interface Page { p_org_id: string; p_rows: PageRow[]; p_cursor: string }
-interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number }
+interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string> }
 
 const line = (id: number, over: Record<string, unknown> = {}) => ({
   id, move_id: [id, `BILL/${id}`], move_name: `BILL/${id}`, journal_id: [3, 'Bills'], partner_id: [9, 'Vendor'], company_id: [1, 'Main'], currency_id: [1, 'IDR'],
@@ -32,15 +32,22 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   fake.seed('res.company', [{ id: 1, name: 'Main', ...(o.fiscal ? { fiscalyear_last_month: o.fiscal.month, fiscalyear_last_day: o.fiscal.day } : {}) }]);
   prepare(fake);
   let cursor: string | undefined;
+  let fingerprint: string | undefined;
+  let rewinds = 0;
   const applies: Page[] = [];
   const snapshots: Array<Record<string, unknown>[]> = [];
   const mirror = new Map<string, PageRow>();
   const census = { seen: [] as string[][], finish: [] as Array<{ expected: number | null }> };
-  const links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
-  const accounts = o.accounts ?? { '501': '5100' };
+  let links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
+  const accounts = { ...(o.accounts ?? { '501': '5100' }) } as Record<string, string>;
   const routes: MockRoute[] = [
-    supabaseSelect('external_org_bindings', () => jsonResponse([{ status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { capabilities: { later: { 'account.move.line': true } } }, ...o.binding }])),
-    supabaseSelect('external_sync_watermarks', () => jsonResponse(cursor === undefined ? [] : [{ watermark_cursor: cursor }])),
+    supabaseSelect('external_org_bindings', () => jsonResponse([{ status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { capabilities: { later: { 'account.move.line': true } }, ...(o.switched === false ? {} : { ledger_basis_at: '2026-11-05T00:00:00Z' }) }, ...o.binding }])),
+    supabaseSelect('external_sync_watermarks', (c) => {
+      const value = c.url.searchParams.get('domain') === 'eq.ledger-links:odoo' ? fingerprint : cursor;
+      return jsonResponse(value === undefined ? [] : [{ watermark_cursor: value }]);
+    }),
+    { label: 'watermark-rewind', method: 'DELETE', pathname: '/rest/v1/external_sync_watermarks', response: () => { cursor = undefined; rewinds++; return new Response(null, { status: 204 }); } },
+    { label: 'watermark-fingerprint', method: 'POST', pathname: '/rest/v1/external_sync_watermarks', response: (c) => { fingerprint = (c.bodyJson as { watermark_cursor: string }).watermark_cursor; return new Response(null, { status: 201 }); } },
     supabaseSelect('external_project_bindings', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : Object.entries(links).map(([project_id, external_container_id], i) => ({ id: `b${i}`, project_id, external_container_id })))),
     supabaseSelect('external_master_records', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : Object.entries(accounts).map(([external_id, code]) => ({ id: `m${external_id}`, external_id, code })))),
     supabaseSelect('erp_gl_entry_mirror', (c) => {
@@ -53,17 +60,28 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
       const page = c.bodyJson as Page;
       applies.push(page);
       if (o.failApplyAt !== undefined && applies.length === o.failApplyAt) return jsonResponse({ code: 'P0001', message: 'apply failed' }, { status: 400 });
+      // The database counts rows it inserted, changed or removed; an unchanged re-read is 0.
+      const keys = new Set(page.p_rows.map((r) => r.erp_name));
+      const lineOf = (n: string) => n.split(':')[1];
+      const gone = [...mirror.keys()].filter((n) => !keys.has(n) && page.p_rows.some((r) => lineOf(r.erp_name) === lineOf(n)));
+      const changedRows = page.p_rows.filter((r) => JSON.stringify(mirror.get(r.erp_name)) !== JSON.stringify(r));
       for (const r of page.p_rows) mirror.set(r.erp_name, r);
+      for (const n of gone) mirror.delete(n);
       cursor = page.p_cursor;
-      return jsonResponse(page.p_rows.length);
+      return jsonResponse(changedRows.length + gone.length);
     }),
     supabaseRpc('mark_odoo_ledger_census_seen', (c) => { census.seen.push((c.bodyJson as { p_line_ids: string[] }).p_line_ids); return jsonResponse(null); }),
     supabaseRpc('finish_odoo_ledger_census', (c) => { census.finish.push({ expected: (c.bodyJson as { p_expected_lines: number | null }).p_expected_lines }); return jsonResponse(0); }),
     supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push((c.bodyJson as { p_rows: Record<string, unknown>[] }).p_rows); return jsonResponse(null); }),
   ];
-  return { fake, routes, applies, snapshots, census, mirror, getCursor: () => cursor };
+  return { fake, routes, applies, snapshots, census, mirror, getCursor: () => cursor, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
 }
-const odooCall = (fake: FakeOdoo) => bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: fake.fetch });
+/** `refuseCompany`: Odoo answers 403 to the company read, as it does for a key user without access to it. */
+const odooCall = (fake: FakeOdoo, refuseCompany = false) => bindCall({
+  baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1',
+  fetchImpl: ((input: Parameters<typeof fetch>[0], init?: RequestInit) => (refuseCompany && String(input).includes('/res.company/read')
+    ? Promise.resolve(Response.json({ name: 'odoo.exceptions.AccessError', message: 'no' }, { status: 403 })) : fake.fetch(input, init))) as typeof fetch,
+});
 const rowsOf = (applies: Page[]) => applies.flatMap((p) => p.p_rows);
 
 describe('ledgerFeedEmployed — AC-ODA-001', () => {
@@ -107,11 +125,31 @@ describe('runLedgerPass — AC-ODA-001/002/003', () => {
     assertEquals(out.skipped, 1);
   });
 
-  it('AC-ODA-001 an account the directory has not mirrored yet stops the page and leaves the cursor', async () => {
-    const h = harness((fake) => fake.seed('account.move.line', [line(1, { account_id: [999, '9999 New'] })]));
-    await withFetchMock(h.routes, async () => { await assertRejects(() => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget())); });
+  it('AC-ODA-001 an account the directory has not mirrored yet holds the feed at that page, visibly: stalled with the line count, never caught up, cursor left', async () => {
+    const h = harness((fake) => fake.seed('account.move.line', [line(1, { account_id: [999, '9999 New'] }), line(2), line(3, { account_id: [998, '9998 New'] })]));
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    assertEquals(out, { rows: 0, caughtUp: false, skipped: 0, stalled: 'account', held: 2 });
     assertEquals(h.applies.length, 0);
     assertEquals(h.getCursor(), undefined);
+    assertEquals(h.census.finish.length, 0, 'a stalled feed never runs the census');
+  });
+
+  it('AC-ODA-001 once the account is mirrored the held page applies from the same cursor', async () => {
+    const h = harness((fake) => fake.seed('account.move.line', [line(1, { account_id: [999, '9999 New'] })]));
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    h.addAccount('999', '9999');
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    assertEquals([out.stalled, out.caughtUp, out.rows], [undefined, true, 1]);
+  });
+
+  it('AC-ODA-002 a company year end Odoo refuses falls back to the calendar year and says so; a transient failure fails the pass instead', async () => {
+    const denied = harness((fake) => fake.seed('account.move.line', [line(1)]));
+    const out = await withFetchMock(denied.routes, () => runLedgerPass(client(), ORG, odooCall(denied.fake, true), 1, budget()));
+    assertEquals([out.calendarYear, rowsOf(denied.applies)[0].fiscal_year, out.caughtUp], [true, '2026', true]);
+    const down = harness((fake) => fake.seed('account.move.line', [line(1)]));
+    down.fake.failNext('transport');
+    await withFetchMock(down.routes, async () => { await assertRejects(() => runLedgerPass(client(), ORG, odooCall(down.fake), 1, budget())); });
+    assertEquals(down.applies.length, 0, 'a hiccup never stamps a page with the wrong year');
   });
 
   it('AC-ODA-004 a catch-up census sends every line id and the count the database must see', async () => {
@@ -183,5 +221,55 @@ describe('runLedgerPass — AC-ODA-003 / FR-ODA-053 tier-neutral actuals refresh
     console.error = (...a: unknown[]) => { logged.push(a.join(' ')); };
     try { await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget())); } finally { console.error = real; }
     assertEquals(logged, []);
+  });
+});
+
+describe('runLedgerPass — org basis switch and change-only refresh', () => {
+  const seed = (fake: FakeOdoo) => fake.seed('account.move.line', [line(1, { analytic_distribution: { '101': 100 }, debit: 300 }), line(2, { debit: 10 })]);
+
+  it('AC-ODA-003 before an Admin switches the org to Odoo the lines are mirrored and no snapshot is published', async () => {
+    const h = harness(seed, { switched: false });
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    assertEquals([out.rows, h.mirror.size, h.snapshots.length], [2, 2, 0]);
+  });
+
+  it('AC-ODA-003 once switched, a change publishes and a pass that changed nothing does not', async () => {
+    const h = harness(seed);
+    await withFetchMock(h.routes, async () => {
+      await runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget());
+      assertEquals(h.snapshots.length, 1);
+      await runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget());
+    });
+    assertEquals(h.snapshots.length, 1);
+  });
+});
+
+describe('runLedgerPass — AC-ODA-002 a late project link re-attributes the stored lines', () => {
+  const seed = (fake: FakeOdoo) => fake.seed('account.move.line', [line(1, { analytic_distribution: { '101': 100 }, debit: 300 })]);
+
+  it('lines fed while the analytic account was unlinked move to the project once it is linked, in a bounded rewind', async () => {
+    const h = harness(seed, { links: {} });
+    const pass = () => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    await pass();
+    assertEquals([...h.mirror.values()].map((r) => r.project), [null]);
+    assertEquals(h.rewinds(), 1, 'the first pass records the link set (nothing stored to rewind)');
+    await pass();
+    assertEquals(h.rewinds(), 1, 'an unchanged link set rewinds nothing');
+    h.relink({ [P1]: '101' });
+    await pass();
+    assertEquals(h.rewinds(), 2);
+    assertEquals([...h.mirror.entries()].map(([n, r]) => [n, r.project]), [['odoo:1:101', '101']]);
+    await pass();
+    assertEquals(h.rewinds(), 2, 'one rewind per link change, not per pass');
+  });
+
+  it('a two-claimant analytic account that becomes one claimant is re-attributed too', async () => {
+    const h = harness(seed, { links: { [P2]: '101', [P3]: '101' } });
+    const pass = () => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    await pass();
+    assertEquals([...h.mirror.keys()], ['odoo:1:-']);
+    h.relink({ [P2]: '101' });
+    await pass();
+    assertEquals([...h.mirror.keys()], ['odoo:1:101']);
   });
 });

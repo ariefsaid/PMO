@@ -221,11 +221,13 @@ describe('odoo-sweep — #1783 item 4 the scheduled entry holds purchase on the 
         mirror.push(...b.p_rows.map((r) => ({ ...r, id: r.erp_name, cost_center: null, fiscal_year: '2026', debit: '10.00', credit: '0.00' })));
         return jsonResponse(b.p_rows.length);
       }),
+      { label: 'watermark-rewind', method: 'DELETE', pathname: '/rest/v1/external_sync_watermarks', response: () => new Response(null, { status: 204 }) },
+      { label: 'watermark-fingerprint', method: 'POST', pathname: '/rest/v1/external_sync_watermarks', response: () => new Response(null, { status: 201 }) },
       supabaseRpc('mark_odoo_ledger_census_seen', () => jsonResponse(null)),
       supabaseRpc('finish_odoo_ledger_census', () => jsonResponse(0)),
       supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push(c.bodyJson); return jsonResponse(null); }),
     ];
-    const org = { ...binding, config: { ...binding.config, capabilities: { ...binding.config.capabilities, later: { ...binding.config.capabilities.later, 'account.move.line': true } } } };
+    const org = { ...binding, config: { ...binding.config, ledger_basis_at: '2026-11-05T00:00:00Z', capabilities: { ...binding.config.capabilities, later: { ...binding.config.capabilities.later, 'account.move.line': true } } } };
     const lines = [1, 2].map((id) => ({
       id, move_id: [id, `BILL/${id}`], move_name: `BILL/${id}`, journal_id: [3, 'Bills'], partner_id: false, company_id: [1, 'Main'], currency_id: [12, 'IDR'], account_id: [1, '2100 Payable'],
       date: '2026-06-15', parent_state: 'posted', debit: 10, credit: 0, balance: 10, amount_currency: 10, analytic_distribution: { '101': 100 }, write_date: WRITE,
