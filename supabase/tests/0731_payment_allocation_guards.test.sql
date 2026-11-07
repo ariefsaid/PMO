@@ -104,7 +104,7 @@ select is((select bool_and(not has_function_privilege(r, p.oid, 'EXECUTE'))
             where p.pronamespace = 'public'::regnamespace and p.proname in ('ipa_consistency', 'incoming_payments_amount_covers_allocations')),
   true, 'AC-NPA-009 neither guard function is executable by anon or authenticated');                                                       -- 21
 select is((select count(*)::int from pg_trigger where tgrelid = 'public.incoming_payment_allocations'::regclass
-              and tgname = 'incoming_payment_allocations_consistency' and not tgisinternal), 1,
+              and tgname = 'incoming_payment_allocations_zz_consistency' and not tgisinternal), 1,
   'AC-NPA-009 the consistency trigger is installed on the allocation table');                                                              -- 22
 select is((select count(*)::int from pg_trigger where tgrelid = 'public.incoming_payments'::regclass
               and tgname = 'incoming_payments_amount_covers_allocations' and not tgisinternal), 1,

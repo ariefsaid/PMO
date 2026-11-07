@@ -108,7 +108,7 @@ begin
   return new;
 end; $$;
 revoke all on function public.ipa_consistency() from public, anon, authenticated;
-create trigger incoming_payment_allocations_consistency
+create trigger incoming_payment_allocations_zz_consistency   -- zz: fires after ..._stamp_org_id (0215)
   before insert or update of incoming_payment_id, sales_invoice_id, amount, reversed_at, org_id, currency
   on public.incoming_payment_allocations for each row execute function public.ipa_consistency();
 

@@ -5,8 +5,8 @@ import React from 'react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { AppError } from '@/src/lib/appError';
-import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
-import { financeTestI18n } from '../__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { ApplyReceiptForm, applicableInvoices } from './ApplyReceiptForm';
 
