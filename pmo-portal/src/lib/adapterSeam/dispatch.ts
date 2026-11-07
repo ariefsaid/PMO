@@ -539,7 +539,16 @@ const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
  * can only be resolved by lease expiry + the sweep, so waiting longer just hangs the request. */
 const COMMITTING_WAIT_BUDGET_MS = 3_000;
 
-async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number): Promise<CommandResult> {
+/** How many times the `committed` finalize may be refused (`record_outbox_ref` → 0 on a row that is still
+ * `committed`) before the request gives up. A genuine supersede changes the row's state on the first
+ * re-read; a refusal that repeats is a rule refusing, and re-asking it cannot change the answer. */
+const MAX_FINALIZE_REFUSALS = 3;
+
+/** Thrown when the finalize keeps refusing a still-`committed` row. The code is the recorded reason: the
+ * budget push writes it to the mirror (`push_error`) so the screen names it instead of going silent. */
+export const OUTBOX_FINALIZE_REFUSED = 'outbox-finalize-refused';
+
+async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number, finalizeRefusals = 0): Promise<CommandResult> {
   const { command, money } = deps;
   const outboxRecordId = deps.outboxRecordId ?? command.record.id;
   switch (row.state) {
@@ -574,7 +583,10 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       if (finalized === 0) {
         // F3 — superseded before the finalize writes landed; reconcile off the current state.
         const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
-        return reconcileOutbox(fresh!, deps);
+        if (fresh?.state === 'committed' && finalizeRefusals + 1 >= MAX_FINALIZE_REFUSALS) {
+          throw new AppError('the ERP document is committed but PMO could not record its reference', OUTBOX_FINALIZE_REFUSED);
+        }
+        return reconcileOutbox(fresh!, deps, undefined, finalizeRefusals + 1);
       }
       return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
     }

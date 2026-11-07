@@ -65,6 +65,8 @@ export interface ServedSeed {
   grainByAccountYear?: Record<string, Array<Record<string, unknown>>>;
   /** `external_refs.pmo_record_id` → external record id (the PMO ownership witness, FR-BFY-076). */
   externalRefs?: Record<string, string>;
+  /** `record_outbox_ref` refuses (answers 0 rows) — the finalize step a still-`committed` row cannot pass. */
+  refuseOutboxRef?: boolean;
   /** Test-only ERP validation rejection for one v16 Budget account. */
   rejectBudgetAccount?: string;
   /** Existing account mirror rows returned by the real handler's project-scoped keyset scan. */
@@ -203,9 +205,17 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       return call.headers.get('accept')?.includes('vnd.pgrst.object') ? objectResponse(rows[0] ?? null) : jsonResponse(rows);
     }),
     {
+      label: 'legacy mirror keyless-refusal retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_erp_mirror',
+      response: (call) => {
+        const year = call.url.searchParams.get('fiscal_year')?.replace(/^eq\./, '');
+        for (let index = budgetMirrorRows.length - 1; index >= 0; index--) if (budgetMirrorRows[index]?.fiscal_year === year) budgetMirrorRows.splice(index, 1);
+        return jsonResponse([]);
+      },
+    },
+    {
       label: 'v16 account mirror sentinel retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_account_erp_mirror',
       response: (call) => {
-        const yearFilter = call.url.searchParams.get('fiscal_year')?.replace(/^in\./, '').replace(/[()]/g, '').split(',') ?? [];
+        const yearFilter = call.url.searchParams.get('fiscal_year')?.replace(/^(in|eq)\./, '').replace(/[()]/g, '').split(',') ?? [];
         for (let index = accountMirrorRows.length - 1; index >= 0; index--) {
           if (accountMirrorRows[index]?.erp_account === '' && yearFilter.includes(String(accountMirrorRows[index]?.fiscal_year))) accountMirrorRows.splice(index, 1);
         }
@@ -317,7 +327,15 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       label: 'outbox update (committed/failed)',
       method: 'PATCH',
       pathname: '/rest/v1/external_command_outbox',
-      response: () => jsonResponse([{ id: 'outbox-updated' }]),
+      response: (call) => {
+        // The committed write-back is what moves the row on; without it a refusing `record_outbox_ref`
+        // could never be reached (the row would read back `committing` for ever).
+        const body = (call.bodyJson ?? {}) as Record<string, unknown>;
+        const id = new URL(call.url).searchParams.get('id')?.replace(/^eq\./, '');
+        const row = [...outboxRows.values()].find((r) => r.id === id);
+        if (row && body.state === 'committed') Object.assign(row, { state: 'committed', external_record_id: body.external_record_id ?? null, canonical: body.canonical ?? null });
+        return jsonResponse([{ id: 'outbox-updated' }]);
+      },
     },
     supabaseRpc('claim_outbox_for_commit', (call) => {
       const id = String((call.bodyJson as { p_id?: unknown })?.p_id ?? '');
@@ -329,7 +347,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       return jsonResponse(row ? { ...row } : null);
     }),
     supabaseRpc('quarantine_committing', () => jsonResponse(null)),
-    supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
+    supabaseRpc('record_outbox_ref', () => jsonResponse(seed.refuseOutboxRef ? 0 : 1)),
     supabaseRpc('confirm_outbox', (call) => {
       const id = String((call.bodyJson as { p_id?: unknown })?.p_id ?? '');
       const row = [...outboxRows.values()].find((r) => r.id === id);
