@@ -52,8 +52,8 @@ const world = (config?: Record<string, unknown>, { caseCurrency = 'IDR', odooCur
 ];
 
 describe('P3 the Odoo adapter factory', () => {
-  it('is the procurement and revenue domains\' Odoo factories (revenue: #1506 C2)', () => {
-    assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement', 'revenue']);
+  it('is the procurement, revenue (#1506 C2) and companies (#1504 S8) domains\' Odoo factories', () => {
+    assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement', 'revenue', 'companies']);
     assertEquals(ODOO_ADAPTER_REGISTRY.procurement, resolveOdooProcurementAdapter);
     assertEquals(ODOO_ADAPTER_REGISTRY.revenue, resolveOdooRevenueAdapter);
   });
