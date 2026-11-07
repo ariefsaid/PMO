@@ -551,8 +551,9 @@ Deno.test('T-07 B3: a confirmed absent customer / invoice ref stays null (the ad
   assert((findInsert(ip.calls, 'incoming_payments')?.payload as Record<string, unknown>).sales_invoice_id === null, 'absent invoice → null link');
 });
 
-// #1607: a copy minted before its client was linked is re-read after the link (the party link rewinds the revenue cursor),
-// and that re-read must fill the client in.
+// #1607: the fill-in half. A copy minted before its client was linked is re-read after the link and that re-read must set the client.
+// The other half (the link queues the re-read, the pair is then offered) is pgTAP connect_party_link_revenue_reread; this behaviour
+// predates the link and is pinned here because the heal depends on it.
 Deno.test('#1607: a re-read SI update fills the client once the customer link exists', async () => {
   const { client, calls } = fakeServiceClient({ single: { external_refs: { pmo_record_id: 'company-1' } } });
   const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
