@@ -128,6 +128,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
     Promise.resolve(resolved).then(resolve, reject);
   void self; // suppress unused-var lint
   mockFrom.mockReturnValue(builder);
+  mockRpc.mockReturnValue(builder);
   return builder;
 }
 
@@ -332,6 +333,53 @@ describe('listBudgetVersions', () => {
   it('throws on PostgREST error', async () => {
     makeFromBuilder({ data: null, error: { message: 'list error' } });
     await expect(listBudgetVersions('p1')).rejects.toThrow('list error');
+  });
+
+  it('starts budget_versions, line_items, editors, and read_totals in parallel (Wave E collapse)', async () => {
+    let resolveVersions!: (val: unknown) => void;
+    const versionsPromise = new Promise((resolve) => { resolveVersions = resolve; });
+
+    const makeDelayedRead = () => {
+      const b = {
+        select: mockSelect,
+        eq: mockEq,
+        order: mockOrder,
+        range: vi.fn(),
+        then: (resolve: (v: unknown) => void) => versionsPromise.then(resolve),
+      };
+      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
+      return b;
+    };
+
+    const makeImmediateRead = (data: unknown) => {
+      const b = {
+        select: mockSelect,
+        eq: mockEq,
+        order: mockOrder,
+        range: vi.fn(),
+        then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve),
+      };
+      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
+      return b;
+    };
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'budget_versions') return makeDelayedRead();
+      return makeImmediateRead([]);
+    });
+    mockRpc.mockImplementation(() => makeImmediateRead([]));
+
+    const invocation = listBudgetVersions('p1');
+
+    // While budget_versions is still pending, the other queries must ALREADY have been initiated:
+    expect(mockFrom).toHaveBeenCalledWith('budget_versions');
+    expect(mockFrom).toHaveBeenCalledWith('budget_line_items');
+    expect(mockFrom).toHaveBeenCalledWith('budget_version_editors');
+    expect(mockRpc).toHaveBeenCalledWith('budget_version_read_totals', { p_project_id: 'p1' });
+
+    resolveVersions({ data: [], error: null });
+    const result = await invocation;
+    expect(result).toEqual([]);
   });
 });
 

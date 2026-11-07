@@ -176,11 +176,10 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
 
 /** Read all visible versions and their related rows independently, with bounded ordered pages. */
 export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
-  const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
-    .select('*').eq('project_id', projectId)
-    .order('version', { ascending: true }).order('id', { ascending: true }).range(from, to));
-  if (!versions.length) return [];
-  const [lines, editors, totals] = await Promise.all([
+  const [versions, lines, editors, totals] = await Promise.all([
+    fetchAllPages((from, to) => supabase.from('budget_versions')
+      .select('*').eq('project_id', projectId)
+      .order('version', { ascending: true }).order('id', { ascending: true }).range(from, to)),
     fetchAllPages((from, to) => supabase.from('budget_line_items')
       .select('*, budget_versions!inner(project_id)').eq('budget_versions.project_id', projectId)
       .order('id', { ascending: true }).range(from, to)),
@@ -190,6 +189,7 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
     fetchAllPages((from, to) => supabase.rpc('budget_version_read_totals', { p_project_id: projectId })
       .order('version_id', { ascending: true }).range(from, to)),
   ]);
+  if (!versions.length) return [];
   const linesByVersion = new Map<string, BudgetLineItemRow[]>();
   for (const { budget_versions: _parent, ...line } of lines) {
     const items = linesByVersion.get(line.budget_version_id) ?? [];
