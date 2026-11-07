@@ -35,6 +35,8 @@ export interface SalesInvoiceRow {
   /** Stored tax value used to convert this invoice to a comparable basis (0188). */
   tax_amount: number;
   tax_rate?: number | null;
+  /** AC-OCI-081: the invoice project's VAT flag; null/absent = no project, treated as subject to VAT. */
+  project_subject_to_vat?: boolean | null;
   tax_base_numerator?: number;
   tax_base_denominator?: number;
   erp_outstanding_amount: number | null;
@@ -171,7 +173,7 @@ function throwWrite(error: PostgrestErrorLike): never {
  * consult the same oracle as the RPC, or it offers a "Submit" that 403s (round-6 re-audit NIT 1).
  */
 const SALES_INVOICE_SELECT =
-  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)';
+  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat)';
 
 /** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set + customer name flattened). */
 function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
@@ -182,6 +184,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
     erp_payment_terms_days: companies?.erp_payment_terms_days ?? null,
     customer_name: companies ? companyDisplayName({ name: companies.name ?? '', short_name: companies.short_name }) : null,
     author_user_ids: authors.map((a) => a.user_id),
+    project_subject_to_vat: (row.project as { subject_to_vat: boolean } | null)?.subject_to_vat ?? null,
     erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
     received_date: (row.received_date as string | null | undefined) ?? null,
     efaktur_number: (row.efaktur_number as string | null | undefined) ?? null,
