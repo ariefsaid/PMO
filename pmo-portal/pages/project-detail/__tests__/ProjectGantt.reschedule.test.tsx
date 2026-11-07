@@ -96,6 +96,19 @@ describe('#1980 drag / resize saves dates', () => {
     expect(captured!.events!.find((e) => e.id === 'a')!.start).toEqual(day('2026-03-02'));
   });
 
+  it('a failed first save does not undo a newer drag on the same task', async () => {
+    let failFirst!: (ok: boolean) => void;
+    const onReschedule = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<boolean>((r) => { failFirst = r; }))
+      .mockResolvedValue(true);
+    setup({ onReschedule });
+    await act(async () => { captured!.onEventUpdate!(update(A, '2026-03-09', '2026-03-14')); });
+    await act(async () => { captured!.onEventUpdate!(update(A, '2026-03-16', '2026-03-21')); });
+    await act(async () => { failFirst(false); });
+    expect(captured!.events!.find((e) => e.id === 'a')!.start).toEqual(day('2026-03-16'));
+  });
+
   it('a drop on the same dates is rejected without a write', async () => {
     const { onReschedule } = setup();
     let result: unknown;

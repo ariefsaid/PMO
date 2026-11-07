@@ -19,6 +19,7 @@ import { GanttView } from '@/src/components/reui/gantt/gantt-view';
 import type { GanttProposedUpdate, GanttScale } from '@/src/components/reui/gantt/gantt-types';
 import type { GanttColumn, GanttColumnContext } from '@/src/components/reui/gantt/gantt';
 import type { GanttI18nOverrides } from '@/src/components/reui/gantt/gantt-i18n';
+import { RowMenu } from '@/src/components/ui/RowMenu';
 import { ContextMenuItem } from '@/src/components/shadcn/context-menu';
 import { TooltipProvider } from '@/src/components/shadcn/tooltip';
 import { buildReuiGanttModel, taskPatchFromRange, type GanttTaskData } from '@/src/lib/gantt/reuiModel';
@@ -171,9 +172,12 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
       const patch = taskPatchFromRange(task, update.start, update.end);
       if (!patch) return false;
       const id = task.id;
-      setOverrides((cur) => new Map(cur).set(id, { start: update.start, end: update.end }));
+      const mine: Override = { start: update.start, end: update.end };
+      setOverrides((cur) => new Map(cur).set(id, mine));
+      // Roll back only this drag's own override: a newer drag on the same task keeps its bar.
       const rollback = () =>
         setOverrides((cur) => {
+          if (cur.get(id) !== mine) return cur;
           const next = new Map(cur);
           next.delete(id);
           return next;
@@ -205,8 +209,23 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
           return `${fmt(task.start_date)} – ${fmt(task.end_date)}`;
         },
       },
+      ...(rowMenu
+        ? [
+            {
+              id: 'actions',
+              title: '',
+              width: 40,
+              render: ({ resource }: GanttColumnContext) => {
+                const task = taskMap.get(resource.id);
+                return task ? (
+                  <RowMenu items={rowMenu(task)} />
+                ) : null;
+              },
+            },
+          ]
+        : []),
     ],
-    [t, taskMap],
+    [t, taskMap, rowMenu],
   );
 
   const menuItems = useCallback(
@@ -290,7 +309,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             events={events}
             resources={model.resources}
             defaultDate={defaultDate}
-            treePanel={{ width: 440, nameColumnWidth: 208 }}
+            treePanel={{ width: rowMenu ? 480 : 440, nameColumnWidth: 208 }}
             scale={scale}
             onScaleChange={setScale}
             interactions={{ drag: writable, resize: writable, selectSlot: false }}
