@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { repositories, type ProcurementWithRefs, type ProjectCommittedSpend } from '@/src/lib/repositories';
-import { procurementsKey } from './approvalsQueryKeys';
+import { procurementsKey, requestedProcurementsKey } from './approvalsQueryKeys';
 
 export { procurementsKey } from './approvalsQueryKeys';
 
@@ -12,17 +12,19 @@ export { procurementsKey } from './approvalsQueryKeys';
  * under its own cache key, so Approvals/dashboards keep the lean payload. Both keys share the
  * `['procurements', orgId]` prefix, so existing invalidations still refetch it. `lean` is the dashboards' list (PERF-DASH-1). `withSharedDetails`
  * adds the batched money/stage inputs needed by the shared procurement block under a third cache key.
+ * `status: 'Requested'` is the approvals queue (Approvals page, nav count, approval tiles): the lean row, server-filtered, under its own key.
  */
-export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; enabled?: boolean }) {
+export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: 'Requested'; enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const withRefs = opts?.withRefs === true;
   const withSharedDetails = opts?.withSharedDetails === true;
   const lean = opts?.lean === true;
   const withoutRoutes = lean && opts?.withoutRoutes === true;
+  const requested = opts?.status === 'Requested';
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: procurementsKey(orgId, withRefs, withSharedDetails, lean, withoutRoutes),
-    queryFn: () => repositories.procurement.list(lean ? (withoutRoutes ? { lean: true, withoutRoutes: true } : { lean: true }) : withSharedDetails
+    queryKey: requested ? requestedProcurementsKey(orgId) : procurementsKey(orgId, withRefs, withSharedDetails, lean, withoutRoutes),
+    queryFn: () => repositories.procurement.list(requested ? { status: 'Requested' } : lean ? (withoutRoutes ? { lean: true, withoutRoutes: true } : { lean: true }) : withSharedDetails
       ? { withRefs: true, withSharedDetails: true }
       : withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,

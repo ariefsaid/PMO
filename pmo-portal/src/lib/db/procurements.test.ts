@@ -62,6 +62,16 @@ describe('listProcurements', () => {
     expect(result[0].vendor).toBeNull();
   });
 
+  it('PERF-APPR-1: { status } filters server-side with the lean select and still attaches routes', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ status: 'Requested' });
+    expect(mockEq).toHaveBeenCalledWith('status', 'Requested');
+    expect(mockSelect.mock.calls.at(-1)![0]).toMatch(/open_commitment:procurement_open_commitment$/);
+    mockEq.mockClear();
+    await listProcurements();
+    expect(mockEq).not.toHaveBeenCalled();
+  });
+
   it('AC-EXT-001: the shared select carries NO record-reference embeds; only { withRefs: true } adds them', async () => {
     makeBuilder({ data: [], error: null });
     await listProcurements();
