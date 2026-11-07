@@ -198,7 +198,9 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
       {odoo && (
         <dl className="mt-4 border-t border-border/70 pt-3 text-sm" data-testid="odoo-tax-document">
           <dt className="text-xs font-medium text-muted-foreground">{t('finance:odooOutcome.taxDocument', 'Tax document')}</dt>
-          <dd className="mt-1 text-sm text-muted-foreground">{t('finance:odooOutcome.taxDocumentUnavailable', 'Tax documents are unavailable in Odoo.')}</dd>
+          <dd className="mt-1 text-sm text-muted-foreground">{invoice.efaktur_number
+            ? t('finance:odooOutcome.taxDocumentRecorded', 'Odoo generates no tax document. The e-Faktur number recorded above stands.')
+            : t('finance:odooOutcome.taxDocumentUnavailable', 'Tax documents are unavailable in Odoo.')}</dd>
         </dl>
       )}
     </section>

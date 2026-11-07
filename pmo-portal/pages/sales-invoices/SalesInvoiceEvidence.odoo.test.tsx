@@ -56,11 +56,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clearOwnershipCache(); });
 
 describe('AC-OCI-090/091 Sales invoice evidence', () => {
-  it('shows the Odoo invoice outcome with its read age and no held tax-document block', () => {
+  it('shows the Odoo invoice outcome with its read age and no held-by-Odoo wording', () => {
     mount();
     expect(screen.getByText('In Odoo')).toBeInTheDocument();
     expect(screen.getByText(/Read/)).toBeInTheDocument();
     expect(screen.queryByText(/held by odoo/i)).toBeNull();
+  });
+
+  it('with a hand-recorded e-Faktur, says the ERP generates none and the recorded number stands', () => {
+    mount(invoice({ efaktur_number: '010.001-26.12345678', efaktur_date: '2026-11-03' }));
+    expect(screen.getByText('010.001-26.12345678', { exact: false })).toBeInTheDocument();
+    expect(screen.getByTestId('odoo-tax-document')).toHaveTextContent('Odoo generates no tax document. The e-Faktur number recorded above stands.');
+    expect(screen.queryByText('Tax documents are unavailable in Odoo.')).toBeNull();
   });
 
   it('shows a held invoice and its next step in plain words, once', () => {
