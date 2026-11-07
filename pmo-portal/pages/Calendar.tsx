@@ -21,7 +21,7 @@ import type { WorkItem, WorkTask } from '@/src/lib/calendar/workCalendar';
  * One tasks read per visible window and one milestone-dates read for all projects (no per-project fan-out).
  */
 const CalendarPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('calendar');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -74,16 +74,16 @@ const CalendarPage: React.FC = () => {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('calendar.title', 'Calendar')}</h1>
+        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('title', 'Calendar')}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          {t('calendar.subtitle', 'Tasks by due date and milestones by target date, across your projects.')}
+          {t('subtitle', 'Tasks by due date and milestones by target date, across your projects.')}
         </p>
       </div>
       {tasks.isError ? (
         <ListState
           variant="error"
-          title={t('calendar.error.title', 'Could not load the calendar')}
-          sub={t('calendar.error.sub', 'Check your connection and try again.')}
+          title={t('error.title', 'Could not load the calendar')}
+          sub={t('error.sub', 'Check your connection and try again.')}
           onRetry={() => void tasks.refetch()}
         />
       ) : (

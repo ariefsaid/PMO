@@ -50,26 +50,26 @@ export interface WorkCalendarProps {
 }
 
 const Toolbar: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('calendar');
   const { title, next, prev, today } = useEventCalendarNavigation();
   const { view, setView } = useEventCalendarView();
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="work-calendar-toolbar">
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" onClick={today}>{t('calendar.today', 'Today')}</Button>
-        <Button variant="outline" iconOnly aria-label={t('calendar.previous', 'Previous')} onClick={prev}>‹</Button>
-        <Button variant="outline" iconOnly aria-label={t('calendar.next', 'Next')} onClick={next}>›</Button>
+        <Button variant="outline" size="sm" onClick={today}>{t('today', 'Today')}</Button>
+        <Button variant="outline" iconOnly aria-label={t('previous', 'Previous')} onClick={prev}>‹</Button>
+        <Button variant="outline" iconOnly aria-label={t('next', 'Next')} onClick={next}>›</Button>
       </div>
       <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground" aria-live="polite">{title}</h2>
       <ViewToggle<WorkView>
-        ariaLabel={t('calendar.viewAria', 'Calendar view')}
+        ariaLabel={t('viewAria', 'Calendar view')}
         value={VIEWS.includes(view as WorkView) ? (view as WorkView) : 'month'}
         onChange={(next) => setView(next)}
         options={[
-          { value: 'month', label: t('calendar.view.month', 'Month') },
-          { value: 'week', label: t('calendar.view.week', 'Week') },
-          { value: 'day', label: t('calendar.view.day', 'Day') },
-          { value: 'agenda', label: t('calendar.view.agenda', 'Agenda') },
+          { value: 'month', label: t('view.month', 'Month') },
+          { value: 'week', label: t('view.week', 'Week') },
+          { value: 'day', label: t('view.day', 'Day') },
+          { value: 'agenda', label: t('view.agenda', 'Agenda') },
         ]}
       />
     </div>
@@ -79,7 +79,7 @@ const Toolbar: React.FC = () => {
 export const WorkCalendar: React.FC<WorkCalendarProps> = ({
   tasks, milestones, loading, initialDate, withProject, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('calendar');
   // A dropped task shows on its new day at once; the host's refetch (new `tasks`) or a failed save clears it.
   const [moved, setMoved] = useState<Record<string, WorkTask>>({});
   useEffect(() => setMoved({}), [tasks]);
@@ -133,7 +133,7 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
         onEventUpdate={handleUpdate}
         onEventClick={handleClick}
         onRangeChange={handleRange}
-        i18n={{ labels: { noEvents: t('calendar.empty', 'Nothing due in this period') } }}
+        i18n={{ labels: { noEvents: t('empty', 'Nothing due in this period') } }}
         className="min-h-[34rem] flex-1"
       >
         <Toolbar />

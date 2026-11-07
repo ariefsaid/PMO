@@ -1,7 +1,9 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import i18next from 'i18next';
 import { WorkCalendar } from './WorkCalendar';
+import idCalendar from '../../../public/locales/id/calendar.json';
 import type { WorkTask } from '@/src/lib/calendar/workCalendar';
 
 const task = (o: Partial<WorkTask> = {}): WorkTask => ({
@@ -123,5 +125,17 @@ describe('WorkCalendar (#1982)', () => {
     vi.spyOn(performance, 'now').mockReturnValue(performance.now() + 5000);
     fireEvent.click(chipOf('Pour slab'));
     expect(onOpenItem).toHaveBeenCalledWith(expect.objectContaining({ kind: 'task', id: 't1' }));
+  });
+
+  it('toolbar speaks Indonesian from the calendar namespace', async () => {
+    i18next.addResourceBundle('id', 'calendar', idCalendar, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    try {
+      renderCal();
+      expect(screen.getByRole('button', { name: 'Hari ini' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Sebelumnya' })).toBeTruthy();
+    } finally {
+      await act(async () => { await i18next.changeLanguage('en'); });
+    }
   });
 });

@@ -4956,24 +4956,5 @@
       "summary": "Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}",
       "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
     }
-  },
-  "calendar": {
-    "title": "Calendar",
-    "subtitle": "Tasks by due date and milestones by target date, across your projects.",
-    "today": "Today",
-    "previous": "Previous",
-    "next": "Next",
-    "viewAria": "Calendar view",
-    "view": {
-      "month": "Month",
-      "week": "Week",
-      "day": "Day",
-      "agenda": "Agenda"
-    },
-    "empty": "Nothing due in this period",
-    "error": {
-      "title": "Could not load the calendar",
-      "sub": "Check your connection and try again."
-    }
   }
 }
