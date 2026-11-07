@@ -57,13 +57,28 @@ describe('BudgetDocumentLinks rendering', () => {
   it('AC-M365DOC-058 an Active or Archived version opens a link directly, is read-only, and offers no link or remove', async () => {
     for (const status of ['Active', 'Archived']) {
       const { unmount } = render(<BudgetDocumentLinks versionId="v1" status={status} />);
-      expect(screen.getByText('Evidence is read-only on this version.')).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`Evidence is read-only: this version is ${status}\\.`))).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Link from Microsoft 365/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
       await userEvent.click(screen.getAllByRole('button', { name: /^Open in SharePoint/ })[0]);
       expect(window.open).toHaveBeenLastCalledWith(`${SP}/Quote.pdf`, '_blank', 'noopener,noreferrer');
       unmount();
     }
+  });
+
+  it('F19 the block names its version; a locked version says why and how to proceed', () => {
+    render(<BudgetDocumentLinks versionId="v1" status="Active" versionLabel="v2 Revised plan" />);
+    expect(screen.getByRole('heading', { name: 'Evidence documents for v2 Revised plan' })).toBeInTheDocument();
+    expect(screen.getByText(/Archive it, then use Clone to revise/)).toBeInTheDocument();
+  });
+
+  it('F19 an Archived version points to Clone to revise; a Draft without permission blames the role', () => {
+    const { unmount } = render(<BudgetDocumentLinks versionId="v1" status="Archived" />);
+    expect(screen.getByText(/Use Clone to revise to start a new draft/)).toBeInTheDocument();
+    unmount();
+    mock.mayMutate.mockReturnValue(false);
+    render(<BudgetDocumentLinks versionId="v1" status="Draft" />);
+    expect(screen.getByText('Evidence is read-only: your role cannot change budget evidence.')).toBeInTheDocument();
   });
 
   it('AC-M365DOC-059 an evidence read failure is its own error with retry; the empty list is distinct', async () => {
