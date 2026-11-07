@@ -55,6 +55,7 @@ test(
 
     // ── Open the project from the Sales table; the record path stays canonical /projects/:id ──
     await table.getByText('Riverside Plastics 2.1 MW Carport PV').click();
+    await page.getByRole('button', { name: 'Open deal' }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await expect(page.getByTestId('record-header')).toContainText('Riverside Plastics 2.1 MW Carport PV');
 
@@ -70,6 +71,7 @@ test(
     await page.goto(narrowedSalesUrl);
     await waitReady(page);
     await table.getByText('Riverside Plastics 2.1 MW Carport PV').click();
+    await page.getByRole('button', { name: 'Open deal' }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const recordUrl = page.url();
     const salesLink = page.getByRole('link', { name: /back to sales pipeline/i });

@@ -142,6 +142,44 @@ export async function listTaskDueRows(projectIds: readonly string[]): Promise<Ta
   return out;
 }
 
+/** A dated task as the calendar needs it: no joins beyond the project name, no description. */
+export interface CalendarTask {
+  id: string;
+  name: string;
+  status: TaskStatus;
+  project_id: string | null;
+  project_name: string | null;
+  start_date: string | null;
+  end_date: string;
+  assignee_id: string | null;
+  created_by: string | null;
+}
+
+/**
+ * Live, unarchived tasks due in `[from, to)` (YYYY-MM-DD) for the calendar views. ONE query for the
+ * whole org window (RLS scopes rows; org_id is never sent), or one project when `projectId` is given.
+ * Throws on any page failure (never a partial set).
+ */
+export async function listCalendarTasks(
+  opts: { from: string; to: string; projectId?: string },
+): Promise<CalendarTask[]> {
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase
+      .from('tasks')
+      .select('id, name, status, project_id, start_date, end_date, assignee_id, created_by, project:projects!tasks_project_id_fkey(name, short_name)')
+      .gte('end_date', opts.from)
+      .lt('end_date', opts.to)
+      .is('tombstoned_at', null)
+      .is('archived_at', null);
+    if (opts.projectId) q = q.eq('project_id', opts.projectId);
+    return q.order('end_date', { ascending: true }).order('id', { ascending: true }).range(from, to);
+  }) as unknown as Array<Omit<CalendarTask, 'project_name'> & { project: { name: string; short_name?: string | null } | null }>;
+  return rows.map(({ project, ...t }) => ({
+    ...t,
+    project_name: project ? projectDisplayName(project) : null,
+  }));
+}
+
 /**
  * List the tasks minuted out of one meeting (the /action seam, migration 0206) with their
  * assignee — the meeting detail's "Action items" list. Excludes tombstoned rows, mirrors

@@ -189,4 +189,10 @@ export default tseslint.config(
       ],
     },
   },
+  // Vendored shadcn/ReUI source (#1980): component + helper co-exports are upstream's layout, so
+  // fast-refresh's only-export-components is off here. Everything else stays enforced.
+  {
+    files: ['src/components/reui/**/*.{ts,tsx}', 'src/components/shadcn/**/*.{ts,tsx}'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 );

@@ -14,7 +14,8 @@ import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import { budgetLinesByCategory } from '@/src/lib/budget/budgetModel';
 
 export interface CategoryPosition { category: string; budget: number; actual: number | null }
 
@@ -30,11 +31,8 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
   const actuals = canSeeActual ? finances.data?.actuals : undefined;
   return useMemo(() => {
     const active = (versions.data ?? []).find((v) => v.status === 'Active');
-    const budgets = new Map<string, number>();
-    for (const li of active?.line_items ?? []) {
-      const cat = li.category ?? 'Other';
-      budgets.set(cat, (budgets.get(cat) ?? 0) + (Number(li.budgeted_amount) || 0));
-    }
+    // #1459: the same category rollup the Budget tab totals, so the Overview and the tab cannot drift.
+    const budgets = new Map(budgetLinesByCategory(active?.line_items ?? []).map(({ category, budget }) => [category, budget] as const));
     for (const category of actuals?.categories ?? []) {
       if (!budgets.has(category.category) && category.mapped && category.amount !== null && Number(category.amount) !== 0) {
         budgets.set(category.category, 0);
@@ -74,9 +72,10 @@ export function useOverdueReceivables(project: ProjectWithRefs, enabled = true) 
   const isError = canSeeInvoices && (invoices.isError || orgTodayQuery.isError);
   const data = useMemo(() => {
     if (!canSeeInvoices || isPending || isError) return null;
-    const overdue = (invoices.data ?? []).filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
-      .map((inv) => ({ inv, age: overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), orgToday) }))
-      .filter((x): x is { inv: typeof x.inv; age: number } => x.age !== null && x.age > 0);
+    // #1457: the one shared overdue rule decides and supplies each age.
+    const overdue = (invoices.data ?? [])
+      .map((inv) => ({ inv, age: clientInvoiceOverdueDays(inv, orgToday) }))
+      .filter((x): x is { inv: typeof x.inv; age: number } => x.age !== null);
     if (!overdue.length) return null;
     const balanceKnown = overdue.every((x) => x.inv.erp_outstanding_amount !== null);
     return {

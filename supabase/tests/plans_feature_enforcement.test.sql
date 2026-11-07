@@ -262,12 +262,16 @@ insert into imprest_plans (id, org_id, float_id, month, number, author_id)
           '05340000-0000-0000-0000-0000000000f1', date_trunc('month', current_date)::date, 'PLN-RV-1',
           '05340000-0000-0000-0000-0000000000a1');
 -- A PMO invoice + its receipt in org A (revenue off by plan): both are closeable while off.
-insert into sales_invoices (id, org_id, amount, tax_treatment, tax_amount, status, pmo_native, native_lines)
-  values ('05340000-0000-0000-0000-0000000000d5', '05340000-0000-0000-0000-000000000001', 100,
+-- 0731 (#1415): a native receipt needs a customer (not an invoice) and settles through its allocation, which the backfill writes.
+insert into companies (id, org_id, name, type)
+  values ('05340000-0000-0000-0000-0000000000c9', '05340000-0000-0000-0000-000000000001', 'Enforcement client A', 'Client');
+insert into sales_invoices (id, org_id, customer_id, amount, tax_treatment, tax_amount, status, pmo_native, native_lines)
+  values ('05340000-0000-0000-0000-0000000000d5', '05340000-0000-0000-0000-000000000001', '05340000-0000-0000-0000-0000000000c9', 100,
           'exclusive', 0, 'Unpaid', true, '[]'::jsonb);
-insert into incoming_payments (id, org_id, sales_invoice_id, pmo_number, date, amount, status, pmo_native)
-  values ('05340000-0000-0000-0000-0000000000e6', '05340000-0000-0000-0000-000000000001',
+insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, pmo_number, date, amount, status, pmo_native)
+  values ('05340000-0000-0000-0000-0000000000e6', '05340000-0000-0000-0000-000000000001', '05340000-0000-0000-0000-0000000000c9',
           '05340000-0000-0000-0000-0000000000d5', 'RCV-RV-1', current_date, 40, 'Paid', true);
+do $$ begin perform public.native_receipt_allocations_backfill(); end $$;
 -- Org C (sales_invoices/procurement/timesheets off by override): a native draft invoice, a draft
 -- purchase, and a SUBMITTED sheet owned by another member (so a decision is allowed).
 insert into sales_invoices (id, org_id, si_number, amount, tax_treatment, tax_amount, status, pmo_native, native_lines)

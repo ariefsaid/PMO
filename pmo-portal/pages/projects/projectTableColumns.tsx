@@ -10,6 +10,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import type { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import { initials } from '@/src/lib/initials';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 
 interface ProjectTableColumnInputs {
@@ -255,7 +256,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
-        const initials = label.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
+        const avatarInitials = initials(label);
         return (
           // Left-aligned with the other card values (director fix): the avatar started at a
           // different x than the Status pill and Contract amount inside the card's shared grid.
@@ -267,7 +268,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
               className="grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
               style={{ background: 'hsl(var(--avatar-2))' }}
             >
-              {initials}
+              {avatarInitials}
             </span>
           </span>
         );

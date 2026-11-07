@@ -7,13 +7,16 @@ import {
   PROCUREMENT_VIEWS,
   type ProcurementView,
 } from '../hooks/useProcurementView';
-import { ProcurementStatus } from '../../types';
+import { ProcurementStatus, ProjectStatus } from '../../types';
 import { OPEN_FUNNEL_STAGES, type OpenFunnelStage } from '../../components/salesPipeline';
 import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 
 export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings';
 
-export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
+export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk'
+  // URL-only drill values (#1461): never offered as toolbar tabs, each one holds exactly the
+  // record set a dashboard figure sums/counts so a drill-through lands on its own set.
+  | 'on-hand' | 'delivery' | 'ongoing-project' | 'won' | 'decided';
 export type SalesScope = 'All' | 'Open' | 'Won' | 'Lost' | 'Needs attention';
 export type SalesStage = '' | OpenFunnelStage;
 export type ProcurementFilterStatus =
@@ -33,6 +36,16 @@ export interface ProjectsWorkingSet extends ProjectClassificationFilters {
   /** The end-customer company UUID (issue #758), mirroring `client`. */
   endClient: string;
   pm: string;
+  /** Exact project statuses from the filter builder (`status=a,b`); absent = any. */
+  statuses?: string[];
+  /** Inclusive `YYYY-MM-DD` bounds on `start_date` / `end_date`; either end may be absent (#1983). */
+  startFrom?: string;
+  startTo?: string;
+  endFrom?: string;
+  endTo?: string;
+  /** Inclusive contract-value bounds, as plain decimal strings; either end may be absent. */
+  valueMin?: string;
+  valueMax?: string;
   q: string;
   view: ProjectView;
   /**
@@ -40,6 +53,10 @@ export interface ProjectsWorkingSet extends ProjectClassificationFilters {
    * the URL only ever carries a month the user navigated away to (#716).
    */
   month?: string;
+  /** #1461 drill window: inclusive first/last month (`YYYY-MM`) of a `won`/`decided` drill.
+   *  Present only while the filter is one that reads it; anything else is a clean URL. */
+  from?: string;
+  to?: string;
 }
 
 export interface SalesWorkingSet extends ProjectClassificationFilters {
@@ -95,6 +112,12 @@ const PROJECT_FILTERS = [
   'Ongoing',
   'Completed',
   'at-risk',
+  // Dashboard drill values (#1461) — URL-owned, no toolbar tab.
+  'on-hand',
+  'delivery',
+  'ongoing-project',
+  'won',
+  'decided',
 ] as const satisfies readonly ProjectFilter[];
 const SALES_SCOPES = ['All', 'Open', 'Won', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
 const SALES_STAGES = ['', ...OPEN_FUNNEL_STAGES] as readonly SalesStage[];
@@ -186,6 +209,17 @@ export function currentMonthToken(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
+
+/** A real `YYYY-MM` month token, else undefined. Unlike the calendar month it MAY be the
+ *  current month — a `?period=month` drill carries exactly that window (#1461). */
+function periodMonthValue(value: string | null): string | undefined {
+  return value !== null && MONTH_PATTERN.test(value) && Number(value.slice(0, 4)) >= 1900
+    ? value
+    : undefined;
+}
+
+/** The drill filters whose set reads the `from`/`to` month window. */
+const PERIOD_FILTERS: readonly ProjectFilter[] = ['won', 'decided'];
 
 /**
  * A calendar month token. Anything that is not a real `YYYY-MM`, and the current month itself,
@@ -325,10 +359,39 @@ function putClassification(params: URLSearchParams, values: ProjectClassificatio
   for (const key of CLASSIFICATION_FILTER_KEYS) putParam(params, key, values[key] ?? '');
 }
 
+/** Builder filters on Projects (#1983): every one is optional and omitted from the URL when empty. */
+const DAY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/u;
+const DECIMAL_PATTERN = /^-?\d+(\.\d+)?$/u;
+const PROJECT_DAY_KEYS = ['startFrom', 'startTo', 'endFrom', 'endTo'] as const;
+const PROJECT_VALUE_KEYS = ['valueMin', 'valueMax'] as const;
+const PROJECT_STATUS_TOKENS: readonly string[] = Object.values(ProjectStatus);
+
+function projectBuilderValues(
+  params: URLSearchParams,
+): Pick<ProjectsWorkingSet, 'statuses' | (typeof PROJECT_DAY_KEYS)[number] | (typeof PROJECT_VALUE_KEYS)[number]> {
+  const result: ReturnType<typeof projectBuilderValues> = {};
+  const statuses = [...new Set((params.get('status') ?? '').split(',').filter((s) => PROJECT_STATUS_TOKENS.includes(s)))];
+  if (statuses.length) result.statuses = statuses;
+  for (const key of PROJECT_DAY_KEYS) {
+    const day = params.get(key) ?? '';
+    if (DAY_PATTERN.test(day)) result[key] = day;
+  }
+  for (const key of PROJECT_VALUE_KEYS) {
+    const amount = params.get(key) ?? '';
+    if (DECIMAL_PATTERN.test(amount)) result[key] = amount;
+  }
+  return result;
+}
+function putProjectBuilderValues(params: URLSearchParams, value: ProjectsWorkingSet): void {
+  putParam(params, 'status', (value.statuses ?? []).join(','));
+  for (const key of [...PROJECT_DAY_KEYS, ...PROJECT_VALUE_KEYS]) putParam(params, key, value[key] ?? '');
+}
+
 const LIST_WORKING_SET_SCHEMAS: Schemas = {
   projects: {
     parse: (params, options) => ({
       ...classificationValues(params),
+      ...projectBuilderValues(params),
       filter: enumValue(
         params.get('filter'),
         PROJECT_FILTERS,
@@ -340,9 +403,12 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       q: searchValue(params),
       view: viewValue(params, 'projects', options.sessionView),
       month: monthValue(params.get('month')),
+      from: periodMonthValue(params.get('from')),
+      to: periodMonthValue(params.get('to')),
     }),
     serialize: (params, value, options) => {
       putClassification(params, value);
+      putProjectBuilderValues(params, value);
       const omitFilter = options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER;
       putParam(params, 'filter', value.filter, omitFilter);
       putParam(params, 'client', value.client, 'All');
@@ -354,6 +420,15 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       const month = value.view === 'calendar' ? monthValue(value.month ?? null) : undefined;
       if (month) params.set('month', month);
       else params.delete('month');
+      // The drill window rides only with a filter that reads it — anything else drops it so the
+      // canonical URL never carries an inert period (#1461).
+      if (PERIOD_FILTERS.includes(value.filter)) {
+        if (value.from) params.set('from', value.from); else params.delete('from');
+        if (value.to) params.set('to', value.to); else params.delete('to');
+      } else {
+        params.delete('from');
+        params.delete('to');
+      }
       return params;
     },
   },
