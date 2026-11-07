@@ -237,6 +237,7 @@
       "errorTitle": "Could not read records",
       "errorDescription": "Could not read records from your connected system. Check the connection and try again.",
       "retry": "Try again",
+      "recheck": "Check again",
       "emptyTitle": "Nothing to set up",
       "emptyDescription": "No records to set up. All records are connected.",
       "allClearTitle": "All records connected",
