@@ -1,6 +1,6 @@
 // Title: Event Calendar Recurrence
 // Description: RFC 5545 subset recurrence expansion for the event calendar - structured rules or raw RRULE strings, with a hard occurrence cap.
-/* eslint-disable react-refresh/only-export-components -- vendored ReUI source (HMR-only lint concern) */
+ 
 
 import type {
   CalendarEvent,

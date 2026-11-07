@@ -1,6 +1,6 @@
 // Title: Event Calendar Lib
 // Description: Pure, React-free calendar math: view ranges, zoned day keys, multi-day segmentation, overlap packing, lane packing, and the event index.
-/* eslint-disable react-refresh/only-export-components -- vendored ReUI source (HMR-only lint concern) */
+ 
 
 import { expandRecurrence } from "./event-calendar-recurrence"
 import type {

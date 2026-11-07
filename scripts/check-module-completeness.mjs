@@ -55,6 +55,7 @@ export const CORE_ROUTES = {
   '/projects/:projectId': 'projects — core',
   '/approvals': 'approvals — core',
   '/my-tasks': 'tasks — core',
+  '/calendar': 'calendar — a view of core tasks and milestones, no switch key',
   '/meetings': 'meetings — not a catalogue module (D5; no switch key)',
   '/meetings/new': 'meetings — not a catalogue module',
   '/meetings/:meetingId': 'meetings — not a catalogue module',
@@ -93,6 +94,7 @@ export const CORE_NAV = {
   '/expenses': 'expense_claims — core',
   '/approvals': 'approvals — core',
   '/my-tasks': 'tasks — core',
+  '/calendar': 'calendar — a view of core tasks and milestones',
   '/meetings': 'meetings — not a catalogue module',
   '/finance': 'Finance hub — role-gated, no entitlement',
 };
@@ -105,6 +107,7 @@ export const CORE_PALETTE = {
   '/expenses': 'expense_claims — core',
   '/equipment': 'equipment — not a catalogue module',
   '/my-tasks': 'tasks — core',
+  '/calendar': 'calendar — a view of core tasks and milestones',
   '/approvals': 'approvals — core',
   '/finance': 'Finance hub — role-gated, no entitlement',
   '/administration': 'administration — core',

@@ -1,6 +1,6 @@
 // Title: Event Calendar Time Grid
 // Description: Shared week/day/N-days engine - hour gutter, minute-positioned events, all-day row, drag ghosts, now indicator, and configurable scrolling.
-/* eslint-disable react-refresh/only-export-components -- vendored ReUI source (HMR-only lint concern) */
+ 
 
 "use client"
 

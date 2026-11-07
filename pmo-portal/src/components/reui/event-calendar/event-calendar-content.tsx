@@ -57,7 +57,7 @@ function EventCalendarContent({
   }
   // A spread copies keys that hold `undefined`, so `components={{ month: isPro
   // ? ProMonth : undefined }}` would erase the default and render <undefined />.
-  const ActiveView = resolved[view] ?? DEFAULT_VIEW_COMPONENTS[view]
+  const ActiveView = (resolved[view] ?? DEFAULT_VIEW_COMPONENTS[view]) as ComponentType
 
   const defaultProps = {
     "data-slot": "event-calendar-content",

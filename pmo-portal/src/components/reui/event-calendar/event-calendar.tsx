@@ -1,6 +1,6 @@
 // Title: Event Calendar
 // Description: Headless-first event calendar with month, week, day, N-day and agenda views, external CRUD contract, and a subscribable store.
-/* eslint-disable react-refresh/only-export-components -- vendored ReUI source (HMR-only lint concern) */
+ 
 
 "use client"
 

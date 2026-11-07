@@ -1,6 +1,6 @@
 // Title: Event Calendar I18n
 // Description: Default UI texts, date-format strings, and formatter functions for the event calendar, fully overridable per key.
-/* eslint-disable react-refresh/only-export-components -- vendored ReUI source (HMR-only lint concern) */
+ 
 
 import type {
   CalendarView,

@@ -100,7 +100,7 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
     }
     const patch = movedTaskDates(task, update.start);
     if (patch.end_date === task.end_date) return false;
-    setMoved((m) => ({ ...m, [task.id]: { ...task, ...patch } }));
+    setMoved((m) => ({ ...m, [task.id]: { ...task, ...patch, end_date: patch.end_date ?? task.end_date } as WorkTask }));
     onMoveTask(task, patch).catch((err: unknown) => {
       setMoved((m) => {
         const { [task.id]: _drop, ...rest } = m;

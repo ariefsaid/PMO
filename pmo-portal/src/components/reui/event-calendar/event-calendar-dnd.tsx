@@ -1,6 +1,6 @@
 // Title: Event Calendar Dnd
 // Description: Custom pointer-event interaction engine - move, resize, and drag-create across month, week, day, and N-day views with live validation.
-/* eslint-disable react-refresh/only-export-components -- vendored ReUI source (HMR-only lint concern) */
+ 
 
 "use client"
 

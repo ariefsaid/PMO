@@ -1,6 +1,6 @@
 // Title: Event Calendar Event
 // Description: The reusable event chip/bar/block - selection, clicks, drag + resize wiring, and the consumer render slot.
-/* eslint-disable react-refresh/only-export-components -- vendored ReUI source (HMR-only lint concern) */
+ 
 
 "use client"
 
