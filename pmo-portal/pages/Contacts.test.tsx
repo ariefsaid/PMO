@@ -9,9 +9,19 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { contactsState, companiesState, mutations } = vi.hoisted(() => ({
-  contactsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  companiesState: { data: [] as unknown[], isPending: false, isError: false },
+// #1989: the page reads ONE SERVER page and no longer filters in the browser, so the
+// useContactsPage mock is a SERVER STUB mirroring the directory read's contract (company filter
+// + name/email search applied before the range, one pageSize window, exact total). The company
+// options read stays whole-directory (the picker must offer everyone), narrowed to display rows.
+const h = vi.hoisted(() => ({
+  directory: [] as Array<Record<string, unknown>>,
+  pending: false,
+  error: false,
+  refetch: vi.fn(),
+  lastInput: null as Record<string, unknown> | null,
+  companies: [] as Array<Record<string, unknown>>,
+  companiesPending: false,
+  companiesError: false,
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -24,14 +34,39 @@ const { contactsState, companiesState, mutations } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useContacts', () => ({
-  useContacts: () => contactsState,
-  useContactMutations: () => mutations,
+  useContactsPage: (input: { companyId: string; search: string; page: number; pageSize: number }) => {
+    h.lastInput = input;
+    const q = input.search.trim().toLowerCase();
+    const matching = h.directory.filter((c) => {
+      const companyOk = input.companyId === 'All' || c.company_id === input.companyId;
+      const searchOk = !q || String(c.full_name).toLowerCase().includes(q) || String(c.email ?? '').toLowerCase().includes(q);
+      return companyOk && searchOk;
+    });
+    const start = (input.page - 1) * input.pageSize;
+    return {
+      data: h.error || h.pending
+        ? null
+        : { rows: matching.slice(start, start + input.pageSize), total: matching.length },
+      isPending: h.pending,
+      isError: h.error,
+      isFetching: false,
+      refetch: h.refetch,
+    };
+  },
+  useContactsTotal: () => ({ data: null, isPending: false, isError: false }),
+  useContactsExportAll: () => ({ mutateAsync: vi.fn(async () => h.directory), isPending: false }),
+  useContactMutations: () => h.mutations,
 }));
 const partyMappings = vi.hoisted(() => ({ ids: ['11111111-1111-4111-8111-111111111111'], isPending: false, isError: false }));
 vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => partyMappings }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => ({
+    data: h.companiesError ? undefined : h.companies,
+    isPending: h.companiesPending,
+    isError: h.companiesError,
+    refetch: vi.fn(),
+  }),
 }));
 
 // list-working-set-return (#683): the page writes real router navigation for its `company`/`q`
@@ -94,14 +129,17 @@ const sizeMainScroll = (): HTMLElement => {
   return main;
 };
 
+const mutations = h.mutations;
+
 beforeEach(() => {
-  contactsState.data = contacts;
-  contactsState.isPending = false;
-  contactsState.isError = false;
-  contactsState.refetch.mockClear();
-  companiesState.data = companies;
-  companiesState.isPending = false;
-  companiesState.isError = false;
+  h.directory = contacts;
+  h.pending = false;
+  h.error = false;
+  h.refetch.mockClear();
+  h.lastInput = null;
+  h.companies = companies;
+  h.companiesPending = false;
+  h.companiesError = false;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -146,36 +184,88 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
   });
 
   it('AC-CRM-030: loading skeleton while pending', () => {
-    contactsState.isPending = true;
+    h.pending = true;
     renderPage();
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
   it('AC-CRM-030: error state with retry', async () => {
-    contactsState.isError = true;
+    h.error = true;
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
-    expect(contactsState.refetch).toHaveBeenCalled();
+    expect(h.refetch).toHaveBeenCalled();
   });
 
   it('AC-CRM-030: empty state when there are no contacts', () => {
-    contactsState.data = [];
+    h.directory = [];
     renderPage('Admin');
     expect(screen.getByText(/No contacts yet/i)).toBeInTheDocument();
   });
 
-  it('AC-CRM-030: search filters rows by name', async () => {
+  it('AC-CRM-030: search filters rows by name — the committed term goes to the server', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search contacts/i), 'marcus');
-    expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument();
+    await waitFor(() => expect(h.lastInput).toMatchObject({ search: 'marcus' }));
+    await waitFor(() => expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument());
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
   });
 
-  it('AC-CRM-030: the company filter narrows the visible rows', async () => {
+  it('AC-CRM-030: the company filter narrows the visible rows — by asking the SERVER for that company', async () => {
     renderPage();
     await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
-    expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument();
+    await waitFor(() => expect(h.lastInput).toMatchObject({ companyId: '22222222-2222-4222-8222-222222222222' }));
+    await waitFor(() => expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument());
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
+  });
+});
+
+describe('Contacts index — server paging (#1989)', () => {
+  const bigDirectory = [
+    ...contacts,
+    ...Array.from({ length: 57 }, (_, i) => ({
+      id: `ct-bulk-${i}`,
+      full_name: `Bulk Person ${String(i + 1).padStart(2, '0')}`,
+      company_id: '11111111-1111-4111-8111-111111111111',
+      email: null,
+      archived_at: null,
+    })),
+  ];
+
+  it('renders ONE page of rows and the pager range, with a working Next page', async () => {
+    h.directory = bigDirectory;
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Bulk Person 47')).toBeInTheDocument());
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.queryByText('Bulk Person 51')).not.toBeInTheDocument();
+    expect(screen.getByText('1–50 of 59')).toBeInTheDocument();
+    const next = screen.getByRole('button', { name: /Next page/i });
+    expect(next).toBeEnabled();
+    await userEvent.click(next);
+    await waitFor(() => expect(screen.getByText('Bulk Person 51')).toBeInTheDocument());
+    expect(h.lastInput).toMatchObject({ page: 2 });
+    expect(screen.getByText('51–59 of 59')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Next page/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Previous page/i })).toBeEnabled();
+  });
+
+  it('a filter/search change lands on page 1 of the new result set', async () => {
+    h.directory = bigDirectory;
+    renderPage();
+    await waitFor(() => expect(screen.getByText('1–50 of 59')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: /Next page/i }));
+    await waitFor(() => expect(screen.getByText('51–59 of 59')).toBeInTheDocument());
+    await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
+    // the Steelforge set is small — page 1 of it, not page 2 of the old result set
+    await waitFor(() => expect(h.lastInput).toMatchObject({ companyId: '22222222-2222-4222-8222-222222222222', page: 1 }));
+    expect(screen.getByText('1–1 of 1')).toBeInTheDocument();
+    expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
+  });
+
+  it('a filtered zero-match is the table empty state, NOT the collection-empty one (AC-LRC-012)', () => {
+    h.directory = [contacts[0]];
+    renderPage('Admin', '/contacts?q=zzz');
+    expect(screen.getByText(/No contacts match your filters/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No contacts yet/i)).not.toBeInTheDocument();
   });
 });
 
@@ -322,7 +412,7 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
   });
 
   it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {
-    contactsState.isPending = true;
+    h.pending = true;
     const path = '/contacts?company=22222222-2222-4222-8222-222222222222';
     const entry = {
       pathname: '/contacts',
@@ -345,7 +435,7 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(main.scrollTop).toBe(0);
 
-    contactsState.isPending = false;
+    h.pending = false;
     rerender(tree());
     await waitFor(() => expect(main.scrollTop).toBe(300));
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();

@@ -993,6 +993,12 @@
       "client": "Klien",
       "internal": "Internal",
       "vendor": "Pemasok"
+    },
+    "pager": {
+      "label": "Halaman",
+      "range": "{{from}}–{{to}} dari {{total}}",
+      "prev": "Halaman sebelumnya",
+      "next": "Halaman berikutnya"
     }
   },
   "companyDetail": {
@@ -1282,7 +1288,13 @@
       "deleted": "Kontak dihapus",
       "updated": "Kontak diperbarui"
     },
-    "companiesUnavailable": "Direktori perusahaan tidak dapat dimuat. Nama perusahaan, penyaringan, dan ekspor tidak tersedia."
+    "companiesUnavailable": "Direktori perusahaan tidak dapat dimuat. Nama perusahaan, penyaringan, dan ekspor tidak tersedia.",
+    "pager": {
+      "label": "Halaman",
+      "range": "{{from}}–{{to}} dari {{total}}",
+      "prev": "Halaman sebelumnya",
+      "next": "Halaman berikutnya"
+    }
   },
   "dashboard": {
     "winRate": {
