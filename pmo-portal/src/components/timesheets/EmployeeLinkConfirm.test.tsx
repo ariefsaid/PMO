@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../__tests__/axe';
-import { EmployeeLinkConfirm } from './EmployeeLinkConfirm';
+import { EmployeeLinkConfirm, type EmployeeProfileOption } from './EmployeeLinkConfirm';
 import type { ProposedEmployeeLink } from '@/src/lib/db/timesheetPush';
 
 /**
@@ -28,7 +28,7 @@ const ACTIVE_PROFILE_OPTIONS = [
 ];
 
 type EmployeeLinkConfirmWithOptionsProps = React.ComponentProps<typeof EmployeeLinkConfirm> & {
-  profileOptions: typeof ACTIVE_PROFILE_OPTIONS;
+  profileOptions: EmployeeProfileOption[];
 };
 const EmployeeLinkConfirmWithOptions = EmployeeLinkConfirm as React.ComponentType<EmployeeLinkConfirmWithOptionsProps>;
 
