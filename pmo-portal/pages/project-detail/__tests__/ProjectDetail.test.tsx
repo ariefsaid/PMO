@@ -204,8 +204,8 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
   // record and several tests assert exactly those — so the wait is satisfied there.
   await waitFor(() => {
     const panel = screen.queryByRole('tabpanel');
-    if (panel) expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument();
-  });
+    if (panel) expect(within(panel).queryAllByTestId('liststate-loading')).toHaveLength(0);
+  }, { timeout: LAZY_TAB_TIMEOUT });
   return view;
 };
 
