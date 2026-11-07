@@ -8,7 +8,9 @@ import { fanOutLine, type LedgerLine, type ProjectAccounts } from '../../../pmo-
 import { refreshActuals } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/actualsSnapshot.ts';
 import { ODOO_WORKFLOWS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/workflowDeclarations.ts';
 import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
-import { runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
+import { overlapStart, parseCursor, runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
+import { compareTotals, type OdooTotals, type PmoLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ledger/ledgerReconcile.ts';
+import { formatCents, nanoToCents, toNano } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ledger/cents.ts';
 import { OdooError } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 
 type Budget = { spend: () => boolean; left: () => boolean };
@@ -16,7 +18,7 @@ export interface LedgerPassOpts { pageSize?: number; censusPageSize?: number; no
 /** Counts only. `stalled: 'account'` = the feed is held at a page with `held` lines on accounts the directory has not mirrored (never "caught up");
  *  `calendarYear` = the company year end was refused, so this pass stamped calendar years (OQ-ODA-3);
  *  `failed` = the pass hit an Odoo failure (error class only) and retries next tick. */
-export interface LedgerPassResult { rows: number; caughtUp: boolean; skipped: number; stalled?: 'account'; held?: number; calendarYear?: true; failed?: string }
+export interface LedgerPassResult { rows: number; caughtUp: boolean; skipped: number; stalled?: 'account'; held?: number; calendarYear?: true; failed?: string; check?: 'matches' | 'differs' | 'not-checked' }
 
 // 500 lines a page keeps one apply call small; the bed reads 1,000 a page in p95 0.85 s (V-ODA7), so this has room to grow.
 const LEDGER_PAGE_SIZE = 500;
@@ -25,6 +27,11 @@ const LEDGER_CENSUS_PAGE_SIZE = 5_000;
 const DOMAIN = 'ledger:odoo';
 // Which project↔analytic links the stored lines were attributed with; a change rewinds the feed (the upserts are idempotent).
 const LINKS_DOMAIN = 'ledger-links:odoo';
+// Whether the last finished pass left the feed caught up; its updated_at is that pass's time, so a quiet Odoo still reads fresh (get_odoo_ledger_health).
+const CAUGHT_UP_DOMAIN = 'ledger-caught-up:odoo';
+// The reconciliation against Odoo's grouped totals runs at most hourly (S4-T4); a result keeps its 50 largest-account differences.
+const CHECK_EVERY_MS = 3_600_000;
+const MAX_DIFFERENCES = 50;
 // A refused or missing company year end is permanent (calendar year, OQ-ODA-3); a timeout, outage or server error is retried next tick.
 const FY_UNREADABLE = new Set(['access-denied', 'missing-model', 'validation']);
 
@@ -130,6 +137,73 @@ function toLine(r: DirectoryRow, codes: Map<string, string>): LedgerLine {
   };
 }
 
+/** Odoo's per-account totals of posted lines written up to the cut-off (V-ODA5: `formatted_read_group`; `read_group` is refused). A failure is "not checked", never an error. */
+async function odooTotals(call: OdooCall, companyId: number, cutoff: string, codes: Map<string, string>): Promise<OdooTotals> {
+  try {
+    const groups = await call<Array<Record<string, unknown>>>('account.move.line', 'formatted_read_group', {
+      domain: [['company_id', '=', companyId], ['parent_state', '=', 'posted'], ['write_date', '<=', cutoff]], groupby: ['account_id'], aggregates: ['debit:sum', 'credit:sum'],
+    });
+    const money = (v: unknown): string => {
+      const n = typeof v === 'number' ? toNano(v) : null;
+      if (n === null) throw new Error('malformed group');
+      return formatCents(nanoToCents(n));
+    };
+    const totals: Record<string, { debit: string; credit: string }> = {};
+    for (const g of groups) {
+      const a = g.account_id;
+      if (!Array.isArray(a) || typeof a[0] !== 'number') throw new Error('malformed group');
+      const key = codes.get(String(a[0])) ?? `account:${a[0]}`;
+      const t = totals[key] ?? { debit: '0.00', credit: '0.00' };
+      // Two Odoo accounts with one code add up, as the mirror's per-code sum does.
+      totals[key] = { debit: addMoney(t.debit, money(g['debit:sum'])), credit: addMoney(t.credit, money(g['credit:sum'])) };
+    }
+    return { ok: true, totals };
+  } catch (err) {
+    return { ok: false, reason: err instanceof OdooError ? err.errorClass : 'read-failed' };
+  }
+}
+const addMoney = (a: string, b: string): string => formatCents(nanoToCents(toNano(a)!) + nanoToCents(toNano(b)!));
+
+/** After a caught-up pass and at least an hour since the last check: compare the mirror's per-account sums with Odoo's grouped totals and record the result.
+ *  Never throws. ponytail: the mirror side is paged through PostgREST (about 130 calls for 130,000 rows once an hour); a SQL sum is the upgrade if that bites. */
+async function runLedgerCheck(sc: SupabaseClient, orgId: string, call: OdooCall, companyId: number, codes: Map<string, string>, budget: Budget, now: Date): Promise<'matches' | 'differs' | 'not-checked' | undefined> {
+  try {
+    const last = await sc.from('odoo_ledger_checks').select('checked_at').eq('org_id', orgId).order('checked_at', { ascending: false }).limit(1);
+    if (last.error) throw new Error('could not read the last ledger check');
+    const lastAt = (last.data as Array<{ checked_at: string }> | null)?.[0]?.checked_at;
+    if (lastAt && now.getTime() - Date.parse(lastAt) < CHECK_EVERY_MS) return undefined;
+    const rawCursor = await readCursor(sc, orgId);
+    const cursor = parseCursor(rawCursor);
+    if (!cursor.w || !budget.spend()) return undefined;
+    const cutoff = overlapStart({ w: cursor.w, id: cursor.id }).w;
+    let result;
+    const odoo = await odooTotals(call, companyId, cutoff, codes);
+    if (!odoo.ok) {
+      result = compareTotals({ lines: [], odoo, cutoff });
+    } else {
+      const lines = (await fetchAllRowsByKeyset<{ id: string; account: string; debit: string | number | null; credit: string | number | null; erp_modified: string; is_cancelled: boolean }>((after, limit) => {
+        const q = sc.from('erp_gl_entry_mirror').select('id,account,debit,credit,erp_modified,is_cancelled').eq('org_id', orgId).eq('voucher_type', 'account.move').order('id');
+        return (after === null ? q : q.gt('id', after)).limit(limit) as never;
+      })).map((r): PmoLine => ({ account: r.account, debit: String(r.debit ?? 0), credit: String(r.credit ?? 0), writeDate: r.erp_modified, isCancelled: r.is_cancelled }));
+      result = compareTotals({ lines, odoo, cutoff });
+    }
+    // A page applied while the check ran moves both sides under it: drop the result, the next tick checks again.
+    if (await readCursor(sc, orgId) !== rawCursor) return undefined;
+    const { error } = await sc.rpc('record_odoo_ledger_check', {
+      p_org_id: orgId, p_cutoff: `${cutoff.replace(' ', 'T')}.000Z`,
+      p_accounts: result.state === 'differs' ? result.differing.slice(0, MAX_DIFFERENCES) : [], p_status: result.state,
+      p_reason: result.state === 'not-checked' ? result.reason : null,
+      p_accounts_checked: result.state === 'not-checked' ? 0 : result.accounts,
+      p_feed_position: `${cursor.w}|${cursor.id}`,
+    });
+    if (error) throw new Error('could not record the ledger check');
+    return result.state;
+  } catch {
+    console.error('odoo ledger check failed');
+    return undefined;
+  }
+}
+
 /** Pages the feed until caught up or the budget is spent, then the daily census, then rebuilds the actuals snapshot when rows changed and the org's basis is Odoo. */
 export async function runLedgerPass(
   sc: SupabaseClient, orgId: string, call: OdooCall, companyId: number, budget: Budget, opts: LedgerPassOpts = {},
@@ -175,6 +249,16 @@ export async function runLedgerPass(
     result = { rows, caughtUp: false, skipped: 0, stalled: 'account', held: err.held };
   }
   if (calendarYear) result.calendarYear = true;
+
+  // The health read's caught-up flag; written after every pass that finished (a thrown pass leaves it, so the as-of time ages honestly).
+  const now = (opts.now ?? (() => new Date()))();
+  const flag = await sc.from('external_sync_watermarks').upsert(
+    { org_id: orgId, external_tier: 'odoo', domain: CAUGHT_UP_DOMAIN, watermark_cursor: String(result.caughtUp), updated_at: now.toISOString() }, { onConflict: 'org_id,external_tier,domain' });
+  if (flag.error) console.error('could not save the Odoo ledger caught-up flag');
+  if (result.caughtUp) {
+    const check = await runLedgerCheck(sc, orgId, call, companyId, codes, budget, now);
+    if (check) result.check = check;
+  }
 
   // Publish only for an org an Admin has switched to Odoo's ledger, and only when a page changed or removed a row (the RPC counts those).
   if ((changed > 0 || deleted > 0) && await ledgerBasisSwitched(sc, orgId)) await refreshActuals(sc as never, orgId, { projectMap });
