@@ -5,7 +5,8 @@ import { Button, ListState, StatusPill, Tooltip } from '@/src/components/ui';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
-import { formatCurrencyWithCode } from '@/src/lib/finance/format';
+import { currencyLines } from '@/src/lib/finance/currencyFigures';
+import { initials } from '@/src/lib/initials';
 import { invoiceGross, invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
@@ -19,20 +20,6 @@ export interface FinanceAttentionProps {
   withLayout: (path: string) => string;
   orgCurrency?: string | null;
   projects?: Map<string, { name?: string | null; short_name?: string | null; pm?: { full_name?: string | null } | null }>;
-}
-
-function currencyEntries(values: Record<string, number>, preferred?: string | null) {
-  return Object.entries(values).sort(([left], [right]) => left === preferred ? -1 : right === preferred ? 1 : left.localeCompare(right));
-}
-
-function currencyLines(values: Record<string, number>, preferred?: string | null): string[] {
-  return currencyEntries(values, preferred).map(([currency, cents], index) => index === 0
-    ? formatCurrency(cents / 100, currency)
-    : formatCurrencyWithCode(cents / 100, currency));
-}
-
-function initials(name: string): string {
-  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?';
 }
 
 interface WaitingItem {

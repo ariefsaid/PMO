@@ -91,14 +91,14 @@ vi.mock('../ContractCascade', () => ({
 }));
 vi.mock('../ProjectDetailHeader', () => ({ default: ({ primaryAction }: { primaryAction?: React.ReactNode }) => <div>Header{primaryAction}</div>, hasFinanceView: () => true }));
 vi.mock('../ProjectDetailRail', () => ({ default: () => <aside data-testid="project-detail-rail" /> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div data-testid="pipeline-lens" /> }));
+vi.mock('../../sales/DealBand', () => ({ default: () => <div data-testid="pipeline-lens" /> }));
 vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
 vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
 vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
   useOverdueReceivables: () => ({
     data: invoiceState.data.length > 0 ? { to: '/finance/receivables?project=p1&overdue=true' } : null,

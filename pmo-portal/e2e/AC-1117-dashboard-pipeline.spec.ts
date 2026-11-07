@@ -82,3 +82,42 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   // The column should contain a non-zero currency value (weighted = $600,000)
   await expect(tenderCol).toContainText('$');
 });
+
+// #1461 — dashboard drill-through lands on exactly the set the figure counts: click a figure and
+// the list it opens must show exactly the counted records (the list-page count equals the figure).
+test('AC-1461: overdue and supplier-payable figures drill to lists whose count equals the figure', async ({ page }) => {
+  await pinViewerLocale(page);
+  await signIn(page, 'exec@acme.test');
+  const companyFigures = page.getByRole('region', { name: 'Company figures' });
+  const countFromBadge = async () => {
+    const text = (await page.getByTestId('list-page-count').textContent())?.trim() ?? '';
+    // "3" or "Showing 3 of 5" — the counted rows are the first number either way.
+    return text.match(/\d+/)?.[0] ?? '';
+  };
+
+  // ── Owed by clients · overdue → the receivables overdue filter ──────────────
+  const overdueTile = companyFigures.getByText('Owed by clients · overdue', { exact: true }).locator('xpath=../..');
+  await expect(overdueTile).toBeVisible();
+  const overdueFigure = (await overdueTile.getByText(/^\d+$/).textContent())?.trim() ?? '';
+  await companyFigures.getByRole('link', { name: 'Open related records for Owed by clients · overdue.', exact: true }).click();
+  await expect(page).toHaveURL(/\/finance\/receivables\?overdue=true/);
+  expect(await countFromBadge()).toBe(overdueFigure);
+
+  // ── Owed to suppliers → the exact Vendor Invoiced procurement segment ─────────
+  await page.goto('/');
+  const supplierTile = companyFigures.getByText('Owed to suppliers', { exact: true }).locator('xpath=../..');
+  await expect(supplierTile).toBeVisible();
+  const supplierSubline = await supplierTile.getByText(/supplier invoices? awaiting payment/).textContent();
+  const supplierFigure = supplierSubline?.match(/(\d+)/)?.[1] ?? '';
+  expect(supplierFigure, 'seed has awaiting-payment supplier invoices').not.toBe('');
+  await companyFigures.getByRole('link', { name: 'Open related records for Owed to suppliers.', exact: true }).click();
+  await expect(page).toHaveURL(/[?&]status=Vendor\+Invoiced/);
+  expect(await countFromBadge()).toBe(supplierFigure);
+
+  // ── Contract on hand → the on-hand set the figure sums (Close Out included) ───
+  await page.goto('/');
+  const contractTile = companyFigures.getByText('Contract on hand', { exact: true }).locator('xpath=../..');
+  await expect(contractTile).toBeVisible();
+  await companyFigures.getByRole('link', { name: 'Open related records for Contract on hand.', exact: true }).click();
+  await expect(page).toHaveURL(/[?&]filter=on-hand/);
+});

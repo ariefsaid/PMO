@@ -145,20 +145,19 @@ export async function assertMinutesHandle(page: Page, width: number) {
 }
 
 export async function assertProjectsDisclosures(page: Page, width: number) {
-    const filters = page.getByRole('button', { name: /^Filters/ });
-    const more = page.getByRole('button', { name: /^More actions/ });
-    await filters.click();
-    const filtersRegion = page.getByRole('region', { name: 'Filters' });
-    await expect(filtersRegion).toBeVisible();
+    // #1983: the filter builder replaced the "Filters" disclosure; its chips wrap inline, so it
+    // must never push the page wider than the viewport. "More actions" stays a disclosure.
+    const builder = page.getByTestId('project-filter-builder').first();
+    await expect(builder).toBeVisible();
     await waitForFonts(page);
-    const filtersBox = await filtersRegion.boundingBox();
-    expect(filtersBox).not.toBeNull();
-    expect(filtersBox!.x).toBeGreaterThanOrEqual(0);
-    expect(filtersBox!.x + filtersBox!.width).toBeLessThanOrEqual(width);
+    const builderBox = await builder.boundingBox();
+    expect(builderBox).not.toBeNull();
+    expect(builderBox!.x).toBeGreaterThanOrEqual(0);
+    expect(builderBox!.x + builderBox!.width).toBeLessThanOrEqual(width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 
+    const more = page.getByRole('button', { name: /^More actions/ });
     await more.click();
-    await expect(filters).toHaveAttribute('aria-expanded', 'false');
     await expect(more).toHaveAttribute('aria-expanded', 'true');
     const moreRegion = page.getByRole('region', { name: 'More actions' });
     await expect(moreRegion).toBeVisible();
@@ -171,11 +170,6 @@ export async function assertProjectsDisclosures(page: Page, width: number) {
     await page.keyboard.press('Escape');
     await expect(more).toHaveAttribute('aria-expanded', 'false');
     await expect(more).toBeFocused();
-
-    await filters.click();
-    await page.getByRole('heading', { name: 'Projects', exact: true }).click();
-    await expect(filters).toHaveAttribute('aria-expanded', 'false');
-    await expect(filters).toBeFocused();
 }
 
 export async function assertPageWithinWidth(page: Page, width: number) {

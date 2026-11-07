@@ -12,6 +12,8 @@ import { MicrosoftDocumentPicker } from './MicrosoftDocumentPicker';
 export interface BudgetDocumentLinksProps {
   versionId: string;
   status: string;
+  /** Names the version these links belong to, e.g. "v2 Revised plan". */
+  versionLabel?: string;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface BudgetDocumentLinksProps {
  * Draft-only affordance on the real role; Active/Archived versions keep reading and opening links.
  * The panel has its own loading/error state so a failed evidence read never blanks the amounts.
  */
-export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksProps) {
+export function BudgetDocumentLinks({ versionId, status, versionLabel }: BudgetDocumentLinksProps) {
   const { t } = useTranslation();
   const permissions = useDocumentLinkPermissions();
   const { query, add, remove } = useBudgetDocumentLinks(versionId);
@@ -50,7 +52,9 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
     <section aria-labelledby={`budget-evidence-${versionId}`} className="mt-4 min-w-0 border-t border-border pt-4" data-testid="budget-document-links">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h3 id={`budget-evidence-${versionId}`} className="min-w-0 text-[14px] font-semibold text-foreground">
-          {t('m365Documents.budget.heading', 'Evidence documents')}
+          {versionLabel
+            ? t('m365Documents.budget.headingFor', 'Evidence documents for {{version}}', { version: versionLabel })
+            : t('m365Documents.budget.heading', 'Evidence documents')}
         </h3>
         {mayMutate && (
           <Button variant="outline" size="sm" disabled={!connected} onClick={() => setPickerOpen(true)}>
@@ -61,7 +65,11 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
       </div>
       {!mayMutate && (
         <p className="mt-1 text-[12px] text-muted-foreground">
-          {t('m365Documents.budget.readOnly', 'Evidence is read-only on this version.')}
+          {status === 'Active'
+            ? t('m365Documents.budget.readOnlyActive', 'Evidence is read-only: this version is Active. Archive it, then use Clone to revise to start a new draft.')
+            : status === 'Archived'
+              ? t('m365Documents.budget.readOnlyArchived', 'Evidence is read-only: this version is Archived. Clone it, or edit the existing draft, to link evidence there.')
+              : t('m365Documents.budget.readOnlyRole', 'Evidence is read-only: your role cannot change budget evidence.')}
         </p>
       )}
       {mayMutate && !connected && (

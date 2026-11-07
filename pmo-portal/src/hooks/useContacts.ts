@@ -1,6 +1,12 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
+import type { ContactDirectoryPage, ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type {
   CrmActivityRow,
   CrmActivityInput,
@@ -22,6 +28,65 @@ export function useContacts(opts?: { enabled?: boolean }) {
     queryKey: ['contacts', orgId],
     queryFn: () => repositories.contact.list(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
+/** The directory's page size: 50, the established Odoo-directory/AdminUsers page size (#1989). */
+export const CONTACTS_DIRECTORY_PAGE_SIZE = 50;
+
+/**
+ * ONE server page of the Contacts directory (issue #1989, the Master-data/AdminUsers pattern):
+ * the URL's company filter + committed search go to the SERVER; filter, search, page and page
+ * size are part of the query key so an old view's response can never be served as the new one,
+ * and `keepPreviousData` keeps the previous page visible while a new one loads. 'All' is the
+ * ABSENCE of a company filter; a blank search is the absence of a search.
+ */
+export function useContactsPage(input: {
+  companyId: string;
+  search: string;
+  page: number;
+  pageSize: number;
+}) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ContactDirectoryPage>({
+    queryKey: ['contacts', orgId, 'page', input.companyId, input.search, input.page, input.pageSize],
+    queryFn: () =>
+      repositories.contact.listPage({
+        page: input.page,
+        pageSize: input.pageSize,
+        companyId: input.companyId === 'All' ? undefined : input.companyId,
+        search: input.search.trim() || undefined,
+      }),
+    enabled: Boolean(orgId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The exact non-archived contact total — the "of Y" behind the directory's filtered
+ * "Showing X of Y" (#1989). One head count per org, cached; the page enables it only while a
+ * filter/search is active (unfiltered, the page's own total IS the directory total).
+ */
+export function useContactsTotal(opts?: { enabled?: boolean }) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<number>({
+    queryKey: ['contacts', orgId, 'total'],
+    queryFn: () => repositories.contact.count(),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * The full-set export read (#1989): EVERY contact matching the directory's current
+ * filter/search, fetched only when the user actually exports.
+ */
+export function useContactsExportAll() {
+  return useMutation({
+    mutationFn: (params?: { companyId?: string; search?: string }) =>
+      repositories.contact.listAll(params),
   });
 }
 

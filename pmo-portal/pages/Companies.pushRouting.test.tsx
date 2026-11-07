@@ -26,7 +26,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-const { company } = vi.hoisted(() => ({ company: { list: vi.fn(), create: vi.fn() } }));
+const { company } = vi.hoisted(() => ({ company: { list: vi.fn(), create: vi.fn(), listPage: vi.fn(), count: vi.fn(), listOptions: vi.fn(), listAll: vi.fn() } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { company } }));
 
 import Companies from './Companies';
@@ -48,6 +48,11 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   company.list.mockResolvedValue([]);
+  // #1989: the directory reads one server page + head count; the export read is click-time.
+  company.listPage.mockResolvedValue({ rows: [], total: 0 });
+  company.count.mockResolvedValue(0);
+  company.listOptions.mockResolvedValue([]);
+  company.listAll.mockResolvedValue([]);
   setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
 });
 afterEach(() => clearOwnershipCache());

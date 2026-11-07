@@ -3,6 +3,9 @@ import { AppError } from '@/src/lib/appError';
 import {
   listClientCompanies,
   listCompanies,
+  listCompaniesPage,
+  countCompanies,
+  listCompanyOptions,
   getCompany,
   getCompaniesByIds,
   createCompany,
@@ -20,6 +23,8 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import {
   type ContactRow,
   listContacts,
+  listContactsPage,
+  countContacts,
   listContactsByCompany,
   getContact,
   createContact,
@@ -53,6 +58,10 @@ function erpPartyDocKind(type: CompanyType): 'supplier' | 'customer' | null {
 export const companyRepository: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
   list: (params) => wrap(() => listCompanies(params)),
+  listAll: (params) => wrap(() => listCompanies(params)),
+  listPage: (input) => wrap(() => listCompaniesPage(input)),
+  count: () => wrap(() => countCompanies()),
+  listOptions: () => wrap(() => listCompanyOptions()),
   get: (id) => wrap(() => getCompany(id)),
   getMany: (ids) => wrap(() => getCompaniesByIds(ids)),
   create: async (input) => {
@@ -89,6 +98,9 @@ export const companyRepository: CompanyRepository = {
 
 export const contactRepository: ContactRepository = {
   list: () => wrap(() => listContacts()),
+  listAll: (params) => wrap(() => listContacts(params)),
+  listPage: (input) => wrap(() => listContactsPage(input)),
+  count: () => wrap(() => countContacts()),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
   create: async (input) => {
