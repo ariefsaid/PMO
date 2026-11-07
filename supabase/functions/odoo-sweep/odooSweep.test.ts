@@ -30,15 +30,18 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>> }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>>; ledgerLines?: number; failLedgerApply?: boolean }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
   fake.seed('res.company', [{ id: 1, name: 'Main Co', currency_id: [12, 'IDR'] }]);
   fake.seed('product.product', [{ id: 1, name: 'Semen', default_code: 'S1', company_id: false }]);
   fake.seed('account.account', [{ id: 1, name: 'Payable', code: '2100', account_type: 'liability_payable', company_ids: [1] }]);
+  if (o.ledgerLines) {
+    fake.seed('account.move.line', Array.from({ length: o.ledgerLines }, (_, i) => ({ id: i + 1, move_id: [i + 1, `BILL/${i + 1}`], move_name: `BILL/${i + 1}`, journal_id: [3, 'Bills'], partner_id: false, company_id: [1, 'Main'], currency_id: [12, 'IDR'], account_id: [1, '2100 Payable'], date: '2026-06-15', parent_state: 'posted', debit: 10, credit: 0, balance: 10, amount_currency: 10, analytic_distribution: { '101': 100 }, write_date: '2026-11-02 10:00:00' })));
+  }
   o.prepare?.(fake);
-  const documentModels = [...(o.purchaseModels ?? []), ...(o.revenueModels ?? [])];
+  const documentModels = [...(o.purchaseModels ?? []), ...(o.revenueModels ?? []), ...(o.ledgerLines ? ['account.move.line'] : [])];
   if (documentModels.length && !o.binding) o.binding = binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {}, later: Object.fromEntries(documentModels.map((m) => [m, true])) } } });
   const cursors = new Map<string, string>(Object.entries(o.purchaseCursors ?? {}));
   const staged = new Map<string, Array<{ externalId: string }>>();
@@ -83,7 +86,26 @@ function harness(o: Opts = {}) {
     supabaseRpc('confirm_outbox', (c) => { sendOutbox.find((x) => x.id === sbody(c).p_id)!.state = 'confirmed'; return jsonResponse(1); }),
     supabaseRpc('mark_outbox_held', (c) => { sendOutbox.find((x) => x.id === sbody(c).p_id)!.state = 'held'; return jsonResponse(1); }),
   ];
+  // #1507 S3: the ledger feed's own reads and writes, listed before the generic empty answers below.
+  const ledger = { applied: 0, snapshots: 0, mirror: [] as Array<{ id: string; project: string | null; account: string; fiscal_year: string; debit: string; credit: string }> };
+  const ledgerRoutes: MockRoute[] = o.ledgerLines ? [
+    supabaseSelect('external_master_records', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : [{ id: 'm1', external_id: '1', code: '2100' }])),
+    supabaseSelect('external_project_bindings', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : [{ id: 'b1', project_id: '00000000-0000-4000-8000-0000000000a1', external_container_id: '101' }])),
+    supabaseSelect('erp_gl_entry_mirror', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : ledger.mirror.map((r) => ({ ...r, cost_center: null })))),
+    supabaseRpc('apply_odoo_ledger_page', (c) => {
+      if (o.failLedgerApply) return jsonResponse({ code: 'P0001', message: 'x' }, { status: 400 });
+      const b = c.bodyJson as { p_rows: Array<{ erp_name: string; project: string | null; account: string; fiscal_year: string; debit: string; credit: string }>; p_cursor: string };
+      ledger.applied += b.p_rows.length;
+      ledger.mirror.push(...b.p_rows.map((r) => ({ id: r.erp_name, project: r.project, account: r.account, fiscal_year: r.fiscal_year, debit: r.debit, credit: r.credit })));
+      cursors.set('ledger:odoo', b.p_cursor);
+      return jsonResponse(b.p_rows.length);
+    }),
+    supabaseRpc('mark_odoo_ledger_census_seen', () => jsonResponse(null)),
+    supabaseRpc('finish_odoo_ledger_census', () => jsonResponse(0)),
+    supabaseRpc('replace_erp_snapshot', () => { ledger.snapshots++; return jsonResponse(null); }),
+  ] : [];
   const routes: MockRoute[] = [
+    ...ledgerRoutes,
     ...sendRoutes,
     supabaseRpc('claim_erp_sweep_lock', () => { const ok = !lock.held; lock.held = true; return jsonResponse(ok); }),
     supabaseRpc('release_erp_sweep_lock', () => { lock.held = false; return jsonResponse(true); }),
@@ -150,7 +172,7 @@ function harness(o: Opts = {}) {
     } },
     { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => (o.version === null ? new Response('no', { status: 404 }) : jsonResponse({ result: { server_version_info: [o.version ?? 20, 0] } })) },
   ];
-  return { fake, cursors, lock, routes, sendOutbox };
+  return { fake, cursors, lock, routes, sendOutbox, ledger };
 }
 
 const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
@@ -759,5 +781,39 @@ describe('odooSweep — #1504 S8-T4 accepted sends run after the passes', () => 
     const r = await withFetchMock(routes, async ({ calls }) => ({ result: await sweepOdooOrg(client(), ORG), calls }));
     assertEquals('ok' in r.result && r.result.failed, undefined);
     assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+});
+
+describe('odooSweep — #1507 S3 ledger feed', () => {
+  it('AC-ODA-001 an org that reads its ledger mirrors lines after the directory, refreshes actuals once, and reports counts only', async () => {
+    const r = await sweep({ ledgerLines: 3 });
+    const applyAt = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_ledger_page');
+    const directory = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_master_page');
+    assert(directory >= 0 && directory < applyAt, 'the ledger feed follows the directory it maps through');
+    assertEquals(r.ledger.applied, 3);
+    assertEquals(r.ledger.snapshots, 1);
+    assertEquals('ok' in r.result && r.result.ledger, { rows: 3, caughtUp: true, skipped: 0 });
+    assert(r.cursors.get('ledger:odoo'));
+  });
+
+  it('FR-ODA-001 an org whose snapshot did not find account.move.line readable reads no ledger line', async () => {
+    const r = await sweep({ ledgerLines: 3, binding: binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {}, later: {} } } }) });
+    assertEquals(odooRequests(r.calls).filter((q) => q.model === 'account.move.line').length, 0);
+    assertEquals([r.ledger.applied, 'ok' in r.result && r.result.ledger], [0, undefined]);
+  });
+
+  it('NFR-ODA-003 a 30,000-line backlog stays inside the tick budget, saves its cursor and leaves the directory kinds their share', async () => {
+    const r = await sweep({ ledgerLines: 30_000 });
+    assert(odoo(r.calls).length <= ODOO_SWEEP_TICK_MAX_CALLS, `${odoo(r.calls).length} Odoo calls`);
+    for (const kind of ['warehouse', 'location', 'partner']) assert(r.cursors.get(`master:${kind}`), `${kind} got no budget`);
+    assert('ok' in r.result && r.result.ledger && !r.result.ledger.caughtUp, 'the backlog is reported as not caught up');
+    assert(r.cursors.get('ledger:odoo'), 'the cursor sits at the last applied page');
+  });
+
+  it('a ledger page the database refuses keeps the cursor, never fails the tick, and the setup step still runs', async () => {
+    const r = await sweep({ ledgerLines: 3, failLedgerApply: true });
+    assertEquals(r.cursors.get('ledger:odoo'), undefined);
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals('ok' in r.result && r.result.ledger, undefined);
   });
 });

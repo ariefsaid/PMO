@@ -130,10 +130,11 @@ describe('odoo-sweep — #1783 item 4 the scheduled entry holds purchase on the 
       const answer = answers[key];
       return answer === 'error' ? jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) : jsonResponse(answer);
     });
-  const sweepRoutes = (procurement: true | false | 'error'): MockRoute[] => {
+  const sweepRoutes = (procurement: true | false | 'error', extra: MockRoute[] = [], org = binding): MockRoute[] => {
     const cursors = new Map<string, string>();
     return [
-      supabaseSelect('external_org_bindings', (c) => (c.url.searchParams.has('org_id') ? one(binding) : jsonResponse([{ org_id: ORG }]))),
+      ...extra,
+      supabaseSelect('external_org_bindings', (c) => (c.url.searchParams.has('org_id') ? one(org) : jsonResponse([{ org_id: ORG }]))),
       features({ erp_sync: true, procurement }),
       supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(true)),
       supabaseRpc('release_erp_sweep_lock', () => jsonResponse(true)),
@@ -168,10 +169,10 @@ describe('odoo-sweep — #1783 item 4 the scheduled entry holds purchase on the 
     ];
   };
   const fake = createFakeOdoo({ key: KEY });
-  const scheduled = async (procurement: true | false | 'error') => {
+  const scheduled = async (procurement: true | false | 'error', extra: MockRoute[] = [], org = binding) => {
     fake.calls.length = 0;
     seed(fake);
-    return await withFetchMock(sweepRoutes(procurement), async ({ calls }) => {
+    return await withFetchMock(sweepRoutes(procurement, extra, org), async ({ calls }) => {
       const res = await handleOdooSweepRequest(new Request('http://edge.test/odoo-sweep', { method: 'POST', headers: { Authorization: `Bearer ${SECRET}` }, body: '{}' }));
       return { res, json: await res.json() as { results: Array<Record<string, unknown>> }, calls };
     });
@@ -204,6 +205,42 @@ describe('odoo-sweep — #1783 item 4 the scheduled entry holds purchase on the 
     assertEquals(purchaseRequests(r.calls).length, 0);
     assertEquals(rpcCall(r.calls, 'apply_odoo_purchase_page').length, 0);
     assertDirectoryAndRevenueRan(r.calls);
+  });
+
+  it('AC-ODA-003 #1507 a scheduled tick with the ledger feed on writes the lines through the page RPC and publishes one actuals snapshot', async () => {
+    const pages: Array<{ p_org_id: string; p_rows: Array<{ erp_name: string; project: string | null; account: string }> }> = [];
+    const snapshots: unknown[] = [];
+    const mirror: Array<Record<string, unknown>> = [];
+    const extra: MockRoute[] = [
+      supabaseSelect('external_master_records', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : [{ id: 'm1', external_id: '1', code: '2100' }])),
+      supabaseSelect('external_project_bindings', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : [{ id: 'b1', project_id: '00000000-0000-4000-8000-0000000000a1', external_container_id: '101' }])),
+      supabaseSelect('erp_gl_entry_mirror', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : mirror)),
+      supabaseRpc('apply_odoo_ledger_page', (c) => {
+        const b = c.bodyJson as typeof pages[number];
+        pages.push(b);
+        mirror.push(...b.p_rows.map((r) => ({ ...r, id: r.erp_name, cost_center: null, fiscal_year: '2026', debit: '10.00', credit: '0.00' })));
+        return jsonResponse(b.p_rows.length);
+      }),
+      supabaseRpc('mark_odoo_ledger_census_seen', () => jsonResponse(null)),
+      supabaseRpc('finish_odoo_ledger_census', () => jsonResponse(0)),
+      supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push(c.bodyJson); return jsonResponse(null); }),
+    ];
+    const org = { ...binding, config: { ...binding.config, capabilities: { ...binding.config.capabilities, later: { ...binding.config.capabilities.later, 'account.move.line': true } } } };
+    const lines = [1, 2].map((id) => ({
+      id, move_id: [id, `BILL/${id}`], move_name: `BILL/${id}`, journal_id: [3, 'Bills'], partner_id: false, company_id: [1, 'Main'], currency_id: [12, 'IDR'], account_id: [1, '2100 Payable'],
+      date: '2026-06-15', parent_state: 'posted', debit: 10, credit: 0, balance: 10, amount_currency: 10, analytic_distribution: { '101': 100 }, write_date: WRITE,
+    }));
+    fake.calls.length = 0;
+    seed(fake);
+    fake.seed('account.move.line', lines);
+    const r = await withFetchMock(sweepRoutes(false, extra, org), async ({ calls }) => {
+      const res = await handleOdooSweepRequest(new Request('http://edge.test/odoo-sweep', { method: 'POST', headers: { Authorization: `Bearer ${SECRET}` }, body: '{}' }));
+      return { res, json: await res.json() as { results: Array<Record<string, unknown>> }, calls };
+    });
+    assertEquals(r.res.status, 200);
+    assertEquals(pages.filter((p) => p.p_rows.length).map((p) => [p.p_org_id, p.p_rows.map((x) => [x.erp_name, x.project, x.account])]), [[ORG, [['odoo:1:101', '101', '2100'], ['odoo:2:101', '101', '2100']]]]);
+    assertEquals(snapshots.length, 1);
+    assertEquals(r.json.results.map((x) => x.ledger), [{ rows: 2, caughtUp: true, skipped: 0 }]);
   });
 });
 
