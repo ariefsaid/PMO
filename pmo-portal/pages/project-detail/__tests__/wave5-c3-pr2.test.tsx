@@ -178,7 +178,7 @@ const pipelineRow: ProjectWithRefs = {
 // ── Render helpers ────────────────────────────────────────────────────────────
 
 import ProjectDetailHeader from '../ProjectDetailHeader';
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const renderHeader = (realRole: Role, project: ProjectWithRefs = onHandRow) =>
   render(
@@ -195,7 +195,7 @@ const renderLens = (project: ProjectWithRefs = pipelineRow, locationState?: unkn
   render(
     <ImpersonationProvider realRole="Project Manager">
       <ToastProvider>
-        <MemoryRouter><PipelineLens project={project} locationState={locationState} /></MemoryRouter>
+        <MemoryRouter initialEntries={[{ pathname: '/projects/p', state: locationState }]}><DealBand project={project} /></MemoryRouter>
       </ToastProvider>
     </ImpersonationProvider>,
   );
@@ -238,7 +238,7 @@ describe('AC-IXD-PROJ-W5-C3 D15: hasFinanceView predicate', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// N10 — Post-transition wayfinding (PipelineLens)
+// N10 — Post-transition wayfinding (DealBand)
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('AC-IXD-PROJ-W5-C3 N10: post-transition wayfinding', () => {
@@ -345,7 +345,7 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
     expect(screen.getByText('Pre-Qualification')).toBeInTheDocument();
     // "Pre-Qual" should not appear as a rendered node label
     // (Note: it may still appear in the SALES_COLUMNS title for the kanban board — that is
-    //  a separate surface; here we assert only the deal journey stepper inside PipelineLens)
+    //  a separate surface; here we assert only the deal journey stepper inside DealBand)
     const journey = screen.getByRole('list', { name: /Project stage journey/i });
     expect(within(journey).getByText('Pre-Qualification')).toBeInTheDocument();
   });

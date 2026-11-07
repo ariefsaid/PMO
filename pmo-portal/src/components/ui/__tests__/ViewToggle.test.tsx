@@ -96,4 +96,11 @@ describe('ViewToggle (segmented control)', () => {
     const tablist = screen.getByRole('tablist', { name: 'View' });
     expect(wrapper).not.toBe(tablist);
   });
+
+  it('#1461: a value with no tab (URL-only drill filter) leaves the first tab keyboard-reachable', () => {
+    render(<ViewToggle options={opts} value="on-hand" onChange={() => {}} ariaLabel="View" />);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((t) => t.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+    expect(tabs.some((t) => t.getAttribute('aria-selected') === 'true')).toBe(false);
+  });
 });

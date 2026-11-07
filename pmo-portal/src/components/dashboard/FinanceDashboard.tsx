@@ -419,16 +419,18 @@ export const FinanceDashboard: React.FC = () => {
         <AwaitingApprovalTile includeTimesheets={false} label={t('dashboard:finance.awaiting', 'Procurement awaiting your decision')} />
       </section>
       <KPIRow aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid-cols-1 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
-        {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
+        {/* AC-IXD-DASH-W5-C2A + #1461: the figure sums 'Ongoing Project' contracts only, so the drill
+            opens exactly that set (the broader Ongoing tab also holds Won-Pending-KoM and On Hold). */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('dashboard:finance.contractValue', 'Contract value in progress')}
           {...figure(data?.total_contract_value ?? null)} loading={isPending}
-          to="/projects?filter=Ongoing"
+          to="/projects?filter=ongoing-project"
           linkLabel={t('dashboard:finance.contractValueLink', 'Open active projects to see contract value')}
           help={t('dashboard:finance.contractValueHelp', 'Total contract value across active projects.')} />
-        {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
+        {/* AC-IXD-DASH-W5-C2A + #1461: recorded spending sums the on-hand projects, so the drill
+            opens the on-hand set (Close Out included). */}
         <KPITile testId="kpi-spend" tone="red" icon="cart" label={t('dashboard:finance.recordedSpending', 'Recorded spending')}
           {...figure(totalSpend)} loading={isPending} vs={`${data && (data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total) ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${actualCoverage}`}
-          to="/projects?filter=Ongoing"
+          to="/projects?filter=on-hand"
           linkLabel={t('dashboard:finance.spendingLink', 'Open active projects to see spending details')}
           help={t('dashboard:finance.spendingHelp', 'Actual spending recorded across the delivery portfolio.')} />
         {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}

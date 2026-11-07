@@ -15,13 +15,40 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
 import { deriveBudgetConsumption, isActualComplete } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
 import { ProjectStatus as ProjectStatusEnum } from '../../types';
 
-export type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
+export type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk'
+  // #1461 dashboard-drill values (URL-only, no toolbar tab): each holds exactly the record set
+  // the figure that drills into it sums or counts. Parity sources: public.on_hand_project_statuses()
+  // (0044), the PM dashboard's DELIVERY set, get_win_rate's decided/won rules (0448).
+  | 'on-hand' | 'delivery' | 'ongoing-project' | 'won' | 'decided';
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
+const ON_HAND = [...ON_HAND_STATUSES] as string[];
+const DELIVERY = [...ON_HAND_STATUSES, ...INTERNAL_STATUSES] as string[];
+
+/**
+ * True when the project's decision instant (decided_at, a UTC ISO timestamptz from PostgREST)
+ * falls within the inclusive month window `from`..`to` (`YYYY-MM` tokens, same grammar as the
+ * dashboard period). Matches get_win_rate's `decided_at >= p_from and decided_at < (p_to + 1)`.
+ */
+export function projectDecidedWithinMonthWindow(
+  decidedAt: string | null | undefined,
+  from: string | undefined,
+  to: string | undefined,
+): boolean {
+  if (!decidedAt) return false;
+  const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/u;
+  if (!from || !to || !MONTH.test(from) || !MONTH.test(to)) return true;
+  const [toYear, toMonth] = to.split('-').map(Number);
+  const exclusiveEnd = toMonth === 12
+    ? `${toYear + 1}-01-01T00:00:00`
+    : `${toYear}-${String(toMonth + 1).padStart(2, '0')}-01T00:00:00`;
+  return decidedAt >= `${from}-01T00:00:00` && decidedAt < exclusiveEnd;
+}
 
 export function useProjectListModel(effectiveRole: Role | null, currentUser: { id: string } | null, t: TFunction) {
   const isEngineer = effectiveRole === 'Engineer';
@@ -131,6 +158,20 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
             return COMPLETED.includes(p.status as string);
           case 'at-risk':
             return isAtRiskActual(p);
+          // #1461 drill sets — each equals the set its dashboard figure sums/counts.
+          case 'on-hand':
+            return ON_HAND.includes(p.status as string);
+          case 'delivery':
+            return DELIVERY.includes(p.status as string);
+          case 'ongoing-project':
+            return p.status === 'Ongoing Project';
+          case 'won':
+            // get_win_rate wins: decided in the period, current status still on hand.
+            return ON_HAND.includes(p.status as string)
+              && projectDecidedWithinMonthWindow(p.decided_at, workingSet.from, workingSet.to);
+          case 'decided':
+            // get_win_rate's decided population: every project decided in the period.
+            return projectDecidedWithinMonthWindow(p.decided_at, workingSet.from, workingSet.to);
           default:
             return true;
         }
@@ -184,6 +225,12 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     Ongoing: t('projects.filters.ongoing', 'Ongoing'),
     Completed: t('projects.filters.completed', 'Completed'),
     'at-risk': t('projects.filters.atRisk', 'At risk'),
+    // #1461 drill values — URL-only (never rendered as a tab), so plain literals, no i18n keys.
+    'on-hand': 'On hand',
+    delivery: 'Delivery',
+    'ongoing-project': 'In delivery',
+    won: 'Won',
+    decided: 'Decided',
   };
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});

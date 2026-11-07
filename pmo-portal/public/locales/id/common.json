@@ -993,6 +993,12 @@
       "client": "Klien",
       "internal": "Internal",
       "vendor": "Pemasok"
+    },
+    "pager": {
+      "label": "Halaman",
+      "range": "{{from}}–{{to}} dari {{total}}",
+      "prev": "Halaman sebelumnya",
+      "next": "Halaman berikutnya"
     }
   },
   "companyDetail": {
@@ -1282,7 +1288,13 @@
       "deleted": "Kontak dihapus",
       "updated": "Kontak diperbarui"
     },
-    "companiesUnavailable": "Direktori perusahaan tidak dapat dimuat. Nama perusahaan, penyaringan, dan ekspor tidak tersedia."
+    "companiesUnavailable": "Direktori perusahaan tidak dapat dimuat. Nama perusahaan, penyaringan, dan ekspor tidak tersedia.",
+    "pager": {
+      "label": "Halaman",
+      "range": "{{from}}–{{to}} dari {{total}}",
+      "prev": "Halaman sebelumnya",
+      "next": "Halaman berikutnya"
+    }
   },
   "dashboard": {
     "winRate": {
@@ -4759,7 +4771,7 @@
     "unlinked": "Referensi dihapus",
     "checkingConnection": "Memeriksa koneksi Microsoft 365 Anda…",
     "referenceOnly": "Referensi folder: isi folder tidak diterbitkan atau disetujui",
-    "newRevisionFromLatest": "Buat revisi baru dari pembaruan file terbaru",
+    "newRevisionFromLatest": "Revisi baru dari file yang diperbarui",
     "revisionLatestNote": "Revisi baru akan merujuk file Microsoft terbaru: {{name}}.",
     "latestFailedTitle": "Tidak dapat membaca file terbaru",
     "latestFailed": "Microsoft tidak dapat memuat file ini. Periksa akses dan ketersediaan SharePoint dengan admin Microsoft Anda, atau coba lagi.",
@@ -4790,15 +4802,22 @@
       "connectHint": "Hubungkan Microsoft 365 di Integrasi saya untuk menautkan dokumen.",
       "empty": "Belum ada dokumen bukti yang ditautkan ke versi ini.",
       "heading": "Dokumen bukti",
+      "headingFor": "Dokumen bukti untuk {{version}}",
       "link": "Tautkan dari Microsoft 365",
       "loadError": "Dokumen bukti tidak dapat dimuat",
       "loadErrorSub": "Angka anggaran tidak terpengaruh. Coba lagi.",
-      "readOnly": "Bukti hanya-baca pada versi ini.",
+      "readOnlyActive": "Bukti hanya-baca: versi ini Aktif. Arsipkan, lalu gunakan Salin untuk revisi guna memulai draf baru.",
+      "readOnlyArchived": "Bukti hanya-baca: versi ini Diarsipkan. Salin versi ini, atau ubah draf yang ada, untuk menautkan bukti di sana.",
+      "readOnlyRole": "Bukti hanya-baca: peran Anda tidak dapat mengubah bukti anggaran.",
       "remove": "Hapus",
       "removeDescription": "Tautan ke {{name}} dihapus dari versi ini. File Microsoft tidak diubah.",
       "removeNamed": "Hapus tautan ke {{name}}",
       "removeTitle": "Hapus tautan ini?",
       "unavailable": "Tautan ini tidak tersedia."
+    },
+    "linkFolders": {
+      "heading": "Tautkan folder yang ada ke rekaman",
+      "description": "Cocokkan folder yang sudah ada di pustaka bawaan dengan proyek dan kasus yang belum punya folder. Ini hanya menautkan folder; tidak membuat folder."
     },
     "defaultLibrary": {
       "browseFailed": "Lokasi Microsoft tidak dapat dimuat. Tutup dialog ini lalu coba lagi.",
@@ -4808,6 +4827,7 @@
       "clearFailed": "Pustaka default tidak dapat dihapus.",
       "clearTitle": "Hapus pustaka default?",
       "connectHint": "Hubungkan akun Microsoft 365 Anda untuk memilih pustaka. Menghapus default tidak memerlukan koneksi.",
+      "connectLink": "Buka Integrasi saya",
       "current": "Default saat ini:",
       "description": "Pustaka yang pertama dibuka oleh pemilih dokumen. Ini tidak memberi siapa pun akses ke filenya; izin Microsoft tetap berlaku.",
       "disabledReason": "Pilih situs dan pustaka untuk menyimpan.",
@@ -4832,8 +4852,8 @@
       "openLatest": "Buka versi terbaru di {{place}}",
       "openFolder": "Buka folder di {{place}}",
       "openShort": "Buka",
-      "versions": "Versi",
-      "versionsOf": "Versi dari {{name}}",
+      "versions": "Tampilkan semua versi",
+      "versionsOf": "Tampilkan semua versi {{name}}",
       "openRefused": "Tautan Microsoft ini tidak dapat dibuka.",
       "accessFile": "Dibuka di Microsoft. Akses bergantung pada izin Microsoft Anda atas file ini.",
       "accessFolder": "Dibuka di Microsoft. Akses bergantung pada izin Microsoft Anda atas folder ini.",
@@ -4859,7 +4879,6 @@
     },
     "versions": {
       "title": "Versi {{name}}",
-      "done": "Selesai",
       "close": "Tutup",
       "loading": "Memuat…",
       "emptyTitle": "Tidak ada versi",
@@ -4869,8 +4888,8 @@
       "loadMore": "Muat lebih banyak"
     },
     "history": {
-      "view": "Lihat riwayat versi yang disetujui",
-      "viewAria": "Lihat riwayat versi yang disetujui: {{name}}",
+      "view": "Periksa versi yang disetujui",
+      "viewAria": "Periksa versi yang disetujui: {{name}}",
       "partial": "Versi yang disetujui tidak ditemukan dalam riwayat yang dimuat.",
       "loadMore": "Muat riwayat lebih banyak",
       "noSharepointIds": "Riwayat versi tidak tersedia: Microsoft tidak memberikan pengenal SharePoint.",
@@ -4927,8 +4946,8 @@
       "noItemsSub": "Pilih lokasi lain atau cari.",
       "itemsAria": "Item di lokasi ini",
       "selected": "Dipilih",
-      "select": "Pilih",
-      "selectNamed": "Pilih {{kind}} {{name}}",
+      "linkFile": "Tautkan berkas ini",
+      "linkFileNamed": "Tautkan berkas ini {{name}}",
       "kindFile": "berkas",
       "kindFolder": "folder",
       "selectedSummary": "{{kind}} dipilih: {{name}}",
