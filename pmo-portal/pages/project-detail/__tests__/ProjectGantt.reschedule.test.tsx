@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * #1980 — dragging / edge-resizing a Gantt bar saves the new dates through `onReschedule`
  * (TasksTab → the task repository), with the same per-task gate as editing the task.

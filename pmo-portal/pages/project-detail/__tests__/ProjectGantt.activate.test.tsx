@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-JR-W5-01 (part 1) — ProjectGantt `onActivateTask` / GanttBarRow `onActivate`.
  *

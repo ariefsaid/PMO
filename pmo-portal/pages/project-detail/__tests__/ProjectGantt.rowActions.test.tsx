@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * #1980 — the tree row carries a visible, keyboard-reachable "Row actions" button that opens the
  * same items as right-click (the shared RowMenu primitive).

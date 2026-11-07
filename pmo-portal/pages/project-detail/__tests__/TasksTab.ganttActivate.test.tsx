@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-JR-T23: TasksTab wires ProjectGantt.onActivateTask so clicking a Gantt bar
  * opens the shared task drawer.

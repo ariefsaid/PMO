@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * #1980 — TasksTab.onReschedule: the timeline drag saves through the task update mutation, only
  * for roles that may edit the task, and a rejected save toasts and snaps the bar back.
