@@ -20,6 +20,7 @@ export function odooErrorMessage(t: TFunction, err: unknown): string {
     'target-locked': t('administration:odoo.error.targetLocked', 'Documents already reference the current Odoo connection, so it cannot be switched to another database.'),
     'company-locked': t('administration:odoo.error.companyLocked', 'This connection is locked to the company chosen first.'),
     'company-not-found': t('administration:odoo.error.companyNotFound', 'That company is not available to this key.'),
+    REFUSED: t('administration:odoo.error.refused', 'That choice is no longer available in Odoo, or is already linked to another project. Reload and choose again.'),
     FORBIDDEN: t('administration:odoo.error.forbidden', 'Your role cannot do this.'),
     RATE_LIMITED: t('administration:odoo.error.rateLimited', 'This was just run. Try again in a minute.'),
     SYNC_RUNNING: t('administration:odoo.error.syncRunning', 'A sync is running. Try again in a minute.'),
