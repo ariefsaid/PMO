@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(44);
+select plan(45);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -97,7 +97,8 @@ select is(
         'org_plans',
         'global_features',
         'org_ai_allowance_grants',
-        'odoo_revenue_census_seen'
+        'odoo_revenue_census_seen',
+        'odoo_ledger_census_seen'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
@@ -150,6 +151,12 @@ select ok(
     and not has_table_privilege('authenticated','public.odoo_revenue_census_seen','SELECT')
     and not has_table_privilege('anon','public.odoo_revenue_census_seen','SELECT'),
   'AC-OCI-070 census staging is available only through its security-definer RPCs');
+select ok(
+  not has_table_privilege('service_role','public.odoo_ledger_census_seen','SELECT')
+    and not has_table_privilege('service_role','public.odoo_ledger_census_seen','INSERT')
+    and not has_table_privilege('authenticated','public.odoo_ledger_census_seen','SELECT')
+    and not has_table_privilege('anon','public.odoo_ledger_census_seen','SELECT'),
+  'AC-ODA-006 ledger census staging is available only through its security-definer RPCs');
 
 select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'INSERT'), false,
   'AC-SVCROLE-008b service_role may NOT directly INSERT procurement_import_runs (RPC-minted only)');
