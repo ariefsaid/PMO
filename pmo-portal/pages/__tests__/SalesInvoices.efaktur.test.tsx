@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   projectOptionsPending: false,
   projectOptionsError: false,
   setEfaktur: vi.fn().mockResolvedValue(undefined),
+  ownership: [] as { domain: string; externalTier: string }[],
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -33,7 +34,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-test', org_id: 'org-test' } }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
-vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: h.ownership, isError: false }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useInvoiceProjectOptions: () => ({ data: h.projectOptions, isPending: h.projectOptionsPending, isError: h.projectOptionsError }),
   useClientCompanyOptions: () => ({ data: [] }),
@@ -88,6 +89,7 @@ beforeEach(async () => {
   h.projectOptions = [{ value: 'project-1', label: 'Project North', contractualName: 'Project North' }];
   h.projectOptionsPending = false;
   h.projectOptionsError = false;
+  h.ownership = [];
   h.setEfaktur.mockReset().mockResolvedValue(undefined);
 });
 
@@ -222,5 +224,31 @@ describe('SalesInvoices e-Faktur details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('alert', { name: 'Save failed' })).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  describe('Odoo tier', () => {
+    const odooInvoice = (id: string, status: SalesInvoiceRow['status'], taxAmount: number): SalesInvoiceRow =>
+      ({ ...invoice(id, status, null, null), tax_amount: taxAmount, tax_treatment: 'exclusive' });
+    beforeEach(() => { h.ownership = [{ domain: 'revenue', externalTier: 'odoo' }]; });
+
+    it('AC-OCI-081 a numbered VAT-bearing invoice accepts an e-Faktur number and date together', async () => {
+      h.invoices = [odooInvoice('vat', 'Submitted', 11)];
+      renderAs('Finance');
+      fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
+      fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: '010.001-26.12345678' } });
+      fireEvent.change(screen.getByLabelText('e-Faktur date'), { target: { value: '2026-09-28' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(h.setEfaktur).toHaveBeenCalledWith({
+        siId: 'vat', efakturNumber: '010.001-26.12345678', efakturDate: '2026-09-28',
+      }));
+    });
+
+    it('AC-OCI-081 an unnumbered (draft) invoice offers no e-Faktur control', () => {
+      h.invoices = [odooInvoice('draft', 'Draft', 11)];
+      renderAs('Finance');
+      fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+      expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+    });
   });
 });
