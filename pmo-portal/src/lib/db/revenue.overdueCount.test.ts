@@ -30,14 +30,14 @@ describe('getOverdueInvoiceCount', () => {
     h.order.mockReturnValue(builder);
     h.range.mockReturnValue(builder);
     h.rows = [
-      { invoice_date: '2026-01-01', erp_due_date: null, received_date: null, companies: { erp_payment_terms_days: 10 } },
-      { invoice_date: '2026-01-01', erp_due_date: '2026-11-04', received_date: null, companies: null },
-      { invoice_date: '2026-01-01', erp_due_date: '2026-11-06', received_date: null, companies: null },
+      { status: 'Unpaid', invoice_date: '2026-01-01', erp_due_date: null, received_date: null, companies: { erp_payment_terms_days: 10 } },
+      { status: 'Submitted', invoice_date: '2026-01-01', erp_due_date: '2026-11-04', received_date: null, companies: null },
+      { status: 'Unpaid', invoice_date: '2026-01-01', erp_due_date: '2026-11-06', received_date: null, companies: null },
     ];
 
     await expect(getOverdueInvoiceCount('2026-11-05')).resolves.toBe(2);
     expect(h.from).toHaveBeenCalledWith('sales_invoices');
-    expect(h.select).toHaveBeenCalledWith('id,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
+    expect(h.select).toHaveBeenCalledWith('id,status,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
     expect(h.inFilter).toHaveBeenCalledWith('status', ['Unpaid', 'Submitted']);
     expect(h.isFilter).toHaveBeenCalledWith('paired_erp_invoice_id', null);
   });
