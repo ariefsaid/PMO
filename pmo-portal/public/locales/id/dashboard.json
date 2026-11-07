@@ -337,6 +337,12 @@
       "spendingIncompleteNote": "Sebagian proyek memiliki pengeluaran yang belum lengkap, sehingga margin, sisa kontrak, dan kontrak terpakai hanya ditampilkan jika diketahui."
     },
     "company": {
+      "topAttentionProjects": "5 proyek yang paling perlu perhatian",
+      "attentionOverdue_one": "{{count}} terlambat",
+      "attentionOverdue_other": "{{count}} terlambat",
+      "attentionOverBudget": "{{percent}}% melebihi anggaran",
+      "attentionApprovals_one": "{{count}} menunggu persetujuan",
+      "attentionApprovals_other": "{{count}} menunggu persetujuan",
       "title": "Dasbor",
       "refresh": "Muat ulang",
       "approvals": "Persetujuan yang menunggu Anda",

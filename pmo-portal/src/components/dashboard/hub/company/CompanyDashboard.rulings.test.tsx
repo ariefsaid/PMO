@@ -193,7 +193,7 @@ describe('C4: unknown spending is left out and said once', () => {
   ];
 
   it('C4: no "Spent —" line per project; one note above the list names how many have incomplete spending', () => {
-    (state.figures!.dashboard as Record<string, unknown>).top_projects = rows;
+    (state.figures!.dashboard as Record<string, unknown>).attention_projects = rows;
     renderDashboard('Admin');
     const list = screen.getByRole('list', { name: 'Spending vs contract' });
     expect(within(list).queryByText(/Spent/)).not.toBeInTheDocument();
