@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import type { CurrencyTotals, FinancePosition, PayablesAgeingBuckets } from '@/src/lib/finance/financePosition';
-import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
 
 export type PayablesBucket = keyof PayablesAgeingBuckets;
 /** Supplier invoices whose unpaid balance is unknown, counted per currency and age bucket (never added as zero). */

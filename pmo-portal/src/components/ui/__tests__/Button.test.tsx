@@ -38,6 +38,14 @@ describe('Button', () => {
     expect(screen.getByTestId('button-spinner')).toBeInTheDocument();
   });
 
+  it('spinner keeps animate-spin; the swap-in class sits on a wrapper, not the rotating svg', () => {
+    render(<Button loading>Save</Button>);
+    const spinner = screen.getByTestId('button-spinner');
+    expect(spinner).toHaveClass('animate-spin');
+    expect(spinner).not.toHaveClass('icon-swap-in');
+    expect(spinner.parentElement).toHaveClass('icon-swap-in');
+  });
+
   it('icon-only without an aria-label warns in the console', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     render(<Button iconOnly>{undefined}</Button>);

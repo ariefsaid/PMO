@@ -618,6 +618,7 @@
     "since": "from {{month}}: {{amount}}",
     "rising": "Rising",
     "falling": "Falling",
+    "chartName": "Invoiced trend, {{first}} to {{last}}: {{direction}}",
     "steady": "Steady",
     "error": "Couldn't load the invoiced trend"
   }

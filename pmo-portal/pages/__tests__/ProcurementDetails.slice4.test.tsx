@@ -15,6 +15,7 @@
  * AC-PR-S4-008: Confirm-before-write on consequential transitions (Approve/Reject/Cancel/Pay).
  */
 
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
@@ -274,6 +275,35 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(headerActions().getByRole('button', { name: 'Record order' })).toBeInTheDocument();
     const header = await openMoreActions();
     expect(header.getByRole('menuitem', { name: 'Request quotations' })).toBeInTheDocument();
+  });
+
+  describe('AC-ECA-050: Record order on an ERP-owned purchase', () => {
+    afterEach(() => { clearOwnershipCache(); });
+    const pmOwned = () => {
+      roleState.realRole = 'Project Manager';
+      roleState.effectiveRole = 'Project Manager';
+      setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    };
+
+    it.each(['Approved', 'Quote Selected'] as const)('%s: opens the Purchase Order capture instead of the order transition', async (status) => {
+      const { default: userEvent } = await import('@testing-library/user-event');
+      pmOwned();
+      detailState.data = { ...BASE, status };
+      renderPage();
+      await userEvent.click(headerActions().getByRole('button', { name: 'Record order' }));
+      expect(mockTransition).not.toHaveBeenCalled();
+      expect(screen.getByTestId('procurement-record-capture')).toBeInTheDocument();
+    });
+
+    it('a pre-cut-over case still records its order in PMO', async () => {
+      const { default: userEvent } = await import('@testing-library/user-event');
+      pmOwned();
+      detailState.data = { ...BASE, status: 'Approved', pre_cutover: true };
+      renderPage();
+      await userEvent.click(headerActions().getByRole('button', { name: 'Record order' }));
+      expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Ordered' }));
+      expect(screen.queryByTestId('procurement-record-capture')).not.toBeInTheDocument();
+    });
   });
 
   it('AC-PMC-006: Vendor Quoted action opens bid comparison and does not transition', async () => {

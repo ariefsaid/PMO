@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { totalsByCurrency } from '@/pages/procurement/list/model';
+import { totalsByCurrency } from '@/src/lib/procurement/listModel';
 import { buildFinancePosition, isProcurementReadyToPay } from './financePosition';
 
 const today = '2026-10-27';
