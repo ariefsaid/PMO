@@ -1,7 +1,7 @@
 /**
  * One org's Odoo sweep tick (FR-ODC-042..047, plan §2.7): single-flight on `erp_sweep_lock`, the client from the one
  * resolver, every directory kind and (when procurement is employed and its switch is on) every purchase domain within one
- * call/time budget, the daily census and re-discovery, then the connection state. Cursors move only inside
+ * call/time budget (and, once the org reads its ledger, the Odoo ledger feed and actuals refresh), the daily census and re-discovery, then the connection state. Cursors move only inside
  * apply_odoo_master_page / finish_odoo_census, so any failure leaves them in place.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -12,12 +12,14 @@ import { KIND_SPECS, type DirectoryKind, type DirectoryRow } from '../../../pmo-
 import { odooKindReaders, runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
 import { advanceConnectRuns } from './connectRun.ts';
 import { matchNewPartners } from './odooPartyFeed.ts';
+import { ledgerFeedEmployed, runLedgerPass, type LedgerPassResult } from './odooLedgerFeed.ts';
 import { purchaseDomainsReadable, purchaseFeedEmployed, runPurchasePass } from './odooPurchaseFeed.ts';
 import { revenueDomainsReadable, revenueFeedEmployed, runRevenuePass } from './odooRevenueFeed.ts';
 import { reconcileOdooRevenueOutbox } from '../adapter-dispatch/odooRevenueRecovery.ts';
 import { reconcileOdooProcurementOutbox } from '../adapter-dispatch/odooProcurementRecovery.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 import { parseOdooOutboxRecoveryCandidates } from './odooOutboxRecovery.ts';
+import { sendAcceptedOdoo } from './odooConnectSends.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
 export const ODOO_SWEEP_TICK_MAX_CALLS = 60;
@@ -43,7 +45,7 @@ const advanceSetupRun = async (sc: SupabaseClient, orgId: string, r: Resolved) =
     console.error('odoo setup run step failed');   // the run counts its own failures; a store outage is retried next tick
   }
 };
-export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun];
+export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun, sendAcceptedOdoo];
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
@@ -52,6 +54,8 @@ export type OdooSweepResult =
     outbox_procurement_reconciled: number; outbox_procurement_skipped: number; outbox_procurement_budget_exhausted: boolean;
     outbox_procurement_errors: Array<{ id: string; error: string }>;
     failed?: string; purchase_hold?: PurchaseHold;
+    /** Counts only (#1507): lines applied this tick, whether the feed caught up, lines skipped as unparseable. */
+    ledger?: LedgerPassResult;
   };
 
 /** Why this tick mirrors no purchase document (FR-PLN-006 at pass start, #1783 item 4). Reported, never logged with data. */
@@ -147,6 +151,7 @@ export async function sweepOdooOrg(
     let procurementOutboxBudgetExhausted = false;
     let procurementOutboxErrors: Array<{ id: string; error: string }> = [];
     let hold: PurchaseHold | null = null;
+    let ledgerResult: LedgerPassResult | undefined;
     try {
       const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
       // Document feeds run after the directory (they map through it) and reserve a share of the tick, so the initial directory
@@ -156,10 +161,12 @@ export async function sweepOdooOrg(
       const procurementEmployed = !hold && await purchaseFeedEmployed(sc, orgId);
       const purchase = hold || !procurementEmployed ? [] : purchaseDomainsReadable(capabilities);
       const revenue = (await revenueFeedEmployed(sc, orgId)) ? revenueDomainsReadable(capabilities) : [];
+      // The ledger pass runs last and keeps its share of the tick, so a purchase or revenue backlog cannot starve it either.
+      const ledger = (await ledgerFeedEmployed(sc, orgId)) ? 1 : 0;
       // Outbound recovery runs before the bounded inbound walk, so a long backfill cannot leave a
       // committed money document unconfirmed. Procurement runs first to guarantee room for a
       // payment candidate's 20-call reservation; unused calls are refunded for revenue to use.
-      const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length);
+      const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length + ledger);
       const recoveryBudget: Budget = {
         left: () => calls < recoveryCap && left(),
         canSpend: (units = 1) => Number.isInteger(units) && units >= 0 && calls + units <= recoveryCap && left(),
@@ -220,7 +227,7 @@ export async function sweepOdooOrg(
         }
       }
       for (const [i, kind] of kinds.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length + revenue.length);
+        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length + revenue.length + ledger);
         const kindBudget: Budget = {
           left: () => calls < cap && left(),
           spend: (units = 1) => calls + units <= cap && budget.spend(units),
@@ -232,7 +239,7 @@ export async function sweepOdooOrg(
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
       }
       for (const [i, domain] of purchase.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i + revenue.length);
+        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i + revenue.length + ledger);
         const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
         try {
           skippedRows += (await runPurchasePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
@@ -244,13 +251,23 @@ export async function sweepOdooOrg(
         }
       }
       for (const [i, domain] of revenue.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (revenue.length - 1 - i);
+        const cap = maxCalls - RESERVE_PER_KIND * (revenue.length - 1 - i + ledger);
         const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
         try {
           skippedRows += (await runRevenuePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
         } catch (err) {
           if (err instanceof OdooError) throw err;
           console.error(`odoo revenue pass ${domain} failed`);
+        }
+      }
+      if (ledger) {
+        const passBudget: Budget = { left: () => calls < maxCalls && left(), spend: () => calls < maxCalls && budget.spend() };   // last pass: takes what the others left, capped like them
+        try {
+          ledgerResult = await runLedgerPass(sc, orgId, call, r.companyId!, passBudget);
+        } catch (err) {
+          // Fails only this pass, never the tick: the other passes already ran, re-discovery below still runs, the cursor stays and the next tick retries.
+          console.error('odoo ledger pass failed');
+          if (err instanceof OdooError) ledgerResult = { rows: 0, caughtUp: false, skipped: 0, failed: err.errorClass };
         }
       }
       await runAfterSweep();
@@ -268,7 +285,7 @@ export async function sweepOdooOrg(
         ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors,
         outbox_procurement_reconciled: procurementOutboxReconciled, outbox_procurement_skipped: procurementOutboxSkipped,
         outbox_procurement_budget_exhausted: procurementOutboxBudgetExhausted,
-        outbox_procurement_errors: procurementOutboxErrors, ...(hold ? { purchase_hold: hold } : {}),
+        outbox_procurement_errors: procurementOutboxErrors, ...(hold ? { purchase_hold: hold } : {}), ...(ledgerResult ? { ledger: ledgerResult } : {}),
       };
     } catch (err) {
       if (!(err instanceof OdooError)) throw err;
@@ -278,7 +295,7 @@ export async function sweepOdooOrg(
         ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors,
         outbox_procurement_reconciled: procurementOutboxReconciled, outbox_procurement_skipped: procurementOutboxSkipped,
         outbox_procurement_budget_exhausted: procurementOutboxBudgetExhausted,
-        outbox_procurement_errors: procurementOutboxErrors, failed: err.errorClass, ...(hold ? { purchase_hold: hold } : {}),
+        outbox_procurement_errors: procurementOutboxErrors, failed: err.errorClass, ...(hold ? { purchase_hold: hold } : {}), ...(ledgerResult ? { ledger: ledgerResult } : {}),
       };
     }
   } finally {

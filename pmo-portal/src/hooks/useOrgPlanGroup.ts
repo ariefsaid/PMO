@@ -2,13 +2,16 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import { analyticsClient } from '@/src/lib/analytics/client';
+import { trackOrgGroupPlan } from '@/src/lib/analytics';
 import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { orgPlanGroupQueryKey } from '@/src/hooks/useOrgFeatures';
 import type { OrgPlan } from '@/src/lib/db/orgPlan';
 
-/** PostHog group type for the organisation — one group per org, shared by every member. */
-export const ORG_GROUP_TYPE = 'organisation';
+/**
+ * PostHog group type for the organisation — one group per org, shared by every member.
+ * Owned by the analytics facade (the client boundary), re-exported for existing callers.
+ */
+export { ORG_GROUP_TYPE } from '@/src/lib/analytics';
 
 /**
  * Plans S4 (FR-PLN-016): register the caller's org plan as a PostHog group property.
@@ -20,8 +23,8 @@ export const ORG_GROUP_TYPE = 'organisation';
  * group property and nothing else, and no error surfaces.
  *
  * One registration per (org, plan): the effect is keyed on both, so a plan change re-registers and a
- * re-render does not re-send. Consent is enforced inside `analyticsClient.group` (the same guard as
- * every other capture), so this hook never needs to know whether analytics is live.
+ * re-render does not re-send. Consent is enforced inside the analytics facade's client path (the same
+ * guard as every other capture), so this hook never needs to know whether analytics is live.
  */
 export function useOrgPlanGroup(): void {
   const { currentUser } = useAuth();
@@ -41,6 +44,6 @@ export function useOrgPlanGroup(): void {
 
   useEffect(() => {
     if (!orgId || !planId) return;
-    analyticsClient.group(ORG_GROUP_TYPE, orgId, { plan: planId });
+    trackOrgGroupPlan(orgId, planId);
   }, [orgId, planId]);
 }

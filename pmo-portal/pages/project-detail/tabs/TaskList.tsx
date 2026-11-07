@@ -4,6 +4,7 @@
  * and mutation callbacks and hands them in through {@link TaskColumnDeps}; the columns render
  * whatever the current role allows (ADR-0016: FE is the clarity projection, RLS is the authority).
  */
+import { initials } from '@/src/lib/initials';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -65,9 +66,9 @@ function buildTaskColumns(
       header: t('projectDetail.tasks.column.assignee', 'Assignee'),
       cell: (task) => {
         if (!task.assignee) return <span className="text-muted-foreground">{t('projectDetail.tasks.unassigned', 'Unassigned')}</span>;
-        const initials = task.assignee.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+        const avatarInitials = initials(task.assignee.full_name, { fallback: '' });
         return <span className="inline-flex min-w-0 items-center gap-2" title={task.assignee.full_name}>
-          <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials}</span>
+          <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{avatarInitials}</span>
           <span className="truncate text-muted-foreground">{task.assignee.full_name}</span>
         </span>;
       },

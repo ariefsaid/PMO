@@ -32,6 +32,7 @@
     "uncertain": "Kelompok saat ini masih berjalan, jadi jumlah dapat berubah.",
     "stopped": "Dihentikan. {{count}} diperiksa.",
     "interrupted": "Berhenti lebih awal. Jumlah sejauh ini disimpan; lanjutkan untuk memeriksa sisanya.",
+    "readFailed": "Pustaka bawaan tidak dapat dibaca, sehingga folder belum bisa ditautkan. Coba baca ulang di atas.",
     "needsDefault": "Pilih pustaka dokumen bawaan terlebih dahulu.",
     "summary": "Tertaut {{linked}} · Perlu dipilih {{needsChoice}} · Tidak cocok/kode {{missing}} · Gagal {{failed}} · Sudah tertaut {{skipped}}"
   },

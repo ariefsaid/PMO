@@ -50,8 +50,7 @@ const validate = (
 ): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
-  // #784 (FR-NAR-007): a PMO receipt settles a named PMO invoice — there is no on-account receipt without an ERP.
-  if (native && !v.salesInvoiceId) errors.salesInvoiceId = t('financeCopy.salesInvoiceRequired', 'Choose the invoice this receipt settles.');
+  // #1415: with no invoice named, a PMO receipt is a payment ON ACCOUNT for the customer (applied to invoices afterwards).
   if (parsePaymentAmount(v.paidAmount) === null) {
     errors.paidAmount = t('financeCopy.paidAmountPositive', 'Paid amount must be positive, with no more than 2 decimal places.');
   }
@@ -352,8 +351,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
           />
           <Combobox
             id={salesInvoiceField.id}
-            label={native ? t('financeCopy.salesInvoiceLabel', 'Sales Invoice') : t('financeCopy.salesInvoiceOptional', "Sales Invoice (optional)")}
-            required={native}
+            label={t('financeCopy.salesInvoiceOptional', "Sales Invoice (optional)")}
             value={salesInvoiceField.value ?? ''}
             onChange={(value, _option) => {
               salesInvoiceField.onChange(value ?? '');
@@ -369,6 +367,11 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             loadOptions={loadOpenInvoices}
             noun="invoice"
           />
+          {native && !salesInvoiceField.value && (
+            <p className="text-sm text-muted-foreground sm:col-span-2">
+              {t('finance:receipts.onAccount.mode', 'No invoice chosen: this is recorded as a payment on account for the customer. You can apply it to invoices afterwards.')}
+            </p>
+          )}
           <NumberField
             id={paidAmountField.id}
             label={t('uxs27.amountSettled', 'Amount settled')}

@@ -2,8 +2,8 @@
 //
 // The DAL seam is mocked here on purpose: the plan's real source is S3's member-scoped
 // `resolved_org_plan()` projection (migration 0537), so this suite owns the WIRING — plan resolved →
-// `analyticsClient.group('organisation', orgId, { plan })`; plan unresolved → nothing; a plan change →
-// exactly one re-registration.
+// the analytics facade's org-group helper → `analyticsClient.group('organisation', orgId, { plan })`;
+// plan unresolved → nothing; a plan change → exactly one re-registration.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

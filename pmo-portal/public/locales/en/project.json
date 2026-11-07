@@ -51,7 +51,7 @@
         "invoiced": "Source: non-draft, non-cancelled invoice amounts.",
         "paid": "Source: invoice amount less the accounting balance outstanding.",
         "canInvoice": "Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.",
-        "overdue": "Sum of positive outstanding balances on invoices past their ERP due date.",
+        "overdue": "Sum of positive outstanding balances on invoices past their due date.",
         "notOrderedValue": "Source: unallocated contract quantity multiplied by its contract rate.",
         "downPayment": "Source: project billing totals for down payment billed and recovered.",
         "contractQuantity": "Source: priced contract line quantity.",
@@ -917,6 +917,27 @@
         "import": "Import",
         "backfill": "Backfill"
       }
+    },
+    "gantt": {
+      "continues": "continues",
+      "datesColumn": "Dates",
+      "durationDays_one": "{{count}} day",
+      "durationDays_other": "{{count}} days",
+      "goToDate": "Go to date",
+      "jumpToBar": "Scroll to \"{{title}}\"",
+      "loading": "Loading",
+      "milestoneTarget": "Target date",
+      "next": "Next",
+      "previous": "Previous",
+      "progress": "{{percent}}% complete",
+      "resizePanel": "Resize task panel",
+      "scale": {
+        "year": "Year"
+      },
+      "statusColumn": "Status",
+      "ungrouped": "Ungrouped",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out"
     }
   },
   "common": {

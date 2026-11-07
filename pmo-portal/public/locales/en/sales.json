@@ -46,5 +46,30 @@
     "closedOut": "Closed out",
     "internal": "Internal",
     "daysShort": "d"
+  },
+  "options": {
+    "staleReason": "In {{stage}} for {{days}} days",
+    "idleReason": "Untouched for {{days}} days",
+    "openDeal": "Open deal",
+    "lastUpdate": "Last update",
+    "dealPanel": "Deal",
+    "decisionBand": "Where this stands",
+    "dealFiguresLabel": "Deal figures",
+    "figuresLabel": "Pipeline figures",
+    "weightedForecast": "Weighted forecast",
+    "weightedNote": "Value × chance it proceeds × chance we win",
+    "openValue": "Open value",
+    "openCount": "{{n}} open projects",
+    "needsYou": "Needs attention",
+    "needsYouNote": "Untouched 30+ days or 90+ days in one stage",
+    "outcomes": "Won · Lost",
+    "outcomesNote": "Decided projects on this board",
+    "ofOpen": "of {{value}} open across {{n}} projects",
+    "mixAria": "Weighted forecast by stage",
+    "viewByStage": "By stage",
+    "quickView": "Quick view",
+    "stageNav": "Pipeline stages",
+    "needsYouHeading": "Needs you · {{n}}",
+    "showAllAttention": "Show all {{n}}"
   }
 }

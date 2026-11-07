@@ -13,7 +13,7 @@ afterEach(resetActiveLocale);
 
 describe('AC-RD-UNAVAIL-002 redesigned project-spend link names', () => {
   it('announces a small known amount, zero, and the reason when the amount is unavailable', () => {
-    dashboardHarness.dashboard!.top_projects = [
+    dashboardHarness.dashboard!.attention_projects = [
       { id: 'small', name: 'Small', contract_value: 1_000, currency: 'USD', spent: 500, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
       { id: 'zero', name: 'Zero', contract_value: 1_000, currency: 'USD', spent: 0, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
       { id: 'unknown', name: 'Unknown', contract_value: 1_000, currency: 'USD', spent: null, actual_complete: false, actual_currency: 'USD', status: 'Ongoing Project' },

@@ -289,26 +289,22 @@ export const FinanceDashboard: React.FC = () => {
   // column-header re-sort, then slice to the top 5 for the card. The RPC default = variance desc,
   // so the initial render shows the worst bleeders without any client sort.
   const topByVariance = useMemo(() => {
-    const sorted = [...(budgetReview ?? [])];
     const direction = budgetSort.dir === 'desc' ? -1 : 1;
-    sorted.sort((a, b) => {
-      if (budgetSort.key === 'variance') {
-        return compareNullable(Number.isFinite(a.variance) ? a.variance : null,
-          Number.isFinite(b.variance) ? b.variance : null, direction, a.id, b.id);
-      }
-      if (budgetSort.key === 'budget') {
-        return compareNullable(Number.isFinite(a.budget) ? a.budget : null,
-          Number.isFinite(b.budget) ? b.budget : null, direction, a.id, b.id);
-      }
-      if (budgetSort.key === 'spent') {
-        return compareNullable(hasKnownActual(a) ? a.spent : null,
-          hasKnownActual(b) ? b.spent : null, direction, a.id, b.id);
-      }
-      const utilization = (project: BudgetReviewRow) => canCompareActual(project) && project.spent !== null
-        ? project.spent / project.budget
-        : null;
-      return compareNullable(utilization(a), utilization(b), direction, a.id, b.id);
-    });
+    // #1459: each row's sort value (a money ratio or an amount) is computed once per row, never
+    // once per comparison — a comparator that re-derives money does O(n log n) derivations.
+    const utilization = (project: BudgetReviewRow) => canCompareActual(project) && project.spent !== null
+      ? project.spent / project.budget
+      : null;
+    const sortValue = (project: BudgetReviewRow): number | null => {
+      if (budgetSort.key === 'variance') return Number.isFinite(project.variance) ? project.variance : null;
+      if (budgetSort.key === 'budget') return Number.isFinite(project.budget) ? project.budget : null;
+      if (budgetSort.key === 'spent') return hasKnownActual(project) ? project.spent : null;
+      return utilization(project);
+    };
+    const rows = budgetReview ?? [];
+    const values = new Map(rows.map((project) => [project.id, sortValue(project)]));
+    const sorted = [...rows];
+    sorted.sort((a, b) => compareNullable(values.get(a.id) ?? null, values.get(b.id) ?? null, direction, a.id, b.id));
     return sorted.slice(0, 5);
   }, [budgetReview, budgetSort]);
 
@@ -423,16 +419,18 @@ export const FinanceDashboard: React.FC = () => {
         <AwaitingApprovalTile includeTimesheets={false} label={t('dashboard:finance.awaiting', 'Procurement awaiting your decision')} />
       </section>
       <KPIRow aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid-cols-1 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
-        {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
+        {/* AC-IXD-DASH-W5-C2A + #1461: the figure sums 'Ongoing Project' contracts only, so the drill
+            opens exactly that set (the broader Ongoing tab also holds Won-Pending-KoM and On Hold). */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('dashboard:finance.contractValue', 'Contract value in progress')}
           {...figure(data?.total_contract_value ?? null)} loading={isPending}
-          to="/projects?filter=Ongoing"
+          to="/projects?filter=ongoing-project"
           linkLabel={t('dashboard:finance.contractValueLink', 'Open active projects to see contract value')}
           help={t('dashboard:finance.contractValueHelp', 'Total contract value across active projects.')} />
-        {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
+        {/* AC-IXD-DASH-W5-C2A + #1461: recorded spending sums the on-hand projects, so the drill
+            opens the on-hand set (Close Out included). */}
         <KPITile testId="kpi-spend" tone="red" icon="cart" label={t('dashboard:finance.recordedSpending', 'Recorded spending')}
           {...figure(totalSpend)} loading={isPending} vs={`${data && (data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total) ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${actualCoverage}`}
-          to="/projects?filter=Ongoing"
+          to="/projects?filter=on-hand"
           linkLabel={t('dashboard:finance.spendingLink', 'Open active projects to see spending details')}
           help={t('dashboard:finance.spendingHelp', 'Actual spending recorded across the delivery portfolio.')} />
         {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}
