@@ -8,7 +8,8 @@ import { AppError } from '@/src/lib/appError';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { ApplyReceiptForm, applicableInvoices } from './ApplyReceiptForm';
+import { ApplyReceiptForm } from './ApplyReceiptForm';
+import { applicableInvoices } from './applicableInvoices';
 
 const receipt = { id: 'rc-1', customer_id: 'cust-1', currency: 'IDR', amount: 100, pmo_native: true } as unknown as IncomingPaymentRow;
 const invoice = (id: string, over: Record<string, unknown> = {}) => ({

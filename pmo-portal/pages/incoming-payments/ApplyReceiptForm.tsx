@@ -7,6 +7,7 @@ import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyI
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
+import { applicableInvoices } from './applicableInvoices';
 
 /** #1415: one line of the apply form — an invoice and what to put on it (a money draft, parsed at scale 2). */
 interface Row { key: number; invoiceId: string; amount: string }
@@ -23,15 +24,6 @@ export interface ApplyReceiptFormProps {
 }
 
 const cents = (n: number): number => Math.round(n * 100);
-
-/** The invoices a PMO receipt can be applied to: same customer, PMO-native, approved, same currency, still owing. */
-export function applicableInvoices(receipt: IncomingPaymentRow, invoices: SalesInvoiceRow[]): SalesInvoiceRow[] {
-  return invoices.filter((inv) => Boolean(inv.pmo_native)
-    && inv.status === 'Unpaid'
-    && inv.customer_id === receipt.customer_id
-    && inv.currency === receipt.currency
-    && (inv.erp_outstanding_amount ?? 0) > 0);
-}
 
 /**
  * Apply a PMO receipt across one or more invoices (org without an ERP). The checks here are UX only — the server refuses an
