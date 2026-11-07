@@ -13094,6 +13094,7 @@ export type Database = {
         }[]
       }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_finance_hub_figures: { Args: never; Returns: Json }
       get_imprest_plan_usage: {
         Args: { p_float: string; p_month: string }
         Returns: {

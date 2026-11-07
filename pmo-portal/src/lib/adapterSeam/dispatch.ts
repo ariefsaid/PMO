@@ -418,19 +418,27 @@ async function claimAndCommit(
     if (isRecoveryReissue && money.reauthorizeRecoveryReissue) {
       const auth = await money.reauthorizeRecoveryReissue();
       if (!auth.ok) {
-        const heldCount = await money.markOutboxHeld(claimed.id, `recovery-reissue-unauthorized: ${auth.message}`, token);
+        const isSuperseded = auth.message === 'revision_superseded' || auth.message === 'revision-superseded' || auth.message?.startsWith('revision-superseded') || auth.message?.startsWith('revision_superseded');
+        const holdReason = isSuperseded ? `revision-superseded: ${auth.message}` : `recovery-reissue-unauthorized: ${auth.message}`;
+        const heldCount = await money.markOutboxHeld(claimed.id, holdReason, token);
         if (heldCount === 0) {
           // Fencing loss: another claimant superseded this token before the hold landed — surface the
           // row's CURRENT (possibly confirmed) state, not this claimant's stale hold.
           const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
           return reconcileOutbox(fresh!, deps);
         }
+        const causeLog = isSuperseded
+          ? `the revision is superseded (${auth.message})`
+          : `the recorded actor is no longer authorized (${auth.message})`;
+        const causeError = isSuperseded
+          ? (auth.message ? `revision is superseded (${auth.message})` : 'revision is superseded')
+          : (auth.message || 'actor no longer authorized');
         console.error(
           `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
-            `recovery reissue blocked: the recorded actor is no longer authorized (${auth.message}); awaiting operator resolution`,
+            `recovery reissue blocked: ${causeLog}; awaiting operator resolution`,
         );
         throw markCommandHeldOutbox(
-          new AppError(`money command held for operator resolution — recovery reissue blocked: ${auth.message || 'actor no longer authorized'}`, 'command-held'),
+          new AppError(`money command held for operator resolution — recovery reissue blocked: ${causeError}`, 'command-held'),
           claimed.id,
           token,
         );

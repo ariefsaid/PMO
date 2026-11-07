@@ -993,6 +993,12 @@
       "client": "Client",
       "internal": "Internal",
       "vendor": "Supplier"
+    },
+    "pager": {
+      "label": "Pages",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous page",
+      "next": "Next page"
     }
   },
   "companyDetail": {
@@ -1282,7 +1288,13 @@
       "deleted": "Contact deleted",
       "updated": "Contact updated"
     },
-    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable."
+    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable.",
+    "pager": {
+      "label": "Pages",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous page",
+      "next": "Next page"
+    }
   },
   "dashboard": {
     "winRate": {
@@ -4762,7 +4774,7 @@
     "unlinked": "Reference removed",
     "checkingConnection": "Checking your Microsoft 365 connection…",
     "referenceOnly": "Folder reference: contents are not issued or approved",
-    "newRevisionFromLatest": "Make new revision from latest file update",
+    "newRevisionFromLatest": "New revision from updated file",
     "revisionLatestNote": "The new revision will reference the latest Microsoft file: {{name}}.",
     "latestFailedTitle": "Could not read the latest file",
     "latestFailed": "Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.",
@@ -4793,15 +4805,22 @@
       "connectHint": "Connect Microsoft 365 in My integrations to link documents.",
       "empty": "No evidence documents are linked to this version.",
       "heading": "Evidence documents",
+      "headingFor": "Evidence documents for {{version}}",
       "link": "Link from Microsoft 365",
       "loadError": "Evidence documents could not be loaded",
       "loadErrorSub": "The budget figures are not affected. Try again.",
-      "readOnly": "Evidence is read-only on this version.",
+      "readOnlyActive": "Evidence is read-only: this version is Active. Archive it, then use Clone to revise to start a new draft.",
+      "readOnlyArchived": "Evidence is read-only: this version is Archived. Clone it, or edit the existing draft, to link evidence there.",
+      "readOnlyRole": "Evidence is read-only: your role cannot change budget evidence.",
       "remove": "Remove",
       "removeDescription": "The link to {{name}} is removed from this version. The Microsoft file is not changed.",
       "removeNamed": "Remove link to {{name}}",
       "removeTitle": "Remove this link?",
       "unavailable": "This link is unavailable."
+    },
+    "linkFolders": {
+      "heading": "Link existing folders to records",
+      "description": "Match folders already in the default library to projects and cases that have none. This links folders only; it never creates one."
     },
     "defaultLibrary": {
       "browseFailed": "Microsoft locations could not be loaded. Close this dialog and try again.",
@@ -4811,6 +4830,7 @@
       "clearFailed": "Could not clear the default library.",
       "clearTitle": "Clear the default library?",
       "connectHint": "Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.",
+      "connectLink": "Open My integrations",
       "current": "Current default:",
       "description": "The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.",
       "disabledReason": "Choose a site and a library to save.",
@@ -4835,8 +4855,8 @@
       "openLatest": "Open latest in {{place}}",
       "openFolder": "Open folder in {{place}}",
       "openShort": "Open",
-      "versions": "Versions",
-      "versionsOf": "Versions of {{name}}",
+      "versions": "Show all versions",
+      "versionsOf": "Show all versions of {{name}}",
       "openRefused": "This Microsoft link cannot be opened.",
       "accessFile": "Opens in Microsoft. Access depends on your Microsoft permissions on this file.",
       "accessFolder": "Opens in Microsoft. Access depends on your Microsoft permissions on this folder.",
@@ -4862,7 +4882,6 @@
     },
     "versions": {
       "title": "Versions of {{name}}",
-      "done": "Done",
       "close": "Close",
       "loading": "Loading…",
       "emptyTitle": "No versions listed",
@@ -4872,8 +4891,8 @@
       "loadMore": "Load more"
     },
     "history": {
-      "view": "View approved version history",
-      "viewAria": "View approved version history: {{name}}",
+      "view": "Check approved version",
+      "viewAria": "Check approved version: {{name}}",
       "partial": "Approved version not found in loaded history.",
       "loadMore": "Load more history",
       "noSharepointIds": "Version history unavailable: Microsoft did not provide SharePoint identifiers.",
@@ -4930,8 +4949,8 @@
       "noItemsSub": "Choose another location or search.",
       "itemsAria": "Items in this location",
       "selected": "Selected",
-      "select": "Select",
-      "selectNamed": "Select {{kind}} {{name}}",
+      "linkFile": "Link this file",
+      "linkFileNamed": "Link this file {{name}}",
       "kindFile": "file",
       "kindFolder": "folder",
       "selectedSummary": "Selected {{kind}}: {{name}}",

@@ -29,11 +29,11 @@ vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
-// PipelineLens composes the win-eligibility preflight (3700397d9); this wayfinding test stubs it
+// DealBand composes the win-eligibility preflight (3700397d9); this wayfinding test stubs it
 // like the other lens suites, keeping the harness free of a QueryClient.
 vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const dealRow = {
   id: 'd1',
@@ -62,7 +62,7 @@ const LocationObserver = () => {
   );
 };
 
-describe('PipelineLens SPA wayfinding navigation (Split 4)', () => {
+describe('DealBand SPA wayfinding navigation (Split 4)', () => {
   it('navigates via React Router Link to listReturnNavigation path and restores working-set state', async () => {
     const salesContext = createListReturnContext('sales', '/sales?view=table&classification=Tier1', 250);
     const initialLocationState = {
@@ -74,7 +74,7 @@ describe('PipelineLens SPA wayfinding navigation (Split 4)', () => {
       <MemoryRouter initialEntries={[{ pathname: '/projects/d1', state: initialLocationState }]}>
         <ImpersonationProvider realRole="Project Manager">
           <ToastProvider>
-            <PipelineLens project={dealRow} locationState={initialLocationState} />
+            <DealBand project={dealRow} />
             <LocationObserver />
           </ToastProvider>
         </ImpersonationProvider>

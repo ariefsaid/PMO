@@ -23,7 +23,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
 });
 vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const deal = {
   id: 'd1', name: 'Acme Tender Bid', code: 'OPP-0042', status: 'Tender Submitted', client_id: 'c1',
@@ -31,13 +31,13 @@ const deal = {
   decided_at: null, client: { name: 'Acme' }, pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
-describe('PipelineLens current stage (#1339)', () => {
+describe('DealBand current stage (#1339)', () => {
   it('names the current stage in the viewer\'s language on phones', () => {
     render(
       <BahasaProvider>
         <MemoryRouter>
           <ImpersonationProvider realRole="Project Manager">
-            <ToastProvider><PipelineLens project={deal} locationState={null} /></ToastProvider>
+            <ToastProvider><DealBand project={deal} /></ToastProvider>
           </ImpersonationProvider>
         </MemoryRouter>
       </BahasaProvider>,

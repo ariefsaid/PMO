@@ -8,7 +8,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
-import { buildBudgetSummaryRows, committedTotal } from './budget/budgetModel';
+import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';

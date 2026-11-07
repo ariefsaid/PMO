@@ -460,10 +460,10 @@ async function stateTaxBasis() {
 
 // ── AC-PRJ-006 contract_value SoD (ADR-0019) ─────────────────────────────────
 describe('ProjectDetailHeader — contract_value SoD treatment', () => {
-  // Model B (ADR-0020, AC-IXD-PROJ-004): a pre-win (pipeline) deal renders the PipelineLens,
+  // Model B (ADR-0020, AC-IXD-PROJ-004): a pre-win (pipeline) deal renders the DealBand,
   // NOT the delivery header — so the delivery contract-value SoD editor (and the StatTiles
   // spend summary) are not mounted on a pre-win record. The deal's value is captured at
-  // create-time and surfaced as the PipelineLens "Value" stat; the on-hand SoD lock/edit
+  // create-time and surfaced as the DealBand "Value" stat; the on-hand SoD lock/edit
   // distinction (the goal-oracle) is asserted on the on-hand record below.
   it('AC-IXD-PROJ-004: PRE-WIN, the delivery contract-value editor + spend summary are NOT mounted', () => {
     renderHeader('Project Manager', preWin);

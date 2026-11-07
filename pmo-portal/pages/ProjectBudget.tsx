@@ -53,7 +53,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
-import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
+import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
