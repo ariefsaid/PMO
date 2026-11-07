@@ -38,6 +38,8 @@ import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { useWorkOrderAcceptanceAge, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { useBoqItems, useProgressBillingMutations, useProjectBilling, useProjectClaims } from '@/src/hooks/useProgressBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import {
@@ -274,6 +276,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const canInvoice = may('create', 'salesInvoice') && revenueRouteReady && Boolean(clientId);
   const erp = useErpItemOptions('sales');
   const invoicesQuery = useSalesInvoices(projectId, { enabled: canViewBilling });
+  // #1457: the org's business day (not the viewer's device day) bounds the overdue figure.
+  const orgDay = useFxOrgDay(canViewBilling).day;
   const invoiceRows = useMemo(() => (invoicesQuery.data ?? []) as InvoiceWithWorkOrder[], [invoicesQuery.data]);
   const invoicesByWo = useMemo(() => {
     const grouped = new Map<string, InvoiceWithWorkOrder[]>();
@@ -848,8 +852,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               const workOrderStatusTone: StatusVariant = row.status === 'Closed' ? 'won' : row.status === 'Cancelled' ? 'lost' : 'progress';
               const latestConfirmedBast = bastList.find((acceptance) => acceptance.status === 'Confirmed');
               const orderOverdue = orderInvoices.reduce((sum, invoice) => {
-                if (!invoice.erp_due_date || invoice.erp_due_date >= localToday() || invoice.status === 'Draft' || invoice.status === 'Cancelled') return sum;
-                const balance = invoice.status === 'Paid' ? 0 : invoice.erp_outstanding_amount;
+                // #1457: the one shared overdue rule (status + derived due date + org day) decides each row.
+                if (clientInvoiceOverdueDays(invoice, orgDay) === null) return sum;
+                const balance = invoice.erp_outstanding_amount;
                 return balance === null ? sum : sum + Math.max(0, balance);
               }, 0);
               const canEditLines = !lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: row.status } });
@@ -986,7 +991,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       </ul>}
                     </div>}
 
-                    {canViewBilling && orderOverdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their ERP due date.')}>
+                    {canViewBilling && orderOverdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
                       <span className="inline-flex w-fit cursor-help items-center gap-2 text-xs text-warning-foreground tabular-nums">
                         <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
                         <strong>{formatNumberWhole(orderOverdue)}</strong>

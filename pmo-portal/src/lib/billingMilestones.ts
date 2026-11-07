@@ -1,5 +1,6 @@
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
+import { toCents } from '@/src/lib/moneyCents';
 
 /**
  * #1640 (OD-GRILL-20261101): a work order shown as a billing milestone. Derived from the shipped view
@@ -7,15 +8,13 @@ import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
  */
 export type BillingMilestoneStatus = 'unknown' | 'planned' | 'in-progress' | 'invoiced' | 'paid';
 
-const cents = (value: number): number => Math.round(value * 100);
-
 export function deriveBillingMilestoneStatus(
   status: WorkOrderStatus, f: WorkOrderBillingRow,
 ): { status: BillingMilestoneStatus; overInvoiced: boolean } {
   if (!f.figuresComplete) return { status: 'unknown', overInvoiced: false };
-  const overInvoiced = cents(f.remaining) < 0;
-  if (status === 'Draft' || cents(f.invoiced) + cents(f.pending) <= 0) return { status: 'planned', overInvoiced };
-  if (cents(f.remaining) > 0 || cents(f.pending) > 0) return { status: 'in-progress', overInvoiced };
+  const overInvoiced = toCents(f.remaining) < 0;
+  if (status === 'Draft' || toCents(f.invoiced) + toCents(f.pending) <= 0) return { status: 'planned', overInvoiced };
+  if (toCents(f.remaining) > 0 || toCents(f.pending) > 0) return { status: 'in-progress', overInvoiced };
   if (f.unpaidCount > 0) return { status: 'invoiced', overInvoiced };
   return { status: 'paid', overInvoiced };
 }
