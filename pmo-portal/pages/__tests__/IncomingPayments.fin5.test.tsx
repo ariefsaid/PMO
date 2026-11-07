@@ -64,6 +64,8 @@ async function pickInvoice(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('option', { name: /INV-2610070001/ }));
 }
 
+// A native receipt's applications are its live allocations (#1415), not the ERP's allocation_details.
+const alloc = (amount: number) => ({ id: `al-${amount}`, sales_invoice_id: 'si-1', amount, cash_amount: amount, withheld_amount: 0, currency: 'IDR', reversed_at: null });
 const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => ({
   id: 'ip-1', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Energy', sales_invoice_id: 'si-1',
   ip_number: null, pmo_number: 'RCV-2610070001', pmo_native: true, cancelled_at: null, reference_number: null,
@@ -147,7 +149,7 @@ describe('FIN-S5: receipt record', () => {
   const open = () => renderPage('/incoming-payments/ip-1');
 
   it('shows only the receipt total when cash equals it and nothing is withheld or unapplied', () => {
-    h.payments.data = [receipt({ allocation_details: [{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '500000.00', currency: 'IDR' }] } as Partial<IncomingPaymentRow>)];
+    h.payments.data = [receipt({ allocations: [alloc(500_000)] } as Partial<IncomingPaymentRow>)];
     open();
     expect(screen.getByText('Receipt total')).toBeInTheDocument();
     for (const gone of ['Cash received', 'Tax withheld', 'Not yet applied']) expect(screen.queryByText(gone)).not.toBeInTheDocument();
@@ -157,7 +159,7 @@ describe('FIN-S5: receipt record', () => {
   it('adds cash received, tax withheld and the slip beside it when they differ or are non-zero', () => {
     h.payments.data = [receipt({
       received_amount: 450_000, withheld_amount: 50_000, withholding_slip_number: 'SLIP-9',
-      allocation_details: [{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '500000.00', currency: 'IDR' }],
+      allocations: [alloc(500_000)],
     } as Partial<IncomingPaymentRow>)];
     open();
     expect(screen.getByText('Cash received')).toBeInTheDocument();
@@ -175,7 +177,7 @@ describe('FIN-S5: receipt record', () => {
   });
 
   it('shows not-yet-applied cash as a fact, with no extra sentence below', () => {
-    h.payments.data = [receipt({ allocation_details: [{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '400000.00', currency: 'IDR' }] } as Partial<IncomingPaymentRow>)];
+    h.payments.data = [receipt({ allocations: [alloc(400_000)] } as Partial<IncomingPaymentRow>)];
     open();
     expect(within(screen.getByTestId('receipt-unapplied')).getByText(/100,000/)).toBeInTheDocument();
     expect(screen.queryByText(/is not yet applied to an invoice/)).not.toBeInTheDocument();

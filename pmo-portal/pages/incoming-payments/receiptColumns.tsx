@@ -72,12 +72,16 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
       cell: (p) => {
         // S-06 (RF-030): a receipt that settled several invoices names the first and how many more.
         const settled = displayAllocations(p, invoiceNumberOf);
-        const first = settled?.[0]?.invoice_number ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? null : null);
+        // #1415: a PMO receipt's own invoice pointer is only where it was recorded from; its invoices are its live allocations.
+        const first = p.pmo_native && settled
+          ? settled[0]?.invoice_number ?? null
+          : settled?.[0]?.invoice_number ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? null : null);
         const more = settled && settled.length > 1 ? settled.length - 1 : 0;
         const text = first && more > 0 ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first, count: more }) : first;
         return <span className="truncate font-mono text-[13px]" title={settled?.map((a) => a.invoice_number).join(', ') ?? first ?? ''}>{text ?? '—'}</span>;
       },
-      exportValue: (p) => displayAllocations(p, invoiceNumberOf)?.map((a) => a.invoice_number).join(', ')
+      exportValue: (p) => (p.pmo_native && displayAllocations(p, invoiceNumberOf) ? displayAllocations(p, invoiceNumberOf)!.map((a) => a.invoice_number).join(', ') : undefined)
+        ?? displayAllocations(p, invoiceNumberOf)?.map((a) => a.invoice_number).join(', ')
         ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? '' : ''),
     },
     {
