@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * RTL component tests for ProjectGantt.
  * Owns: AC-GANTT-005, AC-GANTT-007, AC-GANTT-008, AC-GANTT-010.
