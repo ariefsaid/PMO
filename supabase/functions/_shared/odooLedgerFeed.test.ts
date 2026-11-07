@@ -38,7 +38,7 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   const snapshots: Array<Record<string, unknown>[]> = [];
   const mirror = new Map<string, PageRow>();
   const census = { seen: [] as string[][], finish: [] as Array<{ expected: number | null }> };
-  const checks: Array<{ p_org_id: string; p_cutoff: string; p_accounts: Array<{ account: string; pmo: unknown; odoo: unknown }>; p_status: string; p_reason: string | null }> = [];
+  const checks: Array<{ p_org_id: string; p_cutoff: string; p_accounts: Array<{ account: string; pmo: unknown; odoo: unknown }>; p_status: string; p_reason: string | null; p_accounts_checked: number; p_feed_position: string }> = [];
   const markers: string[] = [];
   const yearEnds: Array<{ p_org_id: string; p_month: number; p_day: number }> = [];
   let links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
@@ -88,7 +88,7 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseRpc('finish_odoo_ledger_census', (c) => { census.finish.push({ expected: (c.bodyJson as { p_expected_lines: number | null }).p_expected_lines }); return jsonResponse(0); }),
     supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push((c.bodyJson as { p_rows: Record<string, unknown>[] }).p_rows); return jsonResponse(null); }),
   ];
-  return { fake, routes, applies, checks, markers, snapshots, census, mirror, yearEnds, getCursor: () => cursor, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
+  return { fake, routes, applies, checks, markers, snapshots, census, mirror, yearEnds, getCursor: () => cursor, setCursor: (c: string) => { cursor = c; }, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
 }
 /** `refuseCompany`: Odoo answers 403 to the company read, as it does for a key user without access to it. */
 const odooCall = (fake: FakeOdoo, refuseCompany = false) => bindCall({
@@ -311,6 +311,8 @@ describe('runLedgerPass — AC-ODA-008 / S4-T4 reconciliation check', () => {
     assertEquals(h.checks[0].p_status, 'matches');
     assertEquals(h.checks[0].p_cutoff, '2026-11-02T11:40:00.000Z');
     assertEquals(h.checks[0].p_accounts, []);
+    assertEquals(h.checks[0].p_accounts_checked, 1);
+    assertEquals(h.checks[0].p_feed_position, `${JSON.parse(h.getCursor()!).w}|${JSON.parse(h.getCursor()!).id}`);
     assertEquals(h.markers, ['true']);
   });
 
@@ -334,7 +336,42 @@ describe('runLedgerPass — AC-ODA-008 / S4-T4 reconciliation check', () => {
       String(input).includes('/formatted_read_group') ? Promise.resolve(Response.json({ name: 'odoo.exceptions.AccessError', message: 'no' }, { status: 403 })) : h.fake.fetch(input, init)) as typeof fetch });
     const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget(), { now: NOW }));
     assertEquals(out.caughtUp, true);
-    assertEquals([h.checks[0].p_status, h.checks[0].p_reason], ['not-checked', 'access-denied']);
+    assertEquals([h.checks[0].p_status, h.checks[0].p_reason, h.checks[0].p_accounts_checked], ['not-checked', 'access-denied', 0]);
+  });
+
+  /** Odoo answers the grouped read with `groups`, whatever the mirror holds. */
+  const withGroups = (h: ReturnType<typeof harness>, groups: unknown[], onRead?: () => void) => bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    if (!String(input).includes('/formatted_read_group')) return h.fake.fetch(input, init);
+    onRead?.();
+    return Promise.resolve(Response.json(groups));
+  }) as typeof fetch });
+
+  it('AC-ODA-008 Odoo answering nothing while the mirror holds lines is "differs", never "matches"', async () => {
+    const h = harness(seed);
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, withGroups(h, []), 1, budget(), { now: NOW }));
+    assertEquals(h.checks[0].p_status, 'differs');
+    assertEquals(h.checks[0].p_accounts, [{ account: '5100', pmo: { debit: '200.00', credit: '40.00' }, odoo: { debit: '0.00', credit: '0.00' } }]);
+    assertEquals(h.checks[0].p_accounts_checked, 1);
+  });
+
+  it('AC-ODA-008 a mirror whose only line is newer than the cut-off and an empty Odoo records "matches" over 0 accounts (the count says nothing was compared)', async () => {
+    const h = harness((fake) => fake.seed('account.move.line', [line(3, { write_date: '2026-11-02 11:45:00' })]));
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, withGroups(h, []), 1, budget(), { now: NOW }));
+    assertEquals([h.checks[0].p_status, h.checks[0].p_accounts_checked], ['matches', 0]);
+  });
+
+  it('AC-ODA-008 the mirror holding a line Odoo does not total, in an account only the mirror has, is "differs"', async () => {
+    const h = harness(seed);
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, withGroups(h, [{ account_id: [501, '5100 Cost'], 'debit:sum': 200, 'credit:sum': 40 }, { account_id: [777, '7770 Other'], 'debit:sum': 5, 'credit:sum': 0 }]), 1, budget(), { now: NOW }));
+    assertEquals(h.checks[0].p_status, 'differs');
+    assertEquals(h.checks[0].p_accounts_checked, 2);
+  });
+
+  it('AC-ODA-008 a feed page applied while the check ran drops the result instead of recording a false difference', async () => {
+    const h = harness(seed);
+    const call = withGroups(h, [], () => h.setCursor(JSON.stringify({ w: '2026-11-02 11:59:59', id: 99, scan: null })));
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget(), { now: NOW }));
+    assertEquals(h.checks.length, 0);
   });
 
   it('AC-ODA-008 a check that cannot even be recorded does not fail the tick', async () => {

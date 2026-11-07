@@ -496,7 +496,7 @@
     "record_imprest_count(uuid,numeric,text)",
     "record_native_on_account_receipt(uuid,numeric,numeric,numeric,text,date,uuid)",
     "record_native_receipt(uuid,numeric,numeric,numeric,text,date)",
-    "record_odoo_ledger_check(uuid,timestamp with time zone,jsonb,text,text)",
+    "record_odoo_ledger_check(uuid,timestamp with time zone,jsonb,text,text,integer,text)",
     "record_outbox_ref(uuid,integer,text,text,text,text)",
     "record_sales_invoice_receipt_read_back(uuid,uuid,text[],text,numeric,text,timestamp with time zone)",
     "record_timesheet_command_held(uuid,uuid,timestamp with time zone,text,uuid,integer)",

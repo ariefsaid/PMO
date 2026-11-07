@@ -172,7 +172,8 @@ async function runLedgerCheck(sc: SupabaseClient, orgId: string, call: OdooCall,
     if (last.error) throw new Error('could not read the last ledger check');
     const lastAt = (last.data as Array<{ checked_at: string }> | null)?.[0]?.checked_at;
     if (lastAt && now.getTime() - Date.parse(lastAt) < CHECK_EVERY_MS) return undefined;
-    const cursor = parseCursor(await readCursor(sc, orgId));
+    const rawCursor = await readCursor(sc, orgId);
+    const cursor = parseCursor(rawCursor);
     if (!cursor.w || !budget.spend()) return undefined;
     const cutoff = overlapStart({ w: cursor.w, id: cursor.id }).w;
     let result;
@@ -186,10 +187,14 @@ async function runLedgerCheck(sc: SupabaseClient, orgId: string, call: OdooCall,
       })).map((r): PmoLine => ({ account: r.account, debit: String(r.debit ?? 0), credit: String(r.credit ?? 0), writeDate: r.erp_modified, isCancelled: r.is_cancelled }));
       result = compareTotals({ lines, odoo, cutoff });
     }
+    // A page applied while the check ran moves both sides under it: drop the result, the next tick checks again.
+    if (await readCursor(sc, orgId) !== rawCursor) return undefined;
     const { error } = await sc.rpc('record_odoo_ledger_check', {
       p_org_id: orgId, p_cutoff: `${cutoff.replace(' ', 'T')}.000Z`,
       p_accounts: result.state === 'differs' ? result.differing.slice(0, MAX_DIFFERENCES) : [], p_status: result.state,
       p_reason: result.state === 'not-checked' ? result.reason : null,
+      p_accounts_checked: result.state === 'not-checked' ? 0 : result.accounts,
+      p_feed_position: `${cursor.w}|${cursor.id}`,
     });
     if (error) throw new Error('could not record the ledger check');
     return result.state;
