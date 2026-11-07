@@ -180,8 +180,3 @@ if (typeof window !== 'undefined' && !('ResizeObserver' in window)) {
     disconnect() {}
   };
 }
-
-// jsdom has no Element.getAnimations; Base UI's scroll area and menus ask for it.
-if (typeof Element !== 'undefined' && !Element.prototype.getAnimations) {
-  Element.prototype.getAnimations = () => [];
-}
