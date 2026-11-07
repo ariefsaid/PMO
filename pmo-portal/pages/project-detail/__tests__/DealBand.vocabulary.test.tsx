@@ -22,7 +22,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
 });
 vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const baseDeal = {
   id: 'd1', name: 'Acme Tender Bid', code: 'OPP-0042', status: 'Tender Submitted', client_id: 'c1',
@@ -30,13 +30,13 @@ const baseDeal = {
   decided_at: null, client: { name: 'Acme' }, pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
-describe('PipelineLens vocabulary i18n (#2000)', () => {
+describe('DealBand vocabulary i18n (#2000)', () => {
   it('translates the advance button and stage vocabulary into Indonesian (#2000)', () => {
     render(
       <BahasaProvider>
         <MemoryRouter>
           <ImpersonationProvider realRole="Project Manager">
-            <ToastProvider><PipelineLens project={baseDeal} /></ToastProvider>
+            <ToastProvider><DealBand project={baseDeal} /></ToastProvider>
           </ImpersonationProvider>
         </MemoryRouter>
       </BahasaProvider>,
@@ -59,7 +59,7 @@ describe('PipelineLens vocabulary i18n (#2000)', () => {
       <BahasaProvider>
         <MemoryRouter>
           <ImpersonationProvider realRole="Project Manager">
-            <ToastProvider><PipelineLens project={{ ...baseDeal, status: 'Leads' } as ProjectWithRefs} /></ToastProvider>
+            <ToastProvider><DealBand project={{ ...baseDeal, status: 'Leads' } as ProjectWithRefs} /></ToastProvider>
           </ImpersonationProvider>
         </MemoryRouter>
       </BahasaProvider>,
@@ -71,7 +71,7 @@ describe('PipelineLens vocabulary i18n (#2000)', () => {
       <BahasaProvider>
         <MemoryRouter>
           <ImpersonationProvider realRole="Project Manager">
-            <ToastProvider><PipelineLens project={{ ...baseDeal, status: 'Quotation Submitted' } as ProjectWithRefs} /></ToastProvider>
+            <ToastProvider><DealBand project={{ ...baseDeal, status: 'Quotation Submitted' } as ProjectWithRefs} /></ToastProvider>
           </ImpersonationProvider>
         </MemoryRouter>
       </BahasaProvider>,
@@ -84,7 +84,7 @@ describe('PipelineLens vocabulary i18n (#2000)', () => {
       <BahasaProvider>
         <MemoryRouter>
           <ImpersonationProvider realRole="Project Manager">
-            <ToastProvider><PipelineLens project={{ ...baseDeal, status: 'Won, Pending KoM' } as ProjectWithRefs} /></ToastProvider>
+            <ToastProvider><DealBand project={{ ...baseDeal, status: 'Won, Pending KoM' } as ProjectWithRefs} /></ToastProvider>
           </ImpersonationProvider>
         </MemoryRouter>
       </BahasaProvider>,
@@ -96,7 +96,7 @@ describe('PipelineLens vocabulary i18n (#2000)', () => {
       <BahasaProvider>
         <MemoryRouter>
           <ImpersonationProvider realRole="Project Manager">
-            <ToastProvider><PipelineLens project={{ ...baseDeal, status: 'Loss Tender' } as ProjectWithRefs} /></ToastProvider>
+            <ToastProvider><DealBand project={{ ...baseDeal, status: 'Loss Tender' } as ProjectWithRefs} /></ToastProvider>
           </ImpersonationProvider>
         </MemoryRouter>
       </BahasaProvider>,
@@ -108,7 +108,7 @@ describe('PipelineLens vocabulary i18n (#2000)', () => {
     render(
       <MemoryRouter>
         <ImpersonationProvider realRole="Project Manager">
-          <ToastProvider><PipelineLens project={baseDeal} /></ToastProvider>
+          <ToastProvider><DealBand project={baseDeal} /></ToastProvider>
         </ImpersonationProvider>
       </MemoryRouter>,
     );
