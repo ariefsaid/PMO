@@ -85,7 +85,7 @@ import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import { odooCompanyAnchorKey } from './odooCompanies.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
-import { odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
+import { odooOwnsCompaniesTier, odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 
 export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
 export type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -393,7 +393,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     command.idempotencyKey = odooRevenueAnchorKey('sales-invoice', command.record as Record<string, unknown>);
   }
   // #1504 S8: one PMO company is one Odoo partner, so a create's key follows the record (the client's per-click key is replaced).
-  const odooCompanyKeyDerivedByServer = employedTier === ODOO_TIER && command.domain === 'companies' && command.operation === 'create';
+  const odooCompanyKeyDerivedByServer = odooOwnsCompaniesTier(employedTier) && command.domain === 'companies' && command.operation === 'create';
   if (odooCompanyKeyDerivedByServer) {
     try { command.idempotencyKey = odooCompanyAnchorKey(command.record as Record<string, unknown>); }
     catch { return new Response(JSON.stringify({ error: 'commit-rejected', message: 'company-record-id-invalid' }), { status: 422, headers }); }
