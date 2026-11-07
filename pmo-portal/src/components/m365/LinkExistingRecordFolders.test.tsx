@@ -87,6 +87,13 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — gating', () => {
     expect(linkExisting).not.toHaveBeenCalled();
   });
 
+  it('F16 an unreadable library says so instead of asking to choose one', () => {
+    mount({ defaultAvailable: false, readFailed: true });
+    expect((start() as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/could not be read/)).toBeTruthy();
+    expect(screen.queryByText('Choose a default document library first.')).toBeNull();
+  });
+
   it('is disabled while the host is changing the default', () => {
     mount({ disabled: true });
     expect((start() as HTMLButtonElement).disabled).toBe(true);

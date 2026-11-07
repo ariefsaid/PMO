@@ -24,7 +24,9 @@ export type VendorChunk =
 const CHUNK_PACKAGES: ReadonlyArray<readonly [VendorChunk, readonly string[]]> = [
   // React core + router — changes rarely; long-lived browser cache.
   // `react-router` covers v8 (where `react-router-dom` no longer exists).
-  ['vendor-react', ['react', 'react-dom', 'react-router', 'scheduler']],
+  // `use-sync-external-store` + `clsx` are shared by recharts AND app code; left unassigned, rolldown
+  // parks them in vendor-recharts and the entry then preloads the whole chart bundle on every route.
+  ['vendor-react', ['react', 'react-dom', 'react-router', 'scheduler', 'use-sync-external-store', 'clsx']],
   ['vendor-query', ['@tanstack/react-query']],
   ['vendor-supabase', ['@supabase/supabase-js', '@supabase/postgrest-js', '@supabase/auth-js']],
   ['vendor-recharts', ['recharts']],

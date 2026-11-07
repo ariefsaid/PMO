@@ -1123,7 +1123,10 @@ type NativeStatementBindingContext = {
   projectMap: Record<string, unknown>;
 };
 
-const STATEMENT_BINDING_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Mirrors refreshStatementReportBatch's UUID_PATTERN: any canonical 8-4-4-4-12 hex UUID. Seeded
+// sample ids (e.g. 00000000-0000-0000-0000-000000000001) carry no version/variant nibbles — the
+// database already validates identity, so shape is the only thing this guard checks.
+const STATEMENT_BINDING_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -1544,6 +1547,9 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
     // doctype has its own cursor row on external_sync_watermarks (the applyEngine ctx.domain stays the
     // PMO domain for external_refs; the watermark key is the sweep's own concern).
     const wmDomain = sweepWatermarkDomain(kind);
+    // #1607: the cursor this tick last saw. Every write states it (expected_cursor), so a party link that rewound the cursor
+    // meanwhile is kept by the database instead of being overwritten by this older tick.
+    let expectedCursor: string | null = null;
     const watermarkDeps = {
       readWatermark: async () => {
         const { data } = await serviceClient.from('external_sync_watermarks').select('watermark_cursor')
@@ -1560,6 +1566,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
             external_tier: ERPNEXT_TIER,
             domain: wmDomain,
             watermark_cursor: cursor,
+            ...(expectedCursor === null ? {} : { expected_cursor: expectedCursor }),
             last_error: null,
             last_error_at: null,
             updated_at: new Date().toISOString(),
@@ -1567,6 +1574,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
           { onConflict: 'org_id,external_tier,domain' },
         );
         if (error) throw new AppError(error.message, error.code);
+        expectedCursor = cursor;
       },
     };
     // Luna BLOCK A1: `payment`/`incoming-payment` share the `Payment Entry` doctype — fetch
@@ -1586,9 +1594,11 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
       const { data: priorWatermark, error: priorWatermarkError } = await serviceClient.from('external_sync_watermarks')
         .select('watermark_cursor').eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain).maybeSingle();
       if (priorWatermarkError) throw new AppError(priorWatermarkError.message, priorWatermarkError.code);
+      expectedCursor = (priorWatermark as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? null;
       const { error: attemptError } = await serviceClient.from('external_sync_watermarks').upsert({
         org_id: org.orgId, external_tier: ERPNEXT_TIER, domain: wmDomain,
         watermark_cursor: (priorWatermark as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? '',
+        ...(expectedCursor === null ? {} : { expected_cursor: expectedCursor }),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'org_id,external_tier,domain' });
       if (attemptError) throw new AppError(attemptError.message, attemptError.code);

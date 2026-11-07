@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { typeLabels } from './companyTypeLabels';
-import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import type { CompanyListRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 
@@ -59,7 +59,8 @@ export interface CompanySaveOutcome {
 
 export interface CompanyFormModalProps {
   /** Null = create mode. */
-  company: CompanyRow | null;
+  /** The row may come from the server-paged directory (#1989) or a full record read — the form reads only the directory projection. */
+  company: CompanyListRow | null;
   ownership: 'pmo' | 'external' | 'unknown' | 'error';
   /** ADR-0056/FR-EAS-060..063 pending-push state for a flipped org's Vendor/Client write (directory only). */
   pendingPush?: PendingPushState;

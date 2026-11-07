@@ -1,5 +1,6 @@
 /** Contract-test adapter selection through the shipped Edge Function resolver and a tenant-scoped service client. */
 import { resolveOdooProcurementAdapter } from '../../../../../supabase/functions/adapter-dispatch/odooAdapters.ts';
+import { assertCommandLinksSameOrg } from '../erpnext/dispatchPreflight.ts';
 import { createFakeOdoo } from './fakeOdoo.ts';
 import type { LinkOwner, PreflightResult, ProcurementPushScenario, PushBeforeConnectionResult } from '../contractSuite/harness.ts';
 
@@ -25,7 +26,7 @@ type Row = Record<string, unknown>;
 type Connection = 'activated' | 'not-activated' | 'absent';
 
 function belongs(owner: LinkOwner | undefined, caller: 'A' | 'B'): string | undefined {
-  if (owner === 'nobody') return undefined;
+  if (owner === 'nobody') return 'missing-record';   // a command naming a record that does not exist
   const tenant = owner === 'A' || owner === 'B' ? owner : caller;
   return CASE[tenant];
 }
@@ -69,6 +70,7 @@ function scopedServiceClient(connection: Connection, scenario?: ProcurementPushS
     procurement_invoices: (['A', 'B'] as const).map((tenant) => ({
       org_id: ORG[tenant], id: BILL[tenant], procurement_id: CASE[tenant],
     })),
+    companies: (['A', 'B'] as const).map((tenant) => ({ org_id: ORG[tenant], id: VENDOR[tenant] })),
     external_refs: [
       ...(['A', 'B'] as const).flatMap((tenant) => [
         { org_id: ORG[tenant], external_tier: 'odoo', domain: 'companies', pmo_record_id: VENDOR[tenant], external_record_id: 'Vendor:9' },
@@ -129,12 +131,13 @@ const linkId = (owner: LinkOwner | undefined, caller: 'A' | 'B') => {
 };
 
 function commandFor(scenario: ProcurementPushScenario, tenant: 'A' | 'B') {
-  const procurementId = belongs(scenario.procurement, tenant);
+  const procurementId = scenario.procurement === undefined ? undefined : belongs(scenario.procurement, tenant);
   const record: Record<string, unknown> = {
     id: ID,
     procurementId,
     erp_doc_kind: scenario.doc === 'bill' ? 'purchase-invoice' : scenario.doc === 'vendor-payment' ? 'payment' : scenario.doc,
   };
+  if (scenario.vendor !== undefined) record.vendorId = vendorId(scenario.vendor, tenant);
   if (scenario.doc === 'vendor-payment') {
     record.invoiceId = linkId(scenario.invoice, tenant).replace('case-', 'bill-');
     record.paid_amount = '50.00';
@@ -191,6 +194,19 @@ export async function productionPurchase(connection: Connection): Promise<PushBe
   return { outcome: result.outcome === 'accepted' ? 'pushed' : 'refused', code: result.code, erpCalls: result.erpCalls };
 }
 
+/** A command that names no procurement link has nothing for adapter selection to refuse on ownership: it passes the shared link check untouched. */
+async function linkCheckOnly(command: ReturnType<typeof commandFor>, caller: 'A' | 'B'): Promise<PreflightResult> {
+  try {
+    await assertCommandLinksSameOrg({ command: command as never, serviceClient: scopedServiceClient('activated') as never, orgId: ORG[caller] });
+    return { outcome: 'accepted', erpCalls: 0 };
+  } catch (error) {
+    return { outcome: 'refused', code: (error as { code?: string }).code, message: (error as Error).message, erpCalls: 0 };
+  }
+}
+
 export function productionProcurement(scenario: ProcurementPushScenario): Promise<PreflightResult> {
+  const command = commandFor(scenario, scenario.caller);
+  const { procurementId, vendorId: vendor, invoiceId } = command.record as Record<string, unknown>;
+  if (procurementId === undefined && vendor === undefined && invoiceId === undefined) return linkCheckOnly(command, scenario.caller);
   return runProduction(commandFor(scenario, scenario.caller), scenario.caller, 'activated', scenario);
 }

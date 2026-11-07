@@ -132,7 +132,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
       () => new Promise((resolve) => { releaseVersions = resolve; }),
     );
     view(ref(), procurement);
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading');
 
@@ -144,7 +144,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     const user = userEvent.setup();
     vi.mocked(listVersions).mockResolvedValueOnce(versionsPage(['3.0', '2.0'], { path: '/versions-next' })).mockResolvedValueOnce(versionsPage(['1.0']));
     view(ref(), procurement, 'Quote');
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     const list = await screen.findByRole('list', { name: 'Versions' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
     expect(listVersions).toHaveBeenCalledTimes(1);
@@ -155,37 +155,47 @@ describe('LinkedDocumentCell versions and approved history', () => {
     expect(open).not.toHaveBeenCalled();
     await user.click(screen.getByText('Close', { selector: 'button' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Versions/ })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^Show all versions/ })).toHaveFocus();
   });
 
   it('AC-M365DOC-065 the version list marks the approved version and reports empty, loading and failure states', async () => {
     const user = userEvent.setup();
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     const items = within(await screen.findByRole('list', { name: 'Versions' })).getAllByRole('listitem');
     expect(items[1]).toHaveTextContent('Version 2.0');
     expect(items[1]).toHaveTextContent('Approved version');
     expect(items[0]).not.toHaveTextContent('Approved version');
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByText('Close', { selector: 'button' }));
 
     vi.mocked(listVersions).mockResolvedValueOnce(versionsPage([]));
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     expect(await screen.findByText('No versions listed')).toBeInTheDocument();
     await user.click(screen.getByText('Close', { selector: 'button' }));
 
     vi.mocked(listVersions).mockRejectedValueOnce(new AppError('raw-synthetic-error', 'GRAPH_ERROR')).mockResolvedValueOnce(versionsPage(['9.0']));
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Microsoft could not load this location');
     expect(document.body.textContent).not.toMatch(/raw-synthetic-error/);
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('Version 9.0')).toBeInTheDocument();
   });
 
+  it('F15 the versions modal has one footer dismiss (Close), no Done beside it', async () => {
+    const user = userEvent.setup();
+    view(ref(), projectOwner());
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(within(dialog).getAllByText('Close', { selector: 'button' })).toHaveLength(1);
+  });
+
   it('AC-M365DOC-065 a missing connection explains itself in the version list while Open latest keeps working', async () => {
     const user = userEvent.setup();
     vi.mocked(listVersions).mockRejectedValue(new AppError('x', 'NOT_CONNECTED'));
     view(ref(), budget);
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Connect Microsoft 365 first to browse documents.');
     await user.click(screen.getByText('Close', { selector: 'button' }));
     await user.click(screen.getByRole('button', { name: /^Open in SharePoint/ }));
@@ -197,7 +207,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     view(ref(), projectOwner({ status }));
     expect(screen.getByText('Approved version 2.0')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Open latest in SharePoint/ })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     const link = await screen.findByRole('link', { name: 'Open verified version history' });
     expect(open).not.toHaveBeenCalled();
     expect(link).toHaveAttribute('target', '_blank');
@@ -213,7 +223,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     const i18n = createInstance();
     await i18n.init({ lng: 'id', fallbackLng: false, defaultNS: 'common', resources: { id: { common: {}, project: idProject } }, interpolation: { escapeValue: false } });
     render(<I18nextProvider i18n={i18n}><MemoryRouter><LinkedDocumentCell reference={ref()} owner={projectOwner()} /></MemoryRouter></I18nextProvider>);
-    await userEvent.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('link', { name: 'Buka riwayat versi yang terverifikasi' })).toBeVisible();
   });
 
@@ -245,14 +255,14 @@ describe('LinkedDocumentCell versions and approved history', () => {
       <MemoryRouter><LinkedDocumentCell reference={reference} owner={projectOwner({ version_id_at_issue: pin })} /></MemoryRouter>
     );
     const view = render(cell(ref(), '2.0'));
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     await waitFor(() => expect(listVersions).toHaveBeenCalledTimes(1));
 
     view.rerender(cell(refTwo, '9.0'));
     releaseFirst(versionsPage(['2.0']));
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Open verified version history' })).not.toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     await waitFor(() => expect(listVersions).toHaveBeenCalledTimes(2));
     releaseSecond(versionsPage(['9.0']));
     const verified = await screen.findByRole('link', { name: 'Open verified version history' });
@@ -274,14 +284,14 @@ describe('LinkedDocumentCell versions and approved history', () => {
     view(ref(), projectOwner({ status: 'Draft', version_id_at_issue: null, drift_state: null, last_verified_at: null }));
     expect(screen.queryByText(/version 2\.0|Issued version|Approved version/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /history/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Versions/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Show all versions/ })).toBeInTheDocument();
   });
 
   it('AC-M365DOC-065 sharepointIds missing: history is unavailable for that stated reason and the latest link is untouched', async () => {
     const user = userEvent.setup();
     vi.mocked(getItem).mockResolvedValue(graphItem({ sharepoint_ids: null }));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Version history unavailable: Microsoft did not provide SharePoint identifiers.');
     expect(open).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /^Open latest in SharePoint/ })).toBeEnabled();
@@ -293,7 +303,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
       .mockResolvedValueOnce(versionsPage(['5.0', '4.0'], { path: '/more' }))
       .mockResolvedValueOnce(versionsPage(['3.0', '1.0'], null));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByText('Approved version not found in loaded history.')).toBeInTheDocument();
     expect(screen.queryByText(/no longer lists it/)).not.toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
@@ -309,7 +319,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
       .mockResolvedValueOnce(versionsPage(['5.0'], { path: '/more' }))
       .mockResolvedValueOnce(versionsPage(['2.0'], null));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     await user.click(await screen.findByRole('button', { name: 'Load more history' }));
     expect(await screen.findByRole('link', { name: 'Open verified version history' })).toHaveAttribute('href', expect.stringContaining('Versions.aspx'));
     expect(open).not.toHaveBeenCalled();
@@ -319,7 +329,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     const user = userEvent.setup();
     vi.mocked(listVersions).mockResolvedValue(versionsPage([]));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Approved version unavailable: Microsoft lists no versions for this file (version history may be turned off). The latest version is still available.');
   });
 
@@ -327,7 +337,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     const user = userEvent.setup();
     view(ref(), projectOwner({ version_id_at_issue: null }));
     expect(screen.queryByText(/Approved version \d/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Approved version unavailable: no version was recorded when this file was issued.');
     expect(getItem).not.toHaveBeenCalled();
   });
@@ -343,7 +353,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     const user = userEvent.setup();
     vi.mocked(getItem).mockRejectedValue(new AppError('raw-synthetic-error tenant', code));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent(copy);
     expect(document.body.textContent).not.toMatch(/raw-synthetic-error/);
     expect(open).not.toHaveBeenCalled();

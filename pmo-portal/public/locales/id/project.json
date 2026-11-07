@@ -31,7 +31,7 @@
     "excessDetailUnavailable": "Rincian tagihan di balik kelebihan ini tidak dapat diverifikasi.",
     "contractComparisonUnavailable": "Perbandingan kontrak tidak tersedia: nilai kontrak belum dicatat, atau tagihan kontrak tidak dapat dibandingkan (mata uang atau dasar pajak).",
     "currencyUnavailable": "Mata uang tidak tersedia",
-    "pmoPartial": "Posisi belum lengkap; mata uang lain atau jumlah yang tidak tersedia tidak disertakan.",
+    "pmoPartial": "Belanja belum diketahui: ada pembayaran dalam mata uang lain atau tidak dapat dibaca.",
     "contractAfterCostSource": "Nilai kontrak dikurangi Aktual tercatat yang dapat dibandingkan.",
     "contractAfterCostPending": "Ditampilkan setelah pengeluaran tercatat lengkap."
   },
@@ -51,7 +51,7 @@
         "invoiced": "Sumber: jumlah faktur yang bukan draf atau dibatalkan.",
         "paid": "Sumber: jumlah faktur dikurangi saldo terutang menurut akuntansi.",
         "canInvoice": "Kuantitas terkirim yang belum difakturkan, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
-        "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo di ERP.",
+        "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo.",
         "notOrderedValue": "Sumber: kuantitas kontrak yang belum dialokasikan dikalikan tarif kontraknya.",
         "downPayment": "Sumber: total uang muka proyek yang ditagihkan dan dipulihkan.",
         "contractQuantity": "Sumber: kuantitas pada baris kontrak berharga.",
@@ -917,6 +917,27 @@
         "import": "Impor",
         "backfill": "Pengisian awal"
       }
+    },
+    "gantt": {
+      "continues": "berlanjut",
+      "datesColumn": "Tanggal",
+      "durationDays_one": "{{count}} hari",
+      "durationDays_other": "{{count}} hari",
+      "goToDate": "Ke tanggal",
+      "jumpToBar": "Gulir ke \"{{title}}\"",
+      "loading": "Memuat",
+      "milestoneTarget": "Tanggal target",
+      "next": "Berikutnya",
+      "previous": "Sebelumnya",
+      "progress": "{{percent}}% selesai",
+      "resizePanel": "Ubah lebar panel tugas",
+      "scale": {
+        "year": "Tahun"
+      },
+      "statusColumn": "Status",
+      "ungrouped": "Tanpa fase",
+      "zoomIn": "Perbesar",
+      "zoomOut": "Perkecil"
     }
   },
   "common": {
@@ -957,5 +978,6 @@
     "confirmDescription": "Ganti anggaran ERP {{name}} untuk {{account}}, {{year}}, dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmDescriptionYear": "Ganti anggaran ERP {{name}} untuk {{year}} dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmLabel": "Ganti anggaran ERP"
-  }
+  },
+  "pmoSpentCoverage": "Pembayaran pembelian PMO dan biaya sewa peralatan internal, sebelum pajak"
 }

@@ -38,6 +38,7 @@ vi.mock('@/src/lib/db/timesheetTransition', () => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
+    fxRates: { context: () => Promise.resolve({ currency: 'USD', timezone: 'UTC' }) },
     revenue: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
     expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
     task: { list: () => Promise.resolve([]) },

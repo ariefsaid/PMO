@@ -965,4 +965,82 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     expect(within(openRow).queryByRole('checkbox')).toBeNull();
     expect(within(appliedRow).queryByRole('button', { name: 'Undo' })).toBeNull();
   });
+
+  describe('FR-ECA-001 census starts when the review opens', () => {
+    const noRun = { run: null, census: [], waitingForSend: 0 } as never;
+    const none = { proposals: [], nextAfterId: null };
+
+    it('starts the census exactly once when there is no run, and shows the reading state', async () => {
+      mockIntegrationsRepo.getConnectStatus.mockResolvedValue(noRun);
+      mockIntegrationsRepo.listConnectProposals.mockResolvedValue(none);
+      mockIntegrationsRepo.startConnectCensus.mockResolvedValue({ runId: 'run-1', census: [] });
+
+      renderWithRole('Admin', <React.StrictMode><ConnectProposalReview tier='erpnext' orgId='org-1' /></React.StrictMode>);
+
+      expect(await screen.findByText('Reading records from your connected system…')).toBeInTheDocument();
+      await waitFor(() => expect(mockIntegrationsRepo.startConnectCensus).toHaveBeenCalledTimes(1));
+      expect(mockIntegrationsRepo.startConnectCensus).toHaveBeenCalledWith('erpnext');
+    });
+
+    it('does not start the census when a run already exists', async () => {
+      mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([]));
+      mockIntegrationsRepo.listConnectProposals.mockResolvedValue(none);
+
+      renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+
+      expect(await screen.findByText('Nothing to set up')).toBeInTheDocument();
+      expect(mockIntegrationsRepo.startConnectCensus).not.toHaveBeenCalled();
+    });
+
+    it('does not start the census for a role that may not run it', async () => {
+      mockIntegrationsRepo.getConnectStatus.mockResolvedValue(noRun);
+      mockIntegrationsRepo.listConnectProposals.mockResolvedValue(none);
+
+      renderWithRole('Viewer', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+
+      await screen.findByText('Nothing to set up');
+      expect(mockIntegrationsRepo.startConnectCensus).not.toHaveBeenCalled();
+    });
+
+    it('lands a failed start in the error state', async () => {
+      mockIntegrationsRepo.getConnectStatus.mockResolvedValue(noRun);
+      mockIntegrationsRepo.listConnectProposals.mockResolvedValue(none);
+      mockIntegrationsRepo.startConnectCensus.mockRejectedValue(new Error('boom'));
+
+      renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+
+      expect(await screen.findByText('Could not read records')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    });
+
+    it('Re-check on the ready state re-runs the census and refetches status', async () => {
+      mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+        { kind: 'party', pmo_count: 3, erp_count: 0, linked_count: 0, inactive_erp_count: 0, scenario: 'S-A', accepted_at: null },
+      ]));
+      mockIntegrationsRepo.listConnectProposals.mockResolvedValue(none);
+      mockIntegrationsRepo.startConnectCensus.mockResolvedValue({ runId: 'run-2', census: [] });
+
+      renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+
+      const btn = await screen.findByRole('button', { name: 'Check again' });
+      const before = mockIntegrationsRepo.getConnectStatus.mock.calls.length;
+      fireEvent.click(btn);
+
+      await waitFor(() => expect(mockIntegrationsRepo.startConnectCensus).toHaveBeenCalledWith('erpnext'));
+      await waitFor(() => expect(mockIntegrationsRepo.getConnectStatus.mock.calls.length).toBeGreaterThan(before));
+    });
+
+    it('Re-check shows on the empty state too, and not for a read-only role', async () => {
+      mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([]));
+      mockIntegrationsRepo.listConnectProposals.mockResolvedValue(none);
+
+      const { unmount } = renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+      expect(await screen.findByRole('button', { name: 'Check again' })).toBeInTheDocument();
+      unmount();
+
+      renderWithRole('Viewer', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+      await screen.findByText('Nothing to set up');
+      expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+    });
+  });
 });
