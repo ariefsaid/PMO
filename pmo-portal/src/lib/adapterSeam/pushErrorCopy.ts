@@ -191,6 +191,37 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Re-activate the approver, or have an administrator resolve the hold — retrying under the same recorded approver is refused.',
   },
+  // ── purchase-order revise refusals (#1998) ───────────────────────────────────────────────────
+  revision_superseded: {
+    message: 'A newer revision already exists for this purchase order, so this revision cannot be pushed.',
+    retryable: false,
+    remedy: 'View the latest revision of the purchase order to send or review changes.',
+  },
+  'revision-superseded': {
+    message: 'A newer revision already exists for this purchase order, so this revision cannot be pushed.',
+    retryable: false,
+    remedy: 'View the latest revision of the purchase order to send or review changes.',
+  },
+  po_has_submitted_bill: {
+    message: 'This purchase order has a submitted supplier bill in the ERP, so it cannot be revised to cancel the order.',
+    retryable: false,
+    remedy: 'Cancel or credit the submitted bill in the ERP first before revising this purchase order.',
+  },
+  revision_not_issued: {
+    message: 'This purchase order revision has not been issued yet in PMO.',
+    retryable: false,
+    remedy: 'Issue the revision before pushing it to the ERP.',
+  },
+  po_not_found: {
+    message: 'The purchase order could not be found.',
+    retryable: false,
+    remedy: 'Check that the purchase order exists and has not been deleted.',
+  },
+  'below-received': {
+    message: 'Ordered quantity cannot be reduced below the quantity already received or billed.',
+    retryable: false,
+    remedy: 'Adjust the revision quantity to be at least the received or billed amount.',
+  },
   // ⚑ round-12 SHOULD-FIX 2 (mirror half) — the attestation moves a `held` mirror to `failed` and leaves
   // this code. That row lands in the same "needs attention" queue, so it must classify rather than read
   // "could not be classified" like the recovery codes above once did. Retryable: the whole point of the
@@ -260,8 +291,15 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
     };
   }
 
-  const code = splitCode(classifiedInput);
-  const entry = CODES[code];
+  let code = splitCode(classifiedInput);
+  let entry = CODES[code];
+  if (!entry || code === 'commit-rejected' || code === 'adapter-held') {
+    const subMatch = classifiedInput.match(/\b(revision_superseded|revision-superseded|po_has_submitted_bill|revision_not_issued|po_not_found|below-received)\b/);
+    if (subMatch && CODES[subMatch[1]]) {
+      code = subMatch[1];
+      entry = CODES[code];
+    }
+  }
   if (entry) {
     return {
       code,
