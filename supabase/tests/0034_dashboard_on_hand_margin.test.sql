@@ -4,8 +4,9 @@
 -- needed to prove the margin formula. UUID prefix 00340000-…
 --
 -- Fixture: 3 on-hand projects — contract_value = 5,000,000 + 3,000,000 + 2,000,000 = 10,000,000
---   One Paid PO of 405,000 against project 1 (committed spend via procurement basis).
---   on_hand_margin = (10,000,000 − 405,000) / 10,000,000 = 9,595,000 / 10,000,000 = 0.9595
+--   Project 1 has a paid purchase of 320,000 (0700: recorded spend is the pre-tax paid amount) and an ordered,
+--   unpaid purchase of 85,000 (committed, not spent).
+--   on_hand_contract_remaining = (10,000,000 − 320,000) = 9,680,000 — commitments are not cost yet.
 --   on_hand_value  = 10,000,000
 begin;
 select plan(2);
@@ -43,17 +44,20 @@ values
 
 -- ── Committed procurements on P-ON1 (total 405,000) ──────────────────────────
 -- Ordered PO = 85,000; Paid PO = 320,000
-insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
+insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id, budget_category) values
   ('34000000-0000-0000-0000-000000000e01', '00340000-0000-0000-0000-000000000001',
    'Ordered PO', 'Ordered', 85000,
-   '34000000-0000-0000-0000-000000000001', '00340000-0000-0000-0000-0000000000a1'),
+   '34000000-0000-0000-0000-000000000001', '00340000-0000-0000-0000-0000000000a1', 'Labor'),
   ('34000000-0000-0000-0000-000000000e02', '00340000-0000-0000-0000-000000000001',
    'Paid PO', 'Paid', 320000,
-   '34000000-0000-0000-0000-000000000001', '00340000-0000-0000-0000-0000000000a1'),
+   '34000000-0000-0000-0000-000000000001', '00340000-0000-0000-0000-0000000000a1', 'Labor'),
   -- Draft PO — must NOT count in committed spend
   ('34000000-0000-0000-0000-000000000e03', '00340000-0000-0000-0000-000000000001',
    'Draft PO excluded', 'Draft', 9999999,
-   '34000000-0000-0000-0000-000000000001', '00340000-0000-0000-0000-0000000000a1');
+   '34000000-0000-0000-0000-000000000001', '00340000-0000-0000-0000-0000000000a1', 'Labor');
+insert into payments (id, org_id, procurement_id, status, date, amount, currency) values
+  ('34000000-0000-0000-0000-000000000f01', '00340000-0000-0000-0000-000000000001',
+   '34000000-0000-0000-0000-000000000e02', 'Paid', '2026-10-10', 320000, 'USD');
 
 -- ── Authenticate as the test-org Executive ────────────────────────────────────
 set local role authenticated;
@@ -61,8 +65,8 @@ set local request.jwt.claims to '{"sub":"00340000-0000-0000-0000-0000000000a1","
 
 -- DD-MONEY-2: this is contract remaining after cost, not profit/margin.
 select ok(
-  abs((get_executive_dashboard() ->> 'on_hand_contract_remaining')::numeric - 9595000) < 1e-6,
-  'AC-1100: contract remaining after known committed cost = 9595000 (DD-MONEY-2)'
+  abs((get_executive_dashboard() ->> 'on_hand_contract_remaining')::numeric - 9680000) < 1e-6,
+  'AC-1100: contract remaining after known recorded cost = 9680000 (DD-MONEY-2)'
 );
 
 -- AC-1100: on_hand_value = 5,000,000 + 3,000,000 + 2,000,000 = 10,000,000

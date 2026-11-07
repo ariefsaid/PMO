@@ -4,6 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import {
   type TimesheetWriteError,
   type TimesheetEntryWithProject,
+  type TimesheetWithEntries,
 } from '@/src/lib/db/timesheets';
 import { repositories } from '@/src/lib/repositories';
 import type { EntryDiff } from '@/src/lib/timesheet-edit';
@@ -52,13 +53,19 @@ export function useTimesheetEntryMutations(): {
     refreshInFlight.current = true;
     try {
       await queryClient.cancelQueries({ queryKey: ownTimesheetsKey(orgId, userId) });
-      const sheets = await repositories.timesheet.list(userId);
+      // Bounded read from the origin week: the sheet may sit outside the page's default window.
+      const sheets = await repositories.timesheet.list(userId, { fromWeek: origin.week });
       const sheet = sheets.find((item) => item.id === origin.id && item.week_start_date === origin.week);
       if (!sheet) throw new Error('Timesheet unavailable');
       if (origin.failed) {
         setReconciledDelete({ timesheetId: origin.id, entries: sheet.entries.filter((entry) => origin.entryIds.includes(entry.id)) });
       }
-      queryClient.setQueryData(ownTimesheetsKey(orgId, userId), sheets);
+      // Patch the verified sheet into every cached own list (full and windowed alike); each keeps
+      // its own range, so none is replaced by this partial read.
+      queryClient.setQueriesData<TimesheetWithEntries[]>(
+        { queryKey: ownTimesheetsKey(orgId, userId) },
+        (old) => old?.map((item) => (item.id === sheet.id ? sheet : item)),
+      );
       pendingSheet.current = null;
       setIsReconciling(false);
     } catch {

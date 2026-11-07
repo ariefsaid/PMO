@@ -126,7 +126,7 @@ vi.mock('@/src/hooks/useTasks', () => ({
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
   useOverdueReceivables: () => null,
 }));
@@ -156,7 +156,7 @@ vi.mock('../ProjectDetailRail', () => ({
   default: () => <aside data-testid="project-detail-rail" />,
   ProjectClassificationSummary: () => null,
 }));
-vi.mock('../PipelineLens', () => ({ default: () => null }));
+vi.mock('../../sales/DealBand', () => ({ default: () => null }));
 vi.mock('../ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));

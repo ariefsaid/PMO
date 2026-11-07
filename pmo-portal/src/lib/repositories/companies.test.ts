@@ -22,6 +22,10 @@ describe('companyRepository reads and lifecycle', () => {
   itDelegates(companyRepository as never, companies, [
     ['listClients', 'listClientCompanies', []],
     ['list', 'listCompanies', [{ search: 'a' }]],
+    ['listPage', 'listCompaniesPage', [{ page: 2, pageSize: 50, type: 'Vendor', search: 'steel' }]],
+    ['count', 'countCompanies', []],
+    ['listOptions', 'listCompanyOptions', []],
+    ['listAll', 'listCompanies', [{ type: 'Client', search: 'st' }]],
     ['get', 'getCompany', ['c1']],
     ['getMany', 'getCompaniesByIds', [['c1', 'c2']]],
     ['setProjectNumberSegment', 'setCompanyProjectNumberSegment', ['c1', 'ABC']],
@@ -83,6 +87,9 @@ describe('companyRepository create/update routing', () => {
 describe('contactRepository', () => {
   itDelegates(contactRepository as never, { ...contacts, ...activities }, [
     ['list', 'listContacts', []],
+    ['listPage', 'listContactsPage', [{ page: 1, pageSize: 50, companyId: 'c1', search: 'ha' }]],
+    ['count', 'countContacts', []],
+    ['listAll', 'listContacts', [{ companyId: 'c1', search: 'ha' }]],
     ['listByCompany', 'listContactsByCompany', ['c1']],
     ['get', 'getContact', ['k1']],
     ['update', 'updateContact', ['k1', { name: 'N' }]],
@@ -90,6 +97,8 @@ describe('contactRepository', () => {
     ['delete', 'deleteContact', ['k1']],
     ['listActivities', 'listActivities', ['k1']],
     ['listActivitiesForContacts', 'listActivitiesForContacts', [['k1', 'k2']]],
+    ['listActivitiesPage', 'listActivitiesPage', ['k1', null]],
+    ['listActivitiesForContactsPage', 'listActivitiesForContactsPage', [['k1', 'k2'], null]],
     ['createActivity', 'createActivity', [{ contactId: 'k1', note: 'n' }, 'u1']],
     ['updateActivity', 'updateActivity', ['a1', { note: 'm' }]],
     ['deleteActivity', 'deleteActivity', ['a1']],

@@ -521,7 +521,7 @@ test('@layout m365 F10: in the open picker a long unbroken folder name stays ins
   await page.getByRole('button', { name: 'Link from Microsoft 365', exact: true }).click();
   const picker = page.getByRole('dialog', { name: /Choose a Microsoft document/ });
   await picker.getByRole('button', { name: 'My OneDrive' }).click();
-  await picker.getByRole('button', { name: `Select folder ${LONG_TOKEN}` }).click();
+  await picker.getByRole('button', { name: `Link this folder ${LONG_TOKEN}` }).click();
   await picker.getByRole('button', { name: `Browse ${LONG_TOKEN}` }).first().click();
   await expect(picker.getByRole('navigation', { name: 'Microsoft location' }).getByRole('button', { name: LONG_TOKEN })).toBeVisible();
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -6,38 +6,20 @@ import { useFeature } from '@/src/auth/useFeature';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { InvoicePairReview } from '@/src/components/integrations/InvoicePairReview';
-import { AccessDenied, Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
+import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
+import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
-import { useManagementPack } from '@/src/hooks/useManagementPack';
-import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
+import { useFinanceHubFigures } from '@/src/hooks/useFinanceHubFigures';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useProjects } from '@/src/hooks/useProjects';
-import { formatMonthYear, formatShortMoney } from '@/src/lib/format';
-import { formatCurrencyWithCode } from '@/src/lib/finance/format';
+import { formatMonthYear } from '@/src/lib/format';
+import { currencyLead } from '@/src/lib/finance/currencyFigures';
 import { moneyFigure, type MoneyFigure } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
-import type { FinancialStatementNativePayload } from '@/src/lib/financialStatements';
-import { usePayablesPosition } from './payablesPosition';
-
-function currencyEntries(values: Record<string, number>, preferred?: string | null) {
-  return Object.entries(values).sort(([left], [right]) => left === preferred ? -1 : right === preferred ? 1 : left.localeCompare(right));
-}
-
-/** Area cards are figure tiles (F11): short lead amount, exact amount kept as metadata. */
-function currencyLead(values: Record<string, number>, preferred?: string | null): { lead: MoneyFigure | null; others: MoneyFigure[] } {
-  const entries = currencyEntries(values, preferred);
-  const [primary, ...rest] = entries;
-  return {
-    lead: primary ? moneyFigure(primary[1] / 100, primary[0], '') : null,
-    // Secondary currencies always name their ISO code, short with the exact amount as metadata.
-    others: rest.filter(([, cents]) => cents !== 0).map(([currency, cents]) => ({
-      value: Math.abs(cents) < 100_000 ? formatCurrencyWithCode(cents / 100, currency) : formatShortMoney(cents / 100, currency, { code: true }),
-      exactValue: formatCurrencyWithCode(cents / 100, currency),
-    })),
-  };
-}
+import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
 function monthLabel(date: string): string {
   return formatMonthYear(new Date(`${date.slice(0, 10)}T12:00:00Z`));
@@ -45,20 +27,6 @@ function monthLabel(date: string): string {
 
 function shortMonthLabel(date: string): string {
   return monthLabel(date).split(/\s+/)[0] ?? monthLabel(date);
-}
-
-function netProfit(payload: FinancialStatementNativePayload): number | null {
-  const current = payload.current;
-  const row = current.rows.find((item) => {
-    const label = typeof item.account_name === 'string' ? item.account_name : item.account;
-    return typeof label === 'string' && /profit for the period/i.test(label.replaceAll("'", ''));
-  });
-  const amountColumn = current.columns.find((column) => column.type === 'currency' && column.fieldname !== 'total' && !column.hidden);
-  if (!row || !amountColumn) return null;
-  const value = row[amountColumn.fieldname];
-  if (typeof value !== 'string' && typeof value !== 'number') return null;
-  const amount = Number(value);
-  return Number.isFinite(amount) ? amount : null;
 }
 
 interface AreaCardProps {
@@ -112,8 +80,7 @@ const FinanceHub: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
-  const canView = may('view', 'finance');
-  const canAct = may('act', 'finance');
+  const { canView, canAct } = useFinanceAccess();
   const hasRevenue = useFeature('revenue');
   const hasProcurement = useFeature('procurement');
   const currencyState = useOrgCurrencyState();
@@ -126,22 +93,11 @@ const FinanceHub: React.FC = () => {
     position: { ...financePosition.position, ...payables },
     isPending: financePosition.isPending || payablesPending,
   };
-  const report = useManagementPack({}, canView && hasRevenue);
+  // #1988: the Reports and Statements figures arrive from ONE narrow read, not the whole pack + P&L.
+  const figures = useFinanceHubFigures(canView);
   const projects = useProjects({ enabled: canView });
-  const statementCatalogue = useFinancialStatementCatalogue({ kind: 'company' }, canView);
-  const latestStatementPeriod = useMemo(() => (statementCatalogue.data?.periods ?? [])
-    .filter((period) => period.kind === 'month' && period.currentStart <= (finance.today ?? '9999-12-31'))
-    .slice()
-    .sort((a, b) => b.currentStart.localeCompare(a.currentStart))[0], [finance.today, statementCatalogue.data?.periods]);
-  const statement = useFinancialStatement(latestStatementPeriod ? {
-    periodKind: latestStatementPeriod.kind,
-    periodStart: latestStatementPeriod.currentStart,
-    statement: 'profit_and_loss',
-  } : null, canView && Boolean(latestStatementPeriod));
 
-  if (!canView) {
-    return <AccessDenied title={t('financeHub:hub.noAccessTitle', 'Finance')} sub={t('financeHub:hub.noAccessDescription', 'Finance is available to Finance, Executive and Admin roles.')} onBack={() => navigate('/')} />;
-  }
+  if (!canView) return <FinanceAccessDenied />;
 
   const payableMoney = currencyLead(finance.position.payablesTotals, orgCurrency);
   const noBalance = { value: t('financeHub:hub.fix.area.noBalance', 'No balance') };
@@ -150,22 +106,18 @@ const FinanceHub: React.FC = () => {
   ]));
   const receivableMoney = currencyLead(receivableValues, orgCurrency);
   const supplierCount = new Set(finance.position.payables.map(({ procurement }) => procurement.vendor_id ?? procurement.id)).size;
-  const reportTotals = report.data?.totals ?? [];
-  const reportValues = Object.fromEntries(reportTotals.flatMap((total) => {
-    const month = total.months[total.months.length - 1];
-    return month ? [[total.currency, month.unbilled]] : [];
-  }));
-  const reportMoney = currencyLead(reportValues, orgCurrency);
-  const reportContractRows = report.data?.rows.filter((row) => row.kind === 'contract') ?? [];
-  const invoicedBasisCount = reportContractRows.filter((row) => row.latestProgress == null).length;
-  const statementUnavailable = statementCatalogue.data !== undefined && statementCatalogue.data.periods.length === 0;
-  const statementError = statementCatalogue.isError || statement.isError;
-  const statementLoading = statementCatalogue.isPending || Boolean(latestStatementPeriod && statement.isPending);
-  const statementResult = statement.data?.state === 'complete' && statement.data.result?.viewKind === 'account_breakdown' ? statement.data.result : null;
-  const net = statementResult ? netProfit(statementResult.payload) : null;
-  const statementAmount = net !== null && statement.data?.generation
-    ? moneyFigure(net, statement.data.generation.currency, '')
+  const pack = figures.data?.pack;
+  const reportMoney = currencyLead(Object.fromEntries((pack?.unbilled ?? []).map(({ currency, cents }) => [currency, cents])), orgCurrency);
+  const contractRowCount = pack?.contractRows ?? 0;
+  const invoicedBasisCount = pack?.invoicedBasisRows ?? 0;
+  const statement = figures.data?.statement;
+  const statementUnavailable = figures.data !== undefined && statement?.unpublished === true;
+  const net = statement?.netProfit ?? null;
+  const statementPeriod = statement?.periodStart ?? null;
+  const statementAmount = net !== null && statement?.currency
+    ? moneyFigure(net, statement.currency, '')
     : undefined;
+  const retryFigures = () => { void figures.refetch(); };
 
   const areas = (
     <section aria-labelledby="finance-hub-areas">
@@ -195,23 +147,23 @@ const FinanceHub: React.FC = () => {
           title={t('financeHub:hub.reports', 'Reports')} to="/finance/reports"
           amount={reportMoney.lead ?? noBalance}
           otherCurrencies={reportMoney.others}
-          meaning={t('financeHub:hub.fix.area.reportsMeaning', { defaultValue: 'earned, not yet invoiced · through {{month}}', month: report.data?.to ? shortMonthLabel(report.data.to) : '—' })}
-          extra={report.data && reportContractRows.length > 0 && invoicedBasisCount === reportContractRows.length
+          meaning={t('financeHub:hub.fix.area.reportsMeaning', { defaultValue: 'earned, not yet invoiced · through {{month}}', month: pack?.asAt ? shortMonthLabel(pack.asAt) : '—' })}
+          extra={pack && contractRowCount > 0 && invoicedBasisCount === contractRowCount
             ? t('financeHub:hub.fix.area.noProgressProjects', { defaultValue: 'No progress recorded on {{count}} projects', count: invoicedBasisCount }) : undefined}
           hint={t('financeHub:hub.reportsHint', 'Earned revenue minus invoiced revenue through the latest selected month, before tax.')}
-          loading={report.isPending} error={report.isError} retry={() => { void report.refetch(); }}
+          loading={figures.isPending} error={figures.isError} retry={retryFigures}
         />}
         {may('view', 'financialStatements') && <AreaCard
           title={t('financeHub:hub.statements', 'Statements')} to="/finance/statements"
           amount={statementUnavailable ? undefined : statementAmount}
-          meaning={latestStatementPeriod && net !== null
-            ? t('financeHub:hub.fix.statements.netProfit', { defaultValue: 'net profit {{month}}', month: monthLabel(latestStatementPeriod.currentStart) })
+          meaning={statementPeriod && net !== null
+            ? t('financeHub:hub.fix.statements.netProfit', { defaultValue: 'net profit {{month}}', month: monthLabel(statementPeriod) })
             : t('financeHub:hub.fix.statements.noStatement', 'Net profit is not available for a period yet')}
           fix={statementUnavailable ? (may('manage', 'integration')
             ? <span className="text-muted-foreground">{t('financeHub:hub.fix.statements.source', 'Statements come from the accounting system.')}{' '}<Link to="/administration/integrations" className="font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('financeHub:hub.fix.statements.openIntegrations', 'Open integrations')}</Link></span>
             : <span className="text-muted-foreground">{t('financeHub:hub.fix.statements.askAdmin', 'Statements come from the accounting system; an Admin sets this up in Integrations.')}</span>) : undefined}
           hint={t('financeHub:hub.statementsHint', 'Net profit from the latest available company profit and loss statement period.')}
-          loading={statementLoading && !statementUnavailable} error={statementError} retry={() => { void statementCatalogue.refetch(); void statement.refetch(); }}
+          loading={figures.isPending && !statementUnavailable} error={figures.isError} retry={retryFigures}
         />}
       </div>
     </section>

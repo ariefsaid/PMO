@@ -4,7 +4,7 @@
  * list — an Indonesian reader sees the Indonesian order ("1 Jan"), not hard-coded English.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, within } from '@testing-library/react';
 import React from 'react';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import ProjectGantt from '../ProjectGantt';
@@ -45,7 +45,7 @@ describe('ProjectGantt task-table date rendering follows the configured date loc
         onSwitchView={vi.fn()}
       />,
     );
-    const grid = screen.getByRole('grid');
+    const grid = document.querySelector('[data-gantt-row-id="a"][data-slot="gantt-row-group"]') as HTMLElement;
     expect(within(grid).getByText('1 Jan – 11 Jan')).toBeInTheDocument();
   });
 
@@ -57,7 +57,7 @@ describe('ProjectGantt task-table date rendering follows the configured date loc
         onSwitchView={vi.fn()}
       />,
     );
-    const grid = screen.getByRole('grid');
+    const grid = document.querySelector('[data-gantt-row-id="p"][data-slot="gantt-row-group"]') as HTMLElement;
     expect(within(grid).getByText('Jan 5 – —')).toBeInTheDocument();
   });
 });

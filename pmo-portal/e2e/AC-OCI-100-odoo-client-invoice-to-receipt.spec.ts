@@ -149,6 +149,13 @@ async function provision(admin: AdminClient, stamp: string) {
     journal = journals.find((row) => row.inbound_payment_method_line_ids.length > 0);
     if (!journal) throw new Error('AC-OCI-100 requires a bank or cash journal with an inbound payment method.');
 
+    // The project is subject to VAT (so the e-Faktur step is reachable): the push needs the org's PPN output tax, mirrored and chosen.
+    const [saleTax] = await call<Array<{ id: number; name: string; tax_group_id: [number, string] | false }>>('account.tax', 'search_read', {
+      domain: [['type_tax_use', '=', 'sale'], ['amount', '=', 11], ['price_include', '=', false], ['company_id', '=', odooCompany.id]],
+      fields: ['id', 'name', 'tax_group_id'], limit: 1,
+    });
+    if (!saleTax || !saleTax.tax_group_id) throw new Error('AC-OCI-100 requires an 11% sale tax with a tax group in the Odoo bed (load the Indonesian chart).');
+
     partnerId = (await call<number[]>('res.partner', 'create', { vals_list: [{ name: clientName, customer_rank: 1, is_company: true }] }))[0];
     itemCode = `OCI100-${crypto.randomUUID().slice(0, 8)}`;
     productId = (await call<number[]>('product.product', 'create', { vals_list: [{
@@ -177,7 +184,7 @@ async function provision(admin: AdminClient, stamp: string) {
     }]));
     await must(serviceRpc(admin, 'activate_odoo_binding', {
       p_org_id: orgId, p_version_major: 20, p_company_id: odooCompany.id, p_company_name: odooCompany.name,
-      p_config_patch: { capabilities: { observed_at: new Date().toISOString(), version_major: 20, untested_version: false, companies: [], missing: [], models, later: { 'account.move': true, 'account.move.line': true, 'account.payment': true } }, item_map: { [itemCode]: String(productId) } },
+      p_config_patch: { sale_tax_id: saleTax.id, capabilities: { observed_at: new Date().toISOString(), version_major: 20, untested_version: false, companies: [], missing: [], models, later: { 'account.move': true, 'account.move.line': true, 'account.payment': true } }, item_map: { [itemCode]: String(productId) } },
       p_actor_id: approver.id,
     }));
 
@@ -186,6 +193,7 @@ async function provision(admin: AdminClient, stamp: string) {
     await addDirectoryRow('product', productId, `${stamp} service`, { income_account_id: String(incomeAccount.id), purchasable: false, sellable: true, storable: false }, { code: itemCode });
     await addDirectoryRow('analytic_plan', analyticPlanId, plan.name, {});
     await addDirectoryRow('analytic_account', analyticAccountId, `${stamp} project`, { company_id: String(odooCompany.id) }, { code: `OCI-${stamp}`, parent_external_id: String(analyticPlanId) });
+    await addDirectoryRow('tax', saleTax.id, saleTax.name, { amount: 11, use: 'sale', tax_group: saleTax.tax_group_id[1], price_include: false });
     await addDirectoryRow('account', incomeAccount.id, incomeAccount.name, { account_type: incomeAccount.account_type, company_ids: [String(odooCompany.id)] }, { code: incomeAccount.code });
     await addDirectoryRow('account', prepaidAccount.id, prepaidAccount.name, { account_type: prepaidAccount.account_type, company_ids: [String(odooCompany.id)] }, { code: prepaidAccount.code });
     await addDirectoryRow('journal', journal.id, journal.name, { type: journal.type, company_id: String(odooCompany.id) });
@@ -199,8 +207,8 @@ async function provision(admin: AdminClient, stamp: string) {
     await must(admin.from('companies').insert({ id: companyId, org_id: orgId, name: clientName, type: 'Client' }).select());
     await must(admin.from('projects').insert({
       id: projectId, org_id: orgId, name: `${stamp} project`, status: 'Ongoing Project', client_id: companyId,
-      currency: odooCompany.currency_id[1], contract_value: 500000, subject_to_vat: false,
-      tax_treatment: 'exclusive', tax_amount: 0,
+      currency: odooCompany.currency_id[1], contract_value: 500000, subject_to_vat: true,
+      tax_rate: 11, tax_treatment: 'exclusive', tax_amount: 55000,
     }).select());
     await must(admin.from('external_refs').insert({
       org_id: orgId, domain: 'companies', pmo_record_id: companyId, external_tier: 'odoo', external_record_id: `Client:${partnerId}`,

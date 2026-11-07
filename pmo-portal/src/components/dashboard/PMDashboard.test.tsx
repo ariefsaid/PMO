@@ -185,10 +185,10 @@ describe('Project Manager area hub', () => {
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
 
     const expectedKpis = [
-      ['kpi-my-projects', 'My projects', '/projects?filter=My+Projects'],
-      ['kpi-my-contract-value', 'My contract value', '/projects?filter=My+Projects'],
-      ['kpi-at-risk', 'At risk', '/projects?filter=at-risk'],
-      ['kpi-margin-to-date', 'Margin to date', '/projects?filter=My+Projects'],
+      ['kpi-my-projects', 'My projects', '/projects?filter=delivery&pm=pm-1'],
+      ['kpi-my-contract-value', 'My contract value', '/projects?filter=delivery&pm=pm-1'],
+      ['kpi-at-risk', 'At risk', '/projects?filter=at-risk&pm=pm-1'],
+      ['kpi-margin-to-date', 'Margin to date', '/projects?filter=delivery&pm=pm-1'],
       ['kpi-team-hours', 'Team hours to approve', '/approvals?scope=timesheets'],
     ];
 
@@ -250,7 +250,7 @@ describe('Project Manager area hub', () => {
     expect(screen.queryByRole('heading', { name: 'Project Seven' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Lost Project' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Pipeline Project' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View all 7 projects' })).toHaveAttribute('href', '/projects?filter=My+Projects');
+    expect(screen.getByRole('link', { name: 'View all 7 projects' })).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
   });
 
   it('keeps currencies separate and shows an explained dash when an aggregate is incomplete', () => {
@@ -421,7 +421,7 @@ describe('PMDashboard — ported baseline cases (delivery scope, money, risk, st
     // Only the active project at 95% counts — 1, not 2.
     expect(within(tiles[0]).getByText('1')).toBeInTheDocument();
     expect(tiles[0]).not.toHaveTextContent('2');
-    expect(within(tiles[0]).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(within(tiles[0]).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
     expect(within(tiles[0]).getByRole('button', { name: /Help: At risk/i })).toBeInTheDocument();
     expect(screen.queryByText(/Procurement approvals — coming soon/i)).not.toBeInTheDocument();
   });
@@ -527,7 +527,7 @@ describe('PMDashboard — ported Bahasa (AC-UXA-001)', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Proyek pelaksanaan yang ditugaskan kepada Anda sebagai manajer proyek.');
     const openMine = screen.getAllByRole('link', { name: 'Buka proyek saya' });
     expect(openMine.length).toBeGreaterThan(0);
-    for (const link of openMine) expect(link).toHaveAttribute('href', '/projects?filter=My+Projects');
+    for (const link of openMine) expect(link).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
     // The status is translated for the reader; the stored enum is unchanged.
     expect(screen.getByText('Menang, menunggu rapat awal')).toBeInTheDocument();
     expect(baseline.find((project) => project.id === 'b2')?.status).toBe('Won, Pending KoM');
@@ -535,7 +535,7 @@ describe('PMDashboard — ported Bahasa (AC-UXA-001)', () => {
     const contract = screen.getByTestId('kpi-my-contract-value');
     expect(contract).toHaveTextContent('US$10,6 jt');
     expect(contract.querySelector('[title="US$10.600.000"]')).not.toBeNull();
-    expect(screen.getByRole('link', { name: 'Buka proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(screen.getByRole('link', { name: 'Buka proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
     expect(screen.getByRole('link', { name: 'My Project B' })).toHaveAttribute('href', '/projects/b2');
 
     cleanup();
@@ -566,10 +566,10 @@ describe('PMDashboard — rulings re-check', () => {
     state.projects.data = [meridian];
     state.needs.items = [{
       id: 'projects-over-budget', count: 1, countLabel: 'At least 1',
-      label: 'project over 90% of budget', href: '/projects?filter=My+Projects', tone: 'warn',
+      label: 'project over 90% of budget', href: '/projects?filter=at-risk&pm=pm-1', tone: 'warn',
     }];
     renderDashboard();
-    expect(screen.getByRole('link', { name: /At least 1 project over 90% of budget/i })).toHaveAttribute('href', '/projects?filter=My+Projects');
+    expect(screen.getByRole('link', { name: /At least 1 project over 90% of budget/i })).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
   });
 
   it('SP-8 the Margin to date tile and project card use the same realized-margin basis', () => {

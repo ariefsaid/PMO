@@ -54,12 +54,13 @@ describe('AgentRuntimeProvider prefill', () => {
 
     act(() => ctx!.openPanel('over budget cases'));
     expect(ctx!.open).toBe(true);
-    expect(ctx!.consumePrefill!()).toBe('over budget cases');
-    expect(ctx!.consumePrefill!()).toBeNull();
+    expect(ctx!.pendingPrefill).toBe('over budget cases');
+    act(() => ctx!.clearPrefill!());
+    expect(ctx!.pendingPrefill).toBeNull();
 
     act(() => ctx!.closePanel());
     act(() => ctx!.openPanel());
     expect(ctx!.open).toBe(true);
-    expect(ctx!.consumePrefill!()).toBeNull();
+    expect(ctx!.pendingPrefill).toBeNull();
   });
 });

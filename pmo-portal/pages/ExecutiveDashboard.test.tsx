@@ -126,7 +126,7 @@ beforeEach(() => {
     period: periodFigures,
     todayPending: false, todayError: false, periodPending: false, periodError: false,
     todayRetry: vi.fn(), periodRetry: vi.fn(),
-    dashboard: { top_projects: [], projects_by_status: [{ status: 'Ongoing Project', count: 1 }], procurements_by_status: [], pipeline_projected_margin: 0.2, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 1 },
+    dashboard: { top_projects: [], attention_projects: [], projects_by_status: [{ status: 'Ongoing Project', count: 1 }], procurements_by_status: [], pipeline_projected_margin: 0.2, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 1 },
     dashboardPending: false, dashboardError: false, dashboardRetry: vi.fn(),
     pipeline: { projects: [], stages: [] }, pipelinePending: false, pipelineError: false, pipelineRetry: vi.fn(),
     winRateRange: { key: 'test-period', from: new Date(2026, 0, 1), to: new Date(2026, 9, 27) },
@@ -214,9 +214,11 @@ describe('company area hub (#1403)', () => {
 
   it('F2: embeds pipeline, win-rate, purchasing and project spend content in their area panels', () => {
     const dashboard = figureState.result?.dashboard as Record<string, unknown>;
-    dashboard.top_projects = [{
+    dashboard.attention_projects = [{
       id: 'project-1', name: 'Project North', contract_value: 500, currency: 'USD', spent: 200,
       actual_complete: true, actual_currency: 'USD', budget: 500, budget_currency: 'USD', status: 'Ongoing Project',
+      attention_signals: 1, overdue_items: 2, overdue_tasks: 2, overdue_milestones: 0, overdue_invoices: 0,
+      waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
     }];
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
     renderPage();
@@ -231,26 +233,36 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card')).toBe(purchasing);
   });
 
-  it('F2: shows the five most-attention delivery projects with compact details and an all-projects link', async () => {
-    const topProjects = Array.from({ length: 6 }, (_, index) => {
-      const number = index + 1;
-      return {
-        id: `project-${number}`, name: `Project ${number}`, contract_value: 1_000 + number, currency: 'USD',
-        spent: number === 6 ? 990 : number * 100, actual_complete: true, actual_currency: 'USD',
-        budget: 2_000, budget_currency: 'USD', status: 'Ongoing Project',
-      };
-    });
+  it('F2/#1418: the Delivery list renders the server attention order — never re-sorted or re-sliced by the client', async () => {
+    // The server ranks EVERY active project by attention and cuts to five. Here Project 6 has the worst signals (4
+    // overdue, over budget, 2 approvals) and by far the LOWEST spending percentage, while Project 2 is at 100% of
+    // its contract. The old screen re-sorted these five by spending and would have put Project 2 first; the list
+    // must now keep the server's order.
+    const ranked = [6, 5, 4, 3, 2].map((number) => ({
+      id: `project-${number}`, name: `Project ${number}`, contract_value: 1_000 + number * 100, currency: 'USD',
+      spent: number === 2 ? 1_200 : number * 100, actual_complete: true, actual_currency: 'USD',
+      budget: 2_000, budget_currency: 'USD', status: 'Ongoing Project',
+      attention_signals: number === 6 ? 3 : 0,
+      overdue_items: number === 6 ? 4 : 0, overdue_tasks: number === 6 ? 3 : 0,
+      overdue_milestones: number === 6 ? 1 : 0, overdue_invoices: 0,
+      waiting_approvals: number === 6 ? 2 : 0,
+      over_budget: number === 6, budget_used_ratio: number === 6 ? 1.5 : null,
+    }));
     const dashboard = figureState.result?.dashboard as Record<string, unknown>;
-    dashboard.top_projects = topProjects;
-    projectsState.data = topProjects.map((project) => ({ id: project.id, pm: { full_name: `Manager ${project.id.slice(-1)}` } }));
+    dashboard.attention_projects = ranked;
+    projectsState.data = ranked.map((project) => ({ id: project.id, pm: { full_name: `Manager ${project.id.slice(-1)}` } }));
     renderPage();
 
     const projectList = screen.getByRole('list', { name: 'Spending vs contract' });
-    expect(within(projectList).getByRole('link', { name: /^Open Project 6; recorded spending \$990 to date\.$/ })).toHaveAttribute('href', '/projects/project-6');
-    expect(screen.getByText('Manager 6 · $1,006')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Project 6: 98% of contract used' })).toBeInTheDocument();
-    expect(within(projectList).queryByRole('link', { name: /^Open Project 1;/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View all 6 projects' })).toHaveAttribute('href', '/projects');
+    const order = within(projectList).getAllByRole('link').map((link) => link.textContent).filter((text) => /^Project \d$/.test(text ?? ''));
+    expect(order).toEqual(['Project 6', 'Project 5', 'Project 4', 'Project 3', 'Project 2']);
+    expect(within(projectList).getByRole('link', { name: /^Open Project 6; recorded spending \$600 to date\.$/ })).toHaveAttribute('href', '/projects/project-6');
+    expect(screen.getByText('Manager 6 · $1,600')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Project 6: 38% of contract used' })).toBeInTheDocument();
+    // The reason line the ranking is made from: overdue work, over budget, waiting approvals.
+    expect(within(projectList).getByText('4 overdue · 50% over budget · 2 awaiting approval')).toBeInTheDocument();
+    expect(screen.getByText('The 5 projects that most need attention')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View all 5 projects' })).toHaveAttribute('href', '/projects');
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Row actions for Project 6' }));
@@ -301,9 +313,11 @@ describe('company area hub (#1403)', () => {
 
   it('AC-DASH-1403-10: a delivery project row opens its owning project page', () => {
     const current = figureState.result;
-    if (current) (current.dashboard as Record<string, unknown>).top_projects = [{
+    if (current) (current.dashboard as Record<string, unknown>).attention_projects = [{
       id: 'project-1', name: 'Project North', contract_value: 500, currency: 'USD', spent: 200,
       actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project',
+      attention_signals: 0, overdue_items: 0, overdue_tasks: 0, overdue_milestones: 0, overdue_invoices: 0,
+      waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
     }];
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
     renderPage();
@@ -444,7 +458,7 @@ describe('company hub — behaviour carried over from the previous dashboard', (
   it('AC-FAA-006: a pipeline-only portfolio keeps the company figures and says there is no delivery project to compare', () => {
     const current = figureState.result!;
     current.isEmpty = false;
-    current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], projects_by_status: [{ status: 'Tender Submitted', count: 2 }], procurements_by_status: [] };
+    current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], attention_projects: [], projects_by_status: [{ status: 'Tender Submitted', count: 2 }], procurements_by_status: [] };
     renderPage();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
@@ -454,7 +468,7 @@ describe('company hub — behaviour carried over from the previous dashboard', (
   it('AC-FAA-006: the company empty state appears only when there is no project or procurement evidence at all', () => {
     const current = figureState.result!;
     current.isEmpty = true;
-    current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], projects_by_status: [{ status: 'Lost', count: 2 }], procurements_by_status: [] };
+    current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], attention_projects: [], projects_by_status: [{ status: 'Lost', count: 2 }], procurements_by_status: [] };
     const withEvidence = renderPage();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();

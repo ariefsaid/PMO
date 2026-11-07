@@ -7,7 +7,7 @@ import { emitServerEvent } from './posthogServer.ts';
  */
 const KNOWN_CODES = new Set([
   'commit-rejected', 'external-unreachable', 'destination_not_permitted', // AdapterErrorCode (contract.ts)
-  'recovery-probe-failed', 'recovery-inconclusive-absence', 'recovery-reissue-unauthorized', // held reasons (dispatch.ts)
+  'recovery-probe-failed', 'recovery-inconclusive-absence', 'recovery-reissue-unauthorized', 'revision-superseded', // held reasons (dispatch.ts)
   'committing-lease-expired', // quarantined
 ]);
 /** The leading `<code>:` that `redactErrorForOutbox` / the held reasons put in front of free text, only if it is a known code; nothing else leaves. */
