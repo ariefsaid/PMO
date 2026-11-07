@@ -26,6 +26,8 @@ const dayOf = (title: string): Date => {
 // jsdom has no layout: lay the month cells out on a 7-column grid so the drag engine can hit-test.
 let rectSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
+  // jsdom has no Element.scrollTo (the time grid scrolls to "now" on mount)
+  HTMLElement.prototype.scrollTo = vi.fn();
   rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     const ms = this.dataset.ecDay;
     if (!ms) return new DOMRect(0, 0, 0, 0);
@@ -35,7 +37,7 @@ beforeEach(() => {
     return new DOMRect((idx % 7) * 100, Math.floor(idx / 7) * 100, 100, 100);
   });
 });
-afterEach(() => rectSpy.mockRestore());
+afterEach(() => { rectSpy.mockRestore(); vi.restoreAllMocks(); });
 
 const renderCal = (over: Partial<React.ComponentProps<typeof WorkCalendar>> = {}) => {
   const props = {
@@ -117,6 +119,8 @@ describe('WorkCalendar (#1982)', () => {
   it('opens an item on click', () => {
     const onOpenItem = vi.fn();
     renderCal({ onOpenItem });
+    // the calendar swallows clicks within 250ms of a drag ending (earlier tests drag)
+    vi.spyOn(performance, 'now').mockReturnValue(performance.now() + 5000);
     fireEvent.click(chipOf('Pour slab'));
     expect(onOpenItem).toHaveBeenCalledWith(expect.objectContaining({ kind: 'task', id: 't1' }));
   });
