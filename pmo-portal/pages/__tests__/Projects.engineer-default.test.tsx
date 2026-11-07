@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { addBuilderFilter } from './projectFilterBuilder.helpers';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -207,20 +209,18 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
     expect(screen.queryByText(/no events this month/i)).not.toBeInTheDocument();
   });
 
-  it.each([false, true])('recovers customer filter options on mobile=%s', (mobile) => {
+  it.each([false, true])('recovers customer filter options on mobile=%s', async (mobile) => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: !mobile, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
     clientsState.isError = true;
     const { rerender } = renderAsPM();
-    fireEvent.click(screen.getByRole('button', { name: /^filters/i }));
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(clientsState.refetch).toHaveBeenCalledOnce();
     clientsState.isError = false;
     clientsState.data = [{ id: '11111111-1111-1111-1111-111111111111', name: 'Recovered Customer' }];
     rerender(<ImpersonationProvider realRole="Project Manager"><MemoryRouter><ToastProvider><Projects /></ToastProvider></MemoryRouter></ImpersonationProvider>);
-    const select = screen.getByRole('combobox', { name: /filter by customer/i });
-    expect(within(select).getByRole('option', { name: 'Recovered Customer' })).toBeInTheDocument();
-    fireEvent.change(select, { target: { value: '11111111-1111-1111-1111-111111111111' } });
-    expect(select).toHaveValue('11111111-1111-1111-1111-111111111111');
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    await addBuilderFilter(userEvent.setup(), 'Customer', { value: 'Recovered Customer' });
+    expect(within(screen.getByRole('toolbar', { name: /active filters/i })).getByText('Recovered Customer')).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 

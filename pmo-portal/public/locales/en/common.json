@@ -49,7 +49,6 @@
     "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
   },
   "uxs14": {
-    "filters": "Filters",
     "moreActions": "More actions",
     "projectReferences": "More project references",
     "projectReferencesFor": "More project references for {{name}}",
@@ -3002,12 +3001,9 @@
       "ariaLabel": "Status filter",
       "atRisk": "At risk",
       "completed": "Completed",
-      "customerLabel": "Filter by customer",
       "myProjects": "My Projects",
       "ongoing": "Ongoing",
-      "pmLabel": "Filter by project manager",
-      "allEndCustomers": "All end customers",
-      "endCustomerLabel": "Filter by end customer"
+      "allEndCustomers": "All end customers"
     },
     "importBudgets": "Import budgets",
     "noPhasesYet": "No phases yet",
@@ -3049,17 +3045,10 @@
     "export": "Export",
     "import": "Import",
     "mobile": {
-      "activeCount": "Active filters",
-      "customer": "Customer",
-      "manager": "Project manager",
-      "removeCustomer": "Remove customer filter",
-      "removeManager": "Remove project manager filter",
       "clearAll": "Clear all",
       "error": "Couldn't load options",
       "retry": "Retry",
-      "unavailable": "Unavailable selection",
-      "endCustomer": "End customer",
-      "removeEndCustomer": "Remove end customer filter"
+      "unavailable": "Unavailable selection"
     },
     "card": {
       "delivery": "Delivery",
@@ -3093,48 +3082,6 @@
     "identifiers": {
       "pmo": "PMO Project Number",
       "client": "Client Project Code"
-    },
-    "filterBuilder": {
-      "addFilter": "Add filter",
-      "clearAll": "Clear all",
-      "searchFields": "Search filters…",
-      "searchOperators": "Search conditions…",
-      "searchOptions": "Search…",
-      "back": "Back",
-      "clear": "Clear",
-      "apply": "Apply",
-      "discard": "Discard",
-      "empty": "No results",
-      "loading": "Loading…",
-      "error": "Couldn't load",
-      "retry": "Retry",
-      "remove": "Remove filter",
-      "filtersLabel": "Active filters",
-      "selectCondition": "Condition",
-      "selectPlaceholder": "Select…",
-      "valuePlaceholder": "Value",
-      "noValue": "Any",
-      "incomplete": "Incomplete",
-      "rangeSeparator": "to",
-      "rangeFrom": "{{field}} from",
-      "rangeTo": "{{field}} to",
-      "valueCount": "{{count}} selected",
-      "itemCount": "{{count}} items",
-      "onOrAfter": "is on or after",
-      "onOrBefore": "is on or before",
-      "between": "is between",
-      "is": "is",
-      "isAnyOf": "is any of",
-      "contains": "contains",
-      "atLeast": "is at least",
-      "atMost": "is at most",
-      "status": "Status",
-      "customer": "Customer",
-      "endCustomer": "End customer",
-      "manager": "Project manager",
-      "startDate": "Start date",
-      "endDate": "End date",
-      "contractValue": "Contract value"
     }
   },
   "financialStatements": {
