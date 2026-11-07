@@ -80,7 +80,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
-    createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
+    createVersion: { mutateAsync: vi.fn() }, returnVersion: { mutateAsync: vi.fn(), isPending: false }, resubmitVersion: { mutateAsync: vi.fn(), isPending: false }, activate: { mutateAsync: vi.fn() },
     archive: { mutateAsync: vi.fn() }, cloneVersion: { mutateAsync: vi.fn() },
     deleteDraft: { mutateAsync: vi.fn() }, createLineItem: { mutateAsync: vi.fn() },
     deleteLineItem: { mutateAsync: vi.fn() },

@@ -69,6 +69,8 @@ const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unk
 const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null) }));
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
+const mockReturn = vi.fn().mockResolvedValue(undefined);
+const mockResubmit = vi.fn().mockResolvedValue(undefined);
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
@@ -90,7 +92,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },
-    activate: { mutateAsync: mockActivate, isPending: false },
+    returnVersion: { mutateAsync: mockReturn, isPending: false }, resubmitVersion: { mutateAsync: mockResubmit, isPending: false }, activate: { mutateAsync: mockActivate, isPending: false },
     archive: { mutateAsync: mockArchive, isPending: false },
     deleteDraft: { mutateAsync: mockDeleteDraft, isPending: false },
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
@@ -664,6 +666,55 @@ describe('ProjectBudget Draft version actions', () => {
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
     expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
+    resetState();
+  });
+
+  // #1413 — an approver returns a waiting Draft with a required reason; the PM sees it and resubmits.
+  it('AC-1413-09 an eligible approver returns the draft: reason required, nothing writes before Confirm', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Return to author$/i }));
+    expect(mockReturn).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /^Return draft$/i })).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText(/Reason/i), '  Contingency too high ');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Return draft$/i }));
+    expect(mockReturn).toHaveBeenCalledWith({ versionId: 'v-draft', reason: 'Contingency too high' });
+    expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
+    resetState();
+  });
+
+  it('AC-1413-09 no Return for the drafter or a role outside the activation gate', () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1' }];
+    const { unmount } = renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to author$/i })).not.toBeInTheDocument();
+    unmount();
+    roleState.realRole = 'Engineer';
+    versionsState.data = [draftVersion];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to author$/i })).not.toBeInTheDocument();
+    resetState();
+  });
+
+  it('AC-1413-09 a returned draft shows the reason, drops Activate/Return for approvers and offers Resubmit to the PM', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, returned_at: '2026-11-01T00:00:00Z', returned_by: 'u9', return_reason: 'Contingency too high' }];
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('budget-return-reason')).toHaveTextContent('Contingency too high');
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return to author$/i })).not.toBeInTheDocument();
+    unmount();
+    roleState.realRole = 'Project Manager';
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Resubmit for approval$/i }));
+    expect(mockResubmit).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Resubmit draft$/i }));
+    expect(mockResubmit).toHaveBeenCalledWith('v-draft');
     resetState();
   });
 

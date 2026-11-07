@@ -1480,6 +1480,9 @@ export type Database = {
           name: string
           org_id: string
           project_id: string
+          return_reason: string | null
+          returned_at: string | null
+          returned_by: string | null
           status: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1497,6 +1500,9 @@ export type Database = {
           name: string
           org_id?: string
           project_id: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1514,6 +1520,9 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version?: number
         }
@@ -12040,6 +12049,14 @@ export type Database = {
       }
       activate_budget_version: {
         Args: { version_id: string }
+        Returns: undefined
+      }
+      resubmit_budget_version: {
+        Args: { version_id: string }
+        Returns: undefined
+      }
+      return_budget_version: {
+        Args: { reason: string; version_id: string }
         Returns: undefined
       }
       archive_budget_version_with_cancel_intent: {

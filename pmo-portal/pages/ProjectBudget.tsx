@@ -260,7 +260,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
   const { readinessMessages, canConfirmActivation, canActivate, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers, distributionReadinessStatus);
 
-  const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
+  // #1413 — Return mirrors the activation gate, minus the sole-operator exception (nobody to return to).
+  const canReturn = canActivate && !soleOperator && !!draftVersion && !draftVersion.returned_at;
+  const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canReturn, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
 
   const fiscalYears = activationPrecheckQuery.data?.fiscalYears ?? null;
   const fiscalYearNames = (() => {
@@ -673,7 +675,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     { label: t('projectDetail.budget.compare', 'Compare'), onClick: () => setVersionsOpen(true) },
     ...(!authoringRefreshNeeded && canWrite && !draftVersion && (version.status === 'Active' || version.status === 'Archived') ? [{ label: t('financeCopy.cloneToRevise', 'Clone to revise'), onClick: () => requestClone(version.id) }] : []),
     ...(!authoringRefreshNeeded && canWrite && version.status === 'Active' ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => requestArchive(version.id), danger: true }] : []),
-    ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' && canActivate ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
+    ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' && canActivate && !version.returned_at ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
     ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
   ];
 
@@ -784,16 +786,17 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       )}
 
       {draftVersion && (
-        <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
+        <section aria-label={draftVersion.returned_at ? t('projectDetail.budget.draftReturned', 'Draft returned for changes') : t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
-              <h3 className="font-semibold">{t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
+              <h3 className="font-semibold">{draftVersion.returned_at ? t('projectDetail.budget.draftReturned', 'Draft returned for changes') : t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
               <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
             </div>
-            {!canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
-            {canActivate && !hasOpenLineBuffers && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
-            {canActivate && hasOpenLineBuffers && <p role="status" className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.saveOrDiscardLines', 'Save or discard all open line item edits before activating.')}</p>}
+            {draftVersion.returned_at && <p role="status" className="mt-1 text-sm text-foreground" data-testid="budget-return-reason">{t('projectDetail.budget.returnReason', 'Returned: {{reason}}', { reason: draftVersion.return_reason })}</p>}
+            {!draftVersion.returned_at && !canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
+            {!draftVersion.returned_at && canActivate && !hasOpenLineBuffers && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
+            {!draftVersion.returned_at && canActivate && hasOpenLineBuffers && <p role="status" className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.saveOrDiscardLines', 'Save or discard all open line item edits before activating.')}</p>}
             <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-[13px] text-muted-foreground">
               {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
             </div>
@@ -805,7 +808,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
-            {canActivate && !authoringRefreshNeeded && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers || (draftMode === 'whole_project' && distributionReadinessStatus !== 'current')} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
+            {canWrite && draftVersion.returned_at && <Button variant="primary" size="sm" onClick={() => requestResubmit(draftVersion.id)}>{t('projectDetail.budget.resubmitDraft', 'Resubmit for approval')}</Button>}
+            {canReturn && !authoringRefreshNeeded && <Button variant="outline" size="sm" onClick={() => requestReturn(draftVersion.id)}>{t('projectDetail.budget.returnDraft', 'Return to author')}</Button>}
+            {canActivate && !draftVersion.returned_at && !authoringRefreshNeeded && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers || (draftMode === 'whole_project' && distributionReadinessStatus !== 'current')} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
           </div>
         </section>
       )}

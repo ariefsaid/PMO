@@ -644,7 +644,11 @@
       "confirmDistributionTitle": "Simpan alokasi ini?",
       "confirmDistributionBody": "Jumlah tahun fiskal yang ditinjau akan disimpan ke Draf saat ini. Jumlah baris sumber tetap sama.",
       "confirmDistributionSave": "Simpan alokasi",
-      "distributionSavedToast": "Alokasi tahun fiskal tersimpan"
+      "distributionSavedToast": "Alokasi tahun fiskal tersimpan",
+      "draftReturned": "Draf dikembalikan untuk diubah",
+      "returnReason": "Dikembalikan: {{reason}}",
+      "resubmitDraft": "Ajukan ulang untuk persetujuan",
+      "returnDraft": "Kembalikan ke penyusun"
     },
     "cost": {
       "spendingChecking": "Memeriksa pengeluaran…",
@@ -661,7 +665,16 @@
     "invoiceNumber": "Nomor faktur",
     "odooDraftNumber": "Draf — Odoo memberi nomor setelah disetujui",
     "erpLineItemsStoredExternally": "Baris faktur disimpan di sistem akuntansi untuk faktur ini.",
-    "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo."
+    "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo.",
+    "versionReturned": "Versi dikembalikan ke penyusunnya",
+    "versionResubmitted": "Versi diajukan ulang untuk persetujuan",
+    "returnThisDraft": "Kembalikan draf ini ke penyusunnya?",
+    "returnDraft": "Kembalikan draf",
+    "resubmitThisDraft": "Ajukan ulang draf ini untuk persetujuan?",
+    "resubmitDraft": "Ajukan ulang draf",
+    "confirmReturnDescription": "{{version}} kembali ke penyusunnya sebagai draf yang dapat diubah. Draf keluar dari antrean penyetuju sampai diajukan ulang.",
+    "returnReasonLabel": "Alasan (wajib)",
+    "confirmResubmitDescription": "Ini mengembalikan {{version}} ke antrean penyetuju."
   },
   "odooOutcome": {
     "confirmed": "Ada di Odoo",

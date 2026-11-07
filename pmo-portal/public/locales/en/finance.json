@@ -644,7 +644,11 @@
       "confirmDistributionTitle": "Save this distribution?",
       "confirmDistributionBody": "This saves the reviewed exact fiscal-year amounts to the current Draft. Source line amounts stay unchanged.",
       "confirmDistributionSave": "Save distribution",
-      "distributionSavedToast": "Fiscal-year distribution saved"
+      "distributionSavedToast": "Fiscal-year distribution saved",
+      "draftReturned": "Draft returned for changes",
+      "returnReason": "Returned: {{reason}}",
+      "resubmitDraft": "Resubmit for approval",
+      "returnDraft": "Return to author"
     },
     "cost": {
       "spendingChecking": "Checking spending…",
@@ -661,7 +665,16 @@
     "invoiceNumber": "Invoice number",
     "odooDraftNumber": "Draft — Odoo assigns the number on approval",
     "erpLineItemsStoredExternally": "Line items are kept in the accounting system for this invoice.",
-    "paymentsReceivedFromClientsMirroredFromOdoo": "Payments received from clients, mirrored from Odoo."
+    "paymentsReceivedFromClientsMirroredFromOdoo": "Payments received from clients, mirrored from Odoo.",
+    "versionReturned": "Version returned to its authors",
+    "versionResubmitted": "Version resubmitted for approval",
+    "returnThisDraft": "Return this draft to its authors?",
+    "returnDraft": "Return draft",
+    "resubmitThisDraft": "Resubmit this draft for approval?",
+    "resubmitDraft": "Resubmit draft",
+    "confirmReturnDescription": "{{version}} goes back to its authors as an editable draft. It leaves the approvers' queue until they resubmit it.",
+    "returnReasonLabel": "Reason (required)",
+    "confirmResubmitDescription": "This puts {{version}} back in the approvers' queue."
   },
   "odooOutcome": {
     "confirmed": "In Odoo",

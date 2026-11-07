@@ -1108,6 +1108,18 @@ export async function removeBudgetDocumentLink(id: string): Promise<void> {
   assertWriteLanded(data, 'Document link not found or you do not have permission to remove it.');
 }
 
+/** #1413 — an approver returns a waiting Draft to its authors with a reason. The RPC owns role + SoD. */
+export async function returnVersion(versionId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('return_budget_version', { version_id: versionId, reason });
+  if (error) throw toAppError(error);
+}
+
+/** #1413 — the author puts a returned Draft back in the approvers' queue. */
+export async function resubmitVersion(versionId: string): Promise<void> {
+  const { error } = await supabase.rpc('resubmit_budget_version', { version_id: versionId });
+  if (error) throw toAppError(error);
+}
+
 /**
  * Hard-deletes a Draft version (cascade FK removes its line-items).
  * org_id NEVER sent — RLS gates the write.

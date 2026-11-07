@@ -64,6 +64,9 @@ export interface BudgetRepository {
    *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
   activateVersion(versionId: string): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string, cancelErp: boolean): Promise<ArchiveVersionResult>;
+  /** #1413 — return a waiting Draft to its authors with a reason / put it back in the approvers' queue. */
+  returnVersion(versionId: string, reason: string): Promise<void>;
+  resubmitVersion(versionId: string): Promise<void>;
   deleteDraftVersion(versionId: string): Promise<void>;
   listDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]>;
   addDocumentLink(versionId: string, reference: MicrosoftReferenceInput): Promise<BudgetDocumentLinkRow>;

@@ -12,6 +12,9 @@ type PendingBudgetConfirm =
   | { kind: 'create'; name: string }
   | { kind: 'activate'; id: string; label: string }
   | { kind: 'clone'; id: string; label: string }
+  /** #1413 — return a waiting Draft to its authors; `reason` is required. */
+  | { kind: 'return'; id: string; label: string; reason: string }
+  | { kind: 'resubmit'; id: string; label: string }
   /** #1462 — `targets` is the SERVER's inventory for this version; `cancellable` is true only when it
    *  says EVERY named target is eligible. The surface never re-derives either. */
   | { kind: 'archive'; id: string; label: string; targets: BudgetArchiveTarget[]; cancellable: boolean; cancelErp: boolean }
@@ -23,6 +26,8 @@ interface VersionActionsOptions {
   versions: BudgetVersionWithItems[];
   draftVersion: BudgetVersionWithItems | undefined;
   canActivate: boolean;
+  /** #1413 — an eligible approver (not a sole operator) may return a not-yet-returned Draft. */
+  canReturn: boolean;
   canConfirmActivation: boolean;
   hasOpenLineBuffers: boolean;
   soleOperator: boolean;
@@ -63,7 +68,7 @@ export function budgetArchiveConfirmFromTargets(
   };
 }
 
-export function useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView }: VersionActionsOptions) {
+export function useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canReturn, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView }: VersionActionsOptions) {
   const { t } = useTranslation('finance');
   const { toast, dismiss: dismissToast } = useToast();
   const queryClient = useQueryClient();
@@ -88,6 +93,15 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
     dismissActivationNotice();
     void activationPrecheckQuery.refetch();
     setPendingConfirm({ kind: 'activate', id, label: versionLabel(id) });
+  };
+  const requestReturn = (id: string) => {
+    if (!canReturn || draftVersion?.id !== id) return;
+    dismissActivationNotice();
+    setPendingConfirm({ kind: 'return', id, label: versionLabel(id), reason: '' });
+  };
+  const requestResubmit = (id: string) => {
+    dismissActivationNotice();
+    setPendingConfirm({ kind: 'resubmit', id, label: versionLabel(id) });
   };
   const requestClone = (id: string) => {
     dismissActivationNotice();
@@ -153,6 +167,18 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
           }
           break;
         }
+        case 'return': {
+          if (!canReturn || !confirm.reason.trim() || draftVersion?.id !== confirm.id) return;
+          await mutations.returnVersion.mutateAsync({ versionId: confirm.id, reason: confirm.reason.trim() });
+          setPendingConfirm(null);
+          toast(t('financeCopy.versionReturned', 'Version returned to its authors'), confirm.label, 'success');
+          break;
+        }
+        case 'resubmit':
+          await mutations.resubmitVersion.mutateAsync(confirm.id);
+          setPendingConfirm(null);
+          toast(t('financeCopy.versionResubmitted', 'Version resubmitted for approval'), confirm.label, 'success');
+          break;
         case 'clone': {
           const newDraftId = await mutations.cloneVersion.mutateAsync(confirm.id);
           setPendingConfirm(null);
@@ -212,10 +238,13 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   };
 
   const confirmInFlight = mutations.createVersion.isPending || mutations.activate.isPending || mutations.cloneVersion.isPending ||
+    mutations.returnVersion.isPending || mutations.resubmitVersion.isPending ||
     mutations.archive.isPending || mutations.deleteDraft.isPending || mutations.deleteLineItem.isPending;
   const confirmCopy: Record<PendingBudgetConfirm['kind'], { tone: 'default' | 'destructive'; title: string; confirmLabel: string }> = {
     create: { tone: 'default', title: t('financeCopy.createBudgetVersion', 'Create budget version?'), confirmLabel: t('financeCopy.createVersion', 'Create version') },
     activate: { tone: 'default', title: t('financeCopy.makeThisTheActiveBudget', 'Make this the active budget?'), confirmLabel: t('financeCopy.activateVersion', 'Activate version') },
+    return: { tone: 'default', title: t('financeCopy.returnThisDraft', 'Return this draft to its authors?'), confirmLabel: t('financeCopy.returnDraft', 'Return draft') },
+    resubmit: { tone: 'default', title: t('financeCopy.resubmitThisDraft', 'Resubmit this draft for approval?'), confirmLabel: t('financeCopy.resubmitDraft', 'Resubmit draft') },
     clone: { tone: 'default', title: t('financeCopy.cloneToANewDraft', 'Clone to a new draft?'), confirmLabel: t('financeCopy.cloneVersion', 'Clone version') },
     archive: { tone: 'destructive', title: t('financeCopy.archiveThisVersion', 'Archive this version?'), confirmLabel: t('financeCopy.archiveVersion', 'Archive version') },
     deleteDraft: { tone: 'destructive', title: t('financeCopy.deleteThisDraft', 'Delete this draft?'), confirmLabel: t('financeCopy.deleteDraft', 'Delete draft') },
@@ -231,6 +260,22 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
       ...(!canActivate && activateBlockedReason ? [activateBlockedReason] : []),
       ...readinessMessages,
     ].join(' ');
+      case 'return': return (
+      <div className="flex flex-col gap-2">
+        <p>{t('financeCopy.confirmReturnDescription', '{{version}} goes back to its authors as an editable draft. It leaves the approvers\' queue until they resubmit it.', { version: confirm.label })}</p>
+        <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+          {t('financeCopy.returnReasonLabel', 'Reason (required)')}
+          <textarea
+            value={confirm.reason}
+            onChange={(e) => setPendingConfirm((current) => current?.kind === 'return' ? { ...current, reason: e.target.value } : current)}
+            rows={3}
+            maxLength={1000}
+            className="rounded-md border border-input bg-background px-2.5 py-1.5 text-[13.5px] font-normal outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
+      </div>
+    );
+      case 'resubmit': return t('financeCopy.confirmResubmitDescription', 'This puts {{version}} back in the approvers\' queue.', { version: confirm.label });
       case 'clone': return t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: confirm.label });
       case 'archive': return (
       <div className="flex flex-col gap-3">
@@ -292,7 +337,7 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
-      confirmDisabled={pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || hasOpenLineBuffers || pendingConfirm.id !== draftVersion?.id)}
+      confirmDisabled={(pendingConfirm.kind === 'return' && (!canReturn || !pendingConfirm.reason.trim() || pendingConfirm.id !== draftVersion?.id)) || pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || hasOpenLineBuffers || pendingConfirm.id !== draftVersion?.id)}
       restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-primary-action, #budget-versions-trigger')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
@@ -300,7 +345,7 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   );
 
   const newVersionForm = renderNewVersionForm({ onSubmit: requestCreate, onCancel: () => setShowNewVersionForm(false), value: newVersionName, onChange: setNewVersionName, t });
-  return { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem };
+  return { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem };
 }
 
 // ---------------------------------------------------------------------------

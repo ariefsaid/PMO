@@ -42,7 +42,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: state.createVersion, isPending: false },
     cloneVersion: { mutateAsync: vi.fn(), isPending: false },
-    activate: { mutateAsync: vi.fn(), isPending: false },
+    returnVersion: { mutateAsync: vi.fn(), isPending: false }, resubmitVersion: { mutateAsync: vi.fn(), isPending: false }, activate: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
     deleteDraft: { mutateAsync: vi.fn(), isPending: false },
     createLineItem: { mutateAsync: vi.fn(), isPending: false },
