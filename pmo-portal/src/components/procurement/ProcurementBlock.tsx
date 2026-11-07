@@ -35,6 +35,7 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { initials } from '@/src/lib/initials';
 import { formatCurrency, formatDate, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -114,10 +115,6 @@ type ProcurementBudgetCategory = NonNullable<ProcurementWithRefs['budget_categor
 const TERMINAL_STATUSES: ProcurementStatus[] = ['Paid', 'Rejected', 'Cancelled'];
 const UNCATEGORIZED_FILTER = '__uncategorized__';
 const UNASSIGNED_FILTER = '__unassigned__';
-
-function initials(name: string | null | undefined): string {
-  return (name ?? '').trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
-}
 
 function statusText(status: ProcurementStatus, t: (key: string, fallback: string) => string): string {
   const label = stageLabelForStatus(status);
@@ -405,17 +402,25 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     });
     if (!sort) return filtered;
     const direction = sort.dir === 'asc' ? 1 : -1;
-    return filtered.sort((a, b) => {
-      let comparison: number;
+    // #1459: money and age-in-stage are read once per row, never once per comparison.
+    const sortValue = (row: ProcurementWithRefs): number | string => {
       switch (sort.key) {
-        case 'title': comparison = a.title.localeCompare(b.title); break;
-        case 'category': comparison = categoryLabel(a.budget_category).localeCompare(categoryLabel(b.budget_category)); break;
-        case 'value': comparison = (moneyFor(a, erp.data).mostReal?.amount ?? 0) - (moneyFor(b, erp.data).mostReal?.amount ?? 0); break;
-        case 'stage': comparison = statusText(a.status, t).localeCompare(statusText(b.status, t)); break;
-        case 'age': comparison = ageInCurrentStage(a, erp.data) - ageInCurrentStage(b, erp.data); break;
-        case 'owner': comparison = (a.requested_by?.full_name ?? '').localeCompare(b.requested_by?.full_name ?? ''); break;
-        default: comparison = a.updated_at.localeCompare(b.updated_at);
+        case 'title': return row.title;
+        case 'category': return categoryLabel(row.budget_category);
+        case 'value': return moneyFor(row, erp.data).mostReal?.amount ?? 0;
+        case 'stage': return statusText(row.status, t);
+        case 'age': return ageInCurrentStage(row, erp.data);
+        case 'owner': return row.requested_by?.full_name ?? '';
+        default: return row.updated_at;
       }
+    };
+    const values = new Map(filtered.map((row) => [row.id, sortValue(row)]));
+    return filtered.sort((a, b) => {
+      const left = values.get(a.id);
+      const right = values.get(b.id);
+      const comparison = typeof left === 'number' && typeof right === 'number'
+        ? left - right
+        : String(left).localeCompare(String(right));
       return comparison * direction;
     });
   }, [rows, selectedStage, categoryFilter, ownerFilter, search, sort, t, categoryLabel, erp.data]);
