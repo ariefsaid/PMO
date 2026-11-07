@@ -30,13 +30,13 @@ import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
 import { AccountingSnapshotsSection } from '@/src/components/dashboard/AccountingSnapshotsSection';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
-import { usePayablesPosition } from '@/pages/finance/payablesPosition';
+import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { ProjectedMarginBars } from '@/src/components/dashboard/ProjectedMarginBars';
 import { formatCurrency } from '@/src/lib/format';
-import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
-import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/pages/procurement/blocks/stage';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
+import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { orderByCurrency } from '../../restructure/currencyOrder';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -153,6 +153,11 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
             <MenuButton ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={menu} />
           </div>
           {percent != null && <Tooltip block content={t('dashboard:hub.company.spentOfContract', 'Spent {{spent}} of {{contract}} contract', { spent, contract })}><div className="flex w-full items-center gap-2"><ProgressBar value={percent} widthless className="min-w-0 flex-1 [&>span:first-child]:flex-1" aria-label={t('dashboard:hub.company.usedNamedAria', '{{name}}: {{percent}}% of contract used', { name, percent })} /><span className="w-10 text-right text-xs tabular">{percent}%</span></div></Tooltip>}
+          <span className="text-xs text-muted-foreground">
+            {row.budget == null
+              ? t('dashboard:executive.noActiveBudget', 'No active budget')
+              : t('dashboard:executive.activeBudgetAmount', 'Active budget: {{amount}}', { amount: money(row.budget, row.budget_currency ?? row.currency) })}
+          </span>
         </li>;
       })}
     </ul>

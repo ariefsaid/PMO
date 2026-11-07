@@ -130,7 +130,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
   useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
 }));

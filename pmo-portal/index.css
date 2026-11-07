@@ -176,6 +176,20 @@
   --rail-w: 224px;
   --header-h: 56px;
   --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Motion tokens (DESIGN.md motion). Exits run ~20% shorter than their entrance. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-press: 100ms;
+  --motion-dialog-in: 150ms;
+  --motion-dialog-out: 120ms;
+  --motion-sheet-in: 220ms;
+  --motion-sheet-out: 176ms;
+  --motion-drawer-in: 200ms;
+  --motion-drawer-out: 160ms;
+  --motion-toast-in: 200ms;
+  --motion-toast-out: 160ms;
+  --motion-menu-in: 120ms;
+  --motion-icon-swap: 180ms;
+  --motion-save-pulse: 450ms;
 
   /* Existing AA-safe solid avatar fills remain independently tuned. */
   --avatar-1: 221.2 83.2% 55%;
@@ -592,8 +606,8 @@
 }
 
 /* ---------- Toast slide-in ---------- */
-.toast-anim { animation: toastIn 0.2s ease; }
-.toast-anim.out { animation: toastOut 0.2s ease forwards; }
+.toast-anim { animation: toastIn var(--motion-toast-in) var(--ease-out); }
+.toast-anim.out { animation: toastOut var(--motion-toast-out) var(--ease-out) forwards; }
 
 /* Persistent remedies move above an open dialog instead of covering its actions. */
 [data-toast-container][data-dialog-open="true"] {
@@ -618,22 +632,67 @@
 /* ---------- Confirm dialog entrance (scale+fade; scrim crossfade) ----------
    Both are auto-disabled by the global prefers-reduced-motion rule above
    (animation-duration → 0), degrading the dialog to an instant crossfade. */
-.confirm-anim { animation: confirmIn 0.15s ease-out; }
+.confirm-anim { animation: confirmIn var(--motion-dialog-in) ease-out; }
 @keyframes confirmIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: none; } }
-.confirm-scrim-anim { animation: confirmScrimIn 0.15s ease-out; }
+.confirm-scrim-anim { animation: confirmScrimIn var(--motion-dialog-in) ease-out; }
 @keyframes confirmScrimIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* Mobile bottom-sheet entrance — slide up from the bottom edge.
    Auto-disabled by the global prefers-reduced-motion rule (duration → 0),
    degrading to an instant crossfade (opacity 0→1 with no perceptible slide). */
-.confirm-sheet-anim { animation: confirmSheetIn 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+.confirm-sheet-anim { animation: confirmSheetIn var(--motion-sheet-in) var(--ease-out); }
 @keyframes confirmSheetIn { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
 
 /* ---------- Drawer (right-side sheet) entrance — slide-in from the right.
    Auto-disabled by the global prefers-reduced-motion rule (duration → 0),
    degrading to an instant crossfade (opacity 0→1 with no perceptible slide). */
-.drawer-anim { animation: drawerIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.drawer-anim { animation: drawerIn var(--motion-drawer-in) var(--ease-out); }
 @keyframes drawerIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Exits (#1970): ~20% shorter than the entrance, same transform/opacity only.
+   Base UI dialogs wait for [data-ending-style]; hand-rolled overlays use [data-closing]
+   (useExitPresence). Pointer events off so a closing overlay never eats a click. */
+.confirm-anim[data-ending-style], .confirm-anim[data-closing] { animation: confirmOut var(--motion-dialog-out) ease-in forwards; }
+.confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing] { animation: confirmScrimOut var(--motion-dialog-out) ease-in forwards; }
+.confirm-sheet-anim[data-ending-style] { animation: confirmSheetOut var(--motion-sheet-out) ease-in forwards; }
+.drawer-anim[data-closing] { animation: drawerOut var(--motion-drawer-out) ease-in forwards; }
+[data-closing] { pointer-events: none; }
+@keyframes confirmOut { to { opacity: 0; transform: scale(0.95); } }
+@keyframes confirmScrimOut { to { opacity: 0; } }
+@keyframes confirmSheetOut { to { opacity: 0; transform: translateY(100%); } }
+@keyframes drawerOut { to { opacity: 0; transform: translateX(24px); } }
+
+/* ---------- Menus/popovers grow from their trigger: --menu-origin is set inline per
+   placement (e.g. "top right" under the trigger, "bottom left" when flipped up). ---------- */
+.menu-pop-anim { transform-origin: var(--menu-origin, top left); animation: menuPopIn var(--motion-menu-in) var(--ease-out); }
+@keyframes menuPopIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- Save pulse: one short ring on the saved element/toast (box-shadow-free:
+   a pseudo-element's opacity/transform only). ---------- */
+.save-pulse { position: relative; }
+.save-pulse::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  border: 2px solid hsl(var(--success)); opacity: 0;
+  animation: savePulse var(--motion-save-pulse) var(--ease-out);
+}
+@keyframes savePulse { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.04); } }
+
+/* ---------- Icon swaps: old and new overlap (no blank gap), scale + blur + opacity. ---------- */
+.icon-swap { position: relative; display: inline-grid; place-items: center; }
+.icon-swap-in { animation: iconSwapIn var(--motion-icon-swap) var(--ease-out); }
+.icon-swap-out { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; animation: iconSwapOut var(--motion-icon-swap) var(--ease-out) forwards; }
+@keyframes iconSwapIn { from { opacity: 0; transform: scale(0.25); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes iconSwapOut { from { opacity: 1; transform: none; filter: blur(0); } to { opacity: 0; transform: scale(0.25); filter: blur(4px); } }
+
+/* Every #1970 animation is off under reduced motion (not merely near-zero). */
+@media (prefers-reduced-motion: reduce) {
+  .confirm-anim[data-ending-style], .confirm-anim[data-closing],
+  .confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing],
+  .confirm-sheet-anim[data-ending-style], .drawer-anim[data-closing],
+  .menu-pop-anim, .save-pulse::after, .icon-swap-in, .icon-swap-out, .toast-anim.out { animation: none; }
+  .save-pulse::after { display: none; }
+  .icon-swap-out { display: none; }
+}
 
 /* ---------- Command palette panel entrance ---------- */
 .cmdk-anim { animation: cmdkin 0.14s ease; }

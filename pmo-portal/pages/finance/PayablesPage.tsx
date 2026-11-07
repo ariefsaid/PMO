@@ -15,7 +15,7 @@ import { FigureContent } from '@/src/components/ui/FigureContent';
 import { KPIRow } from '@/src/components/ui/KPITile';
 import { formatCurrencyWithCode } from '@/src/lib/finance/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { usePayablesPosition } from './payablesPosition';
+import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
 type PayableRow = FinancePosition['payables'][number];
 

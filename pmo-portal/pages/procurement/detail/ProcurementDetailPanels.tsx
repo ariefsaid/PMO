@@ -9,8 +9,8 @@ import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
-import { procurementMoney, type ProcurementMoneyKind } from '../blocks/procurementMoney';
-import { stageDates, stageForStatus, type StageKey } from '../blocks/stage';
+import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procurement/procurementMoney';
+import { stageDates, stageForStatus, type StageKey } from '@/src/lib/procurement/stage';
 import { computeBudgetSignal } from '../computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
 

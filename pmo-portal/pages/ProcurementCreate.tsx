@@ -253,12 +253,12 @@ export default function ProcurementCreate() {
   };
 
   if (!may('create', 'procurement')) {
-    return <main className="p-6"><h1>{t('denied', 'You do not have permission to create procurements.')}</h1></main>;
+    return <div className="p-6"><h1>{t('denied', 'You do not have permission to create procurements.')}</h1></div>;
   }
 
   if (!have) {
     return (
-      <main className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
+      <div className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
         <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
         <ProcurementIntake
           choices={choices}
@@ -279,7 +279,7 @@ export default function ProcurementCreate() {
           onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
           onCancel={() => setPendingLeave(null)}
         />
-      </main>
+      </div>
     );
   }
 
@@ -295,7 +295,7 @@ export default function ProcurementCreate() {
   const submitBusy = saving || create.isPending;
 
   return (
-    <main className="mx-auto w-full max-w-7xl p-4 pb-24 md:p-6">
+    <div className="mx-auto w-full max-w-7xl p-4 pb-24 md:p-6">
       {canCaptureDocuments
         ? <BackBar label={t('backToChoices', 'What do you have?')} onBack={() => saving ? guardLeave(() => setHave(null)) : setHave(null)} />
         : <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />}
@@ -387,6 +387,6 @@ export default function ProcurementCreate() {
         onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
         onCancel={() => setPendingLeave(null)}
       />
-    </main>
+    </div>
   );
 }
