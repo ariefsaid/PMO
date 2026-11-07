@@ -19,7 +19,7 @@ import { formatCurrencyWithCode } from '@/src/lib/finance/format';
 import { moneyFigure, type MoneyFigure } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import type { FinancialStatementNativePayload } from '@/src/lib/financialStatements';
-import { usePayablesPosition } from './payablesPosition';
+import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
 function currencyEntries(values: Record<string, number>, preferred?: string | null) {
   return Object.entries(values).sort(([left], [right]) => left === preferred ? -1 : right === preferred ? 1 : left.localeCompare(right));

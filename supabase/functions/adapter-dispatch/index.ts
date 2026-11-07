@@ -539,8 +539,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   }
 
-  // AC-SCA-012 (#1513) — a PO revise never cancels a billed ERP order. Reached by no command until #1505 registers the
-  // revise operation; the guard is wired now so that registration cannot ship without it. Whether a revise cancels the ERP
+  // AC-SCA-012 (#1513) — a PO revise never cancels a billed ERP order, and only the effective (highest issued) revision is
+  // pushed (revision_superseded otherwise, 0742). Whether a revise cancels the ERP
   // order is the tier's own fact (dispatchAdapters.TIER_REVISE_CANCELS): ERPNext amends, Odoo edits in place.
   if (command.domain === 'procurement' && String(command.operation) === 'revise') {
     const rec = (command as { record?: { poId?: unknown; revision?: unknown } }).record ?? {};

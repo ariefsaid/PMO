@@ -52,7 +52,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     return { data: found ? detailFor(found) : undefined, isPending: false, isError: false, refetch: vi.fn() };
   },
 }));
-vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));
+vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: authState.role, effectiveRole: authState.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: authState.userId, org_id: 'org-1' }, role: authState.role }) }));
 

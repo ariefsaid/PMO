@@ -98,7 +98,7 @@ vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
 vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
   useOverdueReceivables: () => ({
     data: invoiceState.data.length > 0 ? { to: '/finance/receivables?project=p1&overdue=true' } : null,
