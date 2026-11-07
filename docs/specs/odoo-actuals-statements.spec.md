@@ -45,7 +45,7 @@ When I close a month on an Odoo-connected project, I want PMO's budget-versus-ac
 
 - **DD-ODA-1 One pipeline.** Odoo ledger lines are written into `erp_gl_entry_mirror` as attribution rows, so `refreshActuals`, `erp_actuals_snapshot`, `project_mapped_actuals`, `get_project_finances`, the count-once rule and #1919's journal list work unchanged. No second actuals table, no second projection. Row key `erp_name = 'odoo:<line id>:<analytic id | ->'`; `voucher_type = 'account.move'`; `voucher_no` = move name; `account` = account code (company-scoped, V-ODA3); `project` = analytic account id as text; `is_cancelled` = line not posted.
 - **DD-ODA-2 Source is `account.move.line`, split by PMO.** The brief's JSON-2 path. The share of a line is `balance × percentage`, exact decimal, the last share absorbs the cent remainder so the rows sum to the line. `account.analytic.line` (Odoo's own split) is read only as a cross-check if V-ODA2 shows it equal; it is not the source because it omits unattributed lines and mixes timesheets.
-- **DD-ODA-3 Statements are computed on read from the mirror, in SQL, for the Odoo tier only.** Odoo Community has no statement-report API (V-ODA9 confirms), so the saved-report model of #897 cannot apply. The read RPCs return the existing statement payload shape so the screens are reused; the snapshot/publish machinery (`erp_financial_statement_*`) is not extended to Odoo. Honesty comes from reconciliation (FR-ODA-040) and freshness (FR-ODA-030), not publication.
+- **DD-ODA-3 Statements are computed on read from the mirror, in SQL, for the Odoo tier only.** Odoo Community has no usable statement report (V-ODA9: `account.report` holds only the tax report, no lines, no callable engine), so the saved-report model of #897 cannot apply. The read RPCs return the existing statement payload shape so the screens are reused; the snapshot/publish machinery (`erp_financial_statement_*`) is not extended to Odoo. Honesty comes from reconciliation (FR-ODA-040) and freshness (FR-ODA-030), not publication.
 - **DD-ODA-4 The oracle test is Odoo's grouped totals.** PMO's sum is checked per sweep against a stock grouped read (V-ODA5); a mismatch is shown, never hidden or corrected by PMO.
 - **DD-ODA-5 Fiscal year.** From the company's fiscal-year-end month and day if V-ODA4 finds them readable, else the calendar year (OQ-ODA-3).
 - **DD-ODA-6 Declarations.** `actuals.read` → `supported` v1; `budget.push`, `budget.unowned-occupant`, `budget.resolve-occupant` → `unavailable` with reason "Odoo Community has no budget object; budgets stay in PMO".
@@ -57,7 +57,7 @@ When I close a month on an Odoo-connected project, I want PMO's budget-versus-ac
 
 - **FR-ODA-001** When the Odoo sweep runs for an org with an activated Odoo binding whose capability snapshot reports `account.move.line` readable, the system shall read posted and non-posted ledger lines of the activated company page by page (keyset on `write_date`, overlap window, as `odoo/sweep.ts`) and apply each page and its cursor in one database call.
 - **FR-ODA-002** The system shall write one attribution row per (line × analytic account) and one unattributed row for any share not belonging to a linked project account, such that the rows of a line sum to the line's debit and credit exactly.
-- **FR-ODA-003** Where a distribution key names several analytic accounts (a combination across plans), the system shall attribute to the account that belongs to the org's project plan and ignore the others for attribution.
+- **FR-ODA-003** Where a distribution key names several analytic accounts (a combination across plans, stored as comma-joined ids such as `"157,159"`, V-ODA6), the system shall attribute to the account that belongs to the org's project plan and ignore the others for attribution.
 - **FR-ODA-004** Where two PMO projects claim one analytic account, or a project account belongs to no PMO project, the system shall leave the amount unattributed (the shared suite rule, OBS-ODA-002).
 - **FR-ODA-005** While a line is not posted (draft, cancelled) the system shall keep its rows with `is_cancelled = true` so no sum counts them; when Odoo returns a line to posted it shall count again.
 - **FR-ODA-006** When Odoo changes a line's distribution or amount (reset to draft and repost), the system shall replace that line's rows in one transaction; a stale older re-delivery shall not overwrite a newer row.
@@ -121,23 +121,23 @@ When I close a month on an Odoo-connected project, I want PMO's budget-versus-ac
 | **OQ-ODA-7** | Stale threshold? | **30 minutes** on a healthy connection (sweep is 5 minutes). |
 | **OQ-ODA-8** | Webhook nudge for ledger changes? | **No**; polling only (O1 Q1 default: drop webhooks). |
 
-## 9. Claims to verify on the bed (V-ODA#) — nothing below is bed-verified yet
+## 9. Bed verdicts (V-ODA#) — verified on the dev bed 2026-11-07 (S0); detail in `docs/research/2026-10-31-odoo20-dev-bed-verification.md` §11
 
-Each is a **P0/C0-style bed task** (Slice S0): record the stock response as a synthetic fixture in `__fixtures__/json2.ts` and a probe case in `scripts/odoo-probe.mjs` before any code depends on it; a mismatch updates this spec first.
+Each claim was run as a probe case (`node scripts/odoo-probe.mjs --actuals --case V-ODA#`); the stock shapes are in `__fixtures__/json2.ts`. Where the bed differs the FR/DD above is amended.
 
-| # | Claim | Feeds |
+| # | Verdict | Feeds |
 |---|---|---|
-| V-ODA1 | `account.move.line` `search_read` returns `date, parent_state, debit, credit, balance, account_id, move_id, move_name, journal_id, partner_id, company_id, currency_id, amount_currency, analytic_distribution, write_date` to the service user; `parent_state` values; `write_date` is ordered and keyset-pageable on this model at 200 and 1,000 (V14 repeat); lines of display types (tax, payment_term, rounding, note/section) and which to include. | FR-001/002 |
-| V-ODA2 | What posting a bill/invoice with `{"101": 60, "102": 40}` writes in `account.analytic.line` (amounts, signs, rounding of the 60/40 cents), and whether it equals PMO's split of `balance`. | DD-ODA-2 |
-| V-ODA3 | `account.account.code` is stable and unique per company in 20 (company-dependent code), and what an account used by a different company returns. | FR-008, account map |
-| V-ODA4 | `res.company` fields for fiscal year end (`fiscalyear_last_month`, `fiscalyear_last_day`) are readable; lock dates (`fiscalyear_lock_date`, etc.) readable. | DD-ODA-5 |
-| V-ODA5 | A stock grouped read over JSON-2 on `account.move.line` (`formatted_read_group`, or `read_group` if still present) with groupby `account_id` and sum of `debit`, `credit` over a domain; return shape and the cap on groups. | FR-040 |
-| V-ODA6 | Distribution key forms in 20: single id `"101"`, multi-plan `"101,205"`, percentage ≠ 100, percentage > 100, and the stored value after a bill line is saved with an analytic account of a non-project plan. | FR-002/003 |
-| V-ODA7 | Volume probe: 130,000 synthetic lines on the bed, page time at 200 and 1,000, and the practical lines-per-tick inside the 60-call / 100 s budget. | FR-009, NFR-003 |
-| V-ODA8 | Behaviour on correction: reverse (`reversed_entry_id`), reset to draft then repost, cancel, and hard delete (draft only): which `write_date` changes and what the keyset sees. | FR-005/006/007 |
-| V-ODA9 | No stock report is reachable to a Community key (`account.report` or the accounting-report model is absent or refuses), so statements cannot be read as saved reports. | DD-ODA-3, OQ-ODA-1 |
-| V-ODA10 | The smallest group set that passes every call above for a minimally privileged service user; `account.move.line` access without accounting-manager rights. | NFR-005 |
-| V-ODA11 | Opening-balance entries and year-end closings in a Community company: how they appear as lines (journal type, account type `equity_unaffected`), so the Balance Sheet cumulative sum is right. | FR-020/025 |
+| V-ODA1 | **Verified.** All 15 fields return to the bot. `move_name` is `false` for a never-posted draft; `parent_state` is `draft`, `posted`, `cancel`; display types `product`, `payment_term`, `tax`, `line_note`, `line_section` (note and section lines have `account_id = false`, balance 0). Keyset pages at 200 and 1,000. | FR-001/002 |
+| V-ODA2 | **Verified.** Odoo's analytic split of 100.01 at 60/40 is −60.01/−40 (odd cent to the larger share), equal to PMO's split; sign is the negative of `balance`. `account_id` reads `false` on `account.analytic.line` (per-plan columns). Cross-check only, as DD-ODA-2 says. | DD-ODA-2 |
+| V-ODA3 | **Verified.** `account.account` has `company_ids`; the same code exists in two companies as different record ids; unique within a company. Map by `(company, code)`. | FR-008, account map |
+| V-ODA4 | **Verified.** `fiscalyear_last_month` is a string (`"12"`), `fiscalyear_last_day` a number; the lock dates read `false` when unset. `period_lock_date` does not exist. | DD-ODA-5 |
+| V-ODA5 | **Verified: `formatted_read_group` works** (`groupby`, `aggregates: ['debit:sum','credit:sum']`, `date:month` allowed, `limit` honoured; 480 groups in one call, no cap seen). `read_group` with `fields` is 422; `_read_group` is 403. | FR-040 |
+| V-ODA6 | **Verified.** All forms are stored verbatim and never refused: single, multi-plan `"157,159"`, 50, 150, non-project plan, 33.33/66.67. | FR-002/003 |
+| V-ODA7 | **Verified.** 130,000 lines: 200/page p50 169 ms, p95 291 ms; 1,000/page p50 335 ms, p95 847 ms (60 calls: 12,000 and 60,000 lines in 10.7 s and 23.4 s). Whole-company grouped read 0.9 s. Deeper than 60 pages not timed. | FR-009, NFR-003 |
+| V-ODA8 | **Verified.** Reverse touches the original's `write_date` and adds a posted reversal move; reset-to-draft and cancel keep line ids and name and bump `write_date` with `parent_state` draft/cancel; draft delete leaves no tombstone (id sweep); posted delete is 422. | FR-005/006/007 |
+| V-ODA9 | **Verified, with a correction to the claim.** `account.report` is reachable but holds only the generic tax report (3 records, zero lines); no engine method is callable (404); no balance-sheet or P&L definition exists. Statements cannot be read as saved reports. | DD-ODA-3, OQ-ODA-1 |
+| V-ODA10 | **Verified.** `base.group_user` + `account.group_account_readonly` passes all 7 read calls; Billing and Accountant also pass; an internal user with no accounting group is refused (403) on lines and moves. | NFR-005 |
+| V-ODA11 | **Verified.** Opening and year-end entries are ordinary posted `entry` lines in a `general` journal; the closing credits an `equity_unaffected` account; the cumulative sum by `account_type` is right with no special case. | FR-020/025 |
 
 ## 10. Acceptance criteria (Given / When / Then; layer key ADR-0010: U unit, P pgTAP, E e2e, B live bed, gated on the bed and never on CI)
 

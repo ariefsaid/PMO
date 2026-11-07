@@ -1123,7 +1123,10 @@ type NativeStatementBindingContext = {
   projectMap: Record<string, unknown>;
 };
 
-const STATEMENT_BINDING_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Mirrors refreshStatementReportBatch's UUID_PATTERN: any canonical 8-4-4-4-12 hex UUID. Seeded
+// sample ids (e.g. 00000000-0000-0000-0000-000000000001) carry no version/variant nibbles — the
+// database already validates identity, so shape is the only thing this guard checks.
+const STATEMENT_BINDING_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
