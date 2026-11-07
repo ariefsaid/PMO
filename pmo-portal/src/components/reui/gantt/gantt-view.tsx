@@ -3976,7 +3976,7 @@ const GanttTimelineRow = memo(function GanttTimelineRow({
                  own selector can still outrank it */
               "pointer-events-none absolute z-40 h-(--gantt-ghost-height) rounded-sm border border-dashed font-medium",
               !ghost.valid &&
-                "border-destructive bg-destructive/10 text-destructive",
+                "border-destructive bg-destructive/10 text-destructive-text",
               ghost.valid &&
                 ghost.kind === "move" &&
                 "border-(--gantt-event-color)/50 bg-(--gantt-event-color)/8",
