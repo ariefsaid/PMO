@@ -24,6 +24,20 @@ export function useProjectIdentity() {
   });
 }
 
+/**
+ * Project pickers: id, name, short_name, code, status, PM; the same rows as `useProjects()`
+ * without the full row and joins. Under `projectKeys.all` so project writes invalidate it.
+ */
+export function useProjectPickerOptions() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: [...projectKeys.all(orgId), 'picker'],
+    queryFn: () => repositories.project.listPickerOptions(),
+    enabled: Boolean(orgId),
+  });
+}
+
 /** One narrow read for project numbers shown on a bounded dashboard card set. */
 export function useProjectNumbers(ids: string[]) {
   const { currentUser } = useAuth();
