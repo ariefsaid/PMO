@@ -77,6 +77,7 @@ vi.mock('@/src/lib/db/orgs', async (importOriginal) => ({ ...(await importOrigin
 vi.mock('@/src/lib/db/externalDomainOwnership', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/lib/db/erpSnapshots', async (importOriginal) => ({ ...(await importOriginal<object>()), listActualsSnapshot: vi.fn() }));
 vi.mock('@/src/lib/db/managementPack', async (importOriginal) => ({ ...(await importOriginal<object>()), getManagementPackFacts: vi.fn() }));
+vi.mock('@/src/lib/db/financeHub', async (importOriginal) => ({ ...(await importOriginal<object>()), getFinanceHubFigures: vi.fn() }));
 vi.mock('@/src/lib/db/companyCollections', async (importOriginal) => ({ ...(await importOriginal<object>()), listCompanyPartyRefs: vi.fn() }));
 vi.mock('@/src/lib/db/financialStatements', async (importOriginal) => ({ ...(await importOriginal<object>()), getFinancialStatementCatalogue: vi.fn() }));
 vi.mock('@/src/lib/pagedRead', async (importOriginal) => ({ ...(await importOriginal<object>()), fetchAllRowsByKeyset: vi.fn() }));
@@ -140,6 +141,7 @@ const ROWS: Row[] = [
   { member: 'companyCollections', method: 'listPartyIds', mod: '@/src/lib/db/companyCollections', fn: 'listCompanyPartyRefs', args: [['c1', 'c2']] },
   { member: 'financialStatements', method: 'catalogue', mod: '@/src/lib/db/financialStatements', fn: 'getFinancialStatementCatalogue', args: [] },
   { member: 'reports', method: 'managementPack', mod: '@/src/lib/db/managementPack', fn: 'getManagementPackFacts', args: [{ from: '2026-01-01', to: '2026-02-01' }] },
+  { member: 'reports', method: 'figures', mod: '@/src/lib/db/financeHub', fn: 'getFinanceHubFigures', args: [] },
 ];
 
 // The integrations member reads `external_org_bindings` through the (mocked) Supabase client.
