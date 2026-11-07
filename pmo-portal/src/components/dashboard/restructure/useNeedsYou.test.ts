@@ -65,7 +65,7 @@ describe('needs-you dashboard selectors', () => {
     }, translate, 'USD');
 
     expect(items.map(({ count, href }) => [count, href])).toEqual([
-      [2, '/approvals'], [1, '/projects?filter=My+Projects'],
+      [2, '/approvals'], [1, '/projects?filter=at-risk'],
       [5, '/projects?filter=My+Projects'], [3, '/approvals?scope=timesheets'],
     ]);
     expect(items.map(({ label }) => label)).toEqual([
@@ -80,7 +80,7 @@ describe('needs-you dashboard selectors', () => {
     }, translate, 'USD');
 
     expect(items.map(({ count, href }) => [count, href])).toEqual([
-      [1, '/timesheets'], [2, '/my-tasks'], [1, '/expenses'],
+      [1, '/timesheets'], [2, '/my-tasks?due=week'], [1, '/expenses?status=Rejected'],
     ]);
     expect(items.map(({ label }) => label).join(' ')).not.toMatch(/\$|Rp|IDR/);
     expect(items.map(({ label }) => label)).toEqual([

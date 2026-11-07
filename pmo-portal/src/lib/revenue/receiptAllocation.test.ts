@@ -117,3 +117,51 @@ describe('displayAllocations — a receipt PMO sent to Odoo (review)', () => {
     expect(displayAllocations(row({ sales_invoice_id: 'si-1', allocation_details: null }), numberOf)).toBeNull();
   });
 });
+
+describe('AC-NPA-010 native receipts — what a PMO receipt settles is its live allocations (#1415)', () => {
+  const numberOf = (id: string) => ({ 'si-1': 'INV-1', 'si-2': 'INV-2' } as Record<string, string>)[id] ?? null;
+  const live = (id: string, sales_invoice_id: string, amount: number) =>
+    ({ id, sales_invoice_id, amount, cash_amount: amount, withheld_amount: 0, currency: 'IDR' });
+  const native = (over: Partial<IncomingPaymentRow> = {}) =>
+    row({ pmo_native: true, ip_number: null, amount: 100, received_amount: 100, withheld_amount: 0, allocation_details: null, allocations: [], ...over });
+
+  it('AC-NPA-010 an on-account receipt shows no invoices and all of it unapplied', () => {
+    const r = native();
+    expect(displayAllocations(r, numberOf)).toEqual([]);
+    expect(knownUnappliedCash({ ...r, allocation_details: displayAllocations(r, numberOf) })).toBe(100);
+  });
+
+  it('AC-NPA-010 a partly applied receipt lists each invoice and leaves the rest unapplied', () => {
+    const r = native({ allocations: [live('a1', 'si-1', 60)] });
+    expect(displayAllocations(r, numberOf)).toEqual([{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '60.00', currency: 'IDR' }]);
+    expect(knownUnappliedCash({ ...r, allocation_details: displayAllocations(r, numberOf) })).toBe(40);
+  });
+
+  it('AC-NPA-010 a fully applied receipt has nothing unapplied (cent-exact)', () => {
+    const r = native({ amount: 120.06, received_amount: 100.05, withheld_amount: 20.01,
+      allocations: [live('a1', 'si-1', 30.01), live('a2', 'si-2', 90.05)] });
+    expect(knownUnappliedCash({ ...r, allocation_details: displayAllocations(r, numberOf) })).toBe(0);
+  });
+
+  it("AC-NPA-010 the receipt's own invoice pointer is not read: it is only where the receipt was recorded from", () => {
+    const r = native({ sales_invoice_id: 'si-1', allocations: [] });
+    expect(displayAllocations(r, numberOf)).toEqual([]);
+  });
+
+  it('AC-NPA-010 a native row whose allocations were not loaded is unknown, never "nothing applied"', () => {
+    const r = native({ allocations: undefined });
+    expect(displayAllocations(r, numberOf)).toBeNull();
+  });
+
+  it('AC-NPA-011 the ERP branch is unchanged: its reported allocations are shown as they are', () => {
+    const erp = row({ allocation_details: [allocation('ACC-SINV-A', '25000.00')] });
+    expect(displayAllocations(erp, numberOf)).toEqual([{ invoice_id: null, invoice_number: 'ACC-SINV-A', amount: '25000.00', currency: 'IDR' }]);
+  });
+
+  it('AC-NPA-010 knownUnappliedCash reads a PMO receipt straight from its allocations (the Finance "needs you" list relies on it)', () => {
+    expect(knownUnappliedCash(native({ allocations: [] }))).toBe(100);
+    expect(knownUnappliedCash(native({ allocations: [live('a1', 'si-1', 60)] }))).toBe(40);
+    expect(knownUnappliedCash(native({ allocations: undefined }))).toBeNull();
+    expect(knownUnappliedCash(native({ allocations: [{ ...live('a1', 'si-1', 60), currency: 'USD' }] }))).toBeNull();
+  });
+});

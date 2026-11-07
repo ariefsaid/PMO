@@ -29,11 +29,15 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
     {projects.map((p, i) => {
       const contract = p.contract_value;
       const actualComplete = isActualComplete({ basis: 'erp', readSucceeded: p.spent !== null, complete: p.actual_complete,
-        coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total });
+        coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total })
+        && p.committed_complete !== false;
+      // #1739: the risk signal is budget CONSUMPTION — PMO spent + open commitment (the whole order total, once);
+      // a ledger org's `committed` is null, so consumption is its ledger Actual. Never spent alone.
+      const consumed = p.spent === null || p.spent === undefined ? null : p.spent + (p.committed ?? 0);
       const pct = contract !== null && contract > 0 && actualComplete && (p.actual_currency ?? p.currency) === p.currency
         ? Math.round(((p.spent ?? 0) / contract) * 100) : null;
       const atRisk = isMoneyAtRisk({ status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
-        spent: p.spent, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
+        spent: consumed, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
       const dot = chartTheme.categorical[i % chartTheme.categorical.length];
 
       return (

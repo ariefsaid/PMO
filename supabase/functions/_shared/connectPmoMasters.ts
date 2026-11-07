@@ -8,14 +8,26 @@ import type { MasterKind, PmoMaster, CensusDomain, PmoProjectCodeField } from '.
 import { Constants } from '../../../pmo-portal/src/lib/supabase/database.types.ts';
 
 const PAGE = 1000;
-export const OPEN_PROCUREMENT = '(Paid,Cancelled)';
+
+/**
+ * One definition of an "open" purchase (#1736): the database holds it (`connect_open_purchase_statuses`, 0703), the new-item send queue
+ * calls it and this read carries the same answer to the census and to the drain. Never restate the list here — a second copy is exactly
+ * the drift that put a Draft line in front of the Admin while the queue never sent it.
+ */
+export async function openPurchaseStatuses(sc: SupabaseClient): Promise<string[]> {
+  const { data, error } = await sc.rpc('connect_open_purchase_statuses');
+  if (error) throw new Error('could not read the open-purchase statuses');
+  const statuses = (data ?? []) as string[];
+  if (statuses.length === 0) throw new Error('the open-purchase statuses are empty');
+  return statuses;
+}
 
 /** Distinct names of the items on procurements that are still open, as `{id, name}` keyset pages. */
-async function* itemNamePages(sc: SupabaseClient, orgId: string): AsyncGenerator<Array<{ id: string; name: string }>> {
+async function* itemNamePages(sc: SupabaseClient, orgId: string, statuses: string[]): AsyncGenerator<Array<{ id: string; name: string }>> {
   let after: string | null = null;
   for (;;) {
     let q = sc.from('procurement_items').select('id, name, procurements!inner(status)').eq('org_id', orgId)
-      .not('procurements.status', 'in', OPEN_PROCUREMENT).order('id', { ascending: true }).limit(PAGE);
+      .in('procurements.status', statuses).order('id', { ascending: true }).limit(PAGE);
     if (after) q = q.gt('id', after);
     const { data, error } = await q;
     if (error) throw new Error('could not read the PMO items');
@@ -28,7 +40,8 @@ async function* itemNamePages(sc: SupabaseClient, orgId: string): AsyncGenerator
 
 async function distinctItemNames(sc: SupabaseClient, orgId: string): Promise<string[]> {
   const names = new Set<string>();
-  for await (const page of itemNamePages(sc, orgId)) for (const r of page) if (r.name) names.add(r.name);
+  const statuses = await openPurchaseStatuses(sc);
+  for await (const page of itemNamePages(sc, orgId, statuses)) for (const r of page) if (r.name) names.add(r.name);
   return [...names];
 }
 

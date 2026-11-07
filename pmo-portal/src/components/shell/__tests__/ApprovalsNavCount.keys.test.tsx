@@ -19,7 +19,7 @@ const keys = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/approvalsQueryKeys', () => ({
-  procurementsKey: keys.procurements,
+  requestedProcurementsKey: keys.procurements,
   expenseClaimsAwaitingKey: keys.expenses,
   awaitingApprovalKey: keys.timesheets,
   nativeDraftInvoicesKey: keys.invoices,

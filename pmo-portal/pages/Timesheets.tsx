@@ -47,7 +47,6 @@ const PICKER_NAME_MAX = 36;
 const TimesheetsPage: React.FC = () => {
   const { t } = useTranslation(['common', 'timesheets']);
   const isDesktop = useIsDesktop();
-  const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -73,6 +72,8 @@ const TimesheetsPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const { date: weekStartDate, key: weekStartString } = weekStart(currentDate);
+  // Windowed read: current + recent weeks; stepping back past it fetches the older weeks (perf q12).
+  const { data: sheets, isPending, isError, refetch } = useTimesheets(true, weekStartString);
   const weekDates = useMemo(() => datesInWeek(weekStartDate), [weekStartDate]);
 
   const currentTimesheet = useMemo(

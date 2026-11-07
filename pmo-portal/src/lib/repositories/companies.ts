@@ -3,6 +3,9 @@ import { AppError } from '@/src/lib/appError';
 import {
   listClientCompanies,
   listCompanies,
+  listCompaniesPage,
+  countCompanies,
+  listCompanyOptions,
   getCompany,
   getCompaniesByIds,
   createCompany,
@@ -20,6 +23,8 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import {
   type ContactRow,
   listContacts,
+  listContactsPage,
+  countContacts,
   listContactsByCompany,
   getContact,
   createContact,
@@ -30,6 +35,8 @@ import {
 import {
   listActivities,
   listActivitiesForContacts,
+  listActivitiesPage,
+  listActivitiesForContactsPage,
   createActivity,
   updateActivity,
   deleteActivity,
@@ -51,6 +58,10 @@ function erpPartyDocKind(type: CompanyType): 'supplier' | 'customer' | null {
 export const companyRepository: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
   list: (params) => wrap(() => listCompanies(params)),
+  listAll: (params) => wrap(() => listCompanies(params)),
+  listPage: (input) => wrap(() => listCompaniesPage(input)),
+  count: () => wrap(() => countCompanies()),
+  listOptions: () => wrap(() => listCompanyOptions()),
   get: (id) => wrap(() => getCompany(id)),
   getMany: (ids) => wrap(() => getCompaniesByIds(ids)),
   create: async (input) => {
@@ -87,6 +98,9 @@ export const companyRepository: CompanyRepository = {
 
 export const contactRepository: ContactRepository = {
   list: () => wrap(() => listContacts()),
+  listAll: (params) => wrap(() => listContacts(params)),
+  listPage: (input) => wrap(() => listContactsPage(input)),
+  count: () => wrap(() => countContacts()),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
   create: async (input) => {
@@ -99,6 +113,8 @@ export const contactRepository: ContactRepository = {
   delete: (id) => wrap(() => deleteContact(id)),
   listActivities: (id) => wrap(() => listActivities(id)),
   listActivitiesForContacts: (ids) => wrap(() => listActivitiesForContacts(ids)),
+  listActivitiesPage: (id, cursor) => wrap(() => listActivitiesPage(id, cursor)),
+  listActivitiesForContactsPage: (ids, cursor) => wrap(() => listActivitiesForContactsPage(ids, cursor)),
   createActivity: (input, loggedById) => wrap(() => createActivity(input, loggedById)),
   updateActivity: (id, patch) => wrap(() => updateActivity(id, patch)),
   deleteActivity: (id) => wrap(() => deleteActivity(id)),

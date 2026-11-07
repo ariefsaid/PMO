@@ -81,8 +81,9 @@ export function buildInvoiceBody(invoice: PmoInvoice, maps: InvoiceMaps): Invoic
     let quantity = line.quantity;
     let unitPrice = line.unitPrice;
     let description = line.description;
-    const unitId = line.unit === undefined ? null : maps.units[line.unit];
-    if (unitId === undefined) return refuse('unit', line.unit!);
+    const unitKey = line.unit?.trim();   // the map's keys are trimmed texts (odoo_pmo_units)
+    const unitId = unitKey === undefined ? null : maps.units[unitKey];
+    if (unitId === undefined) return refuse('unit', unitKey!);
     if (line.amount !== undefined) {
       if (!Number.isFinite(line.amount)) return refuse('line-amount', line.description);
       if (Math.abs(line.amount) >= MAX_FROZEN_LINE_AMOUNT) return refuse('line-amount-range', line.description);

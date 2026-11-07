@@ -334,6 +334,13 @@ describe('DataTable', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('F18: the error state does not show the column header row above the error panel', () => {
+    const { container } = render(
+      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="error" errorTitle="Load failed" />
+    );
+    expect(container.querySelector('thead')).toHaveClass('sr-only');
+  });
+
   it('Toolbar/SearchMini render their content', async () => {
     const { Toolbar, SearchMini } = await import('../DataTable');
     render(

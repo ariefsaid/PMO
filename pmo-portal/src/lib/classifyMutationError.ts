@@ -157,6 +157,10 @@ const KNOWN_REASON_CODES = new Set([
   'invoice-lines-count', 'invoice-line-invalid', 'invoice-total-invalid', 'vat-rate-missing',
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
+  // #1415 (migration 0731): payment-allocation refusals, mapped by `src/lib/db/revenueNative.ts`.
+  'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
+  'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
+  'request-id-reused',
 ]);
 
 /** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */
@@ -321,6 +325,11 @@ export function classifyMutationError(
   // 22023 is also raised by other app paths with their own copy; only the rejection rule is mapped here.
   if (code === '22023' && /rejection comment required/i.test(rawDetail)) {
     return { headline: 'Add a rejection comment', detail: 'Tell the requester why this purchase is rejected, then try again.', rawDetail, classification };
+  }
+
+  // #1607: 0749 refuses a PMO-only order on an ERP-owned purchase; a permission headline would misdescribe it.
+  if (code === '42501' && rawDetail.includes('Record the purchase order to place the order there')) {
+    return { headline: 'Record the purchase order instead', detail, rawDetail, classification };
   }
 
   switch (code) {

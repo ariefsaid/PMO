@@ -51,6 +51,7 @@ import { UnknownFigure } from './UnknownFigure';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
@@ -141,9 +142,13 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const financeQuery = useProjectFinances(project.id, { enabled: true });
   const actuals = financeQuery.data?.actuals;
   const authorizedActuals = ledgerBasis === 'erp' && !canViewActual ? undefined : actuals;
+  // #1739 / 0700: a PMO-basis Actual is recorded spend — the same project-finances read the Budget tab's Spent uses;
+  // the committed-spend prop drives the "PMO purchase orders" tile and is never substituted for spend.
+  const pmoSpent = authorizedActuals?.total ?? undefined;
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
-    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency,
-    actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
+    pmoSpent, pmoSpentPending: financeQuery.isPending, pmoSpentError: financeQuery.isError,
+    pmoSpentComplete: authorizedActuals?.total != null,
+    projectCurrency: project.currency, actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
   const actualPosition = moneyPosition.actual;
   const actualUnavailable = t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
@@ -157,7 +162,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
     ? attributedSplit({ attributed: authorizedActuals.attributed_total })
     : null;
   const actualCoverage = moneyPosition.coverage.kind === 'pmo'
-    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+    ? t('project:pmoSpentCoverage', 'Paid PMO purchase payments and internal equipment charges, pre-tax')
     : moneyPosition.coverage.kind === 'complete'
       ? t('uxs01.completeCoverage', 'Complete category coverage')
       : moneyPosition.coverage.kind === 'partial'
@@ -278,6 +283,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   menuContent,
 }) => {
   const { t } = useTranslation('project');
+  // #1339: the status pill names the project status in the viewer's language; the enum itself is data.
+  const projectStatusLabel = useProjectStatusLabel();
 
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -316,7 +323,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // Model B (ADR-0020): a pre-win (pipeline) / terminal (lost) deal has no contract yet, so the
   // delivery summary (StatTiles: Contract/Committed/Actual/margin/Spend) and the contract-value
   // SoD editor are mounted only for the DELIVERY lens (on-hand ∪ internal). Pre-win, the deal's
-  // figures live in the PipelineLens (Value / Win probability / Weighted) instead.
+  // figures live in the DealBand (Value / Win probability / Weighted) instead.
   const group = projectStatusGroup(project.status as never);
   const isDelivery = group === 'onHand' || group === 'internal';
 
@@ -526,7 +533,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                   <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
                 </div>}
                 <div className="border-b border-border px-3 py-3">
-                  <ProjectErpLink projectId={project.id} />
+                  <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
                 </div>
               </>
             )}
@@ -698,7 +705,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
+        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.

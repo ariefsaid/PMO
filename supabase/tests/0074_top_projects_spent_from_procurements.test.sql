@@ -33,14 +33,19 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 
 -- ── Procurements ──────────────────────────────────────────────────────────────
 -- PAID_PROJECT: one Paid PO of $3,700,000 (committed).
-insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
+insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id, budget_category) values
   ('00740000-0000-0000-0000-000000000e01','00740000-0000-0000-0000-000000000001',
    'Large Paid PO','Paid',3700000,
-   '00740000-0000-0000-0000-000000000d01','00740000-0000-0000-0000-0000000000a1'),
+   '00740000-0000-0000-0000-000000000d01','00740000-0000-0000-0000-0000000000a1','Labor'),
   -- A Draft PO that must NOT be counted (excluded from committed set).
   ('00740000-0000-0000-0000-000000000e02','00740000-0000-0000-0000-000000000001',
    'Draft PO excluded','Draft',9999999,
-   '00740000-0000-0000-0000-000000000d01','00740000-0000-0000-0000-0000000000a1');
+   '00740000-0000-0000-0000-000000000d01','00740000-0000-0000-0000-0000000000a1','Labor');
+
+-- #1739 (0700): recorded spend is the PRE-TAX PAID amount, so the Paid PO carries its payment.
+insert into payments (id, org_id, procurement_id, status, date, amount, currency) values
+  ('00740000-0000-0000-0000-0000000000c1','00740000-0000-0000-0000-000000000001',
+   '00740000-0000-0000-0000-000000000e01','Paid','2026-10-10',3700000,'USD');
 
 -- AT_RISK_PROJECT: Ordered PO of $95,000 → 95% of budget → at risk.
 insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
@@ -84,7 +89,7 @@ select is(
     where e->>'name' = 'PAID_PROJECT'
   ),
   3700000::numeric,
-  'AC-MONEY-01: top_projects.spent = committed Paid PO value (3,700,000), not dead stored column (0)'
+  'AC-MONEY-01: top_projects.spent = the Paid purchase recorded spend (3,700,000), not dead stored column (0)'
 );
 
 -- AC-MONEY-01 (2): Draft PO is excluded — spent must not include the Draft $9,999,999.

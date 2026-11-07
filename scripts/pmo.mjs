@@ -16,6 +16,7 @@
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
+ *   pmo purchases receive <procurement-id> [--line <item>=<qty> ...] [--status Partial|Complete] [--date <YYYY-MM-DD>] [--intent <uuid>] [--dry-run]   (#1866)
  *   pmo purchases journals --project <id> | attach-journals <file.json|-> [--dry-run]   (Admin, Executive, PM, Finance — #1919)
  *   pmo erp readiness | list-projects | verify-links
  *   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
@@ -53,6 +54,7 @@ import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
+import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
@@ -684,11 +686,11 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent']);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees']);
 
 export function parseArgs(argv) {
-  const flags = { filter: [] };
+  const flags = { filter: [], line: [] };
   const positionals = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -710,6 +712,7 @@ export function parseArgs(argv) {
     const value = eq === -1 ? argv[++i] : arg.slice(eq + 1);
     if (value === undefined) throw usage(`--${name} needs a value`);
     if (name === 'filter') flags.filter.push(value);
+    else if (name === 'line') flags.line.push(value);
     else flags[name] = value;
   }
   return { command: positionals[0], positionals: positionals.slice(1), flags };
@@ -795,6 +798,9 @@ const USAGE = `usage:
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
                                                    voucher_no, account, project_id, procurement_id; link only)
+  pmo purchases receive <procurement-id> [--line <item>=<qty> ...] [--status Partial|Complete] [--date <YYYY-MM-DD>] [--intent <uuid>] [--dry-run]
+                                                   (record a goods receipt; --line needs the Full plan and an Odoo-tier org; PMO-only orgs: Admin/PM, whole purchase;
+                                                    the intent is printed before sending — re-run with it to retry safely)
   pmo purchases link-file <json | @file | ->
   pmo erp readiness | list-projects | verify-links
   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
@@ -1106,6 +1112,63 @@ async function m365(ctx, positionals) {
   return { default_library: settings?.[0] ?? null, connection, last_folder_sweep: sweeps?.[0] ?? null };
 }
 
+/**
+ * A PMO-owned organisation (no connected ERP) records the receipt through the RPC the app uses (#1866 B). Whole purchase
+ * only: the RPC takes no lines. The intent is the import batch id, so a retry with it is refused by the unique index
+ * instead of recording twice. Role, org and feature rules are the RPC's (and the guard's).
+ */
+async function receiveNative(ctx, { procurementId, status, date, intent, lines, dryRun }) {
+  if (lines.length) {
+    throw new CliError('--line is not available on an organisation that records purchases in PMO: the receipt covers the whole purchase.', {
+      exit: 2, code: 'receipt_lines_unsupported_tier', hint: 'Run again without --line, or enter the line quantities in the app: Procurement, open the purchase, Record goods receipt.' });
+  }
+  const body = { p_procurement_id: procurementId, p_status: status, p_receipt_date: date, p_import_key: 'cli-receipt', p_import_batch_id: intent, p_imported_at: new Date(ctx.now()).toISOString() };
+  if (dryRun) return { dry_run: true, intent, rpc: 'create_procurement_receipt', body };
+  ctx.stderr.write(`intent: ${intent}\n`);
+  try {
+    return { intent, receipt: await authed(ctx, 'POST', '/rest/v1/rpc/create_procurement_receipt', { body }) };
+  } catch (e) {
+    if (!(e instanceof CliError)) throw e;
+    e.hint ??= e.code === '42501' ? 'Only an Admin or Project Manager can record a goods receipt, and only in their own organisation.'
+      : e.code === '23505' ? 'This intent is already recorded: the receipt exists. Run again without --intent to record another.' : undefined;
+    e.details = { ...(e.details && typeof e.details === 'object' ? e.details : {}), intent };
+    throw e;
+  }
+}
+
+/** `pmo purchases receive` (#1866): the app's goods-receipt command, under one intent (record id = idempotency key). */
+async function receive(ctx, procurementId, flags) {
+  if (!procurementId || !UUID.test(procurementId)) throw usage('purchases receive needs a purchase id: pmo purchases receive <procurement-id (uuid)> [--line <item>=<qty> ...] [--dry-run]');
+  const parsed = parseLineFlags(flags.line);
+  const status = flags.status ?? (parsed.lines?.length ? 'Partial' : 'Complete');
+  const date = flags.date ?? new Date(ctx.now()).toISOString().slice(0, 10);
+  const intent = flags.intent ?? crypto.randomUUID();
+  const problems = [...(parsed.problems ?? [])];
+  if (!RECEIPT_STATUSES.includes(status)) problems.push(`--status must be ${RECEIPT_STATUSES.join(' or ')}`);
+  if (!isReceiptDate(date)) problems.push('--date must be a real calendar date (YYYY-MM-DD)');
+  if (!UUID.test(intent)) problems.push('--intent must be a uuid (the one printed by an earlier run)');
+  if (problems.length) throw new CliError(`The receipt has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_receipt', details: problems });
+  const owned = await authed(ctx, 'GET', '/rest/v1/external_domain_ownership?select=domain,external_tier&domain=eq.procurement');
+  if (!Array.isArray(owned) || owned.length === 0) return receiveNative(ctx, { procurementId, status, date, intent, lines: parsed.lines ?? [], dryRun: Boolean(flags['dry-run']) });
+  // Per-line quantities are a tier capability, not a plan detail: only the Odoo receipt shape carries them.
+  // On any other tier the server would ignore them and receive the whole open purchase.
+  const lineRefusal = receiptLineTierRefusal(owned[0]?.external_tier, parsed.lines ?? []);
+  if (lineRefusal) throw new CliError(lineRefusal.message, { exit: 2, code: 'receipt_lines_unsupported_tier', hint: lineRefusal.hint });
+  const command = receiptCommand({ procurementId, status, date, lines: parsed.lines ?? [], intent });
+  if (flags['dry-run']) return { dry_run: true, intent, command };
+  // Printed BEFORE the dispatch: a hung run still leaves the retry id to re-run with the same --intent.
+  ctx.stderr.write(`intent: ${intent}\n`);
+  try {
+    const result = await authed(ctx, 'POST', '/functions/v1/adapter-dispatch', { body: command });
+    return { intent, external_id: result?.externalRecordId, receipt: result?.canonical };
+  } catch (e) {
+    if (!(e instanceof CliError)) throw e;
+    e.hint ??= receiptHint(e.code, e.message);
+    e.details = { ...(e.details && typeof e.details === 'object' ? e.details : {}), intent };
+    throw e;
+  }
+}
+
 async function purchases(ctx, positionals, flags) {
   const [sub, arg] = positionals;
   if (sub === 'orphans') {
@@ -1186,6 +1249,7 @@ async function purchases(ctx, positionals, flags) {
     const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
     return failed ? new Reported(report, 1) : report;
   }
+  if (sub === 'receive') return receive(ctx, arg, flags);
   if (sub === 'link-file') {
     const body = await readPayload(ctx, arg);
     if (!body || typeof body !== 'object' || Array.isArray(body) || !body.procurement_id || !body.item) {
@@ -1195,7 +1259,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, receive or link-file.`);
 }
 
 /**
