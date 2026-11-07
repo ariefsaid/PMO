@@ -112,6 +112,8 @@ export interface ServedRoutesResult {
   /** Every ERP `Budget` document the mocked ERP now holds, in creation order. */
   erpBudgets: Array<{ name: string; body: Record<string, unknown>; docstatus: number }>;
   accountMirrorRows: Array<Record<string, unknown>>;
+  /** v15 `budget_version_erp_mirror` rows written through the handler's upserts (and the keyless-refusal retirement). */
+  legacyMirrorRows: Array<Record<string, unknown>>;
   /** The outbox rows this fixture holds, keyed `<pmo_record_id>|<idempotency_key>` — so a test can state the
    *  shape a row was left in (its saved canonical, its digest) by a writer outside this request. */
   outboxRows: Map<string, Record<string, unknown>>;
@@ -124,6 +126,7 @@ export interface ServedRoutesResult {
 export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_SITE_URL): ServedRoutesResult {
   const erpBudgets: ServedRoutesResult['erpBudgets'] = [];
   const accountMirrorRows: Array<Record<string, unknown>> = [];
+  const legacyMirrorRows: Array<Record<string, unknown>> = [];
   let mirrorSeq = 0;
   let outboxSeq = 0;
   const outboxRows = new Map<string, Record<string, unknown>>();
@@ -200,7 +203,14 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
         .slice(0, Number(call.url.searchParams.get('limit') ?? '1000'));
       return call.headers.get('accept')?.includes('vnd.pgrst.object') ? objectResponse(rows[0] ?? null) : jsonResponse(rows);
     }),
-    { label: 'legacy mirror keyless-refusal retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_erp_mirror', response: () => jsonResponse([]) },
+    {
+      label: 'legacy mirror keyless-refusal retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_erp_mirror',
+      response: (call) => {
+        const year = call.url.searchParams.get('fiscal_year')?.replace(/^eq\./, '');
+        for (let index = legacyMirrorRows.length - 1; index >= 0; index--) if (legacyMirrorRows[index]?.fiscal_year === year) legacyMirrorRows.splice(index, 1);
+        return jsonResponse([]);
+      },
+    },
     {
       label: 'v16 account mirror sentinel retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_account_erp_mirror',
       response: (call) => {
@@ -349,7 +359,14 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       label: 'budget mirror upsert',
       method: 'POST',
       pathname: '/rest/v1/budget_version_erp_mirror',
-      response: () => jsonResponse([]),
+      response: (call) => {
+        if (call.method === 'POST') {
+          const row = (call.bodyJson ?? {}) as Record<string, unknown>;
+          const at = legacyMirrorRows.findIndex((r) => r.budget_version_id === row.budget_version_id && r.fiscal_year === row.fiscal_year);
+          if (at >= 0) Object.assign(legacyMirrorRows[at]!, row); else legacyMirrorRows.push({ ...row });
+        }
+        return jsonResponse([]);
+      },
     },
     supabaseRpc('surface_action_required', () => jsonResponse(null)),
     {
@@ -396,7 +413,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
     },
   ];
 
-  return { routes, erpBudgets, accountMirrorRows, outboxRows };
+  return { routes, erpBudgets, accountMirrorRows, legacyMirrorRows, outboxRows };
 }
 
 /** `?pmo_record_id=eq.<id>&idempotency_key=eq.<key>` → the map key the fixture stores rows under. */

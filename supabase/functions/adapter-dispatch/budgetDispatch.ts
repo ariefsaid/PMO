@@ -213,6 +213,11 @@ async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: str
   const keyless = !err.fiscalYear && err.finding !== undefined;
   if (!err.fiscalYear && !keyless) return;
   try {
+    // A refusal that DID resolve a year supersedes any keyless one: no stale "set the project dates" beside it.
+    if (err.fiscalYear) {
+      await serviceClient.from(versionMajor === 16 ? 'budget_version_account_erp_mirror' : 'budget_version_erp_mirror').delete()
+        .eq('org_id', orgId).eq('budget_version_id', versionId).eq('fiscal_year', '');
+    }
     const row = {
       org_id: orgId,
       budget_version_id: versionId,

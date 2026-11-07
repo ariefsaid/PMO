@@ -47,6 +47,16 @@ interface Entry {
   severity?: 'info';
 }
 
+/** Codes whose copy lives in the `project` locale (`projectDetail.budget.pushError.<code>`). The rest of this
+ *  module is still inline English: translating it is a follow-up. */
+export const TRANSLATED_PUSH_ERRORS: ReadonlySet<string> = new Set([
+  'budget-project-start-date-missing',
+  'budget-fiscal-year-unresolved',
+  'budget-fiscal-year-ambiguous',
+  'budget-multi-fiscal-year-unphased',
+  'outbox-finalize-refused',
+]);
+
 const CODES: Record<string, Entry> = {
   // ── budget push ──────────────────────────────────────────────────────────────────────────────
   'budget-category-unmapped': {
@@ -83,11 +93,12 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Set a fiscal year on every budget line (or shorten the project dates to one year), then activate again.',
   },
-  // #1364 — the ERP document exists but PMO's finalize step refused to record it, repeatedly.
+  // #1364 — the ERP document exists but PMO's finalize step refused to record it, repeatedly. The refusals
+  // behind it are rules (a different Budget on the slot, a changed version), so a Retry meets the same one.
   'outbox-finalize-refused': {
     message: 'ERPNext accepted the budget, but PMO could not record its reference after several tries.',
-    retryable: true,
-    remedy: 'Retry the push: it picks the saved ERPNext document up again rather than creating a second one.',
+    retryable: false,
+    remedy: "Retrying repeats the same refusal. Ask an administrator to check the ERPNext connection and the budget's saved reference.",
   },
   'budget-draft-rival-on-grain': {
     message: 'ERPNext already holds an unsubmitted budget for this project and fiscal year.',

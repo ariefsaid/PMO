@@ -667,7 +667,29 @@
       "spentAndCommitted": "Terpakai + komitmen",
       "unavailable": "Tidak tersedia",
       "watch": "Perlu dipantau",
-      "wholeProject": "Seluruh proyek"
+      "wholeProject": "Seluruh proyek",
+      "pushError": {
+        "budget-project-start-date-missing": {
+          "message": "Proyek belum punya tanggal mulai, jadi PMO tidak bisa menentukan tahun fiskal anggaran ini.",
+          "remedy": "Isi tanggal mulai dan selesai proyek, lalu coba kirim ulang."
+        },
+        "budget-fiscal-year-unresolved": {
+          "message": "Tidak ada tahun fiskal ERPNext yang memuat tanggal mulai atau selesai proyek.",
+          "remedy": "Tambahkan tahun fiskal yang kurang di ERPNext, atau perbaiki tanggal proyek, lalu coba kirim ulang."
+        },
+        "budget-fiscal-year-ambiguous": {
+          "message": "Lebih dari satu tahun fiskal ERPNext memuat tanggal mulai proyek, jadi PMO tidak memilih salah satunya.",
+          "remedy": "Hilangkan tumpang tindih antar tahun fiskal di ERPNext, lalu coba kirim ulang."
+        },
+        "budget-multi-fiscal-year-unphased": {
+          "message": "Proyek mencakup lebih dari satu tahun fiskal, tetapi sebagian baris anggaran belum punya tahun fiskal.",
+          "remedy": "Isi tahun fiskal pada setiap baris anggaran (atau persingkat tanggal proyek menjadi satu tahun), lalu aktifkan lagi."
+        },
+        "outbox-finalize-refused": {
+          "message": "ERPNext menerima anggaran ini, tetapi PMO gagal mencatat referensinya setelah beberapa kali mencoba.",
+          "remedy": "Mencoba lagi akan ditolak dengan alasan yang sama. Minta administrator memeriksa koneksi ERPNext dan referensi tersimpan anggaran ini."
+        }
+      }
     },
     "documents": {
       "category": {

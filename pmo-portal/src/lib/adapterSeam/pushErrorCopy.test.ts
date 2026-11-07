@@ -214,10 +214,11 @@ describe('#1364 — a refusal before writing tells the user what to fix', () => 
     expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
   });
 
-  it('a finalize that kept refusing reads as a retryable, classified sentence', () => {
+  it('a finalize that kept refusing reads as a classified sentence and withholds a Retry that meets the same rule', () => {
     const copy = describePushError('outbox-finalize-refused');
     expect(copy.code).toBe('outbox-finalize-refused');
-    expect(copy.retryable).toBe(true);
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toBeTruthy();
     expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
   });
 });

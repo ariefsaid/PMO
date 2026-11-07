@@ -80,4 +80,55 @@ describe('#1364 recorded refusals', () => {
       assertEquals(fixture.accountMirrorRows.filter((r) => r.fiscal_year === '').length, 0, 'no stale refusal beside the real outcome');
     });
   });
+
+  it('a later refusal that resolves a year retires the keyless row (no stale reason beside the real one)', async () => {
+    const seed = oneYear({ projectStartDate: null, projectEndDate: null });
+    const fixture = servedRoutes(seed, 16);
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    await withFetchMock(fixture.routes, async () => {
+      await (await handler!(pushRequest(jwt))).body?.cancel();
+      assertEquals(fixture.accountMirrorRows.filter((r) => r.fiscal_year === '').length, 1);
+      // dates fixed, but a line is now phased outside the project's single fiscal year
+      Object.assign(seed, {
+        projectStartDate: '2026-01-01', projectEndDate: '2026-12-31',
+        lineItems: [{ id: 'li-labor', category: 'Labor', budgeted_amount: '50000.00', fiscal_year: '2027' }],
+      });
+      const res = await handler!(pushRequest(jwt));
+      await res.body?.cancel();
+      assertEquals(res.status, 422);
+      assertEquals(fixture.accountMirrorRows.filter((r) => r.fiscal_year === '').length, 0, 'the keyless row is gone');
+      assertEquals(fixture.accountMirrorRows.filter((r) => r.push_error === 'budget-fiscal-year-invalid').length, 1);
+    });
+  });
+
+  it('v15: the keyless refusal is written, then retired by a later refusal that names a year', async () => {
+    const seed = oneYear({ projectStartDate: null, projectEndDate: null });
+    const fixture = servedRoutes(seed, 15);
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    await withFetchMock(fixture.routes, async () => {
+      await (await handler!(pushRequest(jwt))).body?.cancel();
+      const keyless = fixture.legacyMirrorRows.filter((r) => r.fiscal_year === '');
+      assertEquals(keyless.length, 1);
+      assertEquals(keyless[0]?.push_error, 'budget-project-start-date-missing');
+      Object.assign(seed, {
+        projectStartDate: '2026-01-01', projectEndDate: '2026-12-31',
+        lineItems: [{ id: 'li-labor', category: 'Labor', budgeted_amount: '50000.00', fiscal_year: '2027' }],
+      });
+      await (await handler!(pushRequest(jwt))).body?.cancel();
+      assertEquals(fixture.legacyMirrorRows.filter((r) => r.fiscal_year === '').length, 0);
+      assertEquals(fixture.legacyMirrorRows.filter((r) => r.fiscal_year === '2026').length, 1);
+    });
+  });
+
+  it('v15: a push that passes the gate retires the keyless refusal', async () => {
+    const seed = oneYear({ projectStartDate: null, projectEndDate: null });
+    const fixture = servedRoutes(seed, 15);
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    await withFetchMock(fixture.routes, async () => {
+      await (await handler!(pushRequest(jwt))).body?.cancel();
+      Object.assign(seed, { projectStartDate: '2026-01-01', projectEndDate: '2026-12-31' });
+      await (await handler!(pushRequest(jwt))).body?.cancel();
+      assertEquals(fixture.legacyMirrorRows.filter((r) => r.fiscal_year === '').length, 0);
+    });
+  });
 });

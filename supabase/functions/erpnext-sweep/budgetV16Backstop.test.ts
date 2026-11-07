@@ -144,3 +144,11 @@ Deno.test('the bounded combined queue is stable and one account failure does not
   }, { orgId: ORG });
   assert(outcome.errors.length === 1 && driven.join() === 'COGS', 'later account must run after one account throws');
 });
+
+Deno.test('#1364 the empty-year refusal row on a v15 org is not a push to drive', async () => {
+  const refusal = { budget_version_id: VERSION, fiscal_year: '', push_state: 'failed', erp_cancelled_at: null, created_at: '2026-10-15T10:00:00Z', id: 'refusal-row' };
+  const real = { budget_version_id: VERSION, fiscal_year: '2026', push_state: 'failed', erp_cancelled_at: null, created_at: '2026-10-15T10:00:00Z', id: 'real-row' };
+  const { client } = db({ budget_version_erp_mirror: [refusal, real] });
+  const rows = await budgetBackstopDepsLive(client, { ...BINDING, versionMajor: 15 }, []).listPendingBudgetPushes(ORG, 200);
+  assert(rows.length === 1 && rows[0].fiscal_year === '2026', `only the real year is queued: ${JSON.stringify(rows)}`);
+});
