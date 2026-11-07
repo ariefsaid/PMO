@@ -228,5 +228,7 @@
   "uxs21.unlinkTimeoutDetail",
   "uxs21.unlinkUnconfirmed",
   "uxs38.previewGapSummary_one",
-  "uxs38.previewGapSummary_other"
+  "uxs38.previewGapSummary_other",
+  "projectDetail.tasks.view.calendar",
+  "shell.nav.calendar"
 ]

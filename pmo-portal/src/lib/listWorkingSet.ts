@@ -7,7 +7,7 @@ import {
   PROCUREMENT_VIEWS,
   type ProcurementView,
 } from '../hooks/useProcurementView';
-import { ProcurementStatus } from '../../types';
+import { ProcurementStatus, ProjectStatus } from '../../types';
 import { OPEN_FUNNEL_STAGES, type OpenFunnelStage } from '../../components/salesPipeline';
 import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 
@@ -36,6 +36,16 @@ export interface ProjectsWorkingSet extends ProjectClassificationFilters {
   /** The end-customer company UUID (issue #758), mirroring `client`. */
   endClient: string;
   pm: string;
+  /** Exact project statuses from the filter builder (`status=a,b`); absent = any. */
+  statuses?: string[];
+  /** Inclusive `YYYY-MM-DD` bounds on `start_date` / `end_date`; either end may be absent (#1983). */
+  startFrom?: string;
+  startTo?: string;
+  endFrom?: string;
+  endTo?: string;
+  /** Inclusive contract-value bounds, as plain decimal strings; either end may be absent. */
+  valueMin?: string;
+  valueMax?: string;
   q: string;
   view: ProjectView;
   /**
@@ -349,10 +359,39 @@ function putClassification(params: URLSearchParams, values: ProjectClassificatio
   for (const key of CLASSIFICATION_FILTER_KEYS) putParam(params, key, values[key] ?? '');
 }
 
+/** Builder filters on Projects (#1983): every one is optional and omitted from the URL when empty. */
+const DAY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/u;
+const DECIMAL_PATTERN = /^-?\d+(\.\d+)?$/u;
+const PROJECT_DAY_KEYS = ['startFrom', 'startTo', 'endFrom', 'endTo'] as const;
+const PROJECT_VALUE_KEYS = ['valueMin', 'valueMax'] as const;
+const PROJECT_STATUS_TOKENS: readonly string[] = Object.values(ProjectStatus);
+
+function projectBuilderValues(
+  params: URLSearchParams,
+): Pick<ProjectsWorkingSet, 'statuses' | (typeof PROJECT_DAY_KEYS)[number] | (typeof PROJECT_VALUE_KEYS)[number]> {
+  const result: ReturnType<typeof projectBuilderValues> = {};
+  const statuses = [...new Set((params.get('status') ?? '').split(',').filter((s) => PROJECT_STATUS_TOKENS.includes(s)))];
+  if (statuses.length) result.statuses = statuses;
+  for (const key of PROJECT_DAY_KEYS) {
+    const day = params.get(key) ?? '';
+    if (DAY_PATTERN.test(day)) result[key] = day;
+  }
+  for (const key of PROJECT_VALUE_KEYS) {
+    const amount = params.get(key) ?? '';
+    if (DECIMAL_PATTERN.test(amount)) result[key] = amount;
+  }
+  return result;
+}
+function putProjectBuilderValues(params: URLSearchParams, value: ProjectsWorkingSet): void {
+  putParam(params, 'status', (value.statuses ?? []).join(','));
+  for (const key of [...PROJECT_DAY_KEYS, ...PROJECT_VALUE_KEYS]) putParam(params, key, value[key] ?? '');
+}
+
 const LIST_WORKING_SET_SCHEMAS: Schemas = {
   projects: {
     parse: (params, options) => ({
       ...classificationValues(params),
+      ...projectBuilderValues(params),
       filter: enumValue(
         params.get('filter'),
         PROJECT_FILTERS,
@@ -369,6 +408,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
     }),
     serialize: (params, value, options) => {
       putClassification(params, value);
+      putProjectBuilderValues(params, value);
       const omitFilter = options.projectsDefaultFilter ?? DEFAULT_PROJECT_FILTER;
       putParam(params, 'filter', value.filter, omitFilter);
       putParam(params, 'client', value.client, 'All');

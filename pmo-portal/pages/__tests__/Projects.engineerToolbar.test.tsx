@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-IXD-PIPE-W5-C5 — Projects toolbar: Engineer scope (N19)
  *
@@ -114,19 +115,22 @@ const renderAs = (role: Role) =>
     </ImpersonationProvider>,
   );
 
+const openFields = async () => {
+  await userEvent.click(screen.getByRole('button', { name: /^Add filter$/i }));
+  await screen.findByRole('option', { name: 'Status' });
+};
+
 describe('AC-IXD-PIPE-W5-C5 — Projects toolbar Engineer scope (N19)', () => {
-  it('AC-IXD-PIPE-W5-C5-N19-1: Engineer toolbar does NOT show the "Filter by customer" dropdown', () => {
+  it('AC-IXD-PIPE-W5-C5-N19-1: Engineer filter builder does NOT offer the Customer field', async () => {
     renderAs('Engineer');
-    expect(
-      screen.queryByRole('combobox', { name: /filter by customer/i }),
-    ).not.toBeInTheDocument();
+    await openFields();
+    expect(screen.queryByRole('option', { name: 'Customer' })).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-2: Engineer toolbar does NOT show the "Filter by project manager" dropdown', () => {
+  it('AC-IXD-PIPE-W5-C5-N19-2: Engineer filter builder does NOT offer the Project manager field', async () => {
     renderAs('Engineer');
-    expect(
-      screen.queryByRole('combobox', { name: /filter by project manager/i }),
-    ).not.toBeInTheDocument();
+    await openFields();
+    expect(screen.queryByRole('option', { name: 'Project manager' })).not.toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-N19-3: Engineer toolbar STILL shows the status SegFilter tabs (not removed)', () => {
@@ -141,30 +145,22 @@ describe('AC-IXD-PIPE-W5-C5 — Projects toolbar Engineer scope (N19)', () => {
     expect(screen.getByRole('searchbox', { name: /search projects/i })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-5: PM toolbar exposes the "Filter by customer" dropdown in Filters', async () => {
+  it('AC-IXD-PIPE-W5-C5-N19-5: PM filter builder offers the Customer field', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
-    expect(
-      screen.getByRole('combobox', { name: /filter by customer/i }),
-    ).toBeInTheDocument();
+    await openFields();
+    expect(screen.getByRole('option', { name: 'Customer' })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-6: PM toolbar exposes the "Filter by project manager" dropdown in Filters', async () => {
+  it('AC-IXD-PIPE-W5-C5-N19-6: PM filter builder offers the Project manager field', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
-    expect(
-      screen.getByRole('combobox', { name: /filter by project manager/i }),
-    ).toBeInTheDocument();
+    await openFields();
+    expect(screen.getByRole('option', { name: 'Project manager' })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-7: Finance toolbar exposes both manager-oriented dropdowns in Filters', async () => {
+  it('AC-IXD-PIPE-W5-C5-N19-7: Finance filter builder offers both manager-oriented fields', async () => {
     renderAs('Finance');
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
-    expect(
-      screen.getByRole('combobox', { name: /filter by customer/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('combobox', { name: /filter by project manager/i }),
-    ).toBeInTheDocument();
+    await openFields();
+    expect(screen.getByRole('option', { name: 'Customer' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Project manager' })).toBeInTheDocument();
   });
 });
