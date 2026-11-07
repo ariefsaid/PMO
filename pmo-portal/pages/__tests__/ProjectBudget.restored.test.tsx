@@ -11,7 +11,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
-import { FinanceI18nTestProvider } from './financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
   versions: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
@@ -53,7 +53,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
-vi.mock('../project-detail/useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({ actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));

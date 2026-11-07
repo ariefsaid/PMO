@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { procurementMoney, supplierUnpaid, withLinkedDocuments } from '../procurementMoney';
+import { procurementMoney, supplierUnpaid, withLinkedDocuments } from './procurementMoney';
 
 describe('procurementMoney', () => {
   it('uses the most specific recorded figures and reports the unpaid balance', () => {

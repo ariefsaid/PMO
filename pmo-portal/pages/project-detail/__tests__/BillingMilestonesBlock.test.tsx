@@ -21,7 +21,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: h.role }) }));
 
 import { BillingMilestonesBlock } from '../BillingMilestonesBlock';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const wo = (over: Partial<WorkOrderRow> = {}): WorkOrderRow => ({
   id: 'wo-1', org_id: 'org-1', project_id: 'p1', wo_number: 'WO-1', client_po_number: null, title: 'Phase 1 fabrication',
