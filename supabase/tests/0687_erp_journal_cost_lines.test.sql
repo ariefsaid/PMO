@@ -1,7 +1,7 @@
 -- 0687 (#1919): ERP journal cost lines on the project: list, attach (link only), detach, count once.
 -- Owns AC-JEC-001..012. Money path: attach/detach move open commitment, never actuals.
 begin;
-select plan(56);
+select plan(62);
 
 -- ids: org A 0687…0a, org B 0687…0b; profiles a1 Finance, a2 PM, a3 Engineer, a4 Admin, b1 Finance (org B)
 insert into organizations (id, name, default_currency) values
@@ -253,6 +253,49 @@ select is((select possibly_reversed from project_erp_journal_lines('06870000-000
   'AC-JEC-018 a later negative journal line on the same project and account flags the attached line');
 select is(public.procurement_ledger_held('06870000-0000-0000-0000-0000000000e5'), 120::numeric,
   'AC-JEC-018 the hold is kept (no reliable reversal link); the flag is the signal');
+
+-- #1507 S6-T4 AC-ODA-020: an Odoo org's `account.move` lines list through the project links; a PMO-posted bill or invoice is not a stray.
+reset role;
+insert into organizations (id, name, default_currency) values ('06870000-0000-0000-0000-0000000000a0','JEC Odoo','IDR');
+insert into auth.users (id, email) values ('06870000-0000-0000-0000-0000000000a9','jec-odoo@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('06870000-0000-0000-0000-0000000000a9','06870000-0000-0000-0000-0000000000a0','O Fin','jec-odoo@example.com','Finance','active');
+insert into projects (id, org_id, name, status) values
+  ('06870000-0000-0000-0000-0000000000f1','06870000-0000-0000-0000-0000000000a0','JEC O1','Ongoing Project');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, config, activated_at, status) values
+  ('06870000-0000-0000-0000-0000000000a0','odoo','https://odoo.example.test/','fx-jec','{"ledger_basis_at":"2026-11-05T00:00:00Z"}'::jsonb, now(), 'active');
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id) values
+  ('06870000-0000-0000-0000-0000000000a0','06870000-0000-0000-0000-0000000000f1','odoo','101');
+insert into budget_category_account_map (org_id, category, erp_account) values ('06870000-0000-0000-0000-0000000000a0','Materials','5100');
+insert into erp_gl_entry_mirror (org_id, erp_name, account, project, voucher_type, voucher_no, posting_date, debit, credit, is_cancelled, erp_modified) values
+  ('06870000-0000-0000-0000-0000000000a0','odoo:1:101','5100','101','account.move','MISC/1','2026-03-01',80,0,false,'2026-03-01 00:00:00'),
+  ('06870000-0000-0000-0000-0000000000a0','odoo:2:101','5100','101','account.move','BILL/9','2026-03-02',30,0,false,'2026-03-02 00:00:00'),
+  ('06870000-0000-0000-0000-0000000000a0','odoo:3:101','5100','101','account.move','BILL/PMO','2026-03-03',20,0,false,'2026-03-03 00:00:00'),
+  ('06870000-0000-0000-0000-0000000000a0','odoo:4:101','5100','101','account.move','INV/PMO','2026-03-04',10,0,false,'2026-03-04 00:00:00');
+insert into erp_purchase_documents (org_id, erp_doctype, erp_name, erp_docstatus, erp_modified, external_ref, pmo_owned) values
+  ('06870000-0000-0000-0000-0000000000a0','Purchase Invoice','BILL/9',1,'2026-03-02 00:00:00','account.move:90',false),
+  ('06870000-0000-0000-0000-0000000000a0','Purchase Invoice','BILL/PMO',1,'2026-03-03 00:00:00','account.move:91',true);
+insert into revenue_erp_mirror (org_id, erp_doctype, erp_name, external_ref, erp_status, erp_state, erp_docstatus, erp_modified, pmo_owned) values
+  ('06870000-0000-0000-0000-0000000000a0','Sales Invoice','INV/PMO','account.move:92','Unpaid','posted',1,'2026-03-04 00:00:00',true);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a9","role":"authenticated"}';
+select is((select array_agg(voucher_no order by voucher_no) from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1')),
+  array['BILL/9','MISC/1'], 'AC-ODA-020 the Odoo project lists its journal and its non-PMO bill, not the PMO-posted bill or invoice');
+select is((select erp_doctype from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'MISC/1'), 'account.move',
+  'AC-ODA-020 an Odoo line keeps its account.move type');
+select is((select amount from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'MISC/1'), 80::numeric,
+  'AC-ODA-020 the Odoo line carries the debit-credit amount');
+select is((select erp_url from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'BILL/9'),
+  'https://odoo.example.test/odoo/action-account.action_move_journal_line/90', 'AC-ODA-020 a move whose id is known links into Odoo');
+select is((select erp_url from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'MISC/1'), null::text,
+  'AC-ODA-020 a move whose id is unknown is plain text');
+reset role;
+update external_org_bindings set config = '{}'::jsonb where org_id = '06870000-0000-0000-0000-0000000000a0';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a9","role":"authenticated"}';
+select is((select count(*)::int from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1')), 0,
+  'AC-ODA-020 an Odoo org that has not been switched has no journal list');
+reset role;
 
 -- Table privileges: link rows are written only through the definer RPCs.
 select ok(not has_table_privilege('authenticated', 'public.erp_journal_line_links', 'insert')
