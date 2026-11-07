@@ -37,5 +37,6 @@
   "table": {
     "selectRow": "Select {{row}}",
     "selectAllRows": "Select all rows"
-  }
+  },
+  "budgetConsumption": "{{used}} of {{budget}} Active budget"
 }

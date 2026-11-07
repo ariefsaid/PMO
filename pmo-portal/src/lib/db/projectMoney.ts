@@ -13,6 +13,13 @@ export interface ProjectMoneyActuals {
   asOf: string | null;
   excludesRestrictedRows: boolean;
   complete?: boolean;
+  /**
+   * PMO basis only (0700, #1739): the project's open commitment — the unpaid remainder of its committed purchases,
+   * the Budget tab's Committed figure. `null`/absent on an ERP-ledger read or a pre-0700 payload.
+   */
+  committedTotal?: string | null;
+  /** Whether every committed purchase was readable in the project currency; false withholds the commitment. */
+  committedComplete?: boolean;
   categories: ProjectMoneyCategory[];
 }
 
@@ -40,6 +47,8 @@ export async function getProjectsMoneyCollection(ids: string[]): Promise<Record<
       as_of?: string | null;
       excludes_restricted_rows?: boolean | null;
       complete?: boolean | null;
+      committed_total?: string | null;
+      committed_complete?: boolean | null;
       categories?: Array<{ category: string; mapped: boolean; amount: string | null }> | null;
     } | null;
     active_budget_amount: string | null;
@@ -55,6 +64,8 @@ export async function getProjectsMoneyCollection(ids: string[]): Promise<Record<
         asOf: row.actuals.as_of ?? null,
         excludesRestrictedRows: row.actuals.excludes_restricted_rows ?? false,
         complete: row.actuals.complete ?? false,
+        committedTotal: row.actuals.committed_total ?? null,
+        committedComplete: row.actuals.committed_complete ?? false,
         categories: (row.actuals.categories ?? []).map((category) => ({
           category: category.category,
           mapped: category.mapped,

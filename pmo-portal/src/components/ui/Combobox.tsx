@@ -132,7 +132,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const options = ss ? ss.options : localOptions;
   // -1 = nothing highlighted yet; the first ArrowDown lands on index 0.
   const [active, setActive] = useState(-1);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; origin: string } | null>(null);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -261,7 +261,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
       const flipUp = below + ph > vh - GUTTER && above >= GUTTER;
       const top = flipUp ? Math.max(GUTTER, above) : Math.max(GUTTER, Math.min(below, vh - GUTTER - ph));
 
-      setPos({ top, left, width });
+      setPos({ top, left, width, origin: `${flipUp ? 'bottom' : 'top'} left` });
     };
 
     compute();
@@ -419,8 +419,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
         createPortal(
           <div
             ref={popRef}
-            style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 820 }}
-            className="overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
+            style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 820, '--menu-origin': pos.origin } as React.CSSProperties}
+            className="menu-pop-anim motion-reduce:animate-none overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
           >
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
               <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />

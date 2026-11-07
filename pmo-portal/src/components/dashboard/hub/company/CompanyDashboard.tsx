@@ -30,13 +30,13 @@ import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
 import { AccountingSnapshotsSection } from '@/src/components/dashboard/AccountingSnapshotsSection';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
-import { usePayablesPosition } from '@/pages/finance/payablesPosition';
+import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { ProjectedMarginBars } from '@/src/components/dashboard/ProjectedMarginBars';
 import { formatCurrency } from '@/src/lib/format';
-import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
-import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/pages/procurement/blocks/stage';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
+import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { orderByCurrency } from '../../restructure/currencyOrder';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -153,6 +153,11 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
             <MenuButton ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={menu} />
           </div>
           {percent != null && <Tooltip block content={t('dashboard:hub.company.spentOfContract', 'Spent {{spent}} of {{contract}} contract', { spent, contract })}><div className="flex w-full items-center gap-2"><ProgressBar value={percent} widthless className="min-w-0 flex-1 [&>span:first-child]:flex-1" aria-label={t('dashboard:hub.company.usedNamedAria', '{{name}}: {{percent}}% of contract used', { name, percent })} /><span className="w-10 text-right text-xs tabular">{percent}%</span></div></Tooltip>}
+          <span className="text-xs text-muted-foreground">
+            {row.budget == null
+              ? t('dashboard:executive.noActiveBudget', 'No active budget')
+              : t('dashboard:executive.activeBudgetAmount', 'Active budget: {{amount}}', { amount: money(row.budget, row.budget_currency ?? row.currency) })}
+          </span>
         </li>;
       })}
     </ul>
@@ -209,6 +214,9 @@ function ReadyToPayTable({ rows, pending, error, retry, unpaidOf }: { rows: Proc
 }
 
 /** Spending is shown only when it is complete and in the budget's currency (C4: otherwise the cell is left out). */
+const budgetSpentLabel = (rows: BudgetReviewRow[], t: (key: string, fallback: string) => string) =>
+  // #1739: a PMO-basis org's figure is the ordered..paid purchase totals (committed + spent); only a ledger org's is "Spent".
+  rows.some((row) => row.ledger_owned === false) ? t('dashboard:hub.company.committedSpent', 'Committed + spent') : t('dashboard:hub.company.spent', 'Spent');
 const budgetSpendKnown = (row: BudgetReviewRow) => row.spent !== null && row.actual_complete && row.actual_currency === row.currency;
 
 function BudgetReviewTable({ rows, pending, error, retry }: { rows: BudgetReviewRow[]; pending: boolean; error: boolean; retry: () => void }) {
@@ -218,7 +226,7 @@ function BudgetReviewTable({ rows, pending, error, retry }: { rows: BudgetReview
   const columns: Column<BudgetReviewRow>[] = [
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), rowHeader: true, cell: (row) => <span className="font-medium">{projectDisplayName(row)}</span>, exportValue: (row) => projectDisplayName(row) },
     { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), kind: 'money', align: 'num', cell: (row) => formatCurrency(row.budget, row.currency), exportValue: (row) => row.budget },
-    { key: 'spent', header: t('dashboard:hub.company.spent', 'Spent'), kind: 'money', align: 'num', cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : <span className="sr-only">{t('dashboard:hub.company.spentUnknown', 'Recorded spending is incomplete or uses a different currency.')}</span>, exportValue: (row) => row.spent ?? '' },
+    { key: 'spent', header: budgetSpentLabel(rows, t), kind: 'money', align: 'num', cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : <span className="sr-only">{t('dashboard:hub.company.spentUnknown', 'Recorded spending is incomplete or uses a different currency.')}</span>, exportValue: (row) => row.spent ?? '' },
     { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => { const pct = row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? Math.round(row.spent / row.budget * 100) : null; return pct === null ? <span className="sr-only">{t('dashboard:hub.company.budgetUsedUnknown', 'Budget or recorded spending cannot be compared.')}</span> : <div className="flex min-w-24 items-center gap-2"><ProgressBar value={pct} widthless className="min-w-10 flex-1" aria-label={t('dashboard:hub.company.usedAria', '{{percent}}% of contract used', { percent: pct })} /><span>{pct}%</span></div>; }, exportValue: (row) => row.spent !== null && row.budget > 0 ? row.spent / row.budget : '' },
     { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), kind: 'money', align: 'num', cell: (row) => row.variance === null ? <span className="sr-only">{t('dashboard:hub.company.varianceUnknown', 'Recorded spending or budget currency is incomplete.')}</span> : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
     { key: 'status', header: t('dashboard:hub.company.projectStatus', 'Project status'), cell: (row) => <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>, exportValue: (row) => statusLabel(row.status) },
@@ -399,7 +407,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const budgetColumns: Column<BudgetReviewRow>[] = [
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => projectDisplayName(row), exportValue: (row) => projectDisplayName(row) },
     { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), cell: (row) => formatCurrency(row.budget, row.currency), exportValue: (row) => row.budget },
-    { key: 'spent', header: t('dashboard:hub.company.spent', 'Spent'), cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : '', exportValue: (row) => budgetSpendKnown(row) ? row.spent! : '' },
+    { key: 'spent', header: budgetSpentLabel(budgetRows, t), cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : '', exportValue: (row) => budgetSpendKnown(row) ? row.spent! : '' },
     { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? row.spent / row.budget : '', exportValue: (row) => row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? row.spent / row.budget : '' },
     { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), cell: (row) => row.variance == null ? '' : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
     { key: 'status', header: t('dashboard:hub.company.projectStatus', 'Project status'), cell: (row) => projectStatusLabel(row.status), exportValue: (row) => projectStatusLabel(row.status) },

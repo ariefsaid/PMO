@@ -41,7 +41,7 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 import { ContractCascade, summarizeInvoiceSettlement } from '../ContractCascade';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { ToastProvider } from '@/src/components/ui';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const project = {
   id: 'p1', code: 'PRJ-1', name: 'Busy project', currency: 'IDR', contract_value: 500_000,

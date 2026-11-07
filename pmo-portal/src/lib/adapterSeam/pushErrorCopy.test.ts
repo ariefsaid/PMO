@@ -199,3 +199,30 @@ describe('FR-ECA-030 a step on a purchase ordered before the ERP connection', ()
     for (const code of ALL_CODES) expect(describePushError(code).severity).toBeUndefined();
   });
 });
+
+describe('describePushError — the refusals Odoo sends raise (#1504 S8-T6)', () => {
+  const cases: Array<[string, RegExp, boolean]> = [
+    ['validation', /refused/i, true],
+    ['ambiguous', /two .*match/i, false],
+    ['unit-unmapped', /unit/i, false],
+    ['analytic-plan-unset', /plan/i, false],
+  ];
+  it.each(cases)('%s is classified in plain words, with no token or model name', (code, words, retryable) => {
+    const copy = describePushError(code);
+    expect(copy.code).toBe(code);
+    expect(copy.message).toMatch(words);
+    expect(copy.retryable).toBe(retryable);
+    expect(copy.message).not.toMatch(/odoo|res\.|account\.|product\./i);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('a held send says a person decides, and offers no retry', () => {
+    const copy = describePushError('command-held');
+    expect(copy.retryable).toBe(false);
+    expect(copy.message).toMatch(/person/i);
+  });
+
+  it('a live mutation error carrying the token classifies the same', () => {
+    expect(describePushMutationError(new Error('ambiguous')).code).toBe('ambiguous');
+  });
+});

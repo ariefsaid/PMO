@@ -4,7 +4,7 @@ import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
-import { deriveActualPosition, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
+import { deriveActualPosition, deriveBudgetConsumption, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
@@ -104,10 +104,10 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     if (moneyPending || moneyError || !money) return { text: '' };
     const actualPosition = deriveActualPosition({
       ledgerBasis: money.ledgerBasis,
-      committedSpend: money.ledgerBasis === 'pmo' && money.actuals.currency === p.currency ? money.actuals.total ?? undefined : undefined,
-      commitmentPending: moneyPending,
-      commitmentError: moneyError,
-      commitmentComplete: money.actuals.complete,
+      pmoSpent: money.ledgerBasis === 'pmo' && money.actuals.currency === p.currency ? money.actuals.total ?? undefined : undefined,
+      pmoSpentPending: moneyPending,
+      pmoSpentError: moneyError,
+      pmoSpentComplete: money.actuals.complete,
       projectCurrency: p.currency,
       actuals: {
         currency: money.actuals.currency,
@@ -130,9 +130,25 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const exact = formatExactMoney(actual, currency, getNumberLocale());
     return { text: formatted || '', exportText: exact ? `${exact} ${currency}` : '' };
   };
+  /**
+   * #1739 / 0700: a "budget used" figure is budget CONSUMPTION, not spend. A PMO org consumes spent + open
+   * commitment (the whole order total, once — the Budget tab's Spent + Committed); a ledger org consumes its
+   * ledger Actual, unchanged. Unknown is never printed as a partial sum.
+   */
+  const consumptionOf = (p: ProjectWithRefs): { amount: string | null; complete: boolean } => {
+    const money = projectMoney?.[p.id];
+    if (!money) return { amount: null, complete: false };
+    return deriveBudgetConsumption({
+      ledgerBasis: money.ledgerBasis ?? 'erp',
+      spent: money.actuals.total,
+      committed: money.actuals.committedTotal,
+      spentComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
+        categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }),
+      committedComplete: money.actuals.committedComplete,
+    });
+  };
   const budgetExport = (p: ProjectWithRefs): string | number => {
     const money = projectMoney?.[p.id];
-    const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
     const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
     if (moneyPending || moneyError || !money) return '';
     if (!money.hasActiveBudget || activeBudget == null) {
@@ -142,16 +158,12 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
       return reason;
     }
-    if (actual == null) return '';
     if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
       return t('uxs02.currencyMismatch', 'Budget currency differs from Actual');
     }
-    const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
-      categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
-    if (!completeCoverage) {
-      return '';
-    }
-    return Math.round((actual / activeBudget) * 100);
+    const consumption = consumptionOf(p);
+    if (!consumption.complete || consumption.amount === null) return '';
+    return Math.round((Number(consumption.amount) / activeBudget) * 100);
   };
   const columns: Column<ProjectWithRefs>[] = [
     {
@@ -341,7 +353,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         const money = projectMoney![p.id]!;
         const atRisk = isAtRiskActual(p);
         return (
-          <div title={t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
+          <div title={t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget', { used: formatExactMoney(consumptionOf(p).amount, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
             <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
           </div>
         );

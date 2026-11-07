@@ -18,6 +18,7 @@ import { reconcileOdooRevenueOutbox } from '../adapter-dispatch/odooRevenueRecov
 import { reconcileOdooProcurementOutbox } from '../adapter-dispatch/odooProcurementRecovery.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 import { parseOdooOutboxRecoveryCandidates } from './odooOutboxRecovery.ts';
+import { sendAcceptedOdoo } from './odooConnectSends.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
 export const ODOO_SWEEP_TICK_MAX_CALLS = 60;
@@ -31,7 +32,7 @@ const DAY_MS = 86_400_000;
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
 type Budget = { spend: (calls?: number) => boolean; left: () => boolean; canSpend?: (calls?: number) => boolean; refund?: (calls?: number) => void };
 /** Extension seams: S6 matches new partners after `partner` pages; S7/S8 add the link reconcile and accepted sends. */
-export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt: number) => Promise<void>>> = {
+export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt: number, call: OdooCall) => Promise<void>>> = {
   partner: matchNewPartners,
 };
 /** S6: one bounded step of the org's open setup run (census staging, proposals), the same loop ERPNext's sweep runs. It has its
@@ -43,7 +44,7 @@ const advanceSetupRun = async (sc: SupabaseClient, orgId: string, r: Resolved) =
     console.error('odoo setup run step failed');   // the run counts its own failures; a store outage is retried next tick
   }
 };
-export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun];
+export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun, sendAcceptedOdoo];
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
@@ -228,7 +229,7 @@ export async function sweepOdooOrg(
         const deps = kindDeps(sc, orgId, kind, call, r.companyId!, kindBudget);
         const run = await runKind(KIND_SPECS[kind], await readCursor(sc, orgId, kind), deps);
         skippedRows += run.skipped;
-        await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget);
+        await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget, call);
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
       }
       for (const [i, domain] of purchase.entries()) {
