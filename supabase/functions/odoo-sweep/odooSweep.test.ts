@@ -30,7 +30,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>> }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -44,7 +44,47 @@ function harness(o: Opts = {}) {
   const staged = new Map<string, Array<{ externalId: string }>>();
   const lock = o.lock ?? { held: false };
   let odooCalls = 0;
+  const sendOutbox = o.sendOutbox ?? [];
+  const sf = (c: FetchCall, k: string) => c.url.searchParams.get(k)?.replace(/^eq\./, '');
+  const sbody = (c: FetchCall) => c.bodyJson as Record<string, unknown>;
+  // S8-T4: the accepted-send pass. Listed first so its row-level reads win over the generic empty answers below.
+  const sendRoutes: MockRoute[] = [
+    supabaseRpc('enqueue_new_item_sends', () => jsonResponse(0)),
+    supabaseRpc('claim_connect_sends', (c) => jsonResponse((o.claimed ?? []).slice(0, Number(sbody(c).p_limit)))),
+    supabaseRpc('connect_send_existing_link', () => jsonResponse(null)),
+    supabaseRpc('record_connect_send_result', () => jsonResponse(null)),
+    supabaseRpc('record_connect_send_held', () => jsonResponse(null)),
+    supabaseRpc('record_connect_send_failure', () => jsonResponse(false)),
+    ...(o.claimed ? [
+      supabaseSelect('companies', (c) => (c.url.searchParams.has('id') ? one({ id: sf(c, 'id'), name: `PT ${sf(c, 'id')}`, type: 'Vendor', erp_tax_id: null }) : jsonResponse([]))),
+      supabaseSelect('profiles', () => one({ id: 'admin-1' })),
+    ] : []),
+    supabaseSelect('external_command_outbox', (c) => {
+      const row = sendOutbox.find((x) => x.idempotency_key === sf(c, 'idempotency_key'));
+      if (row) return one(row);
+      const id = sf(c, 'id');
+      const match = (o.recoveryCandidates ?? (o.recoveryCandidate ? [o.recoveryCandidate] : [])).find((candidate) => candidate.id === id);
+      return match ? one(match) : none();
+    }),
+    { label: 'outbox-insert', method: 'POST', pathname: '/rest/v1/external_command_outbox', response: (c: FetchCall) => {
+      const b = sbody(c);
+      const row = { id: `ob-${sendOutbox.length + 1}`, domain: b.domain, pmo_record_id: b.pmo_record_id, idempotency_key: b.idempotency_key, state: 'pending', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null };
+      sendOutbox.push(row);
+      return one(row);
+    } },
+    { label: 'outbox-update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox', response: (c: FetchCall) => {
+      const row = sendOutbox.find((x) => x.id === sf(c, 'id'))!;
+      Object.assign(row, c.bodyJson);
+      return jsonResponse([{ id: row.id }]);
+    } },
+    supabaseRpc('claim_outbox_for_commit', (c) => { const row = sendOutbox.find((x) => x.id === sbody(c).p_id)!; Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation) + 1 }); return jsonResponse(row); }),
+    supabaseRpc('quarantine_committing', (c) => { const row = sendOutbox.find((x) => x.id === sbody(c).p_id)!; if (row.state === 'committing') row.state = 'quarantined'; return jsonResponse(row); }),
+    supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
+    supabaseRpc('confirm_outbox', (c) => { sendOutbox.find((x) => x.id === sbody(c).p_id)!.state = 'confirmed'; return jsonResponse(1); }),
+    supabaseRpc('mark_outbox_held', (c) => { sendOutbox.find((x) => x.id === sbody(c).p_id)!.state = 'held'; return jsonResponse(1); }),
+  ];
   const routes: MockRoute[] = [
+    ...sendRoutes,
     supabaseRpc('claim_erp_sweep_lock', () => { const ok = !lock.held; lock.held = true; return jsonResponse(ok); }),
     supabaseRpc('release_erp_sweep_lock', () => { lock.held = false; return jsonResponse(true); }),
     // #1783 item 4: the org's procurement entitlement at pass start (0534's service-only twin). Defaults on so every case
@@ -90,12 +130,6 @@ function harness(o: Opts = {}) {
     supabaseSelect('erp_connect_census', () => (o.accepted ? one({ accepted_at: '2026-11-01T00:00:00Z' }) : none())),
     supabaseSelect('external_master_records', () => jsonResponse([])),
     supabaseSelect('external_refs', () => jsonResponse([])),
-    supabaseSelect('external_command_outbox', (c) => {
-      const id = c.url.searchParams.get('id')?.replace(/^eq\./, '');
-      const candidates = o.recoveryCandidates ?? (o.recoveryCandidate ? [o.recoveryCandidate] : []);
-      const match = candidates.find((candidate) => candidate.id === id);
-      return match ? one(match) : none();
-    }),
     supabaseSelect('companies', (c) => jsonResponse(c.url.searchParams.has('erp_tax_id') || c.url.searchParams.has('name') ? [] : (o.pmoCompanies ?? []))),
     supabaseSelect('projects', () => jsonResponse(o.pmoProjects ?? [])),
     ...['profiles', 'procurement_items'].map((t) => supabaseSelect(t, () => jsonResponse([]))),
@@ -116,7 +150,7 @@ function harness(o: Opts = {}) {
     } },
     { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => (o.version === null ? new Response('no', { status: 404 }) : jsonResponse({ result: { server_version_info: [o.version ?? 20, 0] } })) },
   ];
-  return { fake, cursors, lock, routes };
+  return { fake, cursors, lock, routes, sendOutbox };
 }
 
 const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
@@ -678,5 +712,52 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
     assertEquals(purchaseReads(r.secondTick).length, 0);
     assertEquals(rpcCall(r.secondTick, 'apply_odoo_purchase_page').length, 0);
     assertEquals(r.secondSnapshot, r.firstSnapshot);
+  });
+});
+
+describe('odooSweep — #1504 S8-T4 accepted sends run after the passes', () => {
+  const party = (n: number) => ({ id: `prop-${n}`, kind: 'party', pmo_ids: [`c-${n}`], decided_by: 'admin-1', snapshot: {} });
+  const claims = (calls: FetchCall[]) => rpcCall(calls, 'claim_connect_sends').map((c) => c.bodyJson as { p_org_id: string; p_tier: string; p_limit: number });
+
+  it('AC-ECA-010 an accepted vendor is created in Odoo and recorded only through the result RPC; the queue is asked first', async () => {
+    const r = await sweep({ claimed: [party(1)] });
+    assertEquals(r.fake.rows('res.partner').map((p) => p.ref), ['pmo:c-1']);
+    assertEquals(rpcCall(r.calls, 'record_connect_send_result').map((c) => [(c.bodyJson as { p_id: string }).p_id, (c.bodyJson as { p_rejection: unknown }).p_rejection]), [['prop-1', null]]);
+    const names = r.calls.filter((c) => c.url.pathname.startsWith('/rest/v1/rpc/')).map((c) => c.url.pathname.split('/').pop());
+    assert(names.indexOf('enqueue_new_item_sends') >= 0 && names.indexOf('enqueue_new_item_sends') < names.indexOf('claim_connect_sends'), names.join());
+    const claim = claims(r.calls)[0];
+    assertEquals([claim.p_org_id, claim.p_tier, claim.p_limit > 0 && claim.p_limit <= 10], [ORG, 'odoo', true]);
+  });
+
+  it('a tick whose budget only fits some sends claims only that many (three Odoo calls each) and reads no more than its cap', async () => {
+    const r = await sweep({ claimed: [1, 2, 3, 4, 5, 6].map(party) }, { maxCalls: 60 });
+    const sentRows = r.fake.rows('res.partner').length;
+    const limit = claims(r.calls)[0].p_limit;
+    assert(limit > 0 && limit <= 10, String(limit));
+    assert(odoo(r.calls).length <= 60, `${odoo(r.calls).length} Odoo calls`);
+    assert(sentRows <= limit && sentRows > 0);
+  });
+
+  it('what the sends did not use is given back: a tick with nothing to send spends the same calls as before sends existed', async () => {
+    const without = await sweep({});
+    assert('ok' in without.result);
+    const r = await sweep({ claimed: [] });
+    assertEquals('ok' in r.result && r.result.calls, 'ok' in without.result && without.result.calls);
+  });
+
+  it('the sends run when the directory pass failed, and never fail the tick', async () => {
+    const r = await sweep({ claimed: [party(1)], rejectAfter: 0 });
+    assertEquals('ok' in r.result && r.result.failed, 'key-rejected');
+    assertEquals(claims(r.calls).length, 1);
+    assertEquals(rpcCall(r.calls, 'record_connect_send_result').length, 0);   // the key is gone: the row waits, it is not rejected
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+
+  it('a send pass that cannot read its claim does not fail the tick', async () => {
+    const h = harness({ claimed: [party(1)] });
+    const routes = h.routes.map((rt) => (rt.label === 'rpc:claim_connect_sends' || String(rt.pathname).endsWith('claim_connect_sends') ? { ...rt, response: () => jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) } : rt));
+    const r = await withFetchMock(routes, async ({ calls }) => ({ result: await sweepOdooOrg(client(), ORG), calls }));
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
   });
 });

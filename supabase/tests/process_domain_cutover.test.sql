@@ -29,15 +29,15 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
 -- Cases: pre = PO before the connection (requested by the engineer), between = PO after the connection but before
 -- procurement was employed, post = PO after both, nopo = nothing yet, billfirst = a PMO bill and no PO, erpbill = a
 -- PMO order plus bill, receipt and payment the ERP holds, pushed = a PO the ERP holds, other = org B's.
-insert into procurements (id, org_id, code, title, status, requested_by_id) values
-  ('04810000-0000-0000-0000-0000000000c1', '04810000-0000-0000-0000-000000000001', 'ECA4-PRE',   'Ordered before the connection', 'Ordered', '04810000-0000-0000-0000-0000000000a2'),
-  ('04810000-0000-0000-0000-0000000000c2', '04810000-0000-0000-0000-000000000001', 'ECA4-POST',  'Ordered after employing',       'Ordered', null),
-  ('04810000-0000-0000-0000-0000000000c3', '04810000-0000-0000-0000-000000000001', 'ECA4-NOPO',  'No order yet',                  'Approved', null),
-  ('04810000-0000-0000-0000-0000000000c4', '04810000-0000-0000-0000-000000000002', 'ECA4-B',     'Org B case',                    'Ordered', null),
-  ('04810000-0000-0000-0000-0000000000c7', '04810000-0000-0000-0000-000000000001', 'ECA4-BETW',  'Ordered between connect and employ', 'Ordered', null),
-  ('04810000-0000-0000-0000-0000000000c8', '04810000-0000-0000-0000-000000000001', 'ECA4-BILL1', 'Bill first, no order',          'Approved', null),
-  ('04810000-0000-0000-0000-0000000000c9', '04810000-0000-0000-0000-000000000001', 'ECA4-ERPB',  'Order in PMO, bill in the ERP', 'Ordered', null),
-  ('04810000-0000-0000-0000-0000000000ca', '04810000-0000-0000-0000-000000000001', 'ECA4-PUSH',  'Order the ERP holds',           'Ordered', null);
+insert into procurements (id, org_id, code, title, status, requested_by_id, currency) values
+  ('04810000-0000-0000-0000-0000000000c1', '04810000-0000-0000-0000-000000000001', 'ECA4-PRE',   'Ordered before the connection', 'Ordered', '04810000-0000-0000-0000-0000000000a2', 'IDR'),
+  ('04810000-0000-0000-0000-0000000000c2', '04810000-0000-0000-0000-000000000001', 'ECA4-POST',  'Ordered after employing',       'Ordered', null, 'IDR'),
+  ('04810000-0000-0000-0000-0000000000c3', '04810000-0000-0000-0000-000000000001', 'ECA4-NOPO',  'No order yet',                  'Approved', null, 'IDR'),
+  ('04810000-0000-0000-0000-0000000000c4', '04810000-0000-0000-0000-000000000002', 'ECA4-B',     'Org B case',                    'Ordered', null, 'IDR'),
+  ('04810000-0000-0000-0000-0000000000c7', '04810000-0000-0000-0000-000000000001', 'ECA4-BETW',  'Ordered between connect and employ', 'Ordered', null, 'IDR'),
+  ('04810000-0000-0000-0000-0000000000c8', '04810000-0000-0000-0000-000000000001', 'ECA4-BILL1', 'Bill first, no order',          'Approved', null, 'IDR'),
+  ('04810000-0000-0000-0000-0000000000c9', '04810000-0000-0000-0000-000000000001', 'ECA4-ERPB',  'Order in PMO, bill in the ERP', 'Ordered', null, 'IDR'),
+  ('04810000-0000-0000-0000-0000000000ca', '04810000-0000-0000-0000-000000000001', 'ECA4-PUSH',  'Order the ERP holds',           'Ordered', null, 'IDR');
 insert into purchase_orders (id, org_id, procurement_id, po_number, status, amount, created_at, currency, erp_docstatus) values
   ('04810000-0000-0000-0000-0000000000d1', '04810000-0000-0000-0000-000000000001', '04810000-0000-0000-0000-0000000000c1', 'PO-PRE',  'Issued', 1000, '2026-05-01T00:00:00Z', 'IDR', null),
   ('04810000-0000-0000-0000-0000000000d2', '04810000-0000-0000-0000-000000000001', '04810000-0000-0000-0000-0000000000c2', 'PO-POST', 'Issued', 1000, '2026-08-01T00:00:00Z', 'IDR', null),

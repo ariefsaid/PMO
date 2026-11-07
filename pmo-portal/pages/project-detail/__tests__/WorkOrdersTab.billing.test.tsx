@@ -69,8 +69,8 @@ vi.mock('../InvoiceWorkOrderModal', () => ({
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
-import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const wo = (over: Partial<WorkOrderRow> = {}): WorkOrderRow => ({
   id: 'wo-1', org_id: 'org-1', project_id: 'p1', wo_number: 'WO-1', client_po_number: 'PO-77', title: 'Phase 1 fabrication',

@@ -90,8 +90,8 @@ export function useRecordSearch(
           ? t('projects:shortName.searchProject', { name: p.name, defaultValue: 'Project · {{name}}' })
           : t('shell.palette.recordProject', 'Project'),
         code: [
-          p.pmo_project_number ? `PMO Project Number: ${p.pmo_project_number}` : null,
-          p.code ? `Client Project Code: ${p.code}` : null,
+          p.pmo_project_number ? `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${p.pmo_project_number}` : null,
+          p.code ? `${t('projects.identifiers.client', 'Client Project Code')}: ${p.code}` : null,
           p.customer_contract_ref
             ? t('shell.palette.uxs40.customerOrderReference', 'Customer order reference: {{reference}}', {
               reference: p.customer_contract_ref,
@@ -117,8 +117,8 @@ export function useRecordSearch(
             ? t('projects:shortName.searchPipeline', { name: o.name, defaultValue: 'Project · Pipeline · {{name}}' })
             : t('shell.palette.projectPipeline', 'Project · Pipeline'),
           code: [
-            o.pmo_project_number ? `PMO Project Number: ${o.pmo_project_number}` : null,
-            o.code ? `Client Project Code: ${o.code}` : null,
+            o.pmo_project_number ? `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${o.pmo_project_number}` : null,
+            o.code ? `${t('projects.identifiers.client', 'Client Project Code')}: ${o.code}` : null,
           ].filter(Boolean).join(' · ') || undefined,
           codeTokens: pipelineCodes,
           searchCodes: [o.pmo_project_number, o.code].filter((value): value is string => Boolean(value)),

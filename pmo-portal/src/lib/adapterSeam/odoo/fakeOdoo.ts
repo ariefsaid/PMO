@@ -132,6 +132,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const offset = Number(body.offset ?? 0);
     return found.slice(offset, body.limit ? offset + Number(body.limit) : undefined);
   };
+  /** Odoo answers a many2one as [id, name]; a cost account created with bare ids reads back that way (the directory parser rejects a bare id). */
+  const asM2o = (v: unknown) => (typeof v === 'number' ? [v, `#${v}`] : v);
+  const shaped = (m: string, r: Row): Row => (m === 'account.analytic.account' ? { ...r, plan_id: asM2o(r.plan_id), company_id: asM2o(r.company_id) } : r);
   const pick = (r: Row, fields?: string[]) => (fields?.length ? Object.fromEntries([['id', r.id], ...fields.map((f) => [f, r[f] ?? false])]) : { ...r });
 
   /** What validating a picking books per move: the entered quantity once anything is entered (a move left at zero stays open), else the whole demand. */
@@ -349,10 +352,10 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   };
 
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
-    search_read: (m, b) => select(m, b).map((r) => pick(r, b.fields as string[] | undefined)),
+    search_read: (m, b) => select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined)),
     search: (m, b) => select(m, b).map((r) => r.id),
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
-    read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
+    read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(shaped(m, r), b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
       if (m === 'account.move' && (vals.move_type === 'out_invoice' || vals.move_type === 'out_refund')) return createInvoice(vals);
       if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);

@@ -401,6 +401,7 @@
     "next_procurement_doc_number(uuid,text)",
     "next_project_number(uuid,uuid,timestamp with time zone)",
     "notify_workflow_user(uuid,uuid,text,text,text,text,uuid,text)",
+    "odoo_companies_employ_blocker(uuid)",
     "odoo_link_cost_account_core(uuid,uuid,uuid,text)",
     "odoo_procurement_employ_blocker(uuid)",
     "odoo_revenue_employ_blocker(uuid)",

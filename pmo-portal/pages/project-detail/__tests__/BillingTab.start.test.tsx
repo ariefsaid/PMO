@@ -45,8 +45,8 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs
 vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
 
 import BillingTab from '../tabs/BillingTab';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
-import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 beforeEach(() => {
   h.role = 'Finance';

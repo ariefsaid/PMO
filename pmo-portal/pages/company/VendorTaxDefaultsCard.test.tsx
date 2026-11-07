@@ -9,8 +9,8 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { company: { setTaxDefa
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 import { VendorTaxDefaultsCard } from './VendorTaxDefaultsCard';
 import type { CompanyRow } from '@/src/lib/db/companies';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const VENDOR = { id: 'vendor-1', org_id: 'org-1', name: 'Apex Supply', type: 'Vendor',
   default_vat_rate: null, default_pph_type: null, default_pph_rate: null } as unknown as CompanyRow;

@@ -32,7 +32,7 @@ export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel
   const menuRef = useRef<HTMLDivElement>(null);
   // -1 until the menu opens; open() lands focus on index 0.
   const [active, setActive] = useState(-1);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; origin: string } | null>(null);
 
   // The flat list of menuitem indices (separators are not focusable stops).
   const itemCount = items.length;
@@ -73,7 +73,7 @@ export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel
       const preferredTop = flipUp ? above : below;
       const top = Math.max(GUTTER, Math.min(preferredTop, vh - GUTTER - mh));
 
-      setPos({ top, left });
+      setPos({ top, left, origin: `${flipUp ? 'bottom' : 'top'} right` });
     };
     compute();
     window.addEventListener('resize', compute);
@@ -186,8 +186,9 @@ export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel
               // keep row actions above it so the toast cannot intercept menu clicks.
               zIndex: 1010,
               visibility: pos ? 'visible' : 'hidden',
-            }}
-            className="min-w-[160px] max-h-[calc(100vh-32px)] overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+              '--menu-origin': pos?.origin,
+            } as React.CSSProperties}
+            className="menu-pop-anim motion-reduce:animate-none min-w-[160px] max-h-[calc(100vh-32px)] overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
           >
             {items.map((item, i) => {
               // destructive-nav-separation: spatially separate the first danger item

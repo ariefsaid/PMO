@@ -684,7 +684,11 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
                   <span role="status" className="min-w-0 break-words text-sm">
                     {t('dashboard.uxs36CustomerFilterLabel', 'Customer')}: <span className="font-medium">
-                      {selectedCustomer?.label ?? t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}
+                      {selectedCustomer?.label ?? (customerOptionsQuery.isPending
+                        // #1175: a still-loading option request has not decided anything yet — claim
+                        // "loading", not "unavailable", until it resolves.
+                        ? t('dashboard.uxs36CustomerFilterLoading', 'Loading customer…')
+                        : t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable'))}
                     </span>
                   </span>
                   <Button

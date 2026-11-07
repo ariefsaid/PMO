@@ -618,6 +618,7 @@
     "since": "dari {{month}}: {{amount}}",
     "rising": "Naik",
     "falling": "Turun",
+    "chartName": "Tren tagihan, {{first}} sampai {{last}}: {{direction}}",
     "steady": "Stabil",
     "error": "Tren penagihan tidak dapat dimuat"
   }
