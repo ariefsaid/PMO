@@ -60,6 +60,7 @@ const executive = {
   ],
   procurements_by_status: [{ status: 'Draft', count: 2 }, { status: 'Approved', count: 1 }],
   top_projects: top,
+  attention_projects: top.map((row, i) => ({ ...row, attention_signals: i === 0 ? 1 : 0, overdue_items: i === 0 ? 2 : 0, overdue_tasks: i === 0 ? 2 : 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null })),
 };
 
 const winRate = {

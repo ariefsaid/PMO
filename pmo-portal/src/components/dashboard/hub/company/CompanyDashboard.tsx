@@ -108,17 +108,19 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
   const owners = new Map((projects ?? []).map((project) => [project.id, project.pm?.full_name ?? null]));
-  const activeStatuses = new Set<string>(ACTIVE_PROJECT_STATUSES);
-  const rows = (dashboard?.top_projects ?? []).filter((row) => activeStatuses.has(row.status)).map((row) => {
+  // #1418: the server ranks EVERY active project by attention (overdue work, over budget, waiting approvals) and
+  // cuts the list to five. `attention_projects` arrives in that order, so this list never re-sorts or re-slices —
+  // re-ranking five rows that had been chosen by contract value was exactly the defect.
+  const rows = (dashboard?.attention_projects ?? []).map((row) => {
     const comparable = row.contract_value != null && row.contract_value > 0 && row.spent != null && row.actual_complete && row.actual_currency === row.currency;
     const percent = comparable ? Math.round(row.spent! / row.contract_value! * 100) : null;
     return { row, percent };
-  }).sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1)).slice(0, 5);
+  });
   const incomplete = rows.filter(({ percent }) => percent === null).length;
   const state = pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined;
   if (state) return <ListState variant={state} rows={3} title={state === 'empty' ? t('dashboard:hub.company.noProjects', 'No delivery projects to compare yet') : state === 'error' ? t('dashboard:hub.company.projectsError', "Couldn't load delivery projects") : undefined} onRetry={retry} />;
   return <div className="grid gap-2">
-    <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topContractProjectsAttentionOrder', 'Largest 5 projects by contract, most attention first')}</p>
+    <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topAttentionProjects', 'The 5 projects that most need attention')}</p>
     {/* C4: a project whose spending is not known has no spending line; the reason is said once, here. */}
     {incomplete > 0 && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.spendIncomplete', { count: incomplete, defaultValue: '{{count}} projects have incomplete spending', defaultValue_one: '{{count}} project has incomplete spending' })}</p>}
     <ul className="divide-y divide-border" aria-label={t('dashboard:hub.company.spendingVsContract', 'Spending vs contract')}>
@@ -128,6 +130,18 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
         const manager = owners.get(row.id) ?? null;
         const contract = row.contract_value == null ? null : money(row.contract_value, row.currency);
         const facts = [manager, contract].filter(Boolean).join(' · ');
+        // #1418: why the server ranked this project — its own reason fields, nothing inferred here.
+        const reason = [
+          row.overdue_items > 0
+            ? t('dashboard:hub.company.attentionOverdue', { count: row.overdue_items, defaultValue: '{{count}} overdue', defaultValue_one: '{{count}} overdue' })
+            : null,
+          row.over_budget && row.budget_used_ratio !== null && Number.isFinite(row.budget_used_ratio)
+            ? t('dashboard:hub.company.attentionOverBudget', '{{percent}}% over budget', { percent: Math.round((row.budget_used_ratio - 1) * 100) })
+            : null,
+          row.waiting_approvals > 0
+            ? t('dashboard:hub.company.attentionApprovals', { count: row.waiting_approvals, defaultValue: '{{count}} awaiting approval', defaultValue_one: '{{count}} awaiting approval' })
+            : null,
+        ].filter(Boolean).join(' · ');
         const spent = row.spent == null ? '—' : money(row.spent, row.actual_currency ?? row.currency);
         const spendAccessibleName = !row.actual_complete
           ? t('dashboard:hub.company.projectSpendLinkIncomplete', 'Open {{name}}; spending unavailable because actuals are incomplete.', { name })
@@ -148,6 +162,7 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
             <div className="min-w-0 flex-1">
               <Link to={`/projects/${row.id}`} aria-label={spendAccessibleName} className="block whitespace-normal break-words text-sm font-medium text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{name}</Link>
               {facts && <p className="whitespace-normal break-words text-xs text-muted-foreground">{facts}</p>}
+              {reason && <p className="whitespace-normal break-words text-xs font-medium text-warning-foreground">{reason}</p>}
             </div>
             <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>
             <MenuButton ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={menu} />
