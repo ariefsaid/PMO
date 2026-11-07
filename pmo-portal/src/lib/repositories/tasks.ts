@@ -2,6 +2,7 @@
 import {
   listTasks,
   listTaskDueRows,
+  listCalendarTasks,
   listTasksByMeeting,
   listMyTasks,
   getTask,
@@ -20,6 +21,7 @@ import type { TaskRepository } from './contracts/tasks';
 export const taskRepository: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
   listDueRows: (projectIds) => wrap(() => listTaskDueRows(projectIds)),
+  listCalendar: (opts) => wrap(() => listCalendarTasks(opts)),
   listByMeeting: (meetingId) => wrap(() => listTasksByMeeting(meetingId)),
   listByAssignee: (userId) => wrap(() => listMyTasks(userId)),
   get: (id) => wrap(() => getTask(id)),

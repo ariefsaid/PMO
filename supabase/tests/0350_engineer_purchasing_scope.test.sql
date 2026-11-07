@@ -404,8 +404,8 @@ reset role;
 -- AC-SEC-232: every read-scope policy and the payment-ceiling read admit by naming the four roles that read money
 -- records (Admin, Executive, Project Manager, Finance), never by excluding one — a role added later reads no money
 -- rows until it is named.
-select is((select count(*)::int from pg_policies where policyname like '%engineer_read_scope'), 31,
-  'AC-SEC-232 thirty-one read-scope policies are installed');
+select is((select count(*)::int from pg_policies where policyname like '%engineer_read_scope'), 32,
+  'AC-SEC-232 thirty-two read-scope policies are installed (0731 adds ipa_engineer_read_scope)');
 select is_empty($$select tablename || '.' || policyname from pg_policies
                    where policyname like '%engineer_read_scope'
                      and not (qual like '%''Admin''%' and qual like '%''Executive''%'

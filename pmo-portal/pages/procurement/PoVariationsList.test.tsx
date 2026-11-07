@@ -45,9 +45,9 @@ function variation(overrides: Partial<PoVariationWithLines> = {}): PoVariationWi
   };
 }
 
-function renderList() {
+function renderList(lng: 'en' | 'id' = 'en') {
   const i18n = createInstance();
-  void i18n.init({ lng: 'en', fallbackLng: 'en', ns: ['procurement'], defaultNS: 'procurement', interpolation: { escapeValue: false },
+  void i18n.init({ lng, fallbackLng: 'en', ns: ['procurement'], defaultNS: 'procurement', interpolation: { escapeValue: false },
     resources: { en: { procurement: enProcurement }, id: { procurement: idProcurement } } });
   return render(<I18nextProvider i18n={i18n}><ToastProvider><PoVariationsList poId="po1" projectId="project1" currency="IDR" /></ToastProvider></I18nextProvider>);
 }
@@ -128,6 +128,58 @@ describe('PoVariationsList', () => {
     await user.click(within(row).getByRole('button', { name: 'Save link' }));
     expect(h.mutations.linkVariation.mutateAsync).toHaveBeenCalledWith({
       variationId: 'var-1', workOrderId: null, reason: 'No matching client work order',
+    });
+  });
+
+  describe('revise refusal reason plain-words in en and id (#1998)', () => {
+    const REFUSAL_CODES = [
+      'revision_superseded',
+      'po_has_submitted_bill',
+      'revision_not_issued',
+      'po_not_found',
+      'below-received',
+    ] as const;
+
+    it.each(REFUSAL_CODES)('renders plain words for %s in en (toast and panel badge)', async (code) => {
+      const user = userEvent.setup();
+      h.variations = { data: [variation({ requested_by: 'u3', approved_by: 'u2', status: 'Approved' })], isPending: false, isError: false, refetch: vi.fn() };
+      h.mutations.issueRevision.mutateAsync.mockRejectedValue({ message: code });
+      renderList('en');
+      const row = await screen.findByTestId('po-variation-var-1');
+      await user.click(within(row).getByRole('button', { name: /issue revision/i }));
+      const dialog = await screen.findByRole('dialog', { name: /issue a new po revision/i });
+      await user.click(within(dialog).getByRole('button', { name: /issue revision/i }));
+
+      // Panel badge
+      const badge = await within(row).findByRole('status');
+      expect(badge).toBeInTheDocument();
+      expect(badge.textContent).not.toContain(code);
+
+      // Toast
+      const toasts = await screen.findAllByRole('status');
+      const toastText = toasts.map((t) => t.textContent).join(' ');
+      expect(toastText).not.toContain(code);
+    });
+
+    it.each(REFUSAL_CODES)('renders plain words for %s in id (toast and panel badge)', async (code) => {
+      const user = userEvent.setup();
+      h.variations = { data: [variation({ requested_by: 'u3', approved_by: 'u2', status: 'Approved' })], isPending: false, isError: false, refetch: vi.fn() };
+      h.mutations.issueRevision.mutateAsync.mockRejectedValue({ message: code });
+      renderList('id');
+      const row = await screen.findByTestId('po-variation-var-1');
+      await user.click(within(row).getByRole('button', { name: /terbitkan revisi/i }));
+      const dialog = await screen.findByRole('dialog', { name: /terbitkan revisi po baru/i });
+      await user.click(within(dialog).getByRole('button', { name: /terbitkan revisi/i }));
+
+      // Panel badge
+      const badge = await within(row).findByRole('status');
+      expect(badge).toBeInTheDocument();
+      expect(badge.textContent).not.toContain(code);
+
+      // Toast
+      const toasts = await screen.findAllByRole('status');
+      const toastText = toasts.map((t) => t.textContent).join(' ');
+      expect(toastText).not.toContain(code);
     });
   });
 });

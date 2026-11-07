@@ -37,6 +37,8 @@ import {
   approveNativeInvoice,
   cancelNativeInvoice,
   cancelNativePayment,
+  applyNativeReceiptToInvoices,
+  unapplyNativeReceiptAllocation,
 } from './revenueNative';
 import { wrap, throwInvokeError } from './repositoryErrors';
 import { keyFor, dispatchCreate } from './repositoryDispatch';
@@ -94,7 +96,7 @@ export const revenueRepository: RevenueRepository = {
           },
           intent,
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
-      : createNativePayment(input),
+      : createNativePayment(input, intent),
   setReceivedDate: (siId, receivedDate) => wrap(() => setSalesInvoiceReceivedDate(siId, receivedDate)),
   // DD-EFK-1: PMO-owned e-Faktur update never routes to ERPNext or creates an outbox command.
   setEfaktur: (siId, values) => wrap(() => setSalesInvoiceEfaktur(siId, values.efakturNumber, values.efakturDate)),
@@ -154,4 +156,7 @@ export const revenueRepository: RevenueRepository = {
           );
         })
       : cancelNativePayment(ipId),
+  // #1415: no ERP counterpart (an ERP owns its own allocation); the RPCs refuse an ERP-owned org.
+  applyReceipt: (input) => applyNativeReceiptToInvoices(input),
+  unapplyAllocation: (allocationId) => unapplyNativeReceiptAllocation(allocationId),
 };

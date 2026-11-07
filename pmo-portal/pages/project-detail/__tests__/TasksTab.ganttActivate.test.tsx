@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-JR-T23: TasksTab wires ProjectGantt.onActivateTask so clicking a Gantt bar
  * opens the shared task drawer.
@@ -194,10 +195,9 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task drawer when clicked', () 
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
     await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
-    const rowActions = screen.getAllByRole('button', { name: /Row actions/i })[0];
-    await userEvent.click(rowActions);
-    const menu = rowActions.closest('details')?.querySelector('[role="menu"]') as HTMLElement;
-    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Comments' }));
+    // The row menu is the bar's context menu (right-click).
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Survey the site/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Comments' }));
     expect(await screen.findByRole('dialog', { name: 'Survey the site' })).toBeInTheDocument();
   });
 

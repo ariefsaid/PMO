@@ -1053,11 +1053,32 @@ describe('FIX 2: a post-window recovery REISSUE re-asserts the actor authz; adop
         writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
         money: { ...fake.deps, reauthorizeRecoveryReissue },
       }),
-    ).rejects.toMatchObject({ code: 'command-held' });
+    ).rejects.toMatchObject({ code: 'command-held', message: expect.stringContaining('actor no longer active') });
 
     expect(reauthorizeRecoveryReissue).toHaveBeenCalledTimes(1);
     expect(commit).not.toHaveBeenCalled(); // the critical assertion: NO reissue under a stale actor
     // Operator-visible, never dropped: the row is HELD (not confirmed, not silently discarded).
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('a SUPERSEDED revision whose recovery would reissue is HELD with reason and error naming the superseded revision, NOT actor unauthorized (#1998)', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-REISSUE', canonical: { id: 'pmo-1' } }));
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: false, message: 'revision_superseded' }));
+
+    const error = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: { ...fake.deps, reauthorizeRecoveryReissue },
+    }).catch((e) => e);
+
+    expect(error).toMatchObject({ code: 'command-held' });
+    expect(error.message).toContain('revision');
+    expect(error.message).not.toContain('actor no longer authorized');
+    expect(fake.heldReasons[0]).toMatch(/^revision-superseded/);
+    expect(fake.heldReasons[0]).not.toContain('recovery-reissue-unauthorized');
+    expect(commit).not.toHaveBeenCalled();
     expect([...fake.rows.values()][0].state).toBe('held');
   });
 

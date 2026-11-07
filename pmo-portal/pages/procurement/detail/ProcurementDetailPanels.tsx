@@ -1,3 +1,4 @@
+import { initials } from '@/src/lib/initials';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Icon, Tooltip } from '@/src/components/ui';
@@ -9,8 +10,8 @@ import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
-import { procurementMoney, type ProcurementMoneyKind } from '../blocks/procurementMoney';
-import { stageDates, stageForStatus, type StageKey } from '../blocks/stage';
+import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procurement/procurementMoney';
+import { stageDates, stageForStatus, type StageKey } from '@/src/lib/procurement/stage';
 import { computeBudgetSignal } from '../computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
 
@@ -313,10 +314,6 @@ function overdueDays(value: string | null | undefined): number {
   return dueDay < today ? Math.floor((today - dueDay) / 86_400_000) : 0;
 }
 
-function initials(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-}
-
 export interface ProcurementTimelineProps {
   procurement: ProcurementDetail;
   ledgerRows: readonly LedgerRow[];
@@ -412,7 +409,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                       <span className="block text-[13.5px] font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-[12px]">{entry.number}</span> : null}</span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
                         {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                          <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-secondary text-[12px] font-semibold text-secondary-foreground">{initials(entry.actor)}</span>
+                          <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-secondary text-[12px] font-semibold text-secondary-foreground">{initials(entry.actor, { fallback: '' })}</span>
                           <span>{entry.actor}</span>
                         </span>}
                         {entry.facts?.map((fact) => <span key={fact}>{fact}</span>)}

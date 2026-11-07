@@ -28,7 +28,7 @@ const FIELDS: Record<string, string[]> = {
   'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
-  'account.move.line': ['move_id', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
+  'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
@@ -132,6 +132,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const offset = Number(body.offset ?? 0);
     return found.slice(offset, body.limit ? offset + Number(body.limit) : undefined);
   };
+  /** Odoo answers a many2one as [id, name]; a cost account created with bare ids reads back that way (the directory parser rejects a bare id). */
+  const asM2o = (v: unknown) => (typeof v === 'number' ? [v, `#${v}`] : v);
+  const shaped = (m: string, r: Row): Row => (m === 'account.analytic.account' ? { ...r, plan_id: asM2o(r.plan_id), company_id: asM2o(r.company_id) } : r);
   const pick = (r: Row, fields?: string[]) => (fields?.length ? Object.fromEntries([['id', r.id], ...fields.map((f) => [f, r[f] ?? false])]) : { ...r });
 
   /** What validating a picking books per move: the entered quantity once anything is entered (a move left at zero stays open), else the whole demand. */
@@ -349,10 +352,10 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   };
 
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
-    search_read: (m, b) => select(m, b).map((r) => pick(r, b.fields as string[] | undefined)),
+    search_read: (m, b) => select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined)),
     search: (m, b) => select(m, b).map((r) => r.id),
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
-    read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
+    read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(shaped(m, r), b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
       if (m === 'account.move' && (vals.move_type === 'out_invoice' || vals.move_type === 'out_refund')) return createInvoice(vals);
       if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);

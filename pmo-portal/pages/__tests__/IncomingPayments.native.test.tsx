@@ -10,6 +10,8 @@ import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 
 const h = vi.hoisted(() => ({
   createPaymentMutate: vi.fn(async (_input: unknown): Promise<{ id: string }> => ({ id: 'ip-new' })),
+  applyMutate: vi.fn(async (_input: unknown): Promise<string[]> => ['al-new']),
+  unapplyMutate: vi.fn(async (_input: unknown): Promise<void> => undefined),
   payments: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   route: 'pmo' as 'pmo' | 'external',
@@ -34,6 +36,8 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useRevenueMutations: () => ({
     createPayment: { mutateAsync: h.createPaymentMutate, isPending: false },
     cancelPayment: { mutateAsync: vi.fn(), isPending: false },
+    applyReceipt: { mutateAsync: h.applyMutate, isPending: false },
+    unapplyAllocation: { mutateAsync: h.unapplyMutate, isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
 }));
@@ -58,8 +62,8 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
 });
 
 import IncomingPayments from '../IncomingPayments';
-import { FinanceI18nTestProvider } from './financeI18nTestProvider';
-import { financeTestI18n } from './financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { currencySymbol, formatCurrencyCents, instantToZonedDatetimeLocal } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
@@ -83,7 +87,10 @@ const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => 
   ip_number: null, pmo_number: 'RCV-2610070001', pmo_native: true, cancelled_at: null, reference_number: null,
   date: '2026-10-07', amount: 500_000, received_amount: 500_000, withheld_amount: 0, withholding_slip_number: null,
   currency: 'IDR', status: 'Paid', erp_docstatus: null, erp_modified: null, erp_amended_from: null,
-  erp_cancelled_at: null, created_at: '2026-10-07T00:00:00Z', ...over,
+  erp_cancelled_at: null, created_at: '2026-10-07T00:00:00Z',
+  // #1415: a receipt recorded straight from its invoice is applied to that invoice in full.
+  allocations: [{ id: 'al-1', sales_invoice_id: 'si-1', amount: 500_000, cash_amount: 500_000, withheld_amount: 0, currency: 'IDR' }],
+  ...over,
 }) as IncomingPaymentRow;
 
 const renderPage = (embedded = false, initialEntry = '/incoming-payments') => render(
@@ -121,6 +128,10 @@ beforeEach(async () => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   h.createPaymentMutate.mockReset();
   h.createPaymentMutate.mockResolvedValue({ id: 'ip-new' });
+  h.applyMutate.mockReset();
+  h.applyMutate.mockResolvedValue(['al-new']);
+  h.unapplyMutate.mockReset();
+  h.unapplyMutate.mockResolvedValue(undefined);
   h.payments.data = [];
   h.payments.isError = false;
   h.invoices.data = [];
@@ -160,7 +171,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
   });
 
   it('AC-1405 an embedded payment row opens its URL-addressable side panel with receipt facts', async () => {
-    h.payments.data = [receipt({ allocation_details: [] })];
+    h.payments.data = [receipt({ allocations: [] })];
     const user = userEvent.setup();
     renderPage(true, '/finance/receivables?view=payments');
     await user.click(screen.getByRole('button', { name: 'Open RCV-2610070001' }));
@@ -234,20 +245,22 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(amount).not.toHaveClass('font-mono');
   });
 
-  it('AC-NAR-003 a receipt recorded in PMO must name the invoice it settles', async () => {
+  it('AC-NPA-001 a receipt naming no invoice is recorded ON ACCOUNT for the customer (the invoice is optional)', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    expect(screen.getByRole('combobox', { name: /Sales Invoice \(optional\)/ })).not.toBeRequired();
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
+    expect(screen.getByText(/recorded as a payment on account for the customer/)).toBeInTheDocument();
     for (const label of [/Amount settled/, /Cash received/]) {
       const field = screen.getByLabelText(label);
       await user.clear(field);
       await user.type(field, '100');
     }
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
-    expect((await screen.findAllByText('Choose the invoice this receipt settles.')).length).toBeGreaterThan(0);
-    expect(h.createPaymentMutate).not.toHaveBeenCalled();
+    expect(h.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({ customerId: 'cust-1', paidAmount: 100, receivedAmount: 100 }));
+    expect((h.createPaymentMutate.mock.calls[0][0] as { salesInvoiceId?: string | null }).salesInvoiceId || null).toBeNull();
   });
 
   it('IP-1: each invalid-receipt summary link focuses its invoice, amount, or date control', async () => {
@@ -269,7 +282,6 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const summary = document.querySelector<HTMLElement>('[aria-label="Form errors"]');
     expect(summary).not.toBeNull();
     const cases = [
-      [/Choose the invoice this receipt settles\./, screen.getByRole('combobox', { name: /Sales Invoice/ })],
       [/Paid amount must be positive/i, screen.getByLabelText(/Amount settled/)],
       [/Received amount must be positive/i, screen.getByLabelText(/Cash received/)],
       [/payment date cannot be in the future/i, date],
@@ -647,5 +659,106 @@ describe('Receipt page — every allocation (S-06)', () => {
     h.payments.isError = false;
     renderAt('/incoming-payments/nope');
     expect(screen.getByText(/couldn.t find this receipt/i)).toBeInTheDocument();
+  });
+});
+
+// ── #1415: apply a payment to invoices (org without an ERP) ───────────────────────────────────────────────────
+describe('Incoming Payments — apply a PMO receipt to invoices (#1415)', () => {
+  const DRAWER = '/finance/receivables?view=payments&open=ip-1';
+  const onAccount = (over: Partial<IncomingPaymentRow> = {}) => receipt({ sales_invoice_id: null, allocations: [], ...over });
+
+  it('AC-NPA-010 Finance sees Apply on a PMO receipt with money left, and the unapplied figure is the whole receipt', () => {
+    h.payments.data = [onAccount()];
+    renderPage(true, DRAWER);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('button', { name: 'Apply to invoices' })).toBeInTheDocument();
+    expect(within(drawer).getAllByText('Not yet applied')).toHaveLength(2);
+  });
+
+  it('AC-NPA-010 a role that cannot record receipts has no Apply', () => {
+    h.role = 'Project Manager';
+    h.payments.data = [onAccount()];
+    renderPage(true, DRAWER);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply to invoices' })).toBeNull();
+  });
+
+  it('AC-NPA-010 a cancelled receipt has no Apply', () => {
+    h.payments.data = [onAccount({ cancelled_at: '2026-10-07T01:00:00Z' })];
+    renderPage(true, DRAWER);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply to invoices' })).toBeNull();
+  });
+
+  it('AC-NPA-011 an ERP receipt offers no Apply or Unapply, and says where the application is made', () => {
+    h.route = 'external';
+    h.payments.data = [erpReceipt({ allocation_details: twoInvoices })];
+    renderPage(true, '/finance/receivables?view=payments&open=ip-erp');
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).queryByRole('button', { name: /Apply to invoices/ })).toBeNull();
+    expect(within(drawer).queryByRole('button', { name: /^Unapply/ })).toBeNull();
+    expect(within(drawer).getByText('Allocated in your accounting system; read-only here.')).toBeInTheDocument();
+  });
+
+  it('AC-NPA-011 once an ERP owns revenue, even a PMO-recorded receipt with money left has no Apply', () => {
+    h.route = 'external';
+    h.payments.data = [onAccount()];
+    renderPage(true, DRAWER);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply to invoices' })).toBeNull();
+  });
+
+  it('AC-NPA-010 a fully applied receipt has no Apply', () => {
+    h.payments.data = [receipt()];
+    renderPage(true, DRAWER);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply to invoices' })).toBeNull();
+  });
+
+  it('AC-NPA-002 Finance applies the receipt: pick the invoice, fill its balance (capped at what the receipt has left), apply', async () => {
+    h.invoices.data = [openInvoice];
+    h.payments.data = [onAccount()];
+    const user = userEvent.setup();
+    renderPage(true, DRAWER);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply to invoices' }));
+    const form = screen.getAllByRole('dialog').at(-1)!;
+    await user.click(within(form).getByRole('combobox', { name: /Invoice/ }));
+    await user.click(await screen.findByRole('option', { name: /INV-2610070001/ }));
+    await user.click(within(form).getByRole('button', { name: 'Fill balance' }));
+    // The invoice owes 610,000 but the receipt has only 500,000: the smaller of the two.
+    expect(within(form).getByLabelText('Amount')).toHaveValue('500,000');
+    expect(within(form).getByText(/Left to apply: .*0\.00/)).toBeInTheDocument();
+    await user.click(within(form).getByRole('button', { name: 'Apply' }));
+    expect(h.applyMutate).toHaveBeenCalledWith({
+      receiptId: 'ip-1', allocations: [{ invoiceId: 'si-1', amount: 500_000 }], requestId: expect.any(String),
+    });
+  });
+
+  it('AC-NPA-011/007 each live allocation can be unapplied after a confirm', async () => {
+    h.invoices.data = [openInvoice];
+    h.payments.data = [receipt()];
+    const user = userEvent.setup();
+    renderPage(true, DRAWER);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Unapply INV-2610070001' }));
+    expect(h.unapplyMutate).not.toHaveBeenCalled();
+    const confirm = await screen.findByRole('alertdialog');
+    expect(confirm).toHaveTextContent('Take this payment off the invoice?');
+    await user.click(within(confirm).getByRole('button', { name: 'Unapply' }));
+    expect(h.unapplyMutate).toHaveBeenCalledWith({ allocationId: 'al-1' });
+  });
+
+  it('AC-NPA-010 a role that cannot record receipts has no Unapply either', () => {
+    h.role = 'Project Manager';
+    h.invoices.data = [openInvoice];
+    h.payments.data = [receipt()];
+    renderPage(true, DRAWER);
+    expect(screen.queryByRole('button', { name: /^Unapply/ })).toBeNull();
+  });
+
+  it('AC-NPA-001 the list shows an on-account receipt with no invoice, not the invoice it was recorded from', () => {
+    h.invoices.data = [openInvoice];
+    h.payments.data = [onAccount({ sales_invoice_id: 'si-1' })];
+    renderPage();
+    expect(rowFor('RCV-2610070001')).not.toHaveTextContent('INV-2610070001');
   });
 });

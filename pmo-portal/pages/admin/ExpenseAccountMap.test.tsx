@@ -5,8 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const h = vi.hoisted(() => ({
   binding: null as { status: string } | null,

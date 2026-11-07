@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { axe } from 'jest-axe';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { OdooReceiptStatus } from './OdooReceiptStatus';
 
@@ -33,5 +34,14 @@ describe('Odoo receipt status copy', () => {
   it('keeps the existing label for receipts without an Odoo outcome', () => {
     render(<OdooReceiptStatus receipt={receipt()} fallback={<span>Expected</span>} />);
     expect(screen.getByText('Expected')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['paid', { status: 'Paid', push_command_state: 'confirmed' }],
+    ['awaiting', { push_command_state: 'committing' }],
+    ['attention', { erp_cancelled_at: '2026-10-02T00:00:00Z' }],
+  ] as const)('AC-OCI-092 the %s pill has no axe violations', async (_name, overrides) => {
+    const { container } = render(<OdooReceiptStatus receipt={receipt(overrides)} />);
+    expect((await axe(container)).violations).toEqual([]);
   });
 });
