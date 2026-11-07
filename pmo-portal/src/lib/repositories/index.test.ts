@@ -287,7 +287,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // task projection refresh). 'listNumbers' added deliberately with the PM dashboard batched
       // project-number read (#1890): one narrow request for the visible cards instead of one
       // full project read per card. Exhaustive API-seam contract — extend only deliberately.
-      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPickerOptions', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),

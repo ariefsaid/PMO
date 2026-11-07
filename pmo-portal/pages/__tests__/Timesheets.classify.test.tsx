@@ -81,7 +81,7 @@ vi.mock('@/src/hooks/useTimesheetEntries', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [] }),
+  useProjectPickerOptions: () => ({ data: [] }),
 }));
 
 import Timesheets from '../Timesheets';
