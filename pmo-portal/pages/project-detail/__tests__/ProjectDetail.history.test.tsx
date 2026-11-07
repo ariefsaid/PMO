@@ -152,7 +152,7 @@ const renderAt = async (path: string) => {
   // (#1198). Tab surfaces are stubbed modules here, so the fallback clears in microtasks;
   // the wait just refuses to return before it has.
   const panel = screen.getByRole('tabpanel');
-  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 

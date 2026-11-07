@@ -191,7 +191,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
   // not-found view renders straight from the mocked record, so the wait is satisfied there.
   await waitFor(() => {
     const panel = screen.queryByRole('tabpanel');
-    if (panel) expect(within(panel).queryAllByTestId('liststate-loading')).toHaveLength(0);
+    if (panel) expect(within(panel).queryAllByTestId('project-detail-panel-loading')).toHaveLength(0);
   });
   return view;
 };

@@ -209,7 +209,7 @@ const renderAt = async (path: string) => {
   // mocked settled, so the fallback clears with the record commit — the wait refuses to
   // return before it has.
   const panel = screen.getByRole('tabpanel');
-  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 

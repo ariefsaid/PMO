@@ -89,7 +89,7 @@ const renderOverview = async () => {
   // while the panel still showed its loading skeleton. The Overview content is static, so
   // the fallback clears with the record commit.
   const panel = screen.getByRole('tabpanel');
-  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   await within(panel).findByRole('heading', { level: 2, name: 'Phase timeline' });
   return panel;
 };
