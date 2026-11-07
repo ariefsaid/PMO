@@ -34,8 +34,7 @@ alter table public.odoo_ledger_checks force row level security;
 create policy odoo_ledger_checks_select on public.odoo_ledger_checks for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and (select public.auth_role()) in ('Admin','Finance','Executive'));
-create policy odoo_ledger_checks_service on public.odoo_ledger_checks for all
-  using (((select auth.jwt()) ->> 'role') = 'service_role') with check (((select auth.jwt()) ->> 'role') = 'service_role');
+-- No service policy: service_role bypasses RLS and holds the grants below; a permissive policy without the membership gate fails 0203.
 revoke all on public.odoo_ledger_checks from public, anon, authenticated;
 grant select on public.odoo_ledger_checks to authenticated;
 grant select, insert, update, delete on public.odoo_ledger_checks to service_role;
