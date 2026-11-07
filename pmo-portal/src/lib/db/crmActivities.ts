@@ -95,7 +95,8 @@ export interface ActivityPage {
   nextCursor: ActivityCursor | null;
 }
 
-type ActivityQuery = ReturnType<ReturnType<typeof supabase.from<'crm_activities'>>['select']>;
+const selectActivities = () => supabase.from('crm_activities').select('*');
+type ActivityQuery = ReturnType<typeof selectActivities>;
 
 /**
  * One timeline page, newest-first (#1990). Keyset on (occurred_at desc, id desc) — a total
@@ -107,7 +108,7 @@ async function readActivityPage(
   scope: (q: ActivityQuery) => ActivityQuery,
   cursor: ActivityCursor | null,
 ): Promise<ActivityPage> {
-  let query = scope(supabase.from('crm_activities').select('*'))
+  let query = scope(selectActivities())
     .order('occurred_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(ACTIVITY_PAGE_SIZE + 1);
