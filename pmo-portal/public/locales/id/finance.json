@@ -191,7 +191,8 @@
     "mobileOutstandingUnknown": "Saldo terutang tidak diketahui",
     "mobileInvoiceAmountInclusive": "Total faktur termasuk PPN",
     "mobileInvoiceAmountUnspecified": "Jumlah faktur",
-    "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}."
+    "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}.",
+    "allocatedInErp": "Dialokasikan di sistem akuntansi Anda; hanya bisa dilihat di sini."
   },
   "invoices": {
     "description": "Faktur klien.",
@@ -204,7 +205,47 @@
     "statusAwaitingOdoo": "Kuitansi terkirim, menunggu Odoo",
     "statusPaidOdoo": "Lunas",
     "journalLabel": "Diterima di",
-    "titleUnnumbered": "Kuitansi, belum bernomor"
+    "titleUnnumbered": "Kuitansi, belum bernomor",
+    "apply": {
+      "title": "Terapkan ke faktur",
+      "subtitle": "{{amount}} belum diterapkan",
+      "submit": "Terapkan",
+      "action": "Terapkan ke faktur",
+      "noOpenInvoices": "Pelanggan ini tidak punya faktur yang sudah disetujui dalam {{currency}} dan masih ada sisa tagihan.",
+      "invoiceCol": "Faktur",
+      "invoicePlaceholder": "Pilih faktur…",
+      "amountCol": "Jumlah",
+      "fillBalance": "Isi sisa tagihan",
+      "removeRow": "Hapus faktur ini",
+      "addInvoice": "Tambah faktur lain",
+      "leftToApply": "Sisa yang bisa diterapkan: {{amount}}",
+      "exceedsReceipt": "Jumlahnya melebihi sisa pembayaran yang belum diterapkan.",
+      "exceedsBalance": "Jumlahnya melebihi sisa tagihan faktur ({{amount}}).",
+      "pickInvoice": "Pilih faktur.",
+      "amountPositive": "Isi jumlah di atas nol, maksimal 2 angka desimal.",
+      "done": "Pembayaran diterapkan"
+    },
+    "unapply": {
+      "action": "Batalkan penerapan",
+      "actionFor": "Batalkan penerapan {{invoice}}",
+      "confirmTitle": "Tarik pembayaran ini dari faktur?",
+      "confirmBody": "Jumlahnya kembali ke \"Belum diterapkan\" pada pembayaran, dan {{invoice}} kembali memiliki sisa tagihan sebesar itu.",
+      "done": "Pembayaran ditarik dari faktur"
+    },
+    "onAccount": {
+      "mode": "Belum ada faktur dipilih: pembayaran ini dicatat untuk pelanggan tanpa faktur. Anda bisa menerapkannya ke faktur nanti."
+    },
+    "refusal": {
+      "allocationExceedsUnapplied": "Jumlahnya melebihi sisa pembayaran yang belum diterapkan.",
+      "allocationExceedsBalance": "Jumlahnya melebihi sisa tagihan faktur.",
+      "allocationAmountInvalid": "Periksa jumlahnya: tiap jumlah harus di atas nol, maksimal 2 angka desimal.",
+      "allocationDuplicateInvoice": "Satu faktur hanya boleh dicantumkan sekali.",
+      "allocationClientMismatch": "Faktur itu milik klien lain.",
+      "allocationCurrencyMismatch": "Faktur itu memakai mata uang lain.",
+      "allocationAlreadyReversed": "Bagian pembayaran ini sudah ditarik dari faktur.",
+      "receiptNotApplicable": "Pembayaran ini tidak bisa diterapkan lagi. Mungkin sudah dibatalkan.",
+      "requestIdReused": "Permintaan ini sudah dipakai untuk pembayaran lain. Tutup jendela ini dan mulai lagi."
+    }
   },
   "statements": {
     "amountsIn": "Jumlah dalam",

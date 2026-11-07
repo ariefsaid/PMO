@@ -191,7 +191,8 @@
     "mobileOutstandingUnknown": "Outstanding balance unknown",
     "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
     "mobileInvoiceAmountUnspecified": "Invoice amount",
-    "pairedCountedOnce": "Counted once with the ERP invoice {{number}}."
+    "pairedCountedOnce": "Counted once with the ERP invoice {{number}}.",
+    "allocatedInErp": "Allocated in your accounting system; read-only here."
   },
   "invoices": {
     "description": "Client invoices.",
@@ -204,7 +205,47 @@
     "statusAwaitingOdoo": "Receipt sent, awaiting Odoo",
     "statusPaidOdoo": "Paid",
     "journalLabel": "Received into",
-    "titleUnnumbered": "Receipt, not numbered yet"
+    "titleUnnumbered": "Receipt, not numbered yet",
+    "apply": {
+      "title": "Apply to invoices",
+      "subtitle": "{{amount}} not yet applied",
+      "submit": "Apply",
+      "action": "Apply to invoices",
+      "noOpenInvoices": "This customer has no approved invoice in {{currency}} that still owes money.",
+      "invoiceCol": "Invoice",
+      "invoicePlaceholder": "Choose an invoice…",
+      "amountCol": "Amount",
+      "fillBalance": "Fill balance",
+      "removeRow": "Remove this invoice",
+      "addInvoice": "Add another invoice",
+      "leftToApply": "Left to apply: {{amount}}",
+      "exceedsReceipt": "This is more than the payment has left to apply.",
+      "exceedsBalance": "This is more than the invoice still owes ({{amount}}).",
+      "pickInvoice": "Choose an invoice.",
+      "amountPositive": "Enter an amount above zero, with no more than 2 decimals.",
+      "done": "Payment applied"
+    },
+    "unapply": {
+      "action": "Unapply",
+      "actionFor": "Unapply {{invoice}}",
+      "confirmTitle": "Take this payment off the invoice?",
+      "confirmBody": "The amount goes back to \"Not yet applied\" on the payment, and {{invoice}} owes it again.",
+      "done": "Payment taken off the invoice"
+    },
+    "onAccount": {
+      "mode": "No invoice chosen: this is recorded as a payment on account for the customer. You can apply it to invoices afterwards."
+    },
+    "refusal": {
+      "allocationExceedsUnapplied": "This is more than the payment has left to apply.",
+      "allocationExceedsBalance": "This is more than the invoice still owes.",
+      "allocationAmountInvalid": "Check the amounts: each one must be above zero, with no more than 2 decimals.",
+      "allocationDuplicateInvoice": "An invoice can be listed only once.",
+      "allocationClientMismatch": "That invoice belongs to a different client.",
+      "allocationCurrencyMismatch": "That invoice is in a different currency.",
+      "allocationAlreadyReversed": "This part of the payment was already taken off the invoice.",
+      "receiptNotApplicable": "This payment can no longer be applied. It may have been cancelled.",
+      "requestIdReused": "This request was already used for a different payment. Close this window and start again."
+    }
   },
   "statements": {
     "amountsIn": "Amounts in",

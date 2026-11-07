@@ -3738,7 +3738,6 @@
     "overpaidBy": "Kelebihan bayar {{amount}}",
     "carriedIntoErpOpening": "Dibawa ke saldo awal ERP: {{amount}} pada {{date}}",
     "nativeIncomingPaymentsDescription": "Penerimaan pelanggan yang dicatat di PMO atas faktur yang telah disetujui.",
-    "salesInvoiceLabel": "Faktur Penjualan",
     "salesInvoiceRequired": "Pilih faktur yang dilunasi penerimaan ini.",
     "paymentDateLabel": "Tanggal pembayaran",
     "paymentDateNotFuture": "Tanggal pembayaran tidak boleh di masa depan.",
