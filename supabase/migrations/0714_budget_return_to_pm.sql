@@ -79,3 +79,9 @@ begin
 end $$;
 revoke all on function public.resubmit_budget_version(uuid) from public, anon;
 grant execute on function public.resubmit_budget_version(uuid) to authenticated;
+
+-- change-history catalogue: classify the new columns (record_changes_catalog_gate).
+update public.record_history_config
+   set captured = captured || '{"returned_at":"timestamp","return_reason":"text"}'::jsonb,
+       omit_cols = omit_cols || '{returned_by}'::text[]
+ where entity_type = 'budget_version' and not (captured ? 'returned_at');
