@@ -1,5 +1,7 @@
--- Reverse 0747: the 0307 org_reads_erp_ledger and the 0687 journal-line functions, byte for byte.
-drop function if exists public.switch_odoo_ledger_basis(boolean);
+-- Reverse 0765: the 0307 org_reads_erp_ledger and the 0687 journal-line functions, byte for byte.
+drop function if exists public.switch_odoo_ledger_basis(boolean, text);
+-- An org that switched keeps no basis key (m2): the feed stops publishing with the reader back on the document basis.
+update public.external_org_bindings set config = config - 'ledger_basis_at' where config ? 'ledger_basis_at';
 
 create or replace function public.org_reads_erp_ledger()
 returns boolean

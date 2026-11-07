@@ -1,7 +1,7 @@
 -- 0687 (#1919): ERP journal cost lines on the project: list, attach (link only), detach, count once.
 -- Owns AC-JEC-001..012. Money path: attach/detach move open commitment, never actuals.
 begin;
-select plan(62);
+select plan(67);
 
 -- ids: org A 0687…0a, org B 0687…0b; profiles a1 Finance, a2 PM, a3 Engineer, a4 Admin, b1 Finance (org B)
 insert into organizations (id, name, default_currency) values
@@ -271,7 +271,8 @@ insert into erp_gl_entry_mirror (org_id, erp_name, account, project, voucher_typ
   ('06870000-0000-0000-0000-0000000000a0','odoo:1:101','5100','101','account.move','MISC/1','2026-03-01',80,0,false,'2026-03-01 00:00:00'),
   ('06870000-0000-0000-0000-0000000000a0','odoo:2:101','5100','101','account.move','BILL/9','2026-03-02',30,0,false,'2026-03-02 00:00:00'),
   ('06870000-0000-0000-0000-0000000000a0','odoo:3:101','5100','101','account.move','BILL/PMO','2026-03-03',20,0,false,'2026-03-03 00:00:00'),
-  ('06870000-0000-0000-0000-0000000000a0','odoo:4:101','5100','101','account.move','INV/PMO','2026-03-04',10,0,false,'2026-03-04 00:00:00');
+  ('06870000-0000-0000-0000-0000000000a0','odoo:4:101','5100','101','account.move','INV/PMO','2026-03-04',10,0,false,'2026-03-04 00:00:00'),
+  ('06870000-0000-0000-0000-0000000000a0','odoo:5:101','5100','101','account.move','/','2026-03-05',5,0,false,'2026-03-05 00:00:00');
 insert into erp_purchase_documents (org_id, erp_doctype, erp_name, erp_docstatus, erp_modified, external_ref, pmo_owned) values
   ('06870000-0000-0000-0000-0000000000a0','Purchase Invoice','BILL/9',1,'2026-03-02 00:00:00','account.move:90',false),
   ('06870000-0000-0000-0000-0000000000a0','Purchase Invoice','BILL/PMO',1,'2026-03-03 00:00:00','account.move:91',true);
@@ -280,15 +281,35 @@ insert into revenue_erp_mirror (org_id, erp_doctype, erp_name, external_ref, erp
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a9","role":"authenticated"}';
 select is((select array_agg(voucher_no order by voucher_no) from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1')),
-  array['BILL/9','MISC/1'], 'AC-ODA-020 the Odoo project lists its journal and its non-PMO bill, not the PMO-posted bill or invoice');
+  array['MISC/1'], 'AC-ODA-020 the Odoo project lists its journal only: no bill or invoice mirrored as a document (pulled, pushed or adopted), no unposted move named "/"');
 select is((select erp_doctype from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'MISC/1'), 'account.move',
   'AC-ODA-020 an Odoo line keeps its account.move type');
 select is((select amount from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'MISC/1'), 80::numeric,
   'AC-ODA-020 the Odoo line carries the debit-credit amount');
-select is((select erp_url from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'BILL/9'),
-  'https://odoo.example.test/odoo/action-account.action_move_journal_line/90', 'AC-ODA-020 a move whose id is known links into Odoo');
 select is((select erp_url from project_erp_journal_lines('06870000-0000-0000-0000-0000000000f1') where voucher_no = 'MISC/1'), null::text,
-  'AC-ODA-020 a move whose id is unknown is plain text');
+  'AC-ODA-020 an Odoo journal line is plain text (a move mirrored as a document is not listed, so no listed move has a known id)');
+reset role;
+
+-- I1 count once: a bill pulled from Odoo is held through its document link; it can never also be held through a journal link.
+update erp_purchase_documents set net_total = 30, grand_total = 30 where org_id = '06870000-0000-0000-0000-0000000000a0' and erp_name = 'BILL/9';
+insert into procurements (id, org_id, title, requested_by_id, project_id, currency, total_value, status) values
+  ('06870000-0000-0000-0000-0000000000e9','06870000-0000-0000-0000-0000000000a0','PO','06870000-0000-0000-0000-0000000000a9','06870000-0000-0000-0000-0000000000f1','IDR',100,'Ordered');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a9","role":"authenticated"}';
+select is(pg_temp.attach('BILL/9','06870000-0000-0000-0000-0000000000f1','5100','06870000-0000-0000-0000-0000000000e9') ->> 'reason', 'line_not_found',
+  'AC-ODA-020 a journal link to a pulled bill is refused before the bill is linked to a purchase');
+reset role;
+insert into procurement_erp_links (org_id, procurement_id, erp_purchase_document_id)
+  select org_id, '06870000-0000-0000-0000-0000000000e9', id from erp_purchase_documents where org_id = '06870000-0000-0000-0000-0000000000a0' and erp_name = 'BILL/9';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a9","role":"authenticated"}';
+select is(public.procurement_ledger_held('06870000-0000-0000-0000-0000000000e9'), 30::numeric, 'AC-ODA-020 the pulled bill is held once, through its document link');
+select is(pg_temp.attach('BILL/9','06870000-0000-0000-0000-0000000000f1','5100','06870000-0000-0000-0000-0000000000e9') ->> 'reason', 'line_not_found',
+  'AC-ODA-020 a journal link to a mirrored bill is refused');
+select is(pg_temp.attach('/','06870000-0000-0000-0000-0000000000f1','5100','06870000-0000-0000-0000-0000000000e9') ->> 'reason', 'line_not_found',
+  'AC-ODA-020 a journal link to an unposted move is refused');
+select is(public.procurement_ledger_held('06870000-0000-0000-0000-0000000000e9'), 30::numeric, 'AC-ODA-020 the bill is still held once, not twice');
+select is((select count(*)::int from erp_journal_line_links where org_id = '06870000-0000-0000-0000-0000000000a0'), 0, 'AC-ODA-020 no journal link was written');
 reset role;
 update external_org_bindings set config = '{}'::jsonb where org_id = '06870000-0000-0000-0000-0000000000a0';
 set local role authenticated;
