@@ -84,8 +84,12 @@ const renderOverview = async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: bind the wait to the boundary ProjectSections actually renders (see #1198) — the
+  // retired project-detail-panel-loading id asserted nothing, so the findBy below could run
+  // while the panel still showed its loading skeleton. The Overview content is static, so
+  // the fallback clears with the record commit.
   const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
   await within(panel).findByRole('heading', { level: 2, name: 'Phase timeline' });
   return panel;
 };

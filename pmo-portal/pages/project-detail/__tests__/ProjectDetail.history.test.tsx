@@ -146,6 +146,13 @@ const renderAt = async (path: string) => {
     </ImpersonationProvider>,
   );
   await waitFor(() => expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument());
+  // #1344: the tablist and the tabpanel land in the same commit, but a demand-loaded tab
+  // chunk can still sit behind the panel's Suspense fallback — the retired
+  // project-detail-panel-loading id this helper family used to name asserted nothing
+  // (#1198). Tab surfaces are stubbed modules here, so the fallback clears in microtasks;
+  // the wait just refuses to return before it has.
+  const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
   return view;
 };
 
