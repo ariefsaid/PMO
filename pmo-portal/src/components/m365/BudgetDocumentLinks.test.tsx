@@ -123,7 +123,7 @@ describe('BudgetDocumentLinks Draft mutations', () => {
     mock.mayMutate.mockReturnValue(false);
     render(<BudgetDocumentLinks versionId="v1" status="Draft" />);
     expect(screen.queryByRole('button', { name: /Link from Microsoft 365/ })).not.toBeInTheDocument();
-    expect(screen.getByText('Evidence is read-only on this version.')).toBeInTheDocument();
+    expect(screen.getByText('Evidence is read-only: your role cannot change budget evidence.')).toBeInTheDocument();
   });
 
   it('AC-M365DOC-062 removal asks to confirm; Cancel removes nothing, Confirm calls only removeDocumentLink', async () => {
