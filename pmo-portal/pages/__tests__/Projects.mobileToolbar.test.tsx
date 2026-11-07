@@ -8,7 +8,7 @@
  * filters / export / import copies are absent in this branch.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -281,7 +281,7 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     expect(add).toHaveAttribute('aria-expanded', 'true');
     await user.keyboard('{Escape}');
     expect(add).toHaveAttribute('aria-expanded', 'false');
-    expect(add).toHaveFocus();
+    await waitFor(() => expect(add).toHaveFocus());
   });
 
   it('AC-PRJUX-003: More actions exposes Export/Import/Import budgets and closes on Escape with focus restored', async () => {
