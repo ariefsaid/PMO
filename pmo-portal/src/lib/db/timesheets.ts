@@ -26,10 +26,15 @@ const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name
  */
 export async function listTimesheets(
   userId: string,
+  opts: { fromWeek?: string } = {},
 ): Promise<TimesheetWithEntries[]> {
-  // Complete keyset scan (a capped single response would drop the oldest weeks silently).
+  // Complete keyset scan (a capped single response would drop the oldest weeks silently). `fromWeek`
+  // (Monday ISO) bounds it server-side to weeks >= that date: the window is an explicit, caller-owned
+  // range — every week inside it is still returned, none dropped; weeks before it are the caller's
+  // to fetch on demand with an earlier `fromWeek`.
   const data = await fetchAllRowsByKeyset<TimesheetWithEntries>(async (afterId, limit) => {
     let q = supabase.from('timesheets').select(SELECT).eq('user_id', userId).order('id', { ascending: true });
+    if (opts.fromWeek) q = q.gte('week_start_date', opts.fromWeek);
     if (afterId !== null) q = q.gt('id', afterId);
     const res = await q.limit(limit);
     return { data: res.data as unknown as TimesheetWithEntries[] | null, error: res.error };
