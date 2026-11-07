@@ -33,6 +33,8 @@ export const isExcludedSource = (relPath) => {
   if (/(^|\/)\w[\w.-]*\.config\.[cm]?[jt]sx?$/.test(relPath)) return true;
   if (/(^|\/)e2e\//.test(relPath)) return true;
   if (/(^|\/)test\//.test(relPath)) return true;
+  // Vendored third-party UI kits (copied in via shadcn/ReUI): scored like node_modules, not our code.
+  if (/(^|\/)src\/components\/(reui|shadcn)\//.test(relPath)) return true;
   return false;
 };
 

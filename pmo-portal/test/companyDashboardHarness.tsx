@@ -79,9 +79,13 @@ export function resetCompanyDashboardHarness() {
     pipeline_projected_margin: null,
     on_hand_actual_coverage_count: 1,
     on_hand_actual_coverage_total: 2,
-    top_projects: [{
+    top_projects: [],
+    // #1418: the Delivery list reads the server-ranked attention array, in the server's order.
+    attention_projects: [{
       id: 'p1', name: 'Alpha', client_name: null, contract_value: 1_000, currency: 'USD', budget: null,
       spent: 500, actual_currency: 'USD', actual_complete: true, status: 'Ongoing Project',
+      attention_signals: 1, overdue_items: 1, overdue_tasks: 1, overdue_milestones: 0, overdue_invoices: 0,
+      waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
     }],
   };
   dashboardHarness.today = [{ id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', href: '/projects?filter=Ongoing' }];

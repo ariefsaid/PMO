@@ -120,6 +120,12 @@ const KEY_PATH = (o: unknown, path: string) =>
     return undefined;
   }, o);
 describe('AC-EC-005 — end-customer i18n catalogue', () => {
+  it('AC-EC-005: the filter builder End customer field has a Bahasa label', () => {
+    const read = (l: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${l}/projects.json`), 'utf8'));
+    expect(read('en').filterBuilder.endCustomer).toBe('End customer');
+    expect(read('id').filterBuilder.endCustomer).toBe('Pelanggan akhir');
+  });
+
   it('AC-EC-005: every end-customer key has an English source and a non-empty Indonesian translation', () => {
     const keys = [
       'projectForm.endCustomer.label',
@@ -127,9 +133,6 @@ describe('AC-EC-005 — end-customer i18n catalogue', () => {
       'projectForm.endCustomer.search',
       'projectForm.endCustomer.noun',
       'projects.filters.allEndCustomers',
-      'projects.filters.endCustomerLabel',
-      'projects.mobile.endCustomer',
-      'projects.mobile.removeEndCustomer',
       'projectDetail.rail.endCustomer',
       'sales.column.endCustomer',
       'combobox.clear',

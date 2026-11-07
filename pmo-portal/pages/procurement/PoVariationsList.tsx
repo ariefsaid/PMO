@@ -9,7 +9,24 @@ import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import type { PoVariationWithLines } from '@/src/lib/db/subcontracts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { matchRefusalReasonKey } from '@/src/lib/procurement/odooOutcome';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
+
+const DEFAULT_REFUSAL_HEADLINES: Record<string, string> = {
+  revision_superseded: 'Revision superseded',
+  po_has_submitted_bill: 'Cannot revise billed order',
+  revision_not_issued: 'Revision not issued',
+  po_not_found: 'Purchase order not found',
+  'below-received': 'Quantity below received',
+};
+
+const DEFAULT_REFUSAL_DETAILS: Record<string, string> = {
+  revision_superseded: 'A newer revision already exists for this purchase order. View the latest revision.',
+  po_has_submitted_bill: 'This purchase order has a submitted supplier bill in the ERP and cannot be revised.',
+  revision_not_issued: 'This purchase order revision has not been issued yet in PMO.',
+  po_not_found: 'The purchase order could not be found.',
+  'below-received': 'Ordered quantity cannot be reduced below the quantity already received or billed.',
+};
 
 const statusTone: Record<string, StatusVariant> = { Requested: 'warn', Approved: 'won', Revised: 'won', Rejected: 'lost', Disputed: 'lost' };
 type Decision = { variation: PoVariationWithLines; approve: boolean };
@@ -37,6 +54,14 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
   const [linkErrors, setLinkErrors] = useState<Record<string, string>>({});
 
   const fail = (error: unknown) => {
+    const rawCode = (error as { message?: string; details?: string })?.details ?? (error as { message?: string })?.message ?? '';
+    const refusalKey = matchRefusalReasonKey(rawCode);
+    if (refusalKey) {
+      const headline = t(`subcontract.variations.refusal.${refusalKey}.headline`, DEFAULT_REFUSAL_HEADLINES[refusalKey]);
+      const detail = t(`subcontract.variations.refusal.${refusalKey}.detail`, DEFAULT_REFUSAL_DETAILS[refusalKey]);
+      toast(headline, detail, 'warning');
+      return;
+    }
     const classified = classifyMutationError(error);
     toast(classified.headline, classified.detail, 'warning');
   };
@@ -72,7 +97,18 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
         const headline = t('subcontract.variations.reviseNotSentHeadline', 'Not sent: the ERP revision route is not available yet');
         const detail = t('subcontract.variations.reviseNotSentDetail', 'The approved variation remains in PMO. No purchase order revision was issued.');
         setPendingPush((state) => ({ ...state, [variation.id]: { status: 'not-sent', error: { headline, detail } } }));
-      } else fail(error);
+      } else {
+        const rawCode = (error as { message?: string; details?: string })?.details ?? (error as { message?: string })?.message ?? '';
+        const refusalKey = matchRefusalReasonKey(rawCode);
+        if (refusalKey) {
+          const headline = t(`subcontract.variations.refusal.${refusalKey}.headline`, DEFAULT_REFUSAL_HEADLINES[refusalKey]);
+          const detail = t(`subcontract.variations.refusal.${refusalKey}.detail`, DEFAULT_REFUSAL_DETAILS[refusalKey]);
+          toast(headline, detail, 'warning');
+          setPendingPush((state) => ({ ...state, [variation.id]: { status: 'push-failed', error: { headline, detail } } }));
+        } else {
+          fail(error);
+        }
+      }
     }
   };
 

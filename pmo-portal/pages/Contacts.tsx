@@ -1,6 +1,6 @@
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
   SearchMini,
@@ -15,15 +15,15 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useContactsExportAll, useContactsPage, useContactsTotal, useContactMutations } from '@/src/hooks/useContacts';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useCompanyPartyMappings } from '@/src/hooks/useCompanyPartyMappings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
@@ -31,16 +31,24 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import type { ContactRow } from '@/src/lib/db/contacts';
 import { ContactFormModal } from './contact/ContactFormModal';
 
+/** The server page size (#1989): 50, the established Odoo-directory/AdminUsers page size. */
+const PAGE_SIZE = 50;
+
 const Contacts: React.FC = () => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useContacts();
   // PGA02-004: the company directory backs this page's filter options, export company names and
   // the create/edit form's company select — its loading/error state is consumed, not discarded.
-  const { data: companyData, isPending: companiesPending, isError: companiesError, refetch: refetchCompanies } = useCompanies();
+  // #1989: a picker must offer EVERY company, so the options read stays whole-directory — but it
+  // narrows to the display fields (id + name) instead of the wide company row.
+  const companyOptionsQuery = useCompanyOptions();
+  const companyData = companyOptionsQuery.data;
+  const companiesPending = companyOptionsQuery.isPending;
+  const companiesError = companyOptionsQuery.isError;
+  const refetchCompanies = companyOptionsQuery.refetch;
   const { create, update, archive, remove } = useContactMutations();
   const ownership = useDomainOwnershipMode('companies');
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
@@ -55,8 +63,33 @@ const Contacts: React.FC = () => {
   // restores the list's scroll once its rows have loaded (`contentReady`).
   const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
     useListSearchWorkingSet('contacts');
-  const { openRecord } = useListReturn({ list: 'contacts', contentReady: !isPending && !isError });
   const companyFilter = workingSet.company;
+
+  // #1989 (the Master-data pattern): the directory reads ONE server page with the company filter
+  // and search applied SERVER-side, plus the exact matching total. The whole contact directory is
+  // no longer loaded to filter it in the browser.
+  const [page, setPage] = useState(1);
+  const directory = useContactsPage({ companyId: companyFilter, search, page, pageSize: PAGE_SIZE });
+  const { openRecord } = useListReturn({ list: 'contacts', contentReady: !directory.isPending && !directory.isError });
+  const unfiltered = companyFilter === 'All' && !search.trim();
+  // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
+  // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
+  const totalCount = useContactsTotal({ enabled: !unfiltered });
+  const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
+  const total = directory.data?.total ?? 0;
+  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
+  const exportAll = useContactsExportAll();
+
+  // A committed filter/search change (typing pause, a select change, or a Back-restore of the URL
+  // working set) makes the old page number meaningless — always land on page 1.
+  useEffect(() => { setPage(1); }, [companyFilter, search]);
+
+  // Out-of-range correction (the AdminUsers ruling): a deletion or a narrowing filter can leave
+  // `page` past the last page — an empty page-N is corrected down instead of shown as truth.
+  useEffect(() => {
+    if (!directory.data || pageRows.length > 0 || total === 0 || page <= 1) return;
+    setPage(Math.max(1, Math.ceil(total / PAGE_SIZE)));
+  }, [directory.data, pageRows.length, total, page]);
 
   const [formTarget, setFormTarget] = useState<{ contact: ContactRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<ContactRow | null>(null);
@@ -101,29 +134,16 @@ const Contacts: React.FC = () => {
   // directory has actually resolved (a transient failure would silently export blank names).
   const companiesReady = !companiesPending && !companiesError;
 
-  const all = useMemo(() => data ?? [], [data]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return all
-      .filter((c) => companyFilter === 'All' || c.company_id === companyFilter)
-      .filter(
-        (c) =>
-          !q ||
-          c.full_name.toLowerCase().includes(q) ||
-          (c.email ?? '').toLowerCase().includes(q),
-      );
-  }, [all, search, companyFilter]);
-
-  // AC-LRC-012: the DataTable's `empty` branch (with `clearFilters`) only renders when
-  // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'` below), so a
+  // AC-LRC-012 (server-page form): the DataTable's `empty` branch (with `clearFilters`) only
+  // renders when the DIRECTORY holds rows (`unfiltered` false ⇒ the zero-match is a filtered
+  // zero-match; the collection-empty case is the page-level `state === 'empty'` below), so a
   // zero-match result there is always a filtered zero-match.
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
+  const state: 'loading' | 'empty' | 'error' | undefined = directory.isPending
     ? 'loading'
-    : isError || !data
+    : directory.isError || !directory.data
       ? 'error'
-      : all.length === 0
+      : total === 0 && unfiltered
         ? 'empty'
         : undefined;
 
@@ -220,8 +240,8 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
-      count={data ? filtered.length : undefined}
-      total={data ? all.length : undefined}
+      count={directory.data ? total : undefined}
+      total={directory.data && !unfiltered ? directoryTotal : undefined}
       description={
         // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
         // attendees and minutes lives in the Meetings module — so this copy no longer promises
@@ -274,7 +294,17 @@ const Contacts: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && companiesReady && (
-          <ExportButton rows={filtered} columns={columns} entity="Contacts" />
+          <ExportAllButton
+            entity="Contacts"
+            columns={columns}
+            hasRows={total > 0}
+            fetchRows={() =>
+              exportAll.mutateAsync({
+                companyId: companyFilter === 'All' ? undefined : companyFilter,
+                search: search.trim() || undefined,
+              })
+            }
+          />
         )
       }
       importAction={
@@ -282,7 +312,7 @@ const Contacts: React.FC = () => {
           <ImportButton
             entity="contact"
             descriptor={importDescriptor}
-            onImported={() => void refetch()}
+            onImported={() => void directory.refetch()}
           />
         )
       }
@@ -319,7 +349,7 @@ const Contacts: React.FC = () => {
           variant="error"
           title={t('contacts.states.errorTitle', "Couldn't load contacts")}
           sub={t('contacts.states.errorSub', 'The request failed. Check your connection and try again.')}
-          onRetry={() => refetch()}
+          onRetry={() => directory.refetch()}
         />
       )}
 
@@ -348,24 +378,59 @@ const Contacts: React.FC = () => {
       )}
 
       {state === undefined && (
-        <DataTable<ContactRow>
-          rows={filtered}
-          columns={columns}
-          rowKey={(c) => c.id}
-          // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the
-          // drawer-as-record is retired). Create/edit-in-modal are unchanged.
-          // list-working-set-return (#683, AC-LRC-007): capture the current filtered/searched
-          // Contacts URL + scroll position as return context instead of a bare navigate.
-          onActivate={(c) => openRecord(`/contacts/${c.id}`)}
-          // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
-          // notReady `t` the unit suite uses (no i18next instance is mounted there).
-          rowLabel={(c) => `Open ${c.full_name}`}
-          rowMenu={canRowWrite ? rowMenu : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
-          emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
-          emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        tableId="contacts-table" />
+        <>
+          <DataTable<ContactRow>
+            rows={pageRows}
+            columns={columns}
+            rowKey={(c) => c.id}
+            // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the
+            // drawer-as-record is retired). Create/edit-in-modal are unchanged.
+            // list-working-set-return (#683, AC-LRC-007): capture the current filtered/searched
+            // Contacts URL + scroll position as return context instead of a bare navigate.
+            onActivate={(c) => openRecord(`/contacts/${c.id}`)}
+            // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
+            // notReady `t` the unit suite uses (no i18next instance is mounted there).
+            rowLabel={(c) => `Open ${c.full_name}`}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            state={pageRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
+            emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
+            emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
+          tableId="contacts-table" />
+
+          {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
+          <nav aria-label={t('contacts.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+            <span>
+              {total === 0
+                ? ''
+                : t('contacts.pager.range', '{{from}}–{{to}} of {{total}}', {
+                    from: (page - 1) * PAGE_SIZE + 1,
+                    to: Math.min(page * PAGE_SIZE, total),
+                    total,
+                  })}
+            </span>
+            <span className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || directory.isFetching}
+                onClick={() => setPage((p) => p - 1)}
+                aria-label={t('contacts.pager.prev', 'Previous page')}
+              >
+                <Icon name="back" aria-hidden="true" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page * PAGE_SIZE >= total || directory.isFetching}
+                onClick={() => setPage((p) => p + 1)}
+                aria-label={t('contacts.pager.next', 'Next page')}
+              >
+                <Icon name="chev" aria-hidden="true" />
+              </Button>
+            </span>
+          </nav>
+        </>
       )}
 
       {formTarget && (

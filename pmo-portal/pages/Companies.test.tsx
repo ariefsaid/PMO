@@ -9,13 +9,20 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations } = vi.hoisted(() => ({
-  listState: {
-    data: [] as unknown[],
-    isPending: false,
-    isError: false,
-    refetch: vi.fn(),
-  },
+// #1989: the page reads ONE SERVER page and no longer filters in the browser, so the
+// useCompaniesPage mock is a SERVER STUB: it mirrors the directory read's contract (type filter
+// + search applied before the range, one pageSize window, exact total). The page is tested
+// against what a conforming server sends — never against in-memory narrowing.
+const h = vi.hoisted(() => ({
+  directory: [] as Array<Record<string, unknown>>,
+  pending: false,
+  error: false,
+  /** Overrides the stub's exact total (defaults to the filtered directory length). */
+  totalOverride: null as number | null,
+  /** The "of Y" the head-count query returns (null = the query has not answered). */
+  allTotal: null as number | null,
+  refetch: vi.fn(),
+  lastInput: null as Record<string, unknown> | null,
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -28,8 +35,28 @@ const { listState, mutations } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => listState,
-  useCompanyMutations: () => mutations,
+  useCompaniesPage: (input: { type: string; search: string; page: number; pageSize: number }) => {
+    h.lastInput = input;
+    const q = input.search.trim().toLowerCase();
+    const matching = h.directory.filter((c) => {
+      const typeOk = input.type === 'All' || c.type === input.type;
+      const searchOk = !q || String(c.name).toLowerCase().includes(q) || String(c.short_name ?? '').toLowerCase().includes(q);
+      return typeOk && searchOk;
+    });
+    const start = (input.page - 1) * input.pageSize;
+    return {
+      data: h.error || h.pending
+        ? null
+        : { rows: matching.slice(start, start + input.pageSize), total: h.totalOverride ?? matching.length },
+      isPending: h.pending,
+      isError: h.error,
+      isFetching: false,
+      refetch: h.refetch,
+    };
+  },
+  useCompaniesTotal: () => ({ data: h.allTotal, isPending: false, isError: false }),
+  useCompaniesExportAll: () => ({ mutateAsync: vi.fn(async () => h.directory), isPending: false }),
+  useCompanyMutations: () => h.mutations,
 }));
 
 // list-working-set-return (#683): the page now writes real router navigation for its `type`/`q`
@@ -51,6 +78,7 @@ const seed = [
   { id: 'c2', name: 'Steelforge Fabrication', type: 'Vendor', org_id: 'org-1', archived_at: null, created_at: '2026-02-01T00:00:00Z' },
   { id: 'c3', name: 'Internal Holdings', type: 'Internal', org_id: 'org-1', archived_at: null, created_at: '2026-03-01T00:00:00Z' },
 ];
+const mutations = h.mutations;
 
 // list-working-set-return (#683): reads the REAL router location so tests can assert the URL
 // (filter/search round-trip) and the record-open return-context `location.state` without mocking
@@ -92,10 +120,13 @@ const sizeMainScroll = (): HTMLElement => {
 };
 
 beforeEach(() => {
-  listState.data = seed;
-  listState.isPending = false;
-  listState.isError = false;
-  listState.refetch.mockClear();
+  h.directory = [...seed];
+  h.pending = false;
+  h.error = false;
+  h.totalOverride = null;
+  h.allTotal = null;
+  h.refetch.mockClear();
+  h.lastInput = null;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -126,17 +157,21 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     expect(screen.getAllByText('Client').length).toBeGreaterThan(0);
   });
 
-  it('AC-CO-001: the type filter narrows the visible rows', async () => {
+  it('AC-CO-001: the type filter narrows the visible rows — by asking the SERVER for that type', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Supplier$/ }));
-    expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
+    // the page passes the URL filter to the server page read…
+    await waitFor(() => expect(h.lastInput).toMatchObject({ type: 'Vendor' }));
+    // …and renders exactly the rows that read returns (the searched-out type stays out).
+    await waitFor(() => expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument());
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 
-  it('AC-CO-001: search filters rows by name', async () => {
+  it('AC-CO-001: search filters rows by name — the committed term goes to the server', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search companies/i), 'steel');
-    expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
+    await waitFor(() => expect(h.lastInput).toMatchObject({ search: 'steel' }));
+    await waitFor(() => expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument());
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 
@@ -173,23 +208,105 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
 
 describe('Companies index — states', () => {
   it('AC-CO-001: loading skeleton while pending', () => {
-    listState.isPending = true;
+    h.pending = true;
     renderPage();
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
   it('AC-CO-001: error state with retry', async () => {
-    listState.isError = true;
+    h.error = true;
     renderPage();
     const retry = screen.getByRole('button', { name: /Retry/i });
     await userEvent.click(retry);
-    expect(listState.refetch).toHaveBeenCalled();
+    expect(h.refetch).toHaveBeenCalled();
   });
 
   it('AC-CO-001: empty state teaches with a gated New company action', () => {
-    listState.data = [];
+    h.directory = [];
     renderPage('Admin');
     expect(screen.getByText(/No companies yet/i)).toBeInTheDocument();
+  });
+
+  it('AC-CO-001: a filtered zero-match is the table empty state, NOT the collection-empty one (AC-LRC-012)', () => {
+    h.directory = [seed[0]];
+    renderPage('Admin', '/companies?q=zzz');
+    expect(screen.getByText(/No companies match your filters/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No companies yet/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('Companies index — server paging (#1989)', () => {
+  const bigDirectory = [
+    ...seed,
+    ...Array.from({ length: 57 }, (_, i) => ({
+      id: `c-bulk-${i}`,
+      name: `Bulk Co ${String(i + 1).padStart(2, '0')}`,
+      type: 'Client',
+      org_id: 'org-1',
+      archived_at: null,
+    })),
+  ];
+
+  it('renders ONE page of rows and the pager range, with a working Next page', async () => {
+    h.directory = bigDirectory;
+    renderPage();
+    // page 1 window: 50 of the 60 matching rows
+    expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
+    expect(screen.getByText('Bulk Co 47')).toBeInTheDocument();
+    expect(screen.queryByText('Bulk Co 51')).not.toBeInTheDocument();
+    expect(screen.getByText('1–50 of 60')).toBeInTheDocument();
+    const next = screen.getByRole('button', { name: /Next page/i });
+    expect(next).toBeEnabled();
+    await userEvent.click(next);
+    await waitFor(() => expect(screen.getByText('Bulk Co 51')).toBeInTheDocument());
+    expect(h.lastInput).toMatchObject({ page: 2 });
+    expect(screen.getByText('51–60 of 60')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Next page/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Previous page/i })).toBeEnabled();
+  });
+
+  it('a filter/search change lands on page 1 of the new result set', async () => {
+    h.directory = bigDirectory;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /Next page/i }));
+    await waitFor(() => expect(screen.getByText('51–60 of 60')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('tab', { name: /^Supplier$/ }));
+    // the vendor set is small — page 1 of it, not page 2 of the old result set
+    await waitFor(() => expect(h.lastInput).toMatchObject({ type: 'Vendor', page: 1 }));
+    expect(screen.getByText('1–1 of 1')).toBeInTheDocument();
+    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
+  });
+
+  it('"Showing X of Y" compares the filtered total against the whole directory', async () => {
+    h.directory = bigDirectory;
+    h.allTotal = 60;
+    renderPage();
+    // unfiltered: count === directory total → the bare count, no "Showing" split
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('60');
+    await userEvent.click(screen.getByRole('tab', { name: /^Supplier$/ }));
+    await waitFor(() => expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 1 of 60'));
+  });
+
+  it('an out-of-range page corrects down instead of showing an empty page as truth', async () => {
+    h.directory = bigDirectory;
+    const tree = () => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/companies?q=bulk']}>
+          <Companies />
+        </MemoryRouter>
+      </ToastProvider>
+    );
+    const view = render(tree());
+    await waitFor(() => expect(screen.getByText('1–50 of 57')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: /Next page/i }));
+    await waitFor(() => expect(screen.getByText('51–57 of 57')).toBeInTheDocument());
+    // the directory shrinks under the user (rows deleted elsewhere): the page read now comes
+    // back EMPTY on page 2 with total 1 — an empty page-N is corrected down, never shown as truth.
+    h.directory = [seed[0]];
+    h.totalOverride = 1;
+    view.rerender(tree());
+    await waitFor(() => expect(h.lastInput).toMatchObject({ page: 1 }));
+    await waitFor(() => expect(screen.getByText('1–1 of 1')).toBeInTheDocument());
   });
 });
 
@@ -421,7 +538,7 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
   });
 
   it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {
-    listState.isPending = true;
+    h.pending = true;
     const entry = {
       pathname: '/companies',
       search: '?type=Vendor',
@@ -444,7 +561,7 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(main.scrollTop).toBe(0);
 
-    listState.isPending = false;
+    h.pending = false;
     rerender(tree());
     await waitFor(() => expect(main.scrollTop).toBe(300));
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
@@ -454,7 +571,7 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
 
 describe('company short names', () => {
   it('AC-NICK-001: lists prefer the short name and search matches short and legal names', async () => {
-    listState.data = [{ ...seed[0], short_name: 'Example' }, seed[1]];
+    h.directory = [{ ...seed[0], short_name: 'Example' }, seed[1]];
     renderPage();
     expect(screen.getByText('Example')).toBeInTheDocument();
     expect(screen.getByText(seed[1].name)).toBeInTheDocument();
@@ -481,7 +598,7 @@ describe('company short names', () => {
   it('preserves the stored legal name when saving an external company nickname', async () => {
     setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     const original = { ...seed[0], name: `  ${seed[0].name}  ` };
-    listState.data = [original];
+    h.directory = [original];
     renderPage();
     await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));

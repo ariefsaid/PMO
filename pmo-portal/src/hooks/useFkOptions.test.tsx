@@ -25,7 +25,7 @@ import {
 } from './useFkOptions';
 import { I18nextProvider } from 'react-i18next';
 import { act } from '@testing-library/react';
-import { financeTestI18n } from '@/pages/__tests__/financeI18nTestInstance';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
