@@ -111,6 +111,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 // mock satisfies every caller (compatible shapes, no caller-specific behavior needed).
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
+  useProjectPickerOptions: () => projectsState,
   useProject: () => ({ data: null }),
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
