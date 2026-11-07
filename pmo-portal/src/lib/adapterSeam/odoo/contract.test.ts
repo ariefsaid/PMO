@@ -26,10 +26,16 @@ describe('odoo contract', () => {
 
   it('refuses workflows it has not built yet instead of pretending', async () => {
     expect(() => harness.resolveProjectLink({}, 'x')).toThrow(/pending/);
-    await expect(harness.pushBudget({ account: 'a', fiscalYear: '2026', occupant: 'none' })).rejects.toThrow(/pending/);
     await expect(harness.pushTimesheet({ employeeLink: 'confirmed', entries: [], activityType: 'configured' })).rejects.toThrow(/pending/);
-    await expect(harness.pushBudgetVersion({ categories: [], mappedCategories: [], project: 'own' })).rejects.toThrow(/pending/);
-    await expect(harness.readActuals({ ledger: [], projectLinks: {} })).rejects.toThrow(/pending/);
+  });
+
+  it('AC-ODA-019 declares actuals.read supported and the three budget workflows unavailable, and the budget stubs refuse', async () => {
+    expect(ODOO_WORKFLOWS['actuals.read']).toEqual({ status: 'supported', version: 1 });
+    for (const id of ['budget.push', 'budget.unowned-occupant', 'budget.resolve-occupant'] as const) {
+      expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'unavailable', version: 1, reason: 'Odoo Community has no budget object; budgets stay in PMO' });
+    }
+    await expect(harness.pushBudget({ account: 'a', fiscalYear: '2026', occupant: 'none' })).rejects.toThrow(/unavailable/);
+    await expect(harness.pushBudgetVersion({ categories: [], mappedCategories: [], project: 'own' })).rejects.toThrow(/unavailable/);
   });
   it('AC-OPP-084 declares every proven P9 workflow at its shared suite version', async () => {
     for (const id of ['purchase.link-existing', 'cutover.purchase', 'cutover.activation', 'purchase.push', 'bill.push', 'vendor-payment.push', 'purchase-order.revise'] as const) {
