@@ -14,10 +14,10 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportAllButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useIncidentsPage, useIncidentMutations } from '@/src/hooks/useIncidents';
+import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
@@ -51,6 +51,7 @@ const Incidents: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { create, update, transition, remove } = useIncidentMutations();
+  const exportAll = useIncidentsExportAll();
 
   const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
@@ -244,7 +245,14 @@ const Incidents: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={rows ?? []} columns={columns} entity="Incidents" />
+          // #1991: the page holds ONE server page; Export still delivers EVERY incident matching
+          // the current status/search, read at click time.
+          <ExportAllButton
+            entity="Incidents"
+            columns={columns}
+            hasRows={total > 0}
+            fetchRows={() => exportAll.mutateAsync({ status: filter === 'All' ? undefined : filter, search: search || undefined })}
+          />
         )
       }
     >

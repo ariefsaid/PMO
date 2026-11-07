@@ -111,6 +111,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
     list: { data: { rows: incState.data, total: incState.data.length }, isPending: false, isError: false, refetch: incState.refetch },
     allTotal: incState.data.length,
   }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useIncidentMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },

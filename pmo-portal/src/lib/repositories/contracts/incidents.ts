@@ -3,7 +3,7 @@ import type { IncidentRow, IncidentInput, IncidentStatus } from '@/src/lib/db/in
 
 export interface IncidentRepository {
   /** All incidents in the org (newest first), optionally filtered by workflow status. */
-  list(params?: { status?: IncidentStatus }): Promise<IncidentRow[]>;
+  list(params?: { status?: IncidentStatus; search?: string }): Promise<IncidentRow[]>;
   /** One server page (status filter + type/location search applied before the range) with the filtered total. */
   listPage(params: { page: number; pageSize: number; status?: IncidentStatus; search?: string }): Promise<{ rows: IncidentRow[]; total: number }>;
   /** Exact count of every readable incident (head request). */

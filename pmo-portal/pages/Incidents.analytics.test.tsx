@@ -37,6 +37,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
     },
     allTotal: listState.data.length,
   }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useIncidentMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useProjectOptions: () => ({ data: [] }) }));

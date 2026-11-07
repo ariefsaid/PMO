@@ -60,6 +60,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentsPage: () => ({ list: { data: { rows: hoisted.incidents, total: hoisted.incidents.length }, isPending: false, isError: false, refetch: vi.fn() }, allTotal: hoisted.incidents.length }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn(async () => hoisted.incidents), isPending: false }),
   useIncidentMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, transition: { mutateAsync: vi.fn() }, remove: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({

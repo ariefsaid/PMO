@@ -9,7 +9,8 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, pageCalls } = vi.hoisted(() => ({
+const { listState, mutations, pageCalls, exportAll } = vi.hoisted(() => ({
+  exportAll: vi.fn(),
   pageCalls: [] as Array<{ page: number; pageSize: number; status?: string; search?: string }>,
   listState: {
     data: [] as Array<Record<string, unknown>>,
@@ -45,6 +46,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
       allTotal: all.length,
     };
   },
+  useIncidentsExportAll: () => ({ mutateAsync: exportAll, isPending: false }),
   useIncidentMutations: () => mutations,
 }));
 
@@ -189,6 +191,17 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Investigating$/ }));
     expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 1 of 3');
+  });
+
+  it('#1991: Export reads EVERY incident matching the status + search, not just the shown page', async () => {
+    listState.data = Array.from({ length: 120 }, (_, n) => ({ ...seed[0], id: `p${n}`, type: `Row ${n}` }));
+    exportAll.mockResolvedValue([]);
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Open$/ }));
+    await userEvent.type(screen.getByLabelText(/Search incidents/i), 'Row 1');
+    await waitFor(() => expect(pageCalls.at(-1)).toMatchObject({ search: 'Row 1' }));
+    await userEvent.click(screen.getByRole('button', { name: /export/i }));
+    await waitFor(() => expect(exportAll).toHaveBeenCalledWith({ status: 'Open', search: 'Row 1' }));
   });
 
   it('#1991: more than one page shows a pager that asks the server for the next page', async () => {

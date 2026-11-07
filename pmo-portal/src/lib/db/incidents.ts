@@ -43,6 +43,21 @@ function throwWrite(error: PostgrestErrorLike): never {
   throw new AppError(error.message, error.code);
 }
 
+/** Quote a user-typed term for a PostgREST `ilike`: `%`/`_` are LIKE metacharacters, `\\` escapes them, `"` ends the quoted value. */
+const likeAny = (value: string) => `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
+
+/** The register's status filter + type/location search, shared by the page read and the full read. */
+function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q }>(
+  query: Q,
+  params?: { status?: IncidentStatus; search?: string },
+): Q {
+  if (params?.status) query = query.eq('status', params.status);
+  const term = params?.search?.trim();
+  if (!term) return query;
+  const pattern = likeAny(term);
+  return query.or(`type.ilike.${pattern},location.ilike.${pattern}`);
+}
+
 /**
  * List incident reports in the caller's org for the Incidents index (AC-IN-001). org_id is
  * NEVER sent — RLS (incident_reports_select: org_id = auth_org_id()) scopes the rows. Pass
@@ -50,19 +65,15 @@ function throwWrite(error: PostgrestErrorLike): never {
  * incident_date descending (newest first) for a stable, scannable register. Throws an
  * `AppError` (code preserved) on failure.
  */
-export async function listIncidents(params?: { status?: IncidentStatus }): Promise<IncidentRow[]> {
+export async function listIncidents(params?: { status?: IncidentStatus; search?: string }): Promise<IncidentRow[]> {
   return fetchAllPages((from, to) => {
-    let query = supabase.from('incident_reports').select('*');
-    if (params?.status) query = query.eq('status', params.status);
+    const query = withFilters(supabase.from('incident_reports').select('*'), params);
     return query.order('incident_date', { ascending: false }).order('id', { ascending: true }).range(from, to);
   });
 }
 
 /** One server page of the Incidents register. 50 matches the other server-paged lists. */
 export const INCIDENTS_PAGE_SIZE = 50;
-
-/** Quote a user-typed term for a PostgREST `ilike`: `%`/`_` are LIKE metacharacters, `\\` escapes them, `"` ends the quoted value. */
-const likeAny = (value: string) => `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
 
 /**
  * ONE server page of the register (#1991): the optional status filter and the type/location
@@ -78,14 +89,10 @@ export async function listIncidentsPage(input: {
   search?: string;
 }): Promise<{ rows: IncidentRow[]; total: number }> {
   const from = Math.max(0, input.page - 1) * input.pageSize;
-  let query = supabase.from('incident_reports').select('*', { count: 'exact' });
-  if (input.status) query = query.eq('status', input.status);
-  const term = input.search?.trim();
-  if (term) {
-    const pattern = likeAny(term);
-    query = query.or(`type.ilike.${pattern},location.ilike.${pattern}`);
-  }
-  const { data, error, count } = await query
+  const { data, error, count } = await withFilters(
+    supabase.from('incident_reports').select('*', { count: 'exact' }),
+    input,
+  )
     .order('incident_date', { ascending: false })
     .order('id', { ascending: true })
     .range(from, from + input.pageSize - 1);

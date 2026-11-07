@@ -83,6 +83,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
     refetch: vi.fn(),
     },
   }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useIncidentMutations: () => ({
     create: { mutateAsync: vi.fn() },
     update: { mutateAsync: vi.fn(), isPending: false },

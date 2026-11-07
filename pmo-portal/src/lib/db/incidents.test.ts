@@ -137,6 +137,15 @@ describe('#1991 listIncidentsPage (server-side status filter, search, paging)', 
   });
 });
 
+describe('#1991 listIncidents (full set for export, honours status + search)', () => {
+  it('applies the status filter and the escaped search to the full read', async () => {
+    h.result.value = { data: [{ id: 'i1' }], error: null };
+    await listIncidents({ status: 'Closed', search: ' 100% ' });
+    expect(h.calls.eq).toContainEqual(['status', 'Closed']);
+    expect(h.calls.or).toContainEqual('type.ilike."%100\\%%",location.ilike."%100\\%%"');
+  });
+});
+
 describe('#1991 countIncidents (unfiltered total, head count, no row bodies)', () => {
   it('reads an exact head count', async () => {
     h.result.value = { data: null, error: null, count: 7 };

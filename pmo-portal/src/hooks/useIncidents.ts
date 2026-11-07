@@ -43,6 +43,13 @@ export function useIncidentsPage(args: { page: number; pageSize: number; status?
   return { list, allTotal: filtered ? all.data : list.data?.total };
 }
 
+/** Every incident matching the current status/search, read only when the user exports (the page holds one server page). */
+export function useIncidentsExportAll() {
+  return useMutation({
+    mutationFn: (params?: { status?: IncidentStatus; search?: string }) => repositories.incident.list(params),
+  });
+}
+
 /**
  * Single incident by id over the repository seam (ADR-0017) — backs the routable
  * `/incidents/:id` detail page (CW-4a). queryKey is org-scoped (['incident', orgId, id])
