@@ -131,6 +131,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-10-05',
   },
   {
+    file: 'serial/AC-ECA-05',
+    reason: 'ERP connect scenario journeys (S-C, S-D) need the served functions lane and the throwaway ERPNext bench (their goal oracles are bench documents and counts).',
+    restore: 'Run in the local served-functions lane with the disposable ERP bench and ready binding (same fixture as AC-SETUP-001).',
+    verified: '2026-11-07',
+  },
+  {
     file: 'serial/AC-S09-005-project-match-review.spec.ts',
     reason: 'ERP project match review proof needs the served functions lane, the throwaway ERPNext bench (its goal oracle is the persisted map and the bench Project count) and a prepared HTTPS binding.',
     restore: 'Run in the local served-functions lane with the disposable ERP bench and ready binding (same fixture as AC-SETUP-001).',
