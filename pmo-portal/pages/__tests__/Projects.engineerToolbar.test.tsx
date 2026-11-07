@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-IXD-PIPE-W5-C5 — Projects toolbar: Engineer scope (N19)
  *

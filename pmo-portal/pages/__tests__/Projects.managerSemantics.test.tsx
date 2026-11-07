@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-PRJUX-004 / AC-PRJUX-005 — Projects manager display + filter semantics.
  *

@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-PRJUX-001 through AC-PRJUX-006 — Projects phone-width mobile toolbar.
  *

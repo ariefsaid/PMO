@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-RD-SUB-PL-A — the Projects table says each fact once (v0.24 UI subtraction).
  * The default screen carries fewer elements: one help sentence, one Filters trigger, no

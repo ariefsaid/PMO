@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * #1983 — Projects filter builder: apply, remove and the URL round-trip. A chip is a working-set key in
  * the URL (shareable; Back and a reload rebuild the same chips); the list, "Showing x of y" and Clear all
