@@ -328,7 +328,12 @@ begin
       -- Provenance of the current period: what is not in a project, not linked, or has no account record.
       -- Project scope: the company-wide unattributed / unlinked amounts are not "for the same scope" (FR-ODA-023), so they are left out.
       v_prov := jsonb_build_object(
-        'ledgerAsOf', v_gen->'asOf', 'caughtUp', null, 'lastCheck', null, 'scope', case when v_acc is null then 'company' else 'project' end,
+        'ledgerAsOf', v_gen->'asOf',
+        -- Same sources as get_odoo_ledger_health (0745): the sweep's caught-up flag and the latest recorded check (Admin / Finance / Executive only under RLS; null for others).
+        'caughtUp', (select w.watermark_cursor = 'true' from public.external_sync_watermarks w
+                      where w.org_id = v_org and w.external_tier = 'odoo' and w.domain = 'ledger-caught-up:odoo'),
+        'lastCheck', (select jsonb_build_object('status', c.status, 'checkedAt', c.checked_at) from public.odoo_ledger_checks c
+                       where c.org_id = v_org order by c.checked_at desc, c.id desc limit 1), 'scope', case when v_acc is null then 'company' else 'project' end,
         'unattributed', case when v_acc is null then (select jsonb_build_object('count', count(*), 'debit', coalesce(sum(coalesce(m.debit,0)),0), 'credit', coalesce(sum(coalesce(m.credit,0)),0))
                            from public.erp_gl_entry_mirror m
                           where m.org_id = v_org and m.voucher_type = 'account.move' and not m.is_cancelled
