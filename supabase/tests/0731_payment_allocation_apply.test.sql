@@ -62,9 +62,9 @@ insert into public.sales_invoices (id, org_id, customer_id, invoice_date, amount
   ('07310000-0000-0000-0000-0000000000e8', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01', 100,    'inclusive', 0, 'IDR', 'Cancelled', true,  '[{"d":"cancelled"}]'::jsonb, 0),
   ('07310000-0000-0000-0000-0000000000e9', '07310000-0000-0000-0000-000000000002', '07310000-0000-0000-0000-0000000000cb', '2026-07-01', 100,    'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"org2"}]'::jsonb, 100),
   ('07310000-0000-0000-0000-0000000000ea', '07310000-0000-0000-0000-000000000003', '07310000-0000-0000-0000-0000000000cc', '2026-07-01', 100,    'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"erp org"}]'::jsonb, 100),
-  ('07310000-0000-0000-0000-0000000000eb', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01',  30.01, 'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"cents1"}]'::jsonb, 30.01),
-  ('07310000-0000-0000-0000-0000000000ec', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01',  40.02, 'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"cents2"}]'::jsonb, 40.02),
-  ('07310000-0000-0000-0000-0000000000ed', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01',  50.03, 'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"cents3"}]'::jsonb, 50.03),
+  ('07310000-0000-0000-0000-0000000000eb', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01',  30.00, 'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"cents1"}]'::jsonb, 30.00),
+  ('07310000-0000-0000-0000-0000000000ec', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01',  40.05, 'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"cents2"}]'::jsonb, 40.05),
+  ('07310000-0000-0000-0000-0000000000ed', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01',  50.01, 'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"cents3"}]'::jsonb, 50.01),
   ('07310000-0000-0000-0000-0000000000ee', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01', 100,    'inclusive', 0, 'IDR', 'Unpaid',    true,  '[{"d":"spare"}]'::jsonb, 100);
 -- Receipts seeded directly: another org's on-account receipt, a cancelled one, an ERP-org one.
 insert into public.incoming_payments (id, org_id, customer_id, sales_invoice_id, date, amount, received_amount,
@@ -282,8 +282,8 @@ select is(public.record_native_on_account_receipt('07310000-0000-0000-0000-00000
                                                   '07310000-0000-0000-0000-0000000000f6'),
   '07310000-0000-0000-0000-0000000000f6'::uuid, 'setup: a withholding receipt of 120.06 (cash 100.05, withheld 20.01)');                    -- 65
 select lives_ok($$ select public.apply_native_receipt('07310000-0000-0000-0000-0000000000f6',
-    '[{"invoice_id":"07310000-0000-0000-0000-0000000000eb","amount":30.01},{"invoice_id":"07310000-0000-0000-0000-0000000000ec","amount":40.02},
-      {"invoice_id":"07310000-0000-0000-0000-0000000000ed","amount":50.03}]'::jsonb, gen_random_uuid()) $$,
+    '[{"invoice_id":"07310000-0000-0000-0000-0000000000eb","amount":30.00},{"invoice_id":"07310000-0000-0000-0000-0000000000ec","amount":40.05},
+      {"invoice_id":"07310000-0000-0000-0000-0000000000ed","amount":50.01}]'::jsonb, gen_random_uuid()) $$,
   'AC-NPA-003 the receipt is applied in full over three invoices with awkward cents');                                                     -- 66
 select is((select sum(cash_amount) from public.incoming_payment_allocations where incoming_payment_id = '07310000-0000-0000-0000-0000000000f6'),
   100.05::numeric, 'AC-NPA-002 once fully applied the cash shares sum to the cash received exactly (remainder rule)');                      -- 67
