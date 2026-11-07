@@ -97,7 +97,12 @@ const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: Inco
     },
     ...orderedPayments.map((payment) => ({
       stage: 'payment', state: 'done' as const,
-      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—'}</span></>,
+      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{(() => {
+        // #1415: a split PMO receipt shows what reached THIS invoice, not the whole receipt.
+        const share = payment.pmo_native ? payment.allocations?.find((a) => a.sales_invoice_id === invoice.id) : undefined;
+        if (share) return formatCurrencyCents(share.cash_amount, payment.currency);
+        return payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—';
+      })()}</span></>,
     })),
     {
       stage: 'paid',
@@ -603,8 +608,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   };
 
   const panelPayments = panelInvoice
-    ? paymentRows.filter((payment) => payment.sales_invoice_id === panelInvoice.id
-      || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === panelInvoice.id)))
+    ? paymentRows.filter((payment) => (!payment.pmo_native && payment.sales_invoice_id === panelInvoice.id)
+      || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === panelInvoice.id))
+      // #1415: a PMO receipt reaches an invoice through its live allocations, never through its own invoice pointer.
+      || Boolean(payment.allocations?.some((allocation) => allocation.sales_invoice_id === panelInvoice.id)))
     : [];
   const panelPrimary = !odooOffline && panelInvoice
     ? canApproveDraft(panelInvoice)

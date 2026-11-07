@@ -473,7 +473,7 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
 
     expect(h.state.columnCalls).toContainEqual({
       table: 'incoming_payments',
-      columns: '*, customer:companies!incoming_payments_customer_id_fkey(name)',
+      columns: '*, customer:companies!incoming_payments_customer_id_fkey(name), allocations:incoming_payment_allocations(id,sales_invoice_id,amount,cash_amount,withheld_amount,currency,reversed_at)',
     });
     expect(h.state.eqCalls).toContainEqual(['id', 'ip-1']);
     expect(row?.customer_name).toBe('Acme Co');
