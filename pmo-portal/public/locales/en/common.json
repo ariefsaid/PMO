@@ -2375,34 +2375,20 @@
     },
     "gantt": {
       "boardView": "Board view",
-      "continues": "continues",
-      "datesColumn": "Dates",
       "dependsOn": "depends on",
-      "durationDays_one": "{{count}} day",
-      "durationDays_other": "{{count}} days",
       "emptySub": "Add start/due dates to tasks or target dates to phases to see the timeline.",
       "emptyTitle": "No dated work yet",
-      "goToDate": "Go to date",
-      "jumpToBar": "Scroll to \"{{title}}\"",
       "listView": "List view",
-      "loading": "Loading",
-      "milestoneTarget": "Target date",
       "milestoneWord": "phase",
       "mobileSub": "The timeline is best viewed on a wider screen. Switch to a view that fits your device:",
       "mobileTitle": "Open on a larger screen",
-      "next": "Next",
       "openTask": "Open",
-      "previous": "Previous",
-      "progress": "{{percent}}% complete",
-      "resizePanel": "Resize task panel",
       "scale": {
         "day": "Day",
         "month": "Month",
         "quarter": "Quarter",
-        "week": "Week",
-        "year": "Year"
+        "week": "Week"
       },
-      "statusColumn": "Status",
       "summary": {
         "connectors_one": "{{count}} dependency connector drawn",
         "connectors_other": "{{count}} dependency connectors drawn",
@@ -2420,10 +2406,7 @@
       "tasksOnTimeline_other": "{{count}} tasks on the timeline",
       "today": "Today",
       "undated": "Undated",
-      "ungrouped": "Ungrouped",
-      "zoomAriaLabel": "Timeline zoom",
-      "zoomIn": "Zoom in",
-      "zoomOut": "Zoom out"
+      "zoomAriaLabel": "Timeline zoom"
     },
     "header": {
       "action": {

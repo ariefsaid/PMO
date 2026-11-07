@@ -32,7 +32,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import ProjectGantt from '../ProjectGantt';
 import TaskBoard from './TaskBoard';

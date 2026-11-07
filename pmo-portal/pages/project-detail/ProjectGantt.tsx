@@ -105,6 +105,16 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
     });
   }, [taskMap]);
 
+  // Open on today when the work spans it, else on the first dated item (never an empty month).
+  // The gantt reads this once, at mount.
+  const defaultDate = useMemo(() => {
+    if (model.events.length === 0) return undefined;
+    const now = Date.now();
+    const first = Math.min(...model.events.map((e) => e.start.getTime()));
+    const last = Math.max(...model.events.map((e) => e.end.getTime()));
+    return now >= first && now <= last ? undefined : new Date(first);
+  }, [model.events]);
+
   const events = useMemo(
     () => model.events.map((e) => (overrides.has(e.id) ? { ...e, ...overrides.get(e.id) } : e)),
     [model.events, overrides],
@@ -279,6 +289,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             i18n={i18n}
             events={events}
             resources={model.resources}
+            defaultDate={defaultDate}
             scale={scale}
             onScaleChange={setScale}
             interactions={{ drag: writable, resize: writable, selectSlot: false }}

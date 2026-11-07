@@ -1,5 +1,5 @@
 import * as React from "react"
-import { format } from "date-fns"
+import { format, type Locale as DateFnsLocale } from "date-fns"
 import { cn } from "@/src/components/shadcn/cn"
 import {
   DayPicker,
@@ -38,7 +38,7 @@ function Calendar({
       captionLayout={captionLayout}
       locale={locale}
       formatters={{
-        formatMonthDropdown: (date) => format(date, "MMM", { locale }),
+        formatMonthDropdown: (date) => format(date, "MMM", { locale: locale as DateFnsLocale }),
         ...formatters,
       }}
       classNames={{
