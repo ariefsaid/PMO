@@ -72,6 +72,8 @@ export interface EntityFormModalProps {
   /** Footer primary label, e.g. "Create deal". */
   submitLabel: string;
   cancelLabel?: string;
+  /** Read-only dialog: only the footer submit (labelled Close/Done) dismisses. */
+  hideCancel?: boolean;
   /** Native form submit handler — call preventDefault + run your mutation. */
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
@@ -118,6 +120,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   subtitle,
   submitLabel,
   cancelLabel,
+  hideCancel,
   onSubmit,
   onClose,
   submitDisabled,
@@ -408,6 +411,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
               <FormActions
                 submitLabel={submitLabel}
                 cancelLabel={cancelLabel ?? t('entityForm.cancel', 'Cancel')}
+                hideCancel={hideCancel}
                 onCancel={requestClose}
                 disabled={submitDisabled}
                 loading={loading}

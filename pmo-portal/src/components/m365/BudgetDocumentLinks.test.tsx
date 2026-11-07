@@ -49,8 +49,8 @@ describe('BudgetDocumentLinks rendering', () => {
     render(<BudgetDocumentLinks versionId="v1" status="Active" />);
     expect(mock.usedVersion).toContain('v1');
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    expect(screen.getByRole('button', { name: /^Versions of Quote\.pdf/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Versions of Archive/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Show all versions of Quote\.pdf/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Show all versions of Archive/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/Approved version|drift/i)).not.toBeInTheDocument();
   });
 

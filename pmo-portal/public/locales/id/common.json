@@ -4760,7 +4760,7 @@
     "unlinked": "Referensi dihapus",
     "checkingConnection": "Memeriksa koneksi Microsoft 365 Anda…",
     "referenceOnly": "Referensi folder: isi folder tidak diterbitkan atau disetujui",
-    "newRevisionFromLatest": "Buat revisi baru dari pembaruan file terbaru",
+    "newRevisionFromLatest": "Revisi baru dari file yang diperbarui",
     "revisionLatestNote": "Revisi baru akan merujuk file Microsoft terbaru: {{name}}.",
     "latestFailedTitle": "Tidak dapat membaca file terbaru",
     "latestFailed": "Microsoft tidak dapat memuat file ini. Periksa akses dan ketersediaan SharePoint dengan admin Microsoft Anda, atau coba lagi.",
@@ -4801,6 +4801,10 @@
       "removeTitle": "Hapus tautan ini?",
       "unavailable": "Tautan ini tidak tersedia."
     },
+    "linkFolders": {
+      "heading": "Tautkan folder yang ada ke rekaman",
+      "description": "Cocokkan folder yang sudah ada di pustaka bawaan dengan proyek dan kasus yang belum punya folder. Ini hanya menautkan folder; tidak membuat folder."
+    },
     "defaultLibrary": {
       "browseFailed": "Lokasi Microsoft tidak dapat dimuat. Tutup dialog ini lalu coba lagi.",
       "choose": "Pilih pustaka default",
@@ -4809,6 +4813,7 @@
       "clearFailed": "Pustaka default tidak dapat dihapus.",
       "clearTitle": "Hapus pustaka default?",
       "connectHint": "Hubungkan akun Microsoft 365 Anda untuk memilih pustaka. Menghapus default tidak memerlukan koneksi.",
+      "connectLink": "Buka Integrasi saya",
       "current": "Default saat ini:",
       "description": "Pustaka yang pertama dibuka oleh pemilih dokumen. Ini tidak memberi siapa pun akses ke filenya; izin Microsoft tetap berlaku.",
       "disabledReason": "Pilih situs dan pustaka untuk menyimpan.",
@@ -4833,8 +4838,8 @@
       "openLatest": "Buka versi terbaru di {{place}}",
       "openFolder": "Buka folder di {{place}}",
       "openShort": "Buka",
-      "versions": "Versi",
-      "versionsOf": "Versi dari {{name}}",
+      "versions": "Tampilkan semua versi",
+      "versionsOf": "Tampilkan semua versi {{name}}",
       "openRefused": "Tautan Microsoft ini tidak dapat dibuka.",
       "accessFile": "Dibuka di Microsoft. Akses bergantung pada izin Microsoft Anda atas file ini.",
       "accessFolder": "Dibuka di Microsoft. Akses bergantung pada izin Microsoft Anda atas folder ini.",
@@ -4860,7 +4865,6 @@
     },
     "versions": {
       "title": "Versi {{name}}",
-      "done": "Selesai",
       "close": "Tutup",
       "loading": "Memuat…",
       "emptyTitle": "Tidak ada versi",
@@ -4870,8 +4874,8 @@
       "loadMore": "Muat lebih banyak"
     },
     "history": {
-      "view": "Lihat riwayat versi yang disetujui",
-      "viewAria": "Lihat riwayat versi yang disetujui: {{name}}",
+      "view": "Periksa versi yang disetujui",
+      "viewAria": "Periksa versi yang disetujui: {{name}}",
       "partial": "Versi yang disetujui tidak ditemukan dalam riwayat yang dimuat.",
       "loadMore": "Muat riwayat lebih banyak",
       "noSharepointIds": "Riwayat versi tidak tersedia: Microsoft tidak memberikan pengenal SharePoint.",

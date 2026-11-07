@@ -4760,7 +4760,7 @@
     "unlinked": "Reference removed",
     "checkingConnection": "Checking your Microsoft 365 connection…",
     "referenceOnly": "Folder reference: contents are not issued or approved",
-    "newRevisionFromLatest": "Make new revision from latest file update",
+    "newRevisionFromLatest": "New revision from updated file",
     "revisionLatestNote": "The new revision will reference the latest Microsoft file: {{name}}.",
     "latestFailedTitle": "Could not read the latest file",
     "latestFailed": "Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.",
@@ -4801,6 +4801,10 @@
       "removeTitle": "Remove this link?",
       "unavailable": "This link is unavailable."
     },
+    "linkFolders": {
+      "heading": "Link existing folders to records",
+      "description": "Match folders already in the default library to projects and cases that have none. This links folders only; it never creates one."
+    },
     "defaultLibrary": {
       "browseFailed": "Microsoft locations could not be loaded. Close this dialog and try again.",
       "choose": "Choose default library",
@@ -4809,6 +4813,7 @@
       "clearFailed": "Could not clear the default library.",
       "clearTitle": "Clear the default library?",
       "connectHint": "Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.",
+      "connectLink": "Open My integrations",
       "current": "Current default:",
       "description": "The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.",
       "disabledReason": "Choose a site and a library to save.",
@@ -4833,8 +4838,8 @@
       "openLatest": "Open latest in {{place}}",
       "openFolder": "Open folder in {{place}}",
       "openShort": "Open",
-      "versions": "Versions",
-      "versionsOf": "Versions of {{name}}",
+      "versions": "Show all versions",
+      "versionsOf": "Show all versions of {{name}}",
       "openRefused": "This Microsoft link cannot be opened.",
       "accessFile": "Opens in Microsoft. Access depends on your Microsoft permissions on this file.",
       "accessFolder": "Opens in Microsoft. Access depends on your Microsoft permissions on this folder.",
@@ -4860,7 +4865,6 @@
     },
     "versions": {
       "title": "Versions of {{name}}",
-      "done": "Done",
       "close": "Close",
       "loading": "Loading…",
       "emptyTitle": "No versions listed",
@@ -4870,8 +4874,8 @@
       "loadMore": "Load more"
     },
     "history": {
-      "view": "View approved version history",
-      "viewAria": "View approved version history: {{name}}",
+      "view": "Check approved version",
+      "viewAria": "Check approved version: {{name}}",
       "partial": "Approved version not found in loaded history.",
       "loadMore": "Load more history",
       "noSharepointIds": "Version history unavailable: Microsoft did not provide SharePoint identifiers.",

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppError } from '@/src/lib/appError';
 import { M365DefaultLibraryCard } from '../M365DefaultLibraryCard';
@@ -17,7 +18,11 @@ const mock = vi.hoisted(() => ({
   refetch: vi.fn(),
 }));
 // The card mounts LinkExistingRecordFolders (own coverage: LinkExistingRecordFolders.test).
-vi.mock('@/src/components/m365/LinkExistingRecordFolders', () => ({ LinkExistingRecordFolders: () => null }));
+vi.mock('@/src/components/m365/LinkExistingRecordFolders', () => ({
+  LinkExistingRecordFolders: (p: { defaultAvailable: boolean; readFailed?: boolean }) => (
+    <div data-testid="link-existing-stub" data-available={String(p.defaultAvailable)} data-read-failed={String(!!p.readFailed)} />
+  ),
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'admin-1', org_id: 'org-1' } }) }));
 vi.mock('@/src/components/m365/DocumentLinkPermissions', () => ({ useDocumentLinkPermissions: () => ({ manageDefault: () => mock.manage }) }));
 vi.mock('@/src/hooks/useMicrosoftDocuments', () => ({
@@ -36,7 +41,7 @@ const docs = (over: Record<string, unknown> = {}) => ({
 });
 const view = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <M365DefaultLibraryCard />
+    <MemoryRouter><M365DefaultLibraryCard /></MemoryRouter>
   </QueryClientProvider>,
 );
 
@@ -108,6 +113,34 @@ describe('M365DefaultLibraryCard choose', () => {
     expect(screen.getByRole('button', { name: 'Choose default library' })).toBeDisabled();
     expect(screen.getByText(/Connect your Microsoft 365 account/)).toBeInTheDocument();
     expect(mock.browseSites).not.toHaveBeenCalled();
+  });
+
+  it('F16 the no-connection hint links to My integrations', () => {
+    mock.docs = docs({ connection: { connected: false, status: null } });
+    view();
+    expect(screen.getByRole('link', { name: 'Open My integrations' })).toHaveAttribute('href', '/integrations');
+  });
+
+  it('F16 link-existing-folders is its own card, outside the library settings card', () => {
+    mock.docs = docs({ defaultLibrary: library });
+    view();
+    const stub = screen.getByTestId('link-existing-stub');
+    expect(screen.getByTestId('m365-default-library')).not.toContainElement(stub);
+    expect(screen.getByTestId('m365-link-existing-folders-card')).toContainElement(stub);
+    expect(screen.getByRole('heading', { name: 'Link existing folders to records' })).toBeInTheDocument();
+  });
+
+  it('F16 a failed re-read with a known default library keeps link-existing-folders available; the read error stays separate', () => {
+    mock.docs = docs({ defaultLibrary: library, defaultError: new Error('boom') });
+    view();
+    expect(screen.getByTestId('link-existing-stub')).toHaveAttribute('data-available', 'true');
+    expect(screen.getByText('The default library could not be read')).toBeInTheDocument();
+  });
+
+  it('F16 with no known library after a failed read, the card reports the read failure to link-existing-folders', () => {
+    mock.docs = docs({ defaultError: new Error('boom') });
+    view();
+    expect(screen.getByTestId('link-existing-stub')).toHaveAttribute('data-read-failed', 'true');
   });
 });
 
