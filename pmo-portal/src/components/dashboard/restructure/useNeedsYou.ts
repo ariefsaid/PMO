@@ -94,7 +94,7 @@ const amountsText = (totals: CurrencyTotal[], t: Translate, orgCurrency: string)
 };
 
 /** Pure role adapter for the shared needs list; every zero count is intentionally omitted. */
-export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate, orgCurrency: string): NeedsItem[] {
+export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate, orgCurrency: string, viewerId?: string | null): NeedsItem[] {
   const items: NeedsItem[] = [];
   const add = (item: NeedsItem | null) => { if (item && item.count > 0) items.push(item); };
   const approvalItem = (count: number | undefined): NeedsItem | null => count === undefined ? null : ({
@@ -156,7 +156,8 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
         ? t('needs.pmAtLeast', 'At least {{count}}', { count: facts.projectsOverBudget })
         : undefined,
       label: counted(t, 'needs.pmOverBudget', 'project over 90% of budget', 'projects over 90% of budget', facts.projectsOverBudget),
-      href: '/projects?filter=My+Projects', tone: 'warn',
+      // #1461: the count is MY projects at risk, so the drill scopes the at-risk filter to me.
+      href: viewerId ? `/projects?filter=at-risk&pm=${encodeURIComponent(viewerId)}` : '/projects?filter=at-risk', tone: 'warn',
     });
     if (facts.projectsOverBudget === 0 && facts.projectsOverBudgetUnknown !== undefined) add({
       id: 'projects-risk-unchecked', count: facts.projectsOverBudgetUnknown,
@@ -187,12 +188,12 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (facts.engineerTasks !== undefined) add({
       id: 'engineer-tasks', count: facts.engineerTasks,
       label: counted(t, 'needs.engineerTasks', 'task overdue or due this week', 'tasks overdue or due this week', facts.engineerTasks),
-      href: '/my-tasks', tone: 'warn',
+      href: '/my-tasks?due=week', tone: 'warn',
     });
     if (facts.returnedExpenses !== undefined) add({
       id: 'returned-expenses', count: facts.returnedExpenses,
       label: counted(t, 'needs.returnedExpense', 'expense claim returned', 'expense claims returned', facts.returnedExpenses),
-      href: '/expenses', tone: 'lost',
+      href: '/expenses?status=Rejected', tone: 'lost',
     });
   }
 
@@ -422,9 +423,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const engineerSourcesPending = timesheetsQuery.isPending;
   const engineerSourcesError = timesheetsQuery.isError;
   const translate = (key: string, fallback: string, options?: Record<string, unknown>) => t(key, { defaultValue: fallback, ...(options ?? {}) });
-  const items = buildNeedsItems(role, facts, translate, orgCurrency);
+  const items = buildNeedsItems(role, facts, translate, orgCurrency, userId);
   const companyAreaItems = companyRole
-    ? [...buildNeedsItems('Executive', facts, translate, orgCurrency), ...buildNeedsItems('Finance', facts, translate, orgCurrency)]
+    ? [...buildNeedsItems('Executive', facts, translate, orgCurrency, userId), ...buildNeedsItems('Finance', facts, translate, orgCurrency, userId)]
       .filter((item) => ['at-risk', 'procurement-approvals', 'overdue-invoices', 'supplier-invoices', 'budgets-over', 'ready-to-bill'].includes(item.id))
     : [];
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];

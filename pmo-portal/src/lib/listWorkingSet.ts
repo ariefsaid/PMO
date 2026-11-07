@@ -13,7 +13,10 @@ import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 
 export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings';
 
-export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
+export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk'
+  // URL-only drill values (#1461): never offered as toolbar tabs, each one holds exactly the
+  // record set a dashboard figure sums/counts so a drill-through lands on its own set.
+  | 'on-hand' | 'delivery' | 'ongoing-project' | 'won' | 'decided';
 export type SalesScope = 'All' | 'Open' | 'Won' | 'Lost' | 'Needs attention';
 export type SalesStage = '' | OpenFunnelStage;
 export type ProcurementFilterStatus =
@@ -40,6 +43,10 @@ export interface ProjectsWorkingSet extends ProjectClassificationFilters {
    * the URL only ever carries a month the user navigated away to (#716).
    */
   month?: string;
+  /** #1461 drill window: inclusive first/last month (`YYYY-MM`) of a `won`/`decided` drill.
+   *  Present only while the filter is one that reads it; anything else is a clean URL. */
+  from?: string;
+  to?: string;
 }
 
 export interface SalesWorkingSet extends ProjectClassificationFilters {
@@ -95,6 +102,12 @@ const PROJECT_FILTERS = [
   'Ongoing',
   'Completed',
   'at-risk',
+  // Dashboard drill values (#1461) — URL-owned, no toolbar tab.
+  'on-hand',
+  'delivery',
+  'ongoing-project',
+  'won',
+  'decided',
 ] as const satisfies readonly ProjectFilter[];
 const SALES_SCOPES = ['All', 'Open', 'Won', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
 const SALES_STAGES = ['', ...OPEN_FUNNEL_STAGES] as readonly SalesStage[];
@@ -186,6 +199,17 @@ export function currentMonthToken(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
+
+/** A real `YYYY-MM` month token, else undefined. Unlike the calendar month it MAY be the
+ *  current month — a `?period=month` drill carries exactly that window (#1461). */
+function periodMonthValue(value: string | null): string | undefined {
+  return value !== null && MONTH_PATTERN.test(value) && Number(value.slice(0, 4)) >= 1900
+    ? value
+    : undefined;
+}
+
+/** The drill filters whose set reads the `from`/`to` month window. */
+const PERIOD_FILTERS: readonly ProjectFilter[] = ['won', 'decided'];
 
 /**
  * A calendar month token. Anything that is not a real `YYYY-MM`, and the current month itself,
@@ -340,6 +364,8 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       q: searchValue(params),
       view: viewValue(params, 'projects', options.sessionView),
       month: monthValue(params.get('month')),
+      from: periodMonthValue(params.get('from')),
+      to: periodMonthValue(params.get('to')),
     }),
     serialize: (params, value, options) => {
       putClassification(params, value);
@@ -354,6 +380,15 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       const month = value.view === 'calendar' ? monthValue(value.month ?? null) : undefined;
       if (month) params.set('month', month);
       else params.delete('month');
+      // The drill window rides only with a filter that reads it — anything else drops it so the
+      // canonical URL never carries an inert period (#1461).
+      if (PERIOD_FILTERS.includes(value.filter)) {
+        if (value.from) params.set('from', value.from); else params.delete('from');
+        if (value.to) params.set('to', value.to); else params.delete('to');
+      } else {
+        params.delete('from');
+        params.delete('to');
+      }
       return params;
     },
   },

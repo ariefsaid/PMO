@@ -186,7 +186,36 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('procurement', query).statusMode).toBe('group');
   });
 
-  it('AC-LRC-001/002: rejects invalid Sales scope, stage, and view as appropriate defaults', () => {
+  it('#1461: parses the dashboard drill filters and round-trips the won/decided window', () => {
+    // Each drill value parses (URL-only: never a toolbar tab) and round-trips.
+    for (const filter of ['on-hand', 'delivery', 'ongoing-project', 'won', 'decided'] as const) {
+      const source = new URLSearchParams(`?filter=${filter}`);
+      const parsed = parseListWorkingSet('projects', source);
+      expect(parsed.filter, `${filter} drill should stay selected`).toBe(filter);
+      expect(serializeListWorkingSet('projects', source, parsed).get('filter')).toBe(filter);
+    }
+
+    // The won/decided window rides with those filters and round-trips (may be the current month).
+    const windowed = parseListWorkingSet('projects', '?filter=won&from=2026-01&to=2026-06');
+    expect(windowed).toMatchObject({ filter: 'won', from: '2026-01', to: '2026-06' });
+    expect(serializeListWorkingSet('projects', '?filter=won&from=2026-01&to=2026-06', windowed).toString())
+      .toBe('filter=won&from=2026-01&to=2026-06');
+
+    const decided = parseListWorkingSet('projects', '?filter=decided&from=2026-06&to=2026-06');
+    expect(decided).toMatchObject({ filter: 'decided', from: '2026-06', to: '2026-06' });
+    expect(serializeListWorkingSet('projects', '', decided).toString())
+      .toBe('filter=decided&from=2026-06&to=2026-06');
+
+    // Any other filter drops the inert window (clean canonical URL).
+    const widened = serializeListWorkingSet('projects', '?filter=won&from=2026-01&to=2026-06', { ...windowed, filter: 'All' });
+    expect(widened.get('from')).toBeNull();
+    expect(widened.get('to')).toBeNull();
+
+    // Invalid tokens fall away, and a half window parses to undefined on the missing side.
+    expect(parseListWorkingSet('projects', '?filter=won&from=bogus&to=2026-06')).toMatchObject({ from: undefined, to: '2026-06' });
+  });
+
+  it('AC-LRC-002: rejects invalid Sales scope, stage, and view as appropriate defaults', () => {
     const sales: SalesWorkingSet = parseListWorkingSet(
       'sales',
       '?scope=bogus&status=Not+A+stage&view=crazy&q=review',
