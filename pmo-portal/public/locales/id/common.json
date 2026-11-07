@@ -2715,7 +2715,8 @@
       "view": {
         "board": "Papan",
         "list": "Daftar",
-        "timeline": "Timeline"
+        "timeline": "Timeline",
+        "calendar": "Kalender"
       },
       "viewAriaLabel": "Tampilan tugas",
       "noMilestone": "Tanpa fase"
@@ -3285,7 +3286,8 @@
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
       "managementPack": "Laporan",
-      "stock": "Stok"
+      "stock": "Stok",
+      "calendar": "Kalender"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
@@ -4953,6 +4955,25 @@
       "done": "Selesai. Semua catatan sudah diperiksa.",
       "summary": "Tertaut: {{linked}} · Perlu pilihan Anda: {{needsChoice}} · Tidak ada folder yang cocok atau tanpa kode: {{missing}} · Gagal: {{failed}} · Sudah tertaut: {{skipped}}",
       "resolve": "Untuk menyelesaikannya, buka proyek atau kasus, lalu gunakan \"Pilih folder yang ada\" atau \"Buat folder di SharePoint\"."
+    }
+  },
+  "calendar": {
+    "title": "Kalender",
+    "subtitle": "Tugas menurut tenggat dan milestone menurut tanggal target, di semua proyek Anda.",
+    "today": "Hari ini",
+    "previous": "Sebelumnya",
+    "next": "Berikutnya",
+    "viewAria": "Tampilan kalender",
+    "view": {
+      "month": "Bulan",
+      "week": "Minggu",
+      "day": "Hari",
+      "agenda": "Agenda"
+    },
+    "empty": "Tidak ada yang jatuh tempo pada periode ini",
+    "error": {
+      "title": "Kalender tidak dapat dimuat",
+      "sub": "Periksa koneksi Anda lalu coba lagi."
     }
   }
 }

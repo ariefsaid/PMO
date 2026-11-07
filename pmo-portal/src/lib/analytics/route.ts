@@ -9,7 +9,7 @@ const stripQuery = (path: string) => path.split(/[?#]/, 1)[0] || '/';
 /** Known safe top-level route segments. Anything else is "unknown". */
 const KNOWN_TOP_LEVEL_SEGMENTS = new Set([
   'login', 'projects', 'procurement', 'sales', 'settings',
-  'approvals', 'timesheets', 'companies', 'incidents', 'my-tasks', 'reports', 'administration',
+  'approvals', 'timesheets', 'companies', 'incidents', 'my-tasks', 'calendar', 'reports', 'administration',
 ]);
 
 /**
