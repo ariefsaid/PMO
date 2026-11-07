@@ -157,6 +157,10 @@ const KNOWN_REASON_CODES = new Set([
   'invoice-lines-count', 'invoice-line-invalid', 'invoice-total-invalid', 'vat-rate-missing',
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
+  // #1415 (migration 0731): payment-allocation refusals, mapped by `src/lib/db/revenueNative.ts`.
+  'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
+  'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
+  'request-id-reused',
 ]);
 
 /** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */
