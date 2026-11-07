@@ -58,6 +58,8 @@ interface Opts {
   erpDown?: boolean;
   /** ECA3-T12: the tick's queueing call fails with this database error code. */
   enqueueError?: string;
+  /** #1736: the statuses the database calls an open purchase (the drain takes its set from there, never from a literal). */
+  openStatuses?: string[];
 }
 
 function routes(o: Opts) {
@@ -69,6 +71,7 @@ function routes(o: Opts) {
     supabaseSelect('external_org_bindings', () => one({ site_url: `https://${ERP}`, secret_ref: 'ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: o.noCompany ? {} : { company: 'Test Co' } })),
     supabaseRpc('read_vault_secret', () => jsonResponse('key:secret')),
     supabaseRpc('enqueue_new_item_sends', () => (o.enqueueError ? jsonResponse({ code: o.enqueueError, message: 'boom', details: '' }, { status: 500 }) : jsonResponse(1))),
+    supabaseRpc('connect_open_purchase_statuses', () => jsonResponse(o.openStatuses ?? ['Approved', 'Vendor Quoted', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'])),
     supabaseRpc('claim_connect_sends', () => jsonResponse((o.claimed ?? []).map((p) => ({ snapshot: {}, ...p, org_id: ORG, external_tier: 'erpnext', state: 'sending', outcome: 'send' })))),
     supabaseSelect('companies', () => one({ id: 'c-1', name: 'PT Baja', type: 'Vendor', erp_tax_id: '01.234' })),
     supabaseSelect('projects', () => (o.archivedProject ? none() : one({ id: 'p-1', name: 'Jembatan', code: 'PRJ-1' }))),
@@ -346,6 +349,15 @@ describe('ECA3-T12 new items on open purchases are sent by the sweep, without a 
   it('FR-ECA-016 no connection id: nothing is queued', async () => {
     const { calls } = await tick({ claimed: [] }, { orgId: ORG });
     assertEquals(rpcCall(calls, 'enqueue_new_item_sends').length, 0);
+  });
+
+  it('FR-ECA-016 the drain takes the open-purchase statuses from the database, so the queue and the drain cannot drift apart', async () => {
+    const skewed = ['Draft', 'Vendor Quoted'];
+    const { calls } = await tick({ claimed: [P.item, { ...P.item, id: 'prop-item-2', pmo_ids: ['Pasir'] }], openStatuses: skewed });
+    assertEquals(rpcCall(calls, 'connect_open_purchase_statuses').length, 1);   // one read serves every item in the tick
+    const reads = calls.filter((c) => c.url.pathname === '/rest/v1/procurement_items');
+    assertEquals(reads.length, 2);
+    for (const r of reads) assertEquals(r.url.searchParams.get('procurements.status'), 'in.(Draft,Vendor Quoted)');
   });
 
   it('FR-ECA-016 a queueing failure is reported and the waiting sends still go', async () => {
