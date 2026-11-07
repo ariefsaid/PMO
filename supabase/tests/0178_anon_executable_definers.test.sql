@@ -118,7 +118,7 @@
 -- only; re-asserts active membership, org and the four budget-writer roles; proved by supabase/tests/budget_draft_mode_switch.test.sql.
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
--- Current retained set: 160 names (0731 +3) after #1505, #1813, #1514 D1 and #1472 S6B (157 before 0731); was: after #1505, #1813, #1514 D1 and #1472 S6B, including #1462's archive inventory read. 0685 adds request_financial_statement_refresh (Refresh now).
+-- Current retained set: 160 names after #1505, #1813, #1514 D1, #1472 S6B and 0731 (+3), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
 --
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;

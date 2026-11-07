@@ -299,6 +299,7 @@ declare
   v_id       uuid      := coalesce(p_receipt_id, gen_random_uuid());
   v_slip     text      := nullif(btrim(p_withholding_slip_number), '');
   v_ex       public.incoming_payments%rowtype;
+  v_cnt      int;
 begin
   -- SECURITY: membership, role and org re-assertions MUST stay — a SECURITY DEFINER body bypasses RLS.
   perform public.assert_is_active_member();
@@ -312,7 +313,7 @@ begin
     raise exception 'customer invoices for this organisation are raised in the connected ERP, not in PMO'
       using errcode = '42501', detail = 'erp-owns-revenue';
   end if;
-  if not exists (select 1 from public.companies c where c.id = p_customer_id and c.org_id = v_org) then
+  if not exists (select 1 from public.companies c where c.id = p_customer_id and c.org_id = v_org and c.type = 'Client') then
     raise exception 'customer not found' using errcode = 'P0002';
   end if;
 
@@ -339,8 +340,23 @@ begin
 
   -- Idempotency: the same id and payload returns the receipt; the same id with another payload is refused; an id that is
   -- another org's is refused without saying whose it is.
+  -- Unlocked read first (a replay burns no document number); the insert is on conflict do nothing, so two simultaneous
+  -- identical calls both end in the compare below, never a unique violation.
   select * into v_ex from public.incoming_payments where id = v_id;
-  if found then
+  if not found then
+    insert into public.incoming_payments
+      (id, org_id, customer_id, sales_invoice_id, date, amount, received_amount, withheld_amount,
+       withholding_slip_number, status, pmo_native, pmo_number)
+    values
+      (v_id, v_org, p_customer_id, null, p_date, p_amount, v_received, v_withheld, v_slip, 'Paid', true,
+       public.native_revenue_doc_number(v_org, 'RCV', v_today))   -- currency: the org's, stamped by the 0187 trigger
+    on conflict (id) do nothing;
+    get diagnostics v_cnt = row_count;
+    if v_cnt = 0 then
+      select * into v_ex from public.incoming_payments where id = v_id;
+    end if;
+  end if;
+  if v_ex.id is not null then
     if v_ex.org_id is distinct from v_org then
       raise exception 'not authorized' using errcode = '42501';
     end if;
@@ -351,13 +367,6 @@ begin
     end if;
     raise exception 'this receipt id was already used for a different receipt' using errcode = 'P0001', detail = 'request-id-reused';
   end if;
-
-  insert into public.incoming_payments
-    (id, org_id, customer_id, sales_invoice_id, date, amount, received_amount, withheld_amount,
-     withholding_slip_number, status, pmo_native, pmo_number)
-  values
-    (v_id, v_org, p_customer_id, null, p_date, p_amount, v_received, v_withheld, v_slip, 'Paid', true,
-     public.native_revenue_doc_number(v_org, 'RCV', v_today));   -- currency: the org's, stamped by the 0187 trigger
 
   perform public.log_audit('incoming_payment.on_account', v_org, v_uid, v_id,
     jsonb_build_object('customer_id', p_customer_id, 'amount', p_amount, 'received_amount', v_received, 'withheld_amount', v_withheld));
@@ -385,6 +394,7 @@ declare
   v_total    numeric;
   v_unapplied numeric;
   v_cash_used numeric;
+  v_wh_used  numeric;
   v_cash     numeric;
   v_id       uuid;
   v_ids      uuid[]    := '{}';
@@ -478,7 +488,7 @@ begin
   end loop;
 
   -- Over-allocation, both inequalities inclusive, from figures recomputed under the locks (never the stored balance).
-  select coalesce(sum(a.amount), 0), coalesce(sum(a.cash_amount), 0) into v_unapplied, v_cash_used
+  select coalesce(sum(a.amount), 0), coalesce(sum(a.cash_amount), 0), coalesce(sum(a.withheld_amount), 0) into v_unapplied, v_cash_used, v_wh_used
     from public.incoming_payment_allocations a where a.incoming_payment_id = p_receipt_id and a.reversed_at is null;
   v_unapplied := v_rc.amount - v_unapplied;
   if v_total > v_unapplied then
@@ -492,15 +502,17 @@ begin
     end if;
   end loop;
 
-  -- Cash / withheld split (D5): the proportional share, except an allocation that takes the receipt's whole remainder takes
-  -- the remaining cash, so a fully applied receipt's cash sums to received_amount exactly.
+  -- Cash / withheld split (D5): the proportional share, bounded by what is left of each pool (cash not yet taken, withheld not
+  -- yet taken), and an allocation that takes the receipt's whole remainder takes the remaining cash. So a fully applied
+  -- receipt's cash sums to received_amount and its withheld to withheld_amount exactly, however it is sliced.
   for v_i in 1 .. v_n loop
     if v_amt[v_i] = v_unapplied then
       v_cash := v_rc.received_amount - v_cash_used;
     else
-      v_cash := round(v_amt[v_i] * v_rc.received_amount / v_rc.amount, 2);
+      v_cash := least(v_amt[v_i], v_rc.received_amount - v_cash_used,
+                      greatest(round(v_amt[v_i] * v_rc.received_amount / v_rc.amount, 2),
+                               v_amt[v_i] - (v_rc.withheld_amount - v_wh_used), 0));
     end if;
-    v_cash := least(greatest(v_cash, 0), v_amt[v_i]);   -- ponytail: a rounding edge clamps; the split check (cash + withheld = amount) always holds
     insert into public.incoming_payment_allocations
       (org_id, incoming_payment_id, sales_invoice_id, amount, cash_amount, withheld_amount, currency, request_id, created_by)
     values
@@ -508,6 +520,7 @@ begin
     returning id into v_id;
     v_ids := v_ids || v_id;
     v_cash_used := v_cash_used + v_cash;
+    v_wh_used := v_wh_used + v_amt[v_i] - v_cash;
     v_unapplied := v_unapplied - v_amt[v_i];
   end loop;
 

@@ -6,7 +6,7 @@
 -- Migration under test: 0731_payment_allocation.sql §5.
 begin;
 create extension if not exists pgtap;
-select plan(78);
+select plan(88);
 
 -- ── helpers: run a statement, report 'SQLSTATE:detail' of its error (or 'no-error') ─────────────────────────────
 create function pg_temp.act_as(p_uid uuid) returns void language sql as
@@ -320,6 +320,65 @@ select is(pg_temp.err($$ select public.record_native_on_account_receipt('0731000
   'P0001:revenue', 'AC-NPA-004 …and so does record_native_on_account_receipt');                                                            -- 76
 reset role;
 rollback to savepoint feature_off;
+
+-- ── the split holds however a receipt is sliced (many tiny shares, awkward cents), and on-account takes clients only ──
+insert into companies (id, org_id, name, type) values
+  ('07310000-0000-0000-0000-0000000000cd', '07310000-0000-0000-0000-000000000001', 'NPA Vendor', 'Vendor');
+insert into public.sales_invoices (id, org_id, customer_id, invoice_date, amount, tax_treatment, tax_amount, currency,
+                                   status, pmo_native, native_lines, erp_outstanding_amount) values
+  ('07310000-0000-0000-0000-000000000e71', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01', 1,  'inclusive', 0, 'IDR', 'Unpaid', true, '[{"d":"s1"}]'::jsonb, 1),
+  ('07310000-0000-0000-0000-000000000e72', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01', 10, 'inclusive', 0, 'IDR', 'Unpaid', true, '[{"d":"s2"}]'::jsonb, 10),
+  ('07310000-0000-0000-0000-000000000e73', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01', 1,  'inclusive', 0, 'IDR', 'Unpaid', true, '[{"d":"s3"}]'::jsonb, 1),
+  ('07310000-0000-0000-0000-000000000e74', '07310000-0000-0000-0000-000000000001', '07310000-0000-0000-0000-0000000000c9', '2026-07-01', 1,  'inclusive', 0, 'IDR', 'Unpaid', true, '[{"d":"s4"}]'::jsonb, 1);
+set local role authenticated;
+select pg_temp.act_as('07310000-0000-0000-0000-0000000000a1');
+select is(pg_temp.err($$ select public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000cd', 10, null, null, null, '2026-07-05') $$),
+  'P0002:', 'AC-NPA-001 an on-account receipt for a company that is not a client is refused');                                              -- 79
+select public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000c9', 1, 0.50, 0.50, 'BP-S1', '2026-07-05', '07310000-0000-0000-0000-000000000f71');
+select public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000c9', 10, 3.33, 6.67, 'BP-S2', '2026-07-05', '07310000-0000-0000-0000-000000000f72');
+select public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000c9', 1, 0.01, 0.99, 'BP-S3', '2026-07-05', '07310000-0000-0000-0000-000000000f73');
+select public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000c9', 1, 0.99, 0.01, 'BP-S4', '2026-07-05', '07310000-0000-0000-0000-000000000f74');
+-- 1.00 (cash 0.50 / withheld 0.50) applied as one hundred 0.01 allocations
+select public.apply_native_receipt('07310000-0000-0000-0000-000000000f71',
+  jsonb_build_array(jsonb_build_object('invoice_id', '07310000-0000-0000-0000-000000000e71', 'amount', 0.01)), gen_random_uuid())
+  from generate_series(1, 100);
+select is((select row(sum(cash_amount), sum(withheld_amount), count(*))::text from public.incoming_payment_allocations
+            where incoming_payment_id = '07310000-0000-0000-0000-000000000f71'),
+  row(0.50::numeric, 0.50::numeric, 100::bigint)::text, 'AC-NPA-002 1.00 (0.50 cash / 0.50 withheld) applied as 100 allocations of 0.01 sums to exactly 0.50 and 0.50');  -- 80
+-- 10.00 (cash 3.33 / withheld 6.67) in uneven slices
+select public.apply_native_receipt('07310000-0000-0000-0000-000000000f72',
+  jsonb_build_array(jsonb_build_object('invoice_id', '07310000-0000-0000-0000-000000000e72', 'amount', x)), gen_random_uuid())
+  from unnest(array[0.01, 3.33, 0.07, 2.58, 1.91, 2.10]::numeric[]) x;
+select is((select row(sum(cash_amount), sum(withheld_amount), sum(amount))::text from public.incoming_payment_allocations
+            where incoming_payment_id = '07310000-0000-0000-0000-000000000f72'),
+  row(3.33::numeric, 6.67::numeric, 10.00::numeric)::text, 'AC-NPA-002 10.00 (3.33 / 6.67) applied in six uneven slices sums to exactly 3.33 and 6.67');   -- 81
+-- mostly withheld, then mostly cash, in 0.01 steps
+select public.apply_native_receipt('07310000-0000-0000-0000-000000000f73',
+  jsonb_build_array(jsonb_build_object('invoice_id', '07310000-0000-0000-0000-000000000e73', 'amount', 0.01)), gen_random_uuid())
+  from generate_series(1, 100);
+select is((select row(sum(cash_amount), sum(withheld_amount))::text from public.incoming_payment_allocations
+            where incoming_payment_id = '07310000-0000-0000-0000-000000000f73'),
+  row(0.01::numeric, 0.99::numeric)::text, 'AC-NPA-002 a receipt that is 99% withheld applied in 0.01 steps sums to exactly 0.01 and 0.99');                -- 82
+select public.apply_native_receipt('07310000-0000-0000-0000-000000000f74',
+  jsonb_build_array(jsonb_build_object('invoice_id', '07310000-0000-0000-0000-000000000e74', 'amount', 0.01)), gen_random_uuid())
+  from generate_series(1, 100);
+select is((select row(sum(cash_amount), sum(withheld_amount))::text from public.incoming_payment_allocations
+            where incoming_payment_id = '07310000-0000-0000-0000-000000000f74'),
+  row(0.99::numeric, 0.01::numeric)::text, 'AC-NPA-002 a receipt that is 99% cash applied in 0.01 steps sums to exactly 0.99 and 0.01');                    -- 83
+select is((select count(*)::int from public.incoming_payment_allocations
+            where incoming_payment_id in ('07310000-0000-0000-0000-000000000f71','07310000-0000-0000-0000-000000000f72',
+                                          '07310000-0000-0000-0000-000000000f73','07310000-0000-0000-0000-000000000f74')
+              and (cash_amount < 0 or withheld_amount < 0 or cash_amount + withheld_amount <> amount)), 0,
+  'AC-NPA-002 …and no share is negative or fails to add up to its allocation');                                                            -- 84
+select is(public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000c9', 1, 0.50, 0.50, 'BP-S1', '2026-07-05', '07310000-0000-0000-0000-000000000f71'),
+  '07310000-0000-0000-0000-000000000f71'::uuid, 'AC-NPA-005 replaying a recorded receipt id with the same payload returns that id');         -- 85
+select is(pg_temp.err($$ select public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000c9', 1, 0.40, 0.60, 'BP-S1', '2026-07-05', '07310000-0000-0000-0000-000000000f71') $$),
+  'P0001:request-id-reused', 'AC-NPA-005 …and a replay with another payload is still refused');                                            -- 86
+select is(pg_temp.err($$ select public.record_native_on_account_receipt('07310000-0000-0000-0000-0000000000c9', 1, 0.50, 0.50, 'BP-S1', '2026-07-05', '07310000-0000-0000-0000-0000000000f2') $$),
+  '42501:', 'AC-NPA-004 …and another org''s receipt id is still refused');                                                                  -- 87
+select is((select count(*)::int from public.incoming_payments where id = '07310000-0000-0000-0000-000000000f71'), 1,
+  'AC-NPA-005 …and a replay writes no second receipt');                                                                                    -- 88
+reset role;
 
 -- ── audit ──────────────────────────────────────────────────────────────────────────────────────────────────
 select cmp_ok((select count(*)::int from public.audit_events where action = 'incoming_payment.apply'
