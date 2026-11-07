@@ -61,7 +61,10 @@ interface World {
   projectLink?: string | null;
   account?: { active: boolean; tombstoned_at: string | null } | null;
   odooBinding?: Record<string, unknown> | null;
+  /** Tables whose linked row belongs to another organisation. */
+  foreign?: Array<'procurements' | 'procurement_invoices' | 'companies'>;
 }
+const OTHER_ORG_ID = '99999999-9999-4999-8999-999999999999';
 
 const objectResponse = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 const nullObjectResponse = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
@@ -113,8 +116,10 @@ function routes(unexpected: FetchCall[], caller: string, world: World): MockRout
     supabaseSelect('organizations', () => objectResponse({ default_currency: 'IDR' })),
     supabaseSelect('procurements', () => world.caseRow === null ? nullObjectResponse() : objectResponse({
       id: PROC_ID, org_id: ORG_ID, status: 'Vendor Invoiced', approved_by_id: APPROVER_ID, amount_approved_by_id: world.amountApproverId ?? null,
-      approved_total_value: 100000, vendor_id: VENDOR_ID, ...world.caseRow,
+      approved_total_value: 100000, vendor_id: VENDOR_ID, ...(world.foreign?.includes('procurements') ? { org_id: OTHER_ORG_ID } : {}), ...world.caseRow,
     })),
+    supabaseSelect('procurement_invoices', () => objectResponse({ org_id: world.foreign?.includes('procurement_invoices') ? OTHER_ORG_ID : ORG_ID })),
+    supabaseSelect('companies', () => objectResponse({ org_id: world.foreign?.includes('companies') ? OTHER_ORG_ID : ORG_ID })),
     supabaseSelect('external_project_bindings', () => world.projectLink ? objectResponse({ external_container_id: world.projectLink }) : nullObjectResponse()),
     supabaseSelect('external_master_records', () => world.account === null ? nullObjectResponse() : objectResponse(world.account ?? { active: true, tombstoned_at: null })),
     supabaseSelect('external_refs', () => nullObjectResponse()),
@@ -217,6 +222,28 @@ describe('AC-OPP-061 the dispatch gates refuse a tier-odoo procurement command a
   it('AC-SCA-012 a revise that would cancel a billed order is refused 422 before any outbox row', async () => {
     await refusedAlike(reviseCommand(), PAYER_ID, { poRevise: 'po_has_submitted_bill' }, 422, 'po_has_submitted_bill');
   });
+});
+
+describe('AC-OPP-003 Odoo procurement runs the shared link check before adapter selection', () => {
+  const quotationCommand = () => ({
+    domain: 'procurement', operation: 'create', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001509',
+    record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001509', erp_doc_kind: 'quotation', procurementId: PROC_ID, vendorId: VENDOR_ID },
+  });
+  const cases: Array<[string, () => Record<string, unknown>, NonNullable<World['foreign']>]> = [
+    ['an order for another tenant\'s case', orderCommand, ['procurements']],
+    ['a quotation naming another tenant\'s vendor', quotationCommand, ['companies']],
+    ['a bill for another tenant\'s case', billCommand, ['procurements']],
+    ['a payment settling another tenant\'s bill', paymentCommand, ['procurement_invoices']],
+  ];
+  for (const [name, command, foreign] of cases) {
+    it(`${name} is refused 422 cross-org-link-rejected with no Odoo request and no outbox row`, async () => {
+      const r = await dispatch(command(), PAYER_ID, { owns: ['odoo'], foreign, projectLink: '101', caseRow: { project_id: '77777777-7777-4777-8777-777777777777' } });
+      assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+      assertEquals([r.status, JSON.parse(r.body).error], [422, 'cross-org-link-rejected'], r.body);
+      assertEquals(r.calls.filter((c) => c.url.host === ODOO_HOST).length, 0, 'no Odoo request');
+      assertEquals(r.calls.filter((c) => c.method === 'POST' && c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row');
+    });
+  }
 });
 
 describe('AC-OPP-014 / FR-OPP-020 an Odoo purchase needs its project\'s cost account', () => {

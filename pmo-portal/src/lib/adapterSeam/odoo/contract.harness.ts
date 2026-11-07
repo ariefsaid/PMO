@@ -343,11 +343,14 @@ export function createOdooHarness(): ErpHarness {
         blank: ['', ''], absent: [undefined, undefined],
       } as const;
       const [paymentType, partnerType] = fields[direction];
-      const row = REVENUE_FEED_SPECS['incoming-payment'].parse({
+      const raw = {
         id: 1, name: 'PAY/1', state: 'paid', partner_id: [41, 'Client'], payment_type: paymentType,
         partner_type: partnerType, amount: 100, date: '2026-11-01', currency_id: [1, 'IDR'], write_date: '2026-11-02 10:00:00',
-      });
-      return row ? { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' } : { kind: 'skipped' };
+      };
+      if (REVENUE_FEED_SPECS['incoming-payment'].parse(raw)) return { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' };
+      // The purchase feed selects vendor payments by its search filter, so a row belongs to it only when the filter holds.
+      const outbound = (PURCHASE_SPECS.payment.filter as Array<[string, string, unknown]>).every(([field, , value]) => (raw as Record<string, unknown>)[field] === value);
+      return outbound && PURCHASE_SPECS.payment.parse(raw) ? { kind: 'vendor-payment', domain: 'procurement', table: 'payments' } : { kind: 'skipped' };
     },
     async mirrorPurchases(docs) {
       const latest = new Map<string, { kind: 'purchase-order' | 'bill'; reference: string; total: string; modifiedAt: string }>();
