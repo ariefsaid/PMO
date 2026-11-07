@@ -98,10 +98,15 @@ export type ProjectMoneyPositionInput = {
   contractValue: number | null;
   activeBudget: number | undefined;
   ledgerBasis: ActualPosition['basis'];
-  committedSpend: number | string | undefined;
-  commitmentPending: boolean;
-  commitmentError: boolean;
-  commitmentComplete?: boolean;
+  /**
+   * PMO basis only: the recorded spend on the Budget tab's Spent basis (pre-tax paid purchases + the hire charge).
+   * It used to carry the full ordered purchase total, which is what made a half-paid order read as fully spent
+   * (#1739). The open remainder is a separate figure — see `deriveBudgetConsumption`.
+   */
+  pmoSpent: number | string | undefined;
+  pmoSpentPending: boolean;
+  pmoSpentError: boolean;
+  pmoSpentComplete?: boolean;
   actuals: ProjectFinances['actuals'] | undefined;
 };
 
@@ -117,18 +122,18 @@ export type ProjectMoneyPosition = {
 
 export function deriveActualPosition(input: {
   ledgerBasis: 'pmo' | 'erp' | 'unavailable';
-  committedSpend: number | string | undefined;
-  commitmentPending: boolean;
-  commitmentError: boolean;
-  commitmentComplete?: boolean;
+  pmoSpent: number | string | undefined;
+  pmoSpentPending: boolean;
+  pmoSpentError: boolean;
+  pmoSpentComplete?: boolean;
   projectCurrency: string;
   actuals: ProjectFinances['actuals'] | undefined;
 }): ActualPosition {
   if (input.ledgerBasis === 'pmo') {
-    const units = typeof input.committedSpend === 'string' ? moneyUnits(input.committedSpend)
-      : input.committedSpend !== undefined && Number.isFinite(input.committedSpend)
-        ? BigInt(Math.round(input.committedSpend * 100)) : null;
-    if (input.commitmentPending || input.commitmentError || input.commitmentComplete === false || units === null) {
+    const units = typeof input.pmoSpent === 'string' ? moneyUnits(input.pmoSpent)
+      : input.pmoSpent !== undefined && Number.isFinite(input.pmoSpent)
+        ? BigInt(Math.round(input.pmoSpent * 100)) : null;
+    if (input.pmoSpentPending || input.pmoSpentError || input.pmoSpentComplete === false || units === null) {
       return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
     }
     return { amount: moneyText(units), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
@@ -168,7 +173,7 @@ export function buildProjectMoneyPosition(input: ProjectMoneyPositionInput): Pro
   const contractAfterCostTone = remainingUnits === null ? undefined : remainingUnits < 0n ? 'neg' : 'pos';
   const headlineState: ProjectMoneyPosition['headlineState'] = actual.complete && actual.amount !== null && actual.currency
     ? 'available'
-    : input.ledgerBasis === 'pmo' && input.commitmentPending
+    : input.ledgerBasis === 'pmo' && input.pmoSpentPending
       ? 'loading'
       : categories.some((row) => !row.mapped) || input.actuals?.excludes_restricted_rows
         ? 'partial'
@@ -185,6 +190,36 @@ export function buildProjectMoneyPosition(input: ProjectMoneyPositionInput): Pro
     contractAfterCost,
     contractAfterCostTone,
     spendPercent,
+  };
+}
+
+export type BudgetConsumptionInput = {
+  ledgerBasis: 'pmo' | 'erp' | 'unavailable';
+  /** Recorded spend: the collection's `actuals.total` (PMO paid spend, or the ledger Actual). */
+  spent: ExactMoney | null | undefined;
+  /** PMO open commitment: the collection's `actuals.committedTotal`. Absent on an ERP read or a pre-0700 payload. */
+  committed?: ExactMoney | null;
+  spentComplete?: boolean;
+  committedComplete?: boolean;
+};
+
+/**
+ * The one budget-consumption figure — what a single-figure budget surface is allowed to show (#1739).
+ *
+ * A PMO org consumes spent + open commitment: the purchase total, once, exactly as the Budget tab's Spent +
+ * Committed columns add up (OD-1530-COMMIT). A ledger org consumes its ledger Actual, unchanged. Unknown is
+ * never a partial sum: an unreadable part withholds the figure.
+ */
+export function deriveBudgetConsumption(input: BudgetConsumptionInput): { amount: ExactMoney | null; complete: boolean } {
+  if (input.ledgerBasis === 'unavailable') return { amount: null, complete: false };
+  const spentUnits = moneyUnits(input.spent ?? null);
+  const committedUnits = moneyUnits(input.committed ?? null) ?? 0n;
+  const complete = input.spentComplete !== false
+    && (input.ledgerBasis !== 'pmo' || input.committedComplete !== false);
+  if (spentUnits === null || !complete) return { amount: null, complete: false };
+  return {
+    amount: moneyText(input.ledgerBasis === 'pmo' ? spentUnits + committedUnits : spentUnits),
+    complete: true,
   };
 }
 
