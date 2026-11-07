@@ -4716,6 +4716,7 @@
     "retryLists": "Retry list details",
     "bindingReadUnavailable": "Project link details could not be refreshed. The saved link is retained.",
     "retryBinding": "Retry project link",
+    "unlinkUnconfirmed": "We couldn't confirm the unlink. The link details are refreshing — check the current state before trying again.",
     "unlinkFailed": "Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.",
     "reviewTitle": "Review ClickUp link",
     "reviewSubtitle": "Confirm which existing list belongs to this project.",
