@@ -238,7 +238,7 @@ describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects',
     expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02: the PipelineLens deal banner is NOT rendered for a delivery project', async () => {
+  it('AC-IFW-RECORD-02: the DealBand deal banner is NOT rendered for a delivery project', async () => {
     await renderAt('/projects/del1');
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();

@@ -91,7 +91,7 @@ vi.mock('../ContractCascade', () => ({
 }));
 vi.mock('../ProjectDetailHeader', () => ({ default: ({ primaryAction }: { primaryAction?: React.ReactNode }) => <div>Header{primaryAction}</div>, hasFinanceView: () => true }));
 vi.mock('../ProjectDetailRail', () => ({ default: () => <aside data-testid="project-detail-rail" /> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div data-testid="pipeline-lens" /> }));
+vi.mock('../../sales/DealBand', () => ({ default: () => <div data-testid="pipeline-lens" /> }));
 vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
 vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));

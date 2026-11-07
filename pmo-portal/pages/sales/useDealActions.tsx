@@ -17,7 +17,7 @@ import {
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { LostReasonValue } from '@/components/project-status/LostReasonFields';
 
-// ⛔ stage names stay untranslated, as in PipelineLens (same vocabulary as the status pill).
+// ⛔ stage names stay untranslated, as in DealBand (same vocabulary as the status pill).
 export const NEXT_STAGE_LABEL: Record<string, string> = {
   Leads: 'Quotation',
   'Quotation Submitted': 'Pre-Qualification',
@@ -25,9 +25,6 @@ export const NEXT_STAGE_LABEL: Record<string, string> = {
   'Tender Submitted': 'Negotiation',
 };
 
-// ponytail: mirrors the state and write paths of pages/project-detail/PipelineLens.tsx (the RPC
-// calls are identical) so the three opportunity layouts share one engine without editing the
-// default page. The winning layout replaces PipelineLens and this becomes its hook.
 export function useDealActions(project: ProjectWithRefs) {
   const { t } = useTranslation('project');
   const { toast } = useToast();

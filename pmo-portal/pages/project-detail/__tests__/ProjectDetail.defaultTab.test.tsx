@@ -106,7 +106,7 @@ vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budge
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
+vi.mock('../../sales/DealBand', () => ({ default: () => <div>Pipeline</div> }));
 // ProjectSCurve now reads useTasks (s-curve actual line, ADR-0032) — it renders inside
 // ProjectDetail (the demote/lever lens) even though the tabs are stubbed, so mock the hook
 // to avoid the real useAuth dependency in this tab-selection test.

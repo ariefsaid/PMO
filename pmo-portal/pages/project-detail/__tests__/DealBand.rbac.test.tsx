@@ -9,7 +9,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /**
- * A-1 PipelineLens write-affordance gate (AC-W2-RBAC-001/002, rbac-visibility §B2):
+ * A-1 DealBand write-affordance gate (AC-W2-RBAC-001/002, rbac-visibility §B2):
  *   Pipeline lifecycle control (Advance / Mark won / Mark lost) is Admin·Exec·PM (delivery).
  *   Finance·Engineer = ○ (read-only). The gate reads the REAL JWT role.
  *
@@ -56,7 +56,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const dealRow = {
   id: 'd1',
@@ -78,7 +78,7 @@ const renderAs = (realRole: Role) =>
     <MemoryRouter>
       <ImpersonationProvider realRole={realRole}>
         <ToastProvider>
-          <PipelineLens project={dealRow} />
+          <DealBand project={dealRow} />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>,
@@ -86,15 +86,15 @@ const renderAs = (realRole: Role) =>
 
 beforeEach(() => transitionProject.mockClear());
 
-describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
+describe('DealBand — RBAC write-affordance gate (A-1)', () => {
   it('AC-W2-RBAC-002: a PM sees Advance / Mark won / Mark lost (authorized)', async () => {
     renderAs('Project Manager');
     await userEvent.click(screen.getByText('More project details'));
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
-    // #1638: the deal page carries the stage history beside the journey.
-    expect(screen.getByRole('heading', { name: 'Stage history' })).toBeInTheDocument();
+    // #1638: the deal page carries the stage history; it opens on demand.
+    expect(screen.getByText('Sales history')).toBeInTheDocument();
   });
 
   it('AC-W2-RBAC-001: an Engineer sees the stage + journey but NO lifecycle control (denied)', async () => {

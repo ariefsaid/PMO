@@ -85,8 +85,7 @@ const ExecutiveDashboard = lazyWithPreload(() => import('./pages/ExecutiveDashbo
 const Projects = lazyWithPreload(() => import('./pages/Projects'));
 const ProjectNew = lazyWithPreload(() => import('./pages/ProjectNew'));
 const ProjectDetail = lazyWithPreload(() => import('./pages/project-detail/ProjectDetail'));
-const OpportunityOption = React.lazy(() => import('./pages/sales/options/OpportunityOptions'));
-const SalesPipeline = lazyWithPreload(() => import('./pages/sales/SalesLayoutRoute'));
+const SalesPipeline = lazyWithPreload(() => import('./pages/SalesPipeline'));
 const ProcurementPage = lazyWithPreload(() => import('./pages/Procurement'));
 const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDetails'));
 const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
@@ -270,8 +269,6 @@ export function preloadForPath(pathname: string): void {
  */
 const SalesDetailRedirect: React.FC = () => {
   const { opportunityId = '' } = useParams<{ opportunityId: string }>();
-  const layout = new URLSearchParams(useLocation().search).get('layout');
-  if (layout === 'a' || layout === 'b' || layout === 'c') return <React.Suspense fallback={null}><OpportunityOption layout={layout} /></React.Suspense>;
   return <Navigate to={`/projects/${opportunityId}`} replace />;
 };
 

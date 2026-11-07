@@ -43,7 +43,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const dealRow = {
   id: 'd1',
@@ -70,7 +70,7 @@ async function markWon() {
     <MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={dealRow} />
+          <DealBand project={dealRow} />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>,
@@ -86,7 +86,7 @@ beforeEach(() => {
   synchronizeErpProject.mockReset();
 });
 
-describe('PipelineLens mark-won links the ERP Project (AC-SETUP-001)', () => {
+describe('DealBand mark-won links the ERP Project (AC-SETUP-001)', () => {
   it('AC-SETUP-001 a successful win synchronises that project with ERPNext', async () => {
     synchronizeErpProject.mockResolvedValue('linked');
     await markWon();

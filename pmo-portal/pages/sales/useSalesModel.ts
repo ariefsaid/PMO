@@ -12,14 +12,11 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import { activeClassificationCount } from '@/src/lib/projectClassification';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
-import { SALES_COLUMNS, openOpportunity, type OpenFunnelStage } from '../../../components/salesPipeline';
-import { DEAL_SCOPES, filterPipelineBoard, filterPipelineTable, type DealScope } from '../../sales-pipeline/pipelineListModel';
-import { OPEN_COLUMNS, projectFunnelModel } from '../../sales-pipeline/pipelineFunnelModel';
-import { buildPipelineColumns } from '../../sales-pipeline/pipelineColumns';
+import { SALES_COLUMNS, openOpportunity, type OpenFunnelStage } from '../../components/salesPipeline';
+import { DEAL_SCOPES, filterPipelineBoard, filterPipelineTable, type DealScope } from '../sales-pipeline/pipelineListModel';
+import { OPEN_COLUMNS, projectFunnelModel } from '../sales-pipeline/pipelineFunnelModel';
+import { buildPipelineColumns } from '../sales-pipeline/pipelineColumns';
 
-// ponytail: this mirrors the state block of pages/SalesPipeline.tsx so the three layouts share one
-// model without touching the default page. The winning layout replaces SalesPipeline and this
-// hook becomes its model; the losers delete with their option file.
 export function useSalesModel() {
   const { t } = useTranslation();
   const isDesktop = useIsDesktop();

@@ -1,6 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router';
-import ProjectClassificationFilters from '../../../components/ProjectClassificationFilters';
+import ProjectClassificationFilters from '../../components/ProjectClassificationFilters';
 import { ExportButton } from '@/src/components/export';
 import {
   Button, Drawer, Icon, LifecycleStepper, SearchMini, StatusPill, TaxBasisLabel, ViewToggle,
@@ -9,16 +8,16 @@ import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
   dealJourneySteps, formatPercent, isNeedsAttention, isStaleBid, pillVariantForStatus, weightedValue,
-} from '../../../components/salesPipeline';
-import { PipelineResults } from '../../sales-pipeline/PipelineResults';
+} from '../../components/salesPipeline';
+import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import type { SalesModel } from './useSalesModel';
 import { attentionReason, dash, openValueTotal } from './salesLogic';
 
-export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, className }) => (
+export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, m: { t }, className }) => (
   <SearchMini
-    placeholder={m.t('sales.search.placeholder', 'Search projects…')}
-    aria-label={m.t('sales.search.label', 'Search projects')}
+    placeholder={t('sales.search.placeholder', 'Search projects…')}
+    aria-label={t('sales.search.label', 'Search projects')}
     value={m.search}
     onChange={(e) => m.setSearch(e.target.value)}
     containerClassName={className ?? 'max-sm:basis-full max-sm:w-full max-sm:min-w-0'}
@@ -36,13 +35,13 @@ export const SalesClassification: React.FC<{ m: SalesModel; inline?: boolean }> 
     />
   ) : null;
 
-export const SalesScope: React.FC<{ m: SalesModel }> = ({ m }) => (
+export const SalesScope: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => (
   <div className="max-w-full overflow-x-auto scroll-fade-x">
     <ViewToggle
       options={m.DEAL_SCOPES.map((s) => ({ value: s, label: m.scopeLabels[s] }))}
       value={m.scope}
       onChange={m.setScope}
-      ariaLabel={m.t('sales.scopeToggleLabel', 'Project scope')}
+      ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
     />
   </div>
 );
@@ -55,33 +54,33 @@ export const SalesExport: React.FC<{ m: SalesModel }> = ({ m }) => (
   />
 );
 
-export const SalesViewToggle: React.FC<{ m: SalesModel; extra?: React.ComponentProps<typeof ViewToggle>['options'] }> = ({ m }) => (
+export const SalesViewToggle: React.FC<{ m: SalesModel; extra?: React.ComponentProps<typeof ViewToggle>['options'] }> = ({ m, m: { t } }) => (
   <ViewToggle
     options={[
-      { value: 'kanban', label: m.t('sales.view.board', 'Board'), icon: 'cards' },
-      { value: 'table', label: m.t('sales.view.table', 'Table'), icon: 'table' },
+      { value: 'kanban', label: t('sales.view.board', 'Board'), icon: 'cards' },
+      { value: 'table', label: t('sales.view.table', 'Table'), icon: 'table' },
     ]}
     value={m.view}
     onChange={(v: PipelineView) => m.setView(v)}
-    ariaLabel={m.t('sales.viewToggleLabel', 'Pipeline view')}
+    ariaLabel={t('sales.viewToggleLabel', 'Pipeline view')}
   />
 );
 
-export const NewProjectButton: React.FC<{ m: SalesModel }> = ({ m }) =>
+export const NewProjectButton: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) =>
   m.canCreate ? (
     <Button variant="primary" onClick={() => m.openRecord('/projects/new', 'projects')}>
       <Icon name="plus" />
-      {m.t('sales.newProject', 'New project')}
+      {t('sales.newProject', 'New project')}
     </Button>
   ) : null;
 
 /** Phone: one stage selector over the stage list (same control the default page offers). */
-export const PhoneStageSelect: React.FC<{ m: SalesModel }> = ({ m }) => (
+export const PhoneStageSelect: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => (
   <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-    <span className="shrink-0">{m.t('uxs24.stageLabel', 'Pipeline stage')}</span>
+    <span className="shrink-0">{t('uxs24.stageLabel', 'Pipeline stage')}</span>
     <select
       data-testid="sales-phone-stage-selector"
-      aria-label={m.t('uxs24.stageLabel', 'Pipeline stage')}
+      aria-label={t('uxs24.stageLabel', 'Pipeline stage')}
       value={m.selectedStatus ?? ''}
       onChange={(e) => {
         const status = e.currentTarget.value as '' | NonNullable<SalesModel['selectedStatus']>;
@@ -89,7 +88,7 @@ export const PhoneStageSelect: React.FC<{ m: SalesModel }> = ({ m }) => (
       }}
       className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
-      <option value="">{m.t('uxs24.allStages', 'All stages')}</option>
+      <option value="">{t('uxs24.allStages', 'All stages')}</option>
       {m.funnel.openColumns.map((c) => (
         <option key={c.statuses[0]} value={c.statuses[0]}>{m.stageLabel(c)}</option>
       ))}
@@ -97,7 +96,7 @@ export const PhoneStageSelect: React.FC<{ m: SalesModel }> = ({ m }) => (
   </label>
 );
 
-/** Phone controls shared by all layouts: stage selector, scope, search, classification. */
+/** Phone controls: stage selector, scope, search, classification. */
 export const PhoneControls: React.FC<{ m: SalesModel; stage?: boolean; scope?: boolean; search?: boolean }> = ({ m, stage = true, scope = true, search = true }) => (
   <div className="w-full min-w-0 space-y-2">
     {stage && m.scope !== 'Lost' && m.scope !== 'Won' && <PhoneStageSelect m={m} />}
@@ -108,15 +107,15 @@ export const PhoneControls: React.FC<{ m: SalesModel; stage?: boolean; scope?: b
 );
 
 /** Phone: the figures that lead on desktop, as one compact row. */
-export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m }) => {
+export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
   if (m.isDesktop || m.state !== undefined) return null;
   const total = openValueTotal(m);
   const cur = m.funnel.effectiveCurrency;
   return (
-    <section aria-label={m.t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 grid grid-cols-2 gap-4 p-[var(--panel-inset)]">
-      <Figure label={m.t('sales:options.weightedForecast', 'Weighted forecast')} value={total === null ? dash : formatCurrency(m.funnel.totalWeighted, cur)} />
-      <Figure label={m.t('sales:options.openValue', 'Open value')} value={total === null ? dash : formatCurrency(total, cur)}
-        note={m.t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length })} />
+    <section aria-label={t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 grid grid-cols-2 gap-4 p-[var(--panel-inset)]">
+      <Figure label={t('sales:options.weightedForecast', 'Weighted forecast')} value={total === null ? dash : formatCurrency(m.funnel.totalWeighted, cur)} />
+      <Figure label={t('sales:options.openValue', 'Open value')} value={total === null ? dash : formatCurrency(total, cur)}
+        note={t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length })} />
     </section>
   );
 };
@@ -204,9 +203,6 @@ export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null
             <p role="status" className="text-sm text-foreground">{attentionReason(m, deal)}</p>
           )}
           <LifecycleStepper variant="bar" steps={dealJourneySteps(deal.status)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
-          <Link to={`/sales/${deal.id}?layout=${new URLSearchParams(window.location.search).get('layout') ?? ''}`} className="text-xs font-semibold text-primary-text hover:underline">
-            {t('sales:options.openOpportunityPage', 'Open the opportunity page')}
-          </Link>
         </div>
       )}
     </Drawer>

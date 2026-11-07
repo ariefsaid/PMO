@@ -4,8 +4,8 @@ import { Button, ConfirmDialog, Icon, LifecycleStepper, RecordActionZone, TaxBas
 import { LostReasonFields } from '@/components/project-status/LostReasonFields';
 import { lostReasonLabel, lostReasonValid } from '@/src/lib/lostReasons';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
-import { formatPercent, dealJourneySteps, weightedValue } from '../../../components/salesPipeline';
-import StageHistory from '../../project-detail/StageHistory';
+import { formatPercent, dealJourneySteps, weightedValue } from '../../components/salesPipeline';
+import StageHistory from '../project-detail/StageHistory';
 import { NEXT_STAGE_LABEL, type DealActions } from './useDealActions';
 
 type Fig = { key: string; label: string; value: React.ReactNode; sub?: React.ReactNode };

@@ -11,7 +11,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /**
  * PGB-017 regression test:
- * PipelineLens carries the query status and missing-record state into stat tiles.
+ * DealBand carries the query status and missing-record state into stat tiles.
  * Shows loading or an unavailable value with retry rather than inventing 0% / $0.
  */
 
@@ -42,7 +42,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const openDeal = {
   id: 'd1',
@@ -67,7 +67,7 @@ const component = () => (
       <QueryClientProvider client={freshClient()}>
         <ImpersonationProvider realRole={role}>
           <ToastProvider>
-            <PipelineLens project={openDeal} />
+            <DealBand project={openDeal} />
           </ToastProvider>
         </ImpersonationProvider>
       </QueryClientProvider>
@@ -88,7 +88,7 @@ beforeEach(() => {
   pipelineQueryState.isError = false;
 });
 
-describe('PipelineLens — PGB-017: query status and missing record state', () => {
+describe('DealBand — PGB-017: query status and missing record state', () => {
   it('shows loading indicators on both probability inputs and Weighted while query is pending', () => {
     pipelineQueryState.isPending = true;
     renderComponent();

@@ -62,7 +62,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries }) };
 });
 
-import PipelineLens from '../PipelineLens';
+import DealBand from '../../sales/DealBand';
 
 const dealRow = {
   id: 'd1',
@@ -89,7 +89,7 @@ const renderLens = (project: ProjectWithRefs = dealRow) =>
   render(
     <MemoryRouter><ImpersonationProvider realRole="Project Manager">
       <ToastProvider>
-        <PipelineLens project={project} />
+        <DealBand project={project} />
       </ToastProvider>
     </ImpersonationProvider></MemoryRouter>,
   );
@@ -99,7 +99,7 @@ beforeEach(() => {
   transitionProject.mockResolvedValue(undefined);
 });
 
-describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
+describe('DealBand — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
   it('AC-IXD-WP-004: clicking "Advance to <stage>" fires the transition on a SINGLE click — no confirm dialog', async () => {
     renderLens();
     const advance = screen.getByRole('button', { name: /Advance to/i });
