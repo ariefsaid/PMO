@@ -40,6 +40,7 @@ import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { receiptColumns, displayStatus, matchesStatus, incomingPaymentStatusLabel, ERP_STATUS_FILTERS, NATIVE_STATUS_FILTERS, type StatusFilter } from './incoming-payments/receiptColumns';
+import { monthWindowFromParams, monthWindowExclusiveEnd } from '@/src/lib/finance/invoicePeriod';
 import { OdooReceiptStatus } from './incoming-payments/OdooReceiptStatus';
 import { IncomingPaymentFormModal } from './incoming-payments/IncomingPaymentFormModal';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
@@ -85,7 +86,18 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const all = useMemo(() => data ?? [], [data]);
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  // #1461: the list status is URL-owned so a dashboard drill (`status=Paid&from&to`) lands on
+  // exactly the receipts the Collected figure sums, and a copied link reproduces the view.
+  const [statusFilter, setStatusFilterState] = useState<StatusFilter>(() => {
+    const requested = searchParams.get('status');
+    return requested && ['All', 'Scheduled', 'Paid', 'Received', 'Cancelled'].includes(requested)
+      ? requested as StatusFilter
+      : 'All';
+  });
+  const setStatusFilter = (next: StatusFilter) => {
+    setStatusFilterState(next);
+    setQueryValue('status', next === 'All' ? '' : next);
+  };
 
   const [formOpen, setFormOpen] = useState(false);
   const [initialInvoiceId, setInitialInvoiceId] = useState<string | undefined>();
@@ -137,8 +149,14 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // #1461: a dashboard 'Collected' drill carries its window (`from`/`to` month tokens); the
+    // list then shows exactly the Paid receipts dated in that window — the records it sums.
+    const periodWindow = monthWindowFromParams(searchParams.get('from'), searchParams.get('to'));
     return all
       .filter((p) => matchesStatus(p, statusFilter))
+      .filter((p) => (periodWindow
+        ? p.status === 'Paid' && p.date !== null && p.date >= `${periodWindow.from}-01` && p.date < monthWindowExclusiveEnd(periodWindow.to)
+        : true))
       .filter((p) => searchParams.get('todo') !== 'unapplied' || (knownUnappliedCash(p) ?? 0) > 0)
       .filter((p) => !q
         || receiptNumber(p)?.toLowerCase().includes(q)
