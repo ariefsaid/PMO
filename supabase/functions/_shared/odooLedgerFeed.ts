@@ -136,6 +136,8 @@ export async function runLedgerPass(
 ): Promise<LedgerPassResult> {
   if (!budget.spend()) return { rows: 0, caughtUp: false, skipped: 0 };
   const { fy, calendarYear } = await fiscalYearEnd(call, companyId);
+  // The statements read the same year end from the binding (one source); a refused read leaves what was stored.
+  if (fy) await rpc(sc, 'set_odoo_fiscal_year_end', { p_org_id: orgId, p_month: fy.month, p_day: fy.day });
   const { accounts, projectMap } = await projectLinks(sc, orgId);
   await rewindOnLinkChange(sc, orgId, accounts);
   const codes = await accountCodes(sc, orgId);

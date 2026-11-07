@@ -224,7 +224,7 @@ export const EngineerDashboard: React.FC = () => {
               due: dueTasks.length,
             })
             : undefined}
-          to="/my-tasks"
+          to="/my-tasks?due=week"
           linkLabel={t('hub.engineer.openTasks', 'Open tasks due this week')}
           help={t('hub.engineer.tasksHelp', 'Counts your open assigned tasks due before today or between today and Sunday of this week. If task data is unavailable, the value is shown as —.')}
         />
@@ -236,7 +236,7 @@ export const EngineerDashboard: React.FC = () => {
           value={claims.data !== undefined && currentUser?.id ? returnedClaims.length : '—'}
           loading={claims.isPending}
           error={claims.isError}
-          to="/expenses"
+          to="/expenses?status=Rejected"
           linkLabel={t('hub.engineer.openReturnedClaims', 'Open returned expense claims')}
           help={t('hub.engineer.expensesHelp', 'Counts your own expense claims with Rejected status, shown as returned. If claim data is unavailable, the value is shown as —.')}
         />

@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the list.
  * Mirrors the setup in TasksTab.test.tsx.

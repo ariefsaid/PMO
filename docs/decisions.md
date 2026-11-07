@@ -3651,6 +3651,7 @@ shared push suites' link cases pass against the production resolver (Odoo procur
 
 ## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
 The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `invoice.pair-existing` remains pending on #1506 (`receipt.read` became supported 2026-11-07: the harness classifies both payment directions through the production feeds); `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+**Update 2026-11-07 (C7):** Odoo tax documents shipped without export per owner ruling (2026-11-07): FR-OCI-094 stands (write no ERP tax-document fields), capability `tax-document.read` is declared unavailable with a plain reason, hand-recorded e-Faktur remains PMO-owned, and migration slot 0514 is returned unused.
 
 Verification after the final dev merge (#1872): adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
 
@@ -3696,3 +3697,23 @@ already uses (OD-NAR / #784). This supersedes, for orgs with no ERP, the "PMO ha
 in ADR-0048 and ADR-0055 §5. Building a native ledger **extends** the vision, it does not reverse a decision. Not
 scheduled yet: the owner said record, don't build (2026-11-03). A future build takes a new ADR for the native ledger
 and a roadmap map.
+
+### DD-1418-ATTENTION — the dashboard's Delivery five is a true attention ranking, computed in the read model (Directive, 2026-11-07, #1418)
+The executive dashboard's five project rows were the five largest contracts, re-sorted on the client by spend percentage — so
+a small project with overdue work and a blown budget could never appear. The ranking now lives in the same
+`get_executive_dashboard` payload as a second key, `attention_projects` (0732; `top_projects` is untouched for its other
+readers; no new round trip, and the screen renders the returned order and never re-sorts): a project ranks first by the
+number of DISTINCT signal kinds it carries — overdue work, over budget, waiting approvals (0–3) — then by more overdue items
+(overdue open tasks + overdue milestones + overdue client invoices), then more waiting approvals (project-scoped Requested
+procurements + Submitted expense claims), then a higher budget-consumption ratio, then contract value, then id — so ties are
+deterministic. Each signal is an EXISTING definition reused, not a new one: overdue tasks follow the agent-chat
+whats_overdue rule; an overdue milestone is the project-detail rule (target past, effective % under 100, started); an
+overdue invoice is the AR due-date rule; "over budget" is the dashboard's own at-risk basis (spent + open commitment, ledger
+Actual for an ERP-ledger org) past 100% of the Active budget, with the ratio null — never a false zero — when the basis
+cannot be compared; "today" is the org-local day. Money size is deliberately not an ingredient of the ranking (that was
+the defect); contract value only breaks a tie between equally pressing projects. The population is the active delivery set
+(active_delivery_project_statuses(): Won Pending KoM, Ongoing, On Hold, Internal; Close Out is out), and tenancy and role visibility are exactly as before: the function is still SECURITY INVOKER so
+every signal read runs under the caller's RLS, and the function adds no per-role filter of its own, so each viewer sees the
+ranking over the projects and signals their role can read (as with top_projects); the role-aware queues stay on the "waiting for you" line. Proven in
+`supabase/tests/0732_executive_attention_ranking.test.sql` (AC-1418-01..18) and
+`pmo-portal/pages/ExecutiveDashboard.test.tsx` (F2/#1418, returned order rendered).

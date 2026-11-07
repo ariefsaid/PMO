@@ -19,7 +19,7 @@ interface VersionsModalProps {
 
 /**
  * Read-only version list (metadata only, AC-M365DOC-065). Choosing nothing here links nothing and
- * persists nothing; Done and Close both just dismiss it. Mounted only while open, so it reads on open.
+ * persists nothing; the single Close just dismisses it. Mounted only while open, so it reads on open.
  */
 export function LinkedDocumentVersionsModal({ reference, pinned, onClose }: VersionsModalProps) {
   const { t } = useTranslation();
@@ -62,8 +62,8 @@ export function LinkedDocumentVersionsModal({ reference, pinned, onClose }: Vers
     <EntityFormModal
       open
       title={t('m365Documents.versions.title', 'Versions of {{name}}', { name: reference.name })}
-      submitLabel={t('m365Documents.versions.done', 'Done')}
-      cancelLabel={t('m365Documents.versions.close', 'Close')}
+      submitLabel={t('m365Documents.versions.close', 'Close')}
+      hideCancel
       onSubmit={(e) => { e.preventDefault(); onClose(); }}
       onClose={onClose}
       width="sm"
@@ -166,10 +166,10 @@ export function ApprovedVersionHistory({ reference, pinnedVersionId }: { referen
         size="sm"
         className="min-w-0"
         loading={outcome.kind === 'checking'}
-        aria-label={t('m365Documents.history.viewAria', 'View approved version history: {{name}}', { name: reference.name })}
+        aria-label={t('m365Documents.history.viewAria', 'Check approved version: {{name}}', { name: reference.name })}
         onClick={() => void check()}
       >
-        {t('m365Documents.history.view', 'View approved version history')}
+        {t('m365Documents.history.view', 'Check approved version')}
       </Button>
       {outcome.kind === 'ready' && (
         <a

@@ -1,6 +1,7 @@
 // @e2e-isolation: serial — temporarily adds options to the org-wide project setup lists and restores them.
 import { test, expect } from '@playwright/test';
 import { login, pickComboboxOption, stubErpProjectSync, visibleToast } from '../helpers';
+import { addBuilderFilter } from '../support/filter-builder';
 
 test.setTimeout(120_000);
 test('AC-TAG-002 classifications persist through form, detail editing, Projects and Pipeline filters', async ({ page }) => {
@@ -72,10 +73,9 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(rail.getByText('Bali', { exact: true })).toBeVisible();
     await expect(rail.getByText('Direct award', { exact: true })).toBeVisible();
     await page.goto('/projects?view=table');
-    await page.getByRole('button', { name: /^Filters/ }).click();
-    await page.getByLabel('Filter by service line').last().selectOption(serviceLine);
+    await addBuilderFilter(page, 'Service line', { option: serviceLine });
     await expect(page.getByText(internal, { exact: true })).toBeVisible();
-    await page.getByLabel('Filter by location').last().fill('Bali');
+    await addBuilderFilter(page, 'Location', { operator: 'contains', text: 'Bali' });
     await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe('Bali');
     await expect(page.getByText(internal, { exact: true })).toHaveCount(0);
   } finally {
