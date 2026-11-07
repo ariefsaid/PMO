@@ -136,7 +136,7 @@ describe('useContactActivities', () => {
       await result.current.fetchNextPage();
     });
     expect(contact.listActivitiesPage).toHaveBeenLastCalledWith('ct1', cursor);
-    expect(result.current.data?.map((r) => r.id)).toEqual(['a1', 'a0']);
+    await waitFor(() => expect(result.current.data?.map((r) => r.id)).toEqual(['a1', 'a0']));
     expect(result.current.hasNextPage).toBe(false);
   });
 });
