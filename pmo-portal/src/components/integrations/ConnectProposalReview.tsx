@@ -372,7 +372,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
 
   const recheck = (
     <CanWrite action='manage' entity='integration' fallback={null}>
-      <Button variant='secondary' size='sm' onClick={() => void runCensus()}>
+      <Button variant='outline' size='sm' onClick={() => void runCensus()}>
         {t('integrations.connect.recheck', 'Check again')}
       </Button>
     </CanWrite>
