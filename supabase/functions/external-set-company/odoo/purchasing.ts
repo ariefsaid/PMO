@@ -1,5 +1,5 @@
 /**
- * Odoo purchasing setup verbs (#1505 P2): employ procurement under Odoo (FR-OPP-001, PQ-12 parity with ERPNext's `employ-domain`),
+ * Odoo purchasing setup verbs (#1505 P2): employ procurement or companies under Odoo (FR-OPP-001, FR-ODC-055, PQ-12 parity with ERPNext's `employ-domain`),
  * the org's default payment journal (FR-OPP-093, OQ-OPP-6), the C5 tax-prepaid account, and customer-advance account. Odoo is not called:
  * the lists are mirrored, and writes go through actor-checked RPCs (0505, 0509, 0512, 0540) that enforce their role and scope.
  */
@@ -7,10 +7,22 @@ import { odooError, type OdooCtx } from './router.ts';
 
 const JOURNAL_TYPES = new Set(['bank', 'cash']);
 
+/** The domains an Admin may employ under Odoo, and for each the send kind whose accepted proposals must settle first (null: none). */
+const EMPLOYABLE: Readonly<Record<string, string | null>> = { procurement: null, companies: 'party' };
+
 export async function employDomain(c: OdooCtx): Promise<Response> {
-  if (c.body.domain !== 'procurement') return odooError(c, 'Choose a supported ERP domain', 'BAD_REQUEST', 400);
+  const domain = c.body.domain;
+  if (typeof domain !== 'string' || !Object.hasOwn(EMPLOYABLE, domain)) return odooError(c, 'Choose a supported ERP domain', 'BAD_REQUEST', 400);
+  const sendKind = EMPLOYABLE[domain];
+  if (sendKind) {
+    // Employing flips the domain to Odoo: a send still waiting would then be written under the new owner, so let the waiting ones finish first.
+    const waiting = await c.sc.from('erp_connect_proposals').select('id', { count: 'exact', head: true })
+      .eq('org_id', c.orgId).eq('external_tier', 'odoo').eq('kind', sendKind).eq('state', 'sending');
+    if (waiting.error) return odooError(c, 'The request could not be completed', 'STORE_FAILED', 500);
+    if ((waiting.count ?? 0) > 0) return odooError(c, 'Some records are still being sent to Odoo. Wait for them to finish, then try again.', 'sends-pending', 409);
+  }
   const { error } = await c.sc.rpc('admin_change_domain_ownership', {
-    p_org_id: c.orgId, p_external_tier: 'odoo', p_domain: 'procurement', p_action: 'employ', p_actor_id: c.userId,
+    p_org_id: c.orgId, p_external_tier: 'odoo', p_domain: domain, p_action: 'employ', p_actor_id: c.userId,
   });
   if (!error) return c.respond({ ok: true });
   if (error.code === '42501') return odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403);

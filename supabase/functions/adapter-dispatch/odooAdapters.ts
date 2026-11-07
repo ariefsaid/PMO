@@ -18,6 +18,7 @@ import { createOdooRevenueAdapter, isInvoicePush } from '../../../pmo-portal/src
 import { buildInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 import { buildReceiptBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/receiptBody.ts';
 import { countOdooCalls } from '../_shared/odooCallBudget.ts';
+import { resolveOdooCompaniesAdapter } from './odooCompanies.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
@@ -132,4 +133,4 @@ export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Prom
 }
 
 /** The Odoo tier's registry, keyed by the PMO domain it employs. */
-export const ODOO_ADAPTER_REGISTRY: Record<string, AdapterFactory> = { procurement: resolveOdooProcurementAdapter, revenue: resolveOdooRevenueAdapter };
+export const ODOO_ADAPTER_REGISTRY: Record<string, AdapterFactory> = { procurement: resolveOdooProcurementAdapter, revenue: resolveOdooRevenueAdapter, companies: resolveOdooCompaniesAdapter };

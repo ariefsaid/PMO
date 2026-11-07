@@ -8,7 +8,7 @@ import { assertEquals } from '@std/assert';
 import { handleSetCompanyRequest, setTestJwks } from './index.ts';
 import {
   createAuthedRequest, createJwtAuthority, createTestJwksResolver, installEdgeEnv, jsonResponse, rpcCall,
-  supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute,
+  supabaseRpc, supabaseSelect, withFetchMock, countResponse, type FetchCall, type MockRoute,
 } from '../_shared/testing/edgeTestKit.ts';
 
 const env = installEdgeEnv();
@@ -21,7 +21,7 @@ const none = () => new Response('null', { status: 200, headers: { 'content-type'
 const pgError = (code: string, message: string) => jsonResponse({ code, message, details: null, hint: null }, { status: 400 });
 
 const journal = (id: number, code: string, type: string, name = `Journal ${code}`) => ({ external_id: String(id), code, name, attrs: { type } });
-interface Opts { role?: string; operator?: boolean; journals?: Array<ReturnType<typeof journal>>; config?: Record<string, unknown>; rpc?: Record<string, (c: FetchCall) => Response> }
+interface Opts { sending?: number; role?: string; operator?: boolean; journals?: Array<ReturnType<typeof journal>>; config?: Record<string, unknown>; rpc?: Record<string, (c: FetchCall) => Response> }
 function routes(o: Opts): MockRoute[] {
   const rpc = (fn: string) => supabaseRpc(fn, o.rpc?.[fn] ?? (() => jsonResponse(null)));
   return [
@@ -31,6 +31,7 @@ function routes(o: Opts): MockRoute[] {
     supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('external_org_bindings', () => one({ config: o.config ?? {} })),
     supabaseSelect('external_master_records', () => jsonResponse(o.journals ?? [])),
+    { label: 'waiting sends', method: 'HEAD', pathname: '/rest/v1/erp_connect_proposals', response: () => countResponse(o.sending ?? 0) },
     rpc('admin_change_domain_ownership'), rpc('set_odoo_payment_journal_default'), rpc('set_odoo_tax_prepaid_account'), rpc('set_odoo_customer_advance_account'),
   ];
 }
@@ -60,12 +61,40 @@ describe('Odoo router — employ-domain (P2-T9)', () => {
     }
   });
 
-  it('only procurement is employable under odoo here: another domain is a bad request and reaches no verb', async () => {
-    for (const domain of ['revenue', 'timesheets', 'companies', 42, undefined]) {
+  it('only procurement and companies are employable under odoo here: another domain is a bad request and reaches no verb', async () => {
+    for (const domain of ['revenue', 'timesheets', 'budget', 42, undefined]) {
       const r = await call({ setupAction: 'employ-domain', domain });
       assertEquals(r.res.status, 400, String(domain));
       assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').length, 0);
     }
+  });
+
+  it('FR-ODC-055 an Admin employs companies under odoo through the same guarded verb, as the verified actor', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'companies' });
+    assertEquals([r.res.status, r.json], [200, { ok: true }]);
+    assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').map((c) => c.bodyJson),
+      [{ p_org_id: 'org-1', p_external_tier: 'odoo', p_domain: 'companies', p_action: 'employ', p_actor_id: 'user-1' }]);
+  });
+
+  it('FR-ODC-055 companies are not employed while a partner send is still waiting: 409 sends-pending, no ownership change', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'companies' }, { sending: 2 });
+    assertEquals([r.res.status, r.json.error], [409, 'sends-pending']);
+    assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').length, 0);
+    const read = r.calls.find((c) => c.url.pathname === '/rest/v1/erp_connect_proposals')!;
+    assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier'), read.url.searchParams.get('kind'), read.url.searchParams.get('state')], ['eq.org-1', 'eq.odoo', 'eq.party', 'eq.sending']);
+  });
+
+  it('procurement does not wait on partner sends', async () => {
+    assertEquals((await call({ setupAction: 'employ-domain', domain: 'procurement' }, { sending: 5 })).res.status, 200);
+  });
+
+  it('companies: a non-Admin is refused before the verb; a second ERP that already owns them is the database\'s plain refusal (422)', async () => {
+    for (const role of ['Finance', 'Project Manager']) {
+      const r = await call({ setupAction: 'employ-domain', domain: 'companies' }, { role });
+      assertEquals([r.res.status, rpcCall(r.calls, 'admin_change_domain_ownership').length], [403, 0], role);
+    }
+    const taken = await call({ setupAction: 'employ-domain', domain: 'companies' }, { rpc: { admin_change_domain_ownership: () => pgError('P0001', 'an ERPNext connection is active for this organization') } });
+    assertEquals([taken.res.status, taken.json.error], [422, 'config-rejected']);
   });
 
   it('the database\'s plain refusals come back as config-rejected with their own words, and a stale snapshot says what to do', async () => {

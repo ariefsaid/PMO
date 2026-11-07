@@ -140,6 +140,27 @@ const CODES: Record<string, Entry> = {
     message: 'ERPNext understood the request and refused it.',
     retryable: true,
   },
+  // ── ERP master sends (#1504 S8): the reasons an Odoo create or lookup is refused, as the adapter raises them ──
+  validation: {
+    message: 'The ERP refused this record because something in it is not valid there.',
+    retryable: true,
+    remedy: 'Check the record\u2019s name, tax number and code, fix what is wrong, then try again.',
+  },
+  ambiguous: {
+    message: 'Two records in the ERP match this one, so nothing was sent.',
+    retryable: false,
+    remedy: 'Link the right ERP record by hand, or remove the duplicate there.',
+  },
+  'unit-unmapped': {
+    message: 'This item\u2019s unit has no match in the ERP yet, so it was not sent.',
+    retryable: false,
+    remedy: 'Match the unit in the ERP connection settings, then send the item again.',
+  },
+  'analytic-plan-unset': {
+    message: 'No cost account plan is chosen for projects yet, so this project was not sent.',
+    retryable: false,
+    remedy: 'Choose the plan in the ERP connection settings, then send the project again.',
+  },
   'config-rejected': {
     message: 'The ERPNext connection is not usable — it is inactive, or its version no longer matches.',
     retryable: false,
