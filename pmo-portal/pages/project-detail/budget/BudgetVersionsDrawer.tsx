@@ -115,7 +115,7 @@ export default function BudgetVersionsDrawer({
                 )}
               </div>
               {version.status === 'Draft' && readinessSummary}
-              <BudgetDocumentLinks versionId={version.id} status={version.status} />
+              <BudgetDocumentLinks versionId={version.id} status={version.status} versionLabel={`v${version.version} ${version.name}`} />
             </li>
           ))}
         </ol>
