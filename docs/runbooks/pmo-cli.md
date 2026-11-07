@@ -7,11 +7,11 @@
 
 ### What the CLI can and cannot do
 
-`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, account maps, cost-attribution rules, and read-only T&M inspection. It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only. Do not invent flags or call database tables directly.
+`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, goods-receipt recording, account maps, cost-attribution rules, and read-only T&M inspection. It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only. Do not invent flags or call database tables directly.
 
 Use Node 22 or newer. Sign in with `node scripts/pmo.mjs login`, then confirm the identity and role with `node scripts/pmo.mjs whoami`. The CLI stores an ordinary owner session and applies the same row-level permissions as the app. Use a real, active Admin account for loading client data and other Admin-only commands.
 
-`pmo load`, `pmo stages`, `pmo stage-date`, `pmo accounts map set`, and ERP setup checks require an active Admin. Purchase reads/links are for active Admin, Executive, Project Manager, or Finance members; the `--include-set-aside` read and setting documents aside are Admin/Finance only. Attribution preview/set/end are Admin/Finance; `pmo attribution list` also serves Executive and Project Manager. T&M reads are for Admin, Finance, Executive, or the project's Project Manager. Other writes remain subject to the signed-in member's normal app permissions.
+`pmo load`, `pmo stages`, `pmo stage-date`, `pmo accounts map set`, and ERP setup checks require an active Admin. Purchase reads/links and `pmo purchases receive` (a procurement money write) are for active Admin, Executive, Project Manager, or Finance members; the `--include-set-aside` read and setting documents aside are Admin/Finance only. Attribution preview/set/end are Admin/Finance; `pmo attribution list` also serves Executive and Project Manager. T&M reads are for Admin, Finance, Executive, or the project's Project Manager. Other writes remain subject to the signed-in member's normal app permissions.
 
 ### Data ownership when an ERP is connected
 
@@ -249,7 +249,21 @@ node scripts/pmo.mjs purchases attach-journals <rows.json>
 
 Each row names one line returned by `journals` plus the purchase: `{"voucher_no":"<journal number>","project_id":"<project-uuid>","account":"<ledger account>","procurement_id":"<purchase-uuid>"}`. The dry run reports `attach`, `skip` (already on that purchase) or `refused` with a reason per row and writes nothing.
 
-**How to verify:** linked documents leave the default orphan list. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
+Record a goods receipt for a purchase (same command the app sends; connected organisations send the app's accounting-system command; a PMO-only organisation, with no accounting system, records it through the app's own receipt function). Roles: Admin, Executive, Project Manager, Finance on a connected organisation; **Admin and Project Manager only** on a PMO-only one.
+
+```bash
+node scripts/pmo.mjs purchases receive <procurement-uuid> --dry-run                      # whole purchase, everything open
+node scripts/pmo.mjs purchases receive <procurement-uuid> [--date 2026-11-06] [--status Partial|Complete]
+node scripts/pmo.mjs purchases receive <procurement-uuid> --line "Pump=3" --line "Valve=1.5"   # line quantities (Full plan, Odoo tier)
+```
+
+Whole-purchase receipts work on Basic and on every connected tier: leave `--line` out and the server receives everything still open. `--line <item>=<quantity>` (repeat per item, item exactly as the purchase order shows it) needs the Full plan **and an Odoo-tier organisation**; on a tier whose receipt is built from the purchase order itself the CLI refuses it (exit 2, nothing sent) rather than receive the whole purchase, so use the app there.
+
+On a PMO-only organisation the receipt is always for the whole purchase (`--line` is refused with exit 2, nothing sent; enter line quantities in the app), and the intent is stored on the receipt, so re-running with the same `--intent` is refused as already recorded instead of recording twice. Only the purchase's own organisation can receive.
+
+Each run prints an `intent` before it sends anything, so a run that hangs still leaves the uuid to retry with. **If the outcome is unknown (the command hangs, or the ERP could not be reached), re-run the identical command with `--intent <that uuid>`**: the same intent never records twice. Do not reuse an intent for a different receipt. Defaults: date today in **UTC** (the CLI does not read the organisation's time zone, so pass `--date` when the local business date differs), status Complete (Partial with `--line`). Refusals carry a hint: plan off, line quantities on a non-Odoo tier, nothing left to receive, quantity above the open quantity, no sent purchase order, ordered before the connection.
+
+**How to verify:** linked documents leave the default orphan list; a receipt shows under the purchase in **Procurement**. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
 
 **Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, create purchases through **Procurement → New**; the CLI does not import PMO-native purchase history yet. Enhancement: [CLI purchase history import](https://github.com/ariefsaid/PMO/issues/1855).
 
@@ -332,6 +346,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases receive`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
 The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
