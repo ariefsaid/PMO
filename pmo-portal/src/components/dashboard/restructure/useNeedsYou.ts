@@ -17,7 +17,7 @@ import { awaitingApprovalKey, expenseClaimsAwaitingKey } from '@/src/hooks/appro
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
@@ -213,24 +213,20 @@ function activeTask(status: string): boolean {
 
 export function selectOverdueInvoices(rows: OverdueInvoiceFact[] | undefined, organizationToday: string | null): OverdueInvoiceNeeds | undefined {
   if (!rows || !organizationToday) return undefined;
-  const overdue = rows.filter((invoice) => {
-    if (invoice.status !== 'Submitted' && invoice.status !== 'Unpaid') return false;
-    const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
-    const age = overdueAgeDays(dueDate, organizationToday);
-    return age !== null && age > 0;
-  });
+  // #1457: the overdue decision (and the age) is the one shared rule.
+  const overdueRows = rows
+    .map((invoice) => ({ invoice, days: clientInvoiceOverdueDays(invoice, organizationToday) }))
+    .filter((row): row is { invoice: OverdueInvoiceFact; days: number } => row.days !== null);
   const totals = new Map<string, number>();
   let unknownBalances = 0;
   let oldestDays: number | null = null;
-  for (const invoice of overdue) {
-    const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
-    const age = overdueAgeDays(dueDate, organizationToday);
-    if (age !== null) oldestDays = Math.max(oldestDays ?? 0, age);
+  for (const { invoice, days } of overdueRows) {
+    oldestDays = Math.max(oldestDays ?? 0, days);
     const amount = invoice.erp_outstanding_amount;
     if (amount === null || !Number.isFinite(amount)) unknownBalances += 1;
     else totals.set(invoice.currency, (totals.get(invoice.currency) ?? 0) + amount);
   }
-  return { count: overdue.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances, oldestDays };
+  return { count: overdueRows.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances, oldestDays };
 }
 
 export function selectSupplierInvoices(rows: ProcurementWithRefs[] | undefined): SupplierInvoiceNeeds | undefined {

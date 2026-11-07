@@ -27,6 +27,10 @@ const h = vi.hoisted(() => ({
   acc: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
   wom: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+// #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
+}));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1', role: h.role } }) }));
 vi.mock('@/src/auth/usePermission', async () => {

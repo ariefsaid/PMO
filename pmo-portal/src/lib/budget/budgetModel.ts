@@ -41,6 +41,36 @@ export const UNCATEGORIZED = 'Uncategorized';
 
 const COMMITTED_STATUSES = new Set(['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
 
+export interface CategoryBudgetRollup<T> {
+  category: string;
+  budget: number;
+  lines: T[];
+}
+
+/**
+ * #1459 — the one budget-category rollup: every Active-version line summed under its category, in
+ * first-seen order. The Budget tab's summary rows and the Overview's budget position were two
+ * rollups of the same lines, held together only by a parity test.
+ *
+ * A line with no amount contributes zero (never NaN) and a line with no category is "Other".
+ */
+export function budgetLinesByCategory<T extends { category: string | null; budgeted_amount: number | string }>(
+  lines: readonly T[],
+): Array<CategoryBudgetRollup<T>> {
+  const byCategory = new Map<string, T[]>();
+  for (const line of lines) {
+    const category = line.category ?? 'Other';
+    const categoryLines = byCategory.get(category) ?? [];
+    categoryLines.push(line);
+    byCategory.set(category, categoryLines);
+  }
+  return [...byCategory].map(([category, categoryLines]) => ({
+    category,
+    budget: categoryLines.reduce((sum, line) => sum + (Number(line.budgeted_amount) || 0), 0),
+    lines: categoryLines,
+  }));
+}
+
 export function buildBudgetSummaryRows(input: {
   lines: BudgetLineLike[];
   actuals: ActualCategoryLike[];
@@ -48,12 +78,9 @@ export function buildBudgetSummaryRows(input: {
   canReadProcurements: boolean;
   currency: string;
 }): BudgetSummaryRow[] {
-  const linesByCategory = new Map<string, BudgetLineLike[]>();
-  for (const line of input.lines) {
-    const categoryLines = linesByCategory.get(line.category) ?? [];
-    categoryLines.push(line);
-    linesByCategory.set(line.category, categoryLines);
-  }
+  const rollup = budgetLinesByCategory(input.lines);
+  const linesByCategory = new Map(rollup.map(({ category, lines }) => [category, lines]));
+  const budgetByCategory = new Map(rollup.map(({ category, budget }) => [category, budget]));
 
   const actualsByCategory = new Map(input.actuals.map((row) => [row.category, row.actual]));
   const committedByCategory = new Map<string, number>();
@@ -91,7 +118,7 @@ export function buildBudgetSummaryRows(input: {
     const categoryLines = linesByCategory.get(category) ?? [];
     return {
       category,
-    budget: categoryLines.reduce((sum, line) => sum + Number(line.budgeted_amount), 0),
+    budget: budgetByCategory.get(category) ?? 0,
     // Nothing is booked to "Uncategorized" in the accounts: its documents' cost already sits in the
     // categories they were posted to, so this row adds commitments only.
     spent: actualsByCategory.get(category) ?? (category === UNCATEGORIZED ? 0 : null),
