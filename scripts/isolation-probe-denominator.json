@@ -408,6 +408,7 @@
     "odoo_companies_employ_blocker(uuid)",
     "odoo_link_cost_account_core(uuid,uuid,uuid,text)",
     "odoo_procurement_employ_blocker(uuid)",
+    "odoo_project_ledger(uuid,text,date)",
     "odoo_revenue_employ_blocker(uuid)",
     "odoo_sweep_tick()",
     "observe_erp_statement_change(uuid,uuid,uuid,timestamp with time zone,uuid,jsonb)",

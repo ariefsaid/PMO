@@ -38,6 +38,7 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   const snapshots: Array<Record<string, unknown>[]> = [];
   const mirror = new Map<string, PageRow>();
   const census = { seen: [] as string[][], finish: [] as Array<{ expected: number | null }> };
+  const yearEnds: Array<{ p_org_id: string; p_month: number; p_day: number }> = [];
   let links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
   const accounts = { ...(o.accounts ?? { '501': '5100' }) } as Record<string, string>;
   const routes: MockRoute[] = [
@@ -70,11 +71,12 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
       cursor = page.p_cursor;
       return jsonResponse(changedRows.length + gone.length);
     }),
+    supabaseRpc('set_odoo_fiscal_year_end', (c) => { yearEnds.push(c.bodyJson as { p_org_id: string; p_month: number; p_day: number }); return new Response(null, { status: 204 }); }),
     supabaseRpc('mark_odoo_ledger_census_seen', (c) => { census.seen.push((c.bodyJson as { p_line_ids: string[] }).p_line_ids); return jsonResponse(null); }),
     supabaseRpc('finish_odoo_ledger_census', (c) => { census.finish.push({ expected: (c.bodyJson as { p_expected_lines: number | null }).p_expected_lines }); return jsonResponse(0); }),
     supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push((c.bodyJson as { p_rows: Record<string, unknown>[] }).p_rows); return jsonResponse(null); }),
   ];
-  return { fake, routes, applies, snapshots, census, mirror, getCursor: () => cursor, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
+  return { fake, routes, applies, snapshots, census, mirror, yearEnds, getCursor: () => cursor, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
 }
 /** `refuseCompany`: Odoo answers 403 to the company read, as it does for a key user without access to it. */
 const odooCall = (fake: FakeOdoo, refuseCompany = false) => bindCall({
@@ -150,6 +152,15 @@ describe('runLedgerPass — AC-ODA-001/002/003', () => {
     down.fake.failNext('transport');
     await withFetchMock(down.routes, async () => { await assertRejects(() => runLedgerPass(client(), ORG, odooCall(down.fake), 1, budget())); });
     assertEquals(down.applies.length, 0, 'a hiccup never stamps a page with the wrong year');
+  });
+
+  it('AC-ODA-002 persists the company year end for the statements to read, and persists nothing when Odoo refuses it', async () => {
+    const h = harness((fake) => fake.seed('account.move.line', [line(1)]), { fiscal: { month: '3', day: 31 } });
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    assertEquals(h.yearEnds, [{ p_org_id: ORG, p_month: 3, p_day: 31 }]);
+    const denied = harness((fake) => fake.seed('account.move.line', [line(1)]));
+    await withFetchMock(denied.routes, () => runLedgerPass(client(), ORG, odooCall(denied.fake, true), 1, budget()));
+    assertEquals(denied.yearEnds, []);
   });
 
   it('AC-ODA-004 a catch-up census sends every line id and the count the database must see', async () => {
