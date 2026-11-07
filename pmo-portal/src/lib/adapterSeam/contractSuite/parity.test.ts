@@ -6,7 +6,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { WORKFLOWS, type TierWorkflows } from '../connect/workflows.ts';
 import { ERPNEXT_WORKFLOWS } from '../erpnext/workflowDeclarations.ts';
-import { ODOO_WORKFLOWS } from '../odoo/workflowDeclarations.ts';
+import { ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON, ODOO_WORKFLOWS } from '../odoo/workflowDeclarations.ts';
 import { SUITES } from './index.ts';
 import { parityProblems, suiteRunProblems, tierRegistrationProblems } from './parity.ts';
 import { TIER_HARNESSES, TIER_WORKFLOWS } from './tiers.ts';
@@ -59,7 +59,9 @@ describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions',
       version: 1, summary: 'read tax-document facts from the ERP',
     });
     expect(SUITES['tax-document.read']).toBeUndefined();
-    expect((ODOO_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect((ODOO_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({
+      status: 'unavailable', version: 1, reason: ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON,
+    });
     expect((ERPNEXT_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
   });
 });

@@ -83,8 +83,8 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
 });
 
 import SalesInvoices from '../SalesInvoices';
-import { FinanceI18nTestProvider } from './financeI18nTestProvider';
-import { financeTestI18n } from './financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const nativeInvoice = (over: Partial<SalesInvoiceRow> = {}): SalesInvoiceRow => ({
   id: 'si-n1', org_id: 'org-1', project_id: 'proj-1', customer_id: 'cust-1', customer_name: 'Acme Energy',

@@ -12,7 +12,7 @@ import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import type { ProcurementStatus, ProcurementDetail, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { toastStateLabel } from '../../components/procurement';
 import { classifySubcontractBillError } from './subcontractBillError';
-import type { ActionVariant } from './blocks/mainAction';
+import type { ActionVariant } from '@/src/lib/procurement/mainAction';
 import type { VendorInvoiceCapture } from './ProcurementDecisionZone';
 
 

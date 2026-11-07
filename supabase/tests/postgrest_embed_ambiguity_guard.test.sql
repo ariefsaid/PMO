@@ -149,7 +149,11 @@ select set_eq(
             -- 0442 (#1639 S1): task_reminders carries sender_id AND recipient_id -> profiles. CHECKED BEFORE ADDING:
             -- no DAL, repository or edge-function code embeds profiles from it; whatever ships first MUST qualify
             -- it with !constraint_name.
-            ('task_reminders -> profiles') $$,
+            ('task_reminders -> profiles'),
+            -- 0731: incoming_payment_allocations carries created_by AND reversed_by -> profiles. CHECKED BEFORE ADDING:
+            -- the only DAL embed of the table is from incoming_payments (revenue.ts, no profiles embed); nothing embeds
+            -- profiles from it. Whatever ships first MUST qualify it with !constraint_name.
+            ('incoming_payment_allocations -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

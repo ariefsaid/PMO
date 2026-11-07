@@ -12,10 +12,14 @@ const SETUP_CENSUS_AND_PROPOSALS = 1605;
 // Odoo route items (map #1481).
 const ODOO_CONNECT = 1504; // O1 slice S7: project links over cost accounts
 const ODOO_REVENUE = 1506;
-const ODOO_ACTUALS_AND_BUDGET = 1507;
+// DD-ODA-6 (#1507): Odoo Community has no budget object (DD-ODC-5); PMO budgets stay PMO-only on Odoo.
+const NO_BUDGET_OBJECT = { status: 'unavailable', version: 1, reason: 'Odoo Community has no budget object; budgets stay in PMO' } as const;
 const ODOO_LABOUR = 1510;
 const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
 const ODOO_REVENUE_CUTOVER = 1602;
+
+/** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
+export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
@@ -42,12 +46,11 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'receipt.read': { status: 'supported', version: 1 },
   'invoice.pair-existing': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'cutover.revenue': { status: 'pending', version: 1, issue: ODOO_REVENUE_CUTOVER },
-  'tax-document.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
-  'actuals.read': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
-  'budget.push': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
-  // O4 decides: Odoo Community has no budget object (DD-ODC-5), so this likely becomes unavailable.
-  'budget.unowned-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
-  'budget.resolve-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
+  'tax-document.read': { status: 'unavailable', version: 1, reason: ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON },
+  'actuals.read': { status: 'supported', version: 1 },
+  'budget.push': NO_BUDGET_OBJECT,
+  'budget.unowned-occupant': NO_BUDGET_OBJECT,
+  'budget.resolve-occupant': NO_BUDGET_OBJECT,
   'timesheet.push': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'imprest.transfer': { status: 'pending', version: 1, issue: ODOO_SITE_CASH },
   'purchase-order.revise': { status: 'supported', version: 1 },

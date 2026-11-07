@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectSections from '../ProjectSections';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
   drawdown: { committed: 500_000, draft: 100_000, ceiling: 900_000, currency: 'USD', basis: 'net' },
@@ -36,7 +36,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }), useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectAttention: () => ({ items: [], isPending: false, error: null, myVisibleTaskKeys: new Set() }),
   useBudgetPosition: () => ({ isPending: false, isError: false, hasBudget: true, canSeeActual: true, rows: [], unknown: 0, refetch: vi.fn() }),

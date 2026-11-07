@@ -15,8 +15,8 @@ export type ButtonSize = 'default' | 'sm' | 'icon';
 const base =
   'inline-flex items-center justify-center gap-2 rounded-md border ' +
   'text-control font-normal whitespace-nowrap select-none ' +
-  'transition-[background-color,border-color,color,box-shadow,transform] duration-100 ' +
-  'active:translate-y-px ' +
+  'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-press)] ' +
+  'active:scale-[0.97] motion-reduce:active:scale-100 ' +
   'disabled:cursor-not-allowed disabled:pointer-events-none ' +
   '[&_svg]:size-4 [&_svg]:shrink-0';
 

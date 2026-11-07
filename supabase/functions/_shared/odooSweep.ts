@@ -18,6 +18,7 @@ import { reconcileOdooRevenueOutbox } from '../adapter-dispatch/odooRevenueRecov
 import { reconcileOdooProcurementOutbox } from '../adapter-dispatch/odooProcurementRecovery.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 import { parseOdooOutboxRecoveryCandidates } from './odooOutboxRecovery.ts';
+import { sendAcceptedOdoo } from './odooConnectSends.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
 export const ODOO_SWEEP_TICK_MAX_CALLS = 60;
@@ -43,7 +44,7 @@ const advanceSetupRun = async (sc: SupabaseClient, orgId: string, r: Resolved) =
     console.error('odoo setup run step failed');   // the run counts its own failures; a store outage is retried next tick
   }
 };
-export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun];
+export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun, sendAcceptedOdoo];
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }

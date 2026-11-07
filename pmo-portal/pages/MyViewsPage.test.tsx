@@ -83,8 +83,8 @@ vi.mock('@/src/components/builder/AIComposerModal', () => ({
 }));
 
 import MyViewsPage from './MyViewsPage';
-import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
-import { financeTestI18n } from './__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const SAMPLE_SPEC = {
   version: 1 as const,

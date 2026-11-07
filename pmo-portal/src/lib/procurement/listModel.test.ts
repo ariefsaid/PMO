@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { figureForListRow, matchesSearch } from './model';
+import { figureForListRow, matchesSearch } from './listModel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
 const row = (overrides: Record<string, unknown> = {}) => ({

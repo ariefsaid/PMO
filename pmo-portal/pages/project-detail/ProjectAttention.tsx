@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
-import type { AttentionItem } from './useProjectPosition';
+import type { AttentionItem } from '@/src/hooks/useProjectPosition';
 
 /** "Needs attention": what is wrong (with its status word), how big, and the verb that fixes it. */
 export const ProjectAttention: React.FC<{

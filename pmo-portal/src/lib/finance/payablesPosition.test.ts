@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
 import { withLinkedSupplierInvoices } from './payablesPosition';
 
 type Payable = FinancePosition['payables'][number];
