@@ -528,6 +528,8 @@ function EventCalendarMonthWeek({
           real interactive bars. */}
       {(visibleBars.length > 0 || (dragGhost && ghostPos && ghostIsBar)) && (
         <div
+          // local: a row's only allowed children are cells, so the bar overlay is one (axe aria-required-children)
+          role="gridcell"
           data-slot="event-calendar-month-bar-overlay"
           className={cn(
             "pointer-events-none absolute inset-x-0 top-0 z-10 grid pt-1.5",
