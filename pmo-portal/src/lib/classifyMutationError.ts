@@ -323,6 +323,11 @@ export function classifyMutationError(
     return { headline: 'Add a rejection comment', detail: 'Tell the requester why this purchase is rejected, then try again.', rawDetail, classification };
   }
 
+  // #1607: 0749 refuses a PMO-only order on an ERP-owned purchase; a permission headline would misdescribe it.
+  if (code === '42501' && rawDetail.includes('Record the purchase order to place the order there')) {
+    return { headline: 'Record the purchase order instead', detail, rawDetail, classification };
+  }
+
   switch (code) {
     case 'P0001':
       return { headline: "That move isn't allowed from the current stage.", detail, rawDetail, classification };

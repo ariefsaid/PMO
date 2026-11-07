@@ -546,6 +546,11 @@ const ProcurementDetails: React.FC = () => {
       setShowVICapture(true);
       return;
     }
+    // #1607: an ERP-owned purchase places its order through the Purchase Order capture (which dispatches to the ERP), never the PMO-only transition.
+    if (mainAction.to === 'Ordered' && ownership.mode === 'external' && !p.pre_cutover) {
+      setCaptureKind('purchase_order');
+      return;
+    }
     onActionClick(transitionMainAction ?? mainAction);
   };
   // B4: the list drawer's main action hands off here (router state, never the URL, so a shared link can't start a
