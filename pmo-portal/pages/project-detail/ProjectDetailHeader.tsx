@@ -323,7 +323,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // Model B (ADR-0020): a pre-win (pipeline) / terminal (lost) deal has no contract yet, so the
   // delivery summary (StatTiles: Contract/Committed/Actual/margin/Spend) and the contract-value
   // SoD editor are mounted only for the DELIVERY lens (on-hand ∪ internal). Pre-win, the deal's
-  // figures live in the PipelineLens (Value / Win probability / Weighted) instead.
+  // figures live in the DealBand (Value / Win probability / Weighted) instead.
   const group = projectStatusGroup(project.status as never);
   const isDelivery = group === 'onHand' || group === 'internal';
 
