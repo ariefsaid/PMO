@@ -25,6 +25,7 @@ import {
   type RowMenuItem,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
+import { issuedWithinMonthWindow, monthWindowFromParams } from '@/src/lib/finance/invoicePeriod';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
@@ -441,9 +442,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // #1461: a dashboard 'Invoiced · excl. tax' drill carries its window (`from`/`to` month
+    // tokens). The list then shows exactly the issued, non-cancelled invoices dated in that
+    // window — the records the management-pack figure sums.
+    const periodWindow = monthWindowFromParams(searchParams.get('from'), searchParams.get('to'));
     return all
       .filter((inv) => searchParams.get('attribution') !== 'unassigned' || inv.project_id === null)
       .filter((inv) => matchesStatus(inv, statusFilter))
+      .filter((inv) => (periodWindow ? issuedWithinMonthWindow(inv, periodWindow) : true))
       .filter((inv) => !searchParams.get('project') || inv.project_id === searchParams.get('project'))
       .filter((inv) => !searchParams.get('customer') || inv.customer_id === searchParams.get('customer'))
       .filter((inv) => {
