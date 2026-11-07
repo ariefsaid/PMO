@@ -9,7 +9,7 @@ import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { createOdooRevenueHarness } from './contract.harness.ts';
 import { checkCostAccount, moneyHeader } from './revenue/moneyHeader.ts';
 import { invoiceStatus } from './revenue/status.ts';
-import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
+import { ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON, ODOO_WORKFLOWS } from './workflowDeclarations.ts';
 
 const harness = TIER_HARNESSES.odoo;
 
@@ -76,7 +76,7 @@ describe('odoo contract', () => {
     expect(ODOO_WORKFLOWS['invoice.pair-existing']).toEqual({ status: 'pending', version: 1, issue: 1506 });
     expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: 1, issue: 1602 });
     expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'supported', version: 1 });
-    expect(ODOO_WORKFLOWS['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect(ODOO_WORKFLOWS['tax-document.read']).toEqual({ status: 'unavailable', version: 1, reason: ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON });
   });
 
   it('AC-OCI-030 parses pair candidates through the production Odoo revenue feed', async () => {

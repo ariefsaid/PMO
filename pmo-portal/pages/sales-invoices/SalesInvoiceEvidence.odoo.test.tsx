@@ -56,11 +56,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clearOwnershipCache(); });
 
 describe('AC-OCI-090/091 Sales invoice evidence', () => {
-  it('shows the Odoo invoice outcome with its read age and no held tax-document block', () => {
+  it('shows the Odoo invoice outcome with its read age and no held-by-Odoo wording', () => {
     mount();
     expect(screen.getByText('In Odoo')).toBeInTheDocument();
     expect(screen.getByText(/Read/)).toBeInTheDocument();
-    expect(screen.queryByText(/tax document/i)).toBeNull();
+    expect(screen.queryByText(/held by odoo/i)).toBeNull();
+  });
+
+  it('with a hand-recorded e-Faktur, says the ERP generates none and the recorded number stands', () => {
+    mount(invoice({ efaktur_number: '010.001-26.12345678', efaktur_date: '2026-11-03' }));
+    expect(screen.getByText('010.001-26.12345678', { exact: false })).toBeInTheDocument();
+    expect(screen.getByTestId('odoo-tax-document')).toHaveTextContent('Odoo generates no tax document. The e-Faktur number recorded above stands.');
+    expect(screen.queryByText('Tax documents are unavailable in Odoo.')).toBeNull();
   });
 
   it('shows a held invoice and its next step in plain words, once', () => {
@@ -128,5 +135,15 @@ describe('AC-OCI-090/091 review fixes', () => {
     mount(invoice({ odoo_attention: 'total-mismatch', odoo_sent_total: 100 }));
     expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/not what PMO sent/);
     expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/PMO sent.*100/);
+  });
+});
+
+describe('AC-OCI-082b/083 Tax document absence', () => {
+  it('renders the tax document as unavailable in plain words and offers no download control', () => {
+    mount();
+    expect(screen.getByText('Tax document')).toBeInTheDocument();
+    expect(screen.getByText('Tax documents are unavailable in Odoo.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /download/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /download/i })).toBeNull();
   });
 });
