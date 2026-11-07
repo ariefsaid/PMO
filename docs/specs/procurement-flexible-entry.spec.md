@@ -163,7 +163,10 @@ linking, by the ERP mirror, or by the record forms as today).
 - **FR-PFE-035** For an org that reads the ERP ledger, actuals shall come only from the ERP ledger (GL mirror →
   `project_mapped_actuals`), as today. No linked document, link row or purchase total shall feed actuals. An org
   without an active ERP binding reads no ledger term (0307); its actuals are PMO paid purchases at their pre-tax
-  amount plus the internal equipment charge, in the project currency (#1530, OD-1530-COMMIT).
+  amount plus the internal equipment charge, in the project currency (#1530, OD-1530-COMMIT). Every surface that
+  reports Actual/spent — the Projects list, the executive and PM dashboards, the project header and finances — shall
+  read this figure, never the ordered purchase total; a surface that reports budget consumption shall read spent plus
+  the open commitment and say so where it shows one combined figure (#1739, DD-1739-SPLIT).
 - **FR-PFE-036** A purchase's **open commitment** shall be: 0 when Cancelled or Rejected; when the org reads the ERP
   ledger (`org_reads_erp_ledger()`), `greatest(0, total_value − ledger-held amount)`; for a purchase linked from
   the ERP (`origin = erp_link`), `total_value`; otherwise `greatest(0, total_value − pre-tax paid amount)`

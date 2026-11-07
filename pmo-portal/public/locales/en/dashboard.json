@@ -460,6 +460,7 @@
       "readyToPayError": "Couldn't load ready-to-pay records",
       "budget": "Budget",
       "spent": "Spent",
+      "committedSpent": "Committed + spent",
       "spentUnknown": "Recorded spending is incomplete or uses a different currency.",
       "percentUsed": "% used",
       "budgetUsedUnknown": "Budget or recorded spending cannot be compared.",
@@ -617,6 +618,7 @@
     "since": "from {{month}}: {{amount}}",
     "rising": "Rising",
     "falling": "Falling",
+    "chartName": "Invoiced trend, {{first}} to {{last}}: {{direction}}",
     "steady": "Steady",
     "error": "Couldn't load the invoiced trend"
   }

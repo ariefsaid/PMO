@@ -1,5 +1,5 @@
-import { procurementMoney, supplierUnpaid, type MoneyFigure, type ProcurementMoneyInput, type ProcurementMoneyKind } from '../blocks/procurementMoney';
-import { stageForStatus, type StageKey } from '../blocks/stage';
+import { procurementMoney, supplierUnpaid, type MoneyFigure, type ProcurementMoneyInput, type ProcurementMoneyKind } from './procurementMoney';
+import { stageForStatus, type StageKey } from './stage';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 export { matchesSearch } from '@/src/lib/procurementSearch';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';

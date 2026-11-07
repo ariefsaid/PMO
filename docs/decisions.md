@@ -3645,9 +3645,13 @@ covers bills and payments; order, receipt and revision recovery are covered by a
 tests. Deno tests cover recorded-actor reauthorization, candidate reservation, PO-family ownership handling
 and rejection of amount-only adoption. The browser journey proves replay after a lost browser response.
 This records scoped implementation evidence only; release readiness remains the owner's decision.
+**Update 2026-11-07:** the sweep-recovery condition on the four procurement declarations is met by #1901, so
+`purchase.push`, `bill.push`, `vendor-payment.push` and `purchase-order.revise` are declared `supported` once the
+shared push suites' link cases pass against the production resolver (Odoo procurement runs the shared link check before adapter selection).
 
 ## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
-The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `receipt.read` and `invoice.pair-existing` remain pending on #1506; `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `invoice.pair-existing` remains pending on #1506 (`receipt.read` became supported 2026-11-07: the harness classifies both payment directions through the production feeds); `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+**Update 2026-11-07 (C7):** Odoo tax documents shipped without export per owner ruling (2026-11-07): FR-OCI-094 stands (write no ERP tax-document fields), capability `tax-document.read` is declared unavailable with a plain reason, hand-recorded e-Faktur remains PMO-owned, and migration slot 0514 is returned unused.
 
 Verification after the final dev merge (#1872): adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
 
@@ -3659,6 +3663,31 @@ already spent). Rules: no amount counts twice — a disconnected org reads no le
 budget and the order total; sums are in the project currency, and an org-currency internal charge on a project in
 another currency is unknown, not relabelled; an unusable paid amount keeps the full order total committed. Spec:
 `procurement-flexible-entry.spec.md` FR-PFE-035/036, NFR-PFE-002, AC-PFE-005.
+
+### DD-1739-SPLIT — one PMO position, two figures: spend and open commitment (applies OD-1530-COMMIT to the list and dashboards)
+The Projects list and the dashboards read ONE PMO figure per project — the sum of every ordered..paid purchase total —
+so a half-paid 1,000 purchase read 1,000 Actual on the list and 500 Spent / 500 Committed on the Budget tab (#1739).
+The basis is now the same on every surface, because the position itself is two figures: `project_pmo_spent_position`
+(pre-tax paid + the internal equipment charge — the Budget tab's Spent) and `project_pmo_commitment_position` (the open
+commitment of FR-PFE-036 — the Budget tab's Committed). A surface that means recorded spend reads the spent figure; a
+surface that means budget consumption (the list's Budget used, the at-risk rule) reads spent + committed.
+- **Who sees what.** Finance, Executive, Admin and Project Manager at an org with no ERP binding: the list Actual, the
+  executive and PM dashboards show spent (500 of the half-paid 1,000); Budget used and at-risk use spent + committed
+  (1,000). The Finance home's budget review keeps its one purchase figure (Σ ordered..paid totals, purchases only) and
+  labels it "Committed + spent" for such an org; a ledger org's column stays "Spent" (the ledger Actual).
+  `get_finance_budget_review` rows carry `ledger_owned` for that label. ERP-ledger orgs keep their ledger basis.
+- **Uncategorized paid purchase counts.** The Budget tab's per-category table goes unknown when a paid purchase has no
+  `budget_category`; the project total has no category to misplace it into, so the spent position counts it. Before this
+  change the list showed the order total for such a project; blanking it would have been a new regression. The Budget tab
+  keeps its own coverage rule.
+- **Exception to "spent + committed = the old ordered total".** The internal equipment hire charge is spend (the Budget
+  tab counts it) and a payment on a cancelled order is cash already out (nothing stays committed). Spent + committed can
+  therefore exceed the old total by those amounts, and a project can reach the at-risk line sooner. This is deliberate.
+- **Delivery summary.** `get_projects_delivery.committed_spend` is not redefined; nothing renders it. It follows the
+  commitment position (the open commitment).
+Proven in `supabase/tests/0700_pmo_spend_split.test.sql` (500/500 for a half-paid 1,000 purchase against the real
+collection and project-finances reads; uncategorized and cancelled-paid cases; a ledger org still reads its ledger
+Actual) and `pmo-portal/pages/project-detail/budget/__tests__/pmoSpendSplit.test.ts` (client derivations on that payload).
 
 ### OD-VISION-ERP — PMO is an ERP; a client with no ERP is the floor (owner, 2026-11-03)
 The product vision is **PMO as an ERP**. At minimum PMO covers, on its own, a client that runs **no ERP**: its books,

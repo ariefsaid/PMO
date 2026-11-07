@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { Session } from '@supabase/supabase-js';
 import { MemoryRouter } from 'react-router';
 import { I18nextProvider } from 'react-i18next';
-import { financeTestI18n, financeTestI18nReady } from './financeI18nTestInstance';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';

@@ -17,7 +17,7 @@ import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import type { PaidPaymentFact } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
-import { withLinkedDocuments } from '@/pages/procurement/blocks/procurementMoney';
+import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { orderByCurrency } from './currencyOrder';
 
