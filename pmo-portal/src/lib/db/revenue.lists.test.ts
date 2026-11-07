@@ -133,7 +133,7 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
     const rows = await listSalesInvoices();
 
     expect(h.state.calls[0].columns).toBe(
-      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)',
+      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat)',
     );
     expect(rows[0].customer_name).toBe('Acme');
   });

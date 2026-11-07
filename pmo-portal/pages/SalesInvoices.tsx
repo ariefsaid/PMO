@@ -576,8 +576,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     if (canRecordReceipt && !frozen && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
     // FIN-S3: a Draft has no issued tax invoice yet, so there is nothing to record.
-    // An e-Faktur is a VAT document: an invoice with no VAT has none to record (AC-OCI-081).
-    if (canRecordEfaktur && inv.tax_amount > 0 && inv.status !== 'Cancelled' && inv.status !== 'Draft')
+    // An e-Faktur is a VAT document: a sale outside VAT (project not subject to VAT) has none to record (AC-OCI-081).
+    // A zero-rated invoice on a VAT-subject project still needs one, so tax_amount 0 does not hide it.
+    if (canRecordEfaktur && inv.project_subject_to_vat !== false && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(inv) });
     // A Paid PMO invoice is not cancellable (FR-NAR-009); an ERP one follows the ERP.
     if (!odooOffline && canCancel && !frozen && inv.status !== 'Cancelled' && !(inv.pmo_native && inv.status === 'Paid'))

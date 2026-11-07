@@ -1,4 +1,4 @@
--- #1506 AC-OCI-081: set_sales_invoice_efaktur refuses a number on an invoice with no VAT (tax_amount 0).
+-- #1506 AC-OCI-081: set_sales_invoice_efaktur refuses a number on an invoice whose project is not subject to VAT.
 -- Signature, security definer, search_path and grants unchanged from 0272.
 create or replace function public.set_sales_invoice_efaktur(
   p_si_id uuid,
@@ -13,6 +13,7 @@ as $$
 declare
   v_row public.sales_invoices;
   v_number text := nullif(btrim(p_efaktur_number), '');
+  v_vat boolean;
 begin
   select * into v_row from public.sales_invoices where id = p_si_id for update;
   if not found then
@@ -28,9 +29,11 @@ begin
     raise exception 'cannot record e-Faktur facts on a cancelled sales invoice'
       using errcode = '23514', detail = 'efaktur-cancelled';
   end if;
-  -- An e-Faktur is a VAT document: an invoice with no VAT has none to record (AC-OCI-081). Clearing stays allowed.
-  if v_number is not null and coalesce(v_row.tax_amount, 0) <= 0 then
-    raise exception 'a sales invoice with no VAT has no e-Faktur to record'
+  -- An e-Faktur is a VAT document: a sale outside VAT (project not subject to VAT) has none to record (AC-OCI-081).
+  -- A zero-rated invoice on a VAT-subject project still needs one. No project = unknown = allowed. Clearing stays allowed.
+  select p.subject_to_vat into v_vat from public.projects p where p.id = v_row.project_id;
+  if v_number is not null and v_vat is false then
+    raise exception 'a sales invoice outside VAT has no e-Faktur to record'
       using errcode = '23514', detail = 'efaktur-no-vat';
   end if;
   if (v_number is null) <> (p_efaktur_date is null) then

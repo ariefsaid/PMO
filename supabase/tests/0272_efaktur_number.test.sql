@@ -1,6 +1,6 @@
 -- 0272_efaktur_number.test.sql — PMO-owned e-Faktur facts (DD-EFK-1).
 begin;
-select plan(51);
+select plan(52);
 -- Deterministic dates: the fixture orgs keep their day in UTC and so does this session, so
 -- current_date below IS the org-local today. The timezone block further down moves both apart.
 set local timezone = 'UTC';
@@ -21,13 +21,19 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('11120000-0000-0000-0000-0000000026d1','11120000-0000-0000-0000-000000002651','Disabled','efaktur-disabled@example.invalid','Finance','disabled'),
   ('11120000-0000-0000-0000-0000000026f1','11120000-0000-0000-0000-000000002652','Other Finance','efaktur-other@example.invalid','Finance','active');
 
+insert into projects (id, org_id, name, status, subject_to_vat) values
+  ('11120000-0000-0000-0000-0000000026d9','11120000-0000-0000-0000-000000002651','VAT project','Ongoing Project',true),
+  ('11120000-0000-0000-0000-0000000026da','11120000-0000-0000-0000-000000002651','Non-VAT project','Ongoing Project',false);
 insert into sales_invoices (tax_treatment, tax_rate, tax_amount, id, org_id, si_number, invoice_date, amount, status) values
   ('exclusive', 11, 0, '11120000-0000-0000-0000-0000000026e1','11120000-0000-0000-0000-000000002651','DRAFT-1',current_date,100,'Draft'),
   ('exclusive', 11, 0, '11120000-0000-0000-0000-0000000026e2','11120000-0000-0000-0000-000000002651','SUB-1',current_date,100,'Submitted'),
   ('exclusive', 11, 0, '11120000-0000-0000-0000-0000000026e3','11120000-0000-0000-0000-000000002651','CAN-1',current_date,100,'Cancelled'),
   ('exclusive', 11, 0, '11120000-0000-0000-0000-0000000026e4','11120000-0000-0000-0000-000000002651','PAID-1',current_date,100,'Paid'),
   ('exclusive', 11, 0, '11120000-0000-0000-0000-0000000026f1','11120000-0000-0000-0000-000000002652','OTHER-1',current_date,100,'Submitted'),
-  ('exclusive', 0, 0, '11120000-0000-0000-0000-0000000026e5','11120000-0000-0000-0000-000000002651','NOVAT-1',current_date,100,'Submitted');
+  ('exclusive', 0, 0, '11120000-0000-0000-0000-0000000026e5','11120000-0000-0000-0000-000000002651','NOVAT-1',current_date,100,'Submitted'),
+  ('exclusive', 0, 0, '11120000-0000-0000-0000-0000000026e8','11120000-0000-0000-0000-000000002651','ZERO-1',current_date,100,'Submitted');
+update sales_invoices set project_id = '11120000-0000-0000-0000-0000000026da' where id = '11120000-0000-0000-0000-0000000026e5';
+update sales_invoices set project_id = '11120000-0000-0000-0000-0000000026d9' where id = '11120000-0000-0000-0000-0000000026e8';
 insert into procurements (id, org_id, title, status) values
   ('11120000-0000-0000-0000-0000000026c1','11120000-0000-0000-0000-000000002651','Procurement fixture','Received'),
   ('11120000-0000-0000-0000-0000000026c2','11120000-0000-0000-0000-000000002652','Other procurement fixture','Received');
@@ -77,7 +83,9 @@ select throws_ok($$ update sales_invoices set efaktur_number='010-04' where id='
 select throws_ok($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e3','010-05',current_date) $$,
   '23514', null, 'AC-EFK-001 cancelled sales invoices are refused');
 select is(_efk_refusal($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e5','010-40',current_date) $$),
-  '23514:efaktur-no-vat', 'AC-OCI-081 a sales invoice with no VAT refuses an e-Faktur number');
+  '23514:efaktur-no-vat', 'AC-OCI-081 a sales invoice on a project outside VAT refuses an e-Faktur number');
+select lives_ok($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e8','010-41',current_date) $$,
+  'AC-OCI-081 a zero-rated invoice on a VAT-subject project accepts an e-Faktur number');
 select lives_ok($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026e5',null,null) $$,
   'AC-OCI-081 clearing stays allowed on a no-VAT invoice');
 select throws_ok($$ select set_sales_invoice_efaktur('11120000-0000-0000-0000-0000000026f1','010-06',current_date) $$,

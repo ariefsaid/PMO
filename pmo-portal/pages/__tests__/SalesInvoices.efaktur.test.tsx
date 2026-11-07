@@ -230,10 +230,17 @@ describe('SalesInvoices e-Faktur details', () => {
   });
 
   it('AC-OCI-081 an issued invoice with no VAT offers no e-Faktur control', () => {
-    h.invoices = [{ ...invoice('novat', 'Submitted', null, null), tax_amount: 0 }];
+    h.invoices = [{ ...invoice('novat', 'Submitted', null, null), tax_amount: 0, project_subject_to_vat: false }];
     renderAs('Finance');
     fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
     expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+  });
+
+  it('AC-OCI-081 a zero-rated invoice on a VAT-subject project still offers the e-Faktur control', () => {
+    h.invoices = [{ ...invoice('zero', 'Submitted', null, null), tax_amount: 0, project_subject_to_vat: true }];
+    renderAs('Finance');
+    fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
   });
 
   describe('Odoo tier', () => {
@@ -255,7 +262,7 @@ describe('SalesInvoices e-Faktur details', () => {
     });
 
     it('AC-OCI-081 an Odoo-tier issued invoice with no VAT offers no e-Faktur control', () => {
-      h.invoices = [odooInvoice('novat', 'Submitted', 0)];
+      h.invoices = [{ ...odooInvoice('novat', 'Submitted', 0), project_subject_to_vat: false }];
       renderAs('Finance');
       fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
       expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
