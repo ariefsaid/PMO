@@ -7,20 +7,12 @@ import { odooError, type OdooCtx } from './router.ts';
 
 const JOURNAL_TYPES = new Set(['bank', 'cash']);
 
-/** The domains an Admin may employ under Odoo, and for each the send kind whose accepted proposals must settle first (null: none). */
-const EMPLOYABLE: Readonly<Record<string, string | null>> = { procurement: null, companies: 'party' };
+/** The domains an Admin may employ under Odoo. The database (0743) refuses a companies employ while partner sends are still waiting. */
+const EMPLOYABLE = new Set(['procurement', 'companies']);
 
 export async function employDomain(c: OdooCtx): Promise<Response> {
   const domain = c.body.domain;
-  if (typeof domain !== 'string' || !Object.hasOwn(EMPLOYABLE, domain)) return odooError(c, 'Choose a supported ERP domain', 'BAD_REQUEST', 400);
-  const sendKind = EMPLOYABLE[domain];
-  if (sendKind) {
-    // Employing flips the domain to Odoo: a send still waiting would then be written under the new owner, so let the waiting ones finish first.
-    const waiting = await c.sc.from('erp_connect_proposals').select('id', { count: 'exact', head: true })
-      .eq('org_id', c.orgId).eq('external_tier', 'odoo').eq('kind', sendKind).eq('state', 'sending');
-    if (waiting.error) return odooError(c, 'The request could not be completed', 'STORE_FAILED', 500);
-    if ((waiting.count ?? 0) > 0) return odooError(c, 'Some records are still being sent to Odoo. Wait for them to finish, then try again.', 'sends-pending', 409);
-  }
+  if (typeof domain !== 'string' || !EMPLOYABLE.has(domain)) return odooError(c, 'Choose a supported ERP domain', 'BAD_REQUEST', 400);
   const { error } = await c.sc.rpc('admin_change_domain_ownership', {
     p_org_id: c.orgId, p_external_tier: 'odoo', p_domain: domain, p_action: 'employ', p_actor_id: c.userId,
   });
@@ -28,6 +20,7 @@ export async function employDomain(c: OdooCtx): Promise<Response> {
   if (error.code === '42501') return odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403);
   if (error.code === 'P0001') {
     // The refusals are the database's plain words (0505). A model the stored snapshot lacks is usually an old snapshot.
+    if (/^Some records are still being sent/.test(error.message)) return odooError(c, error.message, 'sends-pending', 409);
     const hint = /^Odoo is missing /.test(error.message) ? `${error.message}. Check the connection again, then retry.` : error.message;
     return odooError(c, hint, 'config-rejected', 422);
   }

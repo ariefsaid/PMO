@@ -28,7 +28,7 @@ const binding = (config: Record<string, unknown> = {}, over: Record<string, unkn
 });
 
 interface State { fake: FakeOdoo; outbox: Array<Record<string, unknown>>; loseNextCreate?: boolean }
-interface Opts { binding?: Record<string, unknown>; companies?: Record<string, Record<string, unknown>>; reject?: string; revoked?: boolean; mirrorFails?: boolean; claimed: unknown[] }
+interface Opts { binding?: Record<string, unknown>; companies?: Record<string, Record<string, unknown>>; reject?: string; revoked?: boolean; mirrorFails?: boolean; actorGone?: boolean; failureEnds?: boolean; claimed: unknown[] }
 const newState = (): State => ({ fake: createFakeOdoo({ key: KEY }), outbox: [] });
 
 async function tick(st: State, o: Opts) {
@@ -42,12 +42,12 @@ async function tick(st: State, o: Opts) {
     supabaseSelect('companies', (c) => one(o.companies?.[f(c, 'id')!] ?? { id: f(c, 'id'), name: 'PT Sinar Baja', type: 'Vendor', erp_tax_id: '01.234' })),
     supabaseSelect('projects', (c) => one({ id: f(c, 'id'), name: 'Jembatan', code: 'PRJ-1' })),
     supabaseSelect('procurement_items', () => jsonResponse([{ id: 'i-1' }])),
-    supabaseSelect('profiles', () => one({ id: 'admin-1' })),
+    supabaseSelect('profiles', () => (o.actorGone ? none() : one({ id: 'admin-1' }))),
     supabaseSelect('external_sync_watermarks', () => none()),
     supabaseRpc('apply_odoo_master_page', () => (o.mirrorFails ? jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) : jsonResponse(1))),
     supabaseRpc('record_connect_send_result', () => jsonResponse(null)),
     supabaseRpc('record_connect_send_held', () => jsonResponse(null)),
-    supabaseRpc('record_connect_send_failure', () => jsonResponse(false)),
+    supabaseRpc('record_connect_send_failure', () => jsonResponse(o.failureEnds === true)),
     supabaseSelect('external_command_outbox', (c) => {
       const row = st.outbox.find((x) => x.domain === f(c, 'domain') && x.pmo_record_id === f(c, 'pmo_record_id') && x.idempotency_key === f(c, 'idempotency_key'));
       return row ? one(row) : none();
@@ -198,8 +198,22 @@ describe('S8-T3 drainOdooConnectSends', () => {
     const claimed = [prop('prop-p', 'project', 'p-1')];
     const first = await tick(st, { claimed, mirrorFails: true });
     assertEquals([first.result.pending, results(first.calls).length, st.fake.rows('account.analytic.account').length], [1, 0, 1]);
+    assertEquals(rpcCall(first.calls, 'record_connect_send_failure').length, 1);   // M1: the failed mirror counts toward the five-strike rule
     const second = await tick(st, { claimed });
     assertEquals([second.result.sent, st.fake.rows('account.analytic.account').length], [1, 1]);
+  });
+
+  it('M1 a mirror that keeps failing ends as a review row once the database says the strikes are spent', async () => {
+    const { result, calls } = await tick(newState(), { claimed: [prop('prop-p', 'project', 'p-1')], mirrorFails: true, failureEnds: true });
+    assertEquals([result.rejected, result.pending, rpcCall(calls, 'record_connect_send_failure').length], [1, 0, 1]);
+  });
+
+  it('M2 a send accepted by an Admin who is no longer one is not sent to Odoo', async () => {
+    const st = newState();
+    const { result, calls } = await tick(st, { claimed: [prop('prop-party', 'party', 'c-1')], actorGone: true });
+    assertEquals(partners(st).length, 0);
+    assert(/no longer an Admin/.test(String(results(calls)[0].p_rejection)));
+    assertEquals(result.rejected, 1);
   });
 
   it('an unreachable Odoo connection leaves every row sending: pending counted, no result recorded', async () => {

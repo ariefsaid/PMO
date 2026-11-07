@@ -83,7 +83,7 @@ export function drainOdooConnectSends(
 }
 
 /**
- * The sweep tick's step: send what Admins accepted, inside the tick's Odoo call budget. Each send reserves its three calls up
+ * The sweep tick's step: send what Admins accepted, inside the tick's Odoo call budget. Each send reserves its four calls up
  * front, and what the tick did not make is given back, so a probe hit (no create) or an unreachable Odoo frees room for the
  * directory passes. Never fails the tick; it logs a fixed sentence only, never a record.
  */

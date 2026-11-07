@@ -8,7 +8,7 @@ import { assertEquals } from '@std/assert';
 import { handleSetCompanyRequest, setTestJwks } from './index.ts';
 import {
   createAuthedRequest, createJwtAuthority, createTestJwksResolver, installEdgeEnv, jsonResponse, rpcCall,
-  supabaseRpc, supabaseSelect, withFetchMock, countResponse, type FetchCall, type MockRoute,
+  supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute,
 } from '../_shared/testing/edgeTestKit.ts';
 
 const env = installEdgeEnv();
@@ -21,7 +21,7 @@ const none = () => new Response('null', { status: 200, headers: { 'content-type'
 const pgError = (code: string, message: string) => jsonResponse({ code, message, details: null, hint: null }, { status: 400 });
 
 const journal = (id: number, code: string, type: string, name = `Journal ${code}`) => ({ external_id: String(id), code, name, attrs: { type } });
-interface Opts { sending?: number; role?: string; operator?: boolean; journals?: Array<ReturnType<typeof journal>>; config?: Record<string, unknown>; rpc?: Record<string, (c: FetchCall) => Response> }
+interface Opts { role?: string; operator?: boolean; journals?: Array<ReturnType<typeof journal>>; config?: Record<string, unknown>; rpc?: Record<string, (c: FetchCall) => Response> }
 function routes(o: Opts): MockRoute[] {
   const rpc = (fn: string) => supabaseRpc(fn, o.rpc?.[fn] ?? (() => jsonResponse(null)));
   return [
@@ -31,7 +31,6 @@ function routes(o: Opts): MockRoute[] {
     supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('external_org_bindings', () => one({ config: o.config ?? {} })),
     supabaseSelect('external_master_records', () => jsonResponse(o.journals ?? [])),
-    { label: 'waiting sends', method: 'HEAD', pathname: '/rest/v1/erp_connect_proposals', response: () => countResponse(o.sending ?? 0) },
     rpc('admin_change_domain_ownership'), rpc('set_odoo_payment_journal_default'), rpc('set_odoo_tax_prepaid_account'), rpc('set_odoo_customer_advance_account'),
   ];
 }
@@ -76,16 +75,10 @@ describe('Odoo router — employ-domain (P2-T9)', () => {
       [{ p_org_id: 'org-1', p_external_tier: 'odoo', p_domain: 'companies', p_action: 'employ', p_actor_id: 'user-1' }]);
   });
 
-  it('FR-ODC-055 companies are not employed while a partner send is still waiting: 409 sends-pending, no ownership change', async () => {
-    const r = await call({ setupAction: 'employ-domain', domain: 'companies' }, { sending: 2 });
+  it('FR-ODC-055 a companies employ refused by the database because partner sends are still waiting: 409 sends-pending', async () => {
+    const message = 'Some records are still being sent to Odoo. Wait for them to finish, then try again.';
+    const r = await call({ setupAction: 'employ-domain', domain: 'companies' }, { rpc: { admin_change_domain_ownership: () => pgError('P0001', message) } });
     assertEquals([r.res.status, r.json.error], [409, 'sends-pending']);
-    assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').length, 0);
-    const read = r.calls.find((c) => c.url.pathname === '/rest/v1/erp_connect_proposals')!;
-    assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier'), read.url.searchParams.get('kind'), read.url.searchParams.get('state')], ['eq.org-1', 'eq.odoo', 'eq.party', 'eq.sending']);
-  });
-
-  it('procurement does not wait on partner sends', async () => {
-    assertEquals((await call({ setupAction: 'employ-domain', domain: 'procurement' }, { sending: 5 })).res.status, 200);
   });
 
   it('companies: a non-Admin is refused before the verb; a second ERP that already owns them is the database\'s plain refusal (422)', async () => {

@@ -103,6 +103,15 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
     if (text === null) out.sent += 1; else out.rejected += 1;
   };
   const reject = (c: Claimed, text: string) => record(c, null, text);
+  // Anything unknown is counted and ends as a review row after five ticks (I1 of 0494); until then a later tick looks again
+  const countFailure = async (c: Claimed) => {
+    try {
+      if (await check(sc.rpc('record_connect_send_failure', { p_org_id: org.orgId, p_id: c.id }), 'send failure') === true) out.rejected += 1;
+      else out.pending += 1;
+    } catch {
+      out.pending += 1;
+    }
+  };
   let stopped = false;   // a dead ERP or a spent budget ends the tick: what is left keeps its lease and a later tick looks again
   for (const c of claimed) {
     if (stopped || clock.nowMs() >= deadline) { stopped = true; out.pending += 1; continue; }
@@ -134,7 +143,7 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
         const done = await sendMasterOnce({ money }, adapter, kind, master);
         if (t.afterSent) {
           try { await t.afterSent(kind, master, done.externalRecordId); }
-          catch { out.pending += 1; continue; }
+          catch { await countFailure(c); continue; }   // the ERP record is confirmed, so a later try adopts it; the mirror must not retry for ever
         }
         await record(c, done.externalRecordId, null);
       } catch (err) {
@@ -151,16 +160,10 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       out.error = [out.error, `${c.kind}:${msg}`].filter(Boolean).join('; ');
-      try {
-        // I1: a link clash (the ERP record belongs to another PMO record) can never succeed by trying again: it ends as a decision in plain words.
-        // Anything else unknown is counted and ends the same way after five ticks; until then the lease runs out and a later tick looks again
-        // (the first attempt's record is found, not duplicated).
-        if (/\b23505\b/.test(msg)) await reject(c, CONNECT_SEND_REJECTION_TEXT.linked);
-        else if (await check(sc.rpc('record_connect_send_failure', { p_org_id: org.orgId, p_id: c.id }), 'send failure') === true) out.rejected += 1;
-        else out.pending += 1;
-      } catch {
-        out.pending += 1;
-      }
+      // I1: a link clash (the ERP record belongs to another PMO record) can never succeed by trying again: it ends as a decision in plain words.
+      if (/\b23505\b/.test(msg)) {
+        try { await reject(c, CONNECT_SEND_REJECTION_TEXT.linked); } catch { out.pending += 1; }
+      } else await countFailure(c);
     }
   }
   return out;
