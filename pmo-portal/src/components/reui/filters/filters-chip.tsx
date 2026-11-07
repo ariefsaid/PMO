@@ -45,30 +45,30 @@ import type {
   FilterRule,
 } from "@/src/components/reui/filters/filters-types"
 
-import { cn } from "@/src/components/reui/cn"
-import { Button } from "@/src/components/reui/button"
+import { cn } from "@/src/components/shadcn/cn"
+import { Button } from "@/src/components/shadcn/button"
 import {
   ButtonGroup,
   ButtonGroupText,
-} from "@/src/components/reui/button-group"
+} from "@/src/components/shadcn/button-group"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/src/components/reui/dropdown-menu"
+} from "@/src/components/shadcn/dropdown-menu"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/src/components/reui/popover"
+} from "@/src/components/shadcn/popover"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/src/components/reui/tooltip"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+} from "@/src/components/shadcn/tooltip"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 /** Which part of the chip a pointer or key is aimed at. No `field`: the chip's
  *  attribute segment is display only, and only the builder re-picks one. */
@@ -564,7 +564,7 @@ export function FilterOperatorPopover<V, O>({
    *  unmount. Clearing it in `release` would break that twin only. */
   const handoff = React.useRef(false)
   const operators = actions.resolveOperators(field)
-  const operator = getFilterOperator(operators, rule.operator)
+  const _operator = getFilterOperator(operators, rule.operator)
 
   // Memoized because the array IS the menu's identity: the cascader rebuilds
   // its index per `items` identity, so a fresh array rebuilds it per keystroke.

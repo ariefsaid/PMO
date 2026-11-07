@@ -20,9 +20,9 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react"
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 
-import { cn } from "@/src/components/reui/cn"
-import { Spinner } from "@/src/components/reui/spinner"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+import { cn } from "@/src/components/shadcn/cn"
+import { Spinner } from "@/src/components/shadcn/spinner"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 // Base UI extends its synthetic events with a handler-veto escape hatch.
 type VetoableEvent = { preventBaseUIHandler?: () => void }

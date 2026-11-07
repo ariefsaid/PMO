@@ -1,6 +1,6 @@
-import { cn } from "@/src/components/reui/cn"
+import { cn } from "@/src/components/shadcn/cn"
 
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
   return (

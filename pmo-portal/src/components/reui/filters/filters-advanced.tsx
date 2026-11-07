@@ -63,28 +63,28 @@ import type {
   FilterRule,
 } from "@/src/components/reui/filters/filters-types"
 
-import { cn } from "@/src/components/reui/cn"
-import { Button } from "@/src/components/reui/button"
+import { cn } from "@/src/components/shadcn/cn"
+import { Button } from "@/src/components/shadcn/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/src/components/reui/dropdown-menu"
-import { Input } from "@/src/components/reui/input"
+} from "@/src/components/shadcn/dropdown-menu"
+import { Input } from "@/src/components/shadcn/input"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/src/components/reui/popover"
+} from "@/src/components/shadcn/popover"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/src/components/reui/tooltip"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+} from "@/src/components/shadcn/tooltip"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 /* -------------------------------------------------------------------------- */
 /*                                  Columns                                   */
@@ -1592,7 +1592,7 @@ export function FiltersAdvancedPanel<V, O>({
   )
 
   /** Every issue, keyed by node: what the tree IS, drawn or not. */
-  const issueMap = React.useMemo(
+  const _issueMap = React.useMemo(
     () => new Map(issues.map((issue) => [issue.nodeId, issue])),
     [issues]
   )
@@ -1607,6 +1607,8 @@ export function FiltersAdvancedPanel<V, O>({
       if (rowStateStore.has(issue.nodeId)) visible.set(issue.nodeId, issue)
     }
     return visible
+  // rowStateVersion is the store's change signal: the store is mutated in place
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issues, rowStateStore, rowStateVersion])
 
   /** Says out loud that a VISIBLE error has appeared, which would
@@ -1629,7 +1631,7 @@ export function FiltersAdvancedPanel<V, O>({
   /** Sends focus to the first thing that needs it. Walked and not selected
    * by id: a node id is consumer-supplied, and `CSS.escape` is not
    * optional in a hand-built selector. */
-  const focusFirstIssue = React.useCallback(() => {
+  const _focusFirstIssue = React.useCallback(() => {
     const first = issues[0]
     const body = bodyRef.current
     if (!first || !body) return

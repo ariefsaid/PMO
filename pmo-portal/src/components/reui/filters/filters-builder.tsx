@@ -36,14 +36,14 @@ import {
 import { getDefaultFilterOperator } from "@/src/components/reui/filters/filters-operators"
 import type { FilterField } from "@/src/components/reui/filters/filters-types"
 
-import { cn } from "@/src/components/reui/cn"
-import { Button } from "@/src/components/reui/button"
+import { cn } from "@/src/components/shadcn/cn"
+import { Button } from "@/src/components/shadcn/button"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/src/components/reui/popover"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+} from "@/src/components/shadcn/popover"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 /**
  * Projects ONLY the field tree: operators or values as nodes would force the

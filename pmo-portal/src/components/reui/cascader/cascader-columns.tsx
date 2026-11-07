@@ -21,9 +21,9 @@ import {
 } from "@/src/components/reui/cascader/cascader-lib"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react"
 
-import { cn } from "@/src/components/reui/cn"
-import { ScrollArea } from "@/src/components/reui/scroll-area"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+import { cn } from "@/src/components/shadcn/cn"
+import { ScrollArea } from "@/src/components/shadcn/scroll-area"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 export interface CascaderColumnsProps extends Omit<
   React.ComponentProps<"div">,

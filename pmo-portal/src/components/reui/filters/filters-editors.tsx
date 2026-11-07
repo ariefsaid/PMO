@@ -51,11 +51,11 @@ import type {
   FilterOptionsState,
 } from "@/src/components/reui/filters/filters-types"
 
-import { cn } from "@/src/components/reui/cn"
-import { Button } from "@/src/components/reui/button"
-import { ButtonGroup } from "@/src/components/reui/button-group"
-import { Input } from "@/src/components/reui/input"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+import { cn } from "@/src/components/shadcn/cn"
+import { Button } from "@/src/components/shadcn/button"
+import { ButtonGroup } from "@/src/components/shadcn/button-group"
+import { Input } from "@/src/components/shadcn/input"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 /* -------------------------------------------------------------------------- */
 /*                              The options service                           */

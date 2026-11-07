@@ -12,13 +12,13 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@/src/components/reui",
-    "utils": "@/src/components/ui/cn",
-    "ui": "@/src/components/reui",
+    "components": "@/src/components",
+    "utils": "@/src/components/shadcn/cn",
+    "ui": "@/src/components/shadcn",
     "lib": "@/src/lib",
     "hooks": "@/src/hooks"
   },
   "registries": {
-    "@reui": "https://reui.io/r/styles/base-nova/{name}.json"
+    "@reui": "https://reui.io/r/{name}.json"
   }
 }

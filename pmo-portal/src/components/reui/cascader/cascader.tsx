@@ -83,9 +83,9 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react"
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 
-import { cn } from "@/src/components/reui/cn"
-import { ScrollArea } from "@/src/components/reui/scroll-area"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+import { cn } from "@/src/components/shadcn/cn"
+import { ScrollArea } from "@/src/components/shadcn/scroll-area"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 /** Stable `filteredItems` for a level swap; a fixed identity cannot loop. */
 const EMPTY: CascaderNode<never>[] = []

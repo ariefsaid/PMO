@@ -102,10 +102,7 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
           <MobileToolbarDisclosure
             label={t('uxs14.moreActions', 'More actions')}
             open={moreOpen}
-            onOpenChange={(next) => {
-              setMoreOpen(next);
-              if (next) setFiltersOpen(false);
-            }}
+            onOpenChange={setMoreOpen}
           >
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
               {moreActionsChildren}

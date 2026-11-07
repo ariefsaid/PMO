@@ -16,8 +16,8 @@ import type { CascaderActionItem } from "@/src/components/reui/cascader/cascader
 import { Popover as PopoverPrimitive } from "@base-ui/react"
 import { useDirection } from "@base-ui/react/direction-provider"
 
-import { cn } from "@/src/components/reui/cn"
-import { IconPlaceholder } from "@/src/components/reui/icon-placeholder"
+import { cn } from "@/src/components/shadcn/cn"
+import { IconPlaceholder } from "@/src/components/shadcn/icon-placeholder"
 
 /**
  * The pinned footer, and the side-anchored flyout a footer row can open. These
