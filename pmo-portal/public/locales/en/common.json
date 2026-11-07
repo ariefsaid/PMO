@@ -4799,7 +4799,7 @@
       "loadError": "Evidence documents could not be loaded",
       "loadErrorSub": "The budget figures are not affected. Try again.",
       "readOnlyActive": "Evidence is read-only: this version is Active. Archive it, then use Clone to revise to start a new draft.",
-      "readOnlyArchived": "Evidence is read-only: this version is Archived. Use Clone to revise to start a new draft and link evidence there.",
+      "readOnlyArchived": "Evidence is read-only: this version is Archived. Clone it, or edit the existing draft, to link evidence there.",
       "readOnlyRole": "Evidence is read-only: your role cannot change budget evidence.",
       "remove": "Remove",
       "removeDescription": "The link to {{name}} is removed from this version. The Microsoft file is not changed.",

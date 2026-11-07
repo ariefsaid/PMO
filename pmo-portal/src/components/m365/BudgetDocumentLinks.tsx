@@ -68,7 +68,7 @@ export function BudgetDocumentLinks({ versionId, status, versionLabel }: BudgetD
           {status === 'Active'
             ? t('m365Documents.budget.readOnlyActive', 'Evidence is read-only: this version is Active. Archive it, then use Clone to revise to start a new draft.')
             : status === 'Archived'
-              ? t('m365Documents.budget.readOnlyArchived', 'Evidence is read-only: this version is Archived. Use Clone to revise to start a new draft and link evidence there.')
+              ? t('m365Documents.budget.readOnlyArchived', 'Evidence is read-only: this version is Archived. Clone it, or edit the existing draft, to link evidence there.')
               : t('m365Documents.budget.readOnlyRole', 'Evidence is read-only: your role cannot change budget evidence.')}
         </p>
       )}

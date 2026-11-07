@@ -72,9 +72,9 @@ describe('BudgetDocumentLinks rendering', () => {
     expect(screen.getByText(/Archive it, then use Clone to revise/)).toBeInTheDocument();
   });
 
-  it('F19 an Archived version points to Clone to revise; a Draft without permission blames the role', () => {
+  it('F19 an Archived version points to Clone or the existing draft; a Draft without permission blames the role', () => {
     const { unmount } = render(<BudgetDocumentLinks versionId="v1" status="Archived" />);
-    expect(screen.getByText(/Use Clone to revise to start a new draft/)).toBeInTheDocument();
+    expect(screen.getByText(/Clone it, or edit the existing draft, to link evidence there/)).toBeInTheDocument();
     unmount();
     mock.mayMutate.mockReturnValue(false);
     render(<BudgetDocumentLinks versionId="v1" status="Draft" />);

@@ -4799,7 +4799,7 @@
       "loadError": "Dokumen bukti tidak dapat dimuat",
       "loadErrorSub": "Angka anggaran tidak terpengaruh. Coba lagi.",
       "readOnlyActive": "Bukti hanya-baca: versi ini Aktif. Arsipkan, lalu gunakan Salin untuk revisi guna memulai draf baru.",
-      "readOnlyArchived": "Bukti hanya-baca: versi ini Diarsipkan. Gunakan Salin untuk revisi guna memulai draf baru dan tautkan bukti di sana.",
+      "readOnlyArchived": "Bukti hanya-baca: versi ini Diarsipkan. Salin versi ini, atau ubah draf yang ada, untuk menautkan bukti di sana.",
       "readOnlyRole": "Bukti hanya-baca: peran Anda tidak dapat mengubah bukti anggaran.",
       "remove": "Hapus",
       "removeDescription": "Tautan ke {{name}} dihapus dari versi ini. File Microsoft tidak diubah.",
