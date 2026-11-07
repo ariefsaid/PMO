@@ -206,6 +206,7 @@ else
   skip "get_financial_statement_catalogue (projects)"
   skip "get_financial_statement (projects)"
 fi
+c=$(rpc get_finance_hub_figures "{}")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
