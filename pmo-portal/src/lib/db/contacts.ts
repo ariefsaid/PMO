@@ -62,20 +62,27 @@ export async function listContactsPage(input: {
   search?: string;
 }): Promise<ContactDirectoryPage> {
   const from = Math.max(0, input.page - 1) * input.pageSize;
-  let query = supabase
-    .from('contacts')
-    .select('*', { count: 'exact' })
-    .is('archived_at', null);
-  if (input.companyId) query = query.eq('company_id', input.companyId);
   const term = input.search?.trim();
-  if (term) {
-    const pattern = likeAny(term);
-    query = query.or(`full_name.ilike.${pattern},email.ilike.${pattern}`);
-  }
-  const { data, error, count } = await query
+  const pattern = term ? likeAny(term) : null;
+  const filtered = <Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q }>(q: Q): Q => {
+    if (input.companyId) q = q.eq('company_id', input.companyId);
+    return pattern ? q.or(`full_name.ilike.${pattern},email.ilike.${pattern}`) : q;
+  };
+  const { data, error, count } = await filtered(
+    supabase.from('contacts').select('*', { count: 'exact' }).is('archived_at', null),
+  )
     .order('full_name')
     .order('id')
     .range(from, from + input.pageSize - 1);
+  // An OFFSET past the last page (rows archived since the pager was drawn) is answered 416 /
+  // PGRST103: that is an EMPTY page over the real total, so the pager can correct down — not an error.
+  if (error?.code === 'PGRST103') {
+    const head = await filtered(
+      supabase.from('contacts').select('id', { count: 'exact', head: true }).is('archived_at', null),
+    );
+    if (head.error) throwWrite(head.error);
+    return { rows: [], total: head.count ?? 0 };
+  }
   if (error) throwWrite(error);
   if (count === null || count === undefined) {
     throw new AppError('The contacts directory total could not be resolved.', 'COUNT_UNRESOLVED');

@@ -191,3 +191,20 @@ describe('listCompanies export extension (#1989)', () => {
     expect(rows.map((r) => (r as { name: string }).name)).toEqual(['Steelworks']);
   });
 });
+
+describe('listCompaniesPage past the last page (#1989 review)', () => {
+  it('PostgREST answers an out-of-range OFFSET with PGRST103; that is an EMPTY page with the real total, not an error', async () => {
+    h.pushResult({ data: null, error: { code: 'PGRST103', message: 'Requested range not satisfiable' }, count: null });
+    h.pushResult({ data: null, error: null, count: 51 });
+    const page = await listCompaniesPage({ page: 3, pageSize: 50, type: 'Client', search: 'at' });
+    expect(page).toEqual({ rows: [], total: 51 });
+    // The total is re-read with the SAME filter/search (head count), so the pager can correct down.
+    expect(h.calls.eq).toEqual([['type', 'Client'], ['type', 'Client']]);
+    expect(h.calls.or).toHaveLength(2);
+  });
+
+  it('other page errors still throw', async () => {
+    h.pushResult({ data: null, error: { code: '42501', message: 'denied' }, count: null });
+    await expect(listCompaniesPage({ page: 1, pageSize: 50 })).rejects.toBeInstanceOf(AppError);
+  });
+});

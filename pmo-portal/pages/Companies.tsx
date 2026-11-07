@@ -333,7 +333,7 @@ const Companies: React.FC = () => {
             }
           />
         )
- }
+      }
       /* Bulk import (ADR-0027): role-gated via can('create','company'); reuses the
          entity's create repository so RLS stamps org_id + gates the write role. On a
          successful import the wizard close refetches the list. */

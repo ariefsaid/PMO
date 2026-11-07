@@ -146,3 +146,19 @@ describe('listContacts export extension (#1989)', () => {
     expect(rows.map((r) => (r as { full_name: string }).full_name)).toEqual(['Jane Harlow']);
   });
 });
+
+describe('listContactsPage past the last page (#1989 review)', () => {
+  it('PostgREST answers an out-of-range OFFSET with PGRST103; that is an EMPTY page with the real total, not an error', async () => {
+    h.pushResult({ data: null, error: { code: 'PGRST103', message: 'Requested range not satisfiable' }, count: null });
+    h.pushResult({ data: null, error: null, count: 51 });
+    const page = await listContactsPage({ page: 3, pageSize: 50, companyId: 'co1', search: 'ja' });
+    expect(page).toEqual({ rows: [], total: 51 });
+    expect(h.calls.eq).toEqual([['company_id', 'co1'], ['company_id', 'co1']]);
+    expect(h.calls.or).toHaveLength(2);
+  });
+
+  it('other page errors still throw', async () => {
+    h.pushResult({ data: null, error: { code: '42501', message: 'denied' }, count: null });
+    await expect(listContactsPage({ page: 1, pageSize: 50 })).rejects.toBeInstanceOf(AppError);
+  });
+});
