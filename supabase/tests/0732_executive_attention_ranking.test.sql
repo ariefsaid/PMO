@@ -15,7 +15,7 @@
 -- Also: tenant isolation (org B's five overdue tasks never reach org A), and the security posture is unchanged
 -- (invoker, executable by authenticated, not by anon).
 begin;
-select plan(17);
+select plan(19);
 
 -- ── Orgs, users ─────────────────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -24,10 +24,12 @@ insert into organizations (id, name) values
 
 insert into auth.users (id, email) values
   ('07320000-0000-0000-0000-0000000000a1', 'attention-a@invalid.example'),
+  ('07320000-0000-0000-0000-0000000000a2', 'attention-pm@invalid.example'),
   ('07320000-0000-0000-0000-0000000000b1', 'attention-b@invalid.example');
 
 insert into profiles (id, org_id, full_name, email, role) values
   ('07320000-0000-0000-0000-0000000000a1', '07320000-0000-0000-0000-000000000001', 'Attention A', 'attention-a@invalid.example', 'Executive'),
+  ('07320000-0000-0000-0000-0000000000a2', '07320000-0000-0000-0000-000000000001', 'Attention PM', 'attention-pm@invalid.example', 'Project Manager'),
   ('07320000-0000-0000-0000-0000000000b1', '07320000-0000-0000-0000-000000000002', 'Attention B', 'attention-b@invalid.example', 'Executive');
 
 -- ── Org A: customer (30-day terms), six active projects ────────────────────────────────────────────────────────
@@ -47,6 +49,17 @@ insert into projects (id, org_id, name, status, currency, contract_value, tax_tr
   ('07320000-0000-0000-0000-0000000000d4', '07320000-0000-0000-0000-000000000001', 'P_OVER_BUDGET',   'Ongoing Project', 'USD',  400000, 'exclusive', 0),
   ('07320000-0000-0000-0000-0000000000d5', '07320000-0000-0000-0000-000000000001', 'P_BIG_VALUE',     'Ongoing Project', 'USD', 9000000, 'exclusive', 0),
   ('07320000-0000-0000-0000-0000000000d6', '07320000-0000-0000-0000-000000000001', 'P_NONE_2',        'Ongoing Project', 'USD', 6000000, 'exclusive', 0);
+
+-- Close Out has LEFT the active population (the FE's ACTIVE_PROJECT_STATUSES set — delivery ∪ internal — has no
+-- Close Out): five overdue tasks, louder than any ranked project, must still never surface it in the ranking.
+insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount) values
+  ('07320000-0000-0000-0000-0000000000d7', '07320000-0000-0000-0000-000000000001', 'P_CLOSEOUT', 'Close Out', 'USD', 150000, 'exclusive', 0);
+insert into tasks (id, org_id, project_id, name, status, end_date) values
+  ('07320000-0000-0000-0000-0000000000e7', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d7', 'Close Out overdue 1', 'To Do',       ((now() at time zone 'UTC')::date - 1)),
+  ('07320000-0000-0000-0000-0000000000e8', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d7', 'Close Out overdue 2', 'In Progress', ((now() at time zone 'UTC')::date - 2)),
+  ('07320000-0000-0000-0000-0000000000e9', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d7', 'Close Out overdue 3', 'Blocked',     ((now() at time zone 'UTC')::date - 3)),
+  ('07320000-0000-0000-0000-0000000000ea', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d7', 'Close Out overdue 4', 'To Do',       ((now() at time zone 'UTC')::date - 4)),
+  ('07320000-0000-0000-0000-0000000000eb', '07320000-0000-0000-0000-000000000001', '07320000-0000-0000-0000-0000000000d7', 'Close Out overdue 5', 'In Progress', ((now() at time zone 'UTC')::date - 5));
 
 -- Overdue work on P_ALL (1 task) and P_OVERDUE (2 open + a Done past + an archived past, which must not count).
 insert into tasks (id, org_id, project_id, name, status, end_date) values
@@ -194,6 +207,15 @@ select is(
   'AC-1418-14: another org''s projects are not in this org''s ranking'
 );
 
+-- Close Out has left the active population: however loud its overdue signals, it is not an active project
+-- (the ranking's population is the FE's ACTIVE_PROJECT_STATUSES set, and Close Out is not in that set).
+select is(
+  (select count(*)::int from json_array_elements(get_executive_dashboard() -> 'attention_projects') e
+    where e ->> 'name' = 'P_CLOSEOUT'),
+  0,
+  'AC-1418-17: a Close Out project, however loud its overdue signals, is not in the attention ranking'
+);
+
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07320000-0000-0000-0000-0000000000b1","role":"authenticated"}';
@@ -202,6 +224,19 @@ select is(
   (select json_array_length(get_executive_dashboard() -> 'attention_projects')),
   1,
   'AC-1418-15: org B sees only its own project (no row set from org A)'
+);
+
+-- Role visibility: the ranking shows only what the caller can read. Every ranked project must appear in a direct
+-- select under the SAME role (invoker posture — a definer bypass would surface unreadable rows here).
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"07320000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+set local request.jwt.claim.sub = '07320000-0000-0000-0000-0000000000a2';
+select is(
+  (select count(*)::int from json_array_elements(get_executive_dashboard() -> 'attention_projects') e
+    where not exists (select 1 from public.projects p where p.id = (e ->> 'id')::uuid)),
+  0,
+  'AC-1418-18: as a PM, every ranked project is one the role itself can read (subset of a direct select)'
 );
 
 -- Security posture unchanged: same function, still invoker, executable by authenticated and not by anon.

@@ -17,8 +17,8 @@
 --     that same comparison past 100% (the "projects at risk" tile uses 90%). Same guards: an Active version, both
 --     currencies equal, complete actuals and complete commitments. Not comparable => null, never a false zero.
 --   • waiting approvals — the project-scoped pending queues whose record carries a project_id: procurement
---     requests (status Requested) and submitted expense claims. Viewer-independent on purpose (a ranking cannot
---     depend on who is looking); the viewer-aware queues stay on the "waiting for you" line.
+--     requests (status Requested) and submitted expense claims. The counts are what the caller can see under
+--     RLS (as with top_projects), not viewer-independent; the viewer-aware queues stay on the "waiting for you" line.
 --
 -- Ranking is deterministic and explainable (the ORDER BY below): more signal kinds first, then more overdue items,
 -- then more waiting approvals, then the budget overrun ratio, then contract value, then id. A project with one
@@ -251,8 +251,9 @@ as $$
        group by ec.project_id
     ) q group by q.project_id
   ),
-  -- The active population the screen lists (on-hand + internal, as top_projects did), with each signal and the
-  -- budget-consumption ratio on the same guards as the at-risk rule (null when it cannot be compared).
+  -- The active population the screen lists (the active delivery set — the FE's ACTIVE_PROJECT_STATUSES, so Close
+  -- Out is NOT in it), with each signal and the budget-consumption ratio on the same guards as the at-risk rule
+  -- (null when it cannot be compared).
   attention_basis as (
     select p.id,
       coalesce(ot.n, 0) as overdue_tasks,
@@ -270,7 +271,7 @@ as $$
     left join overdue_milestone_counts om on om.project_id = p.id
     left join overdue_invoice_counts oi on oi.project_id = p.id
     left join approval_queue aq on aq.project_id = p.id
-    where p.status::text = any(public.on_hand_project_statuses()) or p.status::text = 'Internal Project'
+    where p.status::text = any(public.active_delivery_project_statuses())
   ),
   attention_scored as (
     select b.*, (b.overdue_tasks + b.overdue_milestones + b.overdue_invoices) as overdue_items
