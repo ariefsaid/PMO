@@ -5,7 +5,7 @@
 -- canonical folder RPC (m365_link_record_folder, 0338) and are respected under concurrency (dblink idiom).
 -- password=postgres is the Supabase LOCAL default; this file only runs under `supabase test db`.
 begin;
-select plan(22);
+select plan(23);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values ('03750000-0000-0000-0000-0000000000c0','Batch serialization','IDR');
 insert into auth.users(id,email) values ('03750000-0000-0000-0000-0000000000c1','bs-fin@example.com'),('03750000-0000-0000-0000-0000000000c6','bs-admin@example.com');
@@ -109,6 +109,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"03750000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select throws_ok($q$select public.link_m365_documents_batch('[{"procurement_id":"03750000-0000-0000-0000-0000000000e2","drive_id":"d1","item_id":"f8","web_url":"https://x.sharepoint.com/f8","name":"F8","kind":"folder"}]'::jsonb,false)$q$,
   '55P03','canceling statement due to lock timeout','a batch folder link waits for the per-record lock held by another writer');
+select throws_ok($q$select public.link_m365_documents_batch('[{"procurement_id":"03750000-0000-0000-0000-0000000000E2","drive_id":"d1","item_id":"f9","web_url":"https://x.sharepoint.com/f9","name":"F9","kind":"folder"}]'::jsonb,false)$q$,
+  '55P03','canceling statement due to lock timeout','an upper-case record id takes the same per-record lock');
 reset role;
 select dblink_exec('bs_record', 'commit');
 select dblink_disconnect('bs_record');

@@ -29,16 +29,19 @@ begin
   -- organisation with no library is refused m365_not_configured whatever the rows hold.
   perform public.sharepoint_url_on_org_host(v_org, null);
 
-  -- 0763: serialise per record (first lock), matching m365_link_record_folder (0338).
+  -- 0763: serialise per record (first lock), matching m365_link_record_folder (0338). The id is normalised through uuid::text
+  -- (0338 keys on p_record_id::text), so an upper-case or unhyphenated id still takes the same lock.
   -- Taken up front in deterministic key order so two concurrent batches or a batch racing with
   -- m365_link_record_folder can never deadlock. Lock order: record, then folder.
   for v_lock in
     select distinct ('m365-record-folder:'||rec.kind||':'||rec.id) collate "C"
       from jsonb_array_elements(p_rows) r,
       lateral (
-        select 'project' as kind, r->>'project_id' as id where r ? 'project_id' and r->>'project_id' is not null
+        select 'project' as kind, case when pg_input_is_valid(r->>'project_id','uuid') then (r->>'project_id')::uuid::text else r->>'project_id' end as id
+          where r ? 'project_id' and r->>'project_id' is not null
         union all
-        select 'procurement' as kind, r->>'procurement_id' as id where r ? 'procurement_id' and r->>'procurement_id' is not null
+        select 'procurement' as kind, case when pg_input_is_valid(r->>'procurement_id','uuid') then (r->>'procurement_id')::uuid::text else r->>'procurement_id' end as id
+          where r ? 'procurement_id' and r->>'procurement_id' is not null
       ) rec
      where jsonb_typeof(r)='object' and r->>'kind'='folder'
      order by 1
