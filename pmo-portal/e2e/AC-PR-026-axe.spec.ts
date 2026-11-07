@@ -83,11 +83,12 @@ test('AC-PR-026 /procurement (list) — dark theme passes axe-core color-contras
   });
   await signIn(page, 'admin@acme.test');
   await page.goto('/procurement');
+  // Oracle guard: prove dark is actually applied, or this would silently scan the light theme.
+  await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
 
   // Wait for real rows so axe measures the populated list, not a loading or empty state.
   await expect(page.getByText(/PROC-/).first()).toBeVisible({ timeout: 15_000 });
   await page.waitForLoadState('networkidle').catch(() => {});
-  await page.waitForTimeout(800);
 
   const results = await new AxeBuilder({ page })
     .withRules(['color-contrast'])
