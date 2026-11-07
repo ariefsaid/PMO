@@ -269,7 +269,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     // #1989: listPage/count/listAll — the server-paged directory read, its head count, and the
     // full-set export read.
     expect(Object.keys(repositories.contact).sort()).toEqual(
-      ['archive', 'count', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listAll', 'listActivities', 'listActivitiesForContacts', 'listByCompany', 'listPage', 'update', 'updateActivity'].sort(),
+      ['archive', 'count', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listAll', 'listActivities', 'listActivitiesForContacts', 'listActivitiesForContactsPage', 'listActivitiesPage', 'listByCompany', 'listPage', 'update', 'updateActivity'].sort(),
     );
   });
 
