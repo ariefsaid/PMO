@@ -532,6 +532,28 @@
       "revised": "PO revision issued",
       "reviseNotSentHeadline": "Not sent: the ERP revision route is not available yet",
       "reviseNotSentDetail": "The approved variation remains in PMO. No purchase order revision was issued.",
+      "refusal": {
+        "revision_superseded": {
+          "headline": "Revision superseded",
+          "detail": "A newer revision already exists for this purchase order. View the latest revision."
+        },
+        "po_has_submitted_bill": {
+          "headline": "Cannot revise billed order",
+          "detail": "This purchase order has a submitted supplier bill in the ERP and cannot be revised."
+        },
+        "revision_not_issued": {
+          "headline": "Revision not issued",
+          "detail": "This purchase order revision has not been issued yet in PMO."
+        },
+        "po_not_found": {
+          "headline": "Purchase order not found",
+          "detail": "The purchase order could not be found."
+        },
+        "below-received": {
+          "headline": "Quantity below received",
+          "detail": "Ordered quantity cannot be reduced below the quantity already received or billed."
+        }
+      },
       "chooseWorkOrder": "Choose a work order",
       "notPassed": "Not passed on",
       "linkLabel": "Client work order",
@@ -594,6 +616,13 @@
       "attention": "Check in Odoo",
       "approval": "Waiting for approval in Odoo",
       "refused": "Odoo did not accept it",
+      "reason": {
+        "revision_superseded": "A newer revision already exists for this purchase order.",
+        "po_has_submitted_bill": "This purchase order has a submitted bill in the ERP.",
+        "revision_not_issued": "This purchase order revision has not been issued yet.",
+        "po_not_found": "The purchase order could not be found.",
+        "below-received": "Quantity cannot be reduced below the quantity already received or billed."
+      },
       "next": {
         "pending": "Odoo has not confirmed it yet. PMO checks again by itself; there is nothing to do.",
         "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
