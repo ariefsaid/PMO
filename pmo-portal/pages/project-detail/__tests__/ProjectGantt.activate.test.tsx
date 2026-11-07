@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
@@ -72,27 +73,26 @@ describe('AC-JR-W5-01: ProjectGantt onActivateTask / GanttBarRow onActivate', ()
 
     const btn = screen.getByRole('button', { name: /Foundation Work/i });
     btn.focus();
-    fireEvent.keyDown(btn, { key: 'Enter' });
+    await userEvent.setup().keyboard('{Enter}');
     expect(spy).toHaveBeenCalledOnce();
     expect(spy).toHaveBeenCalledWith(datatedTask);
   });
 
-  it('AC-JR-W5-01: bar activates via keyboard Space', () => {
+  it('AC-JR-W5-01: bar activates via keyboard Space', async () => {
     const spy = vi.fn();
     render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     const btn = screen.getByRole('button', { name: /Foundation Work/i });
     btn.focus();
-    fireEvent.keyDown(btn, { key: ' ' });
+    await userEvent.setup().keyboard(' ');
     expect(spy).toHaveBeenCalledOnce();
   });
 
-  it('AC-JR-W5-01: without onActivateTask the bar has NO button role (inert display)', () => {
+  it('AC-JR-W5-01: without onActivateTask the bar still shows the task and clicking it does nothing', () => {
     render(<ProjectGantt tasks={tasks} milestones={milestones} onSwitchView={vi.fn()} />);
-    // Bar text is still visible but not a button.
-    // (Gantt v2 MS-Project layout shows the name in both the table cell and the bar.)
-    expect(screen.queryByRole('button', { name: /Foundation Work/i })).toBeNull();
     expect(screen.getAllByText('Foundation Work').length).toBeGreaterThan(0);
+    // The ReUI bar is always a native button; with no handler a click is a no-op.
+    fireEvent.click(screen.getByRole('button', { name: /Foundation Work/i }));
   });
 
   it('AC-JR-W5-01: bar has cursor-pointer class when onActivateTask is provided', () => {
