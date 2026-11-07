@@ -5,6 +5,7 @@ import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import {
   buildOdooProcurementRecoveryDeps,
   odooProcurementAnchoredElsewhere,
+  odooProcurementHoldCommitted,
   procurementRecoveryStartIndex,
   reconcileOdooProcurementCandidates,
   type OdooProcurementCandidate,
@@ -279,6 +280,41 @@ Deno.test('AC-OPP-062 committed rows with a foreign anchor are skipped without s
   assertEquals([builds, dispatches], [0, 0]);
   assertEquals(remaining, 20, 'a foreign-anchor skip does not consume Odoo-call capacity');
   assertEquals(result, { reconciled: 0, skipped: 1, budgetExhausted: false, errors: [] });
+});
+
+Deno.test('AC-OPP-062 a committed row with a foreign anchor is held with a stable reason through the fenced transition', async () => {
+  const holds: Array<[string, number, string]> = [];
+  const result = await reconcileOdooProcurementCandidates([candidate('1', { erp_doc_kind: 'purchase-order' }, { row: row('1', 'committed') })], {
+    orgId: 'org-a', ownsProcurement: true,
+    holdCommitted: async (item, reason) => { holds.push([item.row.id, item.row.claimGeneration, reason]); return 1; },
+  }, async () => deps, async () => true, async () => ({}));
+
+  assertEquals(holds, [['1', 1, 'committed-anchor-owned-elsewhere: the Odoo document is anchored to another PMO record']]);
+  assertEquals(result, { reconciled: 0, skipped: 1, budgetExhausted: false, errors: [] });
+});
+
+Deno.test('AC-OPP-062 a failed hold of a foreign-anchored committed row is reported and the pass continues', async () => {
+  const seen: string[] = [];
+  const result = await reconcileOdooProcurementCandidates([
+    candidate('1', { erp_doc_kind: 'purchase-order' }, { row: row('1', 'committed') }),
+    procurement('2'),
+  ], {
+    orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0,
+    holdCommitted: async () => { throw new AppError('rpc down', 'external-unreachable'); },
+  }, async (item) => { seen.push(item.row.id); return deps; }, async (item) => item.row.state === 'committed', async () => ({}));
+
+  assertEquals(seen, ['2']);
+  assertEquals(result.errors, [{ id: '1', error: 'external-unreachable' }]);
+  assertEquals(result.reconciled, 1);
+});
+
+Deno.test('AC-OPP-062 the default hold calls the fenced committed-to-held RPC with the row generation', async () => {
+  const calls: Array<[string, Record<string, unknown>]> = [];
+  const sc = { rpc: async (fn: string, args: Record<string, unknown>) => { calls.push([fn, args]); return { data: 1, error: null }; } };
+  const hold = odooProcurementHoldCommitted(sc as never);
+  const n = await hold(candidate('1', { erp_doc_kind: 'purchase-order' }, { row: { ...row('1', 'committed'), claimGeneration: 4 } }), 'committed-anchor-owned-elsewhere: x');
+  assertEquals(n, 1);
+  assertEquals(calls, [['hold_committed_outbox', { p_id: '1', p_generation: 4, p_reason: 'committed-anchor-owned-elsewhere: x' }]]);
 });
 
 Deno.test('AC-OPP-062 recovery re-checks authorization using the actor persisted on the outbox row', async () => {
