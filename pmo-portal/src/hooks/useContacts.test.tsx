@@ -8,7 +8,8 @@ const { contact } = vi.hoisted(() => ({
   contact: {
     list: vi.fn(),
     listByCompany: vi.fn(),
-    listActivities: vi.fn(),
+    listActivitiesPage: vi.fn(),
+    listActivitiesForContactsPage: vi.fn(),
     get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -27,6 +28,7 @@ import {
   useContact,
   useContactsByCompany,
   useContactActivities,
+  useCompanyActivities,
   useContactMutations,
 } from './useContacts';
 
@@ -61,7 +63,7 @@ beforeEach(() => {
   contact.list.mockResolvedValue([{ id: 'ct1', full_name: 'Jane Doe' }]);
   contact.get.mockResolvedValue({ id: 'ct1', full_name: 'Jane Doe', company_id: 'co1' });
   contact.listByCompany.mockResolvedValue([{ id: 'ct1', full_name: 'Jane Doe' }]);
-  contact.listActivities.mockResolvedValue([{ id: 'a1', kind: 'Call' }]);
+  contact.listActivitiesPage.mockResolvedValue({ rows: [{ id: 'a1', kind: 'Call' }], nextCursor: null });
   contact.create.mockResolvedValue({ id: 'ct2', full_name: 'Jane Doe' });
   contact.update.mockResolvedValue(undefined);
   contact.archive.mockResolvedValue(undefined);
@@ -108,16 +110,67 @@ describe('useContactsByCompany', () => {
 });
 
 describe('useContactActivities', () => {
-  it('queries activities for a contact when enabled', async () => {
+  it('queries the newest page of activities for a contact when enabled', async () => {
     const { result } = renderHook(() => useContactActivities('ct1'), { wrapper: wrap(freshClient()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(contact.listActivities).toHaveBeenCalledWith('ct1');
+    expect(contact.listActivitiesPage).toHaveBeenCalledWith('ct1', null);
+    expect(result.current.data).toEqual([{ id: 'a1', kind: 'Call' }]);
+    expect(result.current.hasNextPage).toBe(false);
   });
 
   it('stays disabled when no contact id is given', () => {
     const { result } = renderHook(() => useContactActivities(undefined), { wrapper: wrap(freshClient()) });
     expect(result.current.fetchStatus).toBe('idle');
-    expect(contact.listActivities).not.toHaveBeenCalled();
+    expect(contact.listActivitiesPage).not.toHaveBeenCalled();
+  });
+
+  it('fetchNextPage continues from the cursor and appends older rows; nothing is dropped', async () => {
+    const cursor = { occurred_at: '2026-06-01T00:00:00+00:00', id: 'a1' };
+    contact.listActivitiesPage
+      .mockResolvedValueOnce({ rows: [{ id: 'a1' }], nextCursor: cursor })
+      .mockResolvedValueOnce({ rows: [{ id: 'a0' }], nextCursor: null });
+    const { result } = renderHook(() => useContactActivities('ct1'), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.hasNextPage).toBe(true);
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    expect(contact.listActivitiesPage).toHaveBeenLastCalledWith('ct1', cursor);
+    expect(result.current.data?.map((r) => r.id)).toEqual(['a1', 'a0']);
+    expect(result.current.hasNextPage).toBe(false);
+  });
+});
+
+describe('useCompanyActivities', () => {
+  it('reads the newest page for the company contacts in one batched call', async () => {
+    contact.listActivitiesForContactsPage.mockResolvedValue({ rows: [{ id: 'a9' }], nextCursor: null });
+    const { result } = renderHook(() => useCompanyActivities(['ct2', 'ct1']), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(contact.listActivitiesForContactsPage).toHaveBeenCalledWith(['ct2', 'ct1'], null);
+    expect(result.current.data).toEqual([{ id: 'a9' }]);
+  });
+
+  it('stays disabled with no contacts', () => {
+    const { result } = renderHook(() => useCompanyActivities([]), { wrapper: wrap(freshClient()) });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(contact.listActivitiesForContactsPage).not.toHaveBeenCalled();
+  });
+
+  it('logging an activity refetches the loaded timeline so the new row is on top', async () => {
+    contact.listActivitiesForContactsPage
+      .mockResolvedValueOnce({ rows: [{ id: 'old' }], nextCursor: null })
+      .mockResolvedValue({ rows: [{ id: 'new' }, { id: 'old' }], nextCursor: null });
+    contact.createActivity.mockResolvedValue({ id: 'new' });
+    const client = freshClient();
+    const { result } = renderHook(
+      () => ({ acts: useCompanyActivities(['ct1']), mut: useContactMutations() }),
+      { wrapper: wrap(client) },
+    );
+    await waitFor(() => expect(result.current.acts.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.mut.logActivity.mutateAsync(activityInput);
+    });
+    await waitFor(() => expect(result.current.acts.data?.map((r) => r.id)).toEqual(['new', 'old']));
   });
 });
 

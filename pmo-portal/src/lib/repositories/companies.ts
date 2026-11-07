@@ -30,6 +30,8 @@ import {
 import {
   listActivities,
   listActivitiesForContacts,
+  listActivitiesPage,
+  listActivitiesForContactsPage,
   createActivity,
   updateActivity,
   deleteActivity,
@@ -99,6 +101,8 @@ export const contactRepository: ContactRepository = {
   delete: (id) => wrap(() => deleteContact(id)),
   listActivities: (id) => wrap(() => listActivities(id)),
   listActivitiesForContacts: (ids) => wrap(() => listActivitiesForContacts(ids)),
+  listActivitiesPage: (id, cursor) => wrap(() => listActivitiesPage(id, cursor)),
+  listActivitiesForContactsPage: (ids, cursor) => wrap(() => listActivitiesForContactsPage(ids, cursor)),
   createActivity: (input, loggedById) => wrap(() => createActivity(input, loggedById)),
   updateActivity: (id, patch) => wrap(() => updateActivity(id, patch)),
   deleteActivity: (id) => wrap(() => deleteActivity(id)),

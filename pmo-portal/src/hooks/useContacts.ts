@@ -1,7 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
+import type {
+  CrmActivityRow,
+  CrmActivityInput,
+  CrmActivityPatch,
+  ActivityCursor,
+  ActivityPage,
+} from '@/src/lib/db/crmActivities';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -46,15 +52,36 @@ export function useContactsByCompany(companyId: string | null | undefined) {
   });
 }
 
-/** A contact's activity timeline (newest-first), for the quick-view drawer. */
+/**
+ * Newest-first activity pages (#1990): the first page is the most recent; `fetchNextPage` loads
+ * the next older one by keyset cursor. `data` is the flattened list of every loaded row.
+ * `logActivity` etc. invalidate ['crm-activities'], which refetches the loaded pages in order,
+ * so a new activity lands on top.
+ */
+function useActivityPages(
+  queryKey: unknown[],
+  enabled: boolean,
+  fetchPage: (cursor: ActivityCursor | null) => Promise<ActivityPage>,
+) {
+  return useInfiniteQuery<ActivityPage, Error, CrmActivityRow[], unknown[], ActivityCursor | null>({
+    queryKey,
+    initialPageParam: null,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
+    getNextPageParam: (last) => last.nextCursor,
+    select: (d) => d.pages.flatMap((p) => p.rows),
+    enabled,
+  });
+}
+
+/** A contact's activity timeline (newest-first, paged), for the contact record page. */
 export function useContactActivities(contactId: string | null | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<CrmActivityRow[]>({
-    queryKey: ['crm-activities', orgId, contactId],
-    queryFn: () => repositories.contact.listActivities(contactId as string),
-    enabled: Boolean(orgId && contactId),
-  });
+  return useActivityPages(
+    ['crm-activities', orgId, contactId],
+    Boolean(orgId && contactId),
+    (cursor) => repositories.contact.listActivitiesPage(contactId as string, cursor),
+  );
 }
 
 /**
@@ -75,8 +102,9 @@ export function useContactMeetings(contactId: string | null | undefined) {
 }
 
 /**
- * Account-level activity timeline (T17): fetches all crm_activities across a company's
- * contacts in ONE batched query (C3 — crm_activities_contact_idx covers this path).
+ * Account-level activity timeline (T17): the newest page of crm_activities across a company's
+ * contacts in ONE batched query (C3 — crm_activities_contact_idx covers this path), with
+ * `fetchNextPage` for older ones (#1990).
  *
  * The hook accepts the list of contactIds for this company (from useContactsByCompany)
  * to avoid coupling to another DB query. When contactIds is empty the result is empty.
@@ -86,12 +114,11 @@ export function useCompanyActivities(contactIds: string[]) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const key = contactIds.slice().sort().join(',');
-
-  return useQuery<CrmActivityRow[]>({
-    queryKey: ['crm-activities', 'by-company', orgId, key],
-    queryFn: () => repositories.contact.listActivitiesForContacts(contactIds),
-    enabled: Boolean(orgId && contactIds.length > 0),
-  });
+  return useActivityPages(
+    ['crm-activities', 'by-company', orgId, key],
+    Boolean(orgId && contactIds.length > 0),
+    (cursor) => repositories.contact.listActivitiesForContactsPage(contactIds, cursor),
+  );
 }
 
 export interface UpdateContactArgs {
