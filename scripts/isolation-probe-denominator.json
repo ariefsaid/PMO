@@ -344,6 +344,7 @@
     "get_stock_on_hand(uuid,uuid,boolean)",
     "grant_sales_invoice_submit_clearance(uuid,uuid,uuid)",
     "has_meeting_grant(uuid)",
+    "hold_committed_outbox(uuid,integer,text)",
     "import_budget_line_v2(uuid,budget_category,text,numeric,text,uuid,timestamp with time zone,text,text,boolean)",
     "import_project_stage_history(uuid,jsonb)",
     "imprest_custodian_eligible(uuid,uuid,uuid)",
