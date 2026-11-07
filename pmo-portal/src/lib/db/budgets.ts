@@ -863,6 +863,18 @@ export async function cloneVersion(versionId: string): Promise<string> {
   throw new Error('Version allocation attempts exhausted');
 }
 
+/** #1413 — an approver returns a waiting Draft to the PM with a reason (server-enforced SoD). */
+export async function returnVersion(versionId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('return_budget_version', { version_id: versionId, reason });
+  if (error) throw toAppError(error);
+}
+
+/** #1413 — the PM puts a returned Draft back in front of the approvers. */
+export async function resubmitVersion(versionId: string): Promise<void> {
+  const { error } = await supabase.rpc('resubmit_budget_version', { version_id: versionId });
+  if (error) throw toAppError(error);
+}
+
 /**
  * Re-reads the version's own `activated_at` witness right after `activate_budget_version` commits — the
  * RPC itself returns void, and the ADR-0059 §4 deterministic key (`budgetPushKey`) MUST be derived from

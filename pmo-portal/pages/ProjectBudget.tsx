@@ -258,9 +258,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       : readiness);
   }, []);
 
-  const { readinessMessages, canConfirmActivation, canActivate, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers, distributionReadinessStatus);
+  const { readinessMessages, canConfirmActivation, canActivate, canReturn, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers, distributionReadinessStatus);
 
-  const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
+  const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canReturn, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
 
   const fiscalYears = activationPrecheckQuery.data?.fiscalYears ?? null;
   const fiscalYearNames = (() => {
@@ -783,7 +783,25 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         </section>
       )}
 
-      {draftVersion && (
+      {draftVersion?.returned_at && (
+        <section aria-label={t('projectDetail.budget.draftReturned', 'Draft returned to the drafter')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-returned-banner">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
+              <h3 className="font-semibold">{t('projectDetail.budget.draftReturned', 'Draft returned to the drafter')}</h3>
+              <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
+            </div>
+            <p className="mt-1 text-sm text-foreground">{t('projectDetail.budget.returnedReasonLine', 'Reason: {{reason}}', { reason: draftVersion.return_reason })}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.returnedWaitingResubmit', 'Not waiting for approval until it is resubmitted.')}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
+            {canWrite && !authoringRefreshNeeded && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers} onClick={() => requestResubmit(draftVersion.id)}>{t('projectDetail.budget.resubmitVersion', 'Resubmit for approval')}</Button>}
+          </div>
+        </section>
+      )}
+
+      {draftVersion && !draftVersion.returned_at && (
         <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -805,6 +823,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
+            {canReturn && !authoringRefreshNeeded && <Button variant="outline" size="sm" disabled={hasOpenLineBuffers} onClick={() => requestReturn(draftVersion.id)}>{t('projectDetail.budget.returnVersion', 'Return to drafter')}</Button>}
             {canActivate && !authoringRefreshNeeded && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers || (draftMode === 'whole_project' && distributionReadinessStatus !== 'current')} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
           </div>
         </section>

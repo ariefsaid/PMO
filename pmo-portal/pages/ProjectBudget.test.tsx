@@ -70,6 +70,8 @@ const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockRe
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
+const mockReturn = vi.fn().mockResolvedValue(undefined);
+const mockResubmit = vi.fn().mockResolvedValue(undefined);
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
 const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
@@ -92,6 +94,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
     cloneVersion: { mutateAsync: mockClone, isPending: false },
     activate: { mutateAsync: mockActivate, isPending: false },
     archive: { mutateAsync: mockArchive, isPending: false },
+    returnVersion: { mutateAsync: mockReturn, isPending: false },
+    resubmitVersion: { mutateAsync: mockResubmit, isPending: false },
     deleteDraft: { mutateAsync: mockDeleteDraft, isPending: false },
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
     updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
@@ -664,6 +668,52 @@ describe('ProjectBudget Draft version actions', () => {
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
     expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
+    resetState();
+  });
+
+  it('AC-1413-UI1: an eligible approver sees Return next to Activate; the dialog needs a reason and sends it trimmed', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Return to drafter$/i }));
+    expect(mockReturn).not.toHaveBeenCalled();
+    const confirm = screen.getByRole('button', { name: /^Return draft$/i });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(screen.getByRole('textbox', { name: /Reason for returning/i }), '  Split labour by quarter ');
+    await userEvent.click(confirm);
+    expect(mockReturn).toHaveBeenCalledWith({ versionId: 'v-draft', reason: 'Split labour by quarter' });
+    resetState();
+  });
+
+  it('AC-1413-UI2: Return is not offered to the drafter or to a non-approver role', () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
+    const { unmount } = renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    unmount();
+    roleState.realRole = 'Project Manager';
+    versionsState.data = [draftVersion];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    resetState();
+  });
+
+  it('AC-1413-UI3: a returned draft shows its reason, drops the waiting banner and Activate, and offers Resubmit', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, returned_at: '2026-01-02T00:00:00Z', returned_by: 'u3', return_reason: 'Split labour' }];
+    renderPage();
+    expect(screen.getByTestId('budget-returned-banner')).toHaveTextContent('Split labour');
+    expect(screen.queryByTestId('budget-draft-banner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Resubmit for approval$/i }));
+    expect(mockResubmit).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Resubmit for approval$/i }));
+    expect(mockResubmit).toHaveBeenCalledWith('v-draft');
     resetState();
   });
 

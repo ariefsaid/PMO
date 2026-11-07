@@ -116,6 +116,7 @@
 -- ⚑ AMENDED BY 0687: `attach_erp_journal_lines` and `detach_erp_journal_line` join (+2, count 156). Role- and org-gated definers under a member's JWT; anon/PUBLIC revoked.
 -- ⚑ AMENDED BY #1472 (S6B): `switch_budget_draft_mode` joins (+1, count 157). SECURITY DEFINER writer, authenticated member JWTs
 -- only; re-asserts active membership, org and the four budget-writer roles; proved by supabase/tests/budget_draft_mode_switch.test.sql.
+-- ⚑ AMENDED BY 0714 (#1413): `return_budget_version` and `resubmit_budget_version` join (+2, count 159). Member-JWT definers; re-assert org, active membership, the four budget roles and (return) the activation SoD; proved by supabase/tests/budget_return_to_pm.test.sql.
 -- Current retained set: 157 names after #1505, #1813, #1514 D1 and #1472 S6B, including #1462's archive inventory read. 0685 adds request_financial_statement_refresh (Refresh now).
 --
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
@@ -252,6 +253,8 @@ create temp table client_callable_rpc_names (proname text primary key) on commit
 insert into client_callable_rpc_names (proname) values
   ('accept_connect_proposals'),
   ('activate_budget_version'),
+  ('return_budget_version'),
+  ('resubmit_budget_version'),
   ('add_skipped_stage_entry'),
   ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
@@ -428,8 +431,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  157,
-  'AC-ACL-002 all 157 retained client-callable RPC names still have a public function');
+  159,
+  'AC-ACL-002 all 159 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -438,8 +441,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  157,
-  'AC-ACL-003 all 157 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  159,
+  'AC-ACL-003 all 159 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

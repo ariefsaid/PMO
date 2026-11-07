@@ -63,6 +63,9 @@ export interface BudgetRepository {
   /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
    *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
   activateVersion(versionId: string): Promise<ActivateVersionResult>;
+  /** #1413 — send a waiting Draft back to its drafter with a required reason. */
+  returnVersion(versionId: string, reason: string): Promise<void>;
+  resubmitVersion(versionId: string): Promise<void>;
   archiveVersion(versionId: string, cancelErp: boolean): Promise<ArchiveVersionResult>;
   deleteDraftVersion(versionId: string): Promise<void>;
   listDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]>;

@@ -39,6 +39,8 @@ const { mutations, archiveState, versionState, activationState } = vi.hoisted(()
     cloneVersion: { mutateAsync: vi.fn(), isPending: false },
     activate: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     archive: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    returnVersion: { mutateAsync: vi.fn(), isPending: false },
+    resubmitVersion: { mutateAsync: vi.fn(), isPending: false },
     deleteDraft: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   },
 }));
