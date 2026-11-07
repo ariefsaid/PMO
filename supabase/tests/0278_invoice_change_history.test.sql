@@ -20,7 +20,7 @@ insert into procurements (id, org_id, title, status, vendor_id) values
 
 set local role service_role;
 insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, erp_outstanding_amount, tax_treatment, tax_amount, tax_rate)
-values ('02790000-0000-0000-0000-0000000000e1','02790000-0000-0000-0000-000000000001','02790000-0000-0000-0000-0000000000c1','SI-HISTORY','2026-10-01',100,'Unpaid',100,'exclusive',0,0);
+values ('02790000-0000-0000-0000-0000000000e1','02790000-0000-0000-0000-000000000001','02790000-0000-0000-0000-0000000000c1','SI-HISTORY','2026-10-01',100,'Unpaid',100,'exclusive',0,11);
 insert into procurement_invoices (id, org_id, procurement_id, status, amount, erp_outstanding_amount, tax_treatment, tax_amount, tax_rate)
 values ('02790000-0000-0000-0000-0000000000e2','02790000-0000-0000-0000-000000000001','02790000-0000-0000-0000-0000000000d1','Received',100,100,'exclusive',0,0);
 reset role;
