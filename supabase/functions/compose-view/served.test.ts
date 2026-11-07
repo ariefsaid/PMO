@@ -276,3 +276,22 @@ Deno.test('AC-CV-SERVED-004: upstream model failure returns 502 with 0 usage row
   assertEquals(body.error, 'UPSTREAM_ERROR');
   assertEquals(usageRows.length, 0, 'failed model call must record 0 usage rows');
 });
+
+Deno.test('AC-CV-SERVED-005: malformed JSON body returns 400 with no model call and 0 usage rows', async () => {
+  const jwt = await mintJwt('test-user-1');
+  const request = new Request('http://edge.test/compose-view', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+    },
+    body: 'not-valid-json',
+  });
+
+  const { response, body, usageRows, calls } = await runComposeViewServed(request);
+
+  assertEquals(response.status, 400);
+  assertEquals(body.error, 'BAD_REQUEST');
+  assertEquals(calls.filter((c) => c.path === '/api/v1/chat/completions').length, 0);
+  assertEquals(usageRows.length, 0, 'malformed body request must record 0 usage rows');
+});

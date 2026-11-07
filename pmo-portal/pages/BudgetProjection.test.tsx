@@ -44,8 +44,8 @@ vi.mock('@/src/hooks/useBudget', () => ({ useBudgetDistribution: distributionMoc
 import BudgetProjection from './BudgetProjection';
 import type { BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { useForecastEditor } from './budget-projection/useForecastEditor';
-import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
-import { financeTestI18n } from './__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };

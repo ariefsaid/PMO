@@ -31,7 +31,7 @@
     "excessDetailUnavailable": "The invoices behind this excess could not be verified.",
     "contractComparisonUnavailable": "Contract comparison unavailable: the contract value is not recorded, or a contract invoice cannot be compared (currency or tax basis).",
     "currencyUnavailable": "Currency unavailable",
-    "pmoPartial": "Partial position; other currencies or unavailable amounts are excluded.",
+    "pmoPartial": "Spending is unknown: a paid amount is in another currency or could not be read.",
     "contractAfterCostSource": "Contract value minus comparable recorded Actual.",
     "contractAfterCostPending": "Shown once recorded spending is complete."
   },
@@ -51,7 +51,7 @@
         "invoiced": "Source: non-draft, non-cancelled invoice amounts.",
         "paid": "Source: invoice amount less the accounting balance outstanding.",
         "canInvoice": "Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.",
-        "overdue": "Sum of positive outstanding balances on invoices past their ERP due date.",
+        "overdue": "Sum of positive outstanding balances on invoices past their due date.",
         "notOrderedValue": "Source: unallocated contract quantity multiplied by its contract rate.",
         "downPayment": "Source: project billing totals for down payment billed and recovered.",
         "contractQuantity": "Source: priced contract line quantity.",
@@ -203,6 +203,7 @@
         "billingEmptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
         "toast": {
           "raised": "Invoice raised in the ERP",
+          "raisedNative": "Invoice drafted in PMO",
           "evidenceAttached": "Evidence attached",
           "withdrawn": "Claim withdrawn",
           "created": "Billing claim created"
@@ -214,7 +215,10 @@
           "confirm": "Withdraw claim"
         },
         "errors": {
-          "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised."
+          "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
+          "alreadyInvoiced": "This claim already has an invoice.",
+          "noClient": "This project has no client to invoice. Set the client on the project first.",
+          "totalMismatch": "This claim's lines do not add up to its total. Withdraw it and assemble it again."
         },
         "withdrawn": "Withdrawn",
         "kind": {
@@ -223,6 +227,11 @@
         },
         "errorSub": "Retry, or reopen the project.",
         "empty": "No billing claims yet",
+        "confirmRaiseNative": {
+          "body": "A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.",
+          "confirm": "Create invoice",
+          "title": "Create this claim's invoice?"
+        },
         "confirmRaise": {
           "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
@@ -917,6 +926,27 @@
         "import": "Import",
         "backfill": "Backfill"
       }
+    },
+    "gantt": {
+      "continues": "continues",
+      "datesColumn": "Dates",
+      "durationDays_one": "{{count}} day",
+      "durationDays_other": "{{count}} days",
+      "goToDate": "Go to date",
+      "jumpToBar": "Scroll to \"{{title}}\"",
+      "loading": "Loading",
+      "milestoneTarget": "Target date",
+      "next": "Next",
+      "previous": "Previous",
+      "progress": "{{percent}}% complete",
+      "resizePanel": "Resize task panel",
+      "scale": {
+        "year": "Year"
+      },
+      "statusColumn": "Status",
+      "ungrouped": "Ungrouped",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out"
     }
   },
   "common": {
@@ -957,5 +987,6 @@
     "confirmDescription": "Replace ERP budget {{name}} for {{account}}, {{year}}, with PMO’s active version? The ERP copy will be amended.",
     "confirmDescriptionYear": "Replace ERP budget {{name}} for {{year}} with PMO’s active version? The ERP copy will be amended.",
     "confirmLabel": "Replace ERP budget"
-  }
+  },
+  "pmoSpentCoverage": "Paid PMO purchase payments and internal equipment charges, pre-tax"
 }

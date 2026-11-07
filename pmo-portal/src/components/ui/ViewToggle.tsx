@@ -96,8 +96,10 @@ export function ViewToggle<V extends string = string>({
       onKeyDown={onKeyDown}
       className={cn('inline-flex min-h-8 items-center gap-0.5 rounded-lg bg-secondary p-0.5', className)}
     >
-      {options.map((opt) => {
+      {options.map((opt, i) => {
         const on = opt.value === value;
+        // A value with no tab (a URL-only drill filter, #1461) leaves the first tab tabbable so the strip stays keyboard-reachable.
+        const tabbable = on || (i === 0 && !options.some((o) => o.value === value));
         const btn = (
           <button
             key={opt.value}
@@ -105,7 +107,7 @@ export function ViewToggle<V extends string = string>({
             data-value={opt.value}
             // tabs: role="tab" + aria-selected + roving tabIndex
             // toggle: no role override + aria-pressed + always focusable
-            {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: on ? 0 : -1 })}
+            {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: tabbable ? 0 : -1 })}
             {...(isToggle && { 'aria-pressed': on, tabIndex: 0 })}
             data-testid={opt.testId}
             onClick={() => onChange(opt.value)}

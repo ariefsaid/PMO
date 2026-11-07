@@ -189,7 +189,7 @@ export function DataTableDesktop<Row>({
         }}
         className="w-full border-collapse text-control"
       >
-        <thead>
+        <thead className={state === 'error' ? 'sr-only' : undefined}>
           <tr>
             {selection && <th scope="col" className="sticky top-0 z-[2] h-[var(--table-head-height)] w-10 border-b border-border bg-surface-table-head px-2 text-left">
               <span onClick={(event) => event.stopPropagation()}>

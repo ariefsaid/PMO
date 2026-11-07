@@ -193,7 +193,7 @@ describe('C4: unknown spending is left out and said once', () => {
   ];
 
   it('C4: no "Spent —" line per project; one note above the list names how many have incomplete spending', () => {
-    (state.figures!.dashboard as Record<string, unknown>).top_projects = rows;
+    (state.figures!.dashboard as Record<string, unknown>).attention_projects = rows;
     renderDashboard('Admin');
     const list = screen.getByRole('list', { name: 'Spending vs contract' });
     expect(within(list).queryByText(/Spent/)).not.toBeInTheDocument();
@@ -215,6 +215,26 @@ describe('C4: unknown spending is left out and said once', () => {
   });
 });
 
+describe('#1739: the Budget review figure is labelled by what it adds up', () => {
+  const row = (ledger_owned: boolean) => ({ id: 'k', name: 'Known', client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 7_000, budget_currency: 'USD', spent: 6_300, variance: -700, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null, ledger_owned });
+
+  it('a PMO-basis org reads ordered..paid purchase totals, so the column says "Committed + spent", never "Spent"', () => {
+    state.budgetReview = [row(false)];
+    renderDashboard('Finance');
+    const card = screen.getByRole('heading', { name: 'Budget review' }).closest('.panel-card') as HTMLElement;
+    expect(within(card).getByRole('columnheader', { name: /Committed \+ spent/ })).toBeInTheDocument();
+    expect(within(card).queryByRole('columnheader', { name: /^Spent$/ })).toBeNull();
+  });
+
+  it('an ERP-ledger org reads the ledger Actual, which stays "Spent"', () => {
+    state.budgetReview = [row(true)];
+    renderDashboard('Finance');
+    const card = screen.getByRole('heading', { name: 'Budget review' }).closest('.panel-card') as HTMLElement;
+    expect(within(card).getByRole('columnheader', { name: /^Spent$/ })).toBeInTheDocument();
+    expect(within(card).queryByText(/Committed \+ spent/)).toBeNull();
+  });
+});
+
 describe('L6: the ageing source note is said once', () => {
   it('L6: with PMO standing in for both client and supplier ageing, "From invoices recorded in PMO" shows once', () => {
     state.ageing = {
@@ -231,5 +251,20 @@ describe('L6: the ageing source note is said once', () => {
     state.ageing = { receivablesAgeing: {}, payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } } };
     renderDashboard('Finance');
     expect(screen.getAllByText(/From invoices recorded in PMO/)).toHaveLength(1);
+  });
+});
+
+describe('#1240 D-005: the budget sits beside the contract-denominated bar', () => {
+  const project = (over: Record<string, unknown> = {}) => ({
+    id: 'p1', name: 'Meridian', status: 'Ongoing Project', currency: 'USD', contract_value: 1_000_000, budget: 800_000, budget_currency: 'USD',
+    spent: 920_000, actual_complete: true, actual_currency: 'USD', ...over,
+  });
+  it('shows the active budget under the bar, or says there is none', () => {
+    state.figures = figures({ attention_projects: [project(), project({ id: 'p2', name: 'Harbor', budget: null })] });
+    renderDashboard('Executive');
+    const list = screen.getByRole('list', { name: 'Spending vs contract' });
+    const [first, second] = within(list).getAllByRole('listitem');
+    expect(first).toHaveTextContent('Active budget: $800,000');
+    expect(second).toHaveTextContent('No active budget');
   });
 });

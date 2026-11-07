@@ -2,9 +2,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // ── Mock analyticsClient.capture ─────────────────────────────────────────
 const mockCapture = vi.hoisted(() => vi.fn());
+const mockCaptureException = vi.hoisted(() => vi.fn());
+const mockGroup = vi.hoisted(() => vi.fn());
 
 vi.mock('./client', () => ({
-  analyticsClient: { capture: mockCapture },
+  analyticsClient: { capture: mockCapture, captureException: mockCaptureException, group: mockGroup },
 }));
 
 // AnalyticsProvider re-export triggers React/router imports — mock it away.
@@ -27,10 +29,15 @@ import {
   trackProjectTabViewed,
   trackComingSoonClicked,
   trackFilterApplied,
+  captureHandledError,
+  trackOrgGroupPlan,
+  ORG_GROUP_TYPE,
 } from './index';
 
 beforeEach(() => {
   mockCapture.mockClear();
+  mockCaptureException.mockClear();
+  mockGroup.mockClear();
 });
 
 describe('analytics facade helpers', () => {
@@ -170,5 +177,19 @@ describe('analytics facade helpers', () => {
       option_count: 5,
       module: 'projects',
     });
+  });
+
+  it('captureHandledError forwards the handled error to the consent-gated client', () => {
+    captureHandledError({ name: 'TypeError', message: 'boom', componentStack: 'at X' });
+    expect(mockCaptureException).toHaveBeenCalledWith({
+      name: 'TypeError',
+      message: 'boom',
+      componentStack: 'at X',
+    });
+  });
+
+  it('trackOrgGroupPlan registers the organisation group with the plan id', () => {
+    trackOrgGroupPlan('org-1', 'growth');
+    expect(mockGroup).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'growth' });
   });
 });

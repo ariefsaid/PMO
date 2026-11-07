@@ -109,6 +109,16 @@ describe('AC-M365DOC-058/059 case references on the Documents tab', () => {
     expect(screen.getAllByText('This link cannot be opened.').length).toBeGreaterThan(0);
   });
 
+  it('F18: a load failure shows the error panel and scrolls it clear of the sticky bar', () => {
+    h.state.isError = true;
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderIt();
+    expect(screen.getByText('SharePoint links could not be loaded')).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+    expect(screen.getByText('SharePoint links could not be loaded').closest('.scroll-mb-28')).not.toBeNull();
+  });
+
   it('shows the empty state', () => {
     renderIt();
     expect(screen.getByText('No links yet')).toBeInTheDocument();

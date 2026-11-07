@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 const h = vi.hoisted(() => ({
   getBinding: vi.fn(),
+  listBindings: vi.fn(),
   listErpProjects: vi.fn(
     async () => [{
       name: 'PROJ-00042',
@@ -48,6 +49,7 @@ const binding = {
 beforeEach(() => {
   vi.clearAllMocks();
   h.getBinding.mockResolvedValue(binding);
+  h.listBindings.mockImplementation(async () => [{ external_tier: 'erpnext', ...(await h.getBinding()) }]);
   h.listErpProjects.mockResolvedValue([{
     name: 'PROJ-00043',
     project_name: 'Delivery',

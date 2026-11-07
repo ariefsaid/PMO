@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import React from 'react';
@@ -185,7 +185,7 @@ describe('useTimesheetEntryMutations.deleteRow', () => {
     await act(async () => {
       await expect(result.current.deleteRow.mutateAsync({ timesheetId: 'ts-existing', weekStartDate: '2026-06-08', entryIds: ['e1', 'e2'] })).rejects.toThrow('Unavailable');
     });
-    expect(listTimesheets).toHaveBeenCalledWith('u1');
+    expect(listTimesheets).toHaveBeenCalledWith('u1', { fromWeek: '2026-06-08' });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['timesheets', 'org-1', 'u1'], refetchType: 'none' });
   });
 
@@ -200,6 +200,70 @@ describe('useTimesheetEntryMutations.deleteRow', () => {
 
     expect(saveTimesheetWeek).toHaveBeenCalledWith('ts-existing', '2026-06-08', [], ['e1', 'e2']);
     expect(deleteTimesheetEntry).not.toHaveBeenCalled();
-    expect(listTimesheets).toHaveBeenCalledWith('u1');
+    expect(listTimesheets).toHaveBeenCalledWith('u1', { fromWeek: '2026-06-08' });
+  });
+});
+
+describe('useTimesheets windowed read (perf q12)', () => {
+  // "Today" is Wed 2026-06-10 → current week Mon 2026-06-08; the default window starts 12 weeks back.
+  const wsheet = (id: string, week: string) => ({ id, user_id: 'u1', week_start_date: week, status: 'Draft', entries: [] });
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-06-10T09:00:00') }); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('sends the window start (12 weeks before the current week) and the week it keys off', async () => {
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheets(true, '2026-06-08'), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listTimesheets).toHaveBeenCalledTimes(1);
+    expect(listTimesheets).toHaveBeenCalledWith('u1', { fromWeek: '2026-03-16' });
+  });
+
+  it('stays inside the window while stepping back to its oldest covered week (last week still inside)', async () => {
+    const { wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(({ week }) => useTimesheets(true, week), { wrapper, initialProps: { week: '2026-06-08' } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender({ week: '2026-03-23' }); // last week = 2026-03-16 = window start
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listTimesheets).toHaveBeenCalledTimes(1);
+  });
+
+  it('stepping past the window fetches the older weeks (never serves a missing week as empty) and keeps them on the way back', async () => {
+    vi.mocked(listTimesheets).mockImplementation(async (_u, opts) => (
+      opts?.fromWeek === '2026-03-16' ? [wsheet('recent', '2026-06-08')] : [wsheet('recent', '2026-06-08'), wsheet('old', '2026-03-09')]
+    ) as never);
+    const { wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(({ week }) => useTimesheets(true, week), { wrapper, initialProps: { week: '2026-06-08' } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender({ week: '2026-03-16' }); // last week = 2026-03-09 < window start
+    // The older window is a different query: pending (page shows its skeleton), not a stale list without the week.
+    expect(result.current.data).toBeUndefined();
+    await waitFor(() => expect(result.current.data?.map((s) => s.id)).toEqual(['recent', 'old']));
+    expect(listTimesheets).toHaveBeenLastCalledWith('u1', { fromWeek: '2025-12-15' });
+    rerender({ week: '2026-06-08' }); // the widened window is retained, not shrunk back
+    await waitFor(() => expect(result.current.data?.map((s) => s.id)).toEqual(['recent', 'old']));
+    expect(listTimesheets).toHaveBeenCalledTimes(2);
+  });
+
+  it('a save refreshes the active window query', async () => {
+    vi.mocked(saveTimesheetWeek).mockResolvedValue('ts-existing');
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({ q: useTimesheets(true, '2026-06-08'), m: useTimesheetEntryMutations() }), { wrapper });
+    await waitFor(() => expect(result.current.q.isSuccess).toBe(true));
+    await act(async () => { await result.current.m.saveWeek.mutateAsync({ currentTimesheetId: 'ts-existing', weekStartDate: '2026-06-08', diff: DIFF }); });
+    await waitFor(() => expect(listTimesheets).toHaveBeenCalledTimes(2));
+    expect(listTimesheets).toHaveBeenLastCalledWith('u1', { fromWeek: '2026-03-16' });
+  });
+
+  it('the delete reconciliation reads only from the origin week and patches the verified sheet into the window cache', async () => {
+    const stale = { ...wsheet('ts-old', '2026-03-09'), entries: [{ id: 'e1' }, { id: 'e2' }] };
+    const fresh = { ...wsheet('ts-old', '2026-03-09'), entries: [{ id: 'e2' }] };
+    vi.mocked(listTimesheets).mockImplementation(async (_u, opts) => (opts?.fromWeek === '2026-03-09' ? [fresh] : [stale]) as never);
+    vi.mocked(saveTimesheetWeek).mockResolvedValue('ts-old');
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({ q: useTimesheets(true, '2026-03-16'), m: useTimesheetEntryMutations() }), { wrapper });
+    await waitFor(() => expect(result.current.q.data?.[0].entries).toHaveLength(2));
+    await act(async () => { await result.current.m.deleteRow.mutateAsync({ timesheetId: 'ts-old', weekStartDate: '2026-03-09', entryIds: ['e1'] }); });
+    expect(listTimesheets).toHaveBeenCalledWith('u1', { fromWeek: '2026-03-09' });
+    await waitFor(() => expect(result.current.q.data?.[0].entries).toHaveLength(1));
   });
 });

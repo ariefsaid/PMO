@@ -632,7 +632,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
     const preview = screen.getByRole('complementary');
     expect(within(preview).getByText('Approved version version-23')).toBeInTheDocument();
-    expect(within(preview).getByRole('button', { name: /View approved version history/i })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Check approved version/i })).toBeInTheDocument();
   });
 
   it('AC-DOC-M365: Draft SharePoint references keep the unlink confirmation', async () => {

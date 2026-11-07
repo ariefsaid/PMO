@@ -26,6 +26,7 @@ import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import ProjectBillingStart from '../ProjectBillingStart';
 import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { useInvoiceTmClaimNative } from '@/src/hooks/useTimeAndMaterials';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 
 /**
@@ -89,6 +90,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const allocations = useProjectWorkOrderLines(projectId);
   const documents = useDocuments(projectId);
   const mutations = useProgressBillingMutations(projectId);
+  const invoiceTmClaimNative = useInvoiceTmClaimNative();
 
   // `undefined` = closed · `null` = add a line · a row = edit it.
   const [boqFormFor, setBoqFormFor] = useState<BoqItemRow | null | undefined>(undefined);
@@ -150,6 +152,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
   const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null && claimScopeReady;
+  // #1817: no ERP owns revenue, so a confirmed T&M claim is invoiced in PMO (volume claims stay ERP-only, #784's deferral).
+  const canBillNative = revenueMode === 'native' && may('create', 'salesInvoice') && clientId !== null;
   const claimSources = [
     { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
     { query: billing, name: t('projectDetail.billing.sources.billing', 'billing figures') },
@@ -194,8 +198,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     if (!raiseFor || !clientId) return;
     const { claim, idempotencyKey } = raiseFor;
     try {
-      await mutations.raiseInvoice.mutateAsync({ claimId: claim.id, customerId: clientId, intent: { id: claim.id, idempotencyKey } });
-      toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      if (revenueMode === 'native') {
+        await invoiceTmClaimNative.mutateAsync(claim.id);
+        toast(t('projectDetail.billing.claims.toast.raisedNative', 'Invoice drafted in PMO'), undefined, 'success');
+      } else {
+        await mutations.raiseInvoice.mutateAsync({ claimId: claim.id, customerId: clientId, intent: { id: claim.id, idempotencyKey } });
+        toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      }
     } catch (err) {
       // 55000 is the database's own refusal to raise a WITHDRAWN claim's invoice (0250's fence,
       // carried by dispatchClient as AppError code). The generic headline says nothing about the
@@ -203,6 +212,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       // InvoiceWorkOrderModal).
       fail(err, {
         '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
+        'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
+        'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
+        'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
       });
     } finally {
       setRaiseFor(null);
@@ -558,26 +570,29 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     embedded={mode === 'contract-tools'}
     invoiceNumberFor={(claimId) => {
       const invoice = claimRows.find((row) => row.id === claimId)?.invoice;
-      return invoice ? invoice.si_number ?? invoice.status : null;
+      return invoice ? invoice.si_number ?? invoice.pmo_number ?? invoice.status : null;
     }}
     canCreateInvoice={(claimId) => {
       const claim = claimRows.find((row) => row.id === claimId);
-      return canBill && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);
+      return (canBill || canBillNative) && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);
     }}
     onCreateInvoice={(claimId) => {
       const claim = claimRows.find((row) => row.id === claimId);
-      if (canBill && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0) {
+      if ((canBill || canBillNative) && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0) {
         setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() });
       }
     }} />;
 
+  const native = revenueMode === 'native';
   const raiseInvoiceDialog = raiseFor && (
     <ConfirmDialog
       open
-      title={t('projectDetail.billing.claims.confirmRaise.title', "Raise this claim's invoice?")}
+      title={native ? t('projectDetail.billing.claims.confirmRaiseNative.title', "Create this claim's invoice?") : t('projectDetail.billing.claims.confirmRaise.title', "Raise this claim's invoice?")}
       description={
         <div className="flex flex-col gap-2">
-          <p>{t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
+          <p>{native
+            ? t('projectDetail.billing.claims.confirmRaiseNative.body', 'A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.')
+            : t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
           <p data-testid="raise-figures">
             {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
               gross: cents(raiseFor.claim.gross_amount),
@@ -588,8 +603,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           </p>
         </div>
       }
-      confirmLabel={t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
-      loading={mutations.raiseInvoice.isPending}
+      confirmLabel={native ? t('projectDetail.billing.claims.confirmRaiseNative.confirm', 'Create invoice') : t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
+      loading={native ? invoiceTmClaimNative.isPending : mutations.raiseInvoice.isPending}
       onConfirm={() => void runRaise()}
       onCancel={() => setRaiseFor(null)}
     />

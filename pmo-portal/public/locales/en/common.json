@@ -49,7 +49,6 @@
     "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
   },
   "uxs14": {
-    "filters": "Filters",
     "moreActions": "More actions",
     "projectReferences": "More project references",
     "projectReferencesFor": "More project references for {{name}}",
@@ -210,7 +209,6 @@
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
     "budgetUsed": "{{percent}}% of Active budget",
-    "budgetSummary": "{{actual}} of {{budget}} Active budget",
     "currencyMismatch": "Budget currency differs from Actual",
     "atRisk": "At risk"
   },
@@ -994,6 +992,12 @@
       "client": "Client",
       "internal": "Internal",
       "vendor": "Supplier"
+    },
+    "pager": {
+      "label": "Pages",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous page",
+      "next": "Next page"
     }
   },
   "companyDetail": {
@@ -1283,7 +1287,13 @@
       "deleted": "Contact deleted",
       "updated": "Contact updated"
     },
-    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable."
+    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable.",
+    "pager": {
+      "label": "Pages",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous page",
+      "next": "Next page"
+    }
   },
   "dashboard": {
     "winRate": {
@@ -1338,6 +1348,7 @@
     "uxs36AgeingBasis": "Ageing basis",
     "uxs36Unavailable": "Unavailable",
     "uxs36CustomerFilterLabel": "Customer",
+    "uxs36CustomerFilterLoading": "Loading customer…",
     "uxs36CustomerFilterUnavailable": "Selected customer is unavailable",
     "uxs36CustomerFilterClear": "Clear customer filter",
     "uxs36CollectionsHeading": "Customer collections",
@@ -2399,12 +2410,9 @@
         "milestones_other": "{{count}} phases",
         "scale": "scale: {{scale}}",
         "tasks_one": "{{count}} task",
-        "tasks_other": "{{count}} tasks",
-        "today": "today at {{pct}}% of the span"
+        "tasks_other": "{{count}} tasks"
       },
-      "targetWord": "target",
       "taskColumn": "Task",
-      "taskTableAriaLabel": "Task table",
       "tasksOnTimeline_one": "{{count}} task on the timeline",
       "tasksOnTimeline_other": "{{count}} tasks on the timeline",
       "today": "Today",
@@ -2716,7 +2724,8 @@
       "view": {
         "board": "Board",
         "list": "List",
-        "timeline": "Timeline"
+        "timeline": "Timeline",
+        "calendar": "Calendar"
       },
       "viewAriaLabel": "Task view",
       "noMilestone": "No phase"
@@ -3002,12 +3011,9 @@
       "ariaLabel": "Status filter",
       "atRisk": "At risk",
       "completed": "Completed",
-      "customerLabel": "Filter by customer",
       "myProjects": "My Projects",
       "ongoing": "Ongoing",
-      "pmLabel": "Filter by project manager",
-      "allEndCustomers": "All end customers",
-      "endCustomerLabel": "Filter by end customer"
+      "allEndCustomers": "All end customers"
     },
     "importBudgets": "Import budgets",
     "noPhasesYet": "No phases yet",
@@ -3049,17 +3055,10 @@
     "export": "Export",
     "import": "Import",
     "mobile": {
-      "activeCount": "Active filters",
-      "customer": "Customer",
-      "manager": "Project manager",
-      "removeCustomer": "Remove customer filter",
-      "removeManager": "Remove project manager filter",
       "clearAll": "Clear all",
       "error": "Couldn't load options",
       "retry": "Retry",
-      "unavailable": "Unavailable selection",
-      "endCustomer": "End customer",
-      "removeEndCustomer": "Remove end customer filter"
+      "unavailable": "Unavailable selection"
     },
     "card": {
       "delivery": "Delivery",
@@ -3286,7 +3285,8 @@
       "expenses": "Expenses",
       "financialStatements": "Financial statements",
       "managementPack": "Reports",
-      "stock": "Stock"
+      "stock": "Stock",
+      "calendar": "Calendar"
     },
     "notifications": {
       "empty": "No notifications yet.",
@@ -3739,7 +3739,6 @@
     "overpaidBy": "Overpaid by {{amount}}",
     "carriedIntoErpOpening": "Carried into the ERP opening balance: {{amount}} on {{date}}",
     "nativeIncomingPaymentsDescription": "Customer receipts recorded in PMO against approved invoices.",
-    "salesInvoiceLabel": "Sales Invoice",
     "salesInvoiceRequired": "Choose the invoice this receipt settles.",
     "paymentDateLabel": "Payment date",
     "paymentDateNotFuture": "The payment date cannot be in the future.",
@@ -4414,7 +4413,6 @@
   "uxs01": {
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
-    "pmoCoverage": "Committed PMO purchase orders",
     "actualUnavailable": "Actual spending is still being confirmed.",
     "actualLoading": "Loading Actual…",
     "actualPartial": "Incomplete: see spending details",
@@ -4717,6 +4715,8 @@
     "retryLists": "Retry list details",
     "bindingReadUnavailable": "Project link details could not be refreshed. The saved link is retained.",
     "retryBinding": "Retry project link",
+    "unlinkUnconfirmed": "We couldn't confirm the unlink. The link details are refreshing — check the current state before trying again.",
+    "unlinkTimeoutDetail": "The request timed out before the server answered.",
     "unlinkFailed": "Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.",
     "reviewTitle": "Review ClickUp link",
     "reviewSubtitle": "Confirm which existing list belongs to this project.",
@@ -4762,7 +4762,7 @@
     "unlinked": "Reference removed",
     "checkingConnection": "Checking your Microsoft 365 connection…",
     "referenceOnly": "Folder reference: contents are not issued or approved",
-    "newRevisionFromLatest": "Make new revision from latest file update",
+    "newRevisionFromLatest": "New revision from updated file",
     "revisionLatestNote": "The new revision will reference the latest Microsoft file: {{name}}.",
     "latestFailedTitle": "Could not read the latest file",
     "latestFailed": "Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.",
@@ -4793,15 +4793,22 @@
       "connectHint": "Connect Microsoft 365 in My integrations to link documents.",
       "empty": "No evidence documents are linked to this version.",
       "heading": "Evidence documents",
+      "headingFor": "Evidence documents for {{version}}",
       "link": "Link from Microsoft 365",
       "loadError": "Evidence documents could not be loaded",
       "loadErrorSub": "The budget figures are not affected. Try again.",
-      "readOnly": "Evidence is read-only on this version.",
+      "readOnlyActive": "Evidence is read-only: this version is Active. Archive it, then use Clone to revise to start a new draft.",
+      "readOnlyArchived": "Evidence is read-only: this version is Archived. Clone it, or edit the existing draft, to link evidence there.",
+      "readOnlyRole": "Evidence is read-only: your role cannot change budget evidence.",
       "remove": "Remove",
       "removeDescription": "The link to {{name}} is removed from this version. The Microsoft file is not changed.",
       "removeNamed": "Remove link to {{name}}",
       "removeTitle": "Remove this link?",
       "unavailable": "This link is unavailable."
+    },
+    "linkFolders": {
+      "heading": "Link existing folders to records",
+      "description": "Match folders already in the default library to projects and cases that have none. This links folders only; it never creates one."
     },
     "defaultLibrary": {
       "browseFailed": "Microsoft locations could not be loaded. Close this dialog and try again.",
@@ -4811,6 +4818,7 @@
       "clearFailed": "Could not clear the default library.",
       "clearTitle": "Clear the default library?",
       "connectHint": "Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.",
+      "connectLink": "Open My integrations",
       "current": "Current default:",
       "description": "The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.",
       "disabledReason": "Choose a site and a library to save.",
@@ -4835,8 +4843,8 @@
       "openLatest": "Open latest in {{place}}",
       "openFolder": "Open folder in {{place}}",
       "openShort": "Open",
-      "versions": "Versions",
-      "versionsOf": "Versions of {{name}}",
+      "versions": "Show all versions",
+      "versionsOf": "Show all versions of {{name}}",
       "openRefused": "This Microsoft link cannot be opened.",
       "accessFile": "Opens in Microsoft. Access depends on your Microsoft permissions on this file.",
       "accessFolder": "Opens in Microsoft. Access depends on your Microsoft permissions on this folder.",
@@ -4862,7 +4870,6 @@
     },
     "versions": {
       "title": "Versions of {{name}}",
-      "done": "Done",
       "close": "Close",
       "loading": "Loading…",
       "emptyTitle": "No versions listed",
@@ -4872,8 +4879,8 @@
       "loadMore": "Load more"
     },
     "history": {
-      "view": "View approved version history",
-      "viewAria": "View approved version history: {{name}}",
+      "view": "Check approved version",
+      "viewAria": "Check approved version: {{name}}",
       "partial": "Approved version not found in loaded history.",
       "loadMore": "Load more history",
       "noSharepointIds": "Version history unavailable: Microsoft did not provide SharePoint identifiers.",
@@ -4930,8 +4937,8 @@
       "noItemsSub": "Choose another location or search.",
       "itemsAria": "Items in this location",
       "selected": "Selected",
-      "select": "Select",
-      "selectNamed": "Select {{kind}} {{name}}",
+      "linkFile": "Link this file",
+      "linkFileNamed": "Link this file {{name}}",
       "kindFile": "file",
       "kindFolder": "folder",
       "selectedSummary": "Selected {{kind}}: {{name}}",

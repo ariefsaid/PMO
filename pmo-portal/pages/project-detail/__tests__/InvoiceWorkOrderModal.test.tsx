@@ -17,8 +17,8 @@ vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mod
 
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const WO = { id: 'wo-1', project_id: 'p1', wo_number: 'WO-1', title: 'Phase 1 fabrication', status: 'Issued', currency: 'USD' } as WorkOrderRow;
 const onCreated = vi.fn();

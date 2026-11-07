@@ -5,7 +5,7 @@ import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
-import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
   budget: { data: 0, isPending: false, isError: false, refetch: vi.fn() },
@@ -59,7 +59,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => state.procurements }));
-vi.mock('./project-detail/useProjectPosition', () => ({ useBudgetPosition: () => state.position }));
+vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => state.position }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: state.binding, isPending: false }) }));
@@ -106,7 +106,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
 import ProjectBudget from './ProjectBudget';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
-import { buildBudgetSummaryRows, committedTotal } from './project-detail/budget/budgetModel';
+import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
 
 const project = {
   id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null,

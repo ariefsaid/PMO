@@ -57,6 +57,16 @@ vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null })
 
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
+  // #1989: a SERVER page — the search narrows on the "server" so a filtered-to-zero page is
+  // observable through the rendered directory (as the Meetings mock does).
+  useCompaniesPage: ({ search }: { search: string }) => {
+    const q = search.trim().toLowerCase();
+    const rows = q ? companiesState.data.filter((c) => String(c.name).toLowerCase().includes(q)) : companiesState.data;
+    return { data: { rows, total: rows.length }, isPending: companiesState.isPending, isError: companiesState.isError, refetch: companiesState.refetch };
+  },
+  useCompaniesTotal: () => ({ data: companiesState.data.length }),
+  useCompaniesExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
+  useCompanyOptions: () => ({ data: companiesState.data, isPending: false, isError: false }),
   useCompanyMutations: () => ({
     create: noopMutations(),
     update: noopMutations(),
@@ -67,6 +77,13 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 
 vi.mock('@/src/hooks/useContacts', () => ({
   useContacts: () => contactsState,
+  useContactsPage: ({ search }: { search: string }) => {
+    const q = search.trim().toLowerCase();
+    const rows = q ? contactsState.data.filter((c) => String(c.full_name).toLowerCase().includes(q)) : contactsState.data;
+    return { data: { rows, total: rows.length }, isPending: contactsState.isPending, isError: contactsState.isError, refetch: contactsState.refetch };
+  },
+  useContactsTotal: () => ({ data: contactsState.data.length }),
+  useContactsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useContactMutations: () => ({
     create: noopMutations(),
     update: noopMutations(),
@@ -94,6 +111,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 // mock satisfies every caller (compatible shapes, no caller-specific behavior needed).
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
+  useProjectPickerOptions: () => projectsState,
   useProject: () => ({ data: null }),
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),

@@ -36,7 +36,9 @@ describe('listOverdueInvoiceFacts', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].table).toBe('sales_invoices');
     expect(calls[0].select).not.toMatch(/\*|sales_invoice_authors/);
-    expect(calls[0].ops).toContain('in:status,Unpaid,Submitted');
+    // Open = the shared rule (#1457); compare as a set, the order carries no meaning.
+    const statusOp = calls[0].ops.find((o) => o.startsWith('in:status,'));
+    expect(statusOp?.slice('in:status,'.length).split(',').sort()).toEqual(['Submitted', 'Unpaid']);
     expect(calls[0].ops).toContain('is:paired_erp_invoice_id,');
   });
 

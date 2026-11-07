@@ -144,6 +144,8 @@ describe('0373 — a quarantined procurement create re-asks the purchase rules b
     const r = await retry('gate_approval_before_order');
     assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.host}${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
     assertEquals(r.status, 409, r.body);
+    assert(r.body.includes('purchase rule refused: gate_approval_before_order'), `the 409 names the stored refusal reason: ${r.body}`);
+    assert(!r.body.includes('actor no longer authorized'), r.body);
     assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP Purchase Order was created');
     const asked = r.calls.find((c) => c.url.pathname === '/rest/v1/rpc/procurement_create_refusal');
     assert(asked, 'the purchase rules were asked before the reissue');
