@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { ProcurementListColumns, ProcurementListRow } from '../ProcurementListRow';
-import { groupProcurements, totalsByCurrency, type ProcurementListRole } from './model';
+import { groupProcurements, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { MoneyTotalLines } from './MoneyTotalLines';
 import { NeedsYouReason } from './NeedsYouReason';
 

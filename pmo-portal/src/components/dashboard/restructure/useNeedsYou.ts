@@ -28,7 +28,7 @@ import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransit
 import { repositories } from '@/src/lib/repositories';
 import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { supplierUnpaid, withLinkedDocuments } from '@/pages/procurement/blocks/procurementMoney';
+import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';

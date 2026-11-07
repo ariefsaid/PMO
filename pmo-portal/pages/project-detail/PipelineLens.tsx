@@ -30,6 +30,7 @@ import {
   type TransitionProjectOpts,
 } from '@/src/lib/db/projectTransitions';
 import { LostReasonFields, type LostReasonValue } from '@/components/project-status/LostReasonFields';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { lostReasonValid, lostReasonLabel } from '@/src/lib/lostReasons';
 import {
   weightedValue,
@@ -77,6 +78,8 @@ export interface PipelineLensProps {
  */
 const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) => {
   const { t } = useTranslation('project');
+  // #1339: the current stage is the project status (data enum) — name it in the viewer's language.
+  const projectStatusLabel = useProjectStatusLabel();
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -406,7 +409,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       {!isDesktop && <div className="mb-4 space-y-3 md:hidden">
         <div>
           <p className="text-xs font-medium text-muted-foreground">{t('projectDetail.pipeline.currentStage', 'Current stage')}</p>
-          <h2 className="text-base font-semibold text-foreground">{project.status}</h2>
+          <h2 className="text-base font-semibold text-foreground">{projectStatusLabel(project.status)}</h2>
         </div>
         {!canTransition ? (
           <p className="line-clamp-1 text-sm text-muted-foreground">{t('projectDetail.pipeline.readOnlyShort', 'Project manager manages this pipeline.')}</p>
