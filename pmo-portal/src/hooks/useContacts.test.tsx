@@ -16,6 +16,7 @@ const { contact } = vi.hoisted(() => ({
     archive: vi.fn(),
     delete: vi.fn(),
     createActivity: vi.fn(),
+    deleteActivity: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { contact } }));
@@ -172,6 +173,40 @@ describe('useCompanyActivities', () => {
     });
     await waitFor(() => expect(result.current.acts.data?.map((r) => r.id)).toEqual(['new', 'old']));
   });
+});
+
+describe('timeline mutations with several pages loaded', () => {
+  it.each(['logActivity', 'deleteActivity'] as const)(
+    '%s drops the loaded older pages and refetches from the top (stale cursors would skip or repeat a row)',
+    async (name) => {
+      const cursor = { occurred_at: '2026-06-01T00:00:00+00:00', id: 'p1-last' };
+      let stale = true;
+      contact.listActivitiesPage.mockImplementation(async (_id: string, c: unknown) => {
+        if (!stale) return { rows: [{ id: 'fresh' }, { id: 'p1-last' }], nextCursor: cursor };
+        return c ? { rows: [{ id: 'p2' }], nextCursor: null } : { rows: [{ id: 'p1-last' }], nextCursor: cursor };
+      });
+      contact.createActivity.mockResolvedValue({ id: 'fresh' });
+      contact.deleteActivity.mockResolvedValue(undefined);
+      const client = freshClient();
+      const { result } = renderHook(
+        () => ({ acts: useContactActivities('ct1'), mut: useContactMutations() }),
+        { wrapper: wrap(client) },
+      );
+      await waitFor(() => expect(result.current.acts.isSuccess).toBe(true));
+      act(() => {
+        void result.current.acts.fetchNextPage();
+      });
+      await waitFor(() => expect(result.current.acts.data).toHaveLength(2));
+      contact.listActivitiesPage.mockClear();
+      stale = false;
+      await act(async () => {
+        if (name === 'logActivity') await result.current.mut.logActivity.mutateAsync(activityInput);
+        else await result.current.mut.deleteActivity.mutateAsync('x');
+      });
+      await waitFor(() => expect(result.current.acts.data?.map((r) => r.id)).toEqual(['fresh', 'p1-last']));
+      expect(contact.listActivitiesPage.mock.calls.every(([, c]) => c === null)).toBe(true);
+    },
+  );
 });
 
 describe('useContactMutations', () => {

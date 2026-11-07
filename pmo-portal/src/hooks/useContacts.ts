@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -120,8 +121,8 @@ export function useContactsByCompany(companyId: string | null | undefined) {
 /**
  * Newest-first activity pages (#1990): the first page is the most recent; `fetchNextPage` loads
  * the next older one by keyset cursor. `data` is the flattened list of every loaded row.
- * `logActivity` etc. invalidate ['crm-activities'], which refetches the loaded pages in order,
- * so a new activity lands on top.
+ * Every activity write trims the cache to page one and refetches it (stale cursors on older
+ * pages would skip or repeat a row), so a new activity lands on top.
  */
 function useActivityPages(
   queryKey: unknown[],
@@ -200,6 +201,15 @@ export interface UpdateContactArgs {
 export function useContactMutations() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
+  // Older pages were fetched with cursors from the OLD first page; after a write those cursors
+  // would skip (insert) or repeat (delete) a row. Keep only page one, then refetch it (#1990).
+  const refreshActivities = () => {
+    qc.setQueriesData<InfiniteData<ActivityPage, ActivityCursor | null>>(
+      { queryKey: ['crm-activities'] },
+      (d) => d && { pages: d.pages.slice(0, 1), pageParams: d.pageParams.slice(0, 1) },
+    );
+    qc.invalidateQueries({ queryKey: ['crm-activities'] });
+  };
   const invalidateContacts = () => {
     qc.invalidateQueries({ queryKey: ['contacts'] });
     // CW-4b: also bust the single-record family so an open `/contacts/:id` detail page refetches.
@@ -230,7 +240,7 @@ export function useContactMutations() {
     mutationFn: (input: CrmActivityInput) =>
       repositories.contact.createActivity(input, currentUser?.id ?? null),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+      refreshActivities();
       qc.invalidateQueries({ queryKey: ['contacts'] });
     },
   });
@@ -239,14 +249,14 @@ export function useContactMutations() {
     mutationFn: ({ id, ...patch }: { id: string } & CrmActivityPatch) =>
       repositories.contact.updateActivity(id, patch),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+      refreshActivities();
     },
   });
 
   const deleteActivity = useMutation({
     mutationFn: (id: string) => repositories.contact.deleteActivity(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+      refreshActivities();
     },
   });
 
