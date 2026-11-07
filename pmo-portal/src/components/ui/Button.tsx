@@ -19,7 +19,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const Spinner: React.FC = () => (
   <svg
     data-testid="button-spinner"
-    className="size-4 animate-spin"
+    className="icon-swap-in size-4 animate-spin"
     viewBox="0 0 24 24"
     fill="none"
     aria-hidden="true"
