@@ -5,6 +5,9 @@ import {
   Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Toolbar, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
+import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
+import { initials } from '@/src/lib/initials';
 import { useAuth } from '@/src/auth/useAuth';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
@@ -81,6 +84,7 @@ function getInvoiceCountExportValue(
 const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const may = usePermission();
+  const { canView: canViewFinance } = useFinanceAccess();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -227,7 +231,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   });
   const latestMonth = (row: PackRow) => row.months[row.months.length - 1] ?? null;
   const invoiceCountFor = useCallback((row: PackRow) => invoiceCounts.get(`${row.projectId ?? ''}|${row.currency}`) ?? 0, [invoiceCounts]);
-  const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
   // O11: when no contract row has recorded progress the whole column would read "Invoiced basis";
   // the page says it once instead and the column is left out.
   const anyProgress = (pack?.rows ?? []).some((row) => row.kind === 'contract' && row.latestProgress != null);
@@ -468,24 +471,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     || filteredRows.some((row) => row.kind === 'contract' && latestMonth(row)?.backlog === null);
   const showFigures = Boolean(pack) && !isError && latestTotals.length > 0;
 
-  if (!may('view', 'finance')) {
-    return (
-      <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
-        <div className="text-center">
-          <h2 className="text-heading font-semibold">
-            {t('managementPack.noAccessTitle', "You don't have access to Reports")}
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            {t('managementPack.noAccessSub', 'Finance reports are available to Finance, Executive and Admin roles.')}
-          </p>
-          <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
-            <Icon name="back" className="size-4 mr-2" />
-            {t('financeCopy.backToDashboard', 'Back to dashboard')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  if (!canViewFinance) return <FinanceAccessDenied surface="reports" />;
 
   return (
     <ListPage

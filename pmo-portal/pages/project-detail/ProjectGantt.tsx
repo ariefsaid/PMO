@@ -1,50 +1,32 @@
 /**
- * Task Gantt timeline — v2 (ADR-0031): MS-Project split layout (left task table +
- * right scroll-synced timeline), on-axis milestone diamonds, dependency connector
- * lines, and a day/week/month/quarter zoom. Read-only display (Phase-A) — the only
- * interaction is `onActivateTask` (click/Enter/Space on a bar, or Enter on a grid row).
+ * Project task Gantt (#1980): the ReUI gantt (src/components/reui/gantt, owned source) behind the
+ * same props the old hand-rolled timeline took, plus drag / edge-resize rescheduling.
  *
- * SPEC OVERRIDE (owner directive, 2026-06-15): bars are activatable so a
- * click/keyboard-Enter/Space fires `onActivateTask(task)`. Bars WITHOUT
- * `onActivateTask` remain inert. References docs/plans/2026-06-15-jtbd-remediation.md
- * W5-T22 and docs/plans/2026-06-16-gantt-v2-phase-a.md.
+ * Writes go through `onReschedule` (TasksTab → the task repository). The bar moves at once from a
+ * local override and snaps back if the save fails; the override is dropped as soon as the refetched
+ * task carries the saved dates. `canReschedule` is the per-task gate (same answer as editing a
+ * task); RLS stays the authority. Pure mapping lives in src/lib/gantt/reuiModel.ts.
  *
- * Pure presentational — feeds buildGanttModel(tasks, milestones, today, config)
- * (pure) and paints absolute-px geometry. No hooks beyond local zoom state, no
- * network calls, no writes.
- *
- * Composition (XG03-003): this file is the VIEW owner — the single scroll container,
- * the toolbar, the mobile notice and the undated footer — composing the two extracted
- * panes, GanttTaskTable (role=grid table + roving focus) and GanttTimeline (axis +
- * connector SVG + diamonds + bars). The shared flattened rows (src/lib/gantt/ganttRows.ts)
- * and the model's geometry are the seam: no second scroll owner, no independent
- * row-height source.
- *
- * Accessibility (NFR-GANTT-A11Y-001/002):
- *   - Wrapped in a labelled <figure>; interactive descendants stay independently reachable.
- *   - The left task table is a real role="grid" with roving tabindex + Arrow/Enter
- *     keyboard nav across rows; Enter/Space on a row fires onActivateTask.
- *   - Bars are role=button (when activatable) with a text aria-label that also names
- *     any dependency (so the relationship is never SVG-only).
- *   - Diamonds carry a text aria-label; the connector SVG is aria-hidden (decorative).
- *   - Bar status is always a text label (never color-only).
- *   - Respects prefers-reduced-motion (no bar-grow transition when set).
+ * a11y: the figure is labelled with a screen-reader summary; bars are native buttons (Enter/Space
+ * activate); undated tasks are listed in a footer rather than plotted; status is text in the tree.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, Button, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
-import { ViewToggle } from '@/src/components/ui/ViewToggle';
-import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { buildGanttModel, type GanttScale } from '@/src/lib/gantt/ganttLayout';
-import {
-  flattenGanttRows,
-  GANTT_LANE_HEADER_H,
-  GANTT_ROW_H,
-  GANTT_TABLE_W,
-} from '@/src/lib/gantt/ganttRows';
-import GanttTaskTable from './GanttTaskTable';
-import GanttTimeline from './GanttTimeline';
-import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import { ListState, Button, StatusPill, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
+import { Gantt } from '@/src/components/reui/gantt/gantt';
+import { GanttNav, GanttNavNext, GanttNavPrev, GanttNavToday, GanttScaleSwitcher, GanttTitle } from '@/src/components/reui/gantt/gantt-nav';
+import { GanttView } from '@/src/components/reui/gantt/gantt-view';
+import type { GanttProposedUpdate, GanttScale } from '@/src/components/reui/gantt/gantt-types';
+import type { GanttColumn, GanttColumnContext } from '@/src/components/reui/gantt/gantt';
+import type { GanttI18nOverrides } from '@/src/components/reui/gantt/gantt-i18n';
+import { RowMenu } from '@/src/components/ui/RowMenu';
+import { ContextMenuItem } from '@/src/components/shadcn/context-menu';
+import { TooltipProvider } from '@/src/components/shadcn/tooltip';
+import { buildReuiGanttModel, taskPatchFromRange, type GanttTaskData } from '@/src/lib/gantt/reuiModel';
+import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
+import { formatMonthDay } from '@/src/lib/format';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
+import type { TaskPatch, TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -52,85 +34,218 @@ import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 interface ProjectGanttProps {
   tasks: TaskWithRefs[];
   milestones: MilestoneWithProgress[];
-  /**
-   * Optional activation callback (T22 — spec override per owner directive).
-   * When provided, each bar becomes a button and each table row is Enter-activatable,
-   * firing this callback with the resolved TaskWithRefs. When omitted, bars/rows are inert.
-   */
+  /** Click / Enter / Space on a bar or a tree row. When omitted, bars and rows stay inert. */
   onActivateTask?: (task: TaskWithRefs) => void;
-  /** Optional per-task actions surfaced on each row in the task pane. */
+  /** Optional per-task actions, offered on right-click of a bar or a row. */
   rowMenu?: (task: TaskWithRefs) => RowMenuItem[];
   /**
-   * Mobile fallback (defect D1): on viewports below the `sm` (640px) breakpoint the
-   * cramped MS-Project split is replaced by a notice that points the user at a
-   * better-fitting view. The notice's switch buttons fire this with 'list' / 'board'
-   * (TasksTab wires it to its view state). Required — OE07-002: the sole production
-   * caller always supplies it, and an inert switch button is a defect, not a mode.
+   * Mobile fallback (defect D1): below the `sm` (640px) breakpoint the timeline is replaced by a
+   * notice pointing at List/Board. Required: an inert switch button is a defect, not a mode.
    */
   onSwitchView: (view: 'list' | 'board') => void;
+  /** May the viewer move this task's dates? Same gate as editing the task. Omit = read-only. */
+  canReschedule?: (task: TaskWithRefs) => boolean;
+  /** Saves the new dates. Resolves false when the write failed (the bar then snaps back). */
+  onReschedule?: (task: TaskWithRefs, patch: TaskPatch) => Promise<boolean>;
 }
+
+interface Override {
+  start: Date;
+  end: Date;
+}
+
+const UTC = 'UTC';
+const DAY_MINUTES = 1440;
+// The gantt needs a bounded box to scroll in; the tree panel and the track share it.
+const FRAME_CLASS = 'h-[60vh] min-h-[24rem] border-b border-border';
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask, rowMenu, onSwitchView }) => {
+const ProjectGantt: React.FC<ProjectGanttProps> = ({
+  tasks,
+  milestones,
+  onActivateTask,
+  rowMenu,
+  onSwitchView,
+  canReschedule,
+  onReschedule,
+}) => {
   const { t } = useTranslation('project');
   const isNarrow = useIsNarrow();
   const [scale, setScale] = useState<GanttScale>('month');
-  const [scrollport, setScrollport] = useState<HTMLDivElement | null>(null);
-  const [viewport, setViewport] = useState({ scrollLeft: 0, viewportWidth: 1 });
+  const [overrides, setOverrides] = useState<Map<string, Override>>(new Map());
 
+  const writable = !!onReschedule && !!canReschedule;
+  const model = useMemo(
+    () =>
+      buildReuiGanttModel(
+        tasks,
+        milestones,
+        {
+          ungrouped: t('projectDetail.gantt.ungrouped', 'Ungrouped'),
+          milestoneTarget: t('projectDetail.gantt.milestoneTarget', 'Target date'),
+          dependsOn: (names: string[]) =>
+            `${t('projectDetail.gantt.dependsOn', 'depends on')} ${names.join(', ')}`,
+        },
+        writable ? canReschedule : undefined,
+      ),
+    [tasks, milestones, t, writable, canReschedule],
+  );
+  const taskMap = useMemo(() => new Map(tasks.map((x) => [x.id, x])), [tasks]);
+
+  // Drop an override once the refetched task already carries those dates (or the task is gone).
   useEffect(() => {
-    if (!scrollport) return;
-    const update = () => {
-      const next = {
-        scrollLeft: Math.max(0, scrollport.scrollLeft - 16),
-        viewportWidth: Math.max(1, scrollport.clientWidth - GANTT_TABLE_W),
-      };
-      setViewport((old) => old.scrollLeft === next.scrollLeft && old.viewportWidth === next.viewportWidth ? old : next);
-    };
-    update();
-    scrollport.addEventListener('scroll', update, { passive: true });
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
-    observer?.observe(scrollport);
-    window.addEventListener('resize', update);
-    return () => {
-      scrollport.removeEventListener('scroll', update);
-      observer?.disconnect();
-      window.removeEventListener('resize', update);
-    };
-  }, [scrollport]);
+    setOverrides((cur) => {
+      if (cur.size === 0) return cur;
+      const next = new Map(cur);
+      for (const [id, o] of cur) {
+        const task = taskMap.get(id);
+        if (!task || taskPatchFromRange(task, o.start, o.end) === null) next.delete(id);
+      }
+      return next.size === cur.size ? cur : next;
+    });
+  }, [taskMap]);
 
-  const today = useOrgToday();
+  // Open on today when the work spans it, else on the first dated item (never an empty month).
+  // The gantt reads this once, at mount.
+  const defaultDate = useMemo(() => {
+    if (model.events.length === 0) return undefined;
+    const now = Date.now();
+    const first = Math.min(...model.events.map((e) => e.start.getTime()));
+    const last = Math.max(...model.events.map((e) => e.end.getTime()));
+    return now >= first && now <= last ? undefined : new Date(first);
+  }, [model.events]);
 
-  const scaleOptions = useMemo(
-    () => [
-      { value: 'day' as GanttScale, label: t('projectDetail.gantt.scale.day', 'Day') },
-      { value: 'week' as GanttScale, label: t('projectDetail.gantt.scale.week', 'Week') },
-      { value: 'month' as GanttScale, label: t('projectDetail.gantt.scale.month', 'Month') },
-      { value: 'quarter' as GanttScale, label: t('projectDetail.gantt.scale.quarter', 'Quarter') },
-    ],
+  const events = useMemo(
+    () => model.events.map((e) => (overrides.has(e.id) ? { ...e, ...overrides.get(e.id) } : e)),
+    [model.events, overrides],
+  );
+
+  const scaleLabels = useMemo<Record<GanttScale, string>>(
+    () => ({
+      day: t('projectDetail.gantt.scale.day', 'Day'),
+      week: t('projectDetail.gantt.scale.week', 'Week'),
+      month: t('projectDetail.gantt.scale.month', 'Month'),
+      quarter: t('projectDetail.gantt.scale.quarter', 'Quarter'),
+      year: t('projectDetail.gantt.scale.year', 'Year'),
+    }),
     [t],
   );
 
-  const model = useMemo(
-    () =>
-      buildGanttModel(tasks, milestones, today, {
-        scale,
-        rowHeight: GANTT_ROW_H,
-        laneHeaderHeight: GANTT_LANE_HEADER_H,
-        viewport,
-      }),
-    [tasks, milestones, today, scale, viewport],
+  const i18n = useMemo<GanttI18nOverrides>(
+    () => ({
+      labels: {
+        today: t('projectDetail.gantt.today', 'Today'),
+        previous: t('projectDetail.gantt.previous', 'Previous'),
+        next: t('projectDetail.gantt.next', 'Next'),
+        resources: t('projectDetail.gantt.taskColumn', 'Task'),
+        goToDate: t('projectDetail.gantt.goToDate', 'Go to date'),
+        selectView: t('projectDetail.gantt.zoomAriaLabel', 'Timeline zoom'),
+        zoomIn: t('projectDetail.gantt.zoomIn', 'Zoom in'),
+        zoomOut: t('projectDetail.gantt.zoomOut', 'Zoom out'),
+        resizePanel: t('projectDetail.gantt.resizePanel', 'Resize task panel'),
+        loading: t('projectDetail.gantt.loading', 'Loading'),
+        continues: t('projectDetail.gantt.continues', 'continues'),
+        milestone: t('projectDetail.gantt.milestoneWord', 'phase'),
+        jumpToBar: (title: string) => t('projectDetail.gantt.jumpToBar', 'Scroll to "{{title}}"', { title }),
+        progress: (percent: number) => t('projectDetail.gantt.progress', '{{percent}}% complete', { percent }),
+        durationDays: (days: number) =>
+          t('projectDetail.gantt.durationDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' }),
+        scales: scaleLabels,
+      },
+    }),
+    [t, scaleLabels],
   );
 
-  // Resolve bar.id → TaskWithRefs (used by onActivateTask / rowMenu).
-  const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const activateById = useCallback(
+    (id: string) => {
+      const task = taskMap.get(id);
+      if (task && onActivateTask) onActivateTask(task);
+    },
+    [taskMap, onActivateTask],
+  );
 
-  // ONE flattening shared by the table and the timeline (the row seam).
-  const flatRows = useMemo(() => flattenGanttRows(model.lanes, tasks), [model.lanes, tasks]);
+  const onEventUpdate = useCallback(
+    (update: GanttProposedUpdate<GanttTaskData>) => {
+      const task = update.event.data?.task;
+      if (!task || !onReschedule || !canReschedule?.(task)) return false;
+      const patch = taskPatchFromRange(task, update.start, update.end);
+      if (!patch) return false;
+      const id = task.id;
+      const mine: Override = { start: update.start, end: update.end };
+      setOverrides((cur) => new Map(cur).set(id, mine));
+      // Roll back only this drag's own override: a newer drag on the same task keeps its bar.
+      const rollback = () =>
+        setOverrides((cur) => {
+          if (cur.get(id) !== mine) return cur;
+          const next = new Map(cur);
+          next.delete(id);
+          return next;
+        });
+      onReschedule(task, patch).then((ok) => ok || rollback(), rollback);
+    },
+    [onReschedule, canReschedule],
+  );
 
-  // Empty state: no dated work at all
-  if (model.isEmpty || !model.geometry) {
+  const columns = useMemo<GanttColumn[]>(
+    () => [
+      {
+        id: 'status',
+        title: t('projectDetail.gantt.statusColumn', 'Status'),
+        width: 104,
+        render: ({ resource }: GanttColumnContext) => {
+          const task = taskMap.get(resource.id);
+          return task ? <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill> : null;
+        },
+      },
+      {
+        id: 'dates',
+        title: t('projectDetail.gantt.datesColumn', 'Dates'),
+        width: 128,
+        render: ({ resource }: GanttColumnContext) => {
+          const task = taskMap.get(resource.id);
+          if (!task) return null;
+          const fmt = (iso: string | null) => (iso ? formatMonthDay(new Date(`${iso}T00:00:00`)) : '—');
+          return `${fmt(task.start_date)} – ${fmt(task.end_date)}`;
+        },
+      },
+      ...(rowMenu
+        ? [
+            {
+              id: 'actions',
+              title: '',
+              width: 40,
+              render: ({ resource }: GanttColumnContext) => {
+                const task = taskMap.get(resource.id);
+                return task ? (
+                  <RowMenu items={rowMenu(task)} />
+                ) : null;
+              },
+            },
+          ]
+        : []),
+    ],
+    [t, taskMap, rowMenu],
+  );
+
+  const menuItems = useCallback(
+    (task: TaskWithRefs | undefined) =>
+      task && rowMenu
+        ? rowMenu(task).map((item) => (
+            <ContextMenuItem
+              key={item.label}
+              variant={item.danger ? 'destructive' : 'default'}
+              disabled={item.disabled}
+              onClick={item.onClick}
+            >
+              {item.label}
+            </ContextMenuItem>
+          ))
+        : null,
+    [rowMenu],
+  );
+
+  if (model.isEmpty) {
     return (
       <ListState
         variant="empty"
@@ -144,38 +259,17 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     );
   }
 
-  // D1: on narrow viewports (<640px) the MS-Project split is unusable — the task
-  // table eats the width and leaves the timeline a sliver. When there IS dated
-  // work to show, swap the cramped Gantt for a friendly notice pointing at List/Board.
-  // (Empty state still wins above — an empty project shows the honest empty state.)
-  if (isNarrow) {
-    return <GanttMobileNotice onSwitchView={onSwitchView} />;
-  }
+  // D1: below 640px the tree + track split is unusable; point at List/Board instead. (The empty
+  // state above still wins: an empty project shows the honest empty state.)
+  if (isNarrow) return <GanttMobileNotice onSwitchView={onSwitchView} />;
 
-  const { geometry, ticks, todayLeft, undated } = model;
-  const tasksCount = geometry.bars.length;
-  const edgeCount = geometry.edges.length;
-  // ⚑ The note that used to sit here said plurals could not be translated because an
-  // `Intl.PluralRules` helper "does not exist yet". Nothing needed to be built: i18next resolves
-  // `_one`/`_other` THROUGH `Intl.PluralRules` itself, so DD-I18N-1's requirement is met by the
-  // library the same ruling already chose. Verified against i18next 25 rather than assumed, and
-  // Bahasa collapses both forms to one, which is what DD-I18N-1 leans on (#575).
-  //
-  // ⚑ This is the SCREEN-READER summary. Leaving it English while the visible text is translated
-  // gives a sighted Indonesian user a translated screen and a screen-reader user an English one —
-  // the gate never flagged it, because it checks JSX text and this is a template literal.
-  // ⚑ i18next binds ONE `count` per key, and this sentence has four independent counts plus two
-  // conditional clauses — so it cannot be one key in the chosen library. Each t() returns a
-  // COMPLETE, independently orderable clause; that is what keeps this from being #571's
-  // fragment-glue, where a value could not move relative to its words.
-  //
-  // ⚑ The ", " separator is joined HERE, not carried in the catalogue values. Translation tooling
-  // trims leading punctuation as a matter of course, and a trimmed ", " welds two clauses into
-  // "1 milestone1 konektor" with every gate still green.
-  const summaryClauses = [
+  // ⚑ SCREEN-READER summary, one independently translatable clause per count (#575): i18next binds
+  // one `count` per key, and the ", " joiner lives here, not in the catalogue, because translation
+  // tooling trims leading punctuation and would weld clauses together.
+  const summary = `${[
     t('projectDetail.gantt.summary.head', 'Task Gantt timeline: {{tasks}} across {{phases}}', {
       tasks: t('projectDetail.gantt.summary.tasks', {
-        count: tasksCount,
+        count: model.barCount,
         defaultValue_one: '{{count}} task',
         defaultValue_other: '{{count}} tasks',
       }),
@@ -185,105 +279,76 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
         defaultValue_other: '{{count}} phases',
       }),
     }),
-    todayLeft != null
-      ? t('projectDetail.gantt.summary.today', 'today at {{pct}}% of the span', {
-          pct: Math.round(todayLeft * 100),
-        })
-      : null,
     t('projectDetail.gantt.summary.connectors', {
-      count: edgeCount,
+      count: model.edgeCount,
       defaultValue_one: '{{count}} dependency connector drawn',
       defaultValue_other: '{{count}} dependency connectors drawn',
     }),
-    geometry.hiddenEdgeCount > 0
+    model.hiddenEdgeCount > 0
       ? t('projectDetail.gantt.summary.hidden', {
-          count: geometry.hiddenEdgeCount,
+          count: model.hiddenEdgeCount,
           defaultValue_one: '{{count}} dependency hidden (endpoint undated)',
           defaultValue_other: '{{count}} dependencies hidden (endpoint undated)',
         })
       : null,
-    // ⚑ The scale's LABEL, not the raw `GanttScale` enum. The visible toggle already reads
-    // "Bulan"; interpolating `scale` put "skala: month" in the Indonesian sentence — the same
-    // untranslated-enum defect this change exists to fix, left inside the string it rewrote.
-    t('projectDetail.gantt.summary.scale', 'scale: {{scale}}', {
-      scale: scaleOptions.find((o) => o.value === scale)?.label ?? scale,
-    }),
-  ].filter(Boolean);
-  const summary = `${summaryClauses.join(', ')}.`;
-
-  const activate = onActivateTask
-    ? (id: string) => {
-        const task = taskMap.get(id);
-        if (task) onActivateTask(task);
-      }
-    : undefined;
+    // The scale's translated LABEL, never the raw enum.
+    t('projectDetail.gantt.summary.scale', 'scale: {{scale}}', { scale: scaleLabels[scale] }),
+  ]
+    .filter(Boolean)
+    .join(', ')}.`;
 
   return (
     <div className="min-w-0">
-      {/* Toolbar: caption + zoom toggle (D6) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2">
-        <span className="text-[12px] text-muted-foreground">
-          {t('projectDetail.gantt.tasksOnTimeline', {
-            count: tasksCount,
-            defaultValue_one: '{{count}} task on the timeline',
-            defaultValue_other: '{{count}} tasks on the timeline',
-          })}
-        </span>
-        <ViewToggle<GanttScale>
-          options={scaleOptions}
-          value={scale}
-          onChange={setScale}
-          ariaLabel={t('projectDetail.gantt.zoomAriaLabel', 'Timeline zoom')}
-        />
-      </div>
-
-      <figure
-        aria-label={summary}
-        data-scale={scale}
-        className="m-0"
-      >
-        {/*
-          ONE scroll unit (2026-06-17): a single `overflow-auto` box scrolls BOTH
-          axes. The task column is frozen via per-cell `sticky left-0` and the
-          axis/header via `sticky top-0`, so the table and the bars can never
-          desync — they live in the same scroll box. The OLD structure used a
-          left sticky-block inside `overflow-y-auto` + a right pane with its OWN
-          `overflow-x-auto`, which produced two independent scroll contexts that
-          desynced vertically once the task list exceeded the height cap.
-
-          z-layering (high → low): corner (40) > sticky column cells (30) >
-          axis/header band (20) > bars/gridlines (default). The sticky cells carry
-          an opaque `bg-card`/`bg-secondary` so bars scroll UNDER them, not through.
-        */}
-        <div ref={setScrollport} data-gantt-scroll className="flex max-h-[60vh] overflow-auto">
-          {/* Left column — the task TABLE (role=grid), with its roving focus. */}
-          <GanttTaskTable
-            rows={flatRows}
-            tasksById={taskMap}
-            activatable={!!activate}
-            onRowActivate={activate}
-            rowMenu={rowMenu}
-          />
-
-          {/* Right column — the timeline (axis frozen on vertical scroll via
-              sticky top-0; content box uses absolute-px geometry, math unchanged). */}
-          <GanttTimeline
-            lanes={model.lanes}
-            geometry={geometry}
-            ticks={ticks}
-            todayLeft={todayLeft}
-            rows={flatRows}
-            edges={geometry.edges}
-            onBarActivate={activate}
-          />
-        </div>
+      <figure aria-label={summary} data-scale={scale} className="m-0">
+        <TooltipProvider>
+          <Gantt<GanttTaskData>
+            className={FRAME_CLASS}
+            timeZone={UTC}
+            locale={getDateFnsLocale()}
+            i18n={i18n}
+            events={events}
+            resources={model.resources}
+            defaultDate={defaultDate}
+            treePanel={{ width: rowMenu ? 480 : 440, nameColumnWidth: 208 }}
+            scale={scale}
+            onScaleChange={setScale}
+            interactions={{ drag: writable, resize: writable, selectSlot: false }}
+            snapDuration={DAY_MINUTES}
+            slotDuration={DAY_MINUTES}
+            scheduleMode="single"
+            barLabel="auto"
+            rowCheckboxes={false}
+            columns={columns}
+            onEventUpdate={onEventUpdate}
+            onEventClick={onActivateTask ? (occ) => occ.event.data?.task && activateById(occ.event.id) : undefined}
+            onResourceClick={onActivateTask ? ({ resource }) => activateById(resource.id) : undefined}
+            renderEventMenu={rowMenu ? ({ occurrence }) => menuItems(occurrence.event.data?.task ?? undefined) : undefined}
+            renderResourceMenu={rowMenu ? ({ resource }) => menuItems(taskMap.get(resource.id)) : undefined}
+          >
+            <GanttNav>
+              <GanttNavToday />
+              <GanttScaleSwitcher />
+              <div className="flex items-center">
+                <GanttNavPrev />
+                <GanttNavNext />
+              </div>
+              <GanttTitle />
+              <div className="grow" />
+              <span className="text-[12px] text-muted-foreground">
+                {t('projectDetail.gantt.tasksOnTimeline', {
+                  count: model.barCount,
+                  defaultValue_one: '{{count}} task on the timeline',
+                  defaultValue_other: '{{count}} tasks on the timeline',
+                })}
+              </span>
+            </GanttNav>
+            <GanttView />
+          </Gantt>
+        </TooltipProvider>
 
         {/* Undated footer (AC-GANTT-005) */}
-        {undated.length > 0 && (
-          <UndatedFooter
-            undated={undated}
-            onActivateTask={activate}
-          />
+        {model.undated.length > 0 && (
+          <UndatedFooter undated={model.undated} onActivateTask={onActivateTask ? activateById : undefined} />
         )}
       </figure>
     </div>

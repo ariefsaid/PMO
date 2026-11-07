@@ -43,8 +43,8 @@ import { RecordCaptureForm } from './RecordCaptureForm';
 import { queryClient } from '@/src/lib/queryClient';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import * as ownership from '@/src/lib/adapterSeam/ownershipCache';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 function renderVI(props: { vendorId?: string | null; itemsNet?: number | null } = {}, onStage = vi.fn()) {
   render(

@@ -106,6 +106,7 @@ const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
 const MyTasksPage = lazyWithPreload(() => import('./pages/MyTasks'));
+const CalendarPage = lazyWithPreload(() => import('./pages/Calendar'));
 const NotFoundPage = lazyWithPreload(() => import('./pages/NotFound'));
 const UserViewRenderer = lazyWithPreload(() => import('./pages/UserViewRenderer'));
 const MyViewsPage = lazyWithPreload(() => import('./pages/MyViewsPage'));
@@ -189,6 +190,7 @@ const PRELOAD_RULES: Array<{ path: string; chunks: PreloadableRouteChunk[] }> = 
   { path: '/incidents', chunks: [IncidentsPage] },
   { path: '/incidents/:incidentId', chunks: [IncidentDetailPage] },
   { path: '/my-tasks', chunks: [MyTasksPage] },
+  { path: '/calendar', chunks: [CalendarPage] },
   { path: '/meetings', chunks: [MeetingsPage] },
   { path: '/meetings/new', chunks: [MeetingCreatePage, { preload: preloadMinutesEditor }] },
   { path: '/meetings/:meetingId', chunks: [MeetingDetailPage, { preload: preloadMinutesEditor }] },
@@ -365,6 +367,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
   // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
   { path: '/my-tasks', element: <MyTasksPage /> },
+  // #1982: Calendar — tasks by due date + milestones by target date across projects (RLS-scoped reads, every role).
+  { path: '/calendar', element: <CalendarPage /> },
   // #526: Meetings — minuted meetings with attendees, action items and view-only shares.
   //   Reads are RLS-scoped (attendance ∪ author ∪ grant ∪ Admin, migration 0205), so the routes
   //   exist for every role; the detail renders a calm not-found for an unshared meeting.

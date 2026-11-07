@@ -31,7 +31,11 @@ import {
 } from './hub/pm/metrics';
 
 const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STATUSES]);
-const PROJECTS_HREF = '/projects?filter=My+Projects';
+/** #1461: the drill lands on exactly the figure's set — my delivery projects (the figure's
+ *  universe is get_pm_dashboard_projects ∩ delivery statuses), so the URL carries both the
+ *  delivery filter and my PM id. */
+const projectsHref = (userId: string | null | undefined) =>
+  userId ? `/projects?filter=delivery&pm=${encodeURIComponent(userId)}` : '/projects?filter=delivery';
 
 /** Role-specific project index for Project Managers. Every figure drills into its owning page. */
 export const PMDashboard: React.FC = () => {
@@ -183,7 +187,7 @@ export const PMDashboard: React.FC = () => {
           value={projectsErrorReason ? '—' : String(projects.length)}
           unavailableReason={projectsErrorReason}
           loading={projectsQuery.isPending}
-          to={PROJECTS_HREF}
+          to={projectsHref(userId)}
           linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
           help={t('hub.pm.myProjectsHelp', 'Delivery projects assigned to you as the project manager.')}
         />
@@ -199,7 +203,7 @@ export const PMDashboard: React.FC = () => {
             ? t('hub.pm.contractLeft', '{{value}} left after spending', { value: contractLeftFigure.value })
             : undefined}
           loading={projectsQuery.isPending}
-          to={PROJECTS_HREF}
+          to={projectsHref(userId)}
           linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
           help={t('hub.pm.contractHelp', 'Contract value for your delivery projects. The line below shows the remaining contract value after recorded spending; the two use the project currency and do not convert between currencies.')}
         />
@@ -214,7 +218,7 @@ export const PMDashboard: React.FC = () => {
             ? t('hub.pm.riskPartial', 'At 90% or more of budget; other projects have incomplete budget or spending data')
             : t('hub.pm.riskDefinition', 'Projects at 90% or more of budget')}
           loading={projectsQuery.isPending}
-          to="/projects?filter=at-risk"
+          to={userId ? `/projects?filter=at-risk&pm=${encodeURIComponent(userId)}` : '/projects?filter=at-risk'}
           linkLabel={t('hub.pm.openAtRisk', 'Open at-risk projects')}
           help={t('hub.pm.atRiskHelp', 'Counts your delivery projects when actual spending is at least 90% of a positive budget in the same currency. Unknown spending or budget data makes the total unavailable.')}
         />
@@ -228,7 +232,7 @@ export const PMDashboard: React.FC = () => {
             exactValue={projectsErrorReason ? undefined : marginFigure.exactValue}
             unavailableReason={projectsErrorReason ?? marginFigure.unavailableReason}
             loading={projectsQuery.isPending}
-            to={PROJECTS_HREF}
+            to={projectsHref(userId)}
             linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}
             help={t('hub.pm.marginHelp', 'Margin on billed work to date: billed-work revenue less recorded actual spending, grouped by project currency.')}
           />
@@ -282,7 +286,7 @@ export const PMDashboard: React.FC = () => {
           {orderedProjects.length > 6 && (
             <div className="flex justify-center">
               <Link
-                to={PROJECTS_HREF}
+                to={projectsHref(userId)}
                 className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {t('hub.pm.viewAllProjects', 'View all {{count}} projects', { count: orderedProjects.length })}

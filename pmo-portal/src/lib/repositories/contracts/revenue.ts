@@ -45,6 +45,10 @@ export interface RevenueRepository {
   downloadInvoicePdf(siId: string): Promise<Blob>;
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
+  /** #1415: apply a PMO receipt across one or more invoices (org without an ERP). `requestId` makes a retry a replay. */
+  applyReceipt(input: { receiptId: string; allocations: Array<{ invoiceId: string; amount: number }>; requestId: string }): Promise<string[]>;
+  /** #1415: reverse one allocation of a PMO receipt (the invoice is restated). */
+  unapplyAllocation(allocationId: string): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
   listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
   /** Count overdue open client invoices from a narrow projection for the navigation rail. */

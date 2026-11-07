@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -16,6 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { addBuilderFilter, removeBuilderFilter } from './__tests__/projectFilterBuilder.helpers';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -517,9 +519,9 @@ describe('Projects table — compact layout (#1)', () => {
     expect(within(row).queryByText(/CPO-SYN-9/)).not.toBeInTheDocument();
   });
 
-  it('UX-018: secondary filters and transfer tools are grouped behind labelled disclosures', () => {
+  it('UX-018: one filter builder and transfer tools behind a labelled disclosure', () => {
     renderPage('Admin');
-    expect(screen.getByRole('button', { name: /^Filters/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Add filter$/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^More actions/ })).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: /status filter/i })).toBeVisible();
     expect(screen.getByTestId('list-page-view')).toBeVisible();
@@ -999,10 +1001,11 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
       { id: '9c9c9c9c-0000-4000-8000-0000000000c3', name: 'Unrelated Supplier', type: 'Vendor' },
     ];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
-    const scopedSelect = screen.getByRole('combobox', { name: /filter by end customer/i });
-    expect(within(scopedSelect).getByRole('option', { name: 'Asset Owner Alpha' })).toBeInTheDocument();
-    expect(within(scopedSelect).queryByRole('option', { name: 'Unrelated Supplier' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Add filter$/ }));
+    await userEvent.click(await screen.findByRole('option', { name: 'End customer' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'is' }));
+    expect(await screen.findByRole('option', { name: 'Asset Owner Alpha' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Unrelated Supplier' })).not.toBeInTheDocument();
   });
 
   it('RF-009: no optional-columns control exists, with rows or when filters leave none', async () => {
@@ -1038,11 +1041,13 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
 
   it('AC-EC-003: choosing an end customer in the filter narrows the rows and writes endClient to the URL', async () => {
     renderPage('Project Manager', '/projects?filter=All');
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
-    const select = screen.getByRole('combobox', { name: /filter by end customer/i });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /^Add filter$/ }));
+    await user.click(await screen.findByRole('option', { name: 'End customer' }));
+    await user.click(await screen.findByRole('option', { name: 'is' }));
     // Includes linked end customers regardless of company type (Site Owner Beta is a Vendor).
-    expect(within(select).getByRole('option', { name: 'Site Owner Beta' })).toBeInTheDocument();
-    await userEvent.selectOptions(select, END_A);
+    expect(await screen.findByRole('option', { name: 'Site Owner Beta' })).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Asset Owner Alpha' }));
     expect(screen.getByTestId('location-probe').dataset.search).toContain(`endClient=${END_A}`);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
@@ -1053,19 +1058,18 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
 it('AC-TAG-002 Projects intersects classification controls, preserves URL and clears the actual result', async () => {
   projectsState.data = seed.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) as unknown as ProjectWithRefs[];
   const user = userEvent.setup(); renderPage('Project Manager', '/projects?view=table');
-  await user.click(screen.getByRole('button', { name: /^Filters/ }));
-  await user.selectOptions(screen.getAllByLabelText('Filter by service line')[0], 'Engineering');
+  await addBuilderFilter(user, 'Service line', { value: 'Engineering' });
   expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
   expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
   expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('serviceLine=Engineering');
-  await user.selectOptions(screen.getAllByLabelText('Filter by service line')[0], '');
+  await removeBuilderFilter(user, 'Service line');
   expect(await screen.findByText('Northwind ERP Rollout')).toBeVisible();
 });
 
 it('AC-TAG-002 Engineer classification filters remain available without manager-only customer controls', async () => {
   projectsState.data = seed.map((p) => ({ ...p, service_line: 'Engineering' })) as unknown as ProjectWithRefs[];
   renderPage('Engineer', '/projects?filter=All&view=table');
-  await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
-  expect(screen.getByLabelText('Filter by service line')).toBeInTheDocument();
-  expect(screen.queryByLabelText('Filter by customer')).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: /^Add filter$/ }));
+  expect(await screen.findByRole('option', { name: 'Service line' })).toBeInTheDocument();
+  expect(screen.queryByRole('option', { name: 'Customer' })).toBeNull();
 });

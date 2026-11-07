@@ -7,6 +7,8 @@ import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -68,6 +70,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const canViewMoney = may('view', 'salesInvoice');
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
   const orderBilling = useWorkOrderBilling(project.id, canViewMoney);
+  // #1457: the org's business day (not the viewer's device day) bounds every overdue figure.
+  const orgDay = useFxOrgDay(canViewMoney).day;
   const isCascadePending = boq.isPending || billing.isPending || orders.isPending;
   const isCascadeError = boq.isError || billing.isError || orders.isError || (!isCascadePending && !billing.data);
 
@@ -101,11 +105,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     .filter((order) => order.lineCount === 0 && order.figuresComplete)
     .reduce((sum, order) => sum + Math.max(0, order.remaining), 0);
   const canInvoice = lineCanInvoice + moneyOrderCanInvoice;
-  const currentDate = new Date();
-  const today = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row.
   const overdue = invoiceRows.reduce((sum, invoice) => {
-    if (!invoice.erp_due_date || invoice.erp_due_date >= today || invoice.status === 'Draft' || invoice.status === 'Cancelled') return sum;
-    const balance = invoice.status === 'Paid' ? 0 : invoice.erp_outstanding_amount;
+    if (clientInvoiceOverdueDays(invoice, orgDay) === null) return sum;
+    const balance = invoice.erp_outstanding_amount;
     return balance === null ? sum : sum + Math.max(0, balance);
   }, 0);
   const percent = (value: number | null) => contractValue > 0 && value !== null
@@ -173,7 +176,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                 <strong className="font-semibold text-foreground">{formatNumberWhole(canInvoice)}</strong>
               </span>
             </Tooltip>}
-            {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their ERP due date.')}>
+            {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
               <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
                 <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
                 <strong className="font-semibold">{formatNumberWhole(overdue)}</strong>

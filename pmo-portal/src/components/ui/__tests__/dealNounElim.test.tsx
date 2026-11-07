@@ -25,7 +25,7 @@ import { ImpersonationProvider } from '../../../auth/impersonation';
 import type { Role } from '../../../auth/AuthContext';
 import { ToastProvider } from '../../../components/ui';
 
-// ── PipelineLens ──────────────────────────────────────────────────────────────
+// ── DealBand ──────────────────────────────────────────────────────────────
 
 const { pipelineTrans } = vi.hoisted(() => ({
   pipelineTrans: vi.fn().mockResolvedValue(undefined),
@@ -49,8 +49,8 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-// The merged tree's PipelineLens consumes react-query (win-eligibility + transition invalidation),
-// so the harness renders under a real QueryClientProvider (see PipelineLens.queryStatus harness)
+// The merged tree's DealBand consumes react-query (win-eligibility + transition invalidation),
+// so the harness renders under a real QueryClientProvider (see DealBand.queryStatus harness)
 // and stubs the eligibility read at the hook seam, mirroring that harness.
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectWinEligibility: () => ({ data: 'allowed' }),
@@ -65,7 +65,7 @@ const renderPipeline = (p: unknown, role: Role = 'Project Manager') =>
       <ImpersonationProvider realRole={role}>
         <ToastProvider>
           <MemoryRouter>
-            <PipelineLens project={p as never} />
+            <DealBand project={p as never} />
           </MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>
@@ -91,9 +91,9 @@ const project = {
   pm: { full_name: 'PM User' },
 } as never;
 
-import PipelineLens from '../../../../pages/project-detail/PipelineLens';
+import DealBand from '../../../../pages/sales/DealBand';
 
-describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journey" noun (CW-1)', () => {
+describe('Part 3: DealBand — no user-visible "deal" or "Opportunity journey" noun (CW-1)', () => {
   it('does not render "deal" (case-insensitive) in user-visible text', () => {
     renderPipeline(project);
     // Check no user-visible text says "deal" (the canonical noun is "Project").

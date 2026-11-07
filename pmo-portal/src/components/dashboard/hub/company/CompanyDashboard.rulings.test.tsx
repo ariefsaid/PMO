@@ -193,7 +193,7 @@ describe('C4: unknown spending is left out and said once', () => {
   ];
 
   it('C4: no "Spent —" line per project; one note above the list names how many have incomplete spending', () => {
-    (state.figures!.dashboard as Record<string, unknown>).top_projects = rows;
+    (state.figures!.dashboard as Record<string, unknown>).attention_projects = rows;
     renderDashboard('Admin');
     const list = screen.getByRole('list', { name: 'Spending vs contract' });
     expect(within(list).queryByText(/Spent/)).not.toBeInTheDocument();
@@ -251,5 +251,20 @@ describe('L6: the ageing source note is said once', () => {
     state.ageing = { receivablesAgeing: {}, payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } } };
     renderDashboard('Finance');
     expect(screen.getAllByText(/From invoices recorded in PMO/)).toHaveLength(1);
+  });
+});
+
+describe('#1240 D-005: the budget sits beside the contract-denominated bar', () => {
+  const project = (over: Record<string, unknown> = {}) => ({
+    id: 'p1', name: 'Meridian', status: 'Ongoing Project', currency: 'USD', contract_value: 1_000_000, budget: 800_000, budget_currency: 'USD',
+    spent: 920_000, actual_complete: true, actual_currency: 'USD', ...over,
+  });
+  it('shows the active budget under the bar, or says there is none', () => {
+    state.figures = figures({ attention_projects: [project(), project({ id: 'p2', name: 'Harbor', budget: null })] });
+    renderDashboard('Executive');
+    const list = screen.getByRole('list', { name: 'Spending vs contract' });
+    const [first, second] = within(list).getAllByRole('listitem');
+    expect(first).toHaveTextContent('Active budget: $800,000');
+    expect(second).toHaveTextContent('No active budget');
   });
 });

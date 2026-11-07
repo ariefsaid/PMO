@@ -44,7 +44,7 @@ describe('F1: compact register cell', () => {
     expect(screen.queryByText(ACCESS)).not.toBeInTheDocument();
     // The as-of date stays (AC-M365DOC-035) but only on a changed file.
     expect(screen.getByText(/^Checked /)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Versions of|approved version history/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /all versions|approved version/i })).not.toBeInTheDocument();
     expect(screen.getByText('Changed')).toBeInTheDocument();
     // The full meaning stays available to assistive tech.
     expect(screen.getByText('compared with the issue-time baseline')).toHaveClass('sr-only');
@@ -53,7 +53,7 @@ describe('F1: compact register cell', () => {
   it('F1: the full (Drawer) cell still states the access sentence once and keeps Versions', () => {
     render(<MemoryRouter><LinkedDocumentCell reference={ref} owner={owner()} title="Plan" /></MemoryRouter>);
     expect(screen.getAllByText(ACCESS)).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Versions of Plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show all versions of Plan' })).toBeInTheDocument();
   });
 });
 
@@ -74,7 +74,7 @@ describe('F3: Bahasa Indonesia', () => {
     expect(screen.getByRole('button', { name: /^Buka versi terbaru di SharePoint/ })).toBeInTheDocument();
     expect(screen.getByText('Isi file berbeda dari acuan konten saat diterbitkan.')).toBeInTheDocument();
     expect(screen.getByText(/Akses bergantung pada izin Microsoft Anda/)).toBeInTheDocument();
-    await act(async () => { await userEvent.click(screen.getByRole('button', { name: 'Versi dari Plan' })); });
+    await act(async () => { await userEvent.click(screen.getByRole('button', { name: 'Tampilkan semua versi Plan' })); });
     expect(await screen.findByRole('dialog', { name: 'Versi Plan.docx' })).toBeInTheDocument();
     expect(await screen.findByText('Versi 2.0')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Tutup' }).length).toBeGreaterThan(0);
