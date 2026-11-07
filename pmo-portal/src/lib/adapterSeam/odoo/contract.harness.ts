@@ -349,7 +349,9 @@ export function createOdooHarness(): ErpHarness {
       };
       if (REVENUE_FEED_SPECS['incoming-payment'].parse(raw)) return { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' };
       // The purchase feed selects vendor payments by its search filter, so a row belongs to it only when the filter holds.
-      const outbound = (PURCHASE_SPECS.payment.filter as Array<[string, string, unknown]>).every(([field, , value]) => (raw as Record<string, unknown>)[field] === value);
+      const terms = PURCHASE_SPECS.payment.filter as Array<[string, string, unknown]>;
+      if (terms.some(([, op]) => op !== '=')) throw new Error('classifyPayment evaluates "=" terms only; extend it for the new operator');
+      const outbound = terms.every(([field, , value]) => (raw as Record<string, unknown>)[field] === value);
       return outbound && PURCHASE_SPECS.payment.parse(raw) ? { kind: 'vendor-payment', domain: 'procurement', table: 'payments' } : { kind: 'skipped' };
     },
     async mirrorPurchases(docs) {

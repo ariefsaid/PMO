@@ -5,7 +5,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SUITES } from '../contractSuite/index.ts';
-import { purchaseOrderReviseSuite } from '../contractSuite/purchaseOrderRevise.suite.ts';
 import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { createOdooRevenueHarness } from './contract.harness.ts';
 import { checkCostAccount, moneyHeader } from './revenue/moneyHeader.ts';
@@ -13,9 +12,6 @@ import { invoiceStatus } from './revenue/status.ts';
 import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
 
 const harness = TIER_HARNESSES.odoo;
-
-// Pending revenue workflows only run through the tier-wide runner after their declaration is supported.
-purchaseOrderReviseSuite(harness);
 
 describe('odoo contract', () => {
   it('declares itself as the odoo tier', () => {

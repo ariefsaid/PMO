@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import { resolveOdooProcurementAdapter, resolveOdooRevenueAdapter, ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { resolveOdooPaymentFacts } from '../_shared/odooPurchaseRefs.ts';
 import { reservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
 import { procurementRecoveryCallReservation, type OdooProcurementCandidate } from './odooProcurementRecovery.ts';
 
@@ -201,14 +202,14 @@ describe('P5 the Odoo adapter factory for a vendor bill', () => {
 
 describe('P6 the Odoo adapter factory for a vendor payment', () => {
   const BILL = { state: 'posted', move_type: 'in_invoice', amount_residual: 98, currency_id: [12, 'IDR'], partner_id: [77, 'Vendor'] };
-  const payWorld = (config?: Record<string, unknown>, { bill = BILL as Record<string, unknown> | null, odooCalls = [] as string[], invoice = { org_id: '0d000000-0000-4000-8000-000000000008', procurement_id: 'c0000000-0000-4000-8000-000000000001' } as Record<string, unknown> | null, outboxRow = null as Record<string, unknown> | 'unreadable' | null } = {}) => [
+  const payWorld = (config?: Record<string, unknown>, { bill = BILL as Record<string, unknown> | null, odooCalls = [] as string[], invoice = { org_id: '0d000000-0000-4000-8000-000000000008', procurement_id: 'c0000000-0000-4000-8000-000000000001' } as Record<string, unknown> | null, outboxRow = null as Record<string, unknown> | 'unreadable' | null, billRef = true } = {}) => [
     // the command's own outbox row (same record, same key): present = a retry of an earlier attempt
     supabaseSelect('external_command_outbox', () => outboxRow === 'unreadable' ? jsonResponse({ message: 'boom' }, { status: 500 }) : outboxRow === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : object(outboxRow)),
     supabaseSelect('external_org_bindings', () => binding({ default_payment_journal_id: 7, ...config })),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('procurements', () => object({ org_id: '0d000000-0000-4000-8000-000000000008', code: 'PRC-1', project_id: null, vendor_id: 'v-1', currency: 'IDR' })),
     supabaseSelect('procurement_invoices', () => invoice === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : object(invoice)),
-    supabaseSelect('external_refs', (call) => object({ external_record_id: call.url.searchParams.get('domain') === 'eq.companies' ? 'Vendor:77' : 'account.move:301' })),
+    supabaseSelect('external_refs', (call) => !billRef && call.url.searchParams.get('domain') === 'eq.procurement' ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : object({ external_record_id: call.url.searchParams.get('domain') === 'eq.companies' ? 'Vendor:77' : 'account.move:301' })),
     { label: 'odoo', host: 'odoo.example.test', response: (call: { url: URL }) => {
       const [model, method] = call.url.pathname.split('/').slice(-2);
       odooCalls.push(`${model}/${method}`);
@@ -252,6 +253,15 @@ describe('P6 the Odoo adapter factory for a vendor payment', () => {
     assertEquals(await refused(payWorld(undefined, { invoice: { org_id: '0d000000-0000-4000-8000-000000000008', procurement_id: 'someone-elses-case' } })), ['commit-rejected', 'bill-case-mismatch']);
     assertEquals(await refused(payWorld({ default_payment_journal_id: undefined })), ['commit-rejected', 'journal-missing']);
     assertEquals(await refused(payWorld(), payment({ invoiceId: undefined })), ['commit-rejected', 'payment-bill-required']);
+    // An own-org bill row with no Odoo bill reference: refused as no bill mapped, and only reads were made.
+    assertEquals(await refused(payWorld(undefined, { billRef: false })), ['commit-rejected', 'payment-bill-required']);
+  });
+
+  // Selection's link check answers a missing bill row first, so this read-side guard is reached only by calling the facts resolver directly.
+  it('the payment facts resolver itself refuses a bill row that is not there (defence in depth behind the link check)', async () => {
+    const ctx = payment();
+    const err = await withFetchMock(payWorld(undefined, { invoice: null }), () => assertRejects(() => resolveOdooPaymentFacts(ctx.serviceClient, ctx.orgId, ctx.command, { companyId: 1, config: {} }, 12))) as { code?: string; message: string };
+    assertEquals([err.code, err.message], ['commit-rejected', 'bill-missing']);
   });
 
   it('a REPLAY resolves nothing at selection: the payment it made has already reduced the residual, and its recovery must not depend on today\'s journal default', async () => {

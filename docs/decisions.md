@@ -3647,7 +3647,7 @@ and rejection of amount-only adoption. The browser journey proves replay after a
 This records scoped implementation evidence only; release readiness remains the owner's decision.
 **Update 2026-11-07:** the sweep-recovery condition on the four procurement declarations is met by #1901, so
 `purchase.push`, `bill.push`, `vendor-payment.push` and `purchase-order.revise` are declared `supported` once the
-shared push suites pass against the production resolver (Odoo procurement runs the shared link check before adapter selection).
+shared push suites' link cases pass against the production resolver (Odoo procurement runs the shared link check before adapter selection).
 
 ## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
 The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `invoice.pair-existing` remains pending on #1506 (`receipt.read` became supported 2026-11-07: the harness classifies both payment directions through the production feeds); `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.

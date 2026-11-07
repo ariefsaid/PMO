@@ -13,7 +13,7 @@
 **2026-11-05 — Odoo P9/C9 evidence (#1505/#1506):** `purchase.link-existing`, `cutover.purchase`, and
 `cutover.activation` are supported. **2026-11-07 update:** `purchase.push`, `bill.push`, `vendor-payment.push`,
 `purchase-order.revise` and `receipt.read` are now supported too: Odoo procurement runs the shared link check
-before adapter selection and the contract harness exercises that production layer. `invoice.push` is supported;
+before adapter selection and the shared push suites' link cases run against that production resolver. `invoice.push` is supported;
 `invoice.pair-existing` and `tax-document.read` remain pending under #1506, while `cutover.revenue`
 remains pending under #1602. The vocabulary guard covers the purchase and revenue model and field terms.
 The P9 composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and the
