@@ -18,6 +18,8 @@ describe('DataTable saved-width identities', () => {
     const missing: string[] = [];
     for (const root of roots) for (const file of sourceFiles(path.resolve(process.cwd(), root))) {
       const text = fs.readFileSync(file, 'utf8');
+      // ponytail: a file that never names DataTable has no DataTable element; skip the TS parse (the full parse timed out in CI as the tree grew).
+      if (!text.includes('DataTable')) continue;
       const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
       const visit = (node: ts.Node) => {
         if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(source) === 'DataTable') {

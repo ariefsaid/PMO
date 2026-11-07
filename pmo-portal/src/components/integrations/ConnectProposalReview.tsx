@@ -136,6 +136,8 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
   const [acceptingSelected, setAcceptingSelected] = useState(false);
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [startFailed, setStartFailed] = useState(false);
   const [choosingRowId, setChoosingRowId] = useState<string | null>(null);
   const [reviewListKind, setReviewListKind] = useState<ConnectKind | null>(null);
   const [excludedByKind, setExcludedByKind] = useState<Partial<Record<ConnectKind, Set<string>>>>({});
@@ -339,20 +341,47 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
     }
   };
 
-  const handleRetry = async () => {
+  // Start (or re-run) the read-only census, then refetch status. Used by the auto-start,
+  // the error retry and Re-check (FR-ECA-001). Errors land in the existing error state.
+  const runCensus = async () => {
     setErrorMessage(null);
+    setStartFailed(false);
+    setStarting(true);
     try {
       await repositories.integrations.startConnectCensus(tier);
       await statusQuery.refetch();
     } catch (err) {
+      setStartFailed(true);
       setErrorMessage(classifyMutationError(err).headline);
+    } finally {
+      setStarting(false);
     }
   };
+
+  // First open on a tier with no run: start the census once. The ref survives StrictMode's
+  // double effect and re-renders, so there is one start per tier per mounted review.
+  const autoStarted = useRef<string | null>(null);
+  const canRunCensus = may('manage', 'integration');
+  const needsFirstRun = open && canRunCensus && statusQuery.isSuccess && !statusQuery.data.run;
+  useEffect(() => {
+    if (!needsFirstRun || autoStarted.current === tier) return;
+    autoStarted.current = tier;
+    void runCensus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runCensus is recreated each render; the ref is the guard
+  }, [needsFirstRun, tier]);
+
+  const recheck = (
+    <CanWrite action='manage' entity='integration' fallback={null}>
+      <Button variant='outline' size='sm' onClick={() => void runCensus()}>
+        {t('integrations.connect.recheck', 'Check again')}
+      </Button>
+    </CanWrite>
+  );
 
   if (!open) return null;
 
   // 1. Loading / staging — the run is reading both sides; polls every 5 s until ready.
-  const isStaging = statusQuery.isPending || proposalsQuery.isPending || status?.run?.state === 'staging' || status?.run?.state === 'proposing';
+  const isStaging = starting || (needsFirstRun && !startFailed) || statusQuery.isPending || proposalsQuery.isPending || status?.run?.state === 'staging' || status?.run?.state === 'proposing';
   if (isStaging) {
     return (
       <div className='space-y-3' data-testid='connect-proposal-review'>
@@ -365,7 +394,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
   }
 
   // 2. Error — plain words + retry (the census can be re-run).
-  if (statusQuery.isError || status?.run?.state === 'failed') {
+  if (statusQuery.isError || startFailed || status?.run?.state === 'failed') {
     return (
       <div data-testid='connect-proposal-review'>
         <ListState
@@ -375,7 +404,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             'integrations.connect.errorDescription',
             'Could not read records from your connected system. Check the connection and try again.',
           )}
-          onRetry={() => void handleRetry()}
+          onRetry={() => void runCensus()}
           retryLabel={t('integrations.connect.retry', 'Try again')}
         />
       </div>
@@ -397,6 +426,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
           title={t('integrations.connect.emptyTitle', 'Nothing to set up')}
           sub={t('integrations.connect.emptyDescription', 'No records to set up. All records are connected.')}
         />
+        <div className='mt-3 flex justify-center'>{recheck}</div>
       </div>
     );
   }
@@ -497,6 +527,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
         </div>
 
         <div className='flex items-center gap-3'>
+          {recheck}
           {isWaitingSend && (
             <div
               className='flex items-center gap-2 rounded-md border border-panel-border px-3 py-1.5 text-sm font-medium text-foreground'

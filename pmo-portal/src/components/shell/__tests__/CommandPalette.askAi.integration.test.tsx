@@ -62,7 +62,8 @@ describe('Ask AI palette integration', () => {
     await user.type(screen.getByRole('combobox'), query);
     await user.click(await screen.findByRole('option', { name: /ask ai/i }));
     expect(screen.queryByRole('dialog', { name: /command palette/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: /agent assistant/i })).toBeVisible();
+    // The panel is lazy-loaded (#1978): wait for it to mount; the oracle is unchanged.
+    expect(await screen.findByRole('complementary', { name: /agent assistant/i })).toBeVisible();
     expect(screen.getByRole('textbox', { name: /ask a question/i })).toHaveValue(query);
     expect(screen.getByText(/ask your agent/i)).toBeVisible();
     expect(runtime.createRun).not.toHaveBeenCalled();

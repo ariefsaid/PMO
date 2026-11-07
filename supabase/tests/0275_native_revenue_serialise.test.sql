@@ -45,6 +45,7 @@ insert into public.incoming_payments (id, org_id, customer_id, sales_invoice_id,
    '02700000-0000-0000-0000-0000000000e1', '2026-07-02', 1120, 1120, 0, 'IDR', 'Paid', true),
   ('02700000-0000-0000-0000-0000000000f2', '02700000-0000-0000-0000-000000000001', '02700000-0000-0000-0000-0000000000c1',
    '02700000-0000-0000-0000-0000000000e2', '2026-07-02', 1120, 1120, 0, 'IDR', 'Paid', true);
+select public.native_receipt_allocations_backfill();  -- 0731 (#1415): a directly seeded receipt gets the allocation the RPCs would have written
 
 select ok(not exists (select 1 from pgrowlocks('public.organizations') l join public.organizations o on o.ctid = l.locked_row
                        where o.id = '02700000-0000-0000-0000-000000000001' and 'For Share' = any(l.modes)),

@@ -143,7 +143,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     renderExec();
     const contract = tile('Contract on hand');
     expect(contract).toHaveTextContent('2 Ongoing projects');
-    expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=Ongoing');
+    expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
   it('AC-UXA-003: labels the Ongoing project count in Bahasa and links to that set', async () => {
@@ -153,7 +153,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     renderExec();
     const contract = tile('Kontrak berjalan');
     expect(contract).toHaveTextContent('2 proyek yang sedang berjalan');
-    expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=Ongoing');
+    expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
   it('AC-RD-RISK-001: unbudgeted active projects are named in the Delivery panel, so zero at risk is not read as all clear', async () => {

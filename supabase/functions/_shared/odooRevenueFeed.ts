@@ -41,17 +41,25 @@ export async function runRevenuePass(
   sc: SupabaseClient, orgId: string, domain: RevenueFeedDomain, call: OdooCall, companyId: number, budget: Budget, opts: RevenuePassOpts = {},
 ): Promise<{ skipped: number }> {
   const spec = REVENUE_FEED_SPECS[domain];
+  // #1607: every cursor write states the cursor this pass last saw, so a party link that rewound it meanwhile is kept.
+  let seen = await readCursor(sc, orgId, domain);
   const deps: KindRunDeps = {
     ...revenueFeedReaders(call, spec, companyId),
-    apply: async (rows, cursor) => { await rpc(sc, 'apply_odoo_revenue_page', { p_org_id: orgId, p_domain: domain, p_rows: rows, p_cursor: cursor }); },
+    apply: async (rows, cursor) => {
+      await rpc(sc, 'apply_odoo_revenue_page', { p_org_id: orgId, p_domain: domain, p_rows: rows, p_cursor: cursor, p_prev_cursor: seen });
+      seen = cursor;
+    },
     censusSeen: async (run, ids) => { await rpc(sc, 'mark_odoo_revenue_census_seen', { p_org_id: orgId, p_domain: domain, p_run: run, p_ids: ids }); },
-    censusFinish: async (run, cursor) => { await rpc(sc, 'finish_odoo_revenue_census', { p_org_id: orgId, p_domain: domain, p_run: run, p_cursor: cursor }); },
+    censusFinish: async (run, cursor) => {
+      await rpc(sc, 'finish_odoo_revenue_census', { p_org_id: orgId, p_domain: domain, p_run: run, p_cursor: cursor, p_prev_cursor: seen });
+      seen = cursor;
+    },
     budget,
     now: opts.now ?? (() => new Date()),
     ...(opts.pageSize ? { pageSize: opts.pageSize } : {}),
     ...(opts.censusPageSize ? { censusPageSize: opts.censusPageSize } : {}),
   };
-  const run = await runKind(spec, await readCursor(sc, orgId, domain), deps);
-  if (run.done) await runCensus(await readCursor(sc, orgId, domain), deps);
+  const run = await runKind(spec, seen, deps);
+  if (run.done) await runCensus(seen, deps);
   return { skipped: run.skipped };
 }

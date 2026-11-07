@@ -147,7 +147,7 @@ select throws_ok($$select public.admin_change_domain_ownership('a5100000-0000-00
 -- ERPNext and other tiers and domains keep the shipped behaviour
 select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000005','erpnext','revenue','employ','a5100000-0000-0000-0000-0000000000e5')$$,
   'ERPNext revenue employ is unchanged (no extra precondition)');
-select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000005','odoo','companies','employ','a5100000-0000-0000-0000-0000000000e5')$$,
+select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000005','odoo','timesheets','employ','a5100000-0000-0000-0000-0000000000e5')$$,
   'an Odoo domain other than procurement and revenue is unchanged');
 select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000001','odoo','revenue','release','a5100000-0000-0000-0000-0000000000a1')$$,
   'releasing revenue is unchanged');

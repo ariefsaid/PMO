@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { daysSince, totalsByCurrency, type ProcurementListRole } from './model';
+import { daysSince, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { MoneyTotalLines } from './MoneyTotalLines';
 
 export type ProcurementTab = 'needs-you' | 'all' | 'orphans';

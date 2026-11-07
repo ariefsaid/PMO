@@ -6,7 +6,7 @@ import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import { formatCurrency, formatInstantDate, formatNumberMax2 } from '@/src/lib/format';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { compareBudgetVersions, type BudgetComparisonRow } from './budgetModel';
+import { compareBudgetVersions, type BudgetComparisonRow } from '@/src/lib/budget/budgetModel';
 
 interface BudgetVersionsDrawerProps {
   open: boolean;
@@ -115,7 +115,7 @@ export default function BudgetVersionsDrawer({
                 )}
               </div>
               {version.status === 'Draft' && readinessSummary}
-              <BudgetDocumentLinks versionId={version.id} status={version.status} />
+              <BudgetDocumentLinks versionId={version.id} status={version.status} versionLabel={`v${version.version} ${version.name}`} />
             </li>
           ))}
         </ol>

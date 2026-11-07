@@ -463,6 +463,318 @@ print('PROBE_USER=' + json.dumps({'id': u.id, 'key': k, 'missing': [g for g in $
   process.exit(0)
 }
 
+// ---- O4 actuals claims (V-ODA1..11, #1507 S0): node scripts/odoo-probe.mjs --actuals [--case V-ODA1] ----
+// Own synthetic companies only (never resets the bed); prints statuses, shapes, numbers and field names only.
+if (process.argv.includes('--actuals')) {
+  const only = process.argv.includes('--case') ? process.argv[process.argv.indexOf('--case') + 1] : null
+  const run = Date.now()
+  const errShape = (r) => (r.status >= 400 && r.json && typeof r.json === 'object' ? { status: r.status, cls: r.json.name, msg: String(r.json.message || '').slice(0, 120) } : null)
+  const sec = async (name, fn) => { if (only && only !== name) return; try { await fn() } catch (e) { record(name, 'probe', { status: 0, json: null }, `probe-error: ${String(e.message).slice(0, 120)}`) } }
+  const ensureCompany = async (name) => {
+    let co = (await call('res.company', 'search_read', { domain: [['name', '=', name]], fields: ['id'], limit: 1 })).json?.[0]
+    if (!co) {
+      const idc = (await call('res.country', 'search_read', { domain: [['code', '=', 'ID']], fields: ['id'], limit: 1 })).json?.[0]?.id
+      co = { id: (await call('res.company', 'create', { vals_list: [{ name, country_id: idc }] })).json?.[0] }
+      await call('account.chart.template', 'try_loading', { template_code: 'id', company: co.id })
+    }
+    return co.id
+  }
+  const coA = await ensureCompany('PT Sinar Baja')
+  const coB = await ensureCompany('PT Baja Timur')
+  const ctx = { allowed_company_ids: [coA, coB], company_id: coA }
+  const q = (m, me, b = {}, co = coA) => call(m, me, { ...b, context: { allowed_company_ids: [co], company_id: co, ...(b.context || {}) } })
+  const one = async (m, domain, fields, co = coA) => (await q(m, 'search_read', { domain, fields, limit: 1 }, co)).json?.[0]
+  const rd = async (m, id, fields, co = coA) => (await q(m, 'read', { ids: [id], fields }, co)).json?.[0]
+  const analyticGroup = (await call('ir.model.data', 'search_read', { domain: [['module', '=', 'analytic'], ['name', '=', 'group_analytic_accounting']], fields: ['res_id'], limit: 1 })).json?.[0]?.res_id
+  const botId = (await call('res.users', 'search_read', { domain: [['login', '=', 'pmo_adapter_bot']], fields: ['id'], limit: 1 })).json?.[0]?.id
+  if (analyticGroup && botId) await call('res.users', 'write', { ids: [botId], vals: { group_ids: [[4, analyticGroup]] } })
+  const planName = 'synthetic ledger plan'
+  const mkPlan = async (name) => (await call('account.analytic.plan', 'search_read', { domain: [['name', '=', name]], fields: ['id'], limit: 1 })).json?.[0]?.id
+    ?? (await call('account.analytic.plan', 'create', { vals_list: [{ name }] })).json?.[0]
+  const plan1 = await mkPlan(planName), plan2 = await mkPlan('synthetic non-project plan')
+  const mkAnalytic = async (name, plan) => (await call('account.analytic.account', 'search_read', { domain: [['name', '=', name]], fields: ['id'], limit: 1 })).json?.[0]?.id
+    ?? (await call('account.analytic.account', 'create', { vals_list: [{ name, plan_id: plan }] })).json?.[0]
+  const a = await mkAnalytic('synthetic project A', plan1), b = await mkAnalytic('synthetic project B', plan1), c2 = await mkAnalytic('synthetic cost centre', plan2)
+  const partner = (await call('res.partner', 'create', { vals_list: [{ name: `PT Mitra Logam ${run}` }] })).json?.[0]
+  const expense = (await one('account.account', [['account_type', '=', 'expense'], ['company_ids', 'in', [coA]]], ['id', 'code']))
+  const income = (await one('account.account', [['account_type', '=', 'income'], ['company_ids', 'in', [coA]]], ['id', 'code']))
+  const LINE_F = ['date', 'parent_state', 'debit', 'credit', 'balance', 'account_id', 'move_id', 'move_name', 'journal_id', 'partner_id', 'company_id', 'currency_id', 'amount_currency', 'analytic_distribution', 'write_date']
+  const mkMove = (type, lines, extra = {}) => q('account.move', 'create', { vals_list: [{ move_type: type, partner_id: partner, invoice_date: '2026-11-03', date: '2026-11-03', invoice_line_ids: lines.map((l) => [0, 0, { name: 'synthetic line', quantity: 1, tax_ids: [[6, 0, []]], ...l }]), ...extra }] })
+  const post = (id) => q('account.move', 'action_post', { ids: [id] })
+  const lines = (moveId, extra = []) => q('account.move.line', 'search_read', { domain: [['move_id', '=', moveId]], fields: ['id', ...LINE_F, 'display_type', 'account_type', ...extra], order: 'id asc' })
+  const typeOf = (v) => (v === false ? 'false' : v === null ? 'null' : Array.isArray(v) ? `array(${v.length}):${typeof v[0]},${typeof v[1]}` : typeof v)
+
+  await sec('V-ODA1', async () => {
+    const bill = await mkMove('in_invoice', [
+      { account_id: expense.id, price_unit: 100.01, analytic_distribution: { [a]: 60, [b]: 40 } },
+      { account_id: expense.id, price_unit: 50, analytic_distribution: { [a]: 100 } },
+      { account_id: expense.id, price_unit: 30, analytic_distribution: { [`${a},${c2}`]: 100 } },
+      { account_id: expense.id, price_unit: 20 },
+    ])
+    const inv = await mkMove('out_invoice', [{ account_id: income.id, price_unit: 200, analytic_distribution: { [a]: 60, [b]: 40 } }])
+    const draftLines = await lines(bill.json?.[0])
+    await post(bill.json[0]); await post(inv.json[0])
+    const bl = await lines(bill.json[0]), il = await lines(inv.json[0])
+    const fields = {}
+    for (const f of LINE_F) fields[f] = [...new Set((bl.json || []).map((x) => typeOf(x[f])))].join('|')
+    record('V-ODA1 account.move.line search_read field list to the bot', 'account.move.line/search_read', bl, bl.status === 200 ? 'verified' : 'wrong', { fieldTypes: fields })
+    const row = (x) => ({ id: x.id, parent_state: x.parent_state, display_type: x.display_type, account_type: x.account_type, debit: x.debit, credit: x.credit, balance: x.balance, amount_currency: x.amount_currency, dist: x.analytic_distribution, move_name_shape: typeof x.move_name === 'string' ? x.move_name.replace(/\d/g, '#') : typeOf(x.move_name), wd: x.write_date, date: x.date })
+    record('V-ODA1 bill rows (draft parent_state)', 'account.move.line/search_read draft', draftLines, 'verified', { rows: (draftLines.json || []).map(row) })
+    record('V-ODA1 bill rows after post', 'account.move.line/search_read', bl, 'verified', { rows: (bl.json || []).map(row) })
+    record('V-ODA1 invoice rows after post', 'account.move.line/search_read', il, 'verified', { rows: (il.json || []).map(row) })
+    record('V-ODA1 distinct display_type / parent_state across the company', 'account.move.line/search_read', bl, 'verified', { groups: (await q('account.move.line', 'search_read', { domain: [['company_id', '=', coA]], fields: ['display_type', 'parent_state', 'account_type'], limit: 500 })).json?.reduce((m, x) => { const k = `${x.display_type}|${x.parent_state}|${x.account_type}`; m[k] = (m[k] || 0) + 1; return m }, {}) })
+    const ptax = await one('account.tax', [['company_id', '=', coA], ['type_tax_use', '=', 'purchase'], ['amount_type', '=', 'percent'], ['amount', '>', 0]], ['id', 'amount'])
+    const taxed = await mkMove('in_invoice', [{ account_id: expense.id, price_unit: 100, tax_ids: [[6, 0, [ptax.id]]], analytic_distribution: { [a]: 100 } }, { display_type: 'line_note', name: 'synthetic note', account_id: false, quantity: 0, tax_ids: false }, { display_type: 'line_section', name: 'synthetic section', account_id: false, quantity: 0, tax_ids: false }])
+    if (taxed.status === 200) await post(taxed.json[0])
+    const tl = taxed.status === 200 ? await lines(taxed.json[0]) : taxed
+    record('V-ODA1 bill with a purchase tax, a note and a section line', 'account.move.line/search_read', tl, tl.status === 200 ? 'verified' : 'wrong', { err: errShape(taxed), rows: (tl.json || []).map((x) => ({ display_type: x.display_type, account_type: x.account_type, account: typeOf(x.account_id), balance: x.balance, dist: x.analytic_distribution })) })
+    globalThis.__bill = bill.json[0]; globalThis.__inv = inv.json[0]
+  })
+
+  await sec('V-ODA6', async () => {
+    const mk = async (label, dist) => { const m = await mkMove('in_invoice', [{ account_id: expense.id, price_unit: 100, analytic_distribution: dist }]); const p = m.status === 200 ? await post(m.json[0]) : m; const l = m.status === 200 ? (await lines(m.json[0])).json?.find((x) => x.analytic_distribution) : null; record(`V-ODA6 ${label}`, 'account.move/create+action_post', p.status === 200 ? p : m, p.status === 200 ? 'verified' : 'refused', { sent: dist, stored: l?.analytic_distribution ?? null, err: errShape(m.status === 200 ? p : m) }) }
+    await mk('single id', { [a]: 100 })
+    await mk('multi-plan key', { [`${a},${c2}`]: 100 })
+    await mk('percentage 50', { [a]: 50 })
+    await mk('percentage 150', { [a]: 150 })
+    await mk('non-project plan only', { [c2]: 100 })
+    await mk('fractional 33.33/66.67', { [a]: 33.33, [b]: 66.67 })
+  })
+
+  await sec('V-ODA2', async () => {
+    const bill = await mkMove('in_invoice', [{ account_id: expense.id, price_unit: 100.01, analytic_distribution: { [a]: 60, [b]: 40 } }])
+    await post(bill.json[0])
+    const ml = (await lines(bill.json[0])).json?.find((x) => x.analytic_distribution)
+    const al = await q('account.analytic.line', 'search_read', { domain: [['move_line_id', '=', ml.id]], fields: ['amount', 'account_id', 'date', 'company_id'] })
+    if (al.status !== 200) return record('V-ODA2 analytic.line read', 'account.analytic.line/search_read', al, 'refused', { err: errShape(al) })
+    const sum = (al.json || []).reduce((s, x) => Math.round((s + x.amount) * 100) / 100, 0)
+    record('V-ODA2 analytic.line amounts for a 60/40 split of 100.01', 'account.analytic.line/search_read', al, al.status === 200 ? 'verified' : 'wrong', { moveLineBalance: ml.balance, analytic: (al.json || []).map((x) => ({ amount: x.amount, account: (Array.isArray(x.account_id) ? x.account_id[0] : x.account_id) === a ? 'A' : (Array.isArray(x.account_id) ? x.account_id[0] : x.account_id) === b ? 'B' : `other:${typeOf(x.account_id)}` })), sum, pmoSplit: { A: Math.round(ml.balance * 0.6 * 100) / 100, B: Math.round((ml.balance - Math.round(ml.balance * 0.6 * 100) / 100) * 100) / 100 } })
+    const odd = await mkMove('in_invoice', [{ account_id: expense.id, price_unit: 0.05, analytic_distribution: { [a]: 50, [b]: 50 } }])
+    await post(odd.json[0])
+    const ol = (await lines(odd.json[0])).json?.find((x) => x.analytic_distribution)
+    const oal = await q('account.analytic.line', 'search_read', { domain: [['move_line_id', '=', ol.id]], fields: ['amount', 'account_id'] })
+    record('V-ODA2 odd cent 0.05 split 50/50', 'account.analytic.line/search_read', oal, 'verified', { balance: ol.balance, amounts: (oal.json || []).map((x) => [(Array.isArray(x.account_id) ? x.account_id[0] : x.account_id) === a ? 'A' : 'B', x.amount]) })
+    const unattr = await mkMove('in_invoice', [{ account_id: expense.id, price_unit: 10 }])
+    await post(unattr.json[0])
+    const ual = await q('account.analytic.line', 'search_read', { domain: [['move_line_id.move_id', '=', unattr.json[0]]], fields: ['id'] })
+    record('V-ODA2 unattributed line writes no analytic.line', 'account.analytic.line/search_read', ual, 'verified', { count: (ual.json || []).length })
+  })
+
+  await sec('V-ODA3', async () => {
+    const r1 = await q('account.account', 'search_read', { domain: [['company_ids', 'in', [coA]]], fields: ['code', 'name', 'company_ids', 'account_type'], limit: 3 })
+    const r2 = await q('account.account', 'search_read', { domain: [['company_ids', 'in', [coB]]], fields: ['code', 'name', 'company_ids'], limit: 3 }, coB)
+    const both = await call('account.account', 'search_read', { domain: [['id', '=', expense.id]], fields: ['code'], context: { allowed_company_ids: [coA, coB], company_id: coB } })
+    const dupA = await q('account.account', 'search_read', { domain: [['company_ids', 'in', [coA]]], fields: ['code'], limit: 1000 })
+    const dupB = await q('account.account', 'search_read', { domain: [['company_ids', 'in', [coB]]], fields: ['code'], limit: 1000 }, coB)
+    const cs = (xs) => xs.map((x) => x.code)
+    const shared = cs(dupA.json || []).filter((c) => cs(dupB.json || []).includes(c))
+    const idsA = new Set((dupA.json || []).map((x) => x.id)), idsB = (await q('account.account', 'search', { domain: [['company_ids', 'in', [coB]]] }, coB)).json || []
+    record('V-ODA3 account.code per company', 'account.account/search_read', r1, r1.status === 200 ? 'verified' : 'wrong', { fields: Object.keys(r1.json?.[0] || {}), codeShapeA: r1.json?.[0]?.code?.replace?.(/\d/g, '#'), sameCodesInBothCompanies: shared.length, totalA: dupA.json?.length, totalB: dupB.json?.length, sameRecordIdsAcrossCompanies: idsB.filter((i) => idsA.has(i)).length, readAccountOfAWithCompanyBcontext: both.json?.[0]?.code ? 'code returned' : both.json, companyIdsShape: typeOf(r1.json?.[0]?.company_ids), bAcct: r2.json?.[0] && Object.keys(r2.json[0]) })
+    const uniq = new Set(cs(dupA.json || [])).size === (dupA.json || []).length
+    record('V-ODA3 code unique within a company', 'account.account/search_read', dupA, uniq ? 'verified' : 'wrong', { uniqueWithinA: uniq })
+  })
+
+  await sec('V-ODA4', async () => {
+    const f = ['fiscalyear_last_month', 'fiscalyear_last_day', 'fiscalyear_lock_date', 'tax_lock_date', 'sale_lock_date', 'purchase_lock_date', 'hard_lock_date', 'period_lock_date']
+    const out = {}
+    for (const k of f) { const r = await q('res.company', 'read', { ids: [coA], fields: [k] }); out[k] = r.status === 200 ? typeOf(r.json?.[0]?.[k]) + ':' + JSON.stringify(r.json?.[0]?.[k]) : `HTTP ${r.status} ${r.json?.name || ''}` }
+    const all = await q('res.company', 'fields_get', { attributes: ['type'] })
+    out.lockLikeFields = Object.keys(all.json || {}).filter((k) => /lock_date|fiscalyear/.test(k))
+    record('V-ODA4 res.company fiscal-year and lock fields', 'res.company/read', { status: 200, json: out }, 'verified', out)
+  })
+
+  await sec('V-ODA5', async () => {
+    const dom = [['company_id', '=', coA], ['parent_state', '=', 'posted']]
+    const tries = {
+      formatted_read_group: ['account.move.line', 'formatted_read_group', { domain: dom, groupby: ['account_id'], aggregates: ['debit:sum', 'credit:sum'] }],
+      read_group: ['account.move.line', 'read_group', { domain: dom, fields: ['debit:sum', 'credit:sum'], groupby: ['account_id'], lazy: false }],
+      _read_group: ['account.move.line', '_read_group', { domain: dom, groupby: ['account_id'], aggregates: ['debit:sum', 'credit:sum'] }],
+    }
+    for (const [k, [m, me, body]] of Object.entries(tries)) {
+      const r = await q(m, me, body)
+      record(`V-ODA5 ${k} by account_id`, `${m}/${me}`, r, r.status === 200 ? 'works' : `refused (${r.status})`, { err: errShape(r), groups: Array.isArray(r.json) ? r.json.length : null, first: Array.isArray(r.json) ? r.json[0] : null })
+    }
+    const lim = await q('account.move.line', 'formatted_read_group', { domain: dom, groupby: ['account_id'], aggregates: ['debit:sum', 'credit:sum'], limit: 2 })
+    record('V-ODA5 formatted_read_group limit=2', 'account.move.line/formatted_read_group', lim, 'verified', { groups: Array.isArray(lim.json) ? lim.json.length : null })
+    const byMonth = await q('account.move.line', 'formatted_read_group', { domain: dom, groupby: ['account_id', 'date:month'], aggregates: ['balance:sum'] })
+    record('V-ODA5 groupby account_id + date:month, balance:sum', 'account.move.line/formatted_read_group', byMonth, byMonth.status === 200 ? 'works' : `refused (${byMonth.status})`, { err: errShape(byMonth), first: Array.isArray(byMonth.json) ? byMonth.json[0] : null })
+  })
+
+  await sec('V-ODA9', async () => {
+    for (const m of ['account.report', 'account.financial.report', 'account.common.report', 'account.report.line', 'account.balance.report', 'account.report.expression']) {
+      const r = await q(m, 'search_read', { domain: [], fields: ['id'], limit: 1 })
+      record(`V-ODA9 ${m}`, `${m}/search_read`, r, r.status === 200 ? 'REACHABLE' : `refused (${r.status})`, { err: errShape(r), rows: Array.isArray(r.json) ? r.json.length : null })
+    }
+    const rep = await q('account.report', 'search_read', { domain: [], fields: ['id', 'name', 'country_id', 'root_report_id', 'section_report_ids', 'line_ids', 'column_ids'] })
+    record('V-ODA9 account.report records and their lines', 'account.report/search_read', rep, rep.status === 200 ? 'verified' : 'refused', { rows: rep.json, err: errShape(rep) })
+    const fg = await q('account.report', 'fields_get', { attributes: ['type'] })
+    record('V-ODA9 account.report field names', 'account.report/fields_get', fg, 'verified', { fields: Object.keys(fg.json || {}).slice(0, 60) })
+    for (const me of ['get_report_information', 'get_options', 'export_to_pdf', 'action_open_report', 'get_expressions_to_audit', 'get_available_variants']) {
+      const r = await q('account.report', me, { ids: (rep.json || []).map((x) => x.id) })
+      record(`V-ODA9 account.report/${me}`, `account.report/${me}`, r, r.status === 200 ? 'CALLABLE' : `refused (${r.status})`, { err: errShape(r) })
+    }
+    const am = await q('account.move.line', 'get_report_data', { ids: [] })
+    record('V-ODA9 account.move.line/get_report_data (any stock report helper)', 'account.move.line/get_report_data', am, `HTTP ${am.status}`, { err: errShape(am) })
+    const mods = await q('ir.model', 'search_read', { domain: ['|', '|', ['model', 'ilike', 'report'], ['model', 'ilike', 'trial'], ['model', 'ilike', 'financial']], fields: ['model'], limit: 200 })
+    record('V-ODA9 accounting-report-like models present', 'ir.model/search_read', mods, 'verified', { accountModels: (mods.json || []).map((x) => x.model).filter((x) => x.startsWith('account.')) })
+    const rm = await q('ir.module.module', 'search_read', { domain: [['name', 'in', ['account_reports', 'account_accountant', 'accountant']]], fields: ['name', 'state'] })
+    record('V-ODA9 enterprise reporting modules', 'ir.module.module/search_read', rm, 'verified', { found: rm.json })
+  })
+
+  await sec('V-ODA7', async () => {
+    const vol = (await call('res.company', 'search_read', { domain: [['name', '=', 'PT Volume Uji']], fields: ['id'], limit: 1 })).json?.[0]?.id
+    if (!vol) return record('V-ODA7', 'n/a', { status: 0, json: null }, 'no volume company: run scripts/odoo-bed/load-ledger.mjs first')
+    const vq = (m, me, b = {}) => call(m, me, { ...b, context: { allowed_company_ids: [vol], company_id: vol } })
+    const total = (await vq('account.move.line', 'search_count', { domain: [['company_id', '=', vol]] })).json
+    const F = ['id', ...LINE_F]
+    for (const limit of [200, 1000]) {
+      const ms = []; let cursor = ['1970-01-01 00:00:00', 0], seen = 0, calls = 0
+      const t0 = Date.now()
+      while (calls < 60 && Date.now() - t0 < 100000) {
+        const dom = [['company_id', '=', vol], '|', ['write_date', '>', cursor[0]], '&', ['write_date', '=', cursor[0]], ['id', '>', cursor[1]]]
+        const t = Date.now()
+        const r = await vq('account.move.line', 'search_read', { domain: dom, fields: F, order: 'write_date asc, id asc', limit })
+        ms.push(Date.now() - t); calls++
+        if (r.status !== 200 || !r.json.length) break
+        seen += r.json.length
+        const last = r.json[r.json.length - 1]; cursor = [last.write_date, last.id]
+      }
+      ms.sort((x, y) => x - y)
+      record(`V-ODA7 keyset pages at ${limit}`, 'account.move.line/search_read', { status: 200, json: {} }, 'verified', { limit, totalLines: total, calls, linesRead: seen, totalMs: Date.now() - t0, p50Ms: ms[Math.floor(ms.length / 2)], p95Ms: ms[Math.floor(ms.length * 0.95)], maxMs: ms[ms.length - 1], linesPerCallAvg: Math.round(seen / calls) })
+    }
+    for (const [label, groupby] of [['account_id', ['account_id']], ['account_id + date:month', ['account_id', 'date:month']]]) {
+      const t = Date.now()
+      const r = await vq('account.move.line', 'formatted_read_group', { domain: [['company_id', '=', vol], ['parent_state', '=', 'posted']], groupby, aggregates: ['debit:sum', 'credit:sum'] })
+      record(`V-ODA7 grouped read by ${label} over the whole company`, 'account.move.line/formatted_read_group', r, r.status === 200 ? 'verified' : 'wrong', { ms: Date.now() - t, groups: Array.isArray(r.json) ? r.json.length : null, err: errShape(r) })
+    }
+    const t = Date.now()
+    const ids = await vq('account.move.line', 'search', { domain: [['company_id', '=', vol], ['id', '>', 0]], order: 'id asc', limit: 5000 })
+    record('V-ODA7 id sweep (search ids, limit 5000)', 'account.move.line/search', ids, ids.status === 200 ? 'verified' : 'wrong', { ms: Date.now() - t, ids: Array.isArray(ids.json) ? ids.json.length : null })
+  })
+
+  const mkUser = (label, groups) => {
+    const script = `from datetime import datetime, timedelta
+import json
+env = self.env
+gs = [g for g in ${JSON.stringify(groups)} if env.ref(g, raise_if_not_found=False)]
+u = env['res.users'].sudo().with_context(no_reset_password=True).create({'name': 'Synthetic ${label} ${run}', 'login': 'synthetic-${label}-${run}', 'group_ids': [(6, 0, [env.ref(g).id for g in gs])], 'company_ids': [(6, 0, [${coA}])], 'company_id': ${coA}})
+k = env['res.users.apikeys'].with_user(u)._generate('rpc', 'synthetic probe', datetime.now() + timedelta(hours=20))
+env.cr.commit()
+print('PROBE_USER=' + json.dumps({'id': u.id, 'key': k, 'missing': [g for g in ${JSON.stringify(groups)} if g not in gs]}))
+`
+    const out = spawnSync('docker', ['exec', '-i', 'pmo-odoo-odoo-1', 'sh', '-c', `odoo shell -d ${probeDatabase} --no-http --db_host="$HOST" --db_user="$USER" --db_password="$PASSWORD"`], { input: script, encoding: 'utf8' })
+    try { return JSON.parse(out.stdout.split('\n').find((x) => x.startsWith('PROBE_USER=')).slice('PROBE_USER='.length)) } catch { return { failed: String(out.stderr || out.stdout).split('\n').filter(Boolean).slice(-1)[0]?.replace(/\d+/g, '#').slice(0, 140) } }
+  }
+  await sec('V-ODA10', async () => {
+    const sets = {
+      internalOnly: ['base.group_user'],
+      billing: ['base.group_user', 'account.group_account_invoice'],
+      readonly: ['base.group_user', 'account.group_account_readonly'],
+      accountant: ['base.group_user', 'account.group_account_user'],
+    }
+    for (const [name, groups] of Object.entries(sets)) {
+      const u = mkUser(name, groups)
+      if (!u || u.failed) { record(`V-ODA10 ${name}`, 'res.users/create', { status: 0, json: null }, 'user creation failed', { reason: u?.failed }); continue }
+      const as = (m, me, b = {}) => call(m, me, { ...b, context: { allowed_company_ids: [coA], company_id: coA } }, { key: u.key })
+      const calls = {
+        'move.line search_read (S1 field list)': () => as('account.move.line', 'search_read', { domain: [['company_id', '=', coA]], fields: ['id', ...LINE_F], order: 'write_date asc, id asc', limit: 200 }),
+        'move.line keyset 1000': () => as('account.move.line', 'search_read', { domain: [['company_id', '=', coA], ['write_date', '>=', '2000-01-01 00:00:00']], fields: ['id', 'write_date'], order: 'write_date asc, id asc', limit: 1000 }),
+        'move.line formatted_read_group': () => as('account.move.line', 'formatted_read_group', { domain: [['company_id', '=', coA], ['parent_state', '=', 'posted']], groupby: ['account_id'], aggregates: ['debit:sum', 'credit:sum'] }),
+        'account.account search_read': () => as('account.account', 'search_read', { domain: [['company_ids', 'in', [coA]]], fields: ['id', 'code', 'name', 'account_type'], limit: 5 }),
+        'analytic.account search_read': () => as('account.analytic.account', 'search_read', { domain: [], fields: ['id', 'name', 'plan_id'], limit: 5 }),
+        'res.company read fiscal fields': () => as('res.company', 'read', { ids: [coA], fields: ['fiscalyear_last_month', 'fiscalyear_last_day'] }),
+        'account.move search_read': () => as('account.move', 'search_read', { domain: [['company_id', '=', coA]], fields: ['id', 'name', 'move_type', 'state', 'write_date'], limit: 5 }),
+      }
+      const res = []
+      for (const [k, f] of Object.entries(calls)) res.push([k, (await f()).status])
+      const bad = res.filter(([, st]) => st !== 200).map(([k, st]) => `${k}:${st}`)
+      record(`V-ODA10 group set: ${name}`, `${res.length} read calls`, { status: 200, json: {} }, bad.length ? `refused: ${bad.join(', ')}` : 'all calls passed', { groups, missingGroups: u.missing })
+    }
+  })
+
+  await sec('V-ODA8', async () => {
+    const WD = ['write_date', 'parent_state', 'move_id']
+    const snap = async (label, moveIds, extra = {}) => {
+      const rows = (await q('account.move.line', 'search_read', { domain: [['move_id', 'in', moveIds]], fields: ['id', 'write_date', 'parent_state', 'move_id', 'balance', 'move_name'], order: 'id asc' })).json || []
+      const mv = (await q('account.move', 'read', { ids: moveIds, fields: ['state', 'write_date', 'reversed_entry_id'] })).json || []
+      return { label, lines: rows.map((x) => ({ id: x.id, move: x.move_id?.[0], name: typeof x.move_name === 'string' ? 'str' : String(x.move_name), ps: x.parent_state, wd: x.write_date, bal: x.balance })), moves: mv.map((x) => ({ id: x.id, state: x.state, wd: x.write_date, rev: x.reversed_entry_id?.[0] ?? null })), ...extra }
+    }
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+    const fresh = async () => { const m = await mkMove('in_invoice', [{ account_id: expense.id, price_unit: 100, analytic_distribution: { [a]: 100 } }]); await post(m.json[0]); return m.json[0] }
+    // reverse
+    let id = await fresh(); let before = await snap('before', [id]); await sleep(1100)
+    const rctx = { active_model: 'account.move', active_ids: [id] }
+    const src = await rd('account.move', id, ['journal_id', 'company_id'])
+    const w = await q('account.move.reversal', 'create', { vals_list: [{ reason: 'synthetic', journal_id: src.journal_id[0], company_id: src.company_id[0] }], context: rctx })
+    const rf = await q('account.move.reversal', 'refund_moves', { ids: w.json, context: rctx })
+    const revId = rf.json?.res_id
+    if (revId) await post(revId)
+    record('V-ODA8 reverse (credit note then post)', 'account.move.reversal/refund_moves', rf, rf.status === 200 ? 'verified' : 'wrong', { before, after: await snap('after', [id, revId].filter(Boolean)) })
+    // reset to draft + repost
+    id = await fresh(); before = await snap('before', [id]); await sleep(1100)
+    const bd = await q('account.move', 'button_draft', { ids: [id] })
+    const asDraft = await snap('draft', [id])
+    await sleep(1100)
+    await q('account.move.line', 'write', { ids: (await lines(id)).json.filter((x) => x.analytic_distribution).map((x) => x.id), vals: { price_unit: 150 } }).catch(() => null)
+    const rp = await post(id)
+    record('V-ODA8 reset to draft then repost', 'account.move/button_draft+action_post', bd, bd.status === 200 && rp.status === 200 ? 'verified' : 'wrong', { before, draft: asDraft, after: await snap('after', [id]), err: errShape(bd) || errShape(rp) })
+    // cancel
+    id = await fresh(); before = await snap('before', [id]); await sleep(1100)
+    const bc = await q('account.move', 'button_cancel', { ids: [id] })
+    record('V-ODA8 cancel a posted bill', 'account.move/button_cancel', bc, bc.status === 200 ? 'verified' : 'refused', { before, after: await snap('after', [id]), err: errShape(bc) })
+    // delete a draft
+    const d = await mkMove('in_invoice', [{ account_id: expense.id, price_unit: 100, analytic_distribution: { [a]: 100 } }])
+    const dl = (await lines(d.json[0])).json.map((x) => x.id)
+    const beforeGone = await snap('before', [d.json[0]])
+    const un = await q('account.move', 'unlink', { ids: d.json })
+    const gone = await q('account.move.line', 'search', { domain: [['id', 'in', dl]] })
+    record('V-ODA8 hard delete of a draft', 'account.move/unlink', un, un.status === 200 ? 'verified' : 'refused', { before: beforeGone, linesAfter: gone.json, err: errShape(un) })
+    // posted delete
+    const pd = await fresh(); const un2 = await q('account.move', 'unlink', { ids: [pd] })
+    record('V-ODA8 delete a posted bill', 'account.move/unlink', un2, un2.status === 200 ? 'DELETED' : 'refused', { err: errShape(un2) })
+    // keyset sees: a cursor taken before the change, what rows come back with write_date > cursor
+    const cur = (await q('account.move.line', 'search_read', { domain: [['company_id', '=', coA]], fields: ['write_date'], order: 'write_date desc, id desc', limit: 1 })).json?.[0]?.write_date
+    await sleep(1100)
+    const k = await fresh(); await sleep(1100); await q('account.move', 'button_draft', { ids: [k] })
+    const seen = await q('account.move.line', 'search_read', { domain: [['company_id', '=', coA], ['write_date', '>', cur]], fields: ['id', 'parent_state', 'move_id'], order: 'write_date asc, id asc' })
+    record('V-ODA8 keyset after a post then reset-to-draft sees', 'account.move.line/search_read write_date > cursor', seen, 'verified', { rows: (seen.json || []).map((x) => ({ ps: x.parent_state, sameMove: x.move_id?.[0] === k })) })
+  })
+
+  await sec('V-ODA11', async () => {
+    const opening = await q('account.move', 'create', { vals_list: [{ move_type: 'entry', date: '2026-01-01', ref: 'synthetic opening balance', line_ids: [
+      [0, 0, { account_id: (await one('account.account', [['account_type', '=', 'asset_current'], ['company_ids', 'in', [coA]]], ['id'])).id, debit: 5000, credit: 0, name: 'synthetic opening' }],
+      [0, 0, { account_id: (await one('account.account', [['account_type', '=', 'equity'], ['company_ids', 'in', [coA]]], ['id'])).id, debit: 0, credit: 5000, name: 'synthetic opening' }],
+    ] }] })
+    const op = opening.status === 200 ? await post(opening.json[0]) : opening
+    const L = ['date', 'parent_state', 'debit', 'credit', 'balance', 'account_id', 'journal_id', 'account_type', 'display_type', 'move_type']
+    const ol = opening.status === 200 ? await q('account.move.line', 'search_read', { domain: [['move_id', '=', opening.json[0]]], fields: L }) : opening
+    const journal = opening.status === 200 ? await rd('account.move', opening.json[0], ['journal_id']) : null
+    const jt = journal ? await rd('account.journal', journal.journal_id[0], ['type', 'code']) : null
+    record('V-ODA11 opening balance entry (misc journal, entry)', 'account.move/create+action_post', op, op.status === 200 ? 'verified' : 'wrong', { journalType: jt?.type, rows: (ol.json || []).map((x) => ({ ps: x.parent_state, account_type: x.account_type, display_type: x.display_type, move_type: x.move_type, debit: x.debit, credit: x.credit, date: x.date })), err: errShape(opening) || errShape(op) })
+    const types = await q('account.account', 'fields_get', { attributes: ['selection'] })
+    record('V-ODA11 account_type values', 'account.account/fields_get', types, 'verified', { accountTypes: (types.json?.account_type?.selection || []).map((x) => x[0]) })
+    const unaff = await one('account.account', [['account_type', '=', 'equity_unaffected'], ['company_ids', 'in', [coA]]], ['id', 'code'])
+    const profit = await one('account.account', [['account_type', '=', 'income'], ['company_ids', 'in', [coA]]], ['id'])
+    // year-end style closing: a manual entry moving the year's income to equity_unaffected on 31 Dec
+    const inc = await mkMove('out_invoice', [{ account_id: income.id, price_unit: 700 }], { invoice_date: '2025-12-15', date: '2025-12-15' })
+    if (inc.status === 200) await post(inc.json[0])
+    const close = await q('account.move', 'create', { vals_list: [{ move_type: 'entry', date: '2025-12-31', ref: 'synthetic year-end closing', line_ids: [
+      [0, 0, { account_id: income.id, debit: 700, credit: 0, name: 'synthetic closing' }],
+      [0, 0, { account_id: unaff.id, debit: 0, credit: 700, name: 'synthetic closing' }],
+    ] }] })
+    const cp = close.status === 200 ? await post(close.json[0]) : close
+    const cl = close.status === 200 ? await q('account.move.line', 'search_read', { domain: [['move_id', '=', close.json[0]]], fields: L }) : close
+    record('V-ODA11 manual year-end closing to equity_unaffected', 'account.move/create+action_post', cp, cp.status === 200 ? 'verified' : 'wrong', { unaffectedCodeShape: unaff?.code?.replace?.(/\d/g, '#'), rows: (cl.json || []).map((x) => ({ ps: x.parent_state, account_type: x.account_type, debit: x.debit, credit: x.credit, date: x.date })), err: errShape(close) || errShape(cp) })
+    const bal = await q('account.move.line', 'formatted_read_group', { domain: [['company_id', '=', coA], ['parent_state', '=', 'posted'], ['date', '<=', '2025-12-31']], groupby: ['account_type'], aggregates: ['balance:sum'] })
+    record('V-ODA11 cumulative balance by account_type to 2025-12-31', 'account.move.line/formatted_read_group', bal, bal.status === 200 ? 'verified' : 'wrong', { groups: bal.json })
+    const closeWizard = await q('res.company', 'fields_get', { attributes: ['string'] })
+    record('V-ODA11 stock year-end close entry creator on res.company', 'res.company/fields_get', closeWizard, 'verified', { yearEndLike: Object.keys(closeWizard.json || {}).filter((k) => /year|close|lock/.test(k)) })
+  })
+
+  for (const x of results) console.log(JSON.stringify(x))
+  process.exit(0)
+}
+
 // 1. endpoint + auth
 let r = await call('res.partner', 'search_read', { domain: [['is_company', '=', true]], fields: ['name', 'email', 'vat', 'write_date'], limit: 2 })
 record('JSON-2 POST /json/2/{model}/{method} with bearer key returns 200 + list', 'res.partner/search_read', r, r.status === 200 && Array.isArray(r.json) ? 'verified' : 'wrong')

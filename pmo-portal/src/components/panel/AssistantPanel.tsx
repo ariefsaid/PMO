@@ -109,7 +109,8 @@ const OutOfCreditsCard: React.FC = () => (
 
 export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement | null> }> = ({ openerRef }) => {
   const {
-    consumePrefill,
+    pendingPrefill,
+    clearPrefill,
     open,
     transcript,
     phase,
@@ -130,25 +131,24 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
     lastProgressAt,
     hasPendingQuestion,
     openThread,
-    prefillVersion,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
   const panelRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
-  const [composerValue, setComposerValue] = React.useState('');
+  const [composerValue, setComposerValue] = React.useState(pendingPrefill ?? '');
   const [pendingAttachmentIds, setPendingAttachmentIds] = React.useState<string[]>([]);
   const titleId = useId();
   const attachments = useAgentAttachments(null);
 
   useEffect(() => {
     if (!open) return;
-    const prefill = consumePrefill();
-    if (!prefill) return;
-    setComposerValue(prefill);
+    // The draft is held in the runtime context, so it survives the lazy chunk mounting after openPanel(prefill).
+    if (!pendingPrefill) return;
+    setComposerValue(pendingPrefill);
     const textarea = panelRef.current?.querySelector<HTMLTextAreaElement>('textarea');
     textarea?.focus();
-  }, [open, prefillVersion, consumePrefill]);
+  }, [open, pendingPrefill]);
 
   // ── Drawer UX (Track D, §2.5) — resizable width + dock/overlay mode ─────
   // Desktop-only (D1/D3 guard via isDesktop below); per-device localStorage
@@ -382,12 +382,13 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
     const text = composerValue;
     const attachmentIds = pendingAttachmentIds;
     setComposerValue('');
+    clearPrefill();
     setPendingAttachmentIds([]);
     void send(text, {
       attachmentIds,
       threadId: attachments.threadId ?? undefined,
     });
-  }, [attachments.isUploading, attachments.threadId, composerValue, pendingAttachmentIds, phase, send]);
+  }, [attachments.isUploading, attachments.threadId, clearPrefill, composerValue, pendingAttachmentIds, phase, send]);
 
   const handleStop = useCallback(() => {
     void stop();

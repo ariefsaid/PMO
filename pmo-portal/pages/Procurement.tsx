@@ -25,7 +25,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
-import { withLinkedDocuments } from './procurement/blocks/procurementMoney';
+import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { ProcurementBlock } from '@/src/components/procurement';
@@ -40,8 +40,8 @@ import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorking
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
-import type { StageKey } from './procurement/blocks/stage';
-import { matchesSearch, matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from './procurement/list/model';
+import type { StageKey } from '@/src/lib/procurement/stage';
+import { matchesSearch, matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
 import { tabId, tabPanelId } from '@/src/components/ui/tabIds';
 

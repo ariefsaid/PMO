@@ -25,8 +25,22 @@ describe('getProjectsMoneyCollection (AC-S02-001..006)', () => {
     expect(result.p1).toEqual({
       ledgerBasis: 'erp',
       actuals: { currency: 'USD', total: '125.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: true,
-        complete: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }, { category: 'Materials', mapped: false, amount: null }] },
+        complete: false, committedTotal: null, committedComplete: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '125.00' }, { category: 'Materials', mapped: false, amount: null }] },
       activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    });
+  });
+
+  it('AC-1739-02: carries the PMO open commitment beside the spent total', async () => {
+    h.result = { data: [{
+      project_id: 'half-paid', ledger_basis: 'pmo',
+      actuals: { currency: 'USD', total: '500.00', as_of: null, excludes_restricted_rows: false, complete: true,
+        committed_total: '500.00', committed_complete: true, categories: [] },
+      active_budget_amount: '5000.00', active_budget_currency: 'USD', has_active_budget: true,
+    }], error: null };
+    const result = await getProjectsMoneyCollection(['half-paid']);
+    expect(result['half-paid'].actuals).toMatchObject({
+      total: '500.00', complete: true, committedTotal: '500.00', committedComplete: true,
     });
   });
 

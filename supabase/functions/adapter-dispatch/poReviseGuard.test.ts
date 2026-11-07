@@ -18,6 +18,11 @@ Deno.test('AC-SCA-012 a revise that would cancel a PO with a submitted bill is r
   assertEquals(c.calls[0], { p_org: ORG, p_po_id: PO, p_revision: 2, p_revise_cancels: true });
 });
 
+Deno.test('AC-SCA-012 a stale issued revision is refused as superseded, before any ERP write', async () => {
+  const r = await checkPoRevise(rpcClient('revision_superseded'), ORG, { poId: PO, revision: 1 }, { reviseCancels: false });
+  assertEquals(r, { ok: false, status: 422, message: 'revision_superseded' });
+});
+
 Deno.test('AC-SCA-012 a revise the database allows passes', async () => {
   assertEquals(await checkPoRevise(rpcClient(null), ORG, { poId: PO, revision: 2 }, { reviseCancels: false }),
     { ok: true, status: 200, message: '' });

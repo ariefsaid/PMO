@@ -20,11 +20,11 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useO
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({}) }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({}) }));
 vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, selectSupplierInvoices: () => undefined }));
-vi.mock('@/pages/procurement/blocks/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
+vi.mock('@/src/lib/procurement/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
 
 import { useCompanyFigures } from './useCompanyFigures';
 
 it('shows the collected KPI for fractional receipts in the selected period', () => {
   const { result } = renderHook(() => useCompanyFigures({ key: 'custom', label: 'January', from: '2026-01', to: '2026-01' }));
-  expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({ value: '$1', lines: ['$1'], href: '/finance/receivables?view=payments' });
+  expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({ value: '$1', lines: ['$1'], href: '/finance/receivables?view=payments&status=Paid&from=2026-01&to=2026-01' });
 });

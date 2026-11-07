@@ -71,6 +71,24 @@ describe('BvACard (Exec — real top_projects)', () => {
     expect(within(ok).queryByText(/At risk/i)).toBeNull();
   });
 
+  it('#1739: the risk signal is budget consumption (spent + open commitment), never spent alone', () => {
+    // A half-paid 1,000 purchase of a 1,000 budget: 500 spent and 500 still committed consumes the whole budget,
+    // so the pill must show — the same rule the Projects list and the server's count use.
+    renderCard([{
+      ...projects[0], id: 'half-paid', name: 'Half-paid project', contract_value: 10_000,
+      budget: 1_000, spent: 500, committed: 500, committed_complete: true,
+    }]);
+    const row = screen.getByText('Half-paid project').closest('[data-row]') as HTMLElement;
+    expect(within(row).getByText(/At risk/i)).toBeInTheDocument();
+    // A readable spent figure with a withheld commitment is not reported as risk (unknown is not zero).
+    renderCard([{
+      ...projects[0], id: 'half-paid-unknown', name: 'Unknown commitment project', contract_value: 10_000,
+      budget: 1_000, spent: 500, committed: 500, committed_complete: false,
+    }]);
+    const unknown = screen.getByText('Unknown commitment project').closest('[data-row]') as HTMLElement;
+    expect(within(unknown).queryByText(/At risk/i)).toBeNull();
+  });
+
   it('labels the whole section for assistive tech', () => {
     renderCard();
     expect(screen.getByRole('group', { name: /Spending vs contract/i })).toBeInTheDocument();
