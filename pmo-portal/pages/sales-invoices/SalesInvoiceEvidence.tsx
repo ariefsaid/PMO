@@ -195,6 +195,12 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
           <dd className="mt-1 break-words">{invoice.efaktur_number}{invoice.efaktur_date ? ` · ${formatDateOnly(invoice.efaktur_date)}` : ''}</dd>
         </dl>
       )}
+      {odoo && (
+        <dl className="mt-4 border-t border-border/70 pt-3 text-sm" data-testid="odoo-tax-document">
+          <dt className="text-xs font-medium text-muted-foreground">{t('finance:odooOutcome.taxDocument', 'Tax document')}</dt>
+          <dd className="mt-1 text-sm text-muted-foreground">{t('finance:odooOutcome.taxDocumentUnavailable', 'Tax documents are unavailable in Odoo.')}</dd>
+        </dl>
+      )}
     </section>
   );
 };

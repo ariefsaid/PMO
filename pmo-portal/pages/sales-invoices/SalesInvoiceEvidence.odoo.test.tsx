@@ -60,7 +60,7 @@ describe('AC-OCI-090/091 Sales invoice evidence', () => {
     mount();
     expect(screen.getByText('In Odoo')).toBeInTheDocument();
     expect(screen.getByText(/Read/)).toBeInTheDocument();
-    expect(screen.queryByText(/tax document/i)).toBeNull();
+    expect(screen.queryByText(/held by odoo/i)).toBeNull();
   });
 
   it('shows a held invoice and its next step in plain words, once', () => {
@@ -128,5 +128,15 @@ describe('AC-OCI-090/091 review fixes', () => {
     mount(invoice({ odoo_attention: 'total-mismatch', odoo_sent_total: 100 }));
     expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/not what PMO sent/);
     expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/PMO sent.*100/);
+  });
+});
+
+describe('AC-OCI-082b/083 Tax document absence', () => {
+  it('renders the tax document as unavailable in plain words and offers no download control', () => {
+    mount();
+    expect(screen.getByText('Tax document')).toBeInTheDocument();
+    expect(screen.getByText('Tax documents are unavailable in Odoo.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /download/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /download/i })).toBeNull();
   });
 });

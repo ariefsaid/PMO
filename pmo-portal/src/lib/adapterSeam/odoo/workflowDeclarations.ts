@@ -17,6 +17,9 @@ const ODOO_LABOUR = 1510;
 const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
 const ODOO_REVENUE_CUTOVER = 1602;
 
+/** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
+export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
+
 export const ODOO_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
   'party.match': { status: 'supported', version: 2 },
@@ -42,7 +45,7 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'receipt.read': { status: 'supported', version: 1 },
   'invoice.pair-existing': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'cutover.revenue': { status: 'pending', version: 1, issue: ODOO_REVENUE_CUTOVER },
-  'tax-document.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
+  'tax-document.read': { status: 'unavailable', version: 1, reason: ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON },
   'actuals.read': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'budget.push': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   // O4 decides: Odoo Community has no budget object (DD-ODC-5), so this likely becomes unavailable.

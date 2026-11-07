@@ -676,6 +676,8 @@
     "creditNotes": "Credit notes",
     "amountUnavailable": "Amount not available",
     "creditNotesUnavailable": "Credit notes could not be read right now.",
+    "taxDocument": "Tax document",
+    "taxDocumentUnavailable": "Tax documents are unavailable in Odoo.",
     "next": {
       "pending": "Odoo has not confirmed it yet. PMO checks again by itself; there is nothing to do.",
       "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
