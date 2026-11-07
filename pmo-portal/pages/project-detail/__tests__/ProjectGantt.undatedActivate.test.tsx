@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * C-PD-1 — Gantt undated task chips must be activatable when onActivateTask is provided.
  * AC-C-PD-1: undated chips contain a native button/focus ring and fire onActivateTask(task).

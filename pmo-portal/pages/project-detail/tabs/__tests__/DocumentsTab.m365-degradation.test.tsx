@@ -86,7 +86,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     h.getItem.mockRejectedValue(Object.assign(new Error('synthetic-raw-secret token=abc'), { code: 'GRAPH_ERROR' }));
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Make new revision from latest file update' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision from updated file' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/synthetic-raw-secret/)).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /New revision/ })).not.toBeInTheDocument();
@@ -98,7 +98,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     h.getItem.mockRejectedValue(new TypeError('Failed to fetch'));
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Make new revision from latest file update' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision from updated file' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
     expect(within(screen.getByRole('complementary')).getByText(/Checked/)).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     h.getItem.mockResolvedValue({ drive_id: 'd', item_id: 'i', web_url: 'https://contoso.sharepoint.com/x', name: 'Folder', item_kind: 'folder' });
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Make new revision from latest file update' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision from updated file' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
     expect(h.createRevision).not.toHaveBeenCalled();
   });

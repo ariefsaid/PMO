@@ -576,3 +576,20 @@ Deno.test('AC-OPP-062 a tick that runs out of time while a candidate builds is c
 
   assertEquals([dispatched, result.budgetExhausted], [0, true]);
 });
+
+Deno.test('#1504 S8-T3 a master send (seed:<kind>:<id>) is never replayed by either Odoo recovery pass: the send drain alone drives it', async () => {
+  const seeds = ['companies', 'projects', 'items'].map((domain, i) => candidate(String(i + 1), { erp_doc_kind: 'purchase-order', verb: 'submit' }, {
+    row: { ...row(String(i + 1), 'quarantined', domain), idempotencyKey: `seed:party:record-${i + 1}` },
+  }));
+  const built: string[] = [];
+  const procurementResult = await reconcileOdooProcurementCandidates(seeds, { orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0 }, async (item) => {
+    built.push(item.row.id);
+    return deps;
+  }, async () => false, async () => ({}));
+  const revenueResult = await reconcileOdooRevenueCandidates(seeds as unknown as OdooRevenueCandidate[], { orgId: 'org-a', ownsRevenue: true }, async (item) => {
+    built.push(item.row.id);
+    return deps;
+  }, async () => ({}));
+  assertEquals(built, []);
+  assertEquals([procurementResult.reconciled, revenueResult.reconciled], [0, 0]);
+});

@@ -94,6 +94,8 @@ export const ALL_ITEMS: NavItem[] = [
   // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
   // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
   // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
+  // #1982: Calendar — what is due across projects. Reads are RLS-scoped, so every role gets it.
+  { to: '/calendar', text: 'Calendar', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Finance section — gated by the relevant org entitlements. OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
@@ -167,11 +169,11 @@ export interface RailProps {
   onPreloadHref?: (href: string) => void;
 }
 
-export const Rail: React.FC<RailProps> = (props) => {
+export const Rail: React.FC<RailProps> = React.memo(function Rail(props) {
   const auth = useContext(AuthContext);
   const { effectiveRole } = useEffectiveRole();
   return auth && effectiveRole === 'Engineer' ? <RailWithTimesheetEligibility {...props} /> : <RailContent {...props} />;
-};
+});
 
 const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
   const pending = useTimesheetsAwaitingApproval();
@@ -256,6 +258,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/contacts': t('shell.nav.contacts', 'Contacts'),
     '/incidents': t('shell.nav.incidents', 'Incidents'),
     '/meetings': t('shell.nav.meetings', 'Meetings'),
+    '/calendar': t('shell.nav.calendar', 'Calendar'),
     '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),

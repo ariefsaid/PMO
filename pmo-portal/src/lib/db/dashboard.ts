@@ -21,6 +21,14 @@ export interface TopProject {
   currency: string;
   budget: number | null;
   spent: number | null;
+  /**
+   * #1739 (0700): the PMO open commitment — the unpaid remainder of the project's committed purchases (the Budget
+   * tab's Committed). Null/absent for an ERP-ledger org, whose Actual is the ledger figure. Budget consumption is
+   * spent + this; a surface showing "at risk" must use that sum, never spent alone.
+   */
+  committed?: number | null;
+  /** Whether every committed purchase was readable in the project currency; false withholds the commitment. */
+  committed_complete?: boolean;
   actual_currency?: string | null;
   actual_complete?: boolean;
   budget_currency?: string | null;
@@ -28,6 +36,26 @@ export interface TopProject {
   actual_coverage_total?: number | null;
   realized_margin?: number | null;
   status: ProjectStatus;
+}
+
+/**
+ * #1418: one row of the Delivery list, ranked server-side over the WHOLE active population by how much it needs
+ * attention. The ranking order is the array order — never re-sorted by the client.
+ */
+export interface AttentionProject extends TopProject {
+  /** Distinct signal kinds present: overdue work, over budget, waiting approvals (0–3). The primary sort key. */
+  attention_signals: number;
+  /** Overdue tasks + overdue milestones + overdue client invoices. */
+  overdue_items: number;
+  overdue_tasks: number;
+  overdue_milestones: number;
+  overdue_invoices: number;
+  /** Project-scoped pending approvals: Requested procurements + Submitted expense claims. */
+  waiting_approvals: number;
+  /** Budget consumption past the Active budget; false when the comparison cannot be made. */
+  over_budget: boolean;
+  /** Consumption / Active budget on the dashboard's at-risk basis; null when the basis is incomplete or mixed. */
+  budget_used_ratio: number | null;
 }
 
 /**
@@ -69,6 +97,11 @@ export interface ExecutiveDashboard {
   projects_by_status: StatusCount<ProjectStatus>[];
   procurements_by_status: StatusCount<ProcurementStatus>[];
   top_projects: TopProject[];
+  /**
+   * #1418: the true top five projects by attention, computed server-side over every active project (0732). The
+   * array is already ordered and cut to five; render it as given.
+   */
+  attention_projects?: AttentionProject[];
 }
 
 /**
@@ -273,6 +306,8 @@ export interface BudgetReviewRow {
   actual_coverage_count: number;
   actual_coverage_total: number;
   actual_as_of: string | null;
+  /** True when the org reads the ERP ledger (spent is the ledger Actual); false when spent is PMO's ordered..paid purchase totals. */
+  ledger_owned?: boolean;
 }
 
 /**

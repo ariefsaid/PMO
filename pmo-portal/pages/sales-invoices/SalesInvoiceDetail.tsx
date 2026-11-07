@@ -5,7 +5,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
@@ -103,9 +103,9 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                   </dd>
                 </div>
                 {(() => {
-                  const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
-                  const overdueDays = overdueAgeDays(dueDate, organizationToday);
-                  return overdueDays != null && overdueDays > 0 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') ? (
+                  // #1457: the one shared overdue rule gates the row and supplies the day count.
+                  const overdueDays = clientInvoiceOverdueDays(viewTarget, organizationToday);
+                  return overdueDays !== null ? (
                     <div>
                       <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
                       <dd className="mt-1 text-sm font-medium">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>

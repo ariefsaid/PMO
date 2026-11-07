@@ -17,7 +17,7 @@ const ODOO = 'odoo.example.test';
 const KEY = 'stored-odoo-key';
 const budget = (n = 50) => { let left = n; return { left: () => left > 0, spend: () => left-- > 0 }; };
 
-interface Page { p_org_id: string; p_domain: string; p_rows: Array<{ external_id: string; name: string; source_write_date: string; attrs: Record<string, unknown> }>; p_cursor: string }
+interface Page { p_org_id: string; p_domain: string; p_rows: Array<{ external_id: string; name: string; source_write_date: string; attrs: Record<string, unknown> }>; p_cursor: string; p_prev_cursor?: string }
 interface MirrorRow { external_id: string; name: string; source_write_date: string; attrs: Record<string, unknown> }
 
 function harness(prepare: (fake: FakeOdoo) => void, options: { failApplyAt?: number; census?: { seen: string[][]; finish: string[] } } = {}) {
@@ -127,6 +127,16 @@ describe('odooRevenueFeed — AC-OCI-072 / 074 / 075', () => {
     const r = await withFetchMock(replay.routes, async ({ calls }) => { await runRevenuePass(client(), ORG, 'sales-invoice', odooCall(replay.fake), 1, budget(), { pageSize: 2 }); return calls; });
     assertEquals(pages(r).flatMap((page) => page.p_rows.map((row) => row.external_id)), ['3']);
     assertEquals([...replay.mirrors.keys()], ['sales-invoice:3']);
+  });
+
+  it('#1607 each page states the cursor the pass last saw, so a rewind made meanwhile is kept by the database', async () => {
+    const h = harness((fake) => { fake.seed('account.move', [invoice(1),invoice(2),invoice(3)]); });
+    h.cursors.set('revenue:sales-invoice', 'c0');
+    const r = await withFetchMock(h.routes, async ({ calls }) => { await runRevenuePass(client(), ORG, 'sales-invoice', odooCall(h.fake), 1, budget(), { pageSize: 2 }); return calls; });
+    const sent = pages(r);
+    assertEquals(sent.length, 2);
+    assertEquals(sent[0].p_prev_cursor, 'c0');
+    assertEquals(sent[1].p_prev_cursor, sent[0].p_cursor);
   });
 
   it('AC-OCI-074 an Odoo commit with an earlier write_date is found in the next overlap read', async () => {
