@@ -354,6 +354,7 @@
   },
   "decisionSupport": {
     "thisProcurement": "This procurement",
+    "notCompared": "In a different currency: not compared with the budget",
     "afterThisProcurement": "After this procurement",
     "overBudgetLead": "This procurement exceeds available budget by"
   },
