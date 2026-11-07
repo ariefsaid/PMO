@@ -4,7 +4,7 @@ import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueD
 import { knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
 import { toCents } from '@/src/lib/moneyCents';
-import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
 
 export type CurrencyTotals = Record<string, number>;
 

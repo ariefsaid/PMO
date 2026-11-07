@@ -10,6 +10,7 @@ import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
 import {
   EntityFormModal,
+  TextArea,
   TextField,
   NumberField,
   SelectField,
@@ -429,12 +430,16 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     <>
       <FormSection legend={t('projectForm.section.project', 'Project')}>
         <FormGrid>
-          <TextField
+          <TextArea
             id={nameField.id}
             label={t('projectForm.name.label', 'Project name')}
             required
+            rows={2}
             value={nameField.value}
-            onChange={nameField.onChange}
+            // #1339: the contractual name is long, so the field wraps instead of hiding its head
+            // behind a single-line scroll. A newline is a line break in the FIELD, never in the
+            // stored name — pasted multi-line text is flattened back to one line here.
+            onChange={(value) => nameField.onChange(value.replace(/\s*[\r\n]+\s*/g, ' '))}
             onBlur={nameField.onBlur}
             error={nameField.error}
             placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal: Civil Works')}

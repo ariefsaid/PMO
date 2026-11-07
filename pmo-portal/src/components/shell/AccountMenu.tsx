@@ -158,7 +158,7 @@ export const AccountMenu: React.FC = () => {
           role="menu"
           aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
           onKeyDown={onMenuKeyDown}
-          className="absolute right-0 top-full z-50 mt-2 overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+          className="menu-pop-anim [--menu-origin:top_right] motion-reduce:animate-none absolute right-0 top-full z-50 mt-2 overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
           style={{
             width: 'min(320px, calc(100vw / var(--app-zoom) - 24px))',
             maxHeight: 'calc(100dvh / var(--app-zoom) - var(--header-h) - 16px)',

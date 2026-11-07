@@ -468,6 +468,63 @@ describe('ProjectIntegrationsCard', () => {
       await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
     });
 
+    it('#1223 uses neutral copy for a timed-out unlink and refetches the bindings instead of claiming the link survived', async () => {
+      const user = userEvent.setup();
+      const timedOut = Object.assign(new Error('withTimeout: request timed out after 20000ms'), { code: 'REQUEST_TIMEOUT' });
+      const refetchBindings = vi.fn();
+      const mockUnlinkProject = vi.fn().mockRejectedValueOnce(timedOut);
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [mockProjectClickUpBinding],
+        unlinkProject: { ...baseMockReturn.unlinkProject, mutateAsync: mockUnlinkProject },
+        refetchBindings,
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      await user.click(screen.getByRole('button', { name: /^Unlink from ClickUp$/i }));
+      const confirmDialog = await screen.findByRole('alertdialog');
+      await user.click(within(confirmDialog).getByRole('button', { name: /^Unlink from ClickUp$/i }));
+
+      // A timeout cannot confirm either outcome: the card must not claim the project is still linked ...
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/couldn't confirm the unlink/i);
+      expect(alert).not.toHaveTextContent(/The project is still linked\./);
+      expect(alert).not.toHaveTextContent(/Could not unlink from ClickUp/);
+      // The timeout detail is the localised key (no reload instruction: the refetch below is automatic).
+      expect(alert).toHaveTextContent('The request timed out before the server answered.');
+      expect(alert).not.toHaveTextContent(/Reload/i);
+      // ... and it re-reads the bindings so the card shows the state the server actually holds.
+      expect(refetchBindings).toHaveBeenCalledTimes(1);
+      // The raw transport/deadline text never reaches the product surface.
+      expect(alert).not.toHaveTextContent(/20000ms|request timed out after/i);
+    });
+
+    it('#1223 refetches the bindings after any failed unlink so a stale "still linked" claim self-corrects', async () => {
+      const user = userEvent.setup();
+      const denied = Object.assign(new Error('permission denied for table integration_project_bindings'), { code: '42501' });
+      const refetchBindings = vi.fn();
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [mockProjectClickUpBinding],
+        unlinkProject: { ...baseMockReturn.unlinkProject, mutateAsync: vi.fn().mockRejectedValueOnce(denied) },
+        refetchBindings,
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      await user.click(screen.getByRole('button', { name: /^Unlink from ClickUp$/i }));
+      const confirmDialog = await screen.findByRole('alertdialog');
+      await user.click(within(confirmDialog).getByRole('button', { name: /^Unlink from ClickUp$/i }));
+
+      const alert = await screen.findByRole('alert');
+      // A server REFUSAL is a confirmed outcome, so the established copy keeps saying it failed.
+      expect(alert).toHaveTextContent(/Could not unlink from ClickUp\. The project is still linked\./);
+      expect(refetchBindings).toHaveBeenCalledTimes(1);
+    });
+
     it('shows inline error when linkProject fails with 409 action-required', async () => {
       const user = userEvent.setup();
       const error = new Error('Mixed state: project has tasks and list is not empty');

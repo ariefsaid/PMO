@@ -21,7 +21,7 @@ import { currencyLead } from '@/src/lib/finance/currencyFigures';
 import { moneyFigure, type MoneyFigure } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import type { FinancialStatementNativePayload } from '@/src/lib/financialStatements';
-import { usePayablesPosition } from './payablesPosition';
+import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
 function monthLabel(date: string): string {
   return formatMonthYear(new Date(`${date.slice(0, 10)}T12:00:00Z`));

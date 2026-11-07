@@ -12,7 +12,7 @@ import {
   ProcurementTab, ProjectSCurve, TasksTab, WorkOrdersTab, preloadProjectTab,
 } from './lazyProjectChunks';
 import { ProjectAttention } from './ProjectAttention';
-import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
+import { useOverdueReceivables, useProjectAttention } from '@/src/hooks/useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';

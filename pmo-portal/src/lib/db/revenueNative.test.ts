@@ -3,7 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
-import { NATIVE_REVENUE_REFUSALS, cancelNativeReceipt, createNativeSalesInvoice, recordNativeReceipt, transitionNativeSalesInvoice } from './revenueNative';
+import {
+  NATIVE_REVENUE_REFUSALS, applyNativeReceipt, cancelNativeReceipt, createNativeSalesInvoice, recordNativeOnAccountReceipt,
+  recordNativeReceipt, transitionNativeSalesInvoice, unapplyNativeAllocation,
+} from './revenueNative';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -64,9 +67,14 @@ describe('revenueNative DAL (#784) — names the four RPCs and sends what the us
     await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [] })).rejects.toBeInstanceOf(AppError);
     await expect(cancelNativeReceipt('ip-1')).rejects.toBeInstanceOf(AppError);
   });
-  it('#784 the final refusal codes from migration 0275 are all known (22)', () => {
-    expect(NATIVE_REVENUE_REFUSALS).toHaveLength(22);
-    expect(NATIVE_REVENUE_REFUSALS).toEqual(expect.arrayContaining(['pmo-native', 'receipt-split-mismatch', 'sod-self-approval', 'illegal-transition']));
+  it('#784 the final refusal codes from migration 0275 and #1415 migration 0731 are all known (31)', () => {
+    expect(NATIVE_REVENUE_REFUSALS).toHaveLength(31);
+    expect(NATIVE_REVENUE_REFUSALS).toEqual(expect.arrayContaining([
+      'pmo-native', 'receipt-split-mismatch', 'sod-self-approval', 'illegal-transition',
+      'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
+      'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
+      'request-id-reused',
+    ]));
   });
   it('#784 a refusal carrying a machine-readable detail reaches the caller keyed on that detail, not the SQLSTATE', async () => {
     for (const detail of NATIVE_REVENUE_REFUSALS) {
@@ -82,5 +90,53 @@ describe('revenueNative DAL (#784) — names the four RPCs and sends what the us
     h.rpc.mockResolvedValue({ data: null, error: null });
     await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [{ item_code: 'S', qty: 1, rate: 1 }] })).rejects.toBeInstanceOf(AppError);
     await expect(recordNativeReceipt({ salesInvoiceId: 'si-1', date: '2026-10-07' })).rejects.toBeInstanceOf(AppError);
+  });
+});
+
+describe('revenueNative DAL (#1415) — apply a receipt to invoices', () => {
+  it('AC-NPA-001 records an on-account receipt with the id minted by the caller (the replay key) and no invoice', async () => {
+    await expect(recordNativeOnAccountReceipt({
+      customerId: 'c-1', amount: 100, receivedAmount: 90, withheldAmount: 10, withholdingSlipNumber: ' BP-9 ', date: '2026-10-07', receiptId: 'rc-1',
+    })).resolves.toBe('new-id');
+    expect(h.rpc).toHaveBeenCalledWith('record_native_on_account_receipt', {
+      p_customer_id: 'c-1', p_amount: 100, p_received_amount: 90, p_withheld_amount: 10,
+      p_withholding_slip_number: 'BP-9', p_date: '2026-10-07', p_receipt_id: 'rc-1',
+    });
+  });
+  it('AC-NPA-001 sends only what was entered: no received/withheld/slip when omitted', async () => {
+    await recordNativeOnAccountReceipt({ customerId: 'c-1', amount: 100, date: '2026-10-07', receiptId: 'rc-1' });
+    expect(h.rpc).toHaveBeenCalledWith('record_native_on_account_receipt', {
+      p_customer_id: 'c-1', p_amount: 100, p_date: '2026-10-07', p_receipt_id: 'rc-1',
+    });
+  });
+  it('AC-NPA-002 applies a receipt across invoices in one call, with the request id that makes a retry safe', async () => {
+    h.rpc.mockResolvedValue({ data: ['al-1', 'al-2'], error: null });
+    await expect(applyNativeReceipt({
+      receiptId: 'rc-1', requestId: 'rq-1',
+      allocations: [{ invoiceId: 'si-1', amount: 60 }, { invoiceId: 'si-2', amount: 40 }],
+    })).resolves.toEqual(['al-1', 'al-2']);
+    expect(h.rpc).toHaveBeenCalledWith('apply_native_receipt', {
+      p_receipt_id: 'rc-1', p_request_id: 'rq-1',
+      p_allocations: [{ invoice_id: 'si-1', amount: 60 }, { invoice_id: 'si-2', amount: 40 }],
+    });
+  });
+  it('AC-NPA-002 an apply that reports success with no ids is an error, never an empty success', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(applyNativeReceipt({ receiptId: 'rc-1', requestId: 'rq-1', allocations: [{ invoiceId: 'si-1', amount: 1 }] })).rejects.toBeInstanceOf(AppError);
+  });
+  it('AC-NPA-007 unapplies one allocation by id', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await unapplyNativeAllocation('al-1');
+    expect(h.rpc).toHaveBeenCalledWith('unapply_native_allocation', { p_allocation_id: 'al-1' });
+  });
+  it('AC-NPA-012 a refusal reaches the caller keyed on its stable detail code, from each of the three writers', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'more than the receipt has left to apply', code: '23514', details: 'allocation-exceeds-unapplied' } });
+    await expect(applyNativeReceipt({ receiptId: 'rc-1', requestId: 'rq-1', allocations: [{ invoiceId: 'si-1', amount: 1 }] }))
+      .rejects.toMatchObject({ code: 'allocation-exceeds-unapplied' });
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'this allocation is already reversed', code: 'P0001', details: 'allocation-already-reversed' } });
+    await expect(unapplyNativeAllocation('al-1')).rejects.toMatchObject({ code: 'allocation-already-reversed' });
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'x', code: 'P0001', details: 'request-id-reused' } });
+    await expect(recordNativeOnAccountReceipt({ customerId: 'c-1', amount: 1, date: '2026-10-07', receiptId: 'rc-1' }))
+      .rejects.toMatchObject({ code: 'request-id-reused' });
   });
 });

@@ -64,7 +64,7 @@ vi.mock('@/src/hooks/useMilestones', () => ({
   useMilestoneMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, remove: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('../useProjectPosition', () => ({
+vi.mock('@/src/hooks/useProjectPosition', () => ({
   useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectAttention: () => ({ items: [], isPending: false, error: null, myVisibleTaskKeys: new Set() }),
   useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: false, canSeeActual: true, rows: [], unknown: 0 }),

@@ -48,11 +48,11 @@ import {
   stageDates,
   payStepLabel,
   stageLabelForStatus,
-} from '@/pages/procurement/blocks/stage';
-import { procurementMoney, type ProcurementMoneyResult } from '@/pages/procurement/blocks/procurementMoney';
-import { allowedActions, sortActions, stateMainAction } from '@/pages/procurement/blocks/mainAction';
-import { purchaseHasValue } from '@/pages/procurement/purchaseValue';
-import { useBudgetPosition } from '@/pages/project-detail/useProjectPosition';
+} from '@/src/lib/procurement/stage';
+import { procurementMoney, type ProcurementMoneyResult } from '@/src/lib/procurement/procurementMoney';
+import { allowedActions, sortActions, stateMainAction } from '@/src/lib/procurement/mainAction';
+import { purchaseHasValue } from '@/src/lib/procurement/purchaseValue';
+import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import { matchesSearch } from '@/src/lib/procurementSearch';
 
 /**

@@ -58,6 +58,13 @@ test.afterEach(async () => {
     const invoices = await admin.from('sales_invoices').select('id').eq('project_id', projectId);
     fail('invoice read', invoices.error);
     const ids = (invoices.data ?? []).map((r: { id: string }) => r.id);
+    if (ids.length > 0) {
+      // #1415: a receipt's allocations (FK restrict) go before the receipt.
+      const receipts = await admin.from('incoming_payments').select('id').in('sales_invoice_id', ids);
+      fail('receipt read', receipts.error);
+      const receiptIds = (receipts.data ?? []).map((r: { id: string }) => r.id);
+      if (receiptIds.length > 0) fail('allocations', (await admin.from('incoming_payment_allocations').delete().in('incoming_payment_id', receiptIds)).error);
+    }
     if (ids.length > 0) fail('receipts', (await admin.from('incoming_payments').delete().in('sales_invoice_id', ids)).error);
     fail('invoices', (await admin.from('sales_invoices').delete().eq('project_id', projectId)).error);
     fail('project', (await admin.from('projects').delete().eq('id', projectId)).error);
