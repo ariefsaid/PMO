@@ -6,38 +6,22 @@ import { useFeature } from '@/src/auth/useFeature';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { InvoicePairReview } from '@/src/components/integrations/InvoicePairReview';
-import { AccessDenied, Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
+import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
+import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useProjects } from '@/src/hooks/useProjects';
-import { formatMonthYear, formatShortMoney } from '@/src/lib/format';
-import { formatCurrencyWithCode } from '@/src/lib/finance/format';
+import { formatMonthYear } from '@/src/lib/format';
+import { currencyLead } from '@/src/lib/finance/currencyFigures';
 import { moneyFigure, type MoneyFigure } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import type { FinancialStatementNativePayload } from '@/src/lib/financialStatements';
 import { usePayablesPosition } from './payablesPosition';
-
-function currencyEntries(values: Record<string, number>, preferred?: string | null) {
-  return Object.entries(values).sort(([left], [right]) => left === preferred ? -1 : right === preferred ? 1 : left.localeCompare(right));
-}
-
-/** Area cards are figure tiles (F11): short lead amount, exact amount kept as metadata. */
-function currencyLead(values: Record<string, number>, preferred?: string | null): { lead: MoneyFigure | null; others: MoneyFigure[] } {
-  const entries = currencyEntries(values, preferred);
-  const [primary, ...rest] = entries;
-  return {
-    lead: primary ? moneyFigure(primary[1] / 100, primary[0], '') : null,
-    // Secondary currencies always name their ISO code, short with the exact amount as metadata.
-    others: rest.filter(([, cents]) => cents !== 0).map(([currency, cents]) => ({
-      value: Math.abs(cents) < 100_000 ? formatCurrencyWithCode(cents / 100, currency) : formatShortMoney(cents / 100, currency, { code: true }),
-      exactValue: formatCurrencyWithCode(cents / 100, currency),
-    })),
-  };
-}
 
 function monthLabel(date: string): string {
   return formatMonthYear(new Date(`${date.slice(0, 10)}T12:00:00Z`));
@@ -112,8 +96,7 @@ const FinanceHub: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
-  const canView = may('view', 'finance');
-  const canAct = may('act', 'finance');
+  const { canView, canAct } = useFinanceAccess();
   const hasRevenue = useFeature('revenue');
   const hasProcurement = useFeature('procurement');
   const currencyState = useOrgCurrencyState();
@@ -139,9 +122,7 @@ const FinanceHub: React.FC = () => {
     statement: 'profit_and_loss',
   } : null, canView && Boolean(latestStatementPeriod));
 
-  if (!canView) {
-    return <AccessDenied title={t('financeHub:hub.noAccessTitle', 'Finance')} sub={t('financeHub:hub.noAccessDescription', 'Finance is available to Finance, Executive and Admin roles.')} onBack={() => navigate('/')} />;
-  }
+  if (!canView) return <FinanceAccessDenied />;
 
   const payableMoney = currencyLead(finance.position.payablesTotals, orgCurrency);
   const noBalance = { value: t('financeHub:hub.fix.area.noBalance', 'No balance') };

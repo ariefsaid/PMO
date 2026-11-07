@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { totalsByCurrency } from '@/pages/procurement/list/model';
-import { buildFinancePosition, isProcurementReadyToPay } from './financePosition';
+import { ageingBucket, buildFinancePosition, isProcurementReadyToPay } from './financePosition';
 
 const today = '2026-10-27';
 
@@ -230,5 +230,27 @@ describe('buildFinancePosition', () => {
     expect(totalsByCurrency(rows, 'Finance', 'pay')).toEqual([
       { currency: 'IDR', amount: null, unknown: true, knownAmount: 300, unknownCount: 1 },
     ]);
+  });
+});
+
+describe('ageing buckets (#1459: one bucket rule for receivables and payables)', () => {
+  it('groups a receivable by age, with a not-yet-due column', () => {
+    expect(ageingBucket(0, 'receivables')).toBe('notDue');
+    expect(ageingBucket(-3, 'receivables')).toBe('notDue');
+    expect(ageingBucket(1, 'receivables')).toBe('d1_30');
+    expect(ageingBucket(30, 'receivables')).toBe('d1_30');
+    expect(ageingBucket(31, 'receivables')).toBe('d31_60');
+    expect(ageingBucket(60, 'receivables')).toBe('d31_60');
+    expect(ageingBucket(61, 'receivables')).toBe('d61_90');
+    expect(ageingBucket(90, 'receivables')).toBe('d61_90');
+    expect(ageingBucket(91, 'receivables')).toBe('over90');
+  });
+
+  it('groups a payable by age, where day zero is already 0-30 days', () => {
+    expect(ageingBucket(0, 'payables')).toBe('d0_30');
+    expect(ageingBucket(30, 'payables')).toBe('d0_30');
+    expect(ageingBucket(31, 'payables')).toBe('d31_60');
+    expect(ageingBucket(61, 'payables')).toBe('d61_90');
+    expect(ageingBucket(120, 'payables')).toBe('over90');
   });
 });

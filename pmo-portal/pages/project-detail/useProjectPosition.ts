@@ -15,6 +15,7 @@ import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { budgetLinesByCategory } from './budget/budgetModel';
 
 export interface CategoryPosition { category: string; budget: number; actual: number | null }
 
@@ -30,11 +31,8 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
   const actuals = canSeeActual ? finances.data?.actuals : undefined;
   return useMemo(() => {
     const active = (versions.data ?? []).find((v) => v.status === 'Active');
-    const budgets = new Map<string, number>();
-    for (const li of active?.line_items ?? []) {
-      const cat = li.category ?? 'Other';
-      budgets.set(cat, (budgets.get(cat) ?? 0) + (Number(li.budgeted_amount) || 0));
-    }
+    // #1459: the same category rollup the Budget tab totals, so the Overview and the tab cannot drift.
+    const budgets = new Map(budgetLinesByCategory(active?.line_items ?? []).map(({ category, budget }) => [category, budget] as const));
     for (const category of actuals?.categories ?? []) {
       if (!budgets.has(category.category) && category.mapped && category.amount !== null && Number(category.amount) !== 0) {
         budgets.set(category.category, 0);

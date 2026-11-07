@@ -5,6 +5,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import { UserRole } from '@/types';
+import { initials } from '@/src/lib/initials';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
@@ -15,15 +16,6 @@ import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 const SHOW_LEGAL_SUPPORT = false;
 
 const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
-
-function initials(name?: string | null): string {
-  if (!name) return 'U';
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('');
-}
 
 /**
  * FIN-S9: the personal M365 connect doorway (/integrations), moved here from the rail. Shown only to an entitled
@@ -151,7 +143,7 @@ export const AccountMenu: React.FC = () => {
           aria-hidden
           className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground"
         >
-          {initials(currentUser?.full_name)}
+          {initials(currentUser?.full_name, { fallback: 'U' })}
         </span>
         <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
           <span className="block max-w-full truncate text-[13px] font-semibold">{currentUser?.full_name}</span>

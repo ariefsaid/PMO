@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBudgetSummaryRows, committedTotal, compareBudgetVersions } from '../budgetModel';
+import { budgetLinesByCategory, buildBudgetSummaryRows, committedTotal, compareBudgetVersions } from '../budgetModel';
 
 const line = (category: string, description: string, budgeted_amount: number) => ({
   category,
@@ -142,6 +142,32 @@ describe('budgetModel', () => {
       { category: 'Labor', a: 100, b: 125, change: 25 },
       { category: 'Materials', a: 50, b: 0, change: -50 },
       { category: 'Travel', a: 0, b: 10, change: 10 },
+    ]);
+  });
+});
+
+describe('budgetLinesByCategory (#1459: the one budget-category rollup)', () => {
+  it('sums every line of a category and keeps categories in first-seen order', () => {
+    expect(budgetLinesByCategory([
+      { category: 'Labor', budgeted_amount: 80 },
+      { category: 'Materials', budgeted_amount: 50 },
+      { category: 'Labor', budgeted_amount: '20' },
+    ])).toEqual([
+      { category: 'Labor', budget: 100, lines: [
+        { category: 'Labor', budgeted_amount: 80 },
+        { category: 'Labor', budgeted_amount: '20' },
+      ] },
+      { category: 'Materials', budget: 50, lines: [{ category: 'Materials', budgeted_amount: 50 }] },
+    ]);
+  });
+
+  it('treats an unreadable amount as zero and a missing category as Other', () => {
+    expect(budgetLinesByCategory([
+      { category: null, budgeted_amount: 'n/a' },
+      { category: 'Labor', budgeted_amount: 10 },
+    ])).toEqual([
+      { category: 'Other', budget: 0, lines: [{ category: null, budgeted_amount: 'n/a' }] },
+      { category: 'Labor', budget: 10, lines: [{ category: 'Labor', budgeted_amount: 10 }] },
     ]);
   });
 });
