@@ -112,7 +112,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
       // re-read so the card shows the state the server actually holds rather than the one it assumed.
       const { detail, classification } = classifyMutationError(err, undefined, {
         detailOverrides: {
-          REQUEST_TIMEOUT: 'The request timed out before the server answered, so the link state is not confirmed yet. Reload the link details to see it.',
+          REQUEST_TIMEOUT: t('uxs21.unlinkTimeoutDetail', 'The request timed out before the server answered.'),
         },
       });
       setUnlinkFailure({ detail, unconfirmed: classification === 'timeout' });

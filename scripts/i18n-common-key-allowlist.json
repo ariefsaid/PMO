@@ -214,5 +214,6 @@
   "uxs38.previewGapSummary_one",
   "uxs38.previewGapSummary_other",
   "dashboard.uxs36CustomerFilterLoading",
-  "uxs21.unlinkUnconfirmed"
+  "uxs21.unlinkUnconfirmed",
+  "uxs21.unlinkTimeoutDetail"
 ]

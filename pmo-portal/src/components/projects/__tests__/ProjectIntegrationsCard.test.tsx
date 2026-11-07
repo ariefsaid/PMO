@@ -492,6 +492,9 @@ describe('ProjectIntegrationsCard', () => {
       expect(alert).toHaveTextContent(/couldn't confirm the unlink/i);
       expect(alert).not.toHaveTextContent(/The project is still linked\./);
       expect(alert).not.toHaveTextContent(/Could not unlink from ClickUp/);
+      // The timeout detail is the localised key (no reload instruction: the refetch below is automatic).
+      expect(alert).toHaveTextContent('The request timed out before the server answered.');
+      expect(alert).not.toHaveTextContent(/Reload/i);
       // ... and it re-reads the bindings so the card shows the state the server actually holds.
       expect(refetchBindings).toHaveBeenCalledTimes(1);
       // The raw transport/deadline text never reaches the product surface.
