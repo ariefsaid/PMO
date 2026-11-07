@@ -60,5 +60,7 @@ describe('ShellChrome cold mount (AC-OVERFETCH-001)', () => {
     for (const fn of [dal.listProjects, dal.listProcurements, dal.getSalesPipeline, dal.list]) {
       expect(fn).not.toHaveBeenCalled();
     }
+    // The /projects/p1 route lazy-loads page chunks; let them finish before the environment tears down.
+    await vi.dynamicImportSettled();
   });
 });

@@ -60,6 +60,7 @@ const executive = {
   ],
   procurements_by_status: [{ status: 'Draft', count: 2 }, { status: 'Approved', count: 1 }],
   top_projects: top,
+  attention_projects: top.map((row, i) => ({ ...row, attention_signals: i === 0 ? 1 : 0, overdue_items: i === 0 ? 2 : 0, overdue_tasks: i === 0 ? 2 : 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null })),
 };
 
 const winRate = {
@@ -189,9 +190,24 @@ function reportFactsFixture(body: unknown): unknown {
   };
 }
 
+/** #1988: the hub's three figures as the narrow RPC returns them — the same unbilled figure the
+ * pack fixture produced (recognised 100% of the contract minus the invoiced balance), no statements. */
+function financeHubFiguresFixture(): unknown {
+  return {
+    pack: {
+      as_at: '2026-11-01',
+      unbilled: [{ currency: 'IDR', cents: (FINANCE_FIXTURE.contract - FINANCE_FIXTURE.receivable) * 100 }],
+      contract_rows: 1,
+      invoiced_basis_rows: 0,
+    },
+    statement: { unpublished: true, period_start: null, net_profit: null, currency: null },
+  };
+}
+
 /** Route-mock the dashboard reads with the IDR-billions fixture (org default currency IDR). */
 export async function installIdrDashboardFixture(page: Page) {
   await page.route('**/rest/v1/rpc/get_executive_dashboard*', json(executive));
+  await page.route('**/rest/v1/rpc/get_finance_hub_figures*', json(financeHubFiguresFixture()));
   await page.route('**/rest/v1/rpc/get_win_rate*', json(winRate));
   await page.route('**/rest/v1/rpc/get_sales_pipeline*', json(pipeline));
   await page.route('**/rest/v1/rpc/get_pm_dashboard_projects*', json(pmProjects));

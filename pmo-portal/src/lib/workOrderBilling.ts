@@ -1,5 +1,6 @@
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
+import { toCents } from '@/src/lib/moneyCents';
 
 /**
  * Work-order billing, derived for display (OD-BILL-1, DD-BWO-1..3 / 10). The figures come from the view
@@ -10,24 +11,23 @@ export type WorkOrderBillingState =
   | 'not-billable' | 'incomplete' | 'over-invoiced' | 'not-invoiced' | 'paid' | 'awaiting-submission' | 'fully-invoiced'
   | 'partly-invoiced';
 
-const cents = (value: number): number => Math.round(value * 100);
 const BILLABLE: ReadonlySet<WorkOrderStatus> = new Set<WorkOrderStatus>(['Issued', 'Closed']);
 
 export function deriveWorkOrderBillingState(status: WorkOrderStatus, f: WorkOrderBillingRow): WorkOrderBillingState {
   if (!f.figuresComplete) return 'incomplete';
-  if (cents(f.remaining) < 0) return 'over-invoiced';
+  if (toCents(f.remaining) < 0) return 'over-invoiced';
   if (!BILLABLE.has(status)) return 'not-billable';
-  if (cents(f.invoiced) + cents(f.pending) <= 0) return 'not-invoiced';
+  if (toCents(f.invoiced) + toCents(f.pending) <= 0) return 'not-invoiced';
   // DD-BWO-2: Paid = nothing left, nothing in draft, every submitted invoice Paid.
-  if (cents(f.remaining) === 0 && cents(f.pending) === 0 && f.unpaidCount === 0) return 'paid';
+  if (toCents(f.remaining) === 0 && toCents(f.pending) === 0 && f.unpaidCount === 0) return 'paid';
   // Nothing left, but some of it only in a draft or an unraised claim: not invoiced until someone submits it (#785).
-  if (cents(f.remaining) === 0 && cents(f.pending) > 0) return 'awaiting-submission';
-  if (cents(f.remaining) === 0) return 'fully-invoiced';
+  if (toCents(f.remaining) === 0 && toCents(f.pending) > 0) return 'awaiting-submission';
+  if (toCents(f.remaining) === 0) return 'fully-invoiced';
   return 'partly-invoiced';
 }
 
 export function canInvoiceWorkOrder(status: WorkOrderStatus, f: WorkOrderBillingRow): boolean {
-  return BILLABLE.has(status) && f.figuresComplete && cents(f.remaining) > 0;
+  return BILLABLE.has(status) && f.figuresComplete && toCents(f.remaining) > 0;
 }
 
 export interface ProjectWorkOrderBillingTotals {
@@ -53,10 +53,10 @@ export function summarizeProjectWorkOrderBilling(rows: ReadonlyArray<WorkOrderBi
       complete = false;
       continue;
     }
-    invoiced += cents(r.invoiced);
-    paid += cents(r.paid);
-    draft += cents(r.pending);
-    still += Math.max(0, cents(r.remaining));
+    invoiced += toCents(r.invoiced);
+    paid += toCents(r.paid);
+    draft += toCents(r.pending);
+    still += Math.max(0, toCents(r.remaining));
   }
   return { invoiced: invoiced / 100, paid: paid / 100, inDraft: draft / 100, stillToInvoice: still / 100, complete };
 }
@@ -66,7 +66,7 @@ export type InvoiceAmountProblem = 'invalid' | 'not-positive' | 'over-remaining'
 /** The dialog's check; the database repeats it (and counts in-flight commands the client cannot see). */
 export function invoiceAmountProblem(amount: number | null, remaining: number): InvoiceAmountProblem | null {
   if (amount === null || !Number.isFinite(amount)) return 'invalid';
-  if (cents(amount) <= 0) return 'not-positive';
-  if (cents(amount) > cents(remaining)) return 'over-remaining';
+  if (toCents(amount) <= 0) return 'not-positive';
+  if (toCents(amount) > toCents(remaining)) return 'over-remaining';
   return null;
 }

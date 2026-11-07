@@ -264,7 +264,7 @@ export const NotificationBell: React.FC = () => {
       {open && (
         <div
           aria-labelledby="notification-bell-inbox-heading"
-          className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+          className="menu-pop-anim [--menu-origin:top_right] motion-reduce:animate-none absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
         >
           <h2 id="notification-bell-inbox-heading" className="sr-only">
             {t('shell.notifications.inboxHeading', 'Notifications inbox')}

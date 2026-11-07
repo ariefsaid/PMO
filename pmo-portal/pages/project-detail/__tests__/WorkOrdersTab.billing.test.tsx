@@ -23,6 +23,10 @@ const h = vi.hoisted(() => ({
   synced: true,
   role: 'Finance' as string,
 }));
+// #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectWorkOrders: () => h.list,
   useProjectDrawdown: () => ({ data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -69,8 +73,8 @@ vi.mock('../InvoiceWorkOrderModal', () => ({
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
-import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const wo = (over: Partial<WorkOrderRow> = {}): WorkOrderRow => ({
   id: 'wo-1', org_id: 'org-1', project_id: 'p1', wo_number: 'WO-1', client_po_number: 'PO-77', title: 'Phase 1 fabrication',

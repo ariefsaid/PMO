@@ -5,7 +5,12 @@
  * for callers that haven't opted into live context yet).
  */
 import { useContext } from 'react';
-import { AgentContextContext, type AgentContextValue } from './agentContextInternal';
+import {
+  AgentContextContext,
+  AgentContextPublisherContext,
+  type AgentContextPublisher,
+  type AgentContextValue,
+} from './agentContextInternal';
 
 const NOOP_CONTEXT: AgentContextValue = {
   getContext: () => ({}),
@@ -16,4 +21,12 @@ const NOOP_CONTEXT: AgentContextValue = {
 export function useAgentContext(): AgentContextValue {
   const ctx = useContext(AgentContextContext);
   return ctx ?? NOOP_CONTEXT;
+}
+
+/**
+ * Write side only, for pages that publish their entity and never read the context. Its value is
+ * stable, so publishing does not re-render the caller. A no-op outside the provider.
+ */
+export function useAgentContextPublisher(): AgentContextPublisher {
+  return useContext(AgentContextPublisherContext) ?? NOOP_CONTEXT;
 }

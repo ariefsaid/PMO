@@ -4939,6 +4939,97 @@ export type Database = {
           },
         ]
       }
+      incoming_payment_allocations: {
+        Row: {
+          amount: number
+          cash_amount: number
+          created_at: string
+          created_by: string | null
+          currency: string
+          id: string
+          incoming_payment_id: string
+          org_id: string
+          request_id: string
+          reversed_at: string | null
+          reversed_by: string | null
+          sales_invoice_id: string
+          withheld_amount: number
+        }
+        Insert: {
+          amount: number
+          cash_amount: number
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          id?: string
+          incoming_payment_id: string
+          org_id: string
+          request_id: string
+          reversed_at?: string | null
+          reversed_by?: string | null
+          sales_invoice_id: string
+          withheld_amount: number
+        }
+        Update: {
+          amount?: number
+          cash_amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          id?: string
+          incoming_payment_id?: string
+          org_id?: string
+          request_id?: string
+          reversed_at?: string | null
+          reversed_by?: string | null
+          sales_invoice_id?: string
+          withheld_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incoming_payment_allocations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payment_allocations_incoming_payment_id_fkey"
+            columns: ["incoming_payment_id"]
+            isOneToOne: false
+            referencedRelation: "incoming_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payment_allocations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payment_allocations_reversed_by_fkey"
+            columns: ["reversed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payment_allocations_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoice_work_billed"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payment_allocations_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incoming_payments: {
         Row: {
           allocation_checked_at: string | null
@@ -11442,6 +11533,14 @@ export type Database = {
     }
     Functions: {
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
+      apply_native_receipt: {
+        Args: {
+          p_allocations: Json
+          p_receipt_id: string
+          p_request_id: string
+        }
+        Returns: string[]
+      }
       attach_erp_journal_lines: {
         Args: { p_dry_run?: boolean; p_rows: Json }
         Returns: Json
@@ -11470,6 +11569,22 @@ export type Database = {
           remarks: string
           voucher_no: string
         }[]
+      }
+      record_native_on_account_receipt: {
+        Args: {
+          p_amount: number
+          p_customer_id: string
+          p_date?: string
+          p_receipt_id?: string
+          p_received_amount?: number
+          p_withheld_amount?: number
+          p_withholding_slip_number?: string
+        }
+        Returns: string
+      }
+      unapply_native_allocation: {
+        Args: { p_allocation_id: string }
+        Returns: undefined
       }
       unpair_invoice: { Args: { p_pmo_id: string }; Returns: undefined }
       assemble_tm_claim: {
@@ -12980,6 +13095,7 @@ export type Database = {
         }[]
       }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_finance_hub_figures: { Args: never; Returns: Json }
       get_imprest_plan_usage: {
         Args: { p_float: string; p_month: string }
         Returns: {

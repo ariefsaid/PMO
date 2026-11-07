@@ -42,7 +42,9 @@ const Projects: React.FC = () => {
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const prefetchProject = usePrefetchProject();
-  const model = useProjectListModel(effectiveRole, currentUser, t);
+  // Contract amounts follow the shared money-view permission (same as project detail).
+  const canViewMoney = may('view', 'salesInvoice');
+  const model = useProjectListModel(effectiveRole, currentUser, t, canViewMoney);
   const { isEngineer, tasksPending, tasksError, refetchTasks, data, isPending, isError, refetch,
     filter, view, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
@@ -54,14 +56,10 @@ const Projects: React.FC = () => {
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
   const canRowWrite = canEdit || canArchive;
-  // Contract amounts follow the shared money-view permission (same as project detail).
-  const canViewMoney = may('view', 'salesInvoice');
 
-  // Mobile disclosure state (FR-PRJUX-003): Filters closes after a selection; More actions
-  // closes after an export dispatch but is deliberately left OPEN when an Import wizard opens
-  // (the wizard must stay mounted for its own lifecycle — DD-BIMP-3). Both are controlled here
-  // so the mobile toolbar can drive them.
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // More actions closes after an export dispatch but is deliberately left OPEN when an Import wizard
+  // opens (the wizard must stay mounted for its own lifecycle — DD-BIMP-3); controlled here so the
+  // toolbar can drive it.
   const [moreOpen, setMoreOpen] = useState(false);
   // null = closed; { project } = edit modal open.
   const [editTarget, setEditTarget] = useState<ProjectWithRefs | null>(null);
@@ -195,7 +193,7 @@ const Projects: React.FC = () => {
       ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined,
   };
 
-  const toolbar = projectsToolbar({ model, exportColumns, t, filtersOpen, setFiltersOpen, moreOpen, setMoreOpen });
+  const toolbar = projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpen, setMoreOpen });
 
   return (
     <ListPage

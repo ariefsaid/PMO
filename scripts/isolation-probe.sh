@@ -207,6 +207,7 @@ else
   skip "get_financial_statement_catalogue (projects)"
   skip "get_financial_statement (projects)"
 fi
+c=$(rpc get_finance_hub_figures "{}")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
@@ -292,6 +293,12 @@ if [ -n "$A_SI" ] && [ "$A_SI" != null ]; then
   c=$(rpc transition_native_sales_invoice "{\"p_id\":\"$A_SI\",\"p_to\":\"Cancelled\"}")
   c=$(rpc record_native_receipt "{\"p_sales_invoice_id\":\"$A_SI\",\"p_amount\":1,\"p_received_amount\":1,\"p_withheld_amount\":0,\"p_date\":\"2026-09-08\"}")
 else skip "transition_native_sales_invoice (sales_invoices)"; skip "record_native_receipt (sales_invoices)"; fi
+if [ -n "$A_SI" ] && [ "$A_SI" != null ] && [ -n "$A_COMPANY" ] && [ "$A_COMPANY" != null ]; then
+  c=$(rpc record_native_on_account_receipt "{\"p_customer_id\":\"$A_COMPANY\",\"p_amount\":1,\"p_received_amount\":1,\"p_withheld_amount\":0,\"p_date\":\"2026-09-08\",\"p_receipt_id\":\"b0000000-0000-4000-8000-0000000000ab\"}")
+  c=$(rpc apply_native_receipt "{\"p_receipt_id\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_allocations\":[{\"invoice_id\":\"$A_SI\",\"amount\":1}],\"p_request_id\":\"b0000000-0000-4000-8000-0000000000ac\"}")
+else skip "record_native_on_account_receipt (companies/sales_invoices)"; skip "apply_native_receipt (companies/sales_invoices)"; fi
+A_ALLOC=$(jq -r '.[]|select(.table=="incoming_payment_allocations")|.id' "$A_ROWS_JSON")
+if [ -n "$A_ALLOC" ] && [ "$A_ALLOC" != null ]; then c=$(rpc unapply_native_allocation "{\"p_allocation_id\":\"$A_ALLOC\"}"); else skip "unapply_native_allocation (incoming_payment_allocations)"; fi
 A_RECEIPT=$(jq -r '.[]|select(.table=="incoming_payments")|.id' "$A_ROWS_JSON")
 if [ -n "$A_RECEIPT" ] && [ "$A_RECEIPT" != null ]; then c=$(rpc cancel_native_receipt "{\"p_receipt_id\":\"$A_RECEIPT\"}"); else skip "cancel_native_receipt (incoming_payments)"; fi
 for target in "set_sales_invoice_efaktur:A_SI:p_si_id" "set_procurement_invoice_efaktur:A_PI:p_invoice_id"; do fn=${target%%:*}; rest=${target#*:}; id=${rest%%:*}; arg=${rest#*:}; value=${!id}; if [ -n "$value" ] && [ "$value" != null ]; then c=$(rpc "$fn" "{\"$arg\":\"$value\",\"p_efaktur_number\":\"123.456\",\"p_efaktur_date\":\"2026-09-08\"}"); else skip "$fn ($id)"; fi; done

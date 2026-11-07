@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
@@ -32,6 +32,15 @@ function urgencyKey(
   return 1;
 }
 
+/** Sunday of the week `day` (ISO YYYY-MM-DD) belongs to — the figure's due-by bound (Mon-based week). */
+function weekEndDate(day: string): string {
+  const [year, month, date] = day.split('-').map(Number);
+  const local = new Date(year, month - 1, date);
+  const weekday = local.getDay();
+  local.setDate(local.getDate() + (weekday === 0 ? 0 : 7 - weekday));
+  return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * PGA03-008: Reactive today date in the user's timezone that automatically
  * updates when midnight rolls over without requiring a page refresh.
@@ -58,7 +67,19 @@ const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Bloc
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
+  // #1461: the drill-window chip lives in the tasks feature namespace.
+  const { t: tasksT } = useTranslation('tasks');
   const today = useZonedToday();
+  // #1461: the dashboard 'Tasks due' figure counts open tasks due by the end of this week, and its
+  // drill carries `due=week`, so the list can show exactly that set (shareable URL, clearable chip).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dueThisWeekOnly = searchParams.get('due') === 'week';
+  const dueBy = dueThisWeekOnly && today ? weekEndDate(today) : null;
+  const clearDueFilter = () => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    next.delete('due');
+    return next;
+  }, { replace: true });
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
   const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
   const [search, setSearch] = React.useState('');
@@ -82,10 +103,12 @@ const MyTasks: React.FC = () => {
     return tasks.filter((task) => {
       const isCompleted = task.status === 'Done';
       if (isCompleted !== (queue === 'completed')) return false;
+      // #1461 due=week: open tasks due by the end of this week (the figure's counted set).
+      if (dueBy && !isCompleted && !(task.end_date !== null && task.end_date <= dueBy)) return false;
       if (!normalizedSearch) return true;
       return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
-  }, [tasks, queue, search]);
+  }, [tasks, queue, search, dueBy]);
 
   // Keep project grouping/context and urgency ordering after search/status filtering.
   // AC-IFW-TASKS-01: overdue open tasks precede other open work; dates sort soonest first.
@@ -146,6 +169,15 @@ const MyTasks: React.FC = () => {
             ]}
           />
           <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
+            {/* #1461: a due=week drill names the active window and can clear it. */}
+            {dueBy && (
+              <StatusPill variant="warn" className="shrink-0">
+                <button type="button" onClick={clearDueFilter} className="inline-flex items-center gap-1" aria-label={tasksT('clearDueWeek', 'Clear the due-this-week filter')}>
+                  {tasksT('dueThisWeek', 'Due this week')}
+                  <span aria-hidden="true">✕</span>
+                </button>
+              </StatusPill>
+            )}
             {/* Shared list search (Companies/Projects pattern): DESIGN search shell + the
                 `search_used` analytics contract; `flex-1` fills the toolbar row, and below `sm`
                 the variant classes drop the base `min-w-[190px]` clip (clsx cannot merge). */}

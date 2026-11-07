@@ -64,6 +64,33 @@ export function usePaidPaymentFacts(enabled = true) {
   });
 }
 
+/** Dashboard empty-state evidence (issue 1973): does the org hold ANY client invoice, any status?
+ *  The open-status facts read cannot tell — a drafted-only org is not an inactive org. Same
+ *  `salesInvoices` key prefix, so revenue mutations refresh it alongside the figures. */
+export function useHasAnySalesInvoice(enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<boolean>({
+    queryKey: ['salesInvoices', orgId, 'exists'],
+    queryFn: () => repositories.revenue.hasAnySalesInvoice(),
+    enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
+/** Dashboard empty-state evidence (issue 1973): does the org hold ANY incoming payment, any status?
+ *  The Scheduled-only org is exactly the case the Paid-status facts read misses. */
+export function useHasAnyIncomingPayment(enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<boolean>({
+    queryKey: ['incomingPayments', orgId, 'exists'],
+    queryFn: () => repositories.revenue.hasAnyIncomingPayment(),
+    enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
 /** Lazy read-only ERP evidence for an invoice detail; never fetched for PMO-native invoices. */
 export function useSalesInvoiceEvidence(id: string | undefined, enabled: boolean) {
   const { currentUser } = useAuth();
@@ -271,7 +298,20 @@ export function useRevenueMutations() {
     },
   });
 
-  return { create, setReceivedDate, setEfaktur, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
+  // #1415: apply a PMO receipt across invoices / take one allocation back. Both move invoice balances, so they invalidate
+  // exactly what a receipt cancel does.
+  const applyReceipt = useMutation({
+    mutationFn: (input: { receiptId: string; allocations: Array<{ invoiceId: string; amount: number }>; requestId: string }) =>
+      repositories.revenue.applyReceipt(input),
+    onSuccess: invalidate,
+  });
+
+  const unapplyAllocation = useMutation({
+    mutationFn: ({ allocationId }: { allocationId: string }) => repositories.revenue.unapplyAllocation(allocationId),
+    onSuccess: invalidate,
+  });
+
+  return { create, setReceivedDate, setEfaktur, createPayment, submitInvoice, cancelInvoice, cancelPayment, applyReceipt, unapplyAllocation, pendingPush };
 }
 
 export function useAssignInvoiceProject() {

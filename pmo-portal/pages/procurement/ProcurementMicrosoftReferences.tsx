@@ -1,5 +1,5 @@
 import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, ConfirmDialog, Icon, ListState, SelectField } from '@/src/components/ui';
@@ -66,6 +66,9 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   const [picked, setPicked] = useState<MicrosoftReferenceInput | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
   const pickerOpener = useRef<HTMLElement | null>(null);
+  const stateRef = useRef<HTMLDivElement | null>(null);
+  // The decision bar is sticky at the bottom: a load failure is brought clear of it (scroll-mb on the wrapper).
+  useEffect(() => { if (query.isError) stateRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [query.isError]);
 
   /** Matching browse refresh: only for rows the picker itself surfaced, never for absent results. */
   async function refreshMatches(selected: MicrosoftReferenceInput) {
@@ -205,7 +208,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
       <p className="mt-1 px-1 text-[12px] text-muted-foreground">
         {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
       </p>
-      <div className="mt-2">
+      <div ref={stateRef} className="mt-2 scroll-mb-28">
         {query.isPending ? (
           <ListState variant="loading" rows={2} />
         ) : query.isError ? (
