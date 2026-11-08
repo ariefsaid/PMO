@@ -181,7 +181,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
 
               {detail.data.items.length > 0 && (
                 <section>
-                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  <h3 className="mb-2 text-[11px] font-semibold text-muted-foreground">
                     {t('approvalRow.lineItems', 'Line items')}
                   </h3>
                   <ul className="space-y-1.5" aria-label={t('approvalRow.lineItems', 'Line items')}>
@@ -207,12 +207,12 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               )}
 
               <section>
-                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <h3 className="mb-2 text-[11px] font-semibold text-muted-foreground">
                     {t('approvalRow.details', 'Procurement details')}
                 </h3>
                 <dl className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded-lg border border-border/70 px-3 py-2">
-                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                    <dt className="text-[11px] text-muted-foreground">
                       {t('approvalRow.requestedBy', 'Requested by')}
                     </dt>
                     <dd className="mt-1 text-[13px] font-medium">
@@ -220,7 +220,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                     </dd>
                   </div>
                   <div className="rounded-lg border border-border/70 px-3 py-2">
-                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                    <dt className="text-[11px] text-muted-foreground">
                       {t('approvalRow.project', 'Project')}
                     </dt>
                     <dd className="mt-1 text-[13px] font-medium" title={row.project && projectDisplayName(row.project) !== row.project.name ? row.project.name : undefined}>
@@ -228,13 +228,13 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                     </dd>
                   </div>
                   <div className="rounded-lg border border-border/70 px-3 py-2">
-                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                    <dt className="text-[11px] text-muted-foreground">
                       {t('approvalRow.requested', 'Requested')}
                     </dt>
                     <dd className="mt-1 text-[13px] font-medium">{formatRelativeTime(row.created_at)}</dd>
                   </div>
                   <div className="rounded-lg border border-border/70 px-3 py-2">
-                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                    <dt className="text-[11px] text-muted-foreground">
                       {t('approvalRow.totalValue', 'Total value')}
                     </dt>
                     <dd className="mt-1 tabular text-[13px] font-medium">

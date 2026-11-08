@@ -131,7 +131,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   return (
     <div className="mt-2 flex flex-col gap-1.5 border-t border-dashed border-border/60 pt-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="text-[11px] font-semibold text-muted-foreground">
           Attachments
         </span>
         <span className="flex-1" />

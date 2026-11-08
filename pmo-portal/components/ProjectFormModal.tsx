@@ -38,7 +38,6 @@ import { CONTRACT_TAX_REQUIRED_HINT } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { projectIconColor } from './projects';
 import { AWARD_TYPES, BIDDING_ENTITIES, CLASSIFICATION_MAX_LENGTH, classificationValueOptions } from '@/src/lib/projectClassification';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -295,7 +294,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       label: companyDisplayName(c),
       sub: c.short_name ? c.name : t('companies.type.client', 'Client'),
       initials: initialsOf(companyDisplayName(c)),
-      color: projectIconColor(),
     }));
   };
 
@@ -305,7 +303,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       value: m.id,
       label: m.full_name,
       initials: initialsOf(m.full_name),
-      color: 'hsl(var(--secondary-foreground))',
     }));
   };
 
@@ -316,7 +313,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       label: companyDisplayName(c),
       sub: c.short_name ? c.name : t(`companies.type.${c.type.toLowerCase()}`, c.type),
       initials: initialsOf(companyDisplayName(c)),
-      color: projectIconColor(),
     }));
   };
 
@@ -465,7 +461,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             value={form.values.clientId}
             selectedOption={
               form.values.clientId && clientLabel
-                ? { value: form.values.clientId, label: clientLabel, initials: initialsOf(clientLabel), color: projectIconColor() }
+                ? { value: form.values.clientId, label: clientLabel, initials: initialsOf(clientLabel) }
                 : null
             }
             onChange={(v, opt) => {
@@ -491,7 +487,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             value={form.values.endClientId}
             selectedOption={
               form.values.endClientId && endClientLabel
-                ? { value: form.values.endClientId, label: endClientLabel, initials: initialsOf(endClientLabel), color: projectIconColor() }
+                ? { value: form.values.endClientId, label: endClientLabel, initials: initialsOf(endClientLabel) }
                 : null
             }
             onChange={(v, opt) => {

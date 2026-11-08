@@ -102,7 +102,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
         const answered = answeredMap[q.questionId];
         return (
           <div>
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
               Answer needed
             </p>
             <QuestionChips

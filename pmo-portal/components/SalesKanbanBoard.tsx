@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { initials } from '@/src/lib/initials';
+import { Avatar } from '@/src/components/ui/Avatar';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/src/components/shadcn/dropdown-menu';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel, type DropState } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
@@ -116,7 +116,7 @@ const DealCard: React.FC<{
       className="[&>div:first-child]:pr-7"
       foot={project.pm_name ? (
         <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-          <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials(project.pm_name, { fallback: '' })}</span>
+          <Avatar name={project.pm_name} size="xs" decorative fallback="" />
           <span className="truncate">{project.pm_name}</span>
         </span>
       ) : undefined}

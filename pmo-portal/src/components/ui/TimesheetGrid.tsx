@@ -284,7 +284,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
 
   const totals = [{
     key: 'daily',
-    label: <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
+    label: <span className="text-[11.5px] font-semibold text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
     values: {
       ...Object.fromEntries(dailyTotals.map((total, i) => [
         `day-${i}`,
@@ -432,7 +432,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           color-contrast, tidy sweep). The weekend reads through the row tint. */}
                       <span
                         className={cn(
-                          'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
+                          'w-[52px] shrink-0 text-[12px] font-semibold',
                           'text-muted-foreground'
                         )}
                         aria-hidden="true"
@@ -483,7 +483,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                         color-contrast, tidy sweep). The weekend reads through the row tint. */}
                     <span
                       className={cn(
-                        'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
+                        'w-[52px] shrink-0 text-[12px] font-semibold',
                         'text-muted-foreground'
                       )}
                       aria-hidden="true"
@@ -524,7 +524,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
               data-testid={`tsgrid-row-total-${r.id}`}
               className="mt-2 flex items-center justify-end gap-1.5 text-[12px] font-semibold tabular text-muted-foreground"
             >
-              <span className="text-[11px] uppercase tracking-[0.03em]">{t('timesheets.rowTotal', 'Row total')}</span>
+              <span className="text-[11px]">{t('timesheets.rowTotal', 'Row total')}</span>
               <span className="text-sm text-foreground">
                 {rowTotal > 0 ? formatNumberExact(rowTotal) : '·'}
               </span>
@@ -535,7 +535,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
 
       {/* Grand total footer */}
       <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-3.5 py-3">
-        <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+        <span className="text-[11.5px] font-semibold text-muted-foreground">
           {t('timesheets.weekTotal', 'Week total')}
         </span>
         <span

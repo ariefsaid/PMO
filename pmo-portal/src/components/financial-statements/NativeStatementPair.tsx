@@ -1,3 +1,4 @@
+import { Button } from '@/src/components/ui/Button';
 import { useId, useState, type ReactNode } from 'react';
 import { ListState } from '@/src/components/ui/ListState';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
@@ -135,7 +136,7 @@ function periodColumns(side: NativeReportColumn): ReportField[] {
   return periods.length > 0 ? periods : money;
 }
 
-const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground';
+const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-[11.5px] font-semibold text-muted-foreground';
 const ACCOUNT_CELL = 'sticky left-0 bg-card px-3 text-left';
 
 function AmountCell({ row, column, presentation, notProvided, className }: {
@@ -200,7 +201,7 @@ function CollapseAll({ lines, collapsed, setCollapsed, labels }: {
   if (!hasCollapsibleGroups(lines)) return null;
   const groups = collapsibleGroupLines(lines);
   const allCollapsed = groups.every((group) => collapsed.has(group.key));
-  return <button type="button" className="h-8 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCollapsed(() => allCollapsed ? new Set() : new Set(groups.map((group) => group.key)))}>{allCollapsed ? labels.expandAll : labels.collapseAll}</button>;
+  return <Button variant="ghost" size="sm" onClick={() => setCollapsed(() => allCollapsed ? new Set() : new Set(groups.map((group) => group.key)))}>{allCollapsed ? labels.expandAll : labels.collapseAll}</Button>;
 }
 
 function StatementTable({ headingId, lines, account, valueColumns, presentation, notProvided, collapsed, setCollapsed, labels }: {

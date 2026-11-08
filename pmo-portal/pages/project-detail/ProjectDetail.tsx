@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useCallback, useLayoutEffect, useState } from 'react';
@@ -35,7 +36,6 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     ? completionPct(milestones.reduce((sum, phase) => sum + phase.weight * phase.effective_pct, 0) / totalWeight)
     : null;
   const manager = project.pm?.full_name;
-  const initial = manager?.trim().charAt(0).toUpperCase() || '?';
   const dates = project.start_date || project.end_date
     ? `${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}`
     : t('projectDetail.facts.noDates', 'Dates not set');
@@ -44,7 +44,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 pb-2 text-control font-normal text-muted-foreground md:mb-6 md:gap-y-2 md:pb-4">
       {manager && (
         <span className="inline-flex min-w-0 items-center gap-2">
-          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
+          <Avatar name={manager} decorative />
           <span className="truncate">{manager}</span>
         </span>
       )}

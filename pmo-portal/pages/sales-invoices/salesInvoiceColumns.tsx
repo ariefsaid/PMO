@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import React from 'react';
 import { Link, type Location } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -224,12 +225,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     cell: (inv) => {
       const project = projectLabelOf(inv);
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
-      const managerInitial = manager?.charAt(0).toLocaleUpperCase() ?? '—';
       return <span className="flex min-w-0 flex-col gap-0.5">
         <span className="min-w-0 break-words font-medium">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
         <span className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground">
           <span className="min-w-0 break-words">{project ?? '—'}</span>
-          <span aria-hidden="true" className="inline-grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{managerInitial}</span>
+          <Avatar name={manager} size="xs" decorative />
           <span className="min-w-0 break-words">{manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
         </span>
       </span>;
