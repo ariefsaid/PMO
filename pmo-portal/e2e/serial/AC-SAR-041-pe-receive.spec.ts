@@ -30,6 +30,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -241,6 +242,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       //    inbound feed/sweep, out of this command's scope) — so the flip is verified the P2 way by
       //    querying the ERP Sales Invoice DOC DIRECTLY (mirrors AC-ENA-053's PI-flip proof). The bench
       //    creds are REQUIRED for this spec (READY), so this oracle runs unconditionally.
+      assertLocalBenchUrl(ERPNEXT_BENCH_URL);
       const siFlipRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(siName)}`, {
         headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
       });

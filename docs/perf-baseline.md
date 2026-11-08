@@ -165,3 +165,39 @@ Ranked by expected TBT saving per page at 4x (from the profiles above). "Verify"
 7. **Low priority: CLS on procurement 0.061 (needs-you tabpanel) and project detail 0.030.** Both under the 0.1 line; reserve the panel's height. No TBT effect.
 
 Not worth doing from this data: more vendor chunk splitting (`repositories` is 107 kB gzip and `vendor-react` script time is React running component code, not chunk evaluation; chunk evaluation shows as 12-20 ms per chunk); another table virtualization pass (row counts above are far under the trigger).
+## Load run (#1898)
+
+`scripts/perf/load-run.mjs` replays, per route, the PostgREST/RPC calls a real page load makes (fixture
+`scripts/perf/load-routes.json`, captured with a real browser by `scripts/perf/load-capture.mjs`). N virtual users
+each load the page's whole call set in parallel (as the browser does), think about 1 s, and repeat for D seconds.
+Latency is the whole page's call set, start of first call to end of last. Pages with any failed call are excluded
+from the percentiles and counted under failed calls. Plain Node 22, no dependency; local stack only (refuses a
+non-localhost `--url` unless `--allow-remote`).
+
+**How to run** (one run at a time; the stack must be up and seeded):
+`scripts/with-db-lock.sh node scripts/perf/load-run.mjs --users 50 --duration 60 [--routes project,procurement] [--think 1000] [--no-db-stats]`.
+Routes: `dashboard-exec`, `dashboard-pm`, `project`, `procurement`, `receivables`. DB top statements come from
+`pg_stat_statements` in the local DB container (skipped if unavailable). Re-capture the fixture after a page's
+queries change: start `vite` on the local stack, then `scripts/with-db-lock.sh node scripts/perf/load-capture.mjs <baseUrl>`.
+Fixture: user id, org id and date windows are placeholders resolved at run time (per signed-in user, from today);
+virtual users on a route share one signed-in session; the project page uses the oldest project. The numbers below
+were taken before the placeholders (same queries, same user).
+
+First result, 2026-11-08, origin/dev at `44a0c0f8c` (+ this script), 50 users, 60 s per route, think 1 s,
+Mac shared with other workers and a local Docker stack (not a dedicated host):
+
+| Route | Calls/page | Pages | p50 ms | p95 ms | p99 ms | Failed calls | Failure statuses |
+|---|---|---|---|---|---|---|---|
+| dashboard (Executive) | 27 | 567 | 2482 | 7454 | 14163 | 176 | 502 x13, 504 x163 |
+| dashboard (Project Manager) | 21 | 545 | 4442 | 7276 | 9361 | 15 | 502 x11, 504 x4 |
+| `/projects/:id` | 21 | 1416 | 1027 | 1934 | 3602 | 23 | 502 x23 |
+| `/procurement` | 16 | 1582 | 691 | 2297 | 3174 | 26 | 502 x26 |
+| `/finance/receivables` | 18 | 2115 | 329 | 1122 | 1651 | 20 | 502 x20 |
+
+Run-to-run spread is large on this host: an identical earlier run gave dashboard (Executive) p95 12.8 s, dashboard
+(PM) p95 11.2 s, project p95 12.9 s (more 5xx). Compare before/after only from back-to-back runs, and read the
+failure counts with the latencies. The 502/504 are the local PostgREST/gateway saturating at 50 concurrent users.
+
+Heaviest statements by total DB time (both runs agree on the order): the Executive/PM dashboard RPCs
+(`get_executive_dashboard`, `get_pm_dashboard_projects`, and the management-pack/delivery RPC family at 30 to 320 ms mean)
+and the `procurements` list query (84 ms mean, 1,583 calls) with its project-embedded variant.

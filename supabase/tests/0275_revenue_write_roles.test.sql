@@ -5,7 +5,7 @@
 -- transaction (rolled back), then shows which roles the policy admits.
 begin;
 create extension if not exists pgtap;
-select plan(30);
+select plan(32);
 
 insert into organizations (id, name) values ('02700000-0000-0000-0000-000000000001', 'NAR Org');
 insert into auth.users (id, email) values
@@ -172,6 +172,12 @@ select lives_ok($$ select public.create_native_sales_invoice('02700000-0000-0000
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
 select throws_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Role check"}]'), 'Cancelled') $$,
   '42501', 'only Finance or an Admin can approve or cancel a customer invoice', 'AC-NAR-007 an Executive cannot cancel a PMO invoice'); -- 23
+select throws_ok($$ select public.create_native_tm_invoice('02700000-0000-0000-0000-0000000000ee') $$,
+  '42501', 'only Finance or an Admin can raise a customer invoice', 'AC-NAR-007 an Executive cannot raise a PMO invoice from a T&M claim');
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a7","role":"authenticated"}';
+select throws_ok($$ select public.create_native_tm_invoice('02700000-0000-0000-0000-0000000000ee') $$,
+  '42501', 'only Finance or an Admin can raise a customer invoice', 'AC-NAR-007 an Engineer cannot raise a PMO invoice from a T&M claim');
+set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select public.transition_native_sales_invoice((select id from public.sales_invoices where native_lines @> '[{"description":"Role check"}]'), 'Cancelled') $$,
   'AC-NAR-007 an Admin cancels a PMO invoice');                                                                      -- 24

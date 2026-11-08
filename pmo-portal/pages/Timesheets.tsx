@@ -26,7 +26,7 @@ import {
 } from '@/src/hooks/useTimesheetApproval';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -47,7 +47,6 @@ const PICKER_NAME_MAX = 36;
 const TimesheetsPage: React.FC = () => {
   const { t } = useTranslation(['common', 'timesheets']);
   const isDesktop = useIsDesktop();
-  const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -73,6 +72,8 @@ const TimesheetsPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const { date: weekStartDate, key: weekStartString } = weekStart(currentDate);
+  // Windowed read: current + recent weeks; stepping back past it fetches the older weeks (perf q12).
+  const { data: sheets, isPending, isError, refetch } = useTimesheets(true, weekStartString);
   const weekDates = useMemo(() => datesInWeek(weekStartDate), [weekStartDate]);
 
   const currentTimesheet = useMemo(
@@ -113,7 +114,7 @@ const TimesheetsPage: React.FC = () => {
 
   const entryMutations = useTimesheetEntryMutations();
   const { saveWeek, deleteRow, isReconciling, retryDeleteRefresh } = entryMutations;
-  const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjects();
+  const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjectPickerOptions();
 
   const editor = useTimesheetWeekEditor({
     currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString,

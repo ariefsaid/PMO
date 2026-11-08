@@ -54,6 +54,7 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     ['gate_approval_before_order', 'Your organization requires an approval before an order.'],
     ['gate_receipt_before_invoice', 'Your organization requires a goods receipt before a supplier invoice.'],
     ['gate_approval_before_payment', 'Your organization requires an approval before payment.'],
+    ['purchase-move-has-journal-lines', 'A purchase with attached journal lines cannot move to another project. Ask Finance or an Admin to detach the lines first.'],
   ])('AC-PFE-003 a purchase-rule refusal (%s) shows the server rule message, not the generic conflict text', (gate, message) => {
     const { headline, detail } = classifyMutationError(new AppError(message, '23514', gate));
     expect(detail).toBe(message);

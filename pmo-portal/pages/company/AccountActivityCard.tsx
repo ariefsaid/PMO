@@ -24,6 +24,7 @@ import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import { useContactsByCompany, useCompanyActivities, useContactMutations } from '@/src/hooks/useContacts';
 import { EditActivityModal } from '@/pages/activity/EditActivityModal';
+import { ActivityShowMore } from '@/pages/activity/ActivityShowMore';
 
 /**
  * The company record page's account activity timeline (CROSS-68), moved off CompanyDetail.
@@ -68,7 +69,8 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
   const contactList = useMemo(() => contacts ?? [], [contacts]);
   const contactIds = useMemo(() => contactList.map((c) => c.id), [contactList]);
 
-  const { data, isPending, isError, refetch } = useCompanyActivities(contactIds);
+  const { data, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useCompanyActivities(contactIds);
   const { logActivity, updateActivity, deleteActivity } = useContactMutations();
   const canLog = may('create', 'contactActivity');
   const canEdit = may('edit', 'contactActivity');
@@ -316,6 +318,15 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
               );
             })}
           </ol>
+        )}
+
+        {!isPending && !isError && activities.length > 0 && (
+          <ActivityShowMore
+            shown={activities.length}
+            hasNextPage={Boolean(hasNextPage)}
+            isFetchingNextPage={isFetchingNextPage}
+            onShowMore={() => void fetchNextPage()}
+          />
         )}
 
         {/* Edit activity modal (CD-1) — the ONE shared CRM activity edit form (PGA02-006). */}

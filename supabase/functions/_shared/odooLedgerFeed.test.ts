@@ -19,7 +19,7 @@ const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KE
 
 interface PageRow { erp_name: string; account: string; project: string | null; fiscal_year: string; debit: string; credit: string; is_cancelled: boolean; posting_date: string }
 interface Page { p_org_id: string; p_rows: PageRow[]; p_cursor: string }
-interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string> }
+interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string>; lastCheckAt?: string; failRecord?: boolean; publishedAt?: string }
 
 const line = (id: number, over: Record<string, unknown> = {}) => ({
   id, move_id: [id, `BILL/${id}`], move_name: `BILL/${id}`, journal_id: [3, 'Bills'], partner_id: [9, 'Vendor'], company_id: [1, 'Main'], currency_id: [1, 'IDR'],
@@ -34,27 +34,44 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   let cursor: string | undefined;
   let fingerprint: string | undefined;
   let rewinds = 0;
+  let switched = o.switched !== false;
+  let publishedAt: string | undefined = o.publishedAt;
   const applies: Page[] = [];
   const snapshots: Array<Record<string, unknown>[]> = [];
   const mirror = new Map<string, PageRow>();
   const census = { seen: [] as string[][], finish: [] as Array<{ expected: number | null }> };
+  const checks: Array<{ p_org_id: string; p_cutoff: string; p_accounts: Array<{ account: string; pmo: unknown; odoo: unknown }>; p_status: string; p_reason: string | null; p_accounts_checked: number; p_feed_position: string }> = [];
+  const markers: string[] = [];
   const yearEnds: Array<{ p_org_id: string; p_month: number; p_day: number }> = [];
   let links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
   const accounts = { ...(o.accounts ?? { '501': '5100' }) } as Record<string, string>;
   const routes: MockRoute[] = [
-    supabaseSelect('external_org_bindings', () => jsonResponse([{ status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { capabilities: { later: { 'account.move.line': true } }, ...(o.switched === false ? {} : { ledger_basis_at: '2026-11-05T00:00:00Z' }) }, ...o.binding }])),
+    supabaseSelect('external_org_bindings', () => jsonResponse([{ status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { capabilities: { later: { 'account.move.line': true } }, ...(!switched ? {} : { ledger_basis_at: '2026-11-05T00:00:00Z' }) }, ...o.binding }])),
     supabaseSelect('external_sync_watermarks', (c) => {
+      if (c.url.searchParams.get('domain') === 'eq.ledger-published:odoo') return jsonResponse(publishedAt ? [{ updated_at: publishedAt }] : []);
       const value = c.url.searchParams.get('domain') === 'eq.ledger-links:odoo' ? fingerprint : cursor;
       return jsonResponse(value === undefined ? [] : [{ watermark_cursor: value }]);
     }),
     { label: 'watermark-rewind', method: 'DELETE', pathname: '/rest/v1/external_sync_watermarks', response: () => { cursor = undefined; rewinds++; return new Response(null, { status: 204 }); } },
-    { label: 'watermark-fingerprint', method: 'POST', pathname: '/rest/v1/external_sync_watermarks', response: (c) => { fingerprint = (c.bodyJson as { watermark_cursor: string }).watermark_cursor; return new Response(null, { status: 201 }); } },
+    { label: 'watermark-fingerprint', method: 'POST', pathname: '/rest/v1/external_sync_watermarks', response: (c) => {
+      const body = c.bodyJson as { domain: string; watermark_cursor: string };
+      if (body.domain === 'ledger-caught-up:odoo') markers.push(body.watermark_cursor);
+      else if (body.domain === 'ledger-published:odoo') publishedAt = (body as unknown as { updated_at: string }).updated_at;
+      else fingerprint = body.watermark_cursor;
+      return new Response(null, { status: 201 });
+    } },
+    supabaseSelect('odoo_ledger_checks', () => jsonResponse(o.lastCheckAt ? [{ checked_at: o.lastCheckAt }] : [])),
+    supabaseRpc('record_odoo_ledger_check', (c) => {
+      if (o.failRecord) return jsonResponse({ code: 'P0001', message: 'no' }, { status: 400 });
+      checks.push(c.bodyJson as (typeof checks)[number]);
+      return new Response(null, { status: 204 });
+    }),
     supabaseSelect('external_project_bindings', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : Object.entries(links).map(([project_id, external_container_id], i) => ({ id: `b${i}`, project_id, external_container_id })))),
     supabaseSelect('external_master_records', (c) => jsonResponse(c.url.searchParams.get('id') ? [] : Object.entries(accounts).map(([external_id, code]) => ({ id: `m${external_id}`, external_id, code })))),
     supabaseSelect('erp_gl_entry_mirror', (c) => {
       const after = (c.url.searchParams.get('id') ?? '').replace(/^gt\./, '');
       const rows = [...mirror.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).filter(([id]) => !after || id > after).slice(0, 1000)
-        .map(([id, r]) => ({ id, project: r.project, cost_center: null, account: r.account, fiscal_year: r.fiscal_year, debit: r.debit, credit: r.credit }));
+        .map(([id, r]) => ({ id, project: r.project, cost_center: null, account: r.account, fiscal_year: r.fiscal_year, debit: r.debit, credit: r.credit, voucher_type: 'account.move', is_cancelled: r.is_cancelled, erp_modified: (r as unknown as { source_write_date: string }).source_write_date }));
       return jsonResponse(rows);
     }),
     supabaseRpc('apply_odoo_ledger_page', (c) => {
@@ -76,7 +93,7 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseRpc('finish_odoo_ledger_census', (c) => { census.finish.push({ expected: (c.bodyJson as { p_expected_lines: number | null }).p_expected_lines }); return jsonResponse(0); }),
     supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push((c.bodyJson as { p_rows: Record<string, unknown>[] }).p_rows); return jsonResponse(null); }),
   ];
-  return { fake, routes, applies, snapshots, census, mirror, yearEnds, getCursor: () => cursor, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
+  return { fake, routes, applies, checks, markers, snapshots, census, mirror, yearEnds, switchNow: () => { switched = true; }, getCursor: () => cursor, setCursor: (c: string) => { cursor = c; }, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
 }
 /** `refuseCompany`: Odoo answers 403 to the company read, as it does for a key user without access to it. */
 const odooCall = (fake: FakeOdoo, refuseCompany = false) => bindCall({
@@ -255,6 +272,31 @@ describe('runLedgerPass — org basis switch and change-only refresh', () => {
   });
 });
 
+describe('runLedgerPass — first publish after the switch', () => {
+  const seed = (fake: FakeOdoo) => fake.seed('account.move.line', [line(1, { analytic_distribution: { '101': 100 }, debit: 300 })]);
+
+  it('AC-ODA-016 a switched org whose ledger is already stored and quiet publishes once, then only on change', async () => {
+    const h = harness(seed, { switched: false });
+    const pass = () => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    await pass();
+    assertEquals(h.snapshots.length, 0);
+    h.switchNow();
+    await pass();
+    assertEquals(h.snapshots.length, 1, 'no change in the ledger, still published once after the switch');
+    await pass();
+    assertEquals(h.snapshots.length, 1);
+  });
+
+  it('a publish marker older than the switch is published again; a newer one is not', async () => {
+    const stale = harness(seed, { publishedAt: '2026-11-04T00:00:00Z' });
+    await withFetchMock(stale.routes, async () => { await runLedgerPass(client(), ORG, odooCall(stale.fake), 1, budget()); });
+    assertEquals(stale.snapshots.length, 1);
+    const current = harness(seed, { publishedAt: '2026-11-06T00:00:00Z' });
+    await withFetchMock(current.routes, async () => { await runLedgerPass(client(), ORG, odooCall(current.fake), 1, budget()); await runLedgerPass(client(), ORG, odooCall(current.fake), 1, budget()); });
+    assertEquals(current.snapshots.length, 1, 'only the first pass changed rows');
+  });
+});
+
 describe('runLedgerPass — AC-ODA-002 a late project link re-attributes the stored lines', () => {
   const seed = (fake: FakeOdoo) => fake.seed('account.move.line', [line(1, { analytic_distribution: { '101': 100 }, debit: 300 })]);
 
@@ -282,5 +324,110 @@ describe('runLedgerPass — AC-ODA-002 a late project link re-attributes the sto
     h.relink({ [P2]: '101' });
     await pass();
     assertEquals([...h.mirror.keys()], ['odoo:1:101']);
+  });
+});
+
+describe('runLedgerPass — AC-ODA-008 / S4-T4 reconciliation check', () => {
+  const NOW = () => new Date('2026-11-02T12:00:00Z');
+  // A first full read stores the cursor at its start minus the overlap (11:50); the check cuts off a further overlap earlier (11:40). Odoo side: 200.00 / 40.00 over account 5100.
+  const old = (id: number, over: Record<string, unknown> = {}) => line(id, { write_date: `2026-11-02 08:00:0${id}`, ...over });
+  const seed = (fake: FakeOdoo) => fake.seed('account.move.line', [old(1), old(2, { debit: 0, credit: 40, balance: -40 }), line(3, { write_date: '2026-11-02 10:00:00' })]);
+
+  it('AC-ODA-008 a caught-up tick with no earlier check reads Odoo grouped totals at cursor minus overlap and records "matches"', async () => {
+    const h = harness(seed);
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
+    assertEquals(out.caughtUp, true);
+    assertEquals(h.checks.length, 1);
+    assertEquals(h.checks[0].p_status, 'matches');
+    assertEquals(h.checks[0].p_cutoff, '2026-11-02T11:40:00.000Z');
+    assertEquals(h.checks[0].p_accounts, []);
+    assertEquals(h.checks[0].p_accounts_checked, 1);
+    assertEquals(h.checks[0].p_feed_position, `${JSON.parse(h.getCursor()!).w}|${JSON.parse(h.getCursor()!).id}`);
+    assertEquals(h.markers, ['true']);
+  });
+
+  it('AC-ODA-008 one account that differs is recorded with the account, the PMO figure and the Odoo figure; nothing is corrected', async () => {
+    const h = harness(seed);
+    const orig = h.fake.fetch.bind(h.fake);
+    const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const res = await orig(input, init);
+      if (!String(input).includes('/formatted_read_group')) return res;
+      const groups = (await res.json()) as Array<Record<string, unknown>>;
+      return Response.json(groups.map((g) => ({ ...g, 'debit:sum': Number(g['debit:sum']) + 20 })));
+    }) as typeof fetch });
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget(), { now: NOW }));
+    assertEquals(h.checks[0].p_status, 'differs');
+    assertEquals(h.checks[0].p_accounts, [{ account: '5100', pmo: { debit: '200.00', credit: '40.00' }, odoo: { debit: '220.00', credit: '40.00' } }]);
+  });
+
+  it('AC-ODA-008 a failing grouped read records "not-checked" with the error class and never fails the tick', async () => {
+    const h = harness(seed);
+    const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+      String(input).includes('/formatted_read_group') ? Promise.resolve(Response.json({ name: 'odoo.exceptions.AccessError', message: 'no' }, { status: 403 })) : h.fake.fetch(input, init)) as typeof fetch });
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget(), { now: NOW }));
+    assertEquals(out.caughtUp, true);
+    assertEquals([h.checks[0].p_status, h.checks[0].p_reason, h.checks[0].p_accounts_checked], ['not-checked', 'access-denied', 0]);
+  });
+
+  /** Odoo answers the grouped read with `groups`, whatever the mirror holds. */
+  const withGroups = (h: ReturnType<typeof harness>, groups: unknown[], onRead?: () => void) => bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    if (!String(input).includes('/formatted_read_group')) return h.fake.fetch(input, init);
+    onRead?.();
+    return Promise.resolve(Response.json(groups));
+  }) as typeof fetch });
+
+  it('AC-ODA-008 Odoo answering nothing while the mirror holds lines is "differs", never "matches"', async () => {
+    const h = harness(seed);
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, withGroups(h, []), 1, budget(), { now: NOW }));
+    assertEquals(h.checks[0].p_status, 'differs');
+    assertEquals(h.checks[0].p_accounts, [{ account: '5100', pmo: { debit: '200.00', credit: '40.00' }, odoo: { debit: '0.00', credit: '0.00' } }]);
+    assertEquals(h.checks[0].p_accounts_checked, 1);
+  });
+
+  it('AC-ODA-008 a mirror whose only line is newer than the cut-off and an empty Odoo records "matches" over 0 accounts (the count says nothing was compared)', async () => {
+    const h = harness((fake) => fake.seed('account.move.line', [line(3, { write_date: '2026-11-02 11:45:00' })]));
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, withGroups(h, []), 1, budget(), { now: NOW }));
+    assertEquals([h.checks[0].p_status, h.checks[0].p_accounts_checked], ['matches', 0]);
+  });
+
+  it('AC-ODA-008 the mirror holding a line Odoo does not total, in an account only the mirror has, is "differs"', async () => {
+    const h = harness(seed);
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, withGroups(h, [{ account_id: [501, '5100 Cost'], 'debit:sum': 200, 'credit:sum': 40 }, { account_id: [777, '7770 Other'], 'debit:sum': 5, 'credit:sum': 0 }]), 1, budget(), { now: NOW }));
+    assertEquals(h.checks[0].p_status, 'differs');
+    assertEquals(h.checks[0].p_accounts_checked, 2);
+  });
+
+  it('AC-ODA-008 a feed page applied while the check ran drops the result instead of recording a false difference', async () => {
+    const h = harness(seed);
+    const call = withGroups(h, [], () => h.setCursor(JSON.stringify({ w: '2026-11-02 11:59:59', id: 99, scan: null })));
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget(), { now: NOW }));
+    assertEquals(h.checks.length, 0);
+  });
+
+  it('AC-ODA-008 a check that cannot even be recorded does not fail the tick', async () => {
+    const h = harness(seed, { failRecord: true });
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
+    assertEquals(out.caughtUp, true);
+    assertEquals(h.checks.length, 0);
+  });
+
+  it('S4-T4 less than an hour after the last check, no grouped read and no new record', async () => {
+    const h = harness(seed, { lastCheckAt: '2026-11-02T11:30:00Z' });
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
+    assertEquals(h.checks.length, 0);
+  });
+
+  it('S4-T4 an hour after the last check it runs again', async () => {
+    const h = harness(seed, { lastCheckAt: '2026-11-02T10:59:00Z' });
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
+    assertEquals(h.checks.length, 1);
+  });
+
+  it('S4-T4 a feed that is not caught up runs no check and marks "not caught up"', async () => {
+    const h = harness((fake) => fake.seed('account.move.line', [line(1, { account_id: [999, '9999 New'] })]));
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
+    assertEquals(out.caughtUp, false);
+    assertEquals(h.checks.length, 0);
+    assertEquals(h.markers, ['false']);
   });
 });

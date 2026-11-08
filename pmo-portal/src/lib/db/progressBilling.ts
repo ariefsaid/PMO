@@ -25,7 +25,7 @@ export interface ProgressClaimWithInvoice extends ProgressClaimRow {
   lines: ProgressClaimLineRow[];
   evidence: ClaimEvidenceRef[];
   /** The claim's invoice mirror (id = claim id), or null when not yet raised. */
-  invoice: { si_number: string | null; status: string; amount: number | null } | null;
+  invoice: { si_number: string | null; pmo_number: string | null; status: string; amount: number | null } | null;
 }
 
 export interface BoqItemInput {
@@ -114,12 +114,12 @@ export async function listProjectClaims(projectId: string): Promise<ProgressClai
   const claims = (data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[] }>;
   if (claims.length === 0) return [];
   const { data: invoices, error: invoiceError } = await supabase.from('sales_invoices')
-    .select('id,si_number,status,amount').in('id', claims.map((claim) => claim.id));
+    .select('id,si_number,pmo_number,status,amount').in('id', claims.map((claim) => claim.id));
   if (invoiceError) fail(invoiceError);
   const byId = new Map((invoices ?? []).map((invoice) => [invoice.id, invoice]));
   return claims.map((claim) => {
     const invoice = byId.get(claim.id);
-    return { ...claim, invoice: invoice ? { si_number: invoice.si_number, status: invoice.status, amount: invoice.amount } : null };
+    return { ...claim, invoice: invoice ? { si_number: invoice.si_number, pmo_number: invoice.pmo_number, status: invoice.status, amount: invoice.amount } : null };
   });
 }
 
