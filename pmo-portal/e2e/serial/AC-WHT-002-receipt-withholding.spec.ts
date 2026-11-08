@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
 import { runFullSweep } from './_sweepHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -20,6 +21,7 @@ test.skip(!READY, 'AC-WHT-002 requires the local served-functions lane and throw
 test.setTimeout(120_000);
 
 async function erpDoc(doctype: string, name: string) {
+  assertLocalBenchUrl(BENCH_URL);
   const response = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
     headers: { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}` },
   });

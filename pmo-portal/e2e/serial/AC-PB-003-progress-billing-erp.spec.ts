@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -36,16 +37,19 @@ const benchHeaders = { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`, 'Con
 
 /** Idempotent bench fixture: a duplicate-name refusal means Task 0 (or a previous run) already created it. */
 async function benchEnsure(doctype: string, body: Record<string, unknown>): Promise<void> {
+  assertLocalBenchUrl(BENCH_URL);
   await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}`, { method: 'POST', headers: benchHeaders, body: JSON.stringify(body) });
 }
 
 /** Selling Settings is site-wide; the recovery line (negative rate) is refused at submit unless this is on (DD-PBL-12a). */
 async function benchAllowNegativeRates(): Promise<void> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}/api/resource/Selling%20Settings/Selling%20Settings`, { method: 'PUT', headers: benchHeaders, body: JSON.stringify({ allow_negative_rates_for_items: 1 }) });
   expect(res.status, 'the bench must allow enabling Selling Settings → Allow Negative rates for Items').toBe(200);
 }
 
 async function glEntries(voucher: string): Promise<Array<{ account: string; debit: number; credit: number }>> {
+  assertLocalBenchUrl(BENCH_URL);
   const params = new URLSearchParams({
     filters: JSON.stringify([['voucher_no', '=', voucher], ['is_cancelled', '=', 0]]),
     fields: JSON.stringify(['account', 'debit', 'credit']),
@@ -93,6 +97,7 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
     try {
       await benchAllowNegativeRates();
       await benchEnsure('Account', { account_name: 'Progress Billing VAT', parent_account: 'Duties and Taxes - PSC', company: 'PMO Smoke Co', is_group: 0, account_type: 'Tax' });
+      assertLocalBenchUrl(BENCH_URL);
       const existingDefault = (await (await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template?${new URLSearchParams({
         filters: JSON.stringify([['company', '=', 'PMO Smoke Co'], ['is_default', '=', 1]]), fields: JSON.stringify(['name']) })}`, { headers: benchHeaders })).json()) as { data: unknown[] };
       if (existingDefault.data.length === 0) {
@@ -133,6 +138,7 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
       const claimInvoice = await raiseAndSubmit(pc.data as string, seeded.companyId, seeded.projectId, authorToken, approverToken);
 
       // 3. The goal: the ledger.
+      assertLocalBenchUrl(BENCH_URL);
       const dpGl = await glEntries(dpInvoice);
       expect(dpGl.filter((e) => e.account === ADVANCE_ACCOUNT).reduce((sum, e) => sum + e.credit - e.debit, 0)).toBe(200000);
       expect(dpGl.filter((e) => e.account === TAX_ACCOUNT).reduce((sum, e) => sum + e.credit - e.debit, 0), 'the down payment is taxed 10% on its net').toBe(20000);
@@ -165,6 +171,7 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
         await admin.from('progress_claims').delete().in('id', claimIds);
       }
       if (createdTemplate) {
+        assertLocalBenchUrl(BENCH_URL);
         const removed = await fetch(`${BENCH_URL}/api/resource/Sales%20Taxes%20and%20Charges%20Template/${encodeURIComponent(createdTemplate)}`, { method: 'DELETE', headers: benchHeaders });
         if (!removed.ok) console.warn(`AC-PB-003 cleanup: the bench kept tax template ${createdTemplate} (HTTP ${removed.status}); later invoices will be taxed`);
       }
