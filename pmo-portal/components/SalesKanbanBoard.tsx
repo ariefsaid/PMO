@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { initials } from '@/src/lib/initials';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/src/components/shadcn/dropdown-menu';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel, type DropState } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
@@ -95,6 +97,8 @@ const DealCard: React.FC<{
   const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
+  // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
+  const columnRepeatsStatus = (SALES_COLUMNS.find((c) => c.statuses.includes(project.status))?.statuses.length ?? 0) <= 1;
   return (
     <ProjectCardShell
       variant="kanban"
@@ -105,9 +109,17 @@ const DealCard: React.FC<{
       client={project.client_name}
       pmoProjectNumber={null}
       code={null}
-      status={
+      status={columnRepeatsStatus ? null : (
         <StatusPill variant={pillVariantForStatus(project.status)} wrap>{statusLabel(project.status)}</StatusPill>
-      }
+      )}
+      // The head (first child) keeps clear of the card menu's trigger.
+      className="[&>div:first-child]:pr-7"
+      foot={project.pm_name ? (
+        <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials(project.pm_name, { fallback: '' })}</span>
+          <span className="truncate">{project.pm_name}</span>
+        </span>
+      ) : undefined}
       body={
         // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
         // amounts + the PPN label) amount, basis and the probability pill do not
@@ -210,6 +222,39 @@ const CompactDealCard: React.FC<{
       }
       onOpen={onActivate}
     />
+  );
+};
+
+/**
+ * The card's menu: "Move to" is the keyboard path to the same move a drop asks for (same confirm, same
+ * win form, same write). Sits beside the card, not inside it: the card is itself a button.
+ */
+const DealMoveMenu: React.FC<{
+  project: PipelineProject;
+  drag: NonNullable<SalesKanbanBoardProps['drag']>;
+  stageLabel: (c: SalesColumn) => string;
+}> = ({ project, drag, stageLabel }) => {
+  const { t } = useTranslation();
+  const targets = SALES_COLUMNS.filter((c) => drag.canDrop(project.id, c.testId));
+  if (targets.length === 0) return null;
+  return (
+    <div className="absolute right-1.5 top-1.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={t('boardDrag:cardActions', 'Actions for {{name}}', { name: projectDisplayName(project) })}
+          className="touch-target grid size-8 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <span aria-hidden="true" className="text-base leading-none">⋯</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-auto min-w-[160px]">
+          {targets.map((c) => (
+            <DropdownMenuItem key={c.testId} onClick={() => drag.onMove(project.id, c.testId)}>
+              {t('boardDrag:moveTo', 'Move to {{stage}}', { stage: stageLabel(c) })}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 };
 
@@ -323,7 +368,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
           handler to any ancestor wrapper would never fire on a swipe gesture. */}
       {withDnd(
-      <Kanban aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
+      <Kanban narrowEmpty aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
           const colTitle = stageLabel(col);
@@ -362,7 +407,10 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                 const moveState = drag.stateOf(p.id);
                 return (
                   <DraggableCard key={p.id} id={p.id} disabled={!drag.canDrag(p)} moveState={moveState}>
-                    {card}
+                    <div className="relative">
+                      {card}
+                      {drag.canDrag(p) && <DealMoveMenu project={p} drag={drag} stageLabel={stageLabel} />}
+                    </div>
                     {moveState === 'saving' && (
                       <p className="px-1 pt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
                     )}

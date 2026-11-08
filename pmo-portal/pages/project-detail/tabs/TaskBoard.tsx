@@ -1,51 +1,40 @@
 /**
  * Task board view (XG03-005 / T-44) — the status-column kanban, extracted from TasksTab.
- * Each card carries a status select for those who may move it, or a static pill otherwise;
- * dragging to another column (pointer and touch, DND #1637) is a shortcut to the SAME write,
- * gated by the same permission. TasksTab owns the permission decision (`canSetStatus`) and
+ * Dragging a card to another column (pointer and touch, DND #1637) and the card menu's "Move to"
+ * items (the keyboard path) are two ways to ask for the SAME write, gated by the same permission. TasksTab owns the permission decision (`canSetStatus`) and
  * the mutation callback (`onStatusChange`); this module owns only board presentation and the
  * optimistic-move choreography around that single write.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { initials } from '@/src/lib/initials';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Kanban, KanbanColumn, SelectField, StatusPill, Tooltip, Icon, type RowMenuItem } from '@/src/components/ui';
+import { Kanban, KanbanColumn, Tooltip, Icon, type RowMenuItem } from '@/src/components/ui';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/src/components/shadcn/dropdown-menu';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
 import { useOptimisticMoves } from '@/src/components/kanban/useOptimisticMoves';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
 import { formatDateOnly } from '@/src/lib/format';
-import { BOARD_STATUSES, STATUS_OPTIONS, daysLate } from './taskViewModel';
+import { BOARD_STATUSES, daysLate, isOverdue } from './taskViewModel';
 
-// ── Row actions disclosure (board cards) ─────────────────────────────────
+// ── Card menu (Base UI Menu: focus, arrow keys, Escape, positioning come from the library) ──
 
-const TaskActionsDisclosure: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
+const TaskCardMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
   const { t } = useTranslation('project');
-  const [open, setOpen] = useState(false);
-  const closeOnEscape = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    const details = event.currentTarget.closest('details');
-    details?.removeAttribute('open');
-    setOpen(false);
-    details?.querySelector('summary')?.focus();
-  };
-  return <details className="relative shrink-0" onToggle={(event) => setOpen(event.currentTarget.open)} onClick={(event) => event.stopPropagation()} onKeyDown={closeOnEscape}>
-    <summary role="button" aria-label={t('table.rowActions', 'Row actions')} aria-haspopup="menu" aria-expanded={open} className="touch-target grid size-8 cursor-pointer list-none place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-      <span aria-hidden="true" className="text-base leading-none">⋯</span>
-    </summary>
-    <div role="menu" className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded-md border border-border bg-popover p-1 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-      {items.map((item) => <button key={item.label} role="menuitem" type="button" disabled={item.disabled} className={`block min-h-8 w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent disabled:opacity-50${item.danger ? ' text-destructive-text' : ''}`} onClick={(event) => {
-        event.stopPropagation();
-        event.currentTarget.closest('details')?.removeAttribute('open');
-        item.onClick();
-      }}>{item.label}</button>)}
-    </div>
-  </details>;
+  // The popup is portaled but React events still bubble to the card: a menu click must not open the task.
+  return <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
+    <DropdownMenu>
+      <DropdownMenuTrigger aria-label={t('table.rowActions', 'Row actions')} className="touch-target grid size-8 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+        <span aria-hidden="true" className="text-base leading-none">⋯</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-auto min-w-[160px]">
+        {items.map((item) => <DropdownMenuItem key={item.label} disabled={item.disabled} variant={item.danger ? 'destructive' : 'default'} onClick={item.onClick}>{item.label}</DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </span>;
 };
 
 interface TaskBoardProps {
@@ -63,10 +52,10 @@ interface TaskBoardProps {
 }
 
 /**
- * Status-column board. Each card carries a status `<select>` for those who may
- * move it (managers: any; Engineer: own task only), or a static pill otherwise. That select
- * stays the keyboard and screen-reader path; dragging a card to another column (pointer and
- * touch, DND #1637) is a shortcut to the same write, gated by the same `canSetStatus`.
+ * Status-column board. The column is the status, so a card shows no status control: it is
+ * dragged to a column (pointer and touch, DND #1637) or moved with the menu's "Move to" items
+ * (the keyboard and screen-reader path), both the same write gated by the same `canSetStatus`
+ * (managers: any; Engineer: own task only).
  */
 const TaskBoard: React.FC<TaskBoardProps> = ({
   tasks,
@@ -102,6 +91,14 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
       else moves.release(id);
     }
   };
+  const cardMenu = (task: TaskWithRefs): RowMenuItem[] => [
+    ...(canSetStatus(task) ? BOARD_STATUSES.filter((to) => to !== task.status).map((to) => ({
+      label: t('projectDetail.tasks.moveTo', 'Move to {{status}}', { status: to }),
+      disabled: statusBusy,
+      onClick: () => void dropTask(task.id, to),
+    })) : []),
+    ...rowMenu(task),
+  ];
   return (
     <BoardDnd
       canDrop={(id, col) => { const task = byId.get(id); return !!task && canSetStatus(task) && col !== task.status; }}
@@ -139,7 +136,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                 </button>
                 <div className="flex shrink-0 items-center gap-1">
                   {externallyOwned && <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />}
-                  <TaskActionsDisclosure items={rowMenu(task)} />
+                  <TaskCardMenu items={cardMenu(task)} />
                 </div>
               </div>
               <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
@@ -148,21 +145,10 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   <span className="truncate">{task.assignee.full_name}</span>
                 </> : t('projectDetail.tasks.unassigned', 'Unassigned')}
                 {task.end_date && <Tooltip content={t('projectDetail.tasks.dueTooltip', 'Due date from the task record. Late days compare the due date with today in the organization timezone.')}>
-                  <span tabIndex={0} className={`ml-auto shrink-0 tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : ''}`}>
-                    {task.status !== 'Done' && task.end_date < today ? t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: daysLate(task.end_date, today) }) : formatDateOnly(task.end_date)}
+                  <span tabIndex={0} className={`ml-auto shrink-0 tabular ${isOverdue(task, today) ? 'text-destructive-text' : ''}`}>
+                    {isOverdue(task, today) ? t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: daysLate(task.end_date, today) }) : formatDateOnly(task.end_date)}
                   </span>
                 </Tooltip>}
-              </div>
-              <div className="mt-2" onClick={(event) => event.stopPropagation()}>
-                {canSetStatus(task) ? <SelectField
-                  hideLabel
-                  label={`${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`}
-                  value={task.status}
-                  disabled={statusBusy}
-                  onChange={(value) => onStatusChange(task, value as TaskStatus)}
-                  options={STATUS_OPTIONS}
-                  fullWidth
-                /> : <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>}
               </div>
               {moves.stateOf(task.id) === 'saving' && (
                 <p className="mt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
