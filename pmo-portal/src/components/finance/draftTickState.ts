@@ -7,8 +7,11 @@ export function draftTickState(args: {
   mode: BudgetActivationMode | undefined;
   precheck: BudgetActivationPrecheckResult | undefined;
   canTransition: boolean;
-}): 'ready' | 'checking' | 'unmapped' | 'blocked' | 'not-allowed' {
-  const { mode, precheck, canTransition } = args;
+  /** A readiness or eligibility read failed: never tickable, never left as "Checking…". */
+  checkFailed?: boolean;
+}): 'ready' | 'checking' | 'check-failed' | 'unmapped' | 'blocked' | 'not-allowed' {
+  const { mode, precheck, canTransition, checkFailed } = args;
+  if (checkFailed) return 'check-failed';
   if (mode === undefined || precheck === undefined) return 'checking';
   const modeAllows = mode === 'allowed' || mode === 'sole_operator';
   if (!modeAllows || (mode !== 'sole_operator' && !canTransition)) return 'not-allowed';

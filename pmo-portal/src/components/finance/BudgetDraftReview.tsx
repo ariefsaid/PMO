@@ -52,7 +52,7 @@ export function BudgetDraftReview() {
       currentUserId: currentUser.id,
       record: { status: 'Draft', created_by: row.createdBy, editor_ids: row.editorIds },
     });
-    return { row, mode, tick: draftTickState({ mode, precheck, canTransition }) };
+    return { row, mode, tick: draftTickState({ mode, precheck, canTransition, checkFailed: !!(modes[i]?.isError || prechecks[i]?.isError) }) };
   });
   const selected = view.filter((v) => ticked.has(v.row.id) && v.tick === 'ready');
   const soleOperator = selected.some((v) => v.mode === 'sole_operator');
@@ -64,6 +64,7 @@ export function BudgetDraftReview() {
   const toggle = (id: string, on: boolean) => setTicked((cur) => { const next = new Set(cur); if (on) next.add(id); else next.delete(id); return next; });
   const tickReasons: Record<string, string> = {
     checking: t('draftReview.checking', 'Checking…'),
+    'check-failed': t('draftReview.checkFailed', "Couldn't check readiness"),
     unmapped: t('draftReview.unmapped', 'Map the budget categories first'),
     blocked: t('draftReview.blocked', 'Not ready to activate'),
     'not-allowed': t('draftReview.notAllowed', 'Someone else must activate this draft'),
@@ -142,7 +143,7 @@ export function BudgetDraftReview() {
                   <td className="py-1.5">{row.projectCode ? `${row.projectCode} · ` : ''}{row.projectName}</td>
                   <td className="py-1.5">v{row.version} {row.name}</td>
                   <td className="py-1.5 text-right tabular-nums">{money(row, row.total)}</td>
-                  <td className="py-1.5">{tick === 'checking' ? '…' : tick === 'unmapped' ? t('draftReview.no', 'No') : t('draftReview.yes', 'Yes')}</td>
+                  <td className="py-1.5">{tick === 'checking' ? '…' : tick === 'check-failed' ? '—' : tick === 'unmapped' ? t('draftReview.no', 'No') : t('draftReview.yes', 'Yes')}</td>
                   <td className="py-1.5">
                     {row.documentUrl
                       ? <a href={row.documentUrl} target="_blank" rel="noopener noreferrer" className="text-primary-text underline underline-offset-2">{t('draftReview.open', 'Open')}</a>

@@ -126,6 +126,13 @@ it('AC-BAD-007 a refused draft shows its own failure; the others still activate,
   expect(screen.getByText('only a Draft version can be activated')).toBeInTheDocument();
 });
 
+it('AC-BAD-002 a failed readiness check is shown, never left as Checking, and cannot be ticked', async () => {
+  h.precheckActivation.mockRejectedValue(new Error('edge down'));
+  mount();
+  expect(await screen.findAllByText("Couldn't check readiness")).toHaveLength(3);
+  expect(box(/Project a/)).toHaveAttribute('aria-disabled', 'true');
+});
+
 it('renders nothing when there are no drafts', async () => {
   h.listOrgDrafts.mockResolvedValue([]);
   mount();
