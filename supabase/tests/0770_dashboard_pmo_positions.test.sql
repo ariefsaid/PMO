@@ -3,7 +3,7 @@
 -- cancelled order, erp_link origin), for an executive, a project manager, and a second-org user; tenancy never widens.
 begin;
 create extension if not exists pgtap;
-select plan(13);
+select plan(15);
 
 insert into public.organizations (id, name, default_currency) values
   ('07700000-0000-0000-0000-000000000001', 'Positions org A', 'USD'),
@@ -23,6 +23,7 @@ insert into public.projects (id, org_id, name, status, currency, contract_value,
   ('07700000-0000-0000-0000-0000000000d3', '07700000-0000-0000-0000-000000000001', 'Foreign payment', 'Ongoing Project', 'USD', 10000, 'exclusive', 0, 0, 1, 1, false, null),
   ('07700000-0000-0000-0000-0000000000d4', '07700000-0000-0000-0000-000000000001', 'Cancelled and erp link', 'Ongoing Project', 'USD', 10000, 'exclusive', 0, 0, 1, 1, false, null),
   ('07700000-0000-0000-0000-0000000000d5', '07700000-0000-0000-0000-000000000001', 'Empty', 'Ongoing Project', 'USD', 10000, 'exclusive', 0, 0, 1, 1, false, null),
+  ('07700000-0000-0000-0000-0000000000d7', '07700000-0000-0000-0000-000000000001', 'ERP-cancelled payments', 'Ongoing Project', 'USD', 10000, 'exclusive', 0, 0, 1, 1, false, null),
   ('07700000-0000-0000-0000-0000000000d6', '07700000-0000-0000-0000-000000000002', 'Org B project', 'Ongoing Project', 'USD', 10000, 'exclusive', 0, 0, 1, 1, false, null);
 insert into public.procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, origin) values
   ('07700000-0000-0000-0000-0000000000f1', '07700000-0000-0000-0000-000000000001', 'Half paid', 'Ordered', 1000, '07700000-0000-0000-0000-0000000000d1', 'USD', 'Labor', null),
@@ -31,6 +32,7 @@ insert into public.procurements (id, org_id, title, status, total_value, project
   ('07700000-0000-0000-0000-0000000000f4', '07700000-0000-0000-0000-000000000001', 'Cancelled paid', 'Cancelled', 300, '07700000-0000-0000-0000-0000000000d4', 'USD', 'Labor', null),
   ('07700000-0000-0000-0000-0000000000f5', '07700000-0000-0000-0000-000000000001', 'Erp link', 'Ordered', 450, '07700000-0000-0000-0000-0000000000d4', 'USD', 'Labor', 'erp_link'),
   ('07700000-0000-0000-0000-0000000000f6', '07700000-0000-0000-0000-000000000001', 'Other currency order', 'Ordered', 90, '07700000-0000-0000-0000-0000000000d5', 'EUR', 'Labor', null),
+  ('07700000-0000-0000-0000-0000000000f8', '07700000-0000-0000-0000-000000000001', 'Cancelled payments', 'Ordered', 1000, '07700000-0000-0000-0000-0000000000d7', 'USD', 'Labor', null),
   ('07700000-0000-0000-0000-0000000000f7', '07700000-0000-0000-0000-000000000002', 'Org B order', 'Ordered', 700, '07700000-0000-0000-0000-0000000000d6', 'USD', 'Labor', null);
 insert into public.payments (id, org_id, procurement_id, status, date, amount, currency) values
   ('07700000-0000-0000-0000-0000000000c1', '07700000-0000-0000-0000-000000000001', '07700000-0000-0000-0000-0000000000f1', 'Paid', '2026-10-10', 500, 'USD'),
@@ -38,6 +40,10 @@ insert into public.payments (id, org_id, procurement_id, status, date, amount, c
   ('07700000-0000-0000-0000-0000000000c3', '07700000-0000-0000-0000-000000000001', '07700000-0000-0000-0000-0000000000f3', 'Paid', '2026-10-10', 100, 'EUR'),
   ('07700000-0000-0000-0000-0000000000c4', '07700000-0000-0000-0000-000000000001', '07700000-0000-0000-0000-0000000000f4', 'Paid', '2026-10-10', 300, 'USD'),
   ('07700000-0000-0000-0000-0000000000c5', '07700000-0000-0000-0000-000000000002', '07700000-0000-0000-0000-0000000000f7', 'Paid', '2026-10-10', 70, 'USD');
+insert into public.payments (id, org_id, procurement_id, status, date, amount, currency, erp_docstatus, erp_cancelled_at) values
+  ('07700000-0000-0000-0000-0000000000c6', '07700000-0000-0000-0000-000000000001', '07700000-0000-0000-0000-0000000000f8', 'Paid', '2026-10-10', 100, 'USD', null, null),
+  ('07700000-0000-0000-0000-0000000000c7', '07700000-0000-0000-0000-000000000001', '07700000-0000-0000-0000-0000000000f8', 'Paid', '2026-10-10', 400, 'USD', 2, null),
+  ('07700000-0000-0000-0000-0000000000c8', '07700000-0000-0000-0000-000000000001', '07700000-0000-0000-0000-0000000000f8', 'Paid', '2026-10-10', 200, 'USD', null, now());
 insert into public.procurement_invoices (id, org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount)
 values ('07700000-0000-0000-0000-0000000000b1', '07700000-0000-0000-0000-000000000001', '07700000-0000-0000-0000-0000000000f2', 'Paid', 1200, 'USD', 'inclusive', 200);
 
@@ -66,6 +72,8 @@ select is((select committed from public.project_pmo_positions() where project_id
 select is((select spent from public.project_pmo_positions() where project_id = '07700000-0000-0000-0000-0000000000d2'), 500::numeric, 'AC-PERF-722-02 tax-inclusive invoice: payment scaled to pre-tax (600 * 1000/1200)');
 select is((select spent from public.project_pmo_positions() where project_id = '07700000-0000-0000-0000-0000000000d3'), null::numeric, 'AC-PERF-722-02 a payment in another currency leaves spent unknown');
 select is((select committed_complete from public.project_pmo_positions() where project_id = '07700000-0000-0000-0000-0000000000d5'), false, 'AC-PERF-722-02 a committed order in another currency leaves commitment incomplete');
+select is((select spent from public.project_pmo_positions() where project_id = '07700000-0000-0000-0000-0000000000d7'), 100::numeric, 'AC-PERF-722-02 payments cancelled in the ERP (docstatus 2, cancelled_at) are not spent');
+select is((select committed from public.project_pmo_positions() where project_id = '07700000-0000-0000-0000-0000000000d7'), 900::numeric, 'AC-PERF-722-02 and they do not reduce the open commitment');
 select is((select count(*) from public.project_pmo_positions(array['07700000-0000-0000-0000-0000000000d1'::uuid])), 1::bigint, 'AC-PERF-722-03 the id filter returns just the asked project');
 select is((select count(*) from public.project_pmo_positions() where project_id = '07700000-0000-0000-0000-0000000000d6'), 0::bigint, 'AC-PERF-722-04 another org''s project is never returned');
 
