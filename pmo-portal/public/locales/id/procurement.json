@@ -356,7 +356,9 @@
     "thisProcurement": "Pengadaan ini",
     "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
     "afterThisProcurement": "Setelah pengadaan ini",
-    "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar"
+    "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar",
+    "barLabel": "Anggaran terpakai setelah pengadaan ini: {{pct}}% dari {{budget}}",
+    "barCaption": "Anggaran terpakai dengan pembelian ini: {{pct}}%"
   },
   "headerEdit": {
     "heading": "Edit rincian pengadaan",

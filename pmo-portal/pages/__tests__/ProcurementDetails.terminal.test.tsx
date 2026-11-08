@@ -175,7 +175,7 @@ beforeEach(() => {
 const headerActions = () => within(screen.getByTestId('record-header-actions'));
 async function recordFromMenu(name: string) {
   await userEvent.click(headerActions().getByRole('button', { name: 'Record another document' }));
-  await userEvent.click(headerActions().getByRole('menuitem', { name }));
+  await userEvent.click((await screen.findByRole('menuitem', { name })));
 }
 
 describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons', () => {
@@ -231,8 +231,8 @@ describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons'
     detailState.data = { ...base, status: 'Vendor Invoiced', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record another document' }));
-    expect(headerActions().queryByRole('menuitem', { name: 'Receipt' })).toBeNull();
-    await userEvent.click(headerActions().getByRole('menuitem', { name: 'Supplier invoice' }));
+    expect(screen.queryByRole('menuitem', { name: 'Receipt' })).toBeNull();
+    await userEvent.click((await screen.findByRole('menuitem', { name: 'Supplier invoice' })));
     expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
     expect(screen.queryByTestId('form-create-gr')).toBeNull();
   });

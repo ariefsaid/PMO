@@ -17,8 +17,11 @@ import {
   GateNotice,
   TaxBasisLabel,
   useToast,
+  type RecordMenuItem,
   type StatTile,
 } from '@/src/components/ui';
+import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/shadcn/popover';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -294,7 +297,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
   const [lockReasonOpen, setLockReasonOpen] = useState(false);
@@ -476,9 +478,68 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       toast(t('projectDetail.header.toast.linkCopyFailed', 'Could not copy project link'), href, 'warning');
     }
   };
+  const editButton = canEdit ? (
+    <Button variant="primary" size="sm" className="touch-target" onClick={onEditProject}>
+      {t('projectDetail.header.action.edit', 'Edit')}
+    </Button>
+  ) : undefined;
+  // One primary action: the state's own verb when there is one, otherwise Edit.
+  const headerPrimary = primaryAction ?? editButton;
+  const menuItems: RecordMenuItem[] = [
+    ...(compact ? [{ key: 'copy-link', label: t('projectDetail.header.copyLink', 'Copy link'), onSelect: () => void copyProjectLink() }] : []),
+    ...(primaryAction && canEdit ? [{ key: 'edit', label: t('projectDetail.header.action.edit', 'Edit'), onSelect: () => onEditProject?.() }] : []),
+    ...(compact && canChangeValue ? [{ key: 'change-value', label: t('projectDetail.header.changeContractValue', 'Change contract value'), onSelect: () => beginValueEdit() }] : []),
+    ...(canArchive ? [{ key: 'archive', label: t('projectDetail.header.action.archive', 'Archive'), onSelect: () => setArchiveOpen(true) }] : []),
+    ...(canDelete ? [{ key: 'delete', label: t('projectDetail.header.action.delete', 'Delete'), onSelect: () => setDeleteOpen(true), danger: true }] : []),
+  ];
+  const pmReadsLockedValue = compact && realRole === 'Project Manager' && isOnHand;
+  const taxLabel = canViewMoney && project.tax_treatment;
+  const hasDetails = compact && Boolean(menuContent || pmReadsLockedValue || taxLabel);
+  // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
+  const detailsPanel = hasDetails ? (
+    <Popover>
+      <PopoverTrigger className={buttonClasses('outline', 'sm', 'touch-target')}>
+        {t('projectDetail.header.projectDetails', 'Project details')}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
+        {pmReadsLockedValue && (
+          <div className="border-b border-border px-3 py-3" data-testid="contract-value-read-explanation">
+            <details>
+              <summary className="cursor-pointer text-sm font-medium text-foreground">
+                {t('projectDetail.header.contractValueReadOnly', 'Contract value · read-only')}
+              </summary>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t('projectDetail.header.contractValueReadOnlyExplanation', 'The approved contract value is locked for project managers after the project is won. Finance or an administrator can update it, with the change recorded.')}
+              </p>
+            </details>
+          </div>
+        )}
+        {menuContent && (
+          <>
+            <div id="project-menu-details" className="border-b border-border px-2 py-3">{menuContent}</div>
+            {isDelivery && <div className="border-b border-border px-3 py-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                {t('projectDetail.header.changeDeliveryStatus', 'Change delivery status')}
+              </p>
+              <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
+            </div>}
+            <div className="border-b border-border px-3 py-3">
+              <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
+            </div>
+          </>
+        )}
+        {taxLabel && (
+          <div className="px-3 py-2">
+            <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
+              taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
+              showDetails={taxDetailsNeeded} detailsMode="disclosure" />
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  ) : undefined;
   const actions = compact ? (
-    <div className="flex items-center gap-2 whitespace-nowrap">
-      {primaryAction}
+    <>
       {secondaryAction}
       {showCompactContractLock && (
         <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason"
@@ -489,100 +550,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           <Icon name="chev" className="size-3 rotate-90" />
         </button>
       )}
-      {canEdit && (
-        <span className="hidden md:inline-flex">
-          <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
-            {t('projectDetail.header.action.edit', 'Edit')}
-          </Button>
-        </span>
-      )}
-      {(menuContent || canEdit || canArchive || canDelete || canChangeValue) && (
-        // ponytail: native <details> as the overflow menu; no menu primitive exists yet.
-        <details className="relative">
-          <summary className="touch-target inline-flex h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-sm font-medium text-foreground hover:bg-accent [&::-webkit-details-marker]:hidden"
-            aria-label={t('projectDetail.header.more', 'More actions')}>
-            <span aria-hidden="true" className="text-xl leading-none">⋯</span>
-          </summary>
-          <div className="absolute right-0 z-20 mt-1 flex max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-lg border border-border bg-popover p-1">
-            {compact && realRole === 'Project Manager' && isOnHand && (
-              <div className="border-b border-border px-3 py-3" data-testid="contract-value-read-explanation">
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium text-foreground">
-                    {t('projectDetail.header.contractValueReadOnly', 'Contract value · read-only')}
-                  </summary>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {t('projectDetail.header.contractValueReadOnlyExplanation', 'The approved contract value is locked for project managers after the project is won. Finance or an administrator can update it, with the change recorded.')}
-                  </p>
-                </details>
-              </div>
-            )}
-            {menuContent && (
-              <>
-                <Button variant="ghost" size="sm" className="justify-start" aria-expanded={projectDetailsOpen}
-                  aria-controls="project-menu-details"
-                  onClick={() => setProjectDetailsOpen((open) => !open)}>
-                  {t('projectDetail.header.projectDetails', 'Project details')}
-                </Button>
-                <div id="project-menu-details" hidden={!projectDetailsOpen} className="border-b border-border px-2 py-3">
-                  {projectDetailsOpen && menuContent}
-                </div>
-                {isDelivery && <div className="border-b border-border px-3 py-3">
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    {t('projectDetail.header.changeDeliveryStatus', 'Change delivery status')}
-                  </p>
-                  <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
-                </div>}
-                <div className="border-b border-border px-3 py-3">
-                  <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
-                </div>
-              </>
-            )}
-            {canViewMoney && project.tax_treatment && (
-              <div className="border-b border-border px-3 py-2">
-                <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
-                  taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
-                  showDetails={taxDetailsNeeded} detailsMode="disclosure" />
-              </div>
-            )}
-            <Button variant="ghost" size="sm" className="justify-start" onClick={() => void copyProjectLink()}>
-              {t('projectDetail.header.copyLink', 'Copy link')}
-            </Button>
-            {canEdit && <Button variant="ghost" size="sm" className="justify-start md:hidden" onClick={onEditProject}>{t('projectDetail.header.action.edit', 'Edit')}</Button>}
-            {canChangeValue && <Button variant="ghost" size="sm" className="justify-start" onClick={() => beginValueEdit()}>{t('projectDetail.header.changeContractValue', 'Change contract value')}</Button>}
-            {canArchive && <Button variant="ghost" size="sm" className="justify-start" onClick={() => setArchiveOpen(true)}>{t('projectDetail.header.action.archive', 'Archive')}</Button>}
-            {canDelete && <Button variant="ghost" size="sm" className="justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" onClick={() => setDeleteOpen(true)}>{t('projectDetail.header.action.delete', 'Delete')}</Button>}
-          </div>
-        </details>
-      )}
-    </div>
-  ) : (
-    <>
-      {primaryAction}
-      {canEdit && (
-        <Button variant="outline" size="sm" onClick={onEditProject}>
-          {t('projectDetail.header.action.edit', 'Edit')}
-        </Button>
-      )}
-      {canArchive && (
-        <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(true)}>
-          {t('projectDetail.header.action.archive', 'Archive')}
-        </Button>
-      )}
-      {canDelete && (
-        // Quiet ghost trigger with destructive text (the solid red stays inside the
-        // confirm — crud-components §2.2 "one solid destructive"); spatially after the
-        // safer Archive (destructive-nav-separation).
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setDeleteOpen(true)}
-          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-        >
-          {t('projectDetail.header.action.delete', 'Delete')}
-        </Button>
-      )}
+      {detailsPanel}
     </>
-  );
+  ) : undefined;
 
   /** Existing explicit editor + role explanation; the idle value lives only in the metric. */
   const sodRow = isDelivery ? (
@@ -710,9 +680,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}
-        actions={primaryAction || menuContent || canEdit || canArchive || canDelete || showCompactContractLock ? actions : undefined}
-        variant="drawer"
-        className="mb-1 [&>div]:gap-2 [&_h1]:!text-page [&_h1]:!font-bold [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
+        actions={actions}
+        primaryAction={headerPrimary}
+        menuItems={menuItems}
+        menuLabel={t('projectDetail.header.more', 'More actions')}
+        className="mb-4"
       />
 
       {showCompactContractLock && (

@@ -54,6 +54,7 @@ async function deleteMeeting(page: Page, id: string) {
   // Wait for the record itself: a bare "no skeleton yet" check passes before the page has even
   // started loading, which is how this cleanup silently skipped every delete before.
   await expect(page.getByTestId('record-header')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'More actions' }).click();
   const deleteBtn = page.getByTestId('meeting-delete');
   await expect(deleteBtn).toBeVisible();
   await deleteBtn.click();

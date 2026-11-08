@@ -276,7 +276,7 @@ describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized editab
     renderPage();
     const headerActions = screen.getByTestId('record-header-actions');
     await userEvent.click(within(headerActions).getByRole('button', { name: /more procurement actions/i }));
-    expect(within(headerActions).getByTestId('edit-header')).toBeInTheDocument();
+    expect(await screen.findByTestId('edit-header')).toBeInTheDocument();
   });
 
   it('CW-EDIT-1: Edit is hidden on a non-editable state (Approved) — record-scoped gate', async () => {
@@ -286,7 +286,7 @@ describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized editab
     // Open the menu first: a closed menu would make the absence assertion vacuous.
     const headerActions = screen.getByTestId('record-header-actions');
     await userEvent.click(within(headerActions).getByRole('button', { name: /more procurement actions/i }));
-    expect(within(headerActions).getByRole('menuitem', { name: /history/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /history/i })).toBeInTheDocument();
     expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
@@ -297,7 +297,7 @@ describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized editab
     // Open the menu first: a closed menu would make the absence assertion vacuous.
     const headerActions = screen.getByTestId('record-header-actions');
     await userEvent.click(within(headerActions).getByRole('button', { name: /more procurement actions/i }));
-    expect(within(headerActions).getByRole('menuitem', { name: /history/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /history/i })).toBeInTheDocument();
     expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 });

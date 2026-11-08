@@ -257,26 +257,32 @@ describe('ProjectDetailHeader — content', () => {
     expect(within(header).queryByText('PO CPO-2026-001')).not.toBeInTheDocument();
   });
 
-  it('moves Edit into the compact More menu on phone while keeping the desktop action', async () => {
-    desktopBox.value = false;
+  it('2057: Edit is the one primary action; when the state has its own verb, Edit moves into the More actions menu', async () => {
     const onEditProject = vi.fn();
-    render(
+    const { unmount } = render(
       <MemoryRouter>
         <ToastProvider>
           <ProjectDetailHeader project={onHand} compact onEditProject={onEditProject} commitmentSource="not-tracked" ledgerBasis="erp" />
         </ToastProvider>
       </MemoryRouter>,
     );
-    const header = screen.getByTestId('record-header');
-    const desktopEdit = within(header).getAllByRole('button', { name: /^Edit$/i }).find((button) => button.parentElement?.classList.contains('hidden'))!;
-    expect(desktopEdit.parentElement).toHaveClass('hidden', 'md:inline-flex');
-    const menu = within(header).getByLabelText('More actions').closest('details');
-    expect(menu).not.toBeNull();
-    await userEvent.click(within(menu!).getByLabelText('More actions'));
-    const phoneEdit = within(menu!).getByRole('button', { name: /^Edit$/i });
-    expect(phoneEdit).toHaveClass('md:hidden');
-    await userEvent.click(phoneEdit);
+    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('button', { name: /^Edit$/i }));
     expect(onEditProject).toHaveBeenCalledOnce();
+    unmount();
+
+    const onEditAgain = vi.fn();
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact onEditProject={onEditAgain} primaryAction={<button type="button">Raise invoice</button>} commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('record-header');
+    expect(within(header).queryByRole('button', { name: /^Edit$/i })).toBeNull();
+    await userEvent.click(within(header).getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Edit$/i }));
+    expect(onEditAgain).toHaveBeenCalledOnce();
   });
 
   it('keeps the JISDOR caption on one compact line after the original amount', () => {
@@ -380,19 +386,22 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
     expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', () => {
+  it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', async () => {
     renderHeader('Executive');
-    expect(screen.getByRole('button', { name: /Archive/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: /Archive/i })).toBeInTheDocument();
   });
 
   it('AC-PRJ-005: PM does NOT see Archive (archive = Admin·Exec)', () => {
     renderHeader('Project Manager');
     expect(screen.queryByRole('button', { name: /Archive/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Archive/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-007: Admin sees the hard-Delete action', () => {
+  it('AC-PRJ-007: Admin sees the hard-Delete action', async () => {
     renderHeader('Admin');
-    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: /^Delete$/i })).toBeInTheDocument();
   });
 
   it.each(['Executive', 'Project Manager', 'Finance', 'Engineer'])(
@@ -405,7 +414,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: Delete routes through a destructive confirm and calls the delete mutation (nothing on a single click)', async () => {
     renderHeader('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Delete$/i }));
     // Nothing is deleted on the trigger click — only after the confirm.
     expect(projectMutations.remove.mutateAsync).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
@@ -416,7 +426,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   it('AC-PRJ-007: a referenced-project delete (23503) surfaces a classified warning toast, suggesting Archive', async () => {
     projectMutations.remove.mutateAsync.mockRejectedValue(new AppError('referenced', '23503'));
     renderHeader('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Delete$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
     const toast = await findToastAnnouncement('alert', /Still in use|Archive/i);
@@ -439,7 +450,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {
     renderHeader('Executive');
-    await userEvent.click(screen.getByRole('button', { name: /Archive/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Archive/i }));
     // The mutation is NOT called until the confirm is pressed (nothing writes on a single click).
     expect(projectMutations.archive.mutateAsync).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
@@ -918,10 +930,8 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
 
   it('AC-1402-M2: a PM can open the contract-value read-only explanation from the compact header menu', async () => {
     render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact /></ToastProvider></MemoryRouter>);
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(menu).not.toBeNull();
-    await userEvent.click(within(menu!).getByLabelText('More actions'));
-    const explanation = within(menu!).getByTestId('contract-value-read-explanation');
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    const explanation = await screen.findByTestId('contract-value-read-explanation');
     await userEvent.click(within(explanation).getByText('Contract value · read-only'));
     expect(within(explanation).getByText(/locked for project managers after the project is won/i)).toBeInTheDocument();
   });

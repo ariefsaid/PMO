@@ -23,6 +23,8 @@ import {
   useIsNarrow,
   ProjectNameLink,
   CompanyNameLink,
+  RecordMenu,
+  type RecordMenuItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
@@ -157,8 +159,6 @@ const ProcurementDetails: React.FC = () => {
   const [showCreateVI, setShowCreateVI] = useState(false);
   const [captureKind, setCaptureKind] = useState<RecordKind | null>(null);
   const [autoOpenFirstDocument, setAutoOpenFirstDocument] = useState<RecordKind | null>(null);
-  const [recordMenuOpen, setRecordMenuOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const isNarrow = useIsNarrow();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(tabParam === 'history');
@@ -516,7 +516,6 @@ const ProcurementDetails: React.FC = () => {
     payment: t('procurementRecord:record.payment', 'Payment'),
   };
   const beginCapture = (kind: RecordKind) => {
-    setRecordMenuOpen(false);
     setCaptureKind(kind);
   };
   const createCapturedRecord = (input: CreateRecordInput) => {
@@ -582,6 +581,27 @@ const ProcurementDetails: React.FC = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  // Menu data for the record header and the phone action bar. `narrowOnly` rows repeat verbs the
+  // desktop header already shows elsewhere (the Record another document menu).
+  const recordMenuItems: RecordMenuItem[] = [
+    ...recordKinds.map((kind) => ({ key: `record-${kind}`, label: recordKindLabels[kind], onSelect: () => beginCapture(kind) })),
+    ...(canAddQuote ? [{ key: 'add-quote', label: t('procurementRecord:action.addQuote', 'Add quotation'), onSelect: openQuotationCapture }] : []),
+    ...(canLinkAccounting ? [{ key: 'link-accounting', label: t('procurementRecord:linkAccounting', 'Link from accounting system'), onSelect: () => setLinkDialogOpen(true) }] : []),
+  ];
+  const cancelAction = actionFor('Cancelled');
+  const moreMenuItems: RecordMenuItem[] = [
+    ...(isNarrow ? [
+      ...(returnAction ? [{ key: 'return', label: t('procurementRecord:action.return', 'Return'), onSelect: secondaryClick }] : []),
+      ...recordMenuItems,
+    ] : []),
+    ...(canEditHeader ? [{ key: 'edit-header', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), onSelect: () => setHeaderEditOpen(true) }] : []),
+    { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), onSelect: () => { setHistoryOpen(true); setTab('timeline'); } },
+    ...secondaryTransitionActions.map((action) => ({ key: `to-${action.to}`, label: action.label, onSelect: () => onActionClick(action) })),
+    { key: 'export', label: t('procurementRecord:export', 'Export'), onSelect: exportCurrentProcurement },
+    ...(returnAction ? [{ key: 'reject', label: t('procurementDetail.action.reject', 'Reject'), onSelect: () => onActionClick(returnAction), danger: true }] : []),
+    ...(cancelAction ? [{ key: 'cancel', label: t('procurementRecord:cancelProcurement', 'Cancel procurement'), onSelect: () => onActionClick(cancelAction), danger: true }] : []),
+  ];
+
   return (
     <div>
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
@@ -596,7 +616,6 @@ const ProcurementDetails: React.FC = () => {
       {handoffTarget && <RunOnMount run={runHandoff} />}
       {/* The record header carries the one current-stage action and document/menu actions. */}
       <RecordHeader
-        variant="drawer"
         className="mb-4"
         icon={null}
         name={p.title}
@@ -613,44 +632,21 @@ const ProcurementDetails: React.FC = () => {
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
-        actions={<div className="flex flex-wrap items-center justify-end gap-2">
+        actions={<>
           {waitingNote && <span className="min-w-0 text-[12px] text-muted-foreground">{waitingNote}</span>}
-          {(recordKinds.length > 0 || canAddQuote || canLinkAccounting) && <div className="relative hidden sm:block">
-            <Button variant="outline" size="sm" aria-expanded={recordMenuOpen} onClick={() => setRecordMenuOpen((open) => !open)}>
-              {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
-            </Button>
-            {recordMenuOpen && <div role="menu" aria-label={t('procurementRecord:recordMenu', 'Record another document')} className="absolute right-0 top-full z-30 mt-1 min-w-56 rounded-md border border-border bg-card p-1 shadow-lg">
-              {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => beginCapture(kind)}>{recordKindLabels[kind]}</button>)}
-              {canAddQuote && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { openQuotationCapture(); setRecordMenuOpen(false); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</button>}
-              {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setRecordMenuOpen(false); setLinkDialogOpen(true); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
-            </div>}
-          </div>}
           {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
-          {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementDetail.action.reject', 'Reject')}</Button>}
-          {p.status === 'Approved' && canAddQuote && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openQuotationCapture}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Button>}
-          {/* B4: below 640px the phone action bar owns the one filled main action. */}
-          {mainAction && !isNarrow && <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>}
-          <div className="relative">
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
-            {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="absolute right-0 top-full z-30 mt-1 hidden min-w-48 rounded-md border border-border bg-card p-1 shadow-lg sm:block">
-              {canEditHeader && <button type="button" role="menuitem" data-testid="edit-header" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
-              <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); setMoreMenuOpen(false); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</button>
-              {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { beginCapture(kind); setMoreMenuOpen(false); }}>{recordKindLabels[kind]}</button>)}
-              {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { setLinkDialogOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
-              {canEditHeader && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
-              {secondaryTransitionActions.map((action) => <button key={action.to} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { onActionClick(action); setMoreMenuOpen(false); }}>{action.label}</button>)}
-              <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { exportCurrentProcurement(); setMoreMenuOpen(false); }}>{t('procurementRecord:export', 'Export')}</button>
-              {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(returnAction); setMoreMenuOpen(false); }}>{t('procurementDetail.action.reject', 'Reject')}</button>}
-              {actionFor('Cancelled') && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); setMoreMenuOpen(false); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</button>}
-            </div>}
-          </div>
-        </div>}
+          {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
+        </>}
+        // B4: below 640px the phone action bar owns the one filled main action and the menu.
+        primaryAction={mainAction && !isNarrow ? <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button> : undefined}
+        menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
+        menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
 
       {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive-text">{mutationError}</p>}
       <div className="space-y-3">
         <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
-        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer ? undefined : <ProcurementBudgetSignal
+        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer || (stageForStatus(p.status) === 'Request' && p.project_id) ? undefined : <ProcurementBudgetSignal
           projectId={p.project_id}
           totalValue={Number(p.total_value)}
           status={p.status}
@@ -872,20 +868,8 @@ const ProcurementDetails: React.FC = () => {
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
-            <Button variant="outline" className="min-h-11" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
+            <RecordMenu items={moreMenuItems} side="top" ariaLabel={t('procurementRecord:moreActions', 'More procurement actions')} triggerClassName="min-h-11" />
           </div>
-          {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="mx-auto mt-2 max-h-[55vh] max-w-3xl overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
-            {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { secondaryClick(); setMoreMenuOpen(false); }}>{t('procurementRecord:action.return', 'Return')}</button>}
-            {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { beginCapture(kind); setMoreMenuOpen(false); }}>{recordKindLabels[kind]}</button>)}
-            {canAddQuote && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { openQuotationCapture(); setMoreMenuOpen(false); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</button>}
-            {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setLinkDialogOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
-            {canEditHeader && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
-            <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); setMoreMenuOpen(false); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</button>
-            {secondaryTransitionActions.map((action) => <button key={action.to} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { onActionClick(action); setMoreMenuOpen(false); }}>{action.label}</button>)}
-            <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { exportCurrentProcurement(); setMoreMenuOpen(false); }}>{t('procurementRecord:export', 'Export')}</button>
-            {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(returnAction); setMoreMenuOpen(false); }}>{t('procurementDetail.action.reject', 'Reject')}</button>}
-            {actionFor('Cancelled') && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); setMoreMenuOpen(false); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</button>}
-          </div>}
         </div>
         <div aria-hidden="true" className="h-16 sm:hidden" />
       </>}

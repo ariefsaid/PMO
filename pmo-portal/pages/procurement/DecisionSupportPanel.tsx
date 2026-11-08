@@ -37,6 +37,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
+import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 /** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
 const PANEL_VISIBLE_STATUSES: ProcurementStatus[] = [
@@ -193,6 +194,13 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   }
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } = signal;
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
+  // The budget-impact bar: what is already spoken for (committed + other reserved), then this procurement's share.
+  const usedBefore = committedSpend + otherReserved;
+  const usedAfter = budgetAmount - afterRequest;
+  const spokenPct = Math.min(100, (usedBefore / budgetAmount) * 100);
+  const thisPct = Math.min(100 - spokenPct, (Math.max(0, usedAfter - usedBefore) / budgetAmount) * 100);
+  const usedAfterPct = (usedAfter / budgetAmount) * 100;
+  const impactTone = usedAfterPct >= AT_RISK_THRESHOLD * 100 ? 'bg-destructive' : usedAfterPct >= 70 ? 'bg-warning' : 'bg-success';
 
   const tiles = [
     {
@@ -230,9 +238,25 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
         {/* Five stat tiles — text-labelled, tabular-nums (a11y: not color-only).
             Available (Budget − Committed − Reserved) is the over-commitment-safe
-            headroom; no progress bar — an uninformative single-segment 0% bar
-            misreads as broken (Wave-5 I1). columns=3 → a 3+2 strip for five tiles. */}
-        <StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} />
+            headroom. The bar above shows the same budget as spoken-for + this procurement
+            (text beside it, so it never reads as broken at 0%); the bare strip has no grey filler cell. */}
+        <div className="mb-4">
+          <div
+            role="progressbar"
+            aria-label={t('decisionSupport.barLabel', { defaultValue: 'Budget used after this procurement: {{pct}}% of {{budget}}', pct: Math.round(usedAfterPct), budget: formatCurrency(budgetAmount, budgetCurrency) })}
+            aria-valuenow={Math.max(0, Math.min(100, Math.round(usedAfterPct)))}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="flex h-2 overflow-hidden rounded-full bg-secondary"
+          >
+            <span className="bg-muted-foreground/55" style={{ width: `${spokenPct}%` }} />
+            <span className={impactTone} style={{ width: `${thisPct}%` }} />
+          </div>
+          <p className="mt-1 text-support text-muted-foreground tabular">
+            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
+          </p>
+        </div>
+        <StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} variant="bare" />
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not

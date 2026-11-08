@@ -1,6 +1,10 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { RecordMenu, type RecordMenuItem } from './RecordMenu';
 import { PageHeader, type PageStat } from './PageHeader';
 import { cn } from './cn';
+
+export type { RecordMenuItem };
 
 export interface RecordHeaderProps {
   /** Leading icon tile glyph or node; omitted (null) inside drawers, where the tile is decoration. */
@@ -13,8 +17,14 @@ export interface RecordHeaderProps {
   statusBelowMetaOnMobile?: boolean;
   meta?: React.ReactNode;
   metaId?: string;
-  /** Optional in-header metric strip. */
+  /** The key-facts row under the title (label + value pairs). */
   stats?: PageStat[];
+  /** The ONE primary action of the record (right side, before the overflow menu). */
+  primaryAction?: React.ReactNode;
+  /** Overflow menu items (Base UI Menu: focus, keyboard, dismissal, positioning). No items, no trigger. */
+  menuItems?: RecordMenuItem[];
+  /** Accessible name of the overflow trigger. */
+  menuLabel?: string;
   /**
    * The fixed action zone (top-right): Edit + Archive/Delete by permission. Wrapped in a
    * `data-testid="record-header-actions"` slot so the placement contract is testable.
@@ -47,10 +57,24 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   meta,
   metaId,
   stats,
+  primaryAction,
+  menuItems,
+  menuLabel,
   actions,
   variant = 'page',
   className,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  const label = menuLabel ?? t('uxs14.moreActions', 'More actions');
+  const hasMenu = Boolean(menuItems && menuItems.length > 0);
+  const zone = actions || primaryAction || hasMenu ? (
+    <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+      {actions}
+      {primaryAction}
+      {hasMenu && <RecordMenu items={menuItems!} ariaLabel={label} />}
+    </span>
+  ) : undefined;
+  return (
   <PageHeader
     data-testid="record-header"
     // The drawer host already supplies a border-bottom seam + popover surface, so the
@@ -66,18 +90,13 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     meta={meta}
     metaId={metaId}
     stats={stats}
-    actions={
-      actions ? (
-        <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-          {actions}
-        </span>
-      ) : undefined
-    }
+    actions={zone}
     className={cn(
       variant === 'drawer' && '[&_h1]:text-control [&_h1]:font-semibold [&_h1]:leading-5',
       className,
     )}
   />
-);
+  );
+};
 
 RecordHeader.displayName = 'RecordHeader';

@@ -780,9 +780,10 @@ describe('MeetingDetail — states', () => {
     expect(bar.className).toContain('max-[920px]:flex');
   });
 
-  it('Admin header carries Archive + Delete', () => {
+  it('Admin header menu carries Archive + Delete', async () => {
     renderPage('Admin');
-    expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    expect(await screen.findByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
   });
 
@@ -843,10 +844,11 @@ describe('MeetingDetail — states', () => {
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
   });
 
-  it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', () => {
+  it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', async () => {
     renderPage('Engineer');
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
-    expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    expect(await screen.findByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-delete')).not.toBeInTheDocument();
   });
 });
@@ -946,7 +948,8 @@ describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
       },
       'Admin',
     );
-    await userEvent.click(screen.getByTestId('meeting-archive'));
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByTestId('meeting-archive'));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /archive meeting/i }));
     await screen.findByTestId('meetings-index-probe');
@@ -961,7 +964,8 @@ describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
       },
       'Admin',
     );
-    await userEvent.click(screen.getByTestId('meeting-delete'));
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByTestId('meeting-delete'));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete meeting/i }));
     await screen.findByTestId('meetings-index-probe');

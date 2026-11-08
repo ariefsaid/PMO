@@ -4963,5 +4963,12 @@
       "summary": "Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}",
       "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
     }
+  },
+  "invoiceTimeline": {
+    "label": "Invoice status timeline",
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "received": "Received by client",
+    "paid": "Paid"
   }
 }

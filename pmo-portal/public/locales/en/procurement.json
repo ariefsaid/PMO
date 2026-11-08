@@ -356,7 +356,9 @@
     "thisProcurement": "This procurement",
     "notCompared": "In a different currency: not compared with the budget",
     "afterThisProcurement": "After this procurement",
-    "overBudgetLead": "This procurement exceeds available budget by"
+    "overBudgetLead": "This procurement exceeds available budget by",
+    "barLabel": "Budget used after this procurement: {{pct}}% of {{budget}}",
+    "barCaption": "Budget in use with this purchase: {{pct}}%"
   },
   "headerEdit": {
     "heading": "Edit procurement details",

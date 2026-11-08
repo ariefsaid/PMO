@@ -4963,5 +4963,12 @@
       "summary": "Tertaut: {{linked}} · Perlu pilihan Anda: {{needsChoice}} · Tidak ada folder yang cocok atau tanpa kode: {{missing}} · Gagal: {{failed}} · Sudah tertaut: {{skipped}}",
       "resolve": "Untuk menyelesaikannya, buka proyek atau kasus, lalu gunakan \"Pilih folder yang ada\" atau \"Buat folder di SharePoint\"."
     }
+  },
+  "invoiceTimeline": {
+    "label": "Linimasa status faktur",
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "received": "Diterima klien",
+    "paid": "Dibayar"
   }
 }
