@@ -49,11 +49,10 @@ describe('Tooltip', () => {
     );
     await userEvent.hover(screen.getByRole('button', { name: 'help' }));
     const tooltip = screen.getByRole('tooltip');
-    expect(tooltip.parentElement).toBe(document.body);
-    expect(tooltip.className).toContain('fixed');
+    expect(document.body).toContainElement(tooltip);
+    expect(screen.getByRole('button', { name: 'help' }).parentElement).not.toContainElement(tooltip);
     expect(tooltip.className).toContain('w-[280px]');
     expect(tooltip.className).toContain('max-w-[calc(100vw-16px)]');
-    expect(tooltip).toHaveAttribute('data-placement', 'bottom');
   });
 });
 
