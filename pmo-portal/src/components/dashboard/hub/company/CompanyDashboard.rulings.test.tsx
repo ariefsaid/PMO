@@ -5,8 +5,9 @@
  */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
 const state = vi.hoisted(() => ({
@@ -120,6 +121,30 @@ describe('L12(a): Ready to pay uses the procurement record\'s unpaid balance', (
     renderDashboard('Finance');
     const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.panel-card') as HTMLElement;
     expect(card).toHaveTextContent('$42,000');
+  });
+});
+
+describe('L12(g): purchasing by stage uses Request · Order · Receive · Pay', () => {
+  it('L12: eight raw statuses fold into the four stages with the stage drill-down links', () => {
+    (state.figures!.dashboard as Record<string, unknown>).procurements_by_status = [
+      { status: 'Draft', count: 4 }, { status: 'Requested', count: 3 }, { status: 'Approved', count: 2 },
+      { status: 'Ordered', count: 3 }, { status: 'Received', count: 1 }, { status: 'Vendor Invoiced', count: 7 }, { status: 'Paid', count: 5 },
+    ];
+    renderDashboard('Executive');
+    const panel = screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card') as HTMLElement;
+    const links = within(panel).getAllByRole('link', { name: /: \d+$/ });
+    expect(links.map((link) => link.getAttribute('aria-label'))).toEqual(['Request: 9', 'Order: 3', 'Receive: 1', 'Pay: 12']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/procurement?stage=request', '/procurement?stage=order', '/procurement?stage=receive', '/procurement?stage=pay']);
+    expect(within(panel).getAllByTestId('legend-dot').map((dot) => (dot as HTMLElement).style.background)).toEqual(chartTheme.categorical.slice(0, 4));
+    expect(within(panel).queryByText(/Purchase Request|Goods Receipt|Supplier invoiced/)).not.toBeInTheDocument();
+  });
+
+  it('AC-RF-007: the accounting-system scope note sits behind the stage card help', () => {
+    (state.figures!.dashboard as Record<string, unknown>).procurements_by_status = [{ status: 'Requested', count: 1 }];
+    renderDashboard('Executive');
+    expect(screen.queryByText('Purchases made directly in the accounting system are not counted.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'About Purchasing by stage' }));
+    expect(screen.getByText('Purchases made directly in the accounting system are not counted.')).toBeInTheDocument();
   });
 });
 

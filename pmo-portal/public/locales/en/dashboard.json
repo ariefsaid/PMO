@@ -504,8 +504,13 @@
         "plan": "Contract",
         "actual": "Spent",
         "help": "Contract value against recorded spending for the largest projects in {{currency}}. Spending is shown only when it is complete and in the contract currency.",
-        "leftOut_one": "{{count}} project in another currency is not charted.",
-        "leftOut_other": "{{count}} projects in other currencies are not charted."
+        "budget": "Active budget",
+        "share": "Spent of contract",
+        "percentOfContract": "{{percent}}% of contract",
+        "incomplete_one": "{{count}} project has incomplete spending",
+        "incomplete_other": "{{count}} projects have incomplete spending",
+        "otherCurrency_one": "{{count}} project in another currency is left out",
+        "otherCurrency_other": "{{count}} projects in another currency are left out"
       },
       "needsAttention": "Needs attention",
       "attentionClear": "Nothing needs attention right now",

@@ -504,8 +504,13 @@
         "plan": "Kontrak",
         "actual": "Terpakai",
         "help": "Nilai kontrak dibandingkan pengeluaran tercatat untuk proyek terbesar dalam {{currency}}. Pengeluaran hanya ditampilkan jika lengkap dan dalam mata uang kontrak.",
-        "leftOut_other": "{{count}} proyek dalam mata uang lain tidak ditampilkan di grafik.",
-        "leftOut_one": "{{count}} proyek dalam mata uang lain tidak ditampilkan di grafik."
+        "budget": "Anggaran aktif",
+        "share": "Terpakai dari kontrak",
+        "percentOfContract": "{{percent}}% dari kontrak",
+        "incomplete_one": "{{count}} proyek memiliki pengeluaran yang belum lengkap",
+        "incomplete_other": "{{count}} proyek memiliki pengeluaran yang belum lengkap",
+        "otherCurrency_one": "{{count}} proyek dalam mata uang lain tidak disertakan",
+        "otherCurrency_other": "{{count}} proyek dalam mata uang lain tidak disertakan"
       },
       "needsAttention": "Perlu perhatian",
       "attentionClear": "Tidak ada yang perlu perhatian saat ini",
