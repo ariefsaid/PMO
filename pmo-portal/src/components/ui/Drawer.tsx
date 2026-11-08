@@ -20,7 +20,8 @@ import { overlayBackdropClassName, overlayBackdropStyle } from './OverlaySurface
 //     record drawer) are not Base UI siblings, so a module-level stack lets only
 //     the topmost one react to Escape or an outside press.
 //
-// Same overlay z-band as the modal: scrim z-[800], panel z-[810].
+// One band below the modals (scrim z-[780], panel z-[790] vs their 800/810): a ConfirmDialog or
+// form modal opened from a drawer sits above it, stays clickable and is not an "outside press".
 // ---------------------------------------------------------------------------
 
 /** Open drawers, oldest first. Only the last entry may be dismissed by Escape, outside press or swipe. */
@@ -103,7 +104,11 @@ export const Drawer: React.FC<DrawerProps> = ({
       return;
     }
     // Escape, outside press, focus-out, swipe: a nested dialog or a drawer above owns them.
-    if (nestedOpen || openStack[openStack.length - 1] !== stackToken.current) {
+    // A press inside a modal opened from this drawer (not a drawer itself) is not "outside".
+    const target = details.event?.target;
+    const inNestedModal = target instanceof Element
+      && Boolean(target.closest('[aria-modal="true"]:not([data-drawer-panel])'));
+    if (nestedOpen || inNestedModal || openStack[openStack.length - 1] !== stackToken.current) {
       details.cancel();
       return;
     }
@@ -121,10 +126,10 @@ export const Drawer: React.FC<DrawerProps> = ({
       <BaseDrawer.Portal>
         <BaseDrawer.Backdrop
           data-testid="drawer-scrim"
-          className={cn('fixed inset-0 z-[800]', overlayBackdropClassName)}
+          className={cn('fixed inset-0 z-[780]', overlayBackdropClassName)}
           style={overlayBackdropStyle}
         />
-        <BaseDrawer.Viewport className="fixed inset-0 z-[810] flex items-stretch justify-end">
+        <BaseDrawer.Viewport className="fixed inset-0 z-[790] flex items-stretch justify-end">
           <BaseDrawer.Popup
             // Shared-toast placement seam (issue 1816): marks this overlay as an
             // edge-anchored drawer so ToastProvider tucks toasts below the header

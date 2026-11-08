@@ -582,6 +582,8 @@
       "contractValueReadOnlyExplanation": "Nilai kontrak yang disetujui dikunci bagi manajer proyek setelah proyek dimenangkan. Eksekutif, Finance, atau administrator dapat memperbaruinya dan perubahan tersebut akan dicatat.",
       "changeDeliveryStatus": "Ubah status pelaksanaan",
       "copyLink": "Salin tautan",
+        "previewFileFor": "Pratinjau berkas untuk {{title}}",
+        "previewFile": "Pratinjau berkas",
       "changeContractValue": "Ubah nilai kontrak"
     },
     "rail": {

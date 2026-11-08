@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { Drawer } from '../Drawer';
 import { ConfirmDialog } from '../ConfirmDialog';
 
@@ -392,5 +393,31 @@ describe('Drawer: stacking (#2043)', () => {
       </Drawer>,
     );
     expect(screen.getByRole('dialog')).toHaveAttribute('data-drawer-panel');
+  });
+});
+
+describe('Drawer: nested hand-built modal (#2043)', () => {
+  it('a button in a modal opened from the drawer receives the click and does not dismiss the drawer', async () => {
+    const onClose = vi.fn();
+    const onPress = vi.fn();
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <Drawer {...baseProps} onClose={onClose}>
+          <button onClick={() => setOpen(true)}>Prepare</button>
+          {open && ReactDOM.createPortal(
+            <div role="dialog" aria-modal="true" aria-label="Nested">
+              <button onClick={onPress}>Confirm nested</button>
+            </div>,
+            document.body,
+          )}
+        </Drawer>
+      );
+    }
+    render(<Harness />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Prepare' }));
+    await userEvent.click(await screen.findByText('Confirm nested'));
+    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

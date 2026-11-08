@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { VIEWABLE_EXTENSIONS } from '@/src/lib/fileConstants';
 
@@ -59,6 +60,7 @@ export const FileCell: React.FC<FileCellProps> = ({
   onDownload,
   onPreview,
 }) => {
+  const { t } = useTranslation('project');
   // ── Uploading state (progress bar + cancel)
   if (uploadProgress != null) {
     return (
@@ -148,9 +150,9 @@ export const FileCell: React.FC<FileCellProps> = ({
           <button
             type="button"
             onClick={onPreview}
-            aria-label={`Preview file for ${title}`}
+            aria-label={t('projectDetail.documents.action.previewFileFor', 'Preview file for {{title}}', { title })}
             className="touch-target text-muted-foreground hover:text-primary-text p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title="Preview file"
+            title={t('projectDetail.documents.action.previewFile', 'Preview file')}
           >
             <Icon name="eye" className="size-4" />
           </button>
