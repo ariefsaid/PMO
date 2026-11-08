@@ -91,6 +91,36 @@ export const ALLOWED_SKIPS = [
     verified: '2026-11-04',
   },
   {
+    file: 'serial/AC-ODC-093-odoo-empty-erp.spec.ts',
+    reason: 'The empty-Odoo scenario needs a freshly reset Odoo bed and the served-functions lane.',
+    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
+    verified: '2026-11-08',
+  },
+  {
+    file: 'AC-ODC-091-odoo-new-org-existing-erp.spec.ts',
+    reason: 'The new-org-existing-Odoo scenario needs the Odoo bed and the served-functions lane.',
+    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
+    verified: '2026-11-08',
+  },
+  {
+    file: 'AC-ODC-094-odoo-both-have-data.spec.ts',
+    reason: 'The both-have-data scenario needs the Odoo bed and the served-functions lane.',
+    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
+    verified: '2026-11-08',
+  },
+  {
+    file: 'AC-ODC-080-odoo-setup-journey.spec.ts',
+    reason: 'The Odoo setup journey needs the Odoo bed and the served-functions lane.',
+    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
+    verified: '2026-11-08',
+  },
+  {
+    file: 'AC-ODC-014-odoo-unavailable.spec.ts',
+    reason: 'The Odoo-unavailable journey stops and restarts the Odoo bed and needs the served-functions lane.',
+    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
+    verified: '2026-11-08',
+  },
+  {
     file: 'serial/AC-PLN-015-switch-off-journey.spec.ts',
     reason:
       'Arms (a) and (b) assert the /stock ROUTE and RAIL gates that S3 (feat/plans-s3-console) has not wired on dev, so they are test.fixme; arm (c) additionally needs the served-functions lane AND the agent-assistant capability flag. Nothing in this SERIAL-lane spec can run on dev until S3 lands.',

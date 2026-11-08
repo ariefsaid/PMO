@@ -9,6 +9,7 @@ import { assert, assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { bindCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { sweepOdooOrg } from '../_shared/odooSweep.ts';
+import { companyDomain, KIND_SPECS, type DirectoryKind } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
 
 const BED = Deno.env.get('ODOO_BED_URL');
 const ORG = Deno.env.get('ODOO_BED_ORG');
@@ -57,5 +58,36 @@ Deno.test({
     } finally {
       await odoo('product.product', 'unlink', { ids: [Number(renamed), Number(archived)] }).catch(() => {});
     }
+  },
+});
+
+// AC-ODC-090 (reconciliation half; the rest is AC-ODC-010 + 014 + 023 + 051 + 080): after a full sweep, each kind's active mirror rows
+// equal the bed's count under the same company domain, and every linked project's cost account still exists on the bed.
+Deno.test({
+  name: 'AC-ODC-090 on the bed: per kind, active mirror rows equal the bed count, and every linked project account exists',
+  ignore: !ready,
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const bed = new URL(BED!);
+    Deno.env.set('ERPNEXT_ALLOW_LOCAL_BENCH', '1');
+    Deno.env.set('ERPNEXT_LOCAL_BENCH_ORIGINS', bed.origin);
+    const sc = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } });
+    const odoo = bindCall({ baseUrl: bed.origin, apiKey: Deno.env.get('ODOO_BED_KEY') ?? '', database: Deno.env.get('ODOO_BED_DB') ?? '', fetchImpl: fetch });
+    const swept = await sweepOdooOrg(sc, ORG!, { maxCalls: 5_000 });
+    assert('ok' in swept && !swept.failed, JSON.stringify(swept));
+    const { data: binding } = await sc.from('external_org_bindings').select('config').eq('org_id', ORG!).eq('external_tier', 'odoo').single();
+    const companyId = Number((binding!.config as Record<string, unknown>).odoo_company_id);
+    assert(Number.isInteger(companyId), 'the org has an activated company');
+    for (const kind of ['partner', 'product', 'uom', 'analytic_account', 'account', 'tax', 'journal', 'warehouse'] as DirectoryKind[]) {
+      const spec = KIND_SPECS[kind];
+      const onBed = await odoo<number>(spec.model, 'search_count', { domain: companyDomain(spec, companyId) });
+      const { count } = await sc.from('external_master_records').select('id', { count: 'exact', head: true })
+        .eq('org_id', ORG!).eq('external_tier', 'odoo').eq('kind', kind).eq('active', true).is('tombstoned_at', null);
+      assertEquals(count, onBed, `${kind}: mirror rows equal the bed's active records`);
+    }
+    const { data: links } = await sc.from('external_project_bindings').select('external_project_id').eq('org_id', ORG!).eq('external_tier', 'odoo');
+    const ids = (links ?? []).map((l) => Number(l.external_project_id));
+    if (ids.length) assertEquals(await odoo<number>('account.analytic.account', 'search_count', { domain: [['id', 'in', ids]], context: { active_test: false } }), ids.length, 'every linked project account exists on the bed');
   },
 });

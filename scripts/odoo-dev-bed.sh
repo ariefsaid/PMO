@@ -56,7 +56,7 @@ if not u:
     })
 admin_grp = [g for g in ('base.group_system', 'account.group_account_manager', 'purchase.group_purchase_manager',
     'stock.group_stock_manager', 'project.group_project_manager', 'fleet.fleet_group_manager',
-    'maintenance.group_equipment_manager', 'hr.group_hr_manager', 'hr_timesheet.group_timesheet_manager') if env.ref(g, raise_if_not_found=False)]
+    'maintenance.group_equipment_manager', 'analytic.group_analytic_accounting', 'hr.group_hr_manager', 'hr_timesheet.group_timesheet_manager') if env.ref(g, raise_if_not_found=False)]
 field = 'group_ids' if 'group_ids' in Users._fields else 'groups_id'
 u.write({field: [(4, env.ref(g).id) for g in admin_grp]})
 k = env['res.users.apikeys'].with_user(u)._generate('rpc', 'pmo-dev-bed', None) if hasattr(env['res.users.apikeys'], '_generate') else ''
