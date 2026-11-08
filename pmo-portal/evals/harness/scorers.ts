@@ -88,6 +88,15 @@ export function contains(needle: string | RegExp): Scorer {
   };
 }
 
+/** `notContains(needle)` — passes iff the merged answer text does NOT contain / match the needle. Free. */
+export function notContains(needle: string | RegExp): Scorer {
+  return (run) => {
+    const matched = typeof needle === 'string' ? run.answerText.includes(needle) : needle.test(run.answerText);
+    const label = typeof needle === 'string' ? `"${needle}"` : needle.toString();
+    return matched ? { pass: false, reason: `answer unexpectedly matches ${label}` } : { pass: true, reason: `answer does not match ${label}` };
+  };
+}
+
 /**
  * The judge's model id: the eval transport override's model when set, so a run makes no
  * OpenRouter call; otherwise the configured cheap judge tier.
