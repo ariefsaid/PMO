@@ -800,5 +800,116 @@
       "attachedElsewhere": "Baris jurnal ini sudah menjadi bagian dari pembelian lain.",
       "alreadyAttached": "Baris jurnal ini sudah dilampirkan ke pembelian ini."
     }
+  },
+  "odooLedger": {
+    "state": {
+      "fresh": "Terbaru",
+      "stale": "Belum diperbarui lebih dari 30 menit",
+      "catchingUp": "Masih membaca riwayat Odoo",
+      "unavailable": "Odoo tidak terjangkau, menampilkan data terakhir"
+    },
+    "check": {
+      "notChecked": "Belum dicocokkan dengan Odoo",
+      "outOfDate": "Hasil pencocokan sudah usang",
+      "matches": "Cocok dengan Odoo",
+      "differs": "Berbeda dari Odoo",
+      "checkedAt": "Dicocokkan {{time}}",
+      "differsAria": "Akun yang berbeda dari Odoo",
+      "account": "Akun {{account}}: PMO {{pmo}}, Odoo {{odoo}}"
+    },
+    "provenance": {
+      "aria": "Asal angka-angka ini",
+      "asOf": "Buku besar Odoo per {{time}}",
+      "noData": "Belum ada data yang dibaca dari buku besar Odoo"
+    },
+    "remainder": {
+      "aria": "Jumlah yang tidak dihitung dalam kategori atau proyek",
+      "unmapped": "Akun tanpa kategori anggaran ({{accounts}}): {{amount}}, baris: {{count}}. Tidak dihitung dalam kategori mana pun.",
+      "unattributed": "Tidak termasuk proyek mana pun: {{amount}}, baris: {{count}}.",
+      "unlinked": "Di akun biaya yang belum ditautkan ke proyek: {{amount}}, baris: {{count}}."
+    },
+    "budget": {
+      "title": "Biaya aktual dari Odoo",
+      "unlinked": "Biaya aktual belum dapat ditampilkan: belum ada akun biaya Odoo yang ditautkan ke proyek ini.",
+      "linkAccount": "Tautkan akun biaya",
+      "askAdmin": "Administrator dapat menautkannya.",
+      "loadFailed": "Status buku besar Odoo tidak dapat dibaca"
+    },
+    "lines": {
+      "totalsOnly": "Peran Anda melihat total proyek. Baris rinci terlihat oleh Keuangan, Eksekutif, dan Admin.",
+      "unlinked": "Belum ada akun biaya Odoo yang ditautkan ke proyek ini, jadi tidak ada baris untuk ditampilkan.",
+      "loadFailed": "Baris tidak dapat dibaca",
+      "date": "Tanggal",
+      "document": "Dokumen",
+      "account": "Akun",
+      "partner": "Mitra",
+      "amount": "Jumlah",
+      "table": "Baris Odoo di balik kategori ini",
+      "empty": "Tidak ada baris pada kategori ini",
+      "emptySub": "Baris Odoo yang sudah diposting pada akun biaya proyek ini dan akun yang dipetakan muncul di sini.",
+      "showingSoFar": "Menampilkan {{shown}} sejauh ini",
+      "showing": "Menampilkan {{shown}} dari {{total}}",
+      "more": "Tampilkan lagi",
+      "all": "Semua"
+    },
+    "statement": {
+      "currentYearEarnings": "Laba tahun berjalan",
+      "previousYearsEarnings": "Laba tahun-tahun sebelumnya",
+      "account": "Akun",
+      "derived": "(dihitung)",
+      "openingDebit": "Debit awal",
+      "openingCredit": "Kredit awal",
+      "debit": "Debit",
+      "credit": "Kredit",
+      "closingDebit": "Debit akhir",
+      "closingCredit": "Kredit akhir",
+      "total": "Total",
+      "amount": "Jumlah",
+      "totalIncome": "Total pendapatan",
+      "totalExpense": "Total beban",
+      "net": "Hasil bersih",
+      "balance": "Saldo",
+      "totalAssets": "Total aset",
+      "totalLiabilitiesEquity": "Total kewajiban dan ekuitas",
+      "income": "Pendapatan",
+      "expense": "Beban",
+      "assets": "Aset",
+      "liabilities": "Kewajiban",
+      "equity": "Ekuitas",
+      "empty": "Tidak ada akun yang berkegiatan",
+      "notInUse": "Buku besar Odoo belum dipakai",
+      "notInUseSub": "Laporan dari Odoo muncul di sini setelah Admin memindahkan organisasi ini ke buku besar Odoo.",
+      "unavailable": "Belum ada baris buku besar Odoo",
+      "unavailableSub": "Laporan muncul setelah PMO membaca baris yang diposting dari Odoo.",
+      "partial": "Sebagian: PMO masih membaca riwayat Odoo, jadi angka ini mungkin belum lengkap.",
+      "unclassified": "{{count}} akun di buku besar belum ada di daftar akun Odoo, jadi belum ditempatkan pada bagian laporan.",
+      "doesNotBalance": "Neraca ini tidak seimbang: aset dan kewajiban ditambah ekuitas berbeda sebesar {{amount}}.",
+      "periodSide": "Periode ditampilkan"
+    },
+    "card": {
+      "blockedCatchingUp": "PMO masih membaca riwayat Odoo. Anda dapat pindah ke buku besar Odoo setelah selesai.",
+      "blockedNotChecked": "PMO belum membandingkan angkanya dengan Odoo. Pencocokan pertama berjalan setelah riwayat selesai dibaca.",
+      "blockedStale": "Pencocokan terakhir dengan Odoo sudah usang. Pencocokan baru berjalan setelah pembaruan berikutnya.",
+      "title": "Buku besar Odoo",
+      "inUse": "Dipakai",
+      "notInUse": "Belum dipakai",
+      "inUseBody": "Biaya aktual dan laporan keuangan berasal dari buku besar Odoo.",
+      "notInUseBody": "Anggaran dan laporan masih mengikuti dokumen PMO sampai Admin pindah ke buku besar Odoo.",
+      "loadFailed": "Status buku besar Odoo tidak dapat dibaca",
+      "differsAdmin": "PMO dan Odoo berbeda pada akun di atas. Anda tetap dapat pindah ke buku besar Odoo dengan menuliskan mengapa selisihnya dapat diterima.",
+      "differsOther": "PMO dan Odoo berbeda pada akun di atas. Admin dapat pindah ke buku besar Odoo setelah menjelaskan selisihnya.",
+      "askAdmin": "Angkanya cocok. Admin dapat pindah ke buku besar Odoo.",
+      "switchExplained": "Pindah ke buku besar Odoo dengan alasan",
+      "switch": "Pindah ke buku besar Odoo",
+      "confirmTitle": "Pindah ke buku besar Odoo",
+      "confirmBody": "Setiap anggaran dan laporan organisasi ini akan menampilkan biaya aktual dari buku besar Odoo, dan dokumen PMO sendiri tidak lagi dihitung sebagai biaya aktual. PMO tidak dapat kembali; hubungi dukungan bila perlu.",
+      "reasonLabel": "Mengapa selisih ini dapat diterima?",
+      "reasonHelp": "Disimpan dalam catatan audit beserta nama Anda.",
+      "confirmAction": "Pindah ke buku besar Odoo",
+      "refusedNotCaughtUp": "PMO masih membaca riwayat Odoo.",
+      "refusedNotChecked": "Buku besar Odoo belum dibandingkan dengan Odoo.",
+      "refusedStale": "Pencocokan terakhir sudah usang. Tunggu pencocokan berikutnya.",
+      "refusedUnconfirmed": "Selisih perlu alasan tertulis sebelum Anda dapat melanjutkan."
+    }
   }
 }
