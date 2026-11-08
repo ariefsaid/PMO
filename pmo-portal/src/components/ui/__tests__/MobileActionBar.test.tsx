@@ -109,7 +109,7 @@ describe('MobileActionBar #953', () => {
     expect(toast).toHaveTextContent('Needs attention');
     expect(toast.parentElement).toHaveClass('max-w-[min(360px,calc(100vw-40px))]');
     expect(toast.parentElement?.parentElement?.parentElement).toHaveStyle({
-      transform: 'translateY(calc(0px - var(--mobile-action-bar-height, 0px)))',
+      transform: 'translateY(calc(0px - var(--mobile-action-bar-height, 0px) - var(--phone-nav-height, 0px)))',
     });
 
     secondHeight = 112;

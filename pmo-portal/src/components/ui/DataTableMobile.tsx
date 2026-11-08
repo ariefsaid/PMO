@@ -87,12 +87,14 @@ export function DataTableMobile<Row>({
   return (
     /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
      * OD-W4-4 / AC-IXD-MOBILE-W4-C1: stacked record-card list.
-     * Card anatomy (DESIGN.md tokens):
+     * Card anatomy (DESIGN.md tokens), #2061 TWO-LINE ROWS:
      *   - Container: bg-card, border, rounded-md (8px), p-4 (16px), gap-2 (8px) between cards
-     *   - Title row: first column = activation <button> (rowLabel accessible name)
-     *   - Field rows: <dl> grid — <dt> = column header (overline/label voice), <dd> = cell value
-     *   - Numeric columns: tabular + text-right on <dd>
-     *   - rowMenu ⋯: top-right corner of the card, .touch-target
+     *   - Line 1 (identity): first column = activation <button> (rowLabel accessible name),
+     *     the `status` column's pill beside it; rowMenu ⋯ top-right, .touch-target
+     *   - Line 2 (meta): the primary cell's secondary text, then every remaining column as
+     *     one inline, dot-separated value — never a label/value stack. Column labels stay
+     *     in the DOM `sr-only` so the values remain self-describing for screen readers.
+     *   - Numeric columns keep tabular figures (no desktop right-alignment on cards)
      * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
      * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
      *
@@ -128,7 +130,14 @@ export function DataTableMobile<Row>({
           const [titleCol, ...cardCols] = columns;
           // N10: an actions column (its own ⋯ menu) sits top-right like rowMenu, never as a trailing card line.
           const actionCols = mobileCardDetails ? [] : cardCols.filter((col) => col.kind === 'actions');
-          const restCols = cardCols.filter((col) => !actionCols.includes(col));
+          // #2061 two-line row: the identity line carries the name AND the record's status
+          // (the status column moves up beside the title); every other column reads as one
+          // inline meta line under it (customer, value, progress). The primary cell's own
+          // secondary line (e.g. company + project code) leads that meta line, so the row
+          // is exactly two lines instead of a label/value stack.
+          const statusCols = mobileCardDetails ? [] : cardCols.filter((col) => col.kind === 'status');
+          const restCols = cardCols.filter((col) => !actionCols.includes(col) && !statusCols.includes(col));
+          const primarySecondary = titleCol.secondaryCell?.(row);
           const hasMenu = !!rowMenu;
           const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
 
@@ -143,7 +152,7 @@ export function DataTableMobile<Row>({
                 selected && 'bg-surface-selected'
               )}
             >
-              {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+              {/* Line 1 — identity: the name plus the record's status pill, ⋯ pinned top-right. */}
               <div className="flex items-start justify-between gap-3">
                 {/* Card title — activation button if rowLabel+onActivate supplied.
                     [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
@@ -167,30 +176,52 @@ export function DataTableMobile<Row>({
                         onClick={() => onActivate(row)}
                         className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                       >
-                        {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
+                        {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
+                      mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} /> : titleCol.cell(row)
                     )}
                   </div>
                 </div>
-                {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
-                {hasMenu && menuItems.length > 0 && (
-                  <div className="shrink-0">
-                    <RowMenu items={menuItems} />
-                  </div>
-                )}
-                {actionCols.map((col) => {
-                  const content = col.cell(row);
-                  return content == null || content === false ? null : <div key={col.key} data-card-actions={col.key} className="shrink-0">{content}</div>;
-                })}
+                {/* Status pill(s) + actions + rowMenu ⋯ — top-right of the identity line.
+                    rowMenu carries .touch-target for ≥44px on coarse pointer. */}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {statusCols.map((col) => {
+                    const content = col.cell(row);
+                    // The pill renders without its column label visually (the line-1 slot is the
+                    // label in a card); a sr-only header keeps the value self-describing for AT.
+                    return content == null || content === false ? null : (
+                      <div key={col.key} data-card-status={col.key}>
+                        <span className="sr-only">{col.header} </span>
+                        {content}
+                      </div>
+                    );
+                  })}
+                  {actionCols.map((col) => {
+                    const content = col.cell(row);
+                    return content == null || content === false ? null : <div key={col.key} data-card-actions={col.key}>{content}</div>;
+                  })}
+                  {hasMenu && menuItems.length > 0 && <RowMenu items={menuItems} />}
+                </div>
               </div>
 
-              {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
-                  (null/undefined/false — e.g. a fact that only one record type carries) is left out of
-                  the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-              {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
-                <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+              {/* Line 2 — one inline meta line. The primary cell's secondary text leads it, then
+                  every remaining column as a value separated by a dot. A cell that renders nothing
+                  for THIS row (null/undefined/false — e.g. a fact only one record type carries) is
+                  left out; its <dt> label stays in the DOM sr-only so AT hears "Customer 500".
+                  A <dt> without its <dd> would be invalid, so they always ship together. */}
+              {mobileCardDetails ? mobileCardDetails(row) : (restCols.length > 0 || primarySecondary != null) && (
+                <dl
+                  data-card-meta-line=""
+                  className={cn(
+                    'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] font-normal text-muted-foreground',
+                    // Dot separators between values (never before the first one).
+                    '[&>dd:not(:first-of-type)]:before:mr-1.5 [&>dd:not(:first-of-type)]:before:text-muted-foreground/60 [&>dd:not(:first-of-type)]:before:content-[\'·\']',
+                  )}
+                >
+                  {primarySecondary != null && (
+                    <dd className="min-w-0 max-w-full truncate [&_.truncate]:block">{primarySecondary}</dd>
+                  )}
                   {restCols.map((col) => {
                     const content = col.cell(row);
                     if (content == null || content === false) return null;
@@ -198,7 +229,7 @@ export function DataTableMobile<Row>({
                       <React.Fragment key={col.key}>
                         <dt
                           className={cn(
-                            'text-[12px] font-semibold text-muted-foreground self-start',
+                            'sr-only self-start text-[12px] font-semibold text-muted-foreground',
                             stripHiddenClasses(col.colClassName)
                           )}
                         >
@@ -208,10 +239,9 @@ export function DataTableMobile<Row>({
                           className={cn(
                             // [&_.truncate]:block — see the title note above: inline truncate
                             // cells (e.g. a contact email) don't clip and bleed at 360px.
-                            'min-w-0 break-words text-control text-foreground [&_.truncate]:block',
-                            // ONE value alignment in cards: every value starts at the label
-                            // column's x — money keeps its tabular figures but loses the
-                            // desktop column's right alignment here (director fix).
+                            'min-w-0 break-words text-[12.5px] text-muted-foreground [&_.truncate]:block',
+                            // ONE value alignment on the meta line: money keeps its tabular
+                            // figures but loses the desktop column's right alignment here.
                             col.align === 'num' && 'tabular',
                             col.align === 'center' && 'text-center',
                             stripHiddenClasses(col.colClassName),

@@ -1,5 +1,7 @@
 export { AppShell } from './AppShell';
 export { Rail } from './Rail';
+export { PhoneNavBar, type PhoneNavBarProps } from './PhoneNavBar';
+export { PhoneLandingRedirect } from './PhoneLandingRedirect';
 export { ContextBar } from './ContextBar';
 export { CommandPalette, type PaletteItem } from './CommandPalette';
 export { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';

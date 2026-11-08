@@ -368,6 +368,7 @@
     "loadErrorTitle": "Gagal memuat detail pengadaan"
   },
   "procurementDetail": {
+    "decisionBar": "Keputusan pengadaan",
     "readyHint": {
       "draftOther": "Siap mengajukan pengadaan ini untuk disetujui.",
       "requested": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengajuannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
