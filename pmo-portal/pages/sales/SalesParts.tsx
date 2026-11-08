@@ -12,6 +12,7 @@ import {
 import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import type { SalesModel } from './useSalesModel';
+import { useStageJourneyStepLabel } from './useDealActions';
 import { attentionReason, dash, openValueTotal } from './salesLogic';
 
 export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, m: { t }, className }) => (
@@ -166,6 +167,7 @@ export const Figure: React.FC<{ label: React.ReactNode; value: React.ReactNode; 
 /** Quick-view of one deal: read first, one filled action to open the record. */
 export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null; onClose: () => void }> = ({ m, deal, onClose }) => {
   const { t } = m;
+  const journeyStepLabel = useStageJourneyStepLabel();
   return (
     <Drawer
       open={deal !== null}
@@ -202,7 +204,7 @@ export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null
           {(isNeedsAttention(deal) || isStaleBid(deal)) && (
             <p role="status" className="text-sm text-foreground">{attentionReason(m, deal)}</p>
           )}
-          <LifecycleStepper variant="bar" steps={dealJourneySteps(deal.status)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
+          <LifecycleStepper variant="bar" steps={dealJourneySteps(deal.status, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
         </div>
       )}
     </Drawer>

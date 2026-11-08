@@ -3,7 +3,8 @@
 // map, plus the Engineer's confirmed ERP Employee link. The org row itself is NEVER touched — the claims, the
 // advance and the project state their currency (IDR, the bench company's books) explicitly instead.
 import { type SupabaseClient } from '@supabase/supabase-js';
-import { benchGet, benchPost, createErpProject, ERP_COMPANY, ERPNEXT_SITE_URL, ORG_ID } from './_tspHelpers';
+import { benchDelete, benchGet, benchPost, createErpProject, ERP_COMPANY, ERPNEXT_SITE_URL, ORG_ID } from './_tspHelpers';
+import { remoteErpAllowed } from './_benchGuard';
 import { SAR_CURRENCY } from './_sarHelpers';
 
 export const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4'; // engineer@acme.test — the claimant
@@ -157,4 +158,14 @@ export async function cleanupExp(admin: SupabaseClient, seed: ExpSeed, claimIds:
     await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
   }
   await admin.from('projects').delete().eq('id', seed.projectId);
+  // #1359: ONLY under the remote-bench opt-in — the local bench is disposable (no behaviour change
+  // for local runs), while a remote bench is shared, so this run's ERP Project must not linger
+  // there. Best effort: teardown must never mask the test's own result.
+  if (remoteErpAllowed()) {
+    try {
+      await benchDelete('Project', seed.erpProject);
+    } catch {
+      // best effort
+    }
+  }
 }

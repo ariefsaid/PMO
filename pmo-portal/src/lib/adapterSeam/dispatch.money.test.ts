@@ -407,6 +407,31 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
   });
 });
 
+describe('#1364 — a finalize that keeps refusing a still-committed row is bounded and names its reason', () => {
+  it('gives up after a few refusals with outbox-finalize-refused, never writes the mirror, never loops', async () => {
+    const fake = createFakeOutbox();
+    let calls = 0;
+    // The refusing ref RPC (the #1363 shape): returns 0 forever while the row stays `committed`.
+    // A loop that never gives up would spin here, so the stub fails loudly instead of hanging the run.
+    vi.spyOn(fake.deps, 'recordOutboxRef').mockImplementation(async () => {
+      if (++calls > 25) throw new Error('unbounded finalize retry');
+      return 0;
+    });
+    const writeReadModel = vi.fn();
+    const err = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } })),
+      command: baseCommand,
+      writeReadModel, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('outbox-finalize-refused');
+    expect(calls).toBeLessThanOrEqual(5);
+    expect(writeReadModel).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('committed');
+  });
+});
+
 describe('AC-ENA-012 confirmed retry — return the stored result, no ERP call, no claim', () => {
   it('returns the stored result without calling adapter.commit or claimOutboxForCommit', async () => {
     const fake = createFakeOutbox();

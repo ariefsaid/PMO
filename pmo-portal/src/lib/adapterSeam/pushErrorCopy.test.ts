@@ -200,6 +200,29 @@ describe('FR-ECA-030 a step on a purchase ordered before the ERP connection', ()
   });
 });
 
+describe('#1364 — a refusal before writing tells the user what to fix', () => {
+  it.each([
+    ['budget-project-start-date-missing', /start and end dates/i],
+    ['budget-fiscal-year-unresolved', /fiscal year/i],
+    ['budget-fiscal-year-ambiguous', /overlap/i],
+    ['budget-multi-fiscal-year-unphased', /fiscal year on every budget line/i],
+  ])('%s: names the fix and withholds a Retry that cannot succeed', (code, remedy) => {
+    const copy = describePushError(code);
+    expect(copy.code).toBe(code);
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toMatch(remedy);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('a finalize that kept refusing reads as a classified sentence and withholds a Retry that meets the same rule', () => {
+    const copy = describePushError('outbox-finalize-refused');
+    expect(copy.code).toBe('outbox-finalize-refused');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toBeTruthy();
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+});
+
 describe('describePushError — the refusals Odoo sends raise (#1504 S8-T6)', () => {
   const cases: Array<[string, RegExp, boolean]> = [
     ['validation', /refused/i, true],

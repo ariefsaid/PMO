@@ -11,19 +11,51 @@ import { useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
 import { repositories } from '@/src/lib/repositories';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import {
   LEGAL_PROJECT_TRANSITIONS, PIPELINE_STATUSES, projectStatusGroup, type TransitionProjectOpts,
 } from '@/src/lib/db/projectTransitions';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { LostReasonValue } from '@/components/project-status/LostReasonFields';
+import type { DealJourneyStage } from '../../components/salesPipeline';
 
-// ⛔ stage names stay untranslated, as in DealBand (same vocabulary as the status pill).
 export const NEXT_STAGE_LABEL: Record<string, string> = {
   Leads: 'Quotation',
   'Quotation Submitted': 'Pre-Qualification',
   'PQ Submitted': 'Tender',
   'Tender Submitted': 'Negotiation',
 };
+
+export const NEXT_STAGE_KEY: Record<string, string> = {
+  Leads: 'quotation',
+  'Quotation Submitted': 'preQualification',
+  'PQ Submitted': 'tender',
+  'Tender Submitted': 'negotiation',
+};
+
+export function useStageJourneyStepLabel(): (step: DealJourneyStage) => string {
+  const { t } = useTranslation('project');
+  return (step) => {
+    switch (step) {
+      case 'Leads':
+        return t('projectDetail.pipeline.journey.leads', 'Leads');
+      case 'Quotation':
+        return t('projectDetail.pipeline.journey.quotation', 'Quotation');
+      case 'Pre-Qualification':
+        return t('projectDetail.pipeline.journey.preQualification', 'Pre-Qualification');
+      case 'Tender':
+        return t('projectDetail.pipeline.journey.tender', 'Tender');
+      case 'Negotiation':
+        return t('projectDetail.pipeline.journey.negotiation', 'Negotiation');
+      case 'Won':
+        return t('projectDetail.pipeline.journey.won', 'Won');
+      case 'Lost':
+        return t('projectDetail.pipeline.journey.lost', 'Lost');
+      default:
+        return step;
+    }
+  };
+}
 
 export function useDealActions(project: ProjectWithRefs) {
   const { t } = useTranslation('project');
@@ -33,6 +65,7 @@ export function useDealActions(project: ProjectWithRefs) {
   const may = usePermission();
   const isDesktop = useIsDesktop();
   const today = useOrgToday();
+  const stageLabel = useProjectStatusLabel();
   const canTransition = may('edit', 'project');
   const canSeeMoney = may('view', 'salesInvoice');
   const { data: pipeline, isPending: pipelinePending, isError: pipelineError, refetch: refetchPipeline } = useSalesPipeline();
@@ -58,6 +91,10 @@ export function useDealActions(project: ProjectWithRefs) {
   const canLose = legal.includes('Loss Tender');
   const canDecline = legal.includes('Declined');
   const nextStage = legal.find((s) => PIPELINE_STATUSES.includes(s));
+  const nextStageKey = nextStage ? NEXT_STAGE_KEY[status] : undefined;
+  const nextStageLabel = nextStageKey
+    ? t(`projectDetail.pipeline.nextStage.${nextStageKey}`, NEXT_STAGE_LABEL[status])
+    : (nextStage ? (NEXT_STAGE_LABEL[status] ?? stageLabel(nextStage)) : null);
   const isTerminal = projectStatusGroup(status as never) !== 'pipeline';
 
   const [error, setError] = useState<string | null>(null);
@@ -129,8 +166,8 @@ export function useDealActions(project: ProjectWithRefs) {
       toast(
         t('projectDetail.pipeline.toast.updated', 'Project updated'),
         erpPending
-          ? t('projectDetail.erpLink.movedPending', 'Moved to {{status}}. ERP linking needs attention; retry from the project page.', { status: to })
-          : `${t('projectDetail.pipeline.toast.movedTo', 'Moved to')} ${to}`,
+          ? t('projectDetail.erpLink.movedPending', 'Moved to {{status}}. ERP linking needs attention; retry from the project page.', { status: stageLabel(to) })
+          : `${t('projectDetail.pipeline.toast.movedTo', 'Moved to')} ${stageLabel(to)}`,
         erpPending ? 'warning' : 'success',
       );
       if (to === 'Won, Pending KoM') {
@@ -157,8 +194,8 @@ export function useDealActions(project: ProjectWithRefs) {
   };
 
   return {
-    project, status, cached, isDesktop, today,
-    canTransition, canSeeMoney, canEditProbability, canWin, canLose, canDecline, nextStage, isTerminal, winReason,
+    project, status, cached, isDesktop, today, stageLabel,
+    canTransition, canSeeMoney, canEditProbability, canWin, canLose, canDecline, nextStage, nextStageLabel, isTerminal, winReason,
     pipelinePending, pipelineError, refetchPipeline,
     error, pending, confirmAction, setConfirmAction, lost, setLost,
     showWonPanel, setShowWonPanel, contractRef, setContractRef, contractDate, setContractDate, refError, setRefError, dateError, setDateError,

@@ -1,6 +1,6 @@
 -- procurement_no_double_count.test.sql — 0361. Owns AC-PFE-005 (FR-PFE-035..037, NFR-PFE-001/002).
 begin;
-select plan(10);
+select plan(14);
 insert into organizations (id, name, default_currency) values
   ('03620000-0000-0000-0000-00000000000a','PFE Ledger','IDR'), ('03620000-0000-0000-0000-00000000000b','PFE Native','IDR');
 insert into auth.users (id, email) values
@@ -57,6 +57,45 @@ select is(procurement_ledger_held('03620000-0000-0000-0000-0000000000e2'), null:
   'AC-PFE-005 0350 scope: an Engineer gets nothing for someone else''s purchase');
 select is(procurement_ledger_held('03620000-0000-0000-0000-0000000000e4'), null::numeric,
   'AC-PFE-005 0350 scope: an Engineer gets no invoice money even for their own request');
+reset role;
+
+-- #1507 S6-T3 count-once for an Odoo org: with the Admin's switch on, actuals come only from the snapshot and the PMO-pushed
+-- invoice is held off the open commitment exactly as for ERPNext; with it off, the commitment is the order value as before.
+set local request.jwt.claims = '';
+insert into organizations (id, name, default_currency) values
+  ('03620000-0000-0000-0000-0000000000a0','Odoo On','IDR'), ('03620000-0000-0000-0000-0000000000b0','Odoo Off','IDR');
+insert into auth.users (id, email) values
+  ('03620000-0000-0000-0000-0000000000a9','pfe-oon@example.com'), ('03620000-0000-0000-0000-0000000000b9','pfe-ooff@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('03620000-0000-0000-0000-0000000000a9','03620000-0000-0000-0000-0000000000a0','O Fin','pfe-oon@example.com','Finance','active'),
+  ('03620000-0000-0000-0000-0000000000b9','03620000-0000-0000-0000-0000000000b0','U Fin','pfe-ooff@example.com','Finance','active');
+insert into projects (id, org_id, name, status) values
+  ('03620000-0000-0000-0000-0000000000f1','03620000-0000-0000-0000-0000000000a0','O P1','Ongoing Project'),
+  ('03620000-0000-0000-0000-0000000000f2','03620000-0000-0000-0000-0000000000b0','U P1','Ongoing Project');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, config, activated_at, status) values
+  ('03620000-0000-0000-0000-0000000000a0','odoo','https://odoo.example.test','fx-on','{"ledger_basis_at":"2026-11-05T00:00:00Z"}'::jsonb, now(), 'active'),
+  ('03620000-0000-0000-0000-0000000000b0','odoo','https://odoo.example.test','fx-off','{}'::jsonb, now(), 'active');
+insert into budget_category_account_map (org_id, category, erp_account) values
+  ('03620000-0000-0000-0000-0000000000a0','Materials','5100'), ('03620000-0000-0000-0000-0000000000b0','Materials','5100');
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, net, as_of, snapshot_id, created_at) values
+  ('03620000-0000-0000-0000-0000000000a0','03620000-0000-0000-0000-0000000000f1','5100','2026',150,now(),'03620000-0000-0000-0000-0000000000c1',now()),
+  ('03620000-0000-0000-0000-0000000000b0','03620000-0000-0000-0000-0000000000f2','5100','2026',150,now(),'03620000-0000-0000-0000-0000000000c2',now());
+insert into procurements (id, org_id, title, requested_by_id, project_id, currency, total_value, status) values
+  ('03620000-0000-0000-0000-0000000000e5','03620000-0000-0000-0000-0000000000a0','OO','03620000-0000-0000-0000-0000000000a9','03620000-0000-0000-0000-0000000000f1','IDR',1000,'Vendor Invoiced'),
+  ('03620000-0000-0000-0000-0000000000e6','03620000-0000-0000-0000-0000000000b0','OU','03620000-0000-0000-0000-0000000000b9','03620000-0000-0000-0000-0000000000f2','IDR',1000,'Vendor Invoiced');
+insert into procurement_invoices (procurement_id, org_id, status, amount, tax_amount, tax_treatment, currency, erp_docstatus) values
+  ('03620000-0000-0000-0000-0000000000e5','03620000-0000-0000-0000-0000000000a0','Received',300,33,'exclusive','IDR',1),
+  ('03620000-0000-0000-0000-0000000000e6','03620000-0000-0000-0000-0000000000b0','Received',300,33,'exclusive','IDR',1);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000a9","role":"authenticated"}';
+select is((select procurement_open_commitment(p) from procurements p where p.id = '03620000-0000-0000-0000-0000000000e5'), 700::numeric,
+  'AC-ODA-016 S6-T3 a switched Odoo org holds the pushed invoice off the open commitment (1000 − 300)');
+select is((select coalesce(sum(actuals_to_date), 0) from project_mapped_actuals('03620000-0000-0000-0000-0000000000f1')), 150::numeric,
+  'AC-ODA-016 S6-T3 a switched Odoo org''s actuals are the snapshot only, not snapshot + invoice');
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000b9","role":"authenticated"}';
+select is((select procurement_open_commitment(p) from procurements p where p.id = '03620000-0000-0000-0000-0000000000e6'), 1000::numeric,
+  'AC-ODA-016 S6-T3 an unswitched Odoo org keeps the document basis: commitment is the order value');
+select is(org_reads_erp_ledger(), false, 'AC-ODA-016 S6-T3 the unswitched org does not read the ledger basis');
 reset role;
 select * from finish();
 rollback;
