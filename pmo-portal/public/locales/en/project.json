@@ -203,6 +203,7 @@
         "billingEmptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
         "toast": {
           "raised": "Invoice raised in the ERP",
+          "raisedNative": "Invoice drafted in PMO",
           "evidenceAttached": "Evidence attached",
           "withdrawn": "Claim withdrawn",
           "created": "Billing claim created"
@@ -214,7 +215,10 @@
           "confirm": "Withdraw claim"
         },
         "errors": {
-          "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised."
+          "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
+          "alreadyInvoiced": "This claim already has an invoice.",
+          "noClient": "This project has no client to invoice. Set the client on the project first.",
+          "totalMismatch": "This claim's lines do not add up to its total. Withdraw it and assemble it again."
         },
         "withdrawn": "Withdrawn",
         "kind": {
@@ -223,6 +227,11 @@
         },
         "errorSub": "Retry, or reopen the project.",
         "empty": "No billing claims yet",
+        "confirmRaiseNative": {
+          "body": "A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.",
+          "confirm": "Create invoice",
+          "title": "Create this claim's invoice?"
+        },
         "confirmRaise": {
           "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
@@ -346,7 +355,22 @@
       "getInputLabel": "Chance we win if the client proceeds (%)",
       "saveProbability": "Save",
       "getProbabilitySaved": "Opportunity estimate updated",
-      "probabilityFailed": "Couldn't save this probability. Check your access and retry."
+      "probabilityFailed": "Couldn't save this probability. Check your access and retry.",
+      "nextStage": {
+        "quotation": "Quotation",
+        "preQualification": "Pre-Qualification",
+        "tender": "Tender",
+        "negotiation": "Negotiation"
+      },
+      "journey": {
+        "leads": "Leads",
+        "quotation": "Quotation",
+        "preQualification": "Pre-Qualification",
+        "tender": "Tender",
+        "negotiation": "Negotiation",
+        "won": "Won",
+        "lost": "Lost"
+      }
     },
     "activity": {
       "title": "Activity",
@@ -667,7 +691,29 @@
       "spentAndCommitted": "Spent + committed",
       "unavailable": "Unavailable",
       "watch": "Watch",
-      "wholeProject": "Whole project"
+      "wholeProject": "Whole project",
+      "pushError": {
+        "budget-project-start-date-missing": {
+          "message": "The project has no start date, so PMO cannot tell which fiscal year this budget belongs to.",
+          "remedy": "Set the project start and end dates, then retry the push."
+        },
+        "budget-fiscal-year-unresolved": {
+          "message": "No ERPNext fiscal year contains the project start or end date.",
+          "remedy": "Add the missing fiscal year in ERPNext, or correct the project dates, then retry the push."
+        },
+        "budget-fiscal-year-ambiguous": {
+          "message": "More than one ERPNext fiscal year contains the project start date, so PMO will not pick one.",
+          "remedy": "Remove the overlap between the fiscal years in ERPNext, then retry the push."
+        },
+        "budget-multi-fiscal-year-unphased": {
+          "message": "The project spans more than one fiscal year but some budget lines have no fiscal year.",
+          "remedy": "Set a fiscal year on every budget line (or shorten the project dates to one year), then activate again."
+        },
+        "outbox-finalize-refused": {
+          "message": "ERPNext accepted the budget, but PMO could not record its reference after several tries.",
+          "remedy": "Retrying repeats the same refusal. Ask an administrator to check the ERPNext connection and the budget's saved reference."
+        }
+      }
     },
     "documents": {
       "category": {

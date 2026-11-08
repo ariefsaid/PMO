@@ -45,8 +45,11 @@ describe('whats_overdue through the handler (#787)', () => {
 
     const toolMsg = create.mock.calls[1][0].messages.at(-1);
     expect(toolMsg.role).toBe('tool');
-    expect(JSON.parse(toolMsg.content).note).toMatch(/query_entity counts cover all tasks the user can see.*panel's own\/managed scope/i);
-    expect(JSON.parse(toolMsg.content)).toMatchObject({
+    const envelope = JSON.parse(toolMsg.content);
+    expect(envelope.untrusted_record_data).toBe(true);
+    const body = envelope.result;
+    expect(envelope.note).toMatch(/query_entity counts cover all tasks the user can see.*panel's own\/managed scope/i);
+    expect(body).toMatchObject({
       ok: true, overdueTasks: 1, overdueInvoices: 1,
       tasks: [{ name: 'Pour foundation', projectId: P1, projectName: 'Harbor Tower', assigneeName: 'Budi', dueDate: '2026-10-02', daysOverdue: 4 }],
       invoices: [{ siNumber: 'ACC-SINV-2026-00012', customerName: 'PT Client', outstanding: 850000000, projectId: P1, dueDate: '2026-10-01', daysOverdue: 5 }],

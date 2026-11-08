@@ -31,6 +31,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -233,6 +234,7 @@ test.describe('AC-SAR-010: PE-receive after-commit-before-mirror fault-seam inte
       // blindly re-POSTed. So there is no open gap here: R1 (the DB atomic claim), R3 (the composite
       // probe), and the held terminal together close the PE-receive recovery surface.
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Payment%20Entry/${encodeURIComponent(ipName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });

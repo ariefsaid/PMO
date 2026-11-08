@@ -91,7 +91,7 @@ When I close a month on an Odoo-connected project, I want PMO's budget-versus-ac
 
 ### Basis switch and roles
 
-- **FR-ODA-060** The system shall move an Odoo org to ledger basis only when an Admin chooses to, and only while the ledger is caught up and the latest check is "matches" (or an Admin confirms an explained difference). Until then, the org keeps today's document basis and the ledger sections say "Odoo ledger not in use yet".
+- **FR-ODA-060** The system shall move an Odoo org to ledger basis only when an Admin chooses to, and only while the ledger is caught up and the latest check is "matches" (or an Admin confirms an explained difference). Until then, the org keeps today's document basis and the ledger sections say "Odoo ledger not in use yet". The switch needs a current check (not stale, over at least one account when the mirror holds lines) and a caught-up feed; a "not checked", missing or stale check is refused with no override, and a confirmed difference needs a written reason, kept in the audit. Moving back to the document basis is out of scope: a service-side action only, no Admin reverse switch.
 - **FR-ODA-061** Reading ledger actuals and statements shall be permitted to the same roles as ERPNext's: Admin, Executive, Finance (company statements, line detail); Project Manager and Engineer see project totals for projects visible under projects RLS. The database is the authority; every read and write is scoped to the caller's org and a foreign-org row behaves as not found.
 - **FR-ODA-062** The reconciliation, health and switch controls shall be shown to Admin and Finance only.
 

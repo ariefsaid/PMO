@@ -4,6 +4,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { dispatchCreateRevenue, dispatchTransitionRevenue, SAR_CURRENCY, seedSAR, signInAdmin, signInApprover } from './_sarHelpers';
 import { ownedContextOptions, pickComboboxOption, signIn, waitForFonts } from '../helpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -23,6 +24,7 @@ const authHeaders = { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`, 'Cont
 type Tax = { charge_type: string; account_head: string; rate: number; tax_amount: number; tax_amount_after_discount_amount: number; total: number; included_in_print_rate: number };
 type ErpInvoice = { name: string; docstatus: number; net_total: number; grand_total: number; total_taxes_and_charges: number; outstanding_amount: number; currency: string; amended_from: string | null; taxes: Tax[]; items: Array<{ net_amount: number }> };
 async function bench(path: string, method = 'GET', body?: unknown) {
+  assertLocalBenchUrl(BENCH_URL);
   return fetch(`${BENCH_URL}/api/${path}`, { method, headers: authHeaders, ...(body ? { body: JSON.stringify(body) } : {}) });
 }
 async function readErpInvoice(name: string): Promise<ErpInvoice> {

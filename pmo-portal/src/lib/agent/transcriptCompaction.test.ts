@@ -117,6 +117,19 @@ describe('compactTranscript', () => {
     expect(parsed.tool).toBe('query_entity');
   });
 
+  it('retains rowCount from an enveloped read result', () => {
+    const body = JSON.stringify({ untrusted_record_data: true, notice: 'n', result: { rowCount: 5, rows: Array.from({ length: 5 }, (_v, i) => ({ id: i, name: `P${i}` })) } });
+    const msgs: ModelMessage[] = [
+      { role: 'system', content: 'system prompt' },
+      { role: 'assistant', content: null, tool_calls: [{ id: 'q', type: 'function', function: { name: 'query_entity', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'q', name: 'query_entity', content: body },
+      { role: 'user', content: 'a' },
+      { role: 'user', content: 'b' },
+    ];
+    const out = compactTranscript(msgs, { triggerChars: 50, recentMessages: 2, maxToolResultChars: 50 });
+    expect(JSON.parse(out[2].content as string).rowCount).toBe(5);
+  });
+
   it('never removes messages or changes tool_call_ids (API pairing invariant)', () => {
     const msgs: ModelMessage[] = [
       { role: 'system', content: 'sys' },

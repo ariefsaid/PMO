@@ -20,7 +20,6 @@ const analytics = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useErpOrphans: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));

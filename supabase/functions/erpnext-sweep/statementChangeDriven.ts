@@ -92,6 +92,12 @@ export async function planChangeDrivenStatements(
     const due = await service.rpc('record_erp_statement_nightly_due', scope);
     if (due.error) return { kind: 'legacy' };
 
+    // Recovery scan (#1932): raise the reserved intent for confirmed posts the post-confirm trigger missed
+    // (a row inserted already-confirmed, a pre-trigger confirmation, or bookkeeping that failed). One
+    // coalesced intent per scan, lease-fenced, so the next plan runs a refresh instead of waiting for the nightly.
+    const scan = await service.rpc('scan_erp_statement_confirmed_misses', scope);
+    if (scan.error) return { kind: 'legacy' };
+
     const plan = await service.rpc('plan_erp_statement_pass', { ...scope, p_scope_epoch: epoch });
     const planned = plan.data as { mode?: string; reason?: string; dirty_cut?: string; intent_cut?: string; nightly_cut?: string | null } | null;
     if (plan.error || !planned) return { kind: 'legacy' };

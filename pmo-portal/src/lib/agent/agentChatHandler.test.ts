@@ -429,6 +429,20 @@ it('never parallelizes a write: a read+write round runs only the read and DEFERS
   expect(JSON.parse(readResult.content)._deferred).toBeUndefined();
 });
 
+it('read tool results reach the model inside the untrusted-data envelope (single and parallel)', async () => {
+  const read = (id: string, entity: string) => ({ id, type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity }) } });
+  for (const calls of [[read('r1', 'tasks')], [read('r1', 'tasks'), read('r2', 'projects')]]) {
+    const create = vi.fn()
+      .mockResolvedValueOnce({ finish_reason: 'tool_calls', message: { role: 'assistant', content: null, tool_calls: calls }, usage: {}, model: 'm' })
+      .mockResolvedValue({ finish_reason: 'stop', message: { role: 'assistant', content: 'ok' }, usage: {}, model: 'm' });
+    const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }], error: null }));
+    await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
+    const toolMsgs = create.mock.calls[1][0].messages.filter((m: { role: string }) => m.role === 'tool');
+    expect(toolMsgs).toHaveLength(calls.length);
+    for (const m of toolMsgs) expect(JSON.parse(m.content)).toMatchObject({ untrusted_record_data: true, result: expect.anything() });
+  }
+});
+
 it('caps read fan-out: a round with more than MAX_PARALLEL_READS reads falls back to serial+defer', async () => {
   // One round emitting (MAX_PARALLEL_READS + 1) reads must NOT spawn unbounded concurrency — it
   // falls to the serial path: process the first, defer the rest (audit finding 3).
