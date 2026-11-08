@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Avatar } from '@/src/components/ui/Avatar';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -7,7 +8,6 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
-import { initials } from '@/src/lib/initials';
 import { useAuth } from '@/src/auth/useAuth';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
@@ -255,7 +255,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           <StatusPill variant="neutral">{t('managementPack.unassigned', 'Unassigned')}</StatusPill>
         ) : (
           <span className="flex items-center gap-2">
-            {row.projectManagerId && <span role="img" aria-label={projectById.get(row.projectId ?? '')?.pm?.full_name ?? t('financeHub:managementPack.projectManager', 'Project manager')} title={projectById.get(row.projectId ?? '')?.pm?.full_name ?? undefined} className="grid size-[20px] shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">{initials(projectById.get(row.projectId ?? '')?.pm?.full_name ?? t('financeHub:managementPack.projectManager', 'Project manager'))}</span>}
+            {row.projectManagerId && <Avatar name={projectById.get(row.projectId ?? '')?.pm?.full_name ?? t('financeHub:managementPack.projectManager', 'Project manager')} size="xs" />}
             <span>{row.projectName}</span>
           </span>
         ),

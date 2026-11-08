@@ -243,7 +243,7 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLeve
 
       {(transitions.length > 0 || sodBlocked) && (
         <div className="mt-5 border-t border-border pt-4">
-          <StatusHeading className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <StatusHeading className="mb-2.5 text-[11px] font-semibold text-muted-foreground">
             {t('projectDetail.documents.updateStatus', 'Update status')}
           </StatusHeading>
           {sodBlocked ? (
@@ -284,7 +284,7 @@ interface DocumentDrawerProps extends DocumentPreviewProps, DocumentActionFooter
 /** Definition-list row — label (overline voice) + value. */
 const DocField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="flex flex-col gap-1">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+    <dt className="text-[11px] font-semibold text-muted-foreground">
       {label}
     </dt>
     <dd className="text-[14px] text-foreground">{children}</dd>

@@ -10,7 +10,8 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Tabs } from '../Tabs';
 
 const ITEMS = [
@@ -48,13 +49,13 @@ const tabNames = () =>
 const activeEl = () => document.activeElement as HTMLElement | null;
 
 describe('#879 Tabs keyboard contract (WAI-ARIA tabs pattern)', () => {
-  it('AC #879: ArrowRight activates the next tab and focus moves to it, staying in the tab bar', () => {
+  it('AC #879: ArrowRight activates the next tab and focus moves to it, staying in the tab bar', async () => {
     render(<Harness />);
     const tabs = tabNames();
     (tabs[0] as HTMLElement).focus();
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveFocus();
 
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Overview' }), { key: 'ArrowRight' });
+    await userEvent.keyboard('{ArrowRight}');
 
     // Activation moved…
     expect(screen.getByRole('tab', { name: 'Budget' })).toHaveAttribute('aria-selected', 'true');
@@ -65,75 +66,75 @@ describe('#879 Tabs keyboard contract (WAI-ARIA tabs pattern)', () => {
     );
   });
 
-  it('AC #879: modified ArrowRight does not intercept browser navigation shortcuts', () => {
+  it('AC #879: modified ArrowRight does not intercept browser navigation shortcuts', async () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
     const overview = screen.getByRole('tab', { name: 'Overview' });
     overview.focus();
-    fireEvent.keyDown(overview, { key: 'ArrowRight', altKey: true });
-    fireEvent.keyDown(overview, { key: 'ArrowRight', metaKey: true });
-    fireEvent.keyDown(overview, { key: 'ArrowRight', ctrlKey: true });
+    await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}');
+    await userEvent.keyboard('{Meta>}{ArrowRight}{/Meta}');
+    await userEvent.keyboard('{Control>}{ArrowRight}{/Control}');
     expect(onChange).not.toHaveBeenCalled();
     expect(overview).toHaveAttribute('aria-selected', 'true');
     expect(overview).toHaveFocus();
   });
 
-  it('AC #879: ArrowLeft activates the previous tab and focus moves to it', () => {
+  it('AC #879: ArrowLeft activates the previous tab and focus moves to it', async () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
     // Real journey: focus starts on the ACTIVE tab, one ArrowRight lands on Budget,
     // then ArrowLeft walks back to Overview.
     (tabNames()[0] as HTMLElement).focus();
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Overview' }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Budget' }), { key: 'ArrowLeft' });
+    await userEvent.keyboard('{ArrowRight}');
+    await userEvent.keyboard('{ArrowLeft}');
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveFocus();
     expect(onChange).toHaveBeenCalledTimes(2);
   });
 
-  it('AC #879: ArrowRight on the last tab wraps to the first tab (and keeps focus in the bar)', () => {
+  it('AC #879: ArrowRight on the last tab wraps to the first tab (and keeps focus in the bar)', async () => {
     // Deep-link state: /projects/p1/history — active tab is the LAST tab.
     render(<Harness initialValue="history" />);
     (tabNames()[tabNames().length - 1] as HTMLElement).focus();
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'History' }), { key: 'ArrowRight' });
+    await userEvent.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveFocus();
   });
 
-  it('AC #879: ArrowLeft on the first tab wraps to the last tab', () => {
+  it('AC #879: ArrowLeft on the first tab wraps to the last tab', async () => {
     render(<Harness />);
     (tabNames()[0] as HTMLElement).focus();
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Overview' }), { key: 'ArrowLeft' });
+    await userEvent.keyboard('{ArrowLeft}');
     expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'History' })).toHaveFocus();
   });
 
-  it('AC #879: Home activates the first tab (WAI-ARIA tabs pattern)', () => {
+  it('AC #879: Home activates the first tab (WAI-ARIA tabs pattern)', async () => {
     render(<Harness />);
     const tabs = tabNames();
     (tabs[3] as HTMLElement).focus();
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Tasks' }), { key: 'Home' });
+    await userEvent.keyboard('{Home}');
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveFocus();
   });
 
-  it('AC #879: End activates the last tab (WAI-ARIA tabs pattern)', () => {
+  it('AC #879: End activates the last tab (WAI-ARIA tabs pattern)', async () => {
     render(<Harness />);
     const tabs = tabNames();
     (tabs[0] as HTMLElement).focus();
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Overview' }), { key: 'End' });
+    await userEvent.keyboard('{End}');
     expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'History' })).toHaveFocus();
   });
 
-  it('AC #879: a run of ArrowRight presses walks the whole bar — focus never leaves the tab list', () => {
+  it('AC #879: a run of ArrowRight presses walks the whole bar — focus never leaves the tab list', async () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
     (tabNames()[0] as HTMLElement).focus();
     const list = screen.getByRole('tablist', { name: 'Project sections' });
     const labels = ITEMS.map((i) => i.label);
     for (let step = 1; step < ITEMS.length; step++) {
-      fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowRight' });
+      await userEvent.keyboard('{ArrowRight}');
       const expected = screen.getByRole('tab', { name: labels[step] });
       expect(expected).toHaveAttribute('aria-selected', 'true');
       expect(expected).toHaveFocus();

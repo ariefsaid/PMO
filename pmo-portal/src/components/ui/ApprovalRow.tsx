@@ -1,3 +1,4 @@
+import { Avatar } from './Avatar';
 import React from 'react';
 import { cn } from './cn';
 
@@ -76,7 +77,6 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
   className,
   onActivate,
 }) => {
-  const initial = (name.trim().charAt(0) || '?').toUpperCase();
   const subtitleNode = subtitle ?? (
     <span>
       {week} · <span className="tabular">{hours !== undefined ? hours.toFixed(1) : '0.0'}</span> h
@@ -109,12 +109,7 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
       )}
     >
       {disclosure}
-      <span
-        aria-hidden="true"
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-[12px] font-bold text-muted-foreground"
-      >
-        {initial}
-      </span>
+      <Avatar name={name} size="lg" decorative />
       <div className="min-w-0 flex-1">
         <div className={cn(identityLayout === 'request' ? 'line-clamp-2 break-words' : 'truncate', 'text-sm font-medium')} title={name}>{name}</div>
         {identityLayout === 'request' && status && <div className="mt-1">{status}</div>}

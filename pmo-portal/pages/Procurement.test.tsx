@@ -192,7 +192,7 @@ describe('Procurement index — IA-3 (real data)', () => {
     const all = within(tabs).getByRole('tab', { name: /All/ });
     all.focus();
     await userEvent.keyboard('{ArrowLeft}');
-    expect(within(tabs).getByRole('tab', { name: /Needs you/ })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(within(tabs).getByRole('tab', { name: /Needs you/ })).toHaveAttribute('aria-selected', 'true'));
   });
 
   it('AC-S19-002: daily rows show the procurement stage and its next step', async () => {

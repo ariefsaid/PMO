@@ -307,7 +307,7 @@ export const NotificationBell: React.FC = () => {
                           style={{ background: sev.dot }}
                         />
                         <span
-                          className={cn('text-[11px] font-semibold uppercase tracking-wide', sev.labelCls)}
+                          className={cn('text-[11px] font-semibold', sev.labelCls)}
                         >
                           {row.severity}
                         </span>

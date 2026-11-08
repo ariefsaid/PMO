@@ -8,7 +8,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
-const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
+const EYEBROW = 'text-[11px] font-semibold text-muted-foreground';
 
 /**
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
