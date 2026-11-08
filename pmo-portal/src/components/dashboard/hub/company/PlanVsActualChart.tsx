@@ -34,7 +34,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <table aria-label={name} className="sr-only">
+      <table aria-label={name} className="sr-only table-fixed">
         <thead><tr><th>{t('hub.company.project', 'Project')}</th><th>{planLabel}</th><th>{actualLabel}</th></tr></thead>
         <tbody>
           {rows.map((row) => (
