@@ -1,12 +1,153 @@
--- Reverses 0722: the executive dashboard returns to its 0732 body and the PM dashboard to its 0700 body (per-project
--- lateral calls), then the one-pass position function is dropped.
+-- 0770: the executive and PM dashboards read the PMO spent/committed positions for every project in ONE pass.
+-- Rollback: supabase/migrations/rollback/0770_dashboard_pmo_positions_down.sql
+--
+-- 50 users x 60 s (scripts/perf/load-run.mjs): the dashboards were the slowest routes, and their cost was a per-project
+-- loop: project_pmo_spent_position + project_pmo_commitment_position are called once per project (a lateral), each
+-- re-running the role/org guards and its own payment/invoice/charge reads. project_pmo_positions below computes the
+-- same two figures for all projects (or the given ids) with one aggregate per source table, and the two dashboards join it.
+-- The per-project functions are unchanged (the project page, the Projects list and the Budget tab still call them) and the
+-- dashboard bodies are otherwise the 0732 / 0700 text verbatim, so every figure is identical; the pgTAP file proves it row by row.
+--
+-- PMO basis only (an ERP-ledger org reads the ledger, not these positions): the function returns no rows for such an org.
+-- security invoker: every base read stays under the caller's RLS; the role and active-member guards are the per-project
+-- functions' own, evaluated once. The equipment charge comes from equipment_charge_org_actuals (0497), the org-wide form of
+-- the function the per-project position calls. No begin/commit: the rollback round trip wraps this file in its own transaction.
+
+create function public.project_pmo_positions(p_project_ids uuid[] default null)
+returns table(project_id uuid, spent numeric, spent_complete boolean, committed numeric, committed_complete boolean)
+language sql stable security invoker set search_path = public, pg_catalog as $$
+  with g as materialized (                         -- the guards of both per-project functions, evaluated once
+    select public.auth_org_id() as org_id,
+           public.is_active_member() as active
+     where not public.org_reads_erp_ledger()
+       and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
+  ), proj as (
+    select p.id, p.org_id, p.currency, p.currency = o.default_currency as charge_in_project_currency
+      from public.projects p join g on p.org_id = g.org_id
+      join public.organizations o on o.id = p.org_id
+     where p_project_ids is null or p.id = any (p_project_ids)
+  ),
+  -- spent (project_pmo_spent_position): pre-tax paid purchases that carry a payment, plus the internal hire charge
+  pay as (
+    select pay.procurement_id,
+           count(*) filter (where pay.amount is null or pay.amount::text in ('NaN','Infinity','-Infinity')
+                               or pay.currency is distinct from pr.currency) as bad,
+           coalesce(sum(pay.amount), 0) as amount
+      from public.procurements pr join public.payments pay on pay.procurement_id = pr.id and pay.org_id = pr.org_id
+      join proj on proj.id = pr.project_id and pr.org_id = proj.org_id
+     where pay.status = 'Paid' and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null
+     group by pay.procurement_id
+  ), inv as (
+    select i.procurement_id,
+           count(*) filter (where i.currency is distinct from pr.currency
+                               or i.amount::text in ('NaN','Infinity','-Infinity')) as bad,
+           sum(case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end) as pre_tax,
+           sum(i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+               - coalesce(i.withheld_amount, 0)) as payable
+      from public.procurements pr join public.procurement_invoices i on i.procurement_id = pr.id and i.org_id = pr.org_id
+      join proj on proj.id = pr.project_id and pr.org_id = proj.org_id
+     where i.amount is not null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     group by i.procurement_id
+  ), paid_pre_tax as (                             -- procurement_paid_pre_tax(pr), one row per purchase
+    select pr.id, pr.project_id, pr.currency,
+           case when pa.bad > 0 then null::numeric
+                when pa.amount = 0 then 0::numeric
+                when iv.bad > 0 then null::numeric
+                when iv.payable > 0 then round(pa.amount * iv.pre_tax / iv.payable, 2)
+                else pa.amount end as paid
+      from public.procurements pr join pay pa on pa.procurement_id = pr.id
+      left join inv iv on iv.procurement_id = pr.id
+     where pr.origin is distinct from 'erp_link'
+  ), paid_by_project as (
+    select proj.id as project_id,
+           bool_or(case when pp.currency = proj.currency then pp.paid end is null) as any_null,
+           coalesce(sum(case when pp.currency = proj.currency then pp.paid end), 0) as total
+      from proj join paid_pre_tax pp on pp.project_id = proj.id
+     group by proj.id
+  ), charge_by_project as (
+    select c.project_id, bool_or(c.amount is null) as any_null, sum(c.amount) as total
+      from public.equipment_charge_org_actuals(null) c
+     where c.project_id in (select id from proj)
+     group by c.project_id
+  ), spent as (
+    select proj.id as project_id,
+           case when coalesce(pb.any_null, false)
+                  or (cb.project_id is not null and (not proj.charge_in_project_currency or cb.any_null)) then null::numeric
+                else coalesce(pb.total, 0) + coalesce(cb.total, 0) end as amount
+      from proj
+      left join paid_by_project pb on pb.project_id = proj.id
+      left join charge_by_project cb on cb.project_id = proj.id
+  ),
+  -- committed (project_pmo_commitment_position over project_committed_spend, PMO basis): the open commitment of the
+  -- committed-status purchases, in the project currency
+  cprocs as (
+    select pr.id, pr.project_id, pr.org_id, pr.currency, pr.status, pr.origin, pr.total_value
+      from public.procurements pr join proj on proj.id = pr.project_id and pr.org_id = proj.org_id
+     where pr.status::text = any (public.committed_procurement_statuses())
+  ), cpaid as (
+    select pay.procurement_id,
+           count(*) filter (where pay.amount is null or pay.amount::text in ('NaN','Infinity','-Infinity')
+                               or pay.currency is distinct from p.currency) as bad,
+           coalesce(sum(pay.amount), 0) as amount
+      from cprocs p join public.payments pay on pay.procurement_id = p.id and pay.org_id = p.org_id
+     where p.origin is distinct from 'erp_link'
+       and pay.status = 'Paid' and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null
+     group by pay.procurement_id
+  ), cinv as (
+    select i.procurement_id,
+           count(*) filter (where i.currency is distinct from p.currency
+                               or i.amount::text in ('NaN','Infinity','-Infinity')) as bad,
+           sum(case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end) as pre_tax,
+           sum(i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+               - coalesce(i.withheld_amount, 0)) as payable
+      from cprocs p join public.procurement_invoices i on i.procurement_id = p.id and i.org_id = p.org_id
+     where p.origin is distinct from 'erp_link'
+       and i.amount is not null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     group by i.procurement_id
+  ), committed as (
+    select proj.id as project_id,
+           coalesce(sum(case
+                 when p.currency is distinct from proj.currency then null
+                 when p.status::text in ('Cancelled','Rejected') then 0::numeric
+                 when p.origin = 'erp_link' then coalesce(p.total_value, 0)::numeric
+                 else (select case when x.paid is null then coalesce(p.total_value, 0)::numeric
+                                   else greatest(0::numeric, coalesce(p.total_value, 0) - x.paid) end
+                         from (select case when pa.bad > 0 then null::numeric
+                                           when coalesce(pa.amount, 0) = 0 then 0::numeric
+                                           when iv.bad > 0 then null::numeric
+                                           when iv.payable > 0 then round(pa.amount * iv.pre_tax / iv.payable, 2)
+                                           else pa.amount end as paid) x)
+               end), 0) as amount,
+           coalesce(bool_and(coalesce(p.currency = proj.currency, false) and p.total_value is not null
+                             and p.total_value::text not in ('NaN','Infinity','-Infinity')) filter (where p.id is not null), true) as complete
+      from proj
+      left join cprocs p on p.project_id = proj.id
+      left join cpaid pa on pa.procurement_id = p.id
+      left join cinv iv on iv.procurement_id = p.id
+     group by proj.id
+  )
+  select proj.id,
+         case when g.active then s.amount end,
+         case when g.active then s.amount is not null end,
+         c.amount,
+         c.complete
+    from proj cross join g
+    join spent s on s.project_id = proj.id
+    join committed c on c.project_id = proj.id
+$$;
+revoke all on function public.project_pmo_positions(uuid[]) from public, anon;
+grant execute on function public.project_pmo_positions(uuid[]) to authenticated;
+
+
 create or replace function public.get_executive_dashboard()
   returns json
-  language sql
+  language plpgsql
   stable
   security invoker
   set search_path = public
 as $$
+begin
+  return (
   with flag as materialized (                         -- 0656: the org's ledger basis is read once, not once per project and column
     select public.org_reads_erp_ledger() as erp,
            coalesce(public.holds_spend_approval_authority(public.auth_role()), false) as holds
@@ -20,6 +161,9 @@ as $$
       (count(*) filter (where mapped and actuals_to_date is not null))::int as cov_count,
       (count(*) filter (where mapped))::int as cov_total
     from pma group by project_id
+  ),
+  pmo as materialized (                               -- 0770: the PMO spent/committed positions for every project in one pass, not one call per project
+    select * from public.project_pmo_positions(coalesce((select array_agg(x.id) from public.projects x where x.archived_at is null), '{}')) where not (select erp from flag)
   ),
   av as (                                             -- latest Active budget version per project (its currency)
     select distinct on (v.project_id) v.project_id, v.currency as budget_currency
@@ -58,14 +202,14 @@ as $$
     select p.id, p.org_id, p.name, p.status, p.currency, p.contract_value,
       ab.active_budget, av.budget_currency, (av.project_id is not null) as has_active,
       case when f.erp then o.default_currency else p.currency end as actual_currency,
-      case when not f.erp then sp.complete
+      case when not f.erp then pmo.spent_complete
         -- 0381 (#1374): no Active budget → the project header's rule: every cost category mapped and read.
         when av.project_id is null then (coalesce(pp.n, 0) > 0 and pp.all_ok) and f.holds
         else coalesce(cc.n > 0 and cc.n = cc.n_ok, false) end as actual_complete,
       case when f.erp then (case when o.default_currency = p.currency then pp.actual_sum else null end)
-           else sp.amount end as actual,
-      case when f.erp then null else pos.amount end as committed,
-      case when f.erp then true else coalesce(pos.complete, false) end as committed_complete,
+           else pmo.spent end as actual,
+      case when f.erp then null else pmo.committed end as committed,
+      case when f.erp then true else coalesce(pmo.committed_complete, false) end as committed_complete,
       case when f.erp then coalesce(pp.cov_count, 0) else 1 end as actual_coverage_count,
       case when f.erp then coalesce(pp.cov_total, 0) else 1 end as actual_coverage_total,
       f.erp as ledger_owned
@@ -76,14 +220,7 @@ as $$
     left join ab on ab.project_id = p.id
     left join pma_p pp on pp.project_id = p.id
     left join cat_cov cc on cc.project_id = p.id
-    left join lateral (                               -- once per project, only for a PMO-basis org (ERP guard first)
-      select c.amount, c.complete from public.project_pmo_commitment_position(p.id) c
-      where not f.erp offset 0
-    ) pos on true
-    left join lateral (                               -- 0700: the PMO spent position, the Budget tab's Spent basis
-      select s.amount, s.complete from public.project_pmo_spent_position(p.id) s
-      where not f.erp offset 0
-    ) sp on true
+    left join pmo on pmo.project_id = p.id
     where p.archived_at is null
   ),
   project_money as (
@@ -314,16 +451,25 @@ as $$
         r.budget_used_ratio desc nulls last, p.contract_value desc nulls last, r.id
       limit 5
     ) t),'[]'::json)
-  );
-$$;
+  ));
+end $$;
 revoke all on function public.get_executive_dashboard() from public;
 grant execute on function public.get_executive_dashboard() to authenticated;
 revoke execute on function public.get_executive_dashboard() from anon;
 
+-- The PM dashboard (0700 body) with its spent column read from the one-pass position.
 create or replace function public.get_pm_dashboard_projects()
-  returns json language sql stable security invoker set search_path = public
+  returns json language plpgsql stable security invoker set search_path = public
 as $$
-  with pma as materialized (select * from public.project_mapped_actuals_all(null)),  -- 0376: one org-wide actuals read
+begin
+  return (
+  with flag as materialized (select public.org_reads_erp_ledger() as erp),  -- 0770: the ledger basis is read once, not once per project and column
+  pma as materialized (select * from public.project_mapped_actuals_all(null)),  -- 0376: one org-wide actuals read
+  pmo_spent as materialized (                         -- 0770: the spent position of the caller's projects in one pass, not one call per project
+    select s.project_id, s.spent, s.spent_complete
+      from public.project_pmo_positions(coalesce((select array_agg(x.id) from public.projects x where x.project_manager_id = auth.uid() and x.org_id = public.auth_org_id()), '{}')) s
+     where not (select erp from flag)
+  ),
   billed_work as (
     select si.project_id,si.currency,sum(w.net+w.recovery) as revenue,
       bool_or(w.net is null or w.recovery is null
@@ -340,8 +486,8 @@ as $$
     (select sum(li.budgeted_amount) from public.budget_versions v
       join public.budget_line_items li on li.budget_version_id=v.id where v.project_id=p.id and v.status='Active') as budget,
     (select v.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc,v.created_at desc,v.id desc limit 1) as budget_currency,
-    case when public.org_reads_erp_ledger() then (select o.default_currency from public.organizations o where o.id=p.org_id) else p.currency end as actual_currency,
-    case when not public.org_reads_erp_ledger() then pmo_spent.complete
+    case when (select erp from flag) then (select o.default_currency from public.organizations o where o.id=p.org_id) else p.currency end as actual_currency,
+    case when not (select erp from flag) then pmo_spent.spent_complete
       -- 0381 (#1374): no Active budget → the project header's rule: every cost category mapped and read.
       when not exists (select 1 from public.budget_versions v where v.project_id=p.id and v.status='Active') then
         (select count(*) > 0 and bool_and(x.mapped and x.actuals_to_date is not null) from pma x where x.project_id=p.id)
@@ -352,28 +498,23 @@ as $$
           where x.category=li.category and x.mapped and x.actuals_to_date is not null))
        from public.budget_versions v join public.budget_line_items li on li.budget_version_id=v.id
        where v.project_id=p.id and v.status='Active') end as actual_complete,
-    case when public.org_reads_erp_ledger() then
+    case when (select erp from flag) then
       case when (select o.default_currency=p.currency from public.organizations o where o.id=p.org_id)
         then (select sum(x.actuals_to_date) from (select * from pma where pma.project_id=p.id) x where x.actuals_to_date is not null)
         else null end
-      else pmo_spent.amount end as spent,
-    public.org_reads_erp_ledger() as ledger_owned,
-    case when public.org_reads_erp_ledger() then
+      else pmo_spent.spent end as spent,
+    (select erp from flag) as ledger_owned,
+    case when (select erp from flag) then
       (select count(*)::int from (select * from pma where pma.project_id=p.id) x where x.mapped and x.actuals_to_date is not null)
       else 1 end as actual_coverage_count,
-    case when public.org_reads_erp_ledger() then
+    case when (select erp from flag) then
       (select count(*)::int from (select * from pma where pma.project_id=p.id) x where x.mapped)
       else 1 end as actual_coverage_total,
     (select bw.revenue from billed_work bw where bw.project_id=p.id and bw.currency=p.currency) as billed_revenue,
     (coalesce((select bw.incomplete from billed_work bw where bw.project_id=p.id and bw.currency=p.currency),false)
       or exists (select 1 from billed_work bw where bw.project_id=p.id and bw.currency<>p.currency)) as billed_incomplete
   from public.projects p left join public.companies c on c.id=p.client_id
-  left join lateral (
-    select spent.amount, spent.complete
-    from public.project_pmo_spent_position(p.id) spent
-    where not public.org_reads_erp_ledger()
-    offset 0 -- Keep the ERP guard ahead of the lateral function scan.
-  ) pmo_spent on true
+  left join pmo_spent on pmo_spent.project_id = p.id
   where p.project_manager_id=auth.uid() and p.org_id=public.auth_org_id()
   )
   select coalesce(json_agg(json_build_object(
@@ -386,10 +527,9 @@ as $$
     'realized_margin_pct',case when p.spent is null or not p.actual_complete or p.actual_currency<>p.currency or p.billed_incomplete or coalesce(p.billed_revenue,0)<=0 then null
       else (p.billed_revenue-p.spent)/p.billed_revenue end,
     'contract_remaining',case when p.spent is null or not p.actual_complete or p.actual_currency<>p.currency then null else p.contract_value-p.spent end
-  ) order by p.name),'[]'::json) from rows p;
-$$;
+  ) order by p.name),'[]'::json) from rows p
+  );
+end $$;
 revoke all on function public.get_pm_dashboard_projects() from public;
 grant execute on function public.get_pm_dashboard_projects() to authenticated;
 revoke execute on function public.get_pm_dashboard_projects() from anon;
-
-drop function public.project_pmo_positions(uuid[]);
