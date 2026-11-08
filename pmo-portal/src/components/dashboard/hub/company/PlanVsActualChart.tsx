@@ -11,6 +11,8 @@ import type { TopProject } from '@/src/lib/db/dashboard';
 
 export interface PlanVsActualChartProps { projects: TopProject[]; currency: string }
 
+const shortName = (name: string) => (name.length > 24 ? `${name.slice(0, 23)}…` : name);
+
 export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, currency }) => {
   const { t } = useTranslation('dashboard');
   const reduced = usePrefersReducedMotion();
@@ -26,7 +28,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
           <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }} barGap={2} barCategoryGap="28%">
             <CartesianGrid horizontal={false} stroke={chartTheme.grid} />
             <XAxis type="number" tick={axisTickStyle} stroke={chartTheme.grid} tickFormatter={(value: number) => formatCompactCurrency(value, currency)} />
-            <YAxis type="category" dataKey="name" width={112} tick={axisTickStyle} stroke={chartTheme.grid} interval={0} />
+            <YAxis type="category" dataKey="name" width={150} tick={axisTickStyle} stroke={chartTheme.grid} interval={0} tickFormatter={shortName} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value) => formatCurrency(Number(value), currency)} />
             <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} />

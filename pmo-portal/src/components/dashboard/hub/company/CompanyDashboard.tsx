@@ -317,7 +317,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('dashboard:hub.company.billing', 'Billing and collections')}</CardHead>
         <CardPad className="grid gap-3">
           <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
-          <InvoicedTrendCard trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
+          <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
           {finance && <ClientAgingBlock />}
         </CardPad>
       </Card>

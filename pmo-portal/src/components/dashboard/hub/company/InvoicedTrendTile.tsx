@@ -46,7 +46,7 @@ const DIRECTION_CLASS: Record<TrendDirection, string> = {
  * total (see selectInvoicedTrend); this tile only lays it out. Fewer than three months of history
  * keeps the figure and drops the line.
  */
-export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend }> = ({ trend }) => {
+export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a card: no frame of its own. */ bare?: boolean }> = ({ trend, bare = false }) => {
   const { t } = useTranslation('dashboard');
   const reason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   const money = (amount: number) => moneyFigure(amount, trend.currency, reason);
@@ -62,7 +62,7 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend }> = ({ trend })
   }[trend.direction];
 
   return (
-    <section aria-label={label} data-testid="invoiced-trend" className="flex min-w-0 flex-wrap items-center justify-between gap-x-8 gap-y-4 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4">
+    <section aria-label={label} data-testid="invoiced-trend" className={cn('flex min-w-0 flex-wrap items-center justify-between gap-x-8 gap-y-4', !bare && 'rounded-lg border border-border bg-card px-4 pb-3.5 pt-4')}>
       <div className="flex min-w-0 flex-col gap-2.5">
         <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
         <div className="min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular">
