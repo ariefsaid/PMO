@@ -28,6 +28,20 @@ describe('Tooltip', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Keyboard reachable');
   });
 
+  it('Escape dismisses a focus-opened tooltip; the focused trigger is described by it while open', async () => {
+    render(
+      <Tooltip content="Dismissible">
+        <button>info</button>
+      </Tooltip>
+    );
+    await userEvent.tab();
+    const tip = screen.getByRole('tooltip');
+    expect(screen.getByRole('button', { name: 'info' })).toHaveAccessibleDescription('Dismissible');
+    expect(tip).toHaveTextContent('Dismissible');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
   it('renders an optional bold title and closes on blur/mouseleave', async () => {
     render(
       <Tooltip title="Weighted" content="60% of stage value">
