@@ -27,6 +27,95 @@ export const PLATFORM_CURRENCY = 'USD';
 // no error and nothing thrown. `format.locale.test.ts` plants exactly that mutation.
 const formatterCache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat>();
 
+/**
+ * The runtime's default timezone, learned opportunistically from the first DATE formatter built
+ * WITHOUT an explicit `timeZone` (its resolvedOptions().timeZone IS the runtime default; a
+ * formatter built WITH one resolves to that zone instead, so it must never teach).
+ *
+ * Once known, a zoned shape whose zone equals the runtime default has that zone DROPPED from its
+ * options and cache key, so it SHARES the local twin's formatter ('instantDate' → 'date',
+ * 'instantDateNumeric' → 'dateOnlyNumeric'). Formatting with `timeZone: <the default zone>` is
+ * byte-identical to formatting with no timeZone — the default IS that zone (ECMA-402) — so the
+ * share cannot change output, and a profile zone different from the device's keeps its own
+ * formatter exactly as before. (perf slice 2, docs/perf-baseline.md "Next slices (2026-11-08)":
+ * the first Intl.DateTimeFormat of a page load costs ~50 ms at 4x CPU — ICU date/tz init — and
+ * every construction the cache saves is that much first-render work removed; the count is
+ * pinned by format.intl-construction.test.ts.)
+ */
+let runtimeDefaultTimeZone: string | null = null;
+
+function effectiveDateOptions(opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormatOptions {
+  const { timeZone } = opts;
+  if (timeZone !== undefined && runtimeDefaultTimeZone !== null && timeZone === runtimeDefaultTimeZone) {
+    const { timeZone: _dropped, ...rest } = opts;
+    return rest;
+  }
+  return opts;
+}
+
+function dateCacheKey(locale: string, opts: Intl.DateTimeFormatOptions): string {
+  const canonical = Object.entries(opts).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  return `d|${locale}|${canonical.map(([key, value]) => `${key}=${String(value)}`).join(';')}`;
+}
+
+function dateFormatterFor(
+  locale: string,
+  opts: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  const effective = effectiveDateOptions(opts);
+  const key = dateCacheKey(locale, effective);
+  let formatter = formatterCache.get(key) as Intl.DateTimeFormat | undefined;
+  if (!formatter) {
+    if (effective !== opts && opts.timeZone !== undefined) {
+      // This zoned call was normalized down to its local twin's options — but the twin may not
+      // have run yet: an EARLIER call with this same explicit zone (made before the runtime
+      // default was learned) already built an identical-output formatter under the with-zone
+      // key. Share it under this key too instead of constructing a second one.
+      const withZone = formatterCache.get(dateCacheKey(locale, opts)) as Intl.DateTimeFormat | undefined;
+      if (withZone) {
+        formatterCache.set(key, withZone);
+        return withZone;
+      }
+    }
+    formatter = new Intl.DateTimeFormat(locale, effective);
+    formatterCache.set(key, formatter);
+    if (runtimeDefaultTimeZone === null && effective.timeZone === undefined) {
+      // First zone-less construction teaches the runtime default (see note above). This cannot
+      // fire for a normalized (dropped-zone) options bag: dropping only happens once known.
+      try {
+        runtimeDefaultTimeZone = formatter.resolvedOptions().timeZone;
+      } catch {
+        /* no resolvedOptions on this runtime: zoned twins simply never merge */
+      }
+    }
+  }
+  return formatter;
+}
+
+/**
+ * ONE zoned wall-parts formatter for every consumer that reads date/time FIELDS out of
+ * `formatToParts` and joins them itself: the `YYYY-MM-DD` org-day stamp
+ * (`formatCalendarDayInTimeZone`), the `datetime-local` wall value (`instantToZonedDatetimeLocal`)
+ * and its seconds-bearing probes (`wallTimeOffsetMs`/`zonedDatetimeLocalToInstant`). Their old
+ * per-shape formatters differed only in WHICH fields they kept — the shared fields' values are
+ * identical from one union formatter, so three constructions per page load (the first ~50 ms
+ * cold at 4x CPU) collapse into one. Literals are never reused by these consumers; they read
+ * named parts only (the values of year/month/day/hour/minute do not depend on which other
+ * fields the pattern carries).
+ */
+function zonedWallPartsFormatterFor(timeZone: string): Intl.DateTimeFormat {
+  return dateFormatterFor('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
 function numberFormatterFor(
   shape: string,
   locale: string,
@@ -42,25 +131,9 @@ function numberFormatterFor(
   return formatter;
 }
 
-function dateFormatterFor(
-  shape: string,
-  locale: string,
-  opts: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormat {
-  const key = `d|${locale}|${shape}|${opts.timeZone ?? ''}`;
-  let formatter = formatterCache.get(key) as Intl.DateTimeFormat | undefined;
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, opts);
-    formatterCache.set(key, formatter);
-  }
-  return formatter;
-}
-
 /** ISO calendar day for an instant in an explicitly supplied organization timezone. */
 export function formatCalendarDayInTimeZone(instant: Date, timezone: string): string {
-  const parts = dateFormatterFor('isoDay', 'en-US', {
-    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(instant);
+  const parts = zonedWallPartsFormatterFor(timezone).formatToParts(instant);
   const value = (type: 'year' | 'month' | 'day') => parts.find(part => part.type === type)?.value;
   const year = value('year');
   const month = value('month');
@@ -434,7 +507,7 @@ const DATE_OPTS: Intl.DateTimeFormatOptions = {
 // ⛔ No `timeZone` option, deliberately. `parseISO('2026-06-14')` yields LOCAL midnight, and
 // formatting it in the LOCAL zone is what keeps a date-only ISO from rendering as the 13th. The
 // resolved profile timezone must NEVER be threaded in here (see activeLocale.ts's closing note).
-const dateFormatter = () => dateFormatterFor('date', getDateLocale(), DATE_OPTS);
+const dateFormatter = () => dateFormatterFor(getDateLocale(), DATE_OPTS);
 
 /**
  * Format an ISO date string for display. Accepts ONLY ISO input: a date-only `YYYY-MM-DD`
@@ -480,7 +553,7 @@ export function formatDateOnly(iso: string | null | undefined): string {
 export function formatDateOnlyNumeric(iso: string | null | undefined): string {
   const parsed = parseDateOnly(iso);
   if (!parsed) return '—';
-  return dateFormatterFor('dateOnlyNumeric', getDateLocale(), {
+  return dateFormatterFor(getDateLocale(), {
     month: 'numeric',
     day: 'numeric',
     year: 'numeric',
@@ -492,7 +565,7 @@ export function formatInstantDate(iso: string | null | undefined): string {
   const parsed = parseInstant(iso);
   if (!parsed) return '—';
   const timezone = getActiveLocale().timezone;
-  return dateFormatterFor('instantDate', getDateLocale(), { ...DATE_OPTS, timeZone: timezone }).format(parsed);
+  return dateFormatterFor(getDateLocale(), { ...DATE_OPTS, timeZone: timezone }).format(parsed);
 }
 
 /**
@@ -518,7 +591,7 @@ export function formatInstantDateNumeric(iso: string | null | undefined): string
   const parsed = parseInstant(iso);
   if (!parsed) return '—';
   const timezone = getActiveLocale().timezone;
-  return dateFormatterFor('instantDateNumeric', getDateLocale(), {
+  return dateFormatterFor(getDateLocale(), {
     month: 'numeric',
     day: 'numeric',
     year: 'numeric',
@@ -550,16 +623,7 @@ interface WallTimeParts {
 }
 
 function readWallTimeParts(instant: Date, timeZone: string, withSeconds: boolean): WallTimeParts {
-  const parts = dateFormatterFor(withSeconds ? 'wallTimeSec' : 'wallTime', 'en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(withSeconds ? { second: '2-digit' as const } : {}),
-  }).formatToParts(instant);
+  const parts = zonedWallPartsFormatterFor(timeZone).formatToParts(instant);
   const map: Record<string, string> = {};
   for (const part of parts) if (part.type !== 'literal') map[part.type] = part.value;
   return {
@@ -799,17 +863,17 @@ export function formatNumberExact(value: number): string {
 
 /** "Jun 14" — short month + day. */
 export function formatMonthDay(d: Date): string {
-  return dateFormatterFor('monthDay', getDateLocale(), { month: 'short', day: 'numeric' }).format(d);
+  return dateFormatterFor(getDateLocale(), { month: 'short', day: 'numeric' }).format(d);
 }
 
 /** "Jun" — short month name (dashboard period labels). */
 export function formatMonthShort(d: Date): string {
-  return dateFormatterFor('monthShort', getDateLocale(), { month: 'short' }).format(d);
+  return dateFormatterFor(getDateLocale(), { month: 'short' }).format(d);
 }
 
 /** "Sun" — short weekday (timesheet grid columns). */
 export function formatWeekday(d: Date): string {
-  return dateFormatterFor('weekday', getDateLocale(), { weekday: 'short' }).format(d);
+  return dateFormatterFor(getDateLocale(), { weekday: 'short' }).format(d);
 }
 
 /** "Jun 14, 2026" — Date-input twin of formatDate(iso) (same parts, local zone; shares its formatter). */
@@ -820,7 +884,7 @@ export function formatFullDate(d: Date): string {
 /** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
 export function formatDateTime(d: Date): string {
   const timezone = getActiveLocale().timezone;
-  return dateFormatterFor('dateTime', getDateLocale(), {
+  return dateFormatterFor(getDateLocale(), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -832,12 +896,12 @@ export function formatDateTime(d: Date): string {
 
 /** "03:45 PM" — time of day only, in the org's zone (a state banner's "as of"). */
 export function formatClockTime(d: Date): string {
-  return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
+  return dateFormatterFor(getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
 }
 
 /** "June 2026" — long month + year (calendar header). */
 export function formatMonthYear(d: Date): string {
-  return dateFormatterFor('monthYear', getDateLocale(), {
+  return dateFormatterFor(getDateLocale(), {
     month: 'long',
     year: 'numeric',
   }).format(d);
@@ -845,16 +909,16 @@ export function formatMonthYear(d: Date): string {
 
 /** "Sun, Jun 14" — calendar agenda day heading. */
 export function formatWeekdayMonthDay(d: Date): string {
-  return dateFormatterFor('weekdayMonthDay', getDateLocale(), {
+  return dateFormatterFor(getDateLocale(), {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   }).format(d);
 }
 
-/** "Sun 14" — a compact column heading (weekday and day of month). */
+/** "14 Sun" — a compact column heading (day of month and weekday). */
 export function formatWeekdayDay(d: Date): string {
-  return dateFormatterFor('weekdayDay', getDateLocale(), { weekday: 'short', day: 'numeric' }).format(d);
+  return dateFormatterFor(getDateLocale(), { weekday: 'short', day: 'numeric' }).format(d);
 }
 
 /**
@@ -870,7 +934,7 @@ export function formatWeekdayDay(d: Date): string {
  */
 const DAY_MONTH_SHAPE_LOCALE = 'en-GB';
 export function formatDayMonth(d: Date): string {
-  return dateFormatterFor('dayMonth', DAY_MONTH_SHAPE_LOCALE, {
+  return dateFormatterFor(DAY_MONTH_SHAPE_LOCALE, {
     day: '2-digit',
     month: 'short',
   }).format(d);
@@ -880,7 +944,7 @@ export function formatDayMonth(d: Date): string {
 export function formatUtcMonthYear(d: Date): string {
   // `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: a UTC-derived
   // business date must not drift a day. Swap the LOCALE, keep the UTC pin.
-  return dateFormatterFor('utcMonthYear', getDateLocale(), {
+  return dateFormatterFor(getDateLocale(), {
     month: 'short',
     year: '2-digit',
     timeZone: 'UTC',
@@ -889,7 +953,7 @@ export function formatUtcMonthYear(d: Date): string {
 
 /** UTC "Jun 2026" in the viewer's date locale: month + 4-digit year, so it never reads as a day. */
 export function formatUtcMonthYearFull(d: Date): string {
-  return dateFormatterFor('utcMonthYearFull', getDateLocale(), {
+  return dateFormatterFor(getDateLocale(), {
     month: 'short',
     year: 'numeric',
     timeZone: 'UTC',
@@ -905,7 +969,7 @@ export function formatUtcMonthYearFull(d: Date): string {
 // yields a grammatically wrong string that still renders and fails nothing. AC-SC-AXIS-004/005 pin
 // the shape. Localising the S-curve axis is its own change, with its own re-baselined snapshots.
 export function formatUtcDayMonthYear(d: Date): string {
-  const parts = dateFormatterFor('utcDayMonthYear', DAY_MONTH_SHAPE_LOCALE, {
+  const parts = dateFormatterFor(DAY_MONTH_SHAPE_LOCALE, {
     day: '2-digit',
     month: 'short',
     year: '2-digit',

@@ -148,6 +148,12 @@ Ranked by expected TBT saving per page at 4x (from the profiles above). "Verify"
    from one shared formatter, or construct them in a post-paint idle callback after the first frame so first render uses a plain formatter.
    Expected: -60 to -70 ms per page on 4 of 5 pages (the cost is inside a 400-570 ms task). Verify with `Intl` construction counts from `cpu-profile.mjs` (count must drop, not just move).
    Evidence: `format.ts:45` 60-84 ms self on all pages, `Intl.DateTimeFormat` 2 constructions = 68 ms on procurement.
+   **DONE 2026-11-08 (perf/intl-formatters).** Measured on the rich seed at 4x (Asia/Jakarta host = profile zone): the shapes confirmed by a constructor-args capture were, per page load, the zoned wall-parts trio
+   (`isoDay` + `wallTime` + `wallTimeSec`, all field-reading `formatToParts` consumers) plus the local/zoned date twins (`date`+`instantDate`, `dateOnlyNumeric`+`instantDateNumeric`). Fix: one shared union
+   wall-parts formatter, and a zoned call whose zone equals the runtime default (learned from the first zone-less construction) drops the zone and shares the local twin's cache entry; output is
+   byte-identical (pinned by `format.intl-shapes.test.ts`, counts by `format.intl-construction.test.ts`). `Intl.DateTimeFormat` constructions per page load: procurement 2 → 1, project detail 5 → 2
+   (`cpu-profile.mjs`, before/after builds). Construction time at 4x is dominated by the irreducible cold first construction (~50-85 ms run-to-run); Lighthouse TBT median-of-3 stayed within host noise
+   (procurement 1,520/1,200 ms before vs 1,130/1,220 ms after across two runs; project detail 1,290/1,310 vs 1,210/1,260).
 3. **Do not mount the assistant panel until first opened.**
    What: `Transcript.tsx`, `pmoNativeRuntime.ts`, `AssistantPanel` chunk and redux-toolkit show up on pages that never open it; mount lazily on first open (keep the shortcut and button).
    Expected: -40 to -80 ms per page (`Transcript.tsx:78` 14-46 ms, `pmoNativeRuntime.ts:76` 14 ms, redux-toolkit 15 ms, `AssistantPanel-*.js` 8-14 ms per page). Verify.
