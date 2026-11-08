@@ -1,5 +1,5 @@
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -44,6 +44,8 @@ import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvid
 import { ShellChrome } from '@/App';
 
 const LocationProbe = () => <output data-testid="location">{useLocation().pathname}</output>;
+// The slot imports the panel chunk on first open; warm it so the cold jsdom import is not inside findByRole's 1 s.
+beforeAll(async () => { await import('@/src/components/panel/AssistantPanel'); }, 60_000);
 beforeEach(() => { roleState.value = null; });
 
 describe('Ask AI palette integration', () => {
