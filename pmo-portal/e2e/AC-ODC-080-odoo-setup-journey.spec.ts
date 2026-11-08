@@ -35,6 +35,8 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   sentCodes = [code];
   await must('vendor', admin.from('companies').insert({ id: vendor, org_id: orgId, name: `${stamp} PT Sinar Baja`, type: 'Vendor' }).select('id'));
   await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: `${stamp} pilot`, status: 'Ongoing Project' }).select('id'));
+  // A unit PMO uses (a BOQ line), so Map once has a unit to match.
+  await must('boq', admin.from('boq_items').insert({ org_id: orgId, project_id: project, item_code: `${stamp}-1`, description: `${stamp} line`, quantity: 1, rate: 1000, unit: 'Units' }).select('id'));
   partnerIds = await call<number[]>('res.partner', 'create', { vals_list: [{ name: `${stamp} Odoo-only partner`, is_company: true, supplier_rank: 1 }] });
   await sweep();
 
@@ -43,6 +45,9 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   // Map once: accept the proposal in one step.
   const acceptAll = page.getByTestId('odoo-map-once').getByRole('button', { name: 'Accept all' });
   await expect(acceptAll).toBeVisible({ timeout: 60_000 });
+  const unitRow = page.getByTestId('odoo-map-once').getByLabel('Unit "Units"');
+  await expect(unitRow).toBeVisible();
+  if (!(await unitRow.inputValue().catch(() => ''))) await unitRow.selectOption({ label: 'Units' }).catch(() => undefined);
   if (await acceptAll.isEnabled()) { await acceptAll.click(); await expect(page.getByText('Saved.')).toBeVisible(); }
   await setup(token, { setupAction: 'set-analytic-plan', planId: String(scenario.planId) });
 
@@ -51,6 +56,9 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   await sweepUntil(() => setup<{ proposalCounts: Record<string, { send: number; bring_in: number }> }>(token, { setupAction: 'connect-status' }),
     (s) => (s.proposalCounts.project?.send ?? 0) >= 1 && (s.proposalCounts.party?.bring_in ?? 0) >= 1, 'the proposals are ready');
   await setup(token, { setupAction: 'accept-proposals' });
+  // Review the partners Odoo could not classify (its own login partners, s10-app-failures F2): a person dismisses them, which lets the run finish.
+  const open = await setup<{ proposals: Array<{ id: string; pmo_ids: string[] }> }>(token, { setupAction: 'list-proposals', state: 'open', outcome: 'review' });
+  for (const row of open.proposals.filter((r) => r.pmo_ids.length === 0)) await setup(token, { setupAction: 'decide-review', id: row.id, choice: { action: 'dismiss' } });
   await sweepUntil(async () => ({
     waiting: (await setup<{ waitingForSend: number }>(token, { setupAction: 'connect-status' })).waitingForSend,
     accounts: await call<number>('account.analytic.account', 'search_count', { domain: [['code', '=', code]] }),
@@ -63,9 +71,12 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await signIn(page, scenario.admin);
   await openOdooSection(page);
+  const binding = await must('binding config', admin.from('external_org_bindings').select('config').eq('org_id', orgId).eq('external_tier', 'odoo'));
+  const cfg = (binding[0]?.config ?? {}) as Record<string, unknown>;
+  const saved = ['account_defaults', 'unit_map', 'default_warehouse_id'].map((k) => `${k}=${JSON.stringify(cfg[k] ?? null)}`).join(' ');
   const checklist = page.getByTestId('odoo-checklist');
   for (const step of ['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Sends finished', 'Vendors and clients managed in Odoo']) {
-    await expect(checklist.getByRole('listitem', { name: step })).toContainText('Done', { timeout: 30_000 });
+    await expect(checklist.getByRole('listitem', { name: step })).toContainText('Done', { timeout: 30_000 }).catch((e: Error) => { throw new Error(`${step}: saved config ${saved}\n${e.message}`); });
   }
 
   // Goal oracle: the project is linked to the one cost account the bed holds for its code.

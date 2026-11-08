@@ -42,6 +42,16 @@ seed() {
   if odoo_run odoo -d "$ODOO_DB" -i "$L10N" --without-demo=all --stop-after-init 2>&1 | tail -3; then :; fi
 }
 
+# The Indonesian chart (PPN taxes, IDR) is what the connect capability check and the journeys expect; loaded once, skipped when already loaded.
+load_chart() {
+  odoo_run odoo shell -d "$ODOO_DB" --no-http >/dev/null 2>&1 <<'PY' || echo "indonesian chart load skipped (best effort)" >&2
+co = self.env.company
+if co.chart_template != 'id':
+    self.env['account.chart.template'].sudo().try_loading('id', co, install_demo=False)
+    self.env.cr.commit()
+PY
+}
+
 mint_key() {
   # Create/refresh a dedicated bot user + an API key via odoo shell; key goes to .env.odoo.local only.
   grep -q '^ODOO_API_KEY=' "$ENVF" && return 0
@@ -75,6 +85,7 @@ case "$cmd" in
     "${COMPOSE[@]}" up -d db
     until [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' db)" = healthy ]; do sleep 2; done
     seed
+    load_chart
     mint_key
     "${COMPOSE[@]}" up -d odoo
     wait_http

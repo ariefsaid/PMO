@@ -3,14 +3,27 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { adminClient, must, provisionOdooOrg, scenarioGate, openOdooSection, signIn, sweep, type ScenarioOrg } from './_connectScenario';
+import { adminClient, must, provisionOdooOrg, scenarioGate, accessToken, openOdooSection, setup, signIn, sweep, type ScenarioOrg } from './_connectScenario';
 
 const gate = scenarioGate('AC-ODC-014');
 test.skip(!gate.ready, gate.reason);
-test.setTimeout(420_000);
+test.setTimeout(900_000);
 
 const BED_SCRIPT = fileURLToPath(new URL('../../scripts/odoo-dev-bed.sh', import.meta.url));
 const bed = (verb: 'up' | 'down') => execFileSync(BED_SCRIPT, [verb], { stdio: 'pipe', timeout: 300_000 });
+
+// Re-check is limited to one a minute, so each press waits out the window; the answer is the card's own notice or alert.
+async function recheck(page: import('@playwright/test').Page): Promise<string> {
+  const button = page.getByRole('button', { name: 'Re-check' });
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await button.click();
+    await expect(button).toBeEnabled({ timeout: 60_000 });
+    const said = (await page.getByTestId('odoo-section').locator('[role=status],[role=alert]').allInnerTexts()).join(' | ');
+    if (!/try again in a minute|just ran/i.test(said)) return said;
+    await page.waitForTimeout(20_000);   // the card told us the window is still open
+  }
+  throw new Error('Re-check stayed rate limited');
+}
 
 let scenario: ScenarioOrg | undefined;
 let productId = 0;
@@ -31,18 +44,22 @@ test('AC-ODC-014: with Odoo down the item directory shows last data and the unav
   await sweep();   // the directory now holds the product while Odoo is up
 
   await signIn(page, scenario.admin);
+  // Same call the button makes, first, so a failure names the function's own answer (the UI shows only a generic sentence).
+  const direct = await setup<{ state: string }>(await accessToken(scenario.admin), { setupAction: 'recheck' }).then((r) => r, (e: Error) => ({ state: `ERR ${e.message}` }));
+  expect(direct.state, 'a Re-check against a healthy Odoo').toBe('healthy');
+  await page.waitForTimeout(61_000);
   await openOdooSection(page);
   const banner = page.getByTestId('odoo-connection-banner');
-  const recheck = page.getByRole('button', { name: 'Re-check' });
-  await recheck.waitFor({ timeout: 45_000 }).catch(async () => { throw new Error(`no Re-check button on ${page.url()}: ${(await page.locator('body').innerText()).slice(0, 600)}`); });
-  await recheck.click();
-  await expect(page.getByText('Checked just now.')).toBeVisible();
+  await page.getByRole('button', { name: 'Re-check' }).waitFor({ timeout: 45_000 });
+  expect.soft(await recheck(page), 'Re-check against a healthy Odoo, through the screen').toContain('Checked just now.');
 
   bed('down');
+  const answers: string[] = [];
   for (let i = 0; i < 3; i += 1) {
-    await page.getByRole('button', { name: 'Re-check' }).click();
-    await expect(page.getByRole('alert').or(page.getByText('Checked just now.')).first()).toBeVisible();
+    await page.waitForTimeout(61_000);   // one check a minute
+    answers.push(await recheck(page));
   }
+  void answers;   // a failed probe is still an answer (the card says it checked); the state it produced is asserted on the banner below
   await expect(banner).toContainText('Odoo cannot be reached');
   await expect(banner).toContainText(/as of \d/);
 
@@ -58,7 +75,7 @@ test('AC-ODC-014: with Odoo down the item directory shows last data and the unav
 
   bed('up');
   await openOdooSection(page);
-  await page.getByRole('button', { name: 'Re-check' }).click();
-  await expect(page.getByText('Checked just now.')).toBeVisible();
+  await page.waitForTimeout(61_000);
+  expect(await recheck(page)).toContain('Checked just now.');
   await expect(page.getByTestId('odoo-connection-banner')).toHaveCount(0);
 });

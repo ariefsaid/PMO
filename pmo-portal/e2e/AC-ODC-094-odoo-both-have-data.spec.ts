@@ -35,10 +35,10 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
     { id: E1, org_id: orgId, name: n('PT Sinar Baja E'), type: 'Vendor' as const },
     { id: E2, org_id: orgId, name: n('PT Sinar Baja E'), type: 'Vendor' as const },
   ]).select('id'));
-  // The project's code matches an account that already exists on the bed.
-  const code = `${stamp}-P1`.toUpperCase();
+  // The project's number (the field the connect match uses for Odoo) matches an account that already exists on the bed.
   const project = crypto.randomUUID();
-  await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: n('project'), status: 'Ongoing Project' as const }).select('id'));
+  const created = await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code: `${stamp}-P1`.toUpperCase(), name: n('project'), status: 'Ongoing Project' as const }).select('id,pmo_project_number').single());
+  const code = created.pmo_project_number;
   bedAccounts = await call<number[]>('account.analytic.account', 'create', { vals_list: [{ name: n('existing cost account'), code, plan_id: scenario.planId }] });
 
   // Odoo: A' (same tax id, other spelling), B' (same name as B), D (Odoo-only), E' (same name as E).
@@ -90,5 +90,9 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
   const accounts = await call<Array<{ id: number }>>('account.analytic.account', 'search_read', { domain: [['code', '=', code]], fields: ['id'] });
   expect(accounts).toHaveLength(1);
   const bound = await must('binding', admin.from('external_project_bindings').select('external_container_id').eq('org_id', orgId).eq('project_id', project).eq('external_tier', 'odoo'));
-  expect(bound.map((b) => b.external_container_id)).toEqual([String(accounts[0].id)]);
+  const status = await setup<{ proposalCounts: unknown }>(token, { setupAction: 'connect-status' });
+  const projRefs = await must('project refs', admin.from('external_refs').select('domain,external_record_id').eq('org_id', orgId).eq('pmo_record_id', project));
+  const projectRows = await setup<{ proposals: Array<{ outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'applied' });
+  const projectOpen = await setup<{ proposals: Array<{ outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'open' });
+  expect(bound.map((b) => b.external_container_id), `counts=${JSON.stringify(status.proposalCounts)} refs=${JSON.stringify(projRefs)} project proposals applied=${JSON.stringify(projectRows.proposals.map((p) => [p.outcome, p.state]))} open=${JSON.stringify(projectOpen.proposals.map((p) => [p.outcome, p.reason]))}`).toEqual([String(accounts[0].id)]);
 });
