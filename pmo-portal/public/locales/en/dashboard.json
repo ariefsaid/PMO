@@ -496,7 +496,23 @@
       "stageRequest": "Request",
       "stageOrder": "Order",
       "stageReceive": "Receive",
-      "stagePay": "Pay"
+      "stagePay": "Pay",
+      "planVsActual": {
+        "title": "Plan vs actual",
+        "name": "Plan vs actual by project",
+        "empty": "No projects to compare yet",
+        "plan": "Contract",
+        "actual": "Spent",
+        "help": "Contract value against recorded spending for the largest projects in {{currency}}. Spending is shown only when it is complete and in the contract currency.",
+        "leftOut_one": "{{count}} project in another currency is not charted.",
+        "leftOut_other": "{{count}} projects in other currencies are not charted."
+      },
+      "needsAttention": "Needs attention",
+      "attentionClear": "Nothing needs attention right now",
+      "attentionListName": "Projects that need attention, most urgent first",
+      "attentionRule": "Ranked by how many kinds of signal a project has (overdue work, over budget, waiting approvals), then by overdue items.",
+      "salesFunnel": "Sales funnel",
+      "funnelWeighted": "{{amount}} weighted"
     }
   },
   "restructure": {
@@ -627,5 +643,8 @@
     "chartName": "Invoiced trend, {{first}} to {{last}}: {{direction}}",
     "steady": "Steady",
     "error": "Couldn't load the invoiced trend"
+  },
+  "helpPopover": {
+    "label": "About {{subject}}"
   }
 }

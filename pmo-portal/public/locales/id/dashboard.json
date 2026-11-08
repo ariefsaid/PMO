@@ -496,7 +496,23 @@
       "stageRequest": "Permintaan",
       "stageOrder": "Pesanan",
       "stageReceive": "Penerimaan",
-      "stagePay": "Pembayaran"
+      "stagePay": "Pembayaran",
+      "planVsActual": {
+        "title": "Rencana vs realisasi",
+        "name": "Rencana vs realisasi per proyek",
+        "empty": "Belum ada proyek untuk dibandingkan",
+        "plan": "Kontrak",
+        "actual": "Terpakai",
+        "help": "Nilai kontrak dibandingkan pengeluaran tercatat untuk proyek terbesar dalam {{currency}}. Pengeluaran hanya ditampilkan jika lengkap dan dalam mata uang kontrak.",
+        "leftOut_other": "{{count}} proyek dalam mata uang lain tidak ditampilkan di grafik.",
+        "leftOut_one": "{{count}} proyek dalam mata uang lain tidak ditampilkan di grafik."
+      },
+      "needsAttention": "Perlu perhatian",
+      "attentionClear": "Tidak ada yang perlu perhatian saat ini",
+      "attentionListName": "Proyek yang perlu perhatian, paling mendesak dahulu",
+      "attentionRule": "Diurutkan menurut jumlah jenis sinyal proyek (pekerjaan terlambat, melebihi anggaran, menunggu persetujuan), lalu menurut item terlambat.",
+      "salesFunnel": "Corong penjualan",
+      "funnelWeighted": "{{amount}} tertimbang"
     }
   },
   "restructure": {
@@ -627,5 +643,8 @@
     "chartName": "Tren tagihan, {{first}} sampai {{last}}: {{direction}}",
     "steady": "Stabil",
     "error": "Tren penagihan tidak dapat dimuat"
+  },
+  "helpPopover": {
+    "label": "Tentang {{subject}}"
   }
 }

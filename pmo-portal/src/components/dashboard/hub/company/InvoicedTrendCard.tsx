@@ -11,10 +11,10 @@ export interface InvoicedTrendCardProps {
   onRetry?: () => void;
 }
 
-/** The trend's loading / error / nothing-invoiced states around the tile; the figures hook owns the data. */
+/** #2055: a trend with fewer than three months reads as a crash, so it is hidden until it has them. The trend's loading / error / nothing-invoiced states around the tile; the figures hook owns the data. */
 export const InvoicedTrendCard: React.FC<InvoicedTrendCardProps> = ({ trend, pending, error, onRetry }) => {
   const { t } = useTranslation('dashboard');
   if (error) return <ListState variant="error" title={t('trend.error', "Couldn't load the invoiced trend")} onRetry={onRetry} />;
   if (pending) return <ListState variant="loading" rows={1} className="min-h-[168px]" />;
-  return trend ? <InvoicedTrendTile trend={trend} /> : null;
+  return trend?.hasLine ? <InvoicedTrendTile trend={trend} /> : null;
 };
