@@ -19,7 +19,8 @@ export interface TimesheetRepository {
   confirmEmployeeLink: typeof confirmEmployeeLink;
   getPushState: typeof getPushState;
 
-  list(userId: string): Promise<TimesheetWithEntries[]>;
+  /** Own timesheets; `fromWeek` (Monday ISO) bounds the read to weeks on/after it, server-side. */
+  list(userId: string, opts?: { fromWeek?: string }): Promise<TimesheetWithEntries[]>;
   createDraft(weekStartDate: string, userId: string): Promise<TimesheetRow>;
   upsertEntries(entries: EntryUpsert[]): Promise<void>;
   deleteEntry(id: string): Promise<void>;

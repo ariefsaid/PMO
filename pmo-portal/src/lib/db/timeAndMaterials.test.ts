@@ -207,6 +207,19 @@ describe('#1514 T7.1 claim assembly and sign-off', () => {
     await expect(dal.confirmTmSignoff('c1')).rejects.toMatchObject({ name: 'AppError' });
   });
 
+  it('AC-TM-020 DAL: invoiceTmClaimNative sends the claim id and returns the invoice id', async () => {
+    h.result.value = { data: 'c1', error: null };
+    await expect(dal.invoiceTmClaimNative('c1')).resolves.toBe('c1');
+    expect(h.calls.rpc).toEqual([['create_native_tm_invoice', { p_claim: 'c1' }]]);
+  });
+
+  it('AC-TM-021 DAL: a refusal surfaces its machine-readable detail as the code, and a missing id is an error', async () => {
+    h.result.value = { data: null, error: { message: 'this claim already has an invoice', code: 'P0001', details: 'claim-already-invoiced' } };
+    await expect(dal.invoiceTmClaimNative('c1')).rejects.toMatchObject({ name: 'AppError', code: 'claim-already-invoiced' });
+    h.result.value = { data: null, error: null };
+    await expect(dal.invoiceTmClaimNative('c1')).rejects.toMatchObject({ name: 'AppError' });
+  });
+
   it('T7.1 a refused confirm keeps 42501 so the separation-of-duties refusal reaches the user', async () => {
     h.result.value = { data: null, error: { message: 'separation of duties: the preparer cannot confirm this sign-off', code: '42501' } };
     await expect(dal.confirmTmSignoff('c1')).rejects.toMatchObject({ code: '42501' });

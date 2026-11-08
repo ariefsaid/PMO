@@ -193,6 +193,15 @@ export function openOpportunity(
   open(`/projects/${project.id}`, 'projects');
 }
 
+export type DealJourneyStage =
+  | 'Leads'
+  | 'Quotation'
+  | 'Pre-Qualification'
+  | 'Tender'
+  | 'Negotiation'
+  | 'Won'
+  | 'Lost';
+
 /**
  * The deal-stage journey for the detail page's LifecycleStepper (AC-SP-208).
  * Six steps: the five pipeline stages + a terminal node. Stages before the deal's
@@ -200,20 +209,32 @@ export function openOpportunity(
  * deal marks every pipeline step done + the terminal `paid`; a lost deal marks the
  * terminal `skipped`. Derived from `PIPELINE_STATUSES` (single source).
  */
-export function dealJourneySteps(status: PipelineProject['status']): LifecycleStep[] {
+export function dealJourneySteps(
+  status: PipelineProject['status'],
+  labelMapper?: (label: DealJourneyStage) => string,
+): LifecycleStep[] {
   const group = projectStatusGroup(status);
-  const labels = ['Leads', 'Quotation', 'Pre-Qualification', 'Tender', 'Negotiation'];
+  const rawLabels: ('Leads' | 'Quotation' | 'Pre-Qualification' | 'Tender' | 'Negotiation')[] = [
+    'Leads',
+    'Quotation',
+    'Pre-Qualification',
+    'Tender',
+    'Negotiation',
+  ];
+  const labels = labelMapper ? rawLabels.map(labelMapper) : rawLabels;
+  const wonLabel = labelMapper ? labelMapper('Won') : 'Won';
+  const lostLabel = labelMapper ? labelMapper('Lost') : 'Lost';
 
   if (group === 'onHand') {
     return [
       ...labels.map((label): LifecycleStep => ({ label, state: 'done' })),
-      { label: 'Won', state: 'paid' },
+      { label: wonLabel, state: 'paid' },
     ];
   }
   if (group === 'lost') {
     return [
       ...labels.map((label): LifecycleStep => ({ label, state: 'done' })),
-      { label: 'Lost', state: 'skipped' },
+      { label: lostLabel, state: 'skipped' },
     ];
   }
 
@@ -224,7 +245,7 @@ export function dealJourneySteps(status: PipelineProject['status']): LifecycleSt
       if (i === currentIdx) return { label, state: 'current' };
       return { label, state: 'upcoming' };
     }),
-    { label: 'Won', state: 'upcoming' },
+    { label: wonLabel, state: 'upcoming' },
   ];
 }
 

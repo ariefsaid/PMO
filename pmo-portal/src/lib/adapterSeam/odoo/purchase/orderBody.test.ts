@@ -34,6 +34,13 @@ describe('AC-OPP-010 the order body', () => {
   });
 });
 
+describe('a unit text with stray spaces looks up the trimmed key the map is saved under', () => {
+  it('order lines', () => {
+    const body = buildOrderBody({ ...PO, lines: [{ name: 'Cable tray', quantity: 4, rate: '10.50', unit: ' m ' }] }, CTX) as { order_line: Array<[number, number, Record<string, unknown>]> };
+    expect(body.order_line[0][2].uom_id).toBe(11);
+  });
+});
+
 describe('AC-OPP-013 an unmapped thing refuses before any write, naming it', () => {
   it.each([
     ['item', { ...PO, lines: [{ name: 'Gasket', quantity: 1, rate: 1 }] }, 'item-unmapped: Gasket'],

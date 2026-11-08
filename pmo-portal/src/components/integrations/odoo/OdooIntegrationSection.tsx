@@ -1,5 +1,6 @@
 import { OdooConnectionCard } from './OdooConnectionCard';
 import { OdooLedgerCard } from './OdooLedgerCard';
+import { OdooMapOnce } from './OdooMapOnce';
 import { OdooSetupChecklist } from './OdooSetupChecklist';
 import { useOdooCan } from './useOdooCan';
 import { useOdooConnection } from '@/src/hooks/useOdoo';
@@ -15,6 +16,7 @@ export function OdooIntegrationSection() {
     <div data-testid="odoo-section">
       <OdooConnectionCard />
       {(may.manage || may.setValue) && <OdooSetupChecklist />}
+      {may.setValue && <OdooMapOnce />}
       {ledger && <div className="mt-3"><OdooLedgerCard /></div>}
     </div>
   );

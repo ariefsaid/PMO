@@ -38,6 +38,7 @@ function routes(o: Opts = {}): MockRoute[] {
     { label: 'pmo-head', method: 'HEAD', pathname: /^\/rest\/v1\//, response: () => countResponse(2) },
     supabaseSelect('procurement_items', (c) => jsonResponse(c.url.searchParams.has('id') && /gt\./.test(c.url.searchParams.get('id') ?? '')
       ? [] : [{ id: 'i1', name: 'Semen' }, { id: 'i2', name: 'Semen' }, { id: 'i3', name: 'Pasir' }])),
+    rpc('connect_open_purchase_statuses', ['Approved', 'Vendor Quoted', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced']),
     rpc('start_connect_run', 'run-1'),
     rpc('write_connect_census', null),
     rpc('accept_connect_proposals', { counts: {}, remaining: 0 }),
@@ -83,6 +84,15 @@ describe('ECA setup verbs — census', () => {
     assertEquals(written.p_rows.find((x) => x.kind === 'party')?.pmoCount, 2);
     assertEquals(erpCalls(r.calls).every((c) => c.method === 'GET'), true);
     assertEquals(JSON.stringify(r.calls.map((c) => c.url.toString())).includes('org-other'), false);
+  });
+
+  it('FR-ECA-016 (#1736) the item census counts the same open purchases the new-item send queue uses', async () => {
+    const r = await call({ setupAction: 'census' });
+    assertEquals(rpcCall(r.calls, 'connect_open_purchase_statuses').length, 1);   // one definition, read once
+    const reads = r.calls.filter((c) => c.url.pathname === '/rest/v1/procurement_items');
+    assertEquals(reads.length, 1);
+    assertEquals(reads[0].url.searchParams.get('procurements.status'),
+      'in.(Approved,Vendor Quoted,Quote Selected,Ordered,Received,Vendor Invoiced)');
   });
 
   it('NFR-ECA-003 an unreachable ERP fails the census before any run is started', async () => {

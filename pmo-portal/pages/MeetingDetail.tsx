@@ -26,7 +26,7 @@ import {
   useMeetingActionItems,
   useMeetingMutations,
 } from '@/src/hooks/useMeetings';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDateOnly } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -52,7 +52,7 @@ const MeetingDetail: React.FC = () => {
   const attendeesQuery = useMeetingAttendees(meetingId);
   const grantsQuery = useMeetingGrants(meetingId);
   const actionItemsQuery = useMeetingActionItems(meetingId);
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjectPickerOptions();
   const { archive, restore, remove, createActionItem } = useMeetingMutations();
   const meeting = query.data ?? null;
   const minutesRef = useRef<MeetingMinutesHandle>(null);

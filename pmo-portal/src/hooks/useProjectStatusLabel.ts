@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nextProcurementStep, stageLabelForStatus } from '@/components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -47,7 +48,10 @@ export function useSalesStageLabel(): (col: { title: string; testId: string }) =
 /** Display the shared full purchasing-state noun without changing its stored enum. */
 export function useProcurementStatusLabel(): (status: string) => string {
   const { t } = useTranslation();
-  const labels: Record<string, string> = {
+  // The label table (and the callback over it) is stable between language switches, so a caller's
+  // `useMemo` over derived columns/tabs keeps bailing on unrelated re-renders (the list page
+  // re-renders once per query settle; rebuilding an export-column list each time is pure waste).
+  const labels: Record<string, string> = useMemo(() => ({
     Draft: t('uxs19.status.draft', 'Draft'),
     Requested: t('uxs19.status.requested', 'Purchase Request'),
     Approved: t('uxs19.status.approved', 'Approved'),
@@ -59,8 +63,8 @@ export function useProcurementStatusLabel(): (status: string) => string {
     Paid: t('uxs19.status.paid', 'Paid'),
     Rejected: t('uxs19.status.rejected', 'Rejected'),
     Cancelled: t('uxs19.status.cancelled', 'Cancelled'),
-  };
-  return (status) => labels[status] ?? stageLabelForStatus(status as ProcurementStatus);
+  }), [t]);
+  return useMemo(() => (status: string) => labels[status] ?? stageLabelForStatus(status as ProcurementStatus), [labels]);
 }
 
 /** Localized next-step descriptions stay descriptive and never authorize a transition. */

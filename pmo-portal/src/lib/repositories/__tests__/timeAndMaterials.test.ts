@@ -11,7 +11,7 @@ import { itDelegates } from './delegation';
 const m = vi.hoisted(() => ({
   listRateLines: vi.fn(), listRateAssignees: vi.fn(), saveContractRateLine: vi.fn(), endContractRateLine: vi.fn(),
   setContractRateAssignee: vi.fn(), endContractRateAssignee: vi.fn(), assembleTmClaim: vi.fn(), deselectTmSource: vi.fn(),
-  prepareTmSignoff: vi.fn(), withdrawTmSignoff: vi.fn(), confirmTmSignoff: vi.fn(), listTmClaims: vi.fn(),
+  prepareTmSignoff: vi.fn(), withdrawTmSignoff: vi.fn(), confirmTmSignoff: vi.fn(), invoiceTmClaimNative: vi.fn(), listTmClaims: vi.fn(),
   previewTmClaim: vi.fn(), listTmClaimSources: vi.fn(),
 }));
 vi.mock('@/src/lib/db/timeAndMaterials', () => m);
@@ -36,6 +36,7 @@ itDelegates(repo as unknown as Record<string, (...a: unknown[]) => Promise<unkno
   ['prepareTmSignoff', 'prepareTmSignoff', [{ claimId: 'c1', documentId: 'd1', note: null }]],
   ['withdrawTmSignoff', 'withdrawTmSignoff', ['c1']],
   ['confirmTmSignoff', 'confirmTmSignoff', ['c1']],
+  ['invoiceNativeTmClaim', 'invoiceTmClaimNative', ['c1']],
   ['listTmClaims', 'listTmClaims', ['p1']],
   ['previewTmClaim', 'previewTmClaim', [{ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' }]],
   ['listTmClaimSources', 'listTmClaimSources', ['c1']],
@@ -46,4 +47,10 @@ it('T7.1 the seam adds no rule of its own: a claim list is returned exactly as t
   m.listTmClaims.mockResolvedValueOnce(page);
   await expect(repo.listTmClaims('p1')).resolves.toBe(page);
   expect(m.listTmClaims).toHaveBeenCalledExactlyOnceWith('p1');
+});
+
+it('AC-TM-020 repo: invoiceNativeTmClaim never dispatches to an ERP', async () => {
+  m.invoiceTmClaimNative.mockResolvedValueOnce('c1');
+  await expect(repo.invoiceNativeTmClaim('c1')).resolves.toBe('c1');
+  expect(m.invoiceTmClaimNative).toHaveBeenCalledExactlyOnceWith('c1');
 });
