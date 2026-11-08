@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import { EntityFormModal } from '../EntityFormModal';
 
@@ -41,7 +41,7 @@ describe('EntityFormModal disabled-submit reason (G6)', () => {
 });
 
 describe('EntityFormModal a11y: initial focus + unmount restore (C-1, C-2)', () => {
-  it('C-1: initial focus lands on the first FORM field, not the close button', () => {
+  it('C-1: initial focus lands on the first FORM field, not the close button', async () => {
     render(
       <EntityFormModal {...base}>
         <input aria-label="Name" />
@@ -49,11 +49,11 @@ describe('EntityFormModal a11y: initial focus + unmount restore (C-1, C-2)', () 
     );
     // The first form field (input[aria-label="Name"]) should have focus, NOT the close button.
     const nameInput = screen.getByLabelText('Name');
-    expect(nameInput).toHaveFocus();
+    await waitFor(() => expect(nameInput).toHaveFocus());
     expect(screen.getByRole('button', { name: /close/i })).not.toHaveFocus();
   });
 
-  it('C-2: focus restores to the trigger when the modal UNMOUNTS (conditional-render consumer)', () => {
+  it('C-2: focus restores to the trigger when the modal UNMOUNTS (conditional-render consumer)', async () => {
     // Simulate MilestoneStrip pattern: trigger btn → open modal → unmount modal.
     const trigger = document.createElement('button');
     trigger.setAttribute('aria-label', 'open-trigger');
@@ -69,13 +69,13 @@ describe('EntityFormModal a11y: initial focus + unmount restore (C-1, C-2)', () 
     );
 
     // Modal is open — trigger no longer has focus.
-    expect(trigger).not.toHaveFocus();
+    await waitFor(() => expect(trigger).not.toHaveFocus());
 
     // Simulate the conditional unmount (formTarget = null).
     act(() => { unmount(); });
 
     // Focus must restore to the trigger.
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
 
     trigger.remove();
   });
