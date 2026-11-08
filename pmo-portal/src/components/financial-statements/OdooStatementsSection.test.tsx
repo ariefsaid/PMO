@@ -8,10 +8,10 @@ import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { AppError } from '@/src/lib/appError';
 
-const h = vi.hoisted(() => ({ catalogue: vi.fn(), statement: vi.fn() }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
+const h = vi.hoisted(() => ({ catalogue: vi.fn(), statement: vi.fn(), currency: vi.fn() }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { odooLedger: { statementCatalogue: h.catalogue, statement: h.statement } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { odooLedger: { statementCatalogue: h.catalogue, statement: h.statement, companyCurrency: h.currency } } }));
 
 import { OdooStatementsSection } from './OdooStatementsSection';
 import { statementLedgerState } from '@/src/components/odoo-ledger/ledgerState';
@@ -47,7 +47,7 @@ function mount(projectId?: string, role = 'Finance') {
     </QueryClientProvider>,
   );
 }
-beforeEach(() => { h.catalogue.mockReset(); h.statement.mockReset(); h.catalogue.mockResolvedValue(catalogue); });
+beforeEach(() => { h.catalogue.mockReset(); h.statement.mockReset(); h.currency.mockReset(); h.currency.mockResolvedValue('IDR'); h.catalogue.mockResolvedValue(catalogue); });
 afterEach(async () => { cleanup(); await financeTestI18n.changeLanguage('en'); });
 
 describe('OdooStatementsSection states', () => {
@@ -92,7 +92,7 @@ describe('OdooStatementsSection: populated', () => {
     expect(screen.getByText('Matches Odoo')).toBeInTheDocument();
     expect(screen.getByText('Up to date')).toBeInTheDocument();
     expect(screen.getByText(/Belong to no project: debits 30\.00, credits 0\.00 \(2 lines\)/)).toBeInTheDocument();
-    expect(screen.getByText('Amounts in IDR')).toBeInTheDocument();
+    expect(await screen.findByText('Amounts in IDR')).toBeInTheDocument();
     expect(h.statement).toHaveBeenCalledWith({ statement: 'trial_balance', periodKind: 'month', periodStart: '2026-10-01' });
   });
 

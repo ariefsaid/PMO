@@ -10,5 +10,7 @@ export interface OdooLedgerRepository {
   statement(input: GetOdooStatementInput): Promise<OdooStatementRead>;
   /** True when a cost account in Odoo is linked to the project (FR-ODA-052). */
   projectLinked(projectId: string): Promise<boolean>;
+  /** The Odoo company's currency code (what ledger amounts are in), or null when not recorded. */
+  companyCurrency(): Promise<string | null>;
   switchBasis(input?: SwitchOdooLedgerBasisInput): Promise<string>;
 }

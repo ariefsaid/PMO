@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { repositories } from '@/src/lib/repositories';
 import type { GetOdooStatementInput, SwitchOdooLedgerBasisInput } from '@/src/lib/db/odooLedger';
 
@@ -91,4 +92,12 @@ export function useOdooProjectActuals(projectId: string | undefined) {
     enabled: s.ready && mode.onLedger && Boolean(projectId),
   });
   return { onLedger: mode.onLedger, linked: link.data, linkError: link.isError, unlinked: mode.onLedger && link.data === false };
+}
+
+/** The currency ledger amounts are in: the Odoo company's, else the org's until it is read (OQ-ODA-5). */
+export function useOdooLedgerCurrency(): string {
+  const s = useScope();
+  const orgCurrency = useOrgCurrency();
+  const company = useQuery({ queryKey: [...s.key, 'company-currency'], queryFn: () => repositories.odooLedger.companyCurrency(), enabled: s.ready, staleTime: Infinity });
+  return company.data ?? orgCurrency;
 }

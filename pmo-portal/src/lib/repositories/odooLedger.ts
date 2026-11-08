@@ -1,4 +1,4 @@
-import { getOdooLedgerHealth, getOdooProjectLinked, getOdooLedgerLines, getOdooStatement, getOdooStatementCatalogue, switchOdooLedgerBasis } from '@/src/lib/db/odooLedger';
+import { getOdooCompanyCurrency, getOdooLedgerHealth, getOdooProjectLinked, getOdooLedgerLines, getOdooStatement, getOdooStatementCatalogue, switchOdooLedgerBasis } from '@/src/lib/db/odooLedger';
 import { wrap } from './repositoryErrors';
 import type { OdooLedgerRepository } from './contracts/odooLedger';
 
@@ -8,5 +8,6 @@ export const odooLedgerRepository: OdooLedgerRepository = {
   statementCatalogue: (projectId) => wrap(() => getOdooStatementCatalogue(projectId)),
   statement: (input) => wrap(() => getOdooStatement(input)),
   projectLinked: (projectId) => wrap(() => getOdooProjectLinked(projectId)),
+  companyCurrency: () => wrap(() => getOdooCompanyCurrency()),
   switchBasis: (input) => wrap(() => switchOdooLedgerBasis(input)),
 };

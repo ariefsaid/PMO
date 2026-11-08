@@ -6,10 +6,9 @@ import { Button, ListState } from '@/src/components/ui';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { LedgerProvenance } from '@/src/components/odoo-ledger/LedgerProvenance';
 import { formatLedgerAmount, netDebit } from '@/src/components/odoo-ledger/ledgerFormat';
-import { useOdooLedgerHealth, useOdooLedgerLines, useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
+import { useOdooLedgerCurrency, useOdooLedgerHealth, useOdooLedgerLines, useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatDateOnly } from '@/src/lib/format';
 import type { OdooLedgerLine } from '@/src/lib/db/odooLedger';
 
@@ -21,7 +20,7 @@ export function BudgetOdooActuals({ projectId }: { projectId: string }) {
   const { t: tc } = useTranslation();
   const may = usePermission();
   const can = useOdooCan();
-  const currency = useOrgCurrency();
+  const currency = useOdooLedgerCurrency();
   const { onLedger, linked, unlinked } = useOdooProjectActuals(projectId);
   const health = useOdooLedgerHealth(projectId, onLedger && linked === true);
   if (!onLedger) return null;
@@ -72,7 +71,7 @@ export function BudgetOdooCategoryLines({ projectId, category, fallback }: { pro
 function CategoryLinesTable({ projectId, category }: { projectId: string; category: string }) {
   const { t } = useTranslation('finance');
   const { t: tc } = useTranslation();
-  const currency = useOrgCurrency();
+  const currency = useOdooLedgerCurrency();
   const lines = useOdooLedgerLines(projectId, category);
   const [loadingAll, setLoadingAll] = useState(false);
   if (lines.isPending) return <ListState variant="loading" rows={3} />;

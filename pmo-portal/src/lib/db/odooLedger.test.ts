@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ rpc: vi.fn(), limit: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({
-  supabase: { rpc: h.rpc, from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ is: () => ({ limit: h.limit }) }) }) }) }) },
+  supabase: { rpc: h.rpc, from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ is: () => ({ limit: h.limit, order: () => ({ limit: h.limit }) }) }) }) }) }) },
 }));
 
 import { AppError } from '@/src/lib/appError';
 import {
-  getOdooLedgerHealth, getOdooLedgerLines, getOdooProjectLinked, getOdooStatement, getOdooStatementCatalogue, switchOdooLedgerBasis,
+  getOdooCompanyCurrency, getOdooLedgerHealth, getOdooLedgerLines, getOdooProjectLinked, getOdooStatement, getOdooStatementCatalogue, switchOdooLedgerBasis,
 } from './odooLedger';
 
 const PROJECT = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
@@ -133,5 +133,22 @@ describe('getOdooProjectLinked (FR-ODA-052)', () => {
     await expect(getOdooProjectLinked(PROJECT)).resolves.toBe(true);
     h.limit.mockResolvedValueOnce({ data: [], error: null });
     await expect(getOdooProjectLinked(PROJECT)).resolves.toBe(false);
+  });
+});
+
+describe('getOdooCompanyCurrency (OQ-ODA-5: ledger amounts are in the Odoo company currency)', () => {
+  it('returns the company currency code, or null when none is recorded', async () => {
+    h.limit.mockResolvedValueOnce({ data: [{ attrs: { currency: 'IDR' } }], error: null });
+    await expect(getOdooCompanyCurrency()).resolves.toBe('IDR');
+    h.limit.mockResolvedValueOnce({ data: [{ attrs: {} }], error: null });
+    await expect(getOdooCompanyCurrency()).resolves.toBeNull();
+    h.limit.mockResolvedValueOnce({ data: [{ attrs: { currency: 'not a code' } }], error: null });
+    await expect(getOdooCompanyCurrency()).resolves.toBeNull();
+    h.limit.mockResolvedValueOnce({ data: [], error: null });
+    await expect(getOdooCompanyCurrency()).resolves.toBeNull();
+  });
+  it('surfaces a read error', async () => {
+    h.limit.mockResolvedValueOnce({ data: null, error: { message: 'boom', code: '42501' } });
+    await expect(getOdooCompanyCurrency()).rejects.toBeInstanceOf(AppError);
   });
 });

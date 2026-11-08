@@ -9,14 +9,14 @@ import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { AppError } from '@/src/lib/appError';
 
-const h = vi.hoisted(() => ({ getConnection: vi.fn(), reads: vi.fn(), health: vi.fn(), lines: vi.fn(), linked: vi.fn() }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
+const h = vi.hoisted(() => ({ getConnection: vi.fn(), reads: vi.fn(), health: vi.fn(), lines: vi.fn(), linked: vi.fn(), currency: vi.fn() }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     odoo: { getConnection: h.getConnection },
     revenue: { getOrgReadsErpLedger: h.reads },
-    odooLedger: { health: h.health, lines: h.lines, projectLinked: h.linked },
+    odooLedger: { health: h.health, lines: h.lines, projectLinked: h.linked, companyCurrency: h.currency },
   },
 }));
 
@@ -43,7 +43,7 @@ function setup({ odoo = true, ledger = true, linked = true, role = 'Finance' as 
     </QueryClientProvider>,
   );
 }
-beforeEach(() => { Object.values(h).forEach((f) => f.mockReset()); });
+beforeEach(() => { Object.values(h).forEach((f) => f.mockReset()); h.currency.mockResolvedValue('IDR'); });
 afterEach(async () => { cleanup(); await financeTestI18n.changeLanguage('en'); });
 
 describe('BudgetOdooActuals strip (FR-ODA-050/052)', () => {
@@ -95,7 +95,14 @@ describe('BudgetOdooActuals strip (FR-ODA-050/052)', () => {
     h.health.mockResolvedValue(health({ unmapped: { count: 4, debit: '250.00', credit: '0.00', accounts: ['6100'] } }));
     setup()(<BudgetOdooActuals projectId={PROJECT} />);
     expect(await screen.findByText(/Accounts without a budget category \(6100\): debits 250\.00, credits 0\.00 \(4 lines\)/)).toBeInTheDocument();
-    expect(screen.getByText('Amounts in IDR')).toBeInTheDocument();
+    expect(await screen.findByText('Amounts in IDR')).toBeInTheDocument();
+  });
+
+  it('falls back to the org currency when the Odoo company has none recorded', async () => {
+    h.currency.mockResolvedValue(null);
+    h.health.mockResolvedValue(health({ unmapped: { count: 1, debit: '1.00', credit: '0.00', accounts: ['6100'] } }));
+    setup()(<BudgetOdooActuals projectId={PROJECT} />);
+    expect(await screen.findByText('Amounts in USD')).toBeInTheDocument();
   });
 
   it('no linked cost account: says actual cost cannot be shown, links the setup to a manager, and never shows a zero', async () => {
@@ -153,7 +160,7 @@ describe('BudgetOdooCategoryLines (FR-ODA-051)', () => {
     expect(within(table).getByText('BILL/2026/1')).toBeInTheDocument();
     expect(within(table).getAllByText('Vendor A')).toHaveLength(2);
     expect(screen.getByText('Showing 2 of 2')).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: /Amount \(IDR\)/ })).toBeInTheDocument();
+    expect(await within(table).findByRole('columnheader', { name: /Amount \(IDR\)/ })).toBeInTheDocument();
     expect(h.lines).toHaveBeenCalledWith({ projectId: PROJECT, category: 'materials', after: null, limit: 50 });
   });
 

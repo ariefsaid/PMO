@@ -240,6 +240,15 @@ export async function getOdooProjectLinked(projectId: string): Promise<boolean> 
   return (data ?? []).length > 0;
 }
 
+/** The Odoo company's currency code: ledger amounts are in it, which can differ from the org's (OQ-ODA-5). Null when not recorded. */
+export async function getOdooCompanyCurrency(): Promise<string | null> {
+  const { data, error } = await supabase.from('external_master_records').select('attrs')
+    .eq('external_tier', 'odoo').eq('kind', 'company').is('tombstoned_at', null).order('active', { ascending: false }).limit(1);
+  if (error) throw new AppError(error.message, error.code);
+  const code = (data?.[0]?.attrs as { currency?: unknown } | undefined)?.currency;
+  return typeof code === 'string' && /^[A-Z]{3}$/.test(code) ? code : null;
+}
+
 /** Admin only (the RPC re-checks the real role). A refusal keeps its reason slug as the message and `P0001` as the code. */
 export async function switchOdooLedgerBasis(input: SwitchOdooLedgerBasisInput = {}): Promise<string> {
   const reason = input.reason?.trim() || null;
