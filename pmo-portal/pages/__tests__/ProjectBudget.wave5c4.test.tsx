@@ -228,6 +228,9 @@ describe('AC-IXD-BUDGET-W5-C4: Update budget opens the new draft editor', () => 
     // Category details open in the category drawer.
     await userEvent.click(screen.getByRole('button', { name: /Open Materials budget details/i }));
     expect(screen.getByText('Steel')).toBeInTheDocument();
+    // The drawer is modal: close it, as a user must, before reaching the page's own actions.
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: 'Update budget' }));
     expect(mockClone).not.toHaveBeenCalled();

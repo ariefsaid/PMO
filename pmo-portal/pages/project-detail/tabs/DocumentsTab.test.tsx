@@ -291,7 +291,7 @@ describe('DocumentsTab — register views and selection', () => {
     expect(screen.getByRole('dialog', { name: 'Site Plan' })).toBeInTheDocument();
 
     // The modal drawer hides the page behind it from AT, so reach the harness's back control as the browser button would.
-    await userEvent.click(screen.getByRole('button', { name: 'Navigate back', hidden: true }));
+    await userEvent.click(screen.getByText('Navigate back'));
     await waitFor(() => expect(screen.getByTestId('route-search')).not.toHaveTextContent('open='));
     expect(screen.queryByRole('dialog', { name: 'Site Plan' })).not.toBeInTheDocument();
   });
