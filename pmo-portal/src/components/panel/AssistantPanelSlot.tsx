@@ -2,7 +2,8 @@ import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'r
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
 
 // Perf: the panel pulls markdown, the viewspec compiler and the chart widgets (recharts) — none needed for
-// first paint, and it mounts closed. Own chunk, fetched right after the shell renders.
+// first paint. Own chunk, fetched and mounted on first open only; it then stays mounted (transcript survives close→open).
+// The runtime state (open, thread, prefill) lives in the agent runtime context, not in the panel.
 const loadPanel = () => import('./AssistantPanel').then((m) => ({ default: m.AssistantPanel }));
 const makePanel = () => lazyWithPreload(loadPanel);
 
@@ -37,6 +38,8 @@ class PanelBoundary extends React.Component<
 
 export const AssistantPanelSlot: React.FC<{ open: boolean }> = ({ open }) => {
   const [Panel, setPanel] = useState(makePanel);
+  const [everOpened, setEverOpened] = useState(open);
+  if (open && !everOpened) setEverOpened(true);
   // Focus owner at the moment of opening: the panel may mount after that, when focus has already moved to <body>.
   const openerRef = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -45,12 +48,14 @@ export const AssistantPanelSlot: React.FC<{ open: boolean }> = ({ open }) => {
   // React.lazy swallows its own rejection, so start the import in a void-style call: the rejection
   // then reaches the stale-chunk reload guard exactly as a route chunk's does.
   useEffect(() => {
+    if (!everOpened) return;
     Panel.preload().catch((reason: unknown) => {
       window.dispatchEvent(
         new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason }),
       );
     });
-  }, [Panel]);
+  }, [Panel, everOpened]);
+  if (!everOpened) return null;
   return (
     <PanelBoundary onRetry={() => setPanel(makePanel)}>
       <Suspense fallback={null}>
