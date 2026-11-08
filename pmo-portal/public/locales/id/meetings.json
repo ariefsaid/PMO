@@ -1,7 +1,9 @@
 {
   "actions": {
     "restore": "Pulihkan",
-    "restoring": "Memulihkan…"
+    "restoring": "Memulihkan…",
+    "minutesEdit": "Ubah notulen",
+    "minutesCancel": "Batal"
   },
   "attendees": {
     "loadError": "Peserta tidak dapat dimuat. Coba lagi untuk melihat daftar akses.",

@@ -9,6 +9,8 @@ test('AC-MTG-300: dirty minutes breadcrumb offers Stay and Leave without losing 
   await signIn(page, 'pm@acme.test');
   await page.goto(`/meetings/${SEEDED_MEETING}`);
 
+  // #2062: the record opens as a READ view — the author enters the editor deliberately.
+  await page.getByTestId('minutes-edit').click();
   const minutesEditor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
   await expect(minutesEditor).toBeVisible({ timeout: 20_000 }); // lazy BlockNote chunk
   await minutesEditor.click();
@@ -47,6 +49,8 @@ test('AC-MTG-301: browser Back on dirty minutes asks before discarding and keeps
   await page.getByText('Meridian PV — weekly site coordination').click();
   await expect(page).toHaveURL(new RegExp(`/meetings/${SEEDED_MEETING}$`), { timeout: 15_000 });
 
+  // #2062: the record opens as a READ view — the author enters the editor deliberately.
+  await page.getByTestId('minutes-edit').click();
   const minutesEditor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
   await expect(minutesEditor).toBeVisible({ timeout: 20_000 }); // lazy BlockNote chunk
   await minutesEditor.click();

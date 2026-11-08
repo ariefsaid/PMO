@@ -24,6 +24,8 @@ export interface MinutesEditorHandle {
   insertActionItem(taskId: string): void;
   /** The editor's live document — `onChange` is deferred (a transition), so Save must not rely on it. */
   getDocument(): NoteBlock[];
+  /** Move the caret into the document (#2062: the click that opened the editor focuses it). */
+  focus(): void;
 }
 
 export interface MinutesEditorProps {
@@ -37,6 +39,8 @@ export interface MinutesEditorProps {
   onChange: (blocks: NoteBlock[]) => void;
   /** `/action` was chosen on a line holding `lineText` — the page opens the prefilled task modal. */
   onRequestAction: (lineText: string) => void;
+  /** Escape was pressed in the editor (#2062): the page decides what cancel means. */
+  onCancel?: () => void;
 }
 
 /**
@@ -57,7 +61,7 @@ const SLASH_POPOVER = {
  * pulls `@blocknote/*` is reachable only from this module.
  */
 const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(function MinutesEditor(
-  { initialBlocks, editable, tasksExternal, onReady, onChange, onRequestAction },
+  { initialBlocks, editable, tasksExternal, onReady, onChange, onRequestAction, onCancel },
   ref,
 ) {
   const { t, i18n } = useTranslation();
@@ -96,8 +100,19 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
         placeActionItem(editor, blockId, taskId);
       },
       getDocument: () => editor.document as unknown as NoteBlock[],
+      focus: () => editor.focus(),
     }),
     [editor],
+  );
+
+  // #2062: Escape hands control to the page (cancel). Only while editing — a read-only
+  // document has nothing to cancel, and the page may render the editor inside a dialog
+  // whose own Escape handling must not be shadowed.
+  const onWrapperKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === 'Escape' && editable) onCancel?.();
+    },
+    [editable, onCancel],
   );
 
   const getItems = useCallback(
@@ -126,7 +141,7 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
   );
 
   return (
-    <div className="minutes-editor" data-testid="minutes-blocknote">
+    <div className="minutes-editor" data-testid="minutes-blocknote" onKeyDown={onWrapperKeyDown}>
       <BlockNoteView
         editor={editor}
         theme={theme}

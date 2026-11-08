@@ -1,7 +1,7 @@
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -25,6 +25,7 @@ import {
   CompanyNameLink,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
+import { RichNoteEditor } from '@/src/components/notes/richNoteEditorChunk';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
@@ -671,9 +672,17 @@ const ProcurementDetails: React.FC = () => {
       {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
       {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
-      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
-        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-      </label>}
+      {mainAction?.to === 'Approved' && <div className="mb-4 mt-2 max-w-xl">
+        <p className="text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}</p>
+        {/* #2062: the approval note is a small rich-note editor storing MARKDOWN in the same plain-text
+            notes column (no migration; legacy plain-text rows render unchanged). The existing
+            notesInput → commitTransition path is untouched. */}
+        <div className="mt-1 rounded-md border border-input bg-background px-2 py-1 focus-within:outline focus-within:outline-2 focus-within:outline-ring">
+          <Suspense fallback={<ListState variant="loading" rows={1} />}>
+            <RichNoteEditor initialValue="" onChange={setNotesInput} ariaLabel={t('procurementRecord:approval.note', 'Approval note (optional)')} testId="procurement-notes-input" />
+          </Suspense>
+        </div>
+      </div>}
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
         <ProcurementHeaderEdit

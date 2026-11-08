@@ -1,4 +1,5 @@
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
+import { RichNoteEditor } from '@/src/components/notes/richNoteEditorChunk';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 /**
  * ProcurementDecisionZone — the DecisionCard region of the procurement detail
@@ -22,7 +23,7 @@ import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
  * contract holds. The SoD/transition state machine (gating, pendingConfirm, RPC
  * calls, confirm dialog) is UNCHANGED — only layout + Notes disclosure changed.
  */
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import {
@@ -128,7 +129,6 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   isRequester,
   isApprover,
   showNotes,
-  notesInput,
   setNotesInput,
   showVICapture,
   setShowVICapture,
@@ -249,19 +249,21 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
 
           {showNotes && notesRevealed && (
             <div className="flex max-w-md flex-col gap-1">
-              <label htmlFor="procurement-notes-input" className="text-[12px] font-semibold text-muted-foreground">
+              <p className="text-[12px] font-semibold text-muted-foreground">
                 Notes <span className="font-normal">(optional)</span>
-              </label>
-              <textarea
-                id="procurement-notes-input"
-                data-testid="procurement-notes-input"
-                rows={2}
-                autoFocus
-                value={notesInput}
-                onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="Add a note for the approval or rejection…"
-                className="rounded-md border border-input bg-background px-2.5 py-1.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              />
+              </p>
+              {/* #2062: same rich-note editor as the record's approval note — markdown in the same
+                  plain-text notes column, notesInput → commitTransition path unchanged. */}
+              <div className="rounded-md border border-input bg-background px-2 py-1 focus-within:outline focus-within:outline-2 focus-within:outline-ring">
+                <Suspense fallback={null}>
+                  <RichNoteEditor
+                    initialValue=""
+                    onChange={setNotesInput}
+                    ariaLabel="Approval note (optional)"
+                    testId="procurement-notes-input"
+                  />
+                </Suspense>
+              </div>
             </div>
           )}
 

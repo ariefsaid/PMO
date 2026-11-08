@@ -47,6 +47,8 @@ for (const scenario of headingCases) {
       'seeded minutes do not already contain the long token',
     ).toBe(false);
     const save = page.getByTestId('minutes-save');
+    // #2062: the record opens as a READ view — the author enters the editor before typing.
+    await page.getByTestId('minutes-edit').click();
     await expect(save).toBeDisabled();
 
     const expectCompleteMinutes = async () => {
@@ -135,5 +137,7 @@ test('@layout AC-MTG-022: the add-block handle stays inside the minutes content 
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(page, 'pm@acme.test');
   await page.goto(`/meetings/${SEEDED_MEETING}`);
+  // #2062: the handle is editor chrome — measure it in the author's editing state.
+  await page.getByTestId('minutes-edit').click();
   await assertMinutesHandle(page, 1280);
 });

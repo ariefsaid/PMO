@@ -29,7 +29,6 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 
 import { act, render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
 // Clicks the Confirm button inside the active confirm dialog (the
@@ -181,6 +180,22 @@ vi.mock('react-router', async (orig) => {
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useToast: () => ({ toast }) };
+});
+
+// #2062: the approval note is a rich-note (BlockNote) editor storing markdown in the same plain-text
+// column. This page's tests own the WIRING (the note reaches the transition RPC); the editor's real
+// behaviour (markdown round-trip, palette, safety) lives in src/components/notes tests + its e2e.
+// The stub honours the same contract: a textbox seeded from `initialValue`, reporting changes out.
+vi.mock('@/src/components/notes/RichNoteEditor', async () => {
+  const Stub = (props: { initialValue: string; onChange: (md: string) => void; ariaLabel: string; testId?: string }) => (
+    <textarea
+      data-testid={props.testId ?? 'rich-note-editor'}
+      aria-label={props.ariaLabel}
+      defaultValue={props.initialValue}
+      onChange={(e) => props.onChange(e.target.value)}
+    />
+  );
+  return { default: Stub };
 });
 
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel is now mounted in ProcurementDetails.

@@ -31,6 +31,15 @@ interface MeetingMinutesProps {
   onRequestAction: (line: string) => void;
 }
 
+/**
+ * The minutes section (#805; read view + inline edit #2062). The meeting record opens as a READ
+ * view — the rendered document — and switches to the editor on the Edit button, on a click on the
+ * content, or immediately for an author opening a meeting with no minutes at all (an empty read
+ * view is a dead end). Save persists and returns to the read view; Cancel and Escape revert to
+ * the saved document. Each mode flip remounts the editor seeded from the SAVED document, so the
+ * revert is by construction and the dirty baseline is always the saved state. The unsaved-changes
+ * navigation guard is unchanged: it protects a DIRTY editor.
+ */
 const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProps>(function MeetingMinutes({
   meeting,
   canEdit,
@@ -40,6 +49,7 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
   onRequestAction,
 }, ref) {
   const { t } = useTranslation();
+  const { t: tMeetings } = useTranslation('meetings');
   const { toast } = useToast();
   const { update } = useMeetingMutations();
   const editorRef = useRef<MinutesEditorHandle>(null);
@@ -50,6 +60,7 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
     () => upgradeNotes(meeting.notes, meeting.notes_schema_version),
     [meeting.notes, meeting.notes_schema_version],
   );
+  const [editing, setEditing] = useState(() => savedBlocks.length === 0);
   const minutesDirty = blocks !== null && baseline !== null && JSON.stringify(blocks) !== baseline;
 
   const onEditorReady = useCallback((document: NoteBlock[]) => {
@@ -62,7 +73,28 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
     previousMeetingId.current = meeting.id;
     setBlocks(null);
     setBaseline(null);
-  }, [meeting.id]);
+    setEditing(upgradeNotes(meeting.notes, meeting.notes_schema_version).length === 0);
+  }, [meeting.id, meeting.notes, meeting.notes_schema_version]);
+
+  const enterEdit = useCallback(() => {
+    if (!canEdit) return;
+    setEditing(true);
+    // the click that opened the editor should leave the caret in it
+    requestAnimationFrame(() => editorRef.current?.focus());
+  }, [canEdit]);
+
+  /** Cancel (#2062): back to the read view; the remount re-seeds the saved document. */
+  const cancelEdit = useCallback(() => setEditing(false), []);
+
+  const onReadClick = useCallback(
+    (event: React.MouseEvent) => {
+      // A click on the read content is a shortcut for the Edit button — but a click on an
+      // embedded interactive element (an action-item link) means THAT element, not "edit".
+      if ((event.target as HTMLElement).closest('a, button, [role="button"]')) return;
+      enterEdit();
+    },
+    [enterEdit],
+  );
 
   const guardLeave = useUnsavedChangesGuard({
     dirty: minutesDirty || additionalDirty,
@@ -81,6 +113,7 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
       await update.mutateAsync({ id: meeting.id, patch: { notes: document } });
       setBlocks(document);
       setBaseline(JSON.stringify(document));
+      setEditing(false);
       toast(t('meetingDetail.toast.minutesSaved', 'Minutes saved'), meeting.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -88,20 +121,31 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
     }
   };
 
+  const isEditing = canEdit && editing;
+
   return (
     <Card variant="bare" className="mb-4">
       <CardHead
-        actions={canEdit && (
-          <Button
-            variant="primary"
-            size="sm"
-            data-testid="minutes-save"
-            disabled={!minutesDirty || update.isPending}
-            onClick={() => void saveMinutes()}
-          >
-            {t('meetingDetail.minutes.save', 'Save minutes')}
+        actions={canEdit && (isEditing ? (
+          <>
+            <Button variant="ghost" size="sm" data-testid="minutes-cancel" onClick={cancelEdit}>
+              {tMeetings('actions.minutesCancel', 'Cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="minutes-save"
+              disabled={!minutesDirty || update.isPending}
+              onClick={() => void saveMinutes()}
+            >
+              {t('meetingDetail.minutes.save', 'Save minutes')}
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" size="sm" data-testid="minutes-edit" onClick={enterEdit}>
+            {tMeetings('actions.minutesEdit', 'Edit minutes')}
           </Button>
-        )}
+        ))}
       >
         {t('meetingDetail.minutes.title', 'Minutes')}
       </CardHead>
@@ -116,17 +160,24 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
             {t('meetingDetail.minutes.empty', 'No minutes were recorded for this meeting.')}
           </p>
         ) : (
-          <div data-testid={canEdit ? 'minutes-editor' : 'minutes-readonly'}>
+          <div
+            data-testid={isEditing ? 'minutes-editor' : 'minutes-readonly'}
+            onClick={!isEditing && canEdit ? onReadClick : undefined}
+            className={!isEditing && canEdit ? 'cursor-text rounded-sm' : undefined}
+          >
             <Suspense fallback={<ListState variant="loading" rows={3} />}>
+              {/* The key remounts per mode flip: each mode starts from the SAVED document, so
+                  cancel/escape revert by construction and Save's baseline is the saved state. */}
               <MinutesEditor
-                key={meeting.id}
+                key={`${meeting.id}:${isEditing ? 'edit' : 'read'}`}
                 ref={editorRef}
                 initialBlocks={savedBlocks}
-                editable={canEdit}
+                editable={isEditing}
                 tasksExternal={tasksExternal}
                 onReady={onEditorReady}
                 onChange={setBlocks}
                 onRequestAction={onRequestAction}
+                onCancel={cancelEdit}
               />
             </Suspense>
           </div>

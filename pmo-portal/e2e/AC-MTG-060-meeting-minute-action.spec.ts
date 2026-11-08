@@ -107,8 +107,11 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     const save = page.getByTestId('minutes-save');
     await expect(save).toBeEnabled();
     await save.click();
-    // The save round-trips: the button re-disables only when the saved copy equals the editor.
-    await expect(save).toBeDisabled();
+    // #2062: saving returns the section to the READ view. The author re-enters the editor to
+    // /action the saved line — the same deliberate edit, not a permanently open form.
+    await expect(page.getByTestId('minutes-readonly')).toBeVisible();
+    await page.getByTestId('minutes-edit').click();
+    await expect(editor).toBeVisible({ timeout: 20_000 });
 
     // ── 4. /action — DD-MTG-8: the STANDARD task-create modal opens, prefilled from the line
     //       and fully editable. The author edits the name before publishing (the informed act:
@@ -159,9 +162,9 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       The block REPLACED the line — the same words are not shown twice (the other minute stays).
     await expect(page.getByTestId('minutes-blocknote')).not.toContainText(actionLine);
     await expect(page.getByTestId('minutes-blocknote')).toContainText(minuteLine);
-    // Persist it.
+    // Persist it; #2062: the section returns to the read view once the save lands.
     await save.click();
-    await expect(save).toBeDisabled();
+    await expect(page.getByTestId('minutes-readonly')).toBeVisible();
 
     // ── 6. And it is server truth, not optimistic client cache: a full reload re-reads the
     //       meeting, the minute line, and the linked task through RLS from a cold cache. ────

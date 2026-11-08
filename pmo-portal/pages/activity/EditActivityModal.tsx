@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import {
   EntityFormModal,
   TextField,
-  TextArea,
   SelectField,
   FormSection,
   FormGrid,
   useEntityForm,
   type SubmitError,
 } from '@/src/components/ui';
+import { RichNoteEditor } from '@/src/components/notes/richNoteEditorChunk';
 import { useTranslation } from 'react-i18next';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CrmActivityKind, CrmActivityRow } from '@/src/lib/db/crmActivities';
@@ -123,16 +123,24 @@ export const EditActivityModal: React.FC<EditActivityModalProps> = ({
             placeholder={t('contactDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')}
           />
         </FormGrid>
-        <TextArea
-          id={bodyField.id}
-          label={t('contactDetail.activity.notes', 'Notes')}
-          value={bodyField.value}
-          onChange={bodyField.onChange}
-          onBlur={bodyField.onBlur}
-          rows={3}
-          fullWidth
-          placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
-        />
+        {/* #2062: the note body is a rich-note editor storing MARKDOWN in the same plain-text
+            body column (no migration). Its markdown flows into the form field on every edit, so
+            the modal's dirty-discard confirm and submit payload behave exactly as before; the
+            stored text (markdown or legacy plain text) seeds the editor via key remount. */}
+        <div>
+          <p className="mb-1 text-[12px] font-medium text-muted-foreground">{t('contactDetail.activity.notes', 'Notes')}</p>
+          <div className="rounded-md border border-input bg-background px-2 py-1 focus-within:outline focus-within:outline-2 focus-within:outline-ring">
+            <Suspense fallback={null}>
+              <RichNoteEditor
+                key={activity.id}
+                initialValue={activity.body ?? ''}
+                onChange={(md) => bodyField.onChange(md)}
+                ariaLabel={t('contactDetail.activity.notes', 'Notes')}
+                placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
+              />
+            </Suspense>
+          </div>
+        </div>
       </FormSection>
     </EntityFormModal>
   );

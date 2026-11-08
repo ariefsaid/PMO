@@ -1,7 +1,9 @@
 {
   "actions": {
     "restore": "Restore",
-    "restoring": "Restoring…"
+    "restoring": "Restoring…",
+    "minutesEdit": "Edit minutes",
+    "minutesCancel": "Cancel"
   },
   "attendees": {
     "loadError": "Attendees could not be loaded. Retry to view the access list.",

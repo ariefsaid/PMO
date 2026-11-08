@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -9,11 +9,12 @@ import {
   ListState,
   ConfirmDialog,
   TextField,
-  TextArea,
   SelectField,
   FormGrid,
   useToast,
 } from '@/src/components/ui';
+import { RichNoteEditor } from '@/src/components/notes/richNoteEditorChunk';
+import { RichNoteView } from '@/src/components/notes/RichNoteView';
 import { usePermission } from '@/src/auth/usePermission';
 import { useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
@@ -135,14 +136,18 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
             />
             <TextField label={t('contactDetail.activity.subject', 'Subject')} value={subject} onChange={setSubject} placeholder={t('contactDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')} />
           </FormGrid>
-          <TextArea
-            label={t('contactDetail.activity.notes', 'Notes')}
-            value={body}
-            onChange={setBody}
-            rows={2}
-            fullWidth
-            placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
-          />
+          {/* #2062: the note body is a rich-note editor (paragraphs, lists, bold/italic, links);
+              it stores MARKDOWN in the same plain-text body column — no migration, legacy rows render. */}
+          <div className="rounded-md border border-input bg-background px-2 py-1 focus-within:outline focus-within:outline-2 focus-within:outline-ring">
+            <Suspense fallback={<ListState variant="loading" rows={1} />}>
+              <RichNoteEditor
+                initialValue=""
+                onChange={setBody}
+                ariaLabel={t('contactDetail.activity.notes', 'Notes')}
+                placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
+              />
+            </Suspense>
+          </div>
           <div className="flex justify-end">
             <Button
               type="submit"
@@ -254,7 +259,7 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
                     <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
                   )
                 )}
-                {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+                {a.body && <RichNoteView text={a.body} className="text-muted-foreground" />}
               </li>
             );
           })}

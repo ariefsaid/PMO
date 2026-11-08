@@ -1,0 +1,80 @@
+/*
+ * RichNoteEditor's scoped design seam (#2062). Same pattern as the minutes editor's
+ * minutesEditor.css: @blocknote/shadcn styles itself with Tailwind utilities, and importing its
+ * style.css at the app root would put those utilities in the INITIAL stylesheet. This file is
+ * imported only by the lazy note-editor module, so the utilities ship with the editor chunk:
+ * the app theme is pulled in `reference`-only (no duplicate output), and `source(none)` stops
+ * the auto-scan from re-emitting the app's own utilities. They go in the `notes-editor` layer,
+ * which index.css orders BELOW `utilities`.
+ *
+ * Everything is scoped under `.rich-note-editor` so nothing leaks into the app. Values are
+ * DESIGN.md tokens (app HSL vars, 13px note body, 32px controls, var(--radius) corners) — the
+ * same vars flip under `.dark`, so dark mode needs no second ruleset. Notes have no headings
+ * (the schema withholds them), so no heading scale lives here.
+ */
+@import "../../../index.css" reference;
+@import "tailwindcss/utilities.css" layer(notes-editor) source(none);
+@source "../../../node_modules/@blocknote/shadcn/dist";
+
+.rich-note-editor {
+  min-width: 0;
+  max-width: 100%;
+  color: hsl(var(--foreground));
+  font-family: "Hanken Grotesk", system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* BlockNote sets its own --bn-* per [data-color-scheme] on .bn-container (specificity 0,2,0) — the token
+   overrides must sit at least as specific or the app's dark mode never reaches the editor. */
+.rich-note-editor .bn-container,
+.rich-note-editor .bn-container[data-color-scheme] {
+  --bn-colors-editor-text: hsl(var(--foreground));
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-background: hsl(var(--popover));
+  --bn-colors-menu-text: hsl(var(--popover-foreground));
+  --bn-colors-tooltip-background: hsl(var(--popover));
+  --bn-colors-tooltip-text: hsl(var(--popover-foreground));
+  --bn-colors-hovered-background: hsl(var(--accent));
+  --bn-colors-selected-background: hsl(var(--secondary));
+  --bn-colors-side-menu: hsl(var(--muted-foreground));
+  --bn-colors-border: hsl(var(--border));
+  --bn-font-family: "Hanken Grotesk", system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bn-border-radius: var(--radius);
+  --bn-shadow-medium: 0 4px 12px hsl(var(--scrim) / 0.12);
+}
+
+.rich-note-editor .bn-block-group,
+.rich-note-editor .bn-block-outer,
+.rich-note-editor .bn-block,
+.rich-note-editor .bn-block-content { min-width: 0; max-width: 100%; }
+
+.rich-note-editor .bn-container { background: transparent; }
+.rich-note-editor .bn-editor { padding: 0; background: transparent; }
+.rich-note-editor .bn-block-outer { line-height: 1.5; }
+.rich-note-editor .bn-block-content { font-size: 13px; transition: none; }
+/* Long unbroken strings (URLs) wrap instead of widening the form — the notes sit in modals and cards. */
+.rich-note-editor .bn-inline-content { overflow-wrap: anywhere; }
+/* A note field keeps the placeholder's affordance without the minutes' side gutter: the block-type
+   picker in the toolbar starts lists, Enter adds paragraphs. The hover + / drag handle is noise here. */
+.rich-note-editor .bn-side-menu { display: none; }
+.rich-note-editor .bn-block:not([data-prev-level]) { padding-inline-start: 0; }
+
+/* Lists read as lists (the default markers are tiny next to a 13px body). */
+.rich-note-editor [data-content-type='bulletListItem'] .bn-block-content,
+.rich-note-editor [data-content-type='numberedListItem'] .bn-block-content { margin-block: 1px; }
+
+/* Toolbar + any floating menu use the app's popover treatment. */
+.rich-note-editor .bn-formatting-toolbar {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--popover));
+  box-shadow: 0 4px 12px hsl(var(--scrim) / 0.12);
+  color: hsl(var(--popover-foreground));
+}
+.rich-note-editor .bn-formatting-toolbar button { min-width: 32px; min-height: 32px; border-radius: calc(var(--radius) - 2px); }
+.rich-note-editor .bn-formatting-toolbar button:hover { background: hsl(var(--accent)); }
+.rich-note-editor :where(button, input, [contenteditable='true']):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}

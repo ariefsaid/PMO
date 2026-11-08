@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -11,11 +11,12 @@ import {
   ListState,
   ConfirmDialog,
   TextField,
-  TextArea,
   SelectField,
   FormGrid,
   useToast,
 } from '@/src/components/ui';
+import { RichNoteEditor } from '@/src/components/notes/richNoteEditorChunk';
+import { RichNoteView } from '@/src/components/notes/RichNoteView';
 import { usePermission } from '@/src/auth/usePermission';
 import { ContactNameLink } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -226,14 +227,17 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
                 placeholder={t('companyDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')}
               />
             </FormGrid>
-            <TextArea
-              label={t('companyDetail.activity.notes', 'Notes')}
-              value={body}
-              onChange={setBody}
-              rows={2}
-              fullWidth
-              placeholder={t('companyDetail.activity.notesPlaceholder', 'What was discussed?')}
-            />
+            {/* #2062: rich note body — markdown in the same plain-text column; legacy rows render. */}
+            <div className="rounded-md border border-input bg-background px-2 py-1 focus-within:outline focus-within:outline-2 focus-within:outline-ring">
+              <Suspense fallback={<ListState variant="loading" rows={1} />}>
+                <RichNoteEditor
+                  initialValue=""
+                  onChange={setBody}
+                  ariaLabel={t('companyDetail.activity.notes', 'Notes')}
+                  placeholder={t('companyDetail.activity.notesPlaceholder', 'What was discussed?')}
+                />
+              </Suspense>
+            </div>
             <div className="flex justify-end">
               <Button
                 type="submit"
@@ -313,7 +317,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
                   {a.subject && (
                     <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
                   )}
-                  {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+                  {a.body && <RichNoteView text={a.body} className="text-muted-foreground" />}
                 </li>
               );
             })}

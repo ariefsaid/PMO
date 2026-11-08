@@ -1,4 +1,5 @@
 import { initials } from '@/src/lib/initials';
+import { RichNoteView } from '@/src/components/notes/RichNoteView';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Icon, Tooltip } from '@/src/components/ui';
@@ -413,9 +414,12 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                           <span>{entry.actor}</span>
                         </span>}
                         {entry.facts?.map((fact) => <span key={fact}>{fact}</span>)}
-                        {entry.note && <span>{entry.note}</span>}
                         {entry.source === 'accounting-system' && <span>{t('timeline.fromAccounting', 'from accounting system')}</span>}
                       </span>
+                      {/* #2062: the decision note renders as safe markdown (the stored text is untrusted input;
+                          legacy plain-text rows parse as markdown unchanged). Block-level below the meta row:
+                          a note can now carry lists and links, which cannot sit inside the meta row. */}
+                      {entry.note && <RichNoteView text={entry.note} className="mt-1" />}
                     </span>
                     {entry.amount != null && entry.currency && !isEngineer && (
                       <span className="text-right max-[640px]:col-start-3 max-[640px]:row-start-1">

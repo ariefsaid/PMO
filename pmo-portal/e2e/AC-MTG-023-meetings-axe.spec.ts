@@ -31,22 +31,31 @@ test('AC-MTG-023: the POPULATED /meetings list passes axe-core (WCAG-AA)', async
 test('AC-MTG-023: the seeded /meetings/:id detail — editor + share popover open — passes axe-core (WCAG-AA)', async ({
   page,
 }) => {
-  await signIn(page, 'pm@acme.test'); // the seeded author: sees the minutes EDITOR, not read-only
+  await signIn(page, 'pm@acme.test'); // the seeded author: the minutes surface is theirs to edit
   await page.goto(`/meetings/${SEEDED_MEETING}`);
   await expect(
     page.getByRole('heading', { name: 'Meridian PV — weekly site coordination' }),
   ).toBeVisible();
-  // The author surface is fully rendered: editor lines + attendees + the share panel.
-  await expect(page.getByTestId('minutes-editor')).toBeVisible();
-  // #805: the editor is a lazy BlockNote chunk — scan only once it has actually mounted.
-  await expect(page.getByTestId('minutes-blocknote').locator('.bn-editor')).toBeVisible();
+  // #2062: the record opens as a READ view. Both states are scanned: the read view first, then
+  // the author's EDITOR surface (Edit → the BlockNote editor) — each is a resting state a real
+  // session sits in.
+  await expect(page.getByTestId('minutes-readonly')).toBeVisible();
   await expect(page.getByTestId('attendees-list')).toBeVisible();
 
-  // Scan 1: the resting detail page.
+  // Scan 1: the resting detail page in its read view.
   const resting = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(resting.violations).toEqual([]);
 
-  // Scan 2: with the share panel's member combobox OPEN — the portal-rendered listbox state.
+  // Scan 2: the author's editing state — the minutes editor mounted.
+  await page.getByTestId('minutes-edit').click();
+  await expect(page.getByTestId('minutes-editor')).toBeVisible();
+  // #805: the editor is a lazy BlockNote chunk — scan only once it has actually mounted.
+  await expect(page.getByTestId('minutes-blocknote').locator('.bn-editor')).toBeVisible();
+  const editorState = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(editorState.violations).toEqual([]);
+
+  // Scan 3: with the share panel's member combobox OPEN — the portal-rendered listbox state
+  // (still in the editor state, so the scan covers editor + popover together).
   await page.getByRole('combobox', { name: /Share with a named person/i }).click();
   await expect(page.getByRole('listbox')).toBeVisible();
   const popoverOpen = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();

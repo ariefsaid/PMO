@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
-import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, act, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import i18n from 'i18next';
@@ -302,5 +302,28 @@ describe('MinutesEditor — real BlockNote in the DOM', () => {
     } finally {
       document.documentElement.classList.remove('dark');
     }
+  });
+
+  // #2062: Escape inside the editing editor hands control to the page — the page decides what
+  // cancel means (revert to the saved document, back to the read view). A read-only document has
+  // nothing to cancel, so the key is ignored there (the page may also nest the editor in a dialog
+  // whose own Escape handling must not be shadowed).
+  it('#2062 Escape while editing calls onCancel, and is ignored while read-only', () => {
+    const onCancel = vi.fn();
+    mount({ onCancel });
+    fireEvent.keyDown(box(), { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    onCancel.mockClear();
+    mount({ editable: false, onCancel });
+    fireEvent.keyDown(box(), { key: 'Escape' });
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('#2062 focus() puts the caret in the document (the Edit click that opened the editor)', () => {
+    const { ref } = mount({ initialBlocks: [para('Agenda')] });
+    act(() => ref.current!.focus());
+    expect(box()).toHaveFocus();
   });
 });
