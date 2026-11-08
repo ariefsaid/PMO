@@ -119,8 +119,8 @@ describe('TasksTab — PMO-owned surfaces stay badge-free (AC-CUA-061)', () => {
     renderTab();
     await screen.findByText('Survey the site');
     await userEvent.click(await screen.findByRole('tab', { name: /^board$/i }));
-    const statusCtl = screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement;
-    await userEvent.selectOptions(statusCtl, 'Done');
+    await userEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move to Done' }));
     await waitFor(() => expect(taskRepo.updateStatus).toHaveBeenCalledWith('t1', 'Done', 'p1'));
     expectNoPushBadge();
   });

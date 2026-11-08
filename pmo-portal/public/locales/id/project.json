@@ -837,6 +837,7 @@
         "progress": "Progres"
       },
       "noTaskProgress": "Progres tingkat tugas tidak disimpan. Progres tahap dihitung dari status tugas pada tahap tersebut atau nilai pengganti manualnya.",
+      "moveTo": "Pindah ke {{status}}",
       "moreOptions": "Opsi tugas lainnya",
       "clickUpSettings": "Daftar ClickUp dan sinkronisasi",
       "scope": {

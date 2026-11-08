@@ -29,6 +29,11 @@ export function daysLate(dueDate: string, today: string): number {
   return Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / DAY_MS);
 }
 
+/** The one late mark: an open task due before today (org-timezone `today`). */
+export function isOverdue(task: Pick<TaskWithRefs, 'status' | 'end_date'>, today: string): boolean {
+  return task.status !== 'Done' && !!task.end_date && task.end_date < today;
+}
+
 function compareTaskUrgency(a: TaskWithRefs, b: TaskWithRefs): number {
   const aDone = a.status === 'Done';
   const bDone = b.status === 'Done';
