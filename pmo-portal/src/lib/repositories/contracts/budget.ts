@@ -7,6 +7,7 @@ import type {
   BudgetArchiveLiveTarget,
   BudgetArchiveTarget,
   BudgetVersionRow,
+  OrgDraftBudget,
   BudgetVersionWithItems,
   BudgetDocumentLinkRow,
   BudgetLineItemRow,
@@ -19,6 +20,8 @@ export interface BudgetRepository {
   deriveProjectBudget(projectId: string): Promise<number>;
   getActivationMode(versionId: string): Promise<BudgetActivationMode>;
   precheckActivation(versionId: string): Promise<BudgetActivationPrecheckResult>;
+  /** #1273 — every Draft in the org, for the review-and-activate list. */
+  listOrgDrafts(): Promise<OrgDraftBudget[]>;
   listArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
   /** #1462 — legacy (year-grained) live targets, read from the older mirror. */
   listLegacyArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;

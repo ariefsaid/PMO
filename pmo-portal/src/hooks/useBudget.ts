@@ -114,6 +114,17 @@ export function useBudgetActivationPrecheck(versionId: string | undefined) {
   });
 }
 
+/** #1273 — org-wide Draft budgets for the review-and-activate list. */
+export function useOrgBudgetDrafts(enabled: boolean) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['org-budget-drafts', orgId],
+    queryFn: () => repositories.budget.listOrgDrafts(),
+    enabled: Boolean(orgId && enabled),
+  });
+}
+
 export function useBudgetVersions(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
