@@ -23,6 +23,20 @@ describe('Tabs a11y wiring (G4)', () => {
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
+  it('does no layout read when it first mounts on the first tab', () => {
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+    render(<Tabs items={[...items]} value="overview" onChange={() => {}} ariaLabel="Sections" idBase="proj" />);
+    expect(rect).not.toHaveBeenCalled();
+    rect.mockRestore();
+  });
+
+  it('still reveals a deep-linked active tab on first mount', () => {
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 0 } as DOMRect);
+    render(<Tabs items={[...items]} value="budget" onChange={() => {}} ariaLabel="Sections" idBase="proj" />);
+    expect(rect).toHaveBeenCalled();
+    rect.mockRestore();
+  });
+
   it('AC-W6-G4: each tab has id + aria-controls resolving to its panel id', () => {
     render(
       <>
