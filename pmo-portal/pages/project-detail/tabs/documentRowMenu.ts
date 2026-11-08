@@ -34,15 +34,15 @@ export function buildDocumentRowMenu(deps: DocumentRowMenuDeps) {
     const items: RowMenuItem[] = [];
     const reference = projectReference(d);
     if (d.file_path || reference?.web_url) {
-      items.push({ label: t('projectDetail.documents.action.preview', 'Preview'), onClick: () => openPreview(d) });
+      items.push({ label: t('project:projectDetail.documents.action.preview', 'Preview'), onClick: () => openPreview(d) });
     }
     if (d.file_path) {
-      items.push({ label: t('projectDetail.documents.action.download', 'Download'), onClick: () => void handleDownload(d) });
+      items.push({ label: t('project:projectDetail.documents.action.download', 'Download'), onClick: () => void handleDownload(d) });
     }
     // Edit metadata while not yet terminal (Draft/Issued/Rejected can still be corrected) AND
     // only for the AUTHOR (or Admin break-glass) — A-7 author rule (rbac-visibility §H).
     if (canEditDoc(d) && d.status !== 'Closed' && d.status !== 'Superseded') {
-      items.push({ label: t('projectDetail.documents.action.edit', 'Edit'), onClick: () => setFormTarget({ doc: d }) });
+      items.push({ label: t('project:projectDetail.documents.action.edit', 'Edit'), onClick: () => setFormTarget({ doc: d }) });
     }
     // Link / unlink a Microsoft reference: Draft rows only, same author-or-Admin gate as Edit.
     const canLink = documentLinkPermissions.projectEdit(d.author_id, d.status);
@@ -55,14 +55,14 @@ export function buildDocumentRowMenu(deps: DocumentRowMenuDeps) {
     // SUB-E: "New revision" is a row-menu item, not a column of its own on every row. A folder is
     // reference-only and has no revision; a changed Microsoft file offers the latest-update variant.
     if ((d.status === 'Issued' || d.status === 'Approved') && canWriteDocs && !isMicrosoftFolder(d)) {
-      items.push({ label: t('projectDetail.documents.newRevision', 'New revision'), onClick: () => setRevisionParent(d) });
+      items.push({ label: t('project:projectDetail.documents.newRevision', 'New revision'), onClick: () => setRevisionParent(d) });
       if (d.source === 'onedrive' && d.ms_drift_state === 'drifted' && canCreateMicrosoftReference) {
         items.push({ label: t('m365Documents.newRevisionFromLatest', 'New revision from updated file'), onClick: () => void startLatestRevision(d) });
       }
     }
     items.push(...statusActions(d));
-    items.push({ label: t('projectDetail.documents.action.copyLink', 'Copy link'), onClick: () => void copyDocumentLink(d) });
-    if (canDelete) items.push({ label: t('projectDetail.documents.action.delete', 'Delete'), onClick: () => setDeleteTarget(d), danger: true });
+    items.push({ label: t('project:projectDetail.documents.action.copyLink', 'Copy link'), onClick: () => void copyDocumentLink(d) });
+    if (canDelete) items.push({ label: t('project:projectDetail.documents.action.delete', 'Delete'), onClick: () => setDeleteTarget(d), danger: true });
     return items;
   };
 }

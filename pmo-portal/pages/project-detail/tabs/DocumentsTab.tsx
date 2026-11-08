@@ -22,6 +22,8 @@ import { useDocumentVerification } from '@/src/hooks/useDocumentVerification';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useRevision } from '@/src/hooks/useRevision';
 import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
+import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
+import { projectOwner } from '@/src/lib/m365/reference';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
 import { projectReference, validMicrosoftBrowserUrl, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -235,16 +237,29 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     t,
     profileNames,
     currentUserId,
-    verificationIds,
-    verificationChecking: verification.checking,
-    verificationFailed: Boolean(verification.error),
-    retryVerification: (docs) => verification.retry(isError ? docs : undefined),
-    isError,
     fileCell,
   });
-  const { ownerLabel, sourceName, documentHasFile, microsoftCell, statusLabels } = cells;
+  const { ownerLabel, sourceName, documentHasFile, statusLabels } = cells;
+  // A complete Microsoft reference renders through the shared linked-document details in the
+  // preview; a row with an incomplete reference remains an ordinary upload/source row.
+  const microsoftCell = (d: ProjectDocumentRow, compact = false): React.ReactNode => {
+    const reference = projectReference(d);
+    return reference ? (
+      <LinkedDocumentCell
+        reference={reference}
+        title={d.title}
+        owner={projectOwner(d)}
+        compact={compact}
+        verification={verificationIds.has(d.id) ? {
+          checking: verification.checking,
+          failed: Boolean(verification.error),
+          retry: () => verification.retry(isError ? [d] : undefined),
+        } : undefined}
+      />
+    ) : null;
+  };
   const columns = buildDocumentRegisterColumns({
-    t, documentsById, childDocumentsByParentId, setDrawerDoc, categoryName, filtered, cells,
+    t, documentsById, childDocumentsByParentId, setDrawerDoc, categoryName, filtered, cells, microsoftCell,
   });
   const selectedDocumentsHaveFile = selectedDocuments.some(documentHasFile);
 
