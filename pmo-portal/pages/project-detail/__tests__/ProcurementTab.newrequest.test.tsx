@@ -33,7 +33,6 @@ vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => (
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => erpState,
   useErpOrphans: () => ({ data: erpState.data.filter((row) => (row as { procurementId: string | null }).procurementId === null), isError: false, refetch: vi.fn() }),
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
