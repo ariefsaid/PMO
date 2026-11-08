@@ -186,7 +186,7 @@ describe('OdooStatementsSection: language (FR-ODA-024)', () => {
     await financeTestI18n.changeLanguage('id');
     h.statement.mockResolvedValue(tb());
     mount();
-    expect(await screen.findByText('Total')).toBeInTheDocument();
+    expect(await screen.findByText('Jumlah')).toBeInTheDocument();
     expect(screen.getByText('Cocok dengan Odoo')).toBeInTheDocument();
   });
 });
