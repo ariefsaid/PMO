@@ -22,9 +22,9 @@ describe('AC-RD-UNAVAIL-002 plan vs actual leaves an unavailable amount out, nev
     renderCompanyDashboard();
     const table = screen.getByRole('table', { name: 'Plan vs actual by project' });
     const cells = (name: string) => within(within(table).getByRole('rowheader', { name }).closest('tr') as HTMLElement).getAllByRole('cell').map((cell) => cell.textContent);
-    expect(cells('Small')).toEqual(['$1,000', '$500']);
-    expect(cells('Zero')).toEqual(['$900', '$0']);
-    expect(cells('Unknown')).toEqual(['$800', '—']);
-    expect(cells('Mismatch')).toEqual(['$700', '—']);
+    expect(cells('Small')).toEqual(['$1,000', 'No active budget', '$500', '50%']);
+    expect(cells('Zero')).toEqual(['$900', 'No active budget', '$0', '0%']);
+    expect(cells('Unknown')).toEqual(['$800', 'No active budget', '—', '—']);
+    expect(cells('Mismatch')).toEqual(['$700', 'No active budget', '—', '—']);
   });
 });
