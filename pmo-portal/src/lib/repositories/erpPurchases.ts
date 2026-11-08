@@ -132,13 +132,6 @@ export async function listErpOrphans(projectId?: string): Promise<ErpPurchaseRow
   return rows.map(toRow).sort(byDateDesc);
 }
 
-/** Whether the org has any orphan — decides if Procurement links to the "not in a purchase" list at all. */
-export async function hasErpPurchases(): Promise<boolean> {
-  const { data, error } = await supabase.from('erp_purchase_orphans').select('id').limit(1);
-  if (error) throw new AppError(error.message, error.code);
-  return (data ?? []).length > 0;
-}
-
 /**
  * FR-PFE-032 — the ERP documents linked to one purchase.
  *
@@ -185,7 +178,6 @@ import type { ErpPurchaseRepository } from './contracts/erpPurchases';
 export const erpPurchasesRepository: ErpPurchaseRepository = {
   list: (projectId) => wrap(() => listErpPurchases(projectId)),
   listOrphans: (projectId) => wrap(() => listErpOrphans(projectId)),
-  hasAny: () => wrap(() => hasErpPurchases()),
   listLinked: (procurementId) => wrap(() => listLinkedErpDocuments(procurementId)),
   link: (rows, dryRun) => wrap(() => linkErpPurchaseDocuments(rows, dryRun ?? false)),
   unlink: (linkId) => wrap(() => unlinkErpPurchaseDocument(linkId)),

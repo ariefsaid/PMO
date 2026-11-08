@@ -43,6 +43,8 @@ function pushRequest(jwt: string, targetFiscalYear?: string) {
 }
 
 const budgetPosts = (calls: FetchCall[]) => calls.filter((call) => call.method === 'POST' && call.url.pathname === '/api/resource/Budget');
+const laborPosts = (calls: FetchCall[]) =>
+  budgetPosts(calls).filter((call) => (call.bodyJson as Record<string, unknown>).account === LABOR);
 
 /**
  * Activation pushes Labor (Materials is refused by a Desk draft rival before its outbox row), then the state
@@ -141,6 +143,102 @@ describe('AC-BV16-010 Retry after the 0379 repair', () => {
       assertEquals(retry.status, 200, await retry.text());
       const labor = fixture.accountMirrorRows.find((row) => row.erp_account === LABOR);
       assertEquals(labor?.push_state, 'pushed', `push_error: ${String(labor?.push_error)}`);
+    });
+  });
+});
+
+/**
+ * The legacy acceptance above is a NARROW grant: only the digest an earlier Retry wrote for THIS
+ * command — this unit's own payload with the request-scoping year spelled onto it — counts as the
+ * same key. A fingerprint that names a DIFFERENT year, or binds a changed amount or account, is a
+ * different command and must stay refused (`idempotency-key-payload-mismatch`): accept it and a
+ * wrong-year or wrong-figure budget would reconcile silently under the confirmed row's key.
+ */
+describe('AC-BV16-010 the earlier-Retry fingerprint is refused when it is not this command', () => {
+  it('refuses a fingerprint whose request-scoping year names a different fiscal year', async () => {
+    const seed = freshSeed();
+    const fixture = servedRoutes(seed, 16);
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    await withFetchMock(fixture.routes, async ({ calls }) => {
+      const { outbox, savedPayload } = await activateThenRepair(jwt, calls, fixture, seed);
+      outbox.payload_digest = await canonicalCommandDigest({
+        domain: 'budget', operation: 'create', record: { ...savedPayload, target_fiscal_year: '2027' },
+      });
+      const laborPostsBefore = laborPosts(calls).length;
+
+      const retry = await handler!(pushRequest(jwt, '2026'));
+      const body = await retry.json() as Record<string, unknown>;
+      assertEquals(retry.status, 422, JSON.stringify(body));
+      assertEquals(body, { error: 'commit-rejected', message: 'idempotency-key-payload-mismatch' },
+        'a fingerprint bound to another year is a different command, never the stored one');
+      const labor = fixture.accountMirrorRows.find((row) => row.erp_account === LABOR);
+      assertEquals(labor?.push_state, 'failed', `push_error: ${String(labor?.push_error)}`);
+      assertEquals(laborPosts(calls).length, laborPostsBefore,
+        'the refused unit never re-posts the confirmed Budget');
+      assertEquals(fixture.erpBudgets.filter((doc) => doc.body.account === LABOR).length, 1,
+        'ERPNext still holds exactly one Labor Budget');
+      assertEquals(fixture.accountMirrorRows.find((row) => row.erp_account === MATERIALS)?.push_state, 'pushed',
+        'the fan-out still drives the account that was never pushed');
+    });
+  });
+
+  it('refuses a same-year fingerprint whose amount changed', async () => {
+    const seed = freshSeed();
+    const fixture = servedRoutes(seed, 16);
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    await withFetchMock(fixture.routes, async ({ calls }) => {
+      const { outbox, savedPayload } = await activateThenRepair(jwt, calls, fixture, seed);
+      outbox.payload_digest = await canonicalCommandDigest({
+        domain: 'budget', operation: 'create',
+        record: {
+          ...savedPayload, target_fiscal_year: '2026',
+          line_items: (savedPayload.line_items as Array<Record<string, unknown>>).map((line) =>
+            line.category === 'Labor' ? { ...line, budgeted_amount: '99000.00' } : line),
+        },
+      });
+      const laborPostsBefore = laborPosts(calls).length;
+
+      const retry = await handler!(pushRequest(jwt, '2026'));
+      const body = await retry.json() as Record<string, unknown>;
+      assertEquals(retry.status, 422, JSON.stringify(body));
+      assertEquals(body, { error: 'commit-rejected', message: 'idempotency-key-payload-mismatch' },
+        'the year spelled on it does not make a changed amount the same command');
+      const labor = fixture.accountMirrorRows.find((row) => row.erp_account === LABOR);
+      assertEquals(labor?.push_state, 'failed', `push_error: ${String(labor?.push_error)}`);
+      assertEquals(laborPosts(calls).length, laborPostsBefore,
+        'the refused unit never re-posts the confirmed Budget');
+      assertEquals(fixture.erpBudgets.filter((doc) => doc.body.account === LABOR).length, 1,
+        'ERPNext still holds exactly one Labor Budget');
+      assertEquals(fixture.accountMirrorRows.find((row) => row.erp_account === MATERIALS)?.push_state, 'pushed',
+        'the fan-out still drives the account that was never pushed');
+    });
+  });
+
+  it('refuses a same-year fingerprint whose account changed', async () => {
+    const seed = freshSeed();
+    const fixture = servedRoutes(seed, 16);
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    await withFetchMock(fixture.routes, async ({ calls }) => {
+      const { outbox, savedPayload } = await activateThenRepair(jwt, calls, fixture, seed);
+      outbox.payload_digest = await canonicalCommandDigest({
+        domain: 'budget', operation: 'create',
+        record: { ...savedPayload, target_fiscal_year: '2026', erp_account: MATERIALS },
+      });
+      const laborPostsBefore = laborPosts(calls).length;
+
+      const retry = await handler!(pushRequest(jwt, '2026'));
+      const body = await retry.json() as Record<string, unknown>;
+      assertEquals(retry.status, 422, JSON.stringify(body));
+      assertEquals(body, { error: 'commit-rejected', message: 'idempotency-key-payload-mismatch' },
+        'the year spelled on it does not make a changed account the same command');
+      const labor = fixture.accountMirrorRows.find((row) => row.erp_account === LABOR);
+      assertEquals(labor?.push_state, 'failed', `push_error: ${String(labor?.push_error)}`);
+      assertEquals(laborPosts(calls).length, laborPostsBefore,
+        'the refused unit never re-posts the confirmed Budget');
+      assertEquals(fixture.erpBudgets.filter((doc) => doc.body.account === LABOR).length, 1,
+        'ERPNext still holds exactly one Labor Budget');
+      assertEquals(fixture.accountMirrorRows.find((row) => row.erp_account === MATERIALS)?.push_state, 'pushed',
+        'the fan-out still drives the account that was never pushed');
     });
   });
 });

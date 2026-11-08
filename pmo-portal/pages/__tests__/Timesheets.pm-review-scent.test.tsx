@@ -51,7 +51,7 @@ vi.mock('@/src/hooks/useTimesheetEntries', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [], isPending: false, isError: false }),
+  useProjectPickerOptions: () => ({ data: [], isPending: false, isError: false }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),

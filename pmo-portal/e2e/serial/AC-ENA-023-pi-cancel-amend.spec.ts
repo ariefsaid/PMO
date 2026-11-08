@@ -24,6 +24,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -183,6 +184,7 @@ test.describe('AC-ENA-023: PI cancel + amend through the real served adapter-dis
 
       // ERP-side proof (optional): the PI is docstatus 2.
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Purchase%20Invoice/${encodeURIComponent(piName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });
@@ -268,6 +270,7 @@ test.describe('AC-ENA-023: PI cancel + amend through the real served adapter-dis
 
       // ERP-side proof (optional): the new PI is docstatus 1 with amended_from = old name.
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Purchase%20Invoice/${encodeURIComponent(newName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });

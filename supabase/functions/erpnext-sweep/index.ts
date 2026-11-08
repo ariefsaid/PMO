@@ -2342,7 +2342,10 @@ export function budgetBackstopDepsLive(
         last_attempt_at: (r.last_attempt_at as string | null) ?? null,
       });
       const mirrored = [
-        ...((legacyResult.data as Array<Record<string, unknown>> | null) ?? []).map((r) => toCandidate(r, false)),
+        // #1364: the empty-year row is a refusal record for the screen (project dates), not a push to drive.
+        ...((legacyResult.data as Array<Record<string, unknown>> | null) ?? [])
+          .filter((r) => r.fiscal_year !== '')
+          .map((r) => toCandidate(r, false)),
         ...((accountResult.data as Array<Record<string, unknown>> | null) ?? [])
           .filter((r) => typeof r.erp_account === 'string' && r.erp_account !== '')
           .map((r) => toCandidate(r, true)),

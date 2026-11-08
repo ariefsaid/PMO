@@ -13,7 +13,7 @@ import {
   type BudgetPushStatusRow,
 } from '@/src/lib/repositories/budgetProjection';
 import BudgetOccupantActions from '@/src/components/budget/BudgetOccupantActions';
-import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
+import { describePushError, TRANSLATED_PUSH_ERRORS } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 const ACCOUNT_MAP_HREF = '/administration/accounting#budget-account-map';
@@ -124,7 +124,14 @@ export default function BudgetErpNotice({
       {rows.map((row, index) => {
         const state = row.pushState;
         const unstamped = state === 'unstamped-activation';
-        const copy = describePushError(row.pushError);
+        const rawCopy = describePushError(row.pushError);
+        const copy = rawCopy.code && TRANSLATED_PUSH_ERRORS.has(rawCopy.code)
+          ? {
+              ...rawCopy,
+              message: t(`projectDetail.budget.pushError.${rawCopy.code}.message`, rawCopy.message),
+              remedy: rawCopy.remedy ? t(`projectDetail.budget.pushError.${rawCopy.code}.remedy`, rawCopy.remedy) : null,
+            }
+          : rawCopy;
         const noBudgetEnforced = state === 'never-pushed' || unstamped;
         const message = state === 'pushed' || state === 'pending' || state === 'pushing'
           ? ''

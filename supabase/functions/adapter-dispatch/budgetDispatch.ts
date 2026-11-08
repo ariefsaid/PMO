@@ -207,14 +207,23 @@ async function reportBudgetMirrorWriteFailure(orgId: string, versionId: string):
  *  (`readModelWriters.ts`) already refuses a fiscal-year-less row for the identical reason. Best-effort —
  *  a failure to record this must never mask the rejection the caller already gets. */
 async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: string, versionId: string, err: BudgetGateError, versionMajor?: number | null): Promise<void> {
-  if (!err.fiscalYear) return;
+  // #1364 — a refusal that names a fix but resolved no fiscal year (project dates missing or outside the
+  // calendar) is keyed on the empty year, so the screen reads "failed + reason" instead of "never pushed".
+  // Only a refusal carrying a finding qualifies: that is the proof the operator has something to fix.
+  const keyless = !err.fiscalYear && err.finding !== undefined;
+  if (!err.fiscalYear && !keyless) return;
   try {
+    // A refusal that DID resolve a year supersedes any keyless one: no stale "set the project dates" beside it.
+    if (err.fiscalYear) {
+      await serviceClient.from(versionMajor === 16 ? 'budget_version_account_erp_mirror' : 'budget_version_erp_mirror').delete()
+        .eq('org_id', orgId).eq('budget_version_id', versionId).eq('fiscal_year', '');
+    }
     const row = {
       org_id: orgId,
       budget_version_id: versionId,
-      fiscal_year: err.fiscalYear,
+      fiscal_year: err.fiscalYear ?? '',
       push_state: 'failed',
-      push_error: err.code,
+      push_error: keyless ? err.finding!.code : err.code,
       unmapped_categories: err.unmappedCategories ?? null,
     };
     if (versionMajor === 16) {
@@ -516,6 +525,9 @@ export async function buildBudgetDispatchPlan(args: {
           );
         }
       }
+      // A year now resolves: retire the keyless refusal row (#1364) so it cannot outlive the fix.
+      await serviceClient.from(versionMajor === 16 ? 'budget_version_account_erp_mirror' : 'budget_version_erp_mirror').delete()
+        .eq('org_id', orgId).eq('budget_version_id', gate.versionId).eq('fiscal_year', '');
       if (versionMajor === 16 && budgetUnits.length > 0) {
         let cancellationWait: string | null = null;
         if (isWholeProjectRange) {

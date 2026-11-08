@@ -26,7 +26,7 @@ import {
 } from '@/src/hooks/useTimesheetApproval';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -114,7 +114,7 @@ const TimesheetsPage: React.FC = () => {
 
   const entryMutations = useTimesheetEntryMutations();
   const { saveWeek, deleteRow, isReconciling, retryDeleteRefresh } = entryMutations;
-  const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjects();
+  const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjectPickerOptions();
 
   const editor = useTimesheetWeekEditor({
     currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString,
