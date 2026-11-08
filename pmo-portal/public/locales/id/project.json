@@ -754,8 +754,7 @@
         "preview": "Pratinjau",
         "download": "Unduh",
         "copyLink": "Salin tautan",
-        "openSharePoint": "Buka di SharePoint",
-        "closePreview": "Tutup pratinjau"
+        "openSharePoint": "Buka di SharePoint"
       },
       "bulk": {
         "statusUpdated": "Status diperbarui untuk {{count}} dokumen",

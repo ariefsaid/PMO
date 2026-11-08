@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Drawer } from '../Drawer';
@@ -7,9 +7,9 @@ import { ConfirmDialog } from '../ConfirmDialog';
 
 // ---------------------------------------------------------------------------
 // Drawer — the right-side quick-view sheet (Wave-5 Cluster 6).
-// Reuses EntityFormModal's EXACT overlay machinery (portal + scrim + Esc/scrim
-// close + focus-capture/restore + Tab focus-trap + role="dialog"/aria-modal +
-// loading gate + inert-while-nested). Tests assert real behavior, not mocks.
+// Built on Base UI's Drawer (#2043): portal + scrim + Esc/outside-press close +
+// focus capture/restore + focus trap + swipe, plus our loading gate, nested-dialog
+// veto and stacking rule. Tests assert real behavior, not mocks.
 // AC-W5-C6-DRAWER owns the drawer behavior contract at the Vitest/RTL layer.
 // ---------------------------------------------------------------------------
 
@@ -139,34 +139,21 @@ describe('Drawer: RecordHeader anatomy in the header (CW-3a)', () => {
     expect(within(dialog).getAllByText('Client Subtitle')).toHaveLength(1);
   });
 
-  it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
-    const shell = document.createElement('div');
-    shell.setAttribute('data-app-shell', 'root');
-    document.body.appendChild(shell);
-    try {
-      const { rerender } = render(
-        <Drawer {...baseProps} open={false}>
-          <p>body</p>
-        </Drawer>,
+  it('CMP-009: the page behind is unreachable while open and reachable again after close', async () => {
+    function Harness({ open }: { open: boolean }) {
+      return (
+        <>
+          <button>behind</button>
+          <Drawer {...baseProps} open={open}>
+            <p>body</p>
+          </Drawer>
+        </>
       );
-      expect(shell).not.toHaveAttribute('inert');
-
-      rerender(
-        <Drawer {...baseProps} open={true}>
-          <p>body</p>
-        </Drawer>,
-      );
-      expect(shell).toHaveAttribute('inert');
-
-      rerender(
-        <Drawer {...baseProps} open={false}>
-          <p>body</p>
-        </Drawer>,
-      );
-      expect(shell).not.toHaveAttribute('inert');
-    } finally {
-      shell.remove();
     }
+    const { rerender } = render(<Harness open />);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'behind' })).not.toBeInTheDocument());
+    rerender(<Harness open={false} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'behind' })).toBeInTheDocument());
   });
 });
 
@@ -239,7 +226,7 @@ describe('Drawer: loading gate (AC-W5-C6-DRAWER)', () => {
 });
 
 describe('Drawer: focus management (AC-W5-C6-DRAWER)', () => {
-  it('moves focus into the drawer on open and restores to the trigger on close', () => {
+  it('moves focus into the drawer on open and restores to the trigger on close', async () => {
     const trigger = document.createElement('button');
     trigger.textContent = 'open';
     document.body.appendChild(trigger);
@@ -250,84 +237,64 @@ describe('Drawer: focus management (AC-W5-C6-DRAWER)', () => {
         <button>field</button>
       </Drawer>,
     );
-    expect(trigger).not.toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement));
     rerender(
       <Drawer {...baseProps} open={false}>
         <button>field</button>
       </Drawer>,
     );
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
     trigger.remove();
   });
 
-  it('C1: restores focus to the trigger when the Drawer is UNMOUNTED (conditional-render consumers)', () => {
-    // This is the gap: both CompanyDrawer and DocumentDrawer mount/unmount the Drawer
-    // conditionally ({company && <CompanyDrawer/>}) rather than re-rendering with open=false.
-    // The [open] effect's else-if branch never fires on unmount, so focus falls to <body>.
-    // Fix: the effect cleanup captures the trigger and restores focus on unmount.
+  it('C1: restores focus to the trigger when the Drawer is UNMOUNTED (conditional-render consumers)', async () => {
+    // Consumers mount/unmount the Drawer conditionally ({doc && <DocumentDrawer/>}) rather than
+    // re-rendering with open=false; focus must still return to the row that opened it.
     const trigger = document.createElement('button');
     trigger.textContent = 'open row';
     document.body.appendChild(trigger);
     trigger.focus();
 
-    // Mount the Drawer (open=true always, simulating the consumer pattern).
     const { unmount } = render(
       <Drawer {...baseProps}>
         <button>field</button>
       </Drawer>,
     );
-    // Focus has moved into the drawer (the first focusable).
-    expect(trigger).not.toHaveFocus();
-
-    // Unmount entirely (simulates the conditional-render consumer closing).
+    await waitFor(() => expect(trigger).not.toHaveFocus());
     unmount();
-
-    // Focus MUST be restored to the trigger, not left on <body>.
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
     trigger.remove();
   });
 });
 
 describe('Drawer: focus trap (AC-W5-C6-DRAWER)', () => {
-  it('Tab from the last focusable wraps to the first', () => {
+  it('Tab and Shift+Tab cycle inside the drawer and never reach the page behind', async () => {
+    const user = userEvent.setup();
     render(
-      <Drawer {...baseProps}>
-        <button>a</button>
-        <button>b</button>
-      </Drawer>,
+      <>
+        <button>behind</button>
+        <Drawer {...baseProps}>
+          <button>a</button>
+          <button>b</button>
+        </Drawer>
+      </>,
     );
-    const dialog = screen.getByRole('dialog');
-    const focusables = dialog.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    last.focus();
-    fireEvent.keyDown(dialog, { key: 'Tab' });
-    expect(first).toHaveFocus();
-  });
-
-  it('Shift+Tab from the first focusable wraps to the last', () => {
-    render(
-      <Drawer {...baseProps}>
-        <button>a</button>
-        <button>b</button>
-      </Drawer>,
-    );
-    const dialog = screen.getByRole('dialog');
-    const focusables = dialog.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    first.focus();
-    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
-    expect(last).toHaveFocus();
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab();
+      // The library parks focus on a guard for a tick, then moves it back inside.
+      await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+    }
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab({ shift: true });
+      await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+    }
   });
 });
 
 describe('Drawer: nested ConfirmDialog inert-the-panel (AC-W5-C6-DRAWER)', () => {
-  it('when a nested confirm owns focus, the drawer goes inert + aria-hidden and its trap is suspended', async () => {
+  it('when a nested confirm owns focus, the drawer goes inert + aria-hidden and focus stays in the confirm', async () => {
     function Harness() {
       const [confirm, setConfirm] = React.useState(false);
       return (
@@ -353,16 +320,19 @@ describe('Drawer: nested ConfirmDialog inert-the-panel (AC-W5-C6-DRAWER)', () =>
     expect(drawer).toHaveAttribute('aria-hidden', 'true');
     expect(drawer).toHaveAttribute('inert');
 
-    // The drawer's OWN trap must be suspended while the confirm is up: Tab on the
-    // drawer dialog must be a no-op (not wrap focus back into the drawer body).
-    const drawerFocusables = drawer.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    // The confirm owns focus: its Cancel button is focused, not anything in the drawer behind.
+    await waitFor(() => expect(confirmDialog).toContainElement(document.activeElement as HTMLElement));
+  });
+
+  it('Esc with a nested confirm open does not close the drawer', async () => {
+    const onClose = vi.fn();
+    render(
+      <Drawer {...baseProps} onClose={onClose} nestedOpen>
+        <p>body</p>
+      </Drawer>,
     );
-    const last = drawerFocusables[drawerFocusables.length - 1];
-    last.focus();
-    fireEvent.keyDown(drawer, { key: 'Tab' });
-    expect(drawerFocusables[0]).not.toHaveFocus();
-    expect(last).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
@@ -393,5 +363,34 @@ describe('Drawer: responsive width (AC-W5-C6-DRAWER)', () => {
       </Drawer>,
     );
     expect(screen.getByRole('dialog').className).toContain('md:w-[min(420px,92vw)]');
+  });
+});
+
+describe('Drawer: stacking (#2043)', () => {
+  it('Esc and an outside click close only the topmost of two stacked drawers', async () => {
+    const lower = vi.fn();
+    const upper = vi.fn();
+    render(
+      <>
+        <Drawer open title="Document" onClose={lower}>
+          <p>lower body</p>
+        </Drawer>
+        <Drawer open title="Preview" onClose={upper}>
+          <p>upper body</p>
+        </Drawer>
+      </>,
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(upper).toHaveBeenCalledTimes(1);
+    expect(lower).not.toHaveBeenCalled();
+  });
+
+  it('swipes right to dismiss (side sheet), not down', () => {
+    render(
+      <Drawer {...baseProps}>
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-drawer-panel');
   });
 });

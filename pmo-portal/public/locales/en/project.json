@@ -754,8 +754,7 @@
         "preview": "Preview",
         "download": "Download",
         "copyLink": "Copy link",
-        "openSharePoint": "Open in SharePoint",
-        "closePreview": "Close preview"
+        "openSharePoint": "Open in SharePoint"
       },
       "bulk": {
         "statusUpdated": "Status updated for {{count}} documents",

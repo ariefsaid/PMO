@@ -144,6 +144,17 @@ export const FileCell: React.FC<FileCellProps> = ({
             Replace
           </button>
         )}
+        {isPreviewable(filePath) && onPreview && (
+          <button
+            type="button"
+            onClick={onPreview}
+            aria-label={`Preview file for ${title}`}
+            className="touch-target text-muted-foreground hover:text-primary-text p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            title="Preview file"
+          >
+            <Icon name="eye" className="size-4" />
+          </button>
+        )}
       </span>
     );
   }

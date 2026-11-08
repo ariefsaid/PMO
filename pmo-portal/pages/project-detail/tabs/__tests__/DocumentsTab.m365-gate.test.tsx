@@ -111,6 +111,6 @@ describe('DocumentsTab — Microsoft connection gate (AC-M365DOC-014/031)', () =
     h.conn.connection = { connected: false, status: null };
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
   });
 });
