@@ -72,7 +72,7 @@ describe('Combobox: open + load + select', () => {
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /Cascade Port Authority/ });
 
-    await userEvent.type(screen.getByRole('combobox', { name: /^(search|cari) /i }), 'camden');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'camden');
     expect(screen.getByRole('option', { name: /Camden Waterworks/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Cascade Port Authority/ })).not.toBeInTheDocument();
   });
@@ -85,7 +85,7 @@ describe('Combobox: disabled while open', () => {
     const view = render(<Combobox {...props} />);
     await userEvent.click(screen.getByRole('combobox'));
     const option = await screen.findByRole('option', { name: /Cascade Port Authority/ });
-    const search = screen.getByRole('combobox', { name: /^(search|cari) /i });
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     fireEvent.keyDown(search, { key: 'ArrowDown' });
     view.rerender(<Combobox {...props} disabled />);
     expect(screen.getByRole('combobox')).toBeDisabled();
@@ -147,7 +147,7 @@ describe('Combobox: keyboard navigation', () => {
     await userEvent.click(trigger);
     await screen.findByRole('listbox');
 
-    const search = screen.getByRole('combobox', { name: /^(search|cari) /i });
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     fireEvent.keyDown(search, { key: 'ArrowDown' }); // highlight first
     fireEvent.keyDown(search, { key: 'ArrowDown' }); // highlight second
     fireEvent.keyDown(search, { key: 'Enter' });
@@ -159,7 +159,7 @@ describe('Combobox: keyboard navigation', () => {
     render(<Combobox label="Client company" value={null} onChange={onChange} loadOptions={loadOk} />);
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('listbox');
-    fireEvent.keyDown(screen.getByRole('combobox', { name: /^(search|cari) /i }), { key: 'Escape' });
+    fireEvent.keyDown(await screen.findByRole('combobox', { name: /^(search|cari) /i }), { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -172,7 +172,7 @@ describe('Combobox: keyboard navigation', () => {
       render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
       await userEvent.click(screen.getByRole('combobox'));
       await screen.findByRole('listbox');
-      const search = screen.getByRole('combobox', { name: /^(search|cari) /i });
+      const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
       fireEvent.keyDown(search, { key: 'ArrowDown' }); // active -> 0
       expect(scrollSpy).toHaveBeenCalled();
     } finally {
@@ -199,7 +199,7 @@ describe('Combobox: load states', () => {
     render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /Cascade Port Authority/ });
-    await userEvent.type(screen.getByRole('combobox', { name: /^(search|cari) /i }), 'zzzz');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'zzzz');
     expect(screen.getByText(/No .*matches/i)).toBeInTheDocument();
   });
 
@@ -220,7 +220,7 @@ describe('Combobox: load states', () => {
       expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
 
       // Close before the load resolves (Escape).
-      fireEvent.keyDown(screen.getByRole('combobox', { name: /^(search|cari) /i }), { key: 'Escape' });
+      fireEvent.keyDown(await screen.findByRole('combobox', { name: /^(search|cari) /i }), { key: 'Escape' });
       await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
 
       // The stale promise resolves now — its result must be dropped.

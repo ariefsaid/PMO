@@ -56,9 +56,9 @@ describe('Combobox — translatable scaffold text (#684)', () => {
     renderIdCombobox();
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('listbox');
-    await userEvent.type(screen.getByRole('combobox', { name: /^(search|cari) /i }), 'zzzzz-nope');
-    const empty = await screen.findByText(/zona waktu/i);
-    expect(empty.textContent).not.toMatch(/zona waktus/i);
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'zzzzz-nope');
+    const empties = await screen.findAllByText(/zona waktu/i);
+    for (const empty of empties) expect(empty.textContent).not.toMatch(/zona waktus/i);
   });
 
   it("under 'id', a load failure names the noun without an English \"s\"", async () => {
@@ -95,7 +95,7 @@ describe('Combobox — timezone-style search: spaces and underscores match the c
     );
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /America\/New_York/i });
-    await userEvent.type(screen.getByRole('combobox', { name: /^(search|cari) /i }), 'new york');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'new york');
     expect(screen.getByRole('option', { name: /America\/New_York/i })).toBeInTheDocument();
   });
 });
@@ -133,7 +133,7 @@ describe('Combobox — keyboard: focus return + single-match Enter (#684)', () =
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /Cascade Port Authority/ });
     // Narrows to exactly one match — no ArrowDown was pressed.
-    await userEvent.type(screen.getByRole('combobox', { name: /^(search|cari) /i }), 'cascade');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cascade');
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1));
     await userEvent.keyboard('{Enter}');
 

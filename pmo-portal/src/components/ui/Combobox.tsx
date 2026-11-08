@@ -307,6 +307,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
         <BaseCombobox.Portal>
           <BaseCombobox.Positioner sideOffset={5} collisionPadding={8} className="z-[820]">
             <BaseCombobox.Popup
+              aria-labelledby={labelId}
               style={{ '--menu-origin': 'var(--transform-origin)' } as React.CSSProperties}
               className="menu-pop-anim motion-reduce:animate-none w-[var(--anchor-width)] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
             >
