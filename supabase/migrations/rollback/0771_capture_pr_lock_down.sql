@@ -1,4 +1,4 @@
--- 0767 down: back to the 0238 body (no purchase lock on capture).
+-- 0771 down: back to the 0238 body (no purchase lock on capture).
 create or replace function public.create_purchase_request(
   p_procurement_id uuid, p_reference_number text, p_status text, p_date date, p_amount numeric,
   p_import_key text default null, p_import_batch_id uuid default null, p_imported_at timestamptz default null,
