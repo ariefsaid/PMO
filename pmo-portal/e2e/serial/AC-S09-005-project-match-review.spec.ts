@@ -32,6 +32,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { login } from '../helpers';
 import { signInAdmin } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -54,6 +55,7 @@ const benchHeaders = { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`, 'Con
 
 /** Every ERP Project on the bench (any company, any state) — "no ERP project was created" is global. */
 async function erpProjectCount(): Promise<number> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}/api/method/frappe.client.get_count?doctype=Project`, { headers: benchHeaders });
   expect(res.status, 'bench Project count must be readable').toBe(200);
   return Number((await res.json()).message);
@@ -80,6 +82,7 @@ test('AC-S09-005 an Admin confirms a proposed match to an existing ERP project; 
 
   try {
     // -- Given: an EXISTING ERP Project (created by the fixture, not by the app under test) ... --
+    assertLocalBenchUrl(BENCH_URL);
     const created = await fetch(`${BENCH_URL}/api/resource/Project`, {
       method: 'POST',
       headers: benchHeaders,
@@ -89,6 +92,7 @@ test('AC-S09-005 an Admin confirms a proposed match to an existing ERP project; 
     erpProject = String((await created.json()).data.name);
 
     // The unfiltered candidate list is complete only below its 100-row cap (otherwise no proposal, by design).
+    assertLocalBenchUrl(BENCH_URL);
     const activeCount = await fetch(
       `${BENCH_URL}/api/method/frappe.client.get_count?doctype=Project&filters=${encodeURIComponent(JSON.stringify([['company', '=', company], ['is_active', '=', 'Yes']]))}`,
       { headers: benchHeaders },
@@ -154,6 +158,7 @@ test('AC-S09-005 an Admin confirms a proposed match to an existing ERP project; 
 
     // ... and the review created no ERP Project; the chosen one is still the original, unchanged.
     expect(await erpProjectCount()).toBe(projectsBefore);
+    assertLocalBenchUrl(BENCH_URL);
     const readback = await fetch(`${BENCH_URL}/api/resource/Project/${encodeURIComponent(erpProject)}`, { headers: benchHeaders });
     expect(readback.status).toBe(200);
     expect((await readback.json()).data).toMatchObject({ name: erpProject, project_name: projectName, company, is_active: 'Yes' });
@@ -168,6 +173,7 @@ test('AC-S09-005 an Admin confirms a proposed match to an existing ERP project; 
     const { error: deleteError } = await admin.from('projects').delete().eq('id', projectId);
     expect(deleteError).toBeNull();
     if (erpProject) {
+      assertLocalBenchUrl(BENCH_URL);
       const removed = await fetch(`${BENCH_URL}/api/resource/Project/${encodeURIComponent(erpProject)}`, {
         method: 'DELETE',
         headers: benchHeaders,

@@ -32,6 +32,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -74,6 +75,7 @@ const admin = READY ? createClient(AUTH_URL, SERVICE_KEY) : null;
 
 /** Best-effort DELETE against the real bench -- never throws (cleanup must not mask a test failure). */
 async function deleteSupplierFromBench(name: string): Promise<void> {
+  assertLocalBenchUrl(BENCH_URL);
   try {
     await fetch(`${BENCH_URL}/api/resource/Supplier/${encodeURIComponent(name)}`, {
       method: 'DELETE',
@@ -162,6 +164,7 @@ test.describe('AC-ENA-040: Supplier create write-through through the real served
       expect(body.canonical?.erp_supplier_name).toBe(vendorName);
 
       // -- Then 1: the real ERPNext bench holds the Supplier doc (proof this hit the real boundary). --
+      assertLocalBenchUrl(BENCH_URL);
       const erpRes = await fetch(`${BENCH_URL}/api/resource/Supplier/${encodeURIComponent(vendorName)}`, {
         headers: { Authorization: `token ${BENCH_API_KEY}:${BENCH_API_SECRET}` },
       });
