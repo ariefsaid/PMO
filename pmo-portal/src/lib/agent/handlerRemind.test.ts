@@ -79,5 +79,11 @@ describe('remind_overdue through the handler (#1639)', () => {
         remainingToday: 19,
       },
     });
+    // The approved write's result names a task (record text): it reaches the model inside the
+    // untrusted-data envelope, with the server's own note kept outside it.
+    const toolMsg = create.mock.calls[1][0].messages.find((m: { role: string; name?: string }) => m.role === 'tool' && m.name === 'remind_overdue');
+    const envelope = JSON.parse(toolMsg.content);
+    expect(envelope).toMatchObject({ untrusted_record_data: true, note: expect.stringMatching(/Say who was reminded/), result: { sent: [{ task: 'Pour foundation' }] } });
+    expect(envelope.result.note).toBeUndefined();
   });
 });
