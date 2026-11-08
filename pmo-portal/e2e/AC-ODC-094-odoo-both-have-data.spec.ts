@@ -92,7 +92,12 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
   const bound = await must('binding', admin.from('external_project_bindings').select('external_container_id').eq('org_id', orgId).eq('project_id', project).eq('external_tier', 'odoo'));
   const status = await setup<{ proposalCounts: unknown }>(token, { setupAction: 'connect-status' });
   const projRefs = await must('project refs', admin.from('external_refs').select('domain,external_record_id').eq('org_id', orgId).eq('pmo_record_id', project));
+  const allProposals: unknown[] = [];
+  for (const state of ['open', 'sending', 'applied', 'dismissed']) {
+    const r = await setup<{ proposals: Array<{ kind: string; outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', state });
+    allProposals.push(...r.proposals.map((p) => [p.kind, p.outcome, p.state, p.reason]));
+  }
   const projectRows = await setup<{ proposals: Array<{ outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'applied' });
   const projectOpen = await setup<{ proposals: Array<{ outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'open' });
-  expect(bound.map((b) => b.external_container_id), `counts=${JSON.stringify(status.proposalCounts)} refs=${JSON.stringify(projRefs)} project proposals applied=${JSON.stringify(projectRows.proposals.map((p) => [p.outcome, p.state]))} open=${JSON.stringify(projectOpen.proposals.map((p) => [p.outcome, p.reason]))}`).toEqual([String(accounts[0].id)]);
+  expect(bound.map((b) => b.external_container_id), `all=${JSON.stringify(allProposals)} counts=${JSON.stringify(status.proposalCounts)} refs=${JSON.stringify(projRefs)} project proposals applied=${JSON.stringify(projectRows.proposals.map((p) => [p.outcome, p.state]))} open=${JSON.stringify(projectOpen.proposals.map((p) => [p.outcome, p.reason]))}`).toEqual([String(accounts[0].id)]);
 });

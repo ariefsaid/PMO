@@ -76,7 +76,8 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   const saved = ['account_defaults', 'unit_map', 'default_warehouse_id'].map((k) => `${k}=${JSON.stringify(cfg[k] ?? null)}`).join(' ');
   const checklist = page.getByTestId('odoo-checklist');
   for (const step of ['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Sends finished', 'Vendors and clients managed in Odoo']) {
-    await expect(checklist.getByRole('listitem', { name: step })).toContainText('Done', { timeout: 30_000 }).catch((e: Error) => { throw new Error(`${step}: saved config ${saved}\n${e.message}`); });
+    // soft: a step that stays To do is reported with the saved config, and the remaining steps and the goal oracle still run
+    await expect.soft(checklist.getByRole('listitem', { name: step }), `${step}: saved config ${saved}`).toContainText('Done', { timeout: 30_000 });
   }
 
   // Goal oracle: the project is linked to the one cost account the bed holds for its code.

@@ -49,9 +49,11 @@ test('AC-ODC-014: with Odoo down the item directory shows last data and the unav
   expect(direct.state, 'a Re-check against a healthy Odoo').toBe('healthy');
   await page.waitForTimeout(61_000);
   await openOdooSection(page);
+  const answersSeen: string[] = [];
+  page.on('response', (r) => { if (r.url().endsWith('/external-set-company') && r.request().postData()?.includes('recheck')) void r.text().then((t) => answersSeen.push(`${r.status()} ${t.slice(0, 160)}`)); });
   const banner = page.getByTestId('odoo-connection-banner');
   await page.getByRole('button', { name: 'Re-check' }).waitFor({ timeout: 45_000 });
-  expect.soft(await recheck(page), 'Re-check against a healthy Odoo, through the screen').toContain('Checked just now.');
+  expect.soft(await recheck(page), `Re-check against a healthy Odoo, through the screen (function answers: ${answersSeen.join(' ; ')})`).toContain('Checked just now.');
 
   bed('down');
   const answers: string[] = [];
