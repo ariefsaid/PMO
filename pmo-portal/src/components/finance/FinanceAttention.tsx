@@ -1,4 +1,6 @@
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React from 'react';
+import { Avatar } from '@/src/components/ui/Avatar';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, StatusPill, Tooltip } from '@/src/components/ui';
@@ -6,7 +8,6 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import { currencyLines } from '@/src/lib/finance/currencyFigures';
-import { initials } from '@/src/lib/initials';
 import { invoiceGross, invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
@@ -114,7 +115,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   aria-label={t('financeHub:hub.fix.overdue.openInvoice', { defaultValue: 'Open {{client}} invoice {{number}}', client, number: invoiceNumber(invoice) ?? '—' })}
                   className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <span role="img" aria-label={avatarLabel} title={avatarLabel} className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">{initials(avatarLabel)}</span>
+                  <Avatar name={avatarLabel} size="lg" />
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{client}</span>
                     <span className="block truncate font-mono text-xs text-muted-foreground">{invoiceNumber(invoice) ?? '—'}</span>
@@ -152,7 +153,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   {item.detail.map((line, index) => <span key={`${item.key}-${index}`} className="block truncate text-xs text-muted-foreground">{line}</span>)}
                 </span>
                 {item.key === 'payables' ? (
-                  <Link to={withLayout(item.to)} className="inline-flex min-h-8 shrink-0 items-center rounded-md border border-input px-3 text-xs font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{item.action}</Link>
+                  <Link to={withLayout(item.to)} className={buttonClasses('outline', 'sm', 'shrink-0')}>{item.action}</Link>
                 ) : canAct && <Button variant="outline" size="sm" onClick={() => navigate(withLayout(item.to))}>{item.action}</Button>}
               </div>
             ))}

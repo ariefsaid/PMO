@@ -1,3 +1,4 @@
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -89,7 +90,7 @@ function Failure({ kind, place, retryAfterSeconds, onRetry, t }: {
         <span>{failureText(t, kind, place)}</span>
       </p>
       {NEEDS_CONNECTION.has(kind) && (
-        <Link to="/integrations" className="touch-target inline-flex h-8 items-center rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent">
+        <Link to="/integrations" className={buttonClasses('outline', 'sm')}>
           {t('viewer.openIntegrations', 'Open My integrations')}
         </Link>
       )}

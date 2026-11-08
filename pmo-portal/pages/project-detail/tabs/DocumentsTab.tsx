@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { isMicrosoftFolder } from './documentUtils';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -178,10 +179,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     const name = ownerId ? profileNames.get(ownerId)?.trim() : '';
     return name || (ownerId && ownerId === currentUserId ? t('projectDetail.documents.owner.you', 'You') : '');
   };
-  const ownerInitials = (label: string) => {
-    const words = label.split(/\s+/).filter(Boolean);
-    return words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase() : (words[0]?.slice(0, 2) ?? '?').toUpperCase();
-  };
   const needsAction = all.filter((doc) => ['Missing', 'Expired'].includes(String(doc.status)));
   const missingCount = needsAction.filter((doc) => String(doc.status) === 'Missing').length;
   const expiredCount = needsAction.filter((doc) => String(doc.status) === 'Expired').length;
@@ -316,9 +313,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         content={t('projectDetail.documents.tooltip.owner', 'Document author from the organization profile.')}
       >
         <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-foreground" aria-label={label}>
-          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
-            {ownerInitials(label)}
-          </span>
+          <Avatar name={label} decorative />
           <span className="truncate">{label}</span>
         </span>
       </Tooltip>

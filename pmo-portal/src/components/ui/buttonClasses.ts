@@ -9,7 +9,7 @@ import { cn } from './cn';
 // stops with the same accessible name). Output is byte-identical to <Button>.
 // -----------------------------------------------------------------------
 
-export type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive' | 'success';
+export type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive';
 export type ButtonSize = 'default' | 'sm' | 'icon';
 
 const base =
@@ -33,8 +33,6 @@ const variantClasses: Record<ButtonVariant, string> = {
   // uses the darker `-solid` L (index.css).
   destructive:
     'border-transparent bg-destructive-solid font-semibold text-destructive-foreground hover:bg-destructive-solid/90 active:bg-destructive-solid/80 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
-  success:
-    'border-transparent bg-success font-semibold text-success-foreground hover:bg-success/90 active:bg-success/80 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

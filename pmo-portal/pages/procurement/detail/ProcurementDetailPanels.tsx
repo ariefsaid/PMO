@@ -1,4 +1,4 @@
-import { initials } from '@/src/lib/initials';
+import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Icon, Tooltip } from '@/src/components/ui';
@@ -409,7 +409,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                       <span className="block text-[13.5px] font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-[12px]">{entry.number}</span> : null}</span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
                         {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                          <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-secondary text-[12px] font-semibold text-secondary-foreground">{initials(entry.actor, { fallback: '' })}</span>
+                          <Avatar name={entry.actor} size="xs" decorative fallback="" />
                           <span>{entry.actor}</span>
                         </span>}
                         {entry.facts?.map((fact) => <span key={fact}>{fact}</span>)}

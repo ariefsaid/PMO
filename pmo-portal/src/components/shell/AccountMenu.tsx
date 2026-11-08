@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Avatar } from '@/src/components/ui/Avatar';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import { UserRole } from '@/types';
-import { initials } from '@/src/lib/initials';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
@@ -139,12 +139,7 @@ export const AccountMenu: React.FC = () => {
         onClick={() => setOpen((v) => !v)}
         className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card pl-1.5 pr-2.5 hover:bg-accent"
       >
-        <span
-          aria-hidden
-          className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground"
-        >
-          {initials(currentUser?.full_name, { fallback: 'U' })}
-        </span>
+        <Avatar name={currentUser?.full_name} decorative fallback="U" />
         <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
           <span className="block max-w-full truncate text-[13px] font-semibold">{currentUser?.full_name}</span>
           <span className="text-[11px] leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
@@ -166,12 +161,7 @@ export const AccountMenu: React.FC = () => {
         >
           {/* Signed-in identity header */}
           <div className="flex items-center gap-2.5 px-2.5 py-2">
-            <span
-              aria-hidden
-              className="grid size-7 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground"
-            >
-              {initials(currentUser?.full_name)}
-            </span>
+            <Avatar name={currentUser?.full_name} size="md" decorative />
             <span className="min-w-0">
               <span className="block truncate text-[13px] font-semibold leading-tight">
                 {currentUser?.full_name}
@@ -199,7 +189,7 @@ export const AccountMenu: React.FC = () => {
           <div className="my-1 border-t border-border" />
 
           {/* Theme — explicit choices leave the popup open so the new selection is seen/announced. */}
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
             {t('shell.contextBar.themeHeading', 'Theme')}
           </div>
           <button
@@ -230,7 +220,7 @@ export const AccountMenu: React.FC = () => {
           </button>
 
           <div className="my-1 border-t border-border" />
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
             {t('profilePreferences:textSize.label', 'Text size')}
           </div>
           <div role="group" aria-label={t('profilePreferences:textSize.label', 'Text size')}>
@@ -247,7 +237,7 @@ export const AccountMenu: React.FC = () => {
           {canImpersonate && (
             <>
               <div className="my-1 border-t border-border" />
-              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
                 {t('shell.contextBar.viewAsRoleHeading', 'View as role')}
               </div>
               {effectiveRole !== realRole && (
@@ -289,7 +279,7 @@ export const AccountMenu: React.FC = () => {
           {SHOW_LEGAL_SUPPORT && (
             <>
               <div className="my-1 border-t border-border" />
-              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
                 {t('shell.contextBar.legalAndSupport', 'Legal & support')}
               </div>
               <Link

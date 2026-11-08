@@ -7,7 +7,7 @@
  * optimistic-move choreography around that single write.
  */
 import React, { useMemo, useState } from 'react';
-import { initials } from '@/src/lib/initials';
+import { Avatar } from '@/src/components/ui/Avatar';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Kanban, KanbanColumn, SelectField, StatusPill, Tooltip, Icon, type RowMenuItem } from '@/src/components/ui';
@@ -144,7 +144,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
               </div>
               <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                 {task.assignee ? <>
-                  <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials(task.assignee.full_name, { fallback: '' })}</span>
+                  <Avatar name={task.assignee.full_name} size="xs" decorative fallback="" />
                   <span className="truncate">{task.assignee.full_name}</span>
                 </> : t('projectDetail.tasks.unassigned', 'Unassigned')}
                 {task.end_date && <Tooltip content={t('projectDetail.tasks.dueTooltip', 'Due date from the task record. Late days compare the due date with today in the organization timezone.')}>

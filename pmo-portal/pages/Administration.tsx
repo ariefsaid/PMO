@@ -140,7 +140,7 @@ const AdministrationNavigation: React.FC<{
         {links([...ORGANIZATION_SECTIONS, 'cost-attribution' as const].filter((id) => sections.includes(id)))}
         {isOperator && (
           <>
-            <span className="shrink-0 px-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:ml-1 md:self-center md:px-1">
+            <span className="shrink-0 px-2 text-left text-[11px] font-semibold text-muted-foreground md:ml-1 md:self-center md:px-1">
               {t('admin.nav.platform', 'Platform')}
             </span>
             {links(OPERATOR_SECTIONS)}
