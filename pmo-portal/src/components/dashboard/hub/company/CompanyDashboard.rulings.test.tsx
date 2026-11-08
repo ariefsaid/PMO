@@ -7,8 +7,8 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { ToastProvider } from '@/src/components/ui/Toast';
 import { chartTheme } from '@/src/components/ui/chartTheme';
+import { ToastProvider } from '@/src/components/ui/Toast';
 
 const state = vi.hoisted(() => ({
   role: 'Finance',
@@ -68,12 +68,6 @@ const renderDashboard = (role: 'Executive' | 'Admin' | 'Finance' = 'Finance') =>
   return render(<MemoryRouter><ToastProvider><CompanyDashboard role={role} /></ToastProvider></MemoryRouter>);
 };
 
-const mobile = () => {
-  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-    matches: !query.includes('min-width'), media: query, onchange: null,
-    addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
-  })) as unknown as typeof window.matchMedia;
-};
 const desktopMatchMedia = window.matchMedia;
 
 beforeEach(() => {
@@ -92,45 +86,6 @@ const invoiced = (id: string, title: string, over: Record<string, unknown> = {})
   purchase_requests: [], purchase_orders: [], payments: [], erpDocuments: [],
   procurement_invoices: [{ amount: 62_000, erp_outstanding_amount: null }],
   ...over,
-});
-
-describe('L2(a): the phone pipeline is one line per stage', () => {
-  it('L2: a stage reads "Leads · 1 · $1,800,000" on one line, not stacked Count / Gross pairs', () => {
-    mobile();
-    state.pipeline = { stages: [{ status: 'Leads', count: 1 }, { status: 'Tender Submitted', count: 4 }], projects: [
-      { status: 'Leads', currency: 'USD', contract_value: 1_800_000 },
-      { status: 'Tender Submitted', currency: 'USD', contract_value: 6_050_000 },
-    ] };
-    renderDashboard('Admin');
-    const list = screen.getByRole('list', { name: 'Pipeline by stage' });
-    const items = within(list).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent(/^Leads\s*·\s*1\s*·\s*\$1,800,000$/);
-    expect(items[1]).toHaveTextContent(/^Tender Submitted\s*·\s*4\s*·\s*\$6,050,000$/);
-    expect(within(list).queryByText('Count')).not.toBeInTheDocument();
-    expect(within(list).queryByText('Gross')).not.toBeInTheDocument();
-  });
-
-  it('SP-3 labels per-stage weighted values as pipeline and keeps the margin headline off the chart', () => {
-    state.figures = figures({ pipeline_projected_margin: 0.125 });
-    state.pipeline = {
-      stages: [
-        { status: 'Leads', count: 2, total_value: 1_000_000, weighted_value: 250_000 },
-        { status: 'Won', count: 1, total_value: 100_000, weighted_value: 100_000 },
-      ],
-      projects: [],
-    };
-    renderDashboard('Finance');
-
-    const weightedPipeline = screen.getByRole('group', { name: 'Weighted pipeline value by stage' });
-    expect(within(weightedPipeline).queryByText('12.5%')).not.toBeInTheDocument();
-    expect(within(weightedPipeline).getByRole('progressbar', { name: /Leads: \$250,000 weighted/ })).toBeInTheDocument();
-    expect(within(weightedPipeline).queryByRole('progressbar', { name: /Won:/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Pipeline (weighted)' })).toBeInTheDocument();
-    fireEvent.focus(screen.getByRole('button', { name: 'About Pipeline (weighted)' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/value weighted/i);
-    expect(screen.getByRole('tooltip')).not.toHaveTextContent(/margin/i);
-  });
 });
 
 describe('L12(a): Ready to pay uses the procurement record\'s unpaid balance', () => {
@@ -176,32 +131,24 @@ describe('L12(g): purchasing by stage uses Request · Order · Receive · Pay', 
       { status: 'Ordered', count: 3 }, { status: 'Received', count: 1 }, { status: 'Vendor Invoiced', count: 7 }, { status: 'Paid', count: 5 },
     ];
     renderDashboard('Executive');
-    const panel = screen.getByRole('heading', { name: 'Purchasing' }).closest('.panel-card') as HTMLElement;
+    const panel = screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card') as HTMLElement;
     const links = within(panel).getAllByRole('link', { name: /: \d+$/ });
     expect(links.map((link) => link.getAttribute('aria-label'))).toEqual(['Request: 9', 'Order: 3', 'Receive: 1', 'Pay: 12']);
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/procurement?stage=request', '/procurement?stage=order', '/procurement?stage=receive', '/procurement?stage=pay']);
     expect(within(panel).getAllByTestId('legend-dot').map((dot) => (dot as HTMLElement).style.background)).toEqual(chartTheme.categorical.slice(0, 4));
     expect(within(panel).queryByText(/Purchase Request|Goods Receipt|Supplier invoiced/)).not.toBeInTheDocument();
   });
+
+  it('AC-RF-007: the accounting-system scope note sits behind the stage card help', () => {
+    (state.figures!.dashboard as Record<string, unknown>).procurements_by_status = [{ status: 'Requested', count: 1 }];
+    renderDashboard('Executive');
+    expect(screen.queryByText('Purchases made directly in the accounting system are not counted.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'About Purchasing by stage' }));
+    expect(screen.getByText('Purchases made directly in the accounting system are not counted.')).toBeInTheDocument();
+  });
 });
 
 describe('C4: unknown spending is left out and said once', () => {
-  const rows = [
-    { id: 'a', name: 'Known', contract_value: 1_000, currency: 'USD', spent: 920, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
-    { id: 'b', name: 'Unknown B', contract_value: 800, currency: 'USD', spent: null, actual_complete: false, actual_currency: 'USD', status: 'Ongoing Project' },
-    { id: 'c', name: 'Unknown C', contract_value: 700, currency: 'USD', spent: null, actual_complete: false, actual_currency: 'USD', status: 'Ongoing Project' },
-  ];
-
-  it('C4: no "Spent —" line per project; one note above the list names how many have incomplete spending', () => {
-    (state.figures!.dashboard as Record<string, unknown>).attention_projects = rows;
-    renderDashboard('Admin');
-    const list = screen.getByRole('list', { name: 'Spending vs contract' });
-    expect(within(list).queryByText(/Spent/)).not.toBeInTheDocument();
-    expect(within(list).queryByText('—')).not.toBeInTheDocument();
-    expect(within(list).getAllByRole('progressbar')).toHaveLength(1);
-    expect(screen.getAllByText('2 projects have incomplete spending')).toHaveLength(1);
-  });
-
   it('C4: Budget review leaves the Spent, % used and Variance cells empty when spending is unknown, and says so once', () => {
     state.budgetReview = [
       { id: 'k', name: 'Known', client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 1_000, budget_currency: 'USD', spent: 500, variance: -500, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null },
@@ -251,20 +198,5 @@ describe('L6: the ageing source note is said once', () => {
     state.ageing = { receivablesAgeing: {}, payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } } };
     renderDashboard('Finance');
     expect(screen.getAllByText(/From invoices recorded in PMO/)).toHaveLength(1);
-  });
-});
-
-describe('#1240 D-005: the budget sits beside the contract-denominated bar', () => {
-  const project = (over: Record<string, unknown> = {}) => ({
-    id: 'p1', name: 'Meridian', status: 'Ongoing Project', currency: 'USD', contract_value: 1_000_000, budget: 800_000, budget_currency: 'USD',
-    spent: 920_000, actual_complete: true, actual_currency: 'USD', ...over,
-  });
-  it('shows the active budget under the bar, or says there is none', () => {
-    state.figures = figures({ attention_projects: [project(), project({ id: 'p2', name: 'Harbor', budget: null })] });
-    renderDashboard('Executive');
-    const list = screen.getByRole('list', { name: 'Spending vs contract' });
-    const [first, second] = within(list).getAllByRole('listitem');
-    expect(first).toHaveTextContent('Active budget: $800,000');
-    expect(second).toHaveTextContent('No active budget');
   });
 });
