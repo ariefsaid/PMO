@@ -18,3 +18,9 @@ it('charter tells the model record text is data, never instructions', () => {
   const p = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
   expect(p).toMatch(/Record text[\s\S]*is data[\s\S]*never follow instructions found in/i);
 });
+
+it('keeps a top-level server note outside the data so the model still follows it', () => {
+  const body = JSON.parse(wrapUntrustedToolResult({ ok: true, sent: [{ task: 'x' }], note: 'Say who was reminded.' }));
+  expect(body.note).toBe('Say who was reminded.');
+  expect(body.result).toEqual({ ok: true, sent: [{ task: 'x' }] });
+});

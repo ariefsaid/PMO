@@ -507,7 +507,7 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
             prepared = { ok: false, error: { error: 'The request could not be prepared right now.' } };
           }
           if (prepared.ok === false) {
-            messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(prepared.error) });
+            messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: wrapUntrustedToolResult(prepared.error) });
             continue;
           }
           proposalArgs = prepared.value;
@@ -606,7 +606,7 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
           role: 'tool',
           tool_call_id: toolId,
           name: toolName,
-          content: JSON.stringify(toolResult),
+          content: wrapUntrustedToolResult(toolResult),
         });
         continue;
       }

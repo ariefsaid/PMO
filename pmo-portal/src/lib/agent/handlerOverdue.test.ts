@@ -48,7 +48,7 @@ describe('whats_overdue through the handler (#787)', () => {
     const envelope = JSON.parse(toolMsg.content);
     expect(envelope.untrusted_record_data).toBe(true);
     const body = envelope.result;
-    expect(body.note).toMatch(/query_entity counts cover all tasks the user can see.*panel's own\/managed scope/i);
+    expect(envelope.note).toMatch(/query_entity counts cover all tasks the user can see.*panel's own\/managed scope/i);
     expect(body).toMatchObject({
       ok: true, overdueTasks: 1, overdueInvoices: 1,
       tasks: [{ name: 'Pour foundation', projectId: P1, projectName: 'Harbor Tower', assigneeName: 'Budi', dueDate: '2026-10-02', daysOverdue: 4 }],
