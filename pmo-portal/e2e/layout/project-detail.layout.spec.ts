@@ -264,17 +264,18 @@ async function tasksArrivalJourney(page: Page, viewport: { width: number; height
     await panel.getByRole('region', { name: 'Phase timeline', exact: true }).getByRole('button', { name: 'Done', exact: true }).click();
     await expect(panel.getByRole('region', { name: 'Phase timeline', exact: true }).getByRole('button', { name: 'Update phases', exact: true })).toBeVisible();
     if (viewport.width === 390) {
-      // #1402 recomposition: More actions is the current closed menu containing the Project details doorway.
-      const moreActions = page.locator('summary[aria-label="More actions"]');
-      const actionsMenu = moreActions.locator('..');
-      await expect(moreActions).toBeVisible();
-      await expect(actionsMenu).not.toHaveAttribute('open', '');
-      await moreActions.focus();
+      // #2057: Project details is the header's own popover (Base UI): closed at rest, opens from the
+      // keyboard, Escape closes it and returns focus to its trigger.
+      const projectDetails = page.getByRole('button', { name: 'Project details', exact: true });
+      await expect(projectDetails).toBeVisible();
+      await expect(projectDetails).toHaveAttribute('aria-expanded', 'false');
+      await projectDetails.focus();
       await page.keyboard.press('Enter');
-      await expect(actionsMenu).toHaveAttribute('open', '');
-      await expect(actionsMenu.getByRole('button', { name: 'Project details', exact: true })).toHaveAttribute('aria-expanded', 'false');
-      await page.keyboard.press('Enter');
-      await expect(actionsMenu).not.toHaveAttribute('open', '');
+      await expect(projectDetails).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByTestId('project-detail-rail')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(projectDetails).toHaveAttribute('aria-expanded', 'false');
+      await expect(projectDetails).toBeFocused();
     }
     // #1402 recomposition: the old overdue-phase doorway is now Open timeline in Phase timeline.
     const openTimeline = phaseTimeline.getByRole('link', { name: 'Open timeline', exact: true });
