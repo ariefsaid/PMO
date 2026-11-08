@@ -8,6 +8,7 @@ create extension if not exists dblink;
 select dblink_connect('cap_lock', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(), 5432)));
 select dblink_exec('cap_lock', $sql$
   delete from purchase_requests where procurement_id='20390000-0000-0000-0000-000000000003';
+  delete from procurement_doc_counters where org_id='20390000-0000-0000-0000-000000000001';
   delete from procurements where org_id='20390000-0000-0000-0000-000000000001';
   delete from profiles where org_id='20390000-0000-0000-0000-000000000001';
   delete from organizations where id='20390000-0000-0000-0000-000000000001';
@@ -40,6 +41,7 @@ select is((select count(*) from purchase_requests where procurement_id='20390000
 
 select dblink_exec('cap_lock', $sql$
   delete from purchase_requests where procurement_id='20390000-0000-0000-0000-000000000003';
+  delete from procurement_doc_counters where org_id='20390000-0000-0000-0000-000000000001';
   delete from procurements where org_id='20390000-0000-0000-0000-000000000001';
   delete from profiles where org_id='20390000-0000-0000-0000-000000000001';
   delete from organizations where id='20390000-0000-0000-0000-000000000001';
