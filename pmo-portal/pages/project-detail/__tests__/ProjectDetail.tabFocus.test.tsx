@@ -15,6 +15,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -209,15 +210,15 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
     const tasksTab = screen.getByRole('tab', { name: 'Tasks' });
     tasksTab.focus();
 
-    fireEvent.keyDown(tasksTab, { key: 'Home' });
+    await userEvent.keyboard('{Home}');
     const overviewTab = screen.getByRole('tab', { name: 'Overview' });
-    expect(overviewTab).toHaveFocus();
+    await waitFor(() => expect(overviewTab).toHaveFocus());
     expect(tablist()).toContainElement(activeEl());
     expect(main()).not.toHaveFocus();
 
-    fireEvent.keyDown(overviewTab, { key: 'End' });
+    await userEvent.keyboard('{End}');
     const documentsTab = screen.getByRole('tab', { name: 'Documents' });
-    expect(documentsTab).toHaveFocus();
+    await waitFor(() => expect(documentsTab).toHaveFocus());
     expect(tablist()).toContainElement(activeEl());
     await waitFor(() => expect(documentsTab).toHaveAttribute('aria-selected', 'true'));
     expect(main()).not.toHaveFocus();

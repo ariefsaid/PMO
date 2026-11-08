@@ -50,7 +50,7 @@ export const ApprovalChip: React.FC<ApprovalChipProps> = ({
     >
       {/* Item 6 (Discover finding): labeled header — DESIGN.md overline voice,
           mirrors QuestionChips' "Answer needed" header for the pending family. */}
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
         Decision required
       </p>
       {/* Summary line */}

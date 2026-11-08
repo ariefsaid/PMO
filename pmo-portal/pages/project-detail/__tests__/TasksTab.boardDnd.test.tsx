@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -157,5 +158,23 @@ describe('TasksTab board drag', () => {
     await act(async () => { finishRefetch(); });
     await waitFor(() => expect(document.querySelector('[data-drag-state]')).toBeNull());
     expect(cardIn('In Progress')).toBeInTheDocument();
+  });
+
+  it('AC-DND-016: a card has no status dropdown; "Move to" in its menu is the keyboard path to the same write', async () => {
+    renderBoard('Project Manager', 'pm-1');
+    await waitFor(() => expect(cardIn('To Do')).toBeInTheDocument());
+    expect(screen.queryByRole('combobox', { name: /Status for/ })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Move to To Do' })).toBeNull();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move to Done' }));
+    await waitFor(() => expect(taskRepo.updateStatus).toHaveBeenCalledWith('t1', 'Done', 'p1'));
+  });
+
+  it('AC-DND-016: an Engineer who may not move a task gets no "Move to" in its menu', async () => {
+    renderBoard('Engineer', 'eng-2');
+    await waitFor(() => expect(cardIn('To Do')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Comments' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Move to/ })).toBeNull();
   });
 });
