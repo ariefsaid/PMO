@@ -6,7 +6,8 @@
  */
 import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
-import { readWm, type LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
+import type { LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
+import { readWm } from './watermark.ts';
 
 export type PurchaseDoctype = 'Purchase Order' | 'Purchase Receipt' | 'Purchase Invoice' | 'Payment Entry';
 export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry'];
