@@ -14,7 +14,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDateTime, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { MeetingWithRefs } from '@/src/lib/db/meetings';
-import type { ProjectWithRefs } from '@/src/lib/repositories';
+import type { ProjectPickerOption } from '@/src/lib/db/projects';
 
 interface HeaderDraft {
   title: string;
@@ -25,7 +25,7 @@ interface HeaderDraft {
 
 interface MeetingHeaderProps {
   meeting: MeetingWithRefs;
-  projects: ProjectWithRefs[];
+  projects: ProjectPickerOption[];
   canEdit: boolean;
   canArchive: boolean;
   canDelete: boolean;

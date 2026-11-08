@@ -110,7 +110,7 @@ Executor: Director-dispatched, money read. Independent of S5.
 | Task | Do | Verify |
 |---|---|---|
 | S4-T1 | pgTAP red `supabase/tests/odoo_project_actuals.test.sql` AC-ODA-007 (mapped sums per category, unmapped amount separate and in no category, through `project_mapped_actuals` and `get_project_finances` on Odoo-fed rows) and `supabase/tests/odoo_ledger_health.test.sql` AC-ODA-008/009/010: record-check RPC stores matches/differs/not-checked and keeps the last good result when a later check is "not checked"; `get_odoo_ledger_health(p_project_id uuid default null)` returns as-of, caught-up, state (fresh/stale/catching-up/unavailable at 30 min), last census, check result, and unmapped / unattributed / unlinked counts and amounts for the org or the project | red |
-| S4-T2 | `0745_odoo_ledger_health.sql`: table `odoo_ledger_checks` (org_id default + `stamp_org_id` trigger, RLS Admin/Finance/Executive select, service-role insert), `record_odoo_ledger_check(p_org_id, p_cutoff, p_accounts jsonb, p_status text, p_reason text)` service-only, `get_odoo_ledger_health` invoker, active member + role check inside, `can`-matching roles (FR-ODA-061/062) | green |
+| S4-T2 | `0764_odoo_ledger_health.sql`: table `odoo_ledger_checks` (org_id default + `stamp_org_id` trigger, RLS Admin/Finance/Executive select, service-role insert), `record_odoo_ledger_check(p_org_id, p_cutoff, p_accounts jsonb, p_status text, p_reason text)` service-only, `get_odoo_ledger_health` invoker, active member + role check inside, `can`-matching roles (FR-ODA-061/062) | green |
 | S4-T3 | Line list for a category (FR-ODA-051): `get_odoo_ledger_lines(p_project_id, p_category, p_after text, p_limit int)` keyset on `id`, `p_limit` clamped to 200 (below `max_rows`), Project Manager/Engineer refused detail, totals-only for them via health; pgTAP AC-ODA-015 slice (roles, inactive, anon, foreign org → not found) in `supabase/tests/odoo_ledger_privacy.test.sql` | green |
 | S4-T4 | Sweep: after a caught-up tick and ≥1 h since the last check, run the grouped read (S0's verified form) at cut-off = cursor − overlap, `compareTotals`, call `record_odoo_ledger_check`. A failure records "not checked" and never fails the tick. Deno test in `_shared/odooLedgerFeed.test.ts` | green |
 | S4-T5 | `rollback/0745_…_down.sql`; denominator entries (table + 3 functions); 0137 grants on the new table for service_role; 0136 inventory if the table mirrors an external object (it does not: it is PMO-written check output, record that in the migration header). **Mutation:** report "matches" when the check errored → AC-ODA-008 red | G-DB, G-DENO |
@@ -173,7 +173,7 @@ Executor: Orca worker, qa-acceptance role. Bed-gated tests gate on the dependenc
 | No. | File | Slice |
 |---|---|---|
 | 0744 | `0744_odoo_ledger_feed.sql` + rollback | S2 |
-| 0745 | `0745_odoo_ledger_health.sql` + rollback | S4 |
+| 0745 | `0764_odoo_ledger_health.sql` + rollback | S4 |
 | 0746 | `0746_odoo_statements.sql` + rollback | S5 |
 | 0747 | `0747_odoo_ledger_basis.sql` + rollback | S6 |
 | 0748–0749 | reserved for a gap found by S2-T1/S6-T5 (`create or replace` only; denominator + rollback each) | any |

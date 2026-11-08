@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useToast, type TimesheetGridRow } from '@/src/components/ui';
 import type { TimesheetWithEntries, TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
-import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { ProjectPickerOption } from '@/src/lib/db/projects';
 import type { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import type { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -22,7 +22,7 @@ type Props = {
   weekDates: Date[];
   weekStartDate: Date;
   weekStartString: string;
-  allProjects: ProjectWithRefs[] | undefined;
+  allProjects: ProjectPickerOption[] | undefined;
   signedInUserId: string | undefined;
   currentDate: Date;
   setCurrentDate: React.Dispatch<React.SetStateAction<Date>>;

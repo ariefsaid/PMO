@@ -11,7 +11,7 @@ import {
   expenseClaimsAwaitingKey,
   externalDomainOwnershipKey,
   nativeDraftInvoicesKey,
-  procurementsKey,
+  requestedProcurementsKey,
 } from '@/src/hooks/approvalsQueryKeys';
 
 /**
@@ -46,7 +46,7 @@ export const ApprovalsNavCount: React.FC = () => {
   const includeInvoices = canApproveInvoices && invoiceMode !== 'external';
 
   const queueKeys = useMemo(() => [
-    ...(canApproveProcurement ? [procurementsKey(orgId), expenseClaimsAwaitingKey(orgId)] : []),
+    ...(canApproveProcurement ? [requestedProcurementsKey(orgId), expenseClaimsAwaitingKey(orgId)] : []),
     ...(canApproveTimesheets ? [awaitingApprovalKey(orgId, userId, role)] : []),
     ...(includeInvoices ? [nativeDraftInvoicesKey(orgId)] : []),
   ], [canApproveProcurement, canApproveTimesheets, includeInvoices, orgId, role, userId]);

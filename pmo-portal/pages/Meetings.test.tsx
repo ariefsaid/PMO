@@ -62,7 +62,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
+  useProjectPickerOptions: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({

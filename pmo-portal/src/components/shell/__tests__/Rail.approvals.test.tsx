@@ -64,7 +64,7 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   queryClient.setQueryDefaults(['timesheets-awaiting'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryDefaults(['timesheets-reopenable-approved'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryData(['external-domain-ownership', 'synthetic-org'], []);
-  queryClient.setQueryData(['procurements', 'synthetic-org'], approvalsData.procurements);
+  queryClient.setQueryData(['procurements', 'synthetic-org', 'requested'], approvalsData.procurements);
   queryClient.setQueryData(['expense-claims-awaiting', 'synthetic-org'], approvalsData.expenses);
   queryClient.setQueryData(awaitingApprovalKey('synthetic-org', userId, roleState.activeRole as AuthContextValue['role']), pendingRows);
   queryClient.setQueryData(['timesheets-reopenable-approved', 'synthetic-org', userId, roleState.activeRole], correctionRows);

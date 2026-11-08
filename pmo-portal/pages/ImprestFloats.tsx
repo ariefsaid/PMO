@@ -7,7 +7,7 @@ import {
 } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useImprestFloats, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
 import { LIST_LIMIT, type ImprestFloatRow } from '@/src/lib/db/imprest';
 import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
@@ -56,7 +56,7 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const { toast } = useToast();
   const navigate = useNavigate();
   const establish = useEstablishFloat();
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjectPickerOptions();
   const { data: users } = useUsers();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm({

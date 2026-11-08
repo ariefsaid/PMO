@@ -89,7 +89,7 @@ vi.mock('@/src/hooks/useTimesheetEntries', () => ({
 
 const projectsState: { data: unknown[] | undefined; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> } = { data: [], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => projectsState,
+  useProjectPickerOptions: () => projectsState,
 }));
 
 // These journeys are a PM entering / viewing their own week + the approvals queue; render

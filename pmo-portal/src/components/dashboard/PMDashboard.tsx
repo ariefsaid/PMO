@@ -48,7 +48,7 @@ export const PMDashboard: React.FC = () => {
   const projectsQuery = usePMDashboardProjects();
   const deliveryQuery = useProjectsDelivery((projectsQuery.data ?? []).map((project) => project.id));
   const timesheetsQuery = useTimesheetsAwaitingApproval();
-  const procurementsQuery = useProcurements();
+  const procurementsQuery = useProcurements({ status: 'Requested' });
   const needs = useNeedsYou('Project Manager');
   const orgCurrency = useOrgCurrency();
 
