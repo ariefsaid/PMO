@@ -22,11 +22,4 @@ export function useErpOrphans(projectId?: string, opts?: { enabled?: boolean }) 
   });
 }
 
-export function useHasErpPurchases(opts?: { enabled?: boolean }) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['erp-purchases-any', orgId],
-    queryFn: () => repositories.erpPurchases.hasAny(),
-    enabled: Boolean(orgId) && opts?.enabled !== false,
-  });
-}
+

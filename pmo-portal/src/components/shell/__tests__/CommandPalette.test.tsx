@@ -410,6 +410,41 @@ describe('CommandPalette', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('#1164: a project appearing both as pipeline and project shows once', async () => {
+    setReferenceResult({
+      data: referencePage({
+        kind: 'project',
+        id: 'proj-omega',
+        title: 'Omega Expansion Project',
+        context: null,
+        reference: 'PROJ-OMEGA',
+        aliases: ['PROJ-OMEGA'],
+        exact: true,
+      }),
+    });
+    const cachedRun = vi.fn();
+    const cachedPipeline: PaletteItem = {
+      id: 'sales:proj-omega',
+      group: 'Records',
+      title: 'Omega Expansion Project',
+      sub: 'Project · Pipeline',
+      searchCodes: ['PROJ-OMEGA'],
+      icon: 'pipeline',
+      run: cachedRun,
+    };
+    render(<CommandPalette open items={[cachedPipeline, ...items]} onClose={vi.fn()} />);
+
+    await userEvent.type(screen.getByRole('combobox'), 'PROJ-OMEGA');
+    await screen.findByRole('option', { name: /Omega Expansion Project/ });
+
+    const rows = screen
+      .getAllByRole('option')
+      .filter((row) => row.textContent?.includes('Omega Expansion Project'));
+    // A project appearing both as pipeline and project shows once in the user-visible options.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent('Project · Pipeline');
+  });
+
   it('AC-S40-004: wraps long reference labels at word boundaries so identifiers stay readable', async () => {
     setReferenceResult({
       data: referencePage({

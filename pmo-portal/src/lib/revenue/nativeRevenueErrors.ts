@@ -41,6 +41,9 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'allocation-already-reversed': t('finance:receipts.refusal.allocationAlreadyReversed', 'This part of the payment was already taken off the invoice.'),
     'receipt-not-applicable': t('finance:receipts.refusal.receiptNotApplicable', 'This payment can no longer be applied. It may have been cancelled.'),
     'request-id-reused': t('finance:receipts.refusal.requestIdReused', 'This request was already used for a different payment. Close this window and start again.'),
+    'claim-already-invoiced': t('project:projectDetail.billing.claims.errors.alreadyInvoiced', "This claim already has an invoice."),
+    'no-client': t('project:projectDetail.billing.claims.errors.noClient', "This project has no client to invoice. Set the client on the project first."),
+    'claim-total-mismatch': t('project:projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
   };
 }
 

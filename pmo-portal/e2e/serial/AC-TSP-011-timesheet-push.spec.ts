@@ -38,6 +38,7 @@ import {
   seedTimesheet,
   seedTsp,
 } from './_tspHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 /** The queue's own week label (`pages/Approvals.tsx` weekLabel) — the text the manager actually reads. */
 function weekUiLabel(weekStart: string): string {
@@ -131,6 +132,7 @@ async function setFixtureRate(): Promise<() => Promise<void>> {
     employee: ERP_EMPLOYEE, activity_type: ERP_ACTIVITY_TYPE, costing_rate: 100, billing_rate: 0,
   });
   return async () => {
+    assertLocalBenchUrl(BENCH_URL);
     const response = await fetch(`${BENCH_URL}/api/resource/Activity%20Cost/${encodeURIComponent(created.name)}`, {
       method: 'DELETE', headers: { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}` },
     });

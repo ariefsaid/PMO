@@ -42,7 +42,6 @@ vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => (
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isError: false, refetch: vi.fn() }),
   useErpOrphans: () => ({ data: [], isError: false, refetch: vi.fn() }),
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'proj-1', currency: 'USD' } }) }));

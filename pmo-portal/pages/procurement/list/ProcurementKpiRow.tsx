@@ -15,8 +15,12 @@ interface ProcurementKpiRowProps {
  * Company-wide money above the shared procurement list: what is owed, what is ordered.
  * O7: the scope tabs own the "Needs you" and "Not in a procurement" counts and carry their money in the tab
  * label, so only the figures no tab owns are tiles here.
+ *
+ * Memoised on (rows, role): the page re-renders once per query settle and on every tab/search change, and
+ * this row totals every procurement — none of which changes unless the rows or the viewer do. It reads
+ * its own translations, so a language switch still re-renders it.
  */
-export const ProcurementKpiRow: React.FC<ProcurementKpiRowProps> = ({ rows, role }) => {
+export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, role }: ProcurementKpiRowProps) {
   const { t } = useTranslation('procurementList');
   const engineer = role === 'Engineer';
   const unpaidRows = rows.filter((row) => row.status === 'Vendor Invoiced');
@@ -60,4 +64,4 @@ export const ProcurementKpiRow: React.FC<ProcurementKpiRowProps> = ({ rows, role
       </div>
     </section>
   );
-};
+});

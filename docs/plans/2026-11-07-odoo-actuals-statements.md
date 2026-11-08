@@ -110,7 +110,7 @@ Executor: Director-dispatched, money read. Independent of S5.
 | Task | Do | Verify |
 |---|---|---|
 | S4-T1 | pgTAP red `supabase/tests/odoo_project_actuals.test.sql` AC-ODA-007 (mapped sums per category, unmapped amount separate and in no category, through `project_mapped_actuals` and `get_project_finances` on Odoo-fed rows) and `supabase/tests/odoo_ledger_health.test.sql` AC-ODA-008/009/010: record-check RPC stores matches/differs/not-checked and keeps the last good result when a later check is "not checked"; `get_odoo_ledger_health(p_project_id uuid default null)` returns as-of, caught-up, state (fresh/stale/catching-up/unavailable at 30 min), last census, check result, and unmapped / unattributed / unlinked counts and amounts for the org or the project | red |
-| S4-T2 | `0745_odoo_ledger_health.sql`: table `odoo_ledger_checks` (org_id default + `stamp_org_id` trigger, RLS Admin/Finance/Executive select, service-role insert), `record_odoo_ledger_check(p_org_id, p_cutoff, p_accounts jsonb, p_status text, p_reason text)` service-only, `get_odoo_ledger_health` invoker, active member + role check inside, `can`-matching roles (FR-ODA-061/062) | green |
+| S4-T2 | `0764_odoo_ledger_health.sql`: table `odoo_ledger_checks` (org_id default + `stamp_org_id` trigger, RLS Admin/Finance/Executive select, service-role insert), `record_odoo_ledger_check(p_org_id, p_cutoff, p_accounts jsonb, p_status text, p_reason text)` service-only, `get_odoo_ledger_health` invoker, active member + role check inside, `can`-matching roles (FR-ODA-061/062) | green |
 | S4-T3 | Line list for a category (FR-ODA-051): `get_odoo_ledger_lines(p_project_id, p_category, p_after text, p_limit int)` keyset on `id`, `p_limit` clamped to 200 (below `max_rows`), Project Manager/Engineer refused detail, totals-only for them via health; pgTAP AC-ODA-015 slice (roles, inactive, anon, foreign org → not found) in `supabase/tests/odoo_ledger_privacy.test.sql` | green |
 | S4-T4 | Sweep: after a caught-up tick and ≥1 h since the last check, run the grouped read (S0's verified form) at cut-off = cursor − overlap, `compareTotals`, call `record_odoo_ledger_check`. A failure records "not checked" and never fails the tick. Deno test in `_shared/odooLedgerFeed.test.ts` | green |
 | S4-T5 | `rollback/0745_…_down.sql`; denominator entries (table + 3 functions); 0137 grants on the new table for service_role; 0136 inventory if the table mirrors an external object (it does not: it is PMO-written check output, record that in the migration header). **Mutation:** report "matches" when the check errored → AC-ODA-008 red | G-DB, G-DENO |
@@ -136,7 +136,7 @@ Executor: Director-dispatched, money + auth. This changes every money screen of 
 | Task | Do | Verify |
 |---|---|---|
 | S6-T1 | pgTAP red `supabase/tests/odoo_ledger_basis.test.sql` AC-ODA-016: `switch_odoo_ledger_basis(p_confirm_difference boolean default false)` refuses non-Admin, refuses when not caught up, refuses on a "differs"/"not checked" latest check unless `p_confirm_difference` (Admin only, audited), succeeds when matching; writes `config.ledger_basis_at` and an audit event; second call is a no-op; a foreign org is not found | red |
-| S6-T2 | `0747_odoo_ledger_basis.sql`: the RPC (`security definer`, role check from the real JWT role inside) and `create or replace org_reads_erp_ledger()` = active ERPNext binding **or** active Odoo binding with `config.ledger_basis_at` set. Body re-read at head before replacing; all other callers unchanged | green |
+| S6-T2 | `0765_odoo_ledger_basis.sql`: the RPC (`security definer`, role check from the real JWT role inside) and `create or replace org_reads_erp_ledger()` = active ERPNext binding **or** active Odoo binding with `config.ledger_basis_at` set. Body re-read at head before replacing; all other callers unchanged | green |
 | S6-T3 | Count-once regression: with the switch on, an Odoo org's project `actuals` come only from the snapshot and `committed` uses `procurement_ledger_held` as for ERPNext (AC-JEC-004 semantics); with it off, nothing changes. Extend an existing count-once pgTAP file (grep `procurement_ledger_held` in `supabase/tests`) with an Odoo-bound org | green |
 | S6-T4 | AC-ODA-020: `erp_journal_cost_lines` project map from `external_project_bindings` for tier `odoo` (instead of the ERPNext config map) and `voucher_type in ('Journal Entry','account.move')`; `erp_url` branch for Odoo (`<site>/odoo/action-account.action_move_journal_line/<id>` shape verified in S0; plain text when unknown); PMO-posted bills/invoices excluded via their mirror link, not listed as strays. Extend `supabase/tests/erp_journal_cost_lines*.test.sql` | green |
 | S6-T5 | Inventory follow-through (S2-T1 table): every `'erpnext'`-hard-wired function that an Odoo org reaches and that S5 does not replace is either widened here or recorded as ERPNext-only with a test that an Odoo org gets "not in use", never a wrong number | list in PR body; pgTAP |
@@ -173,9 +173,9 @@ Executor: Orca worker, qa-acceptance role. Bed-gated tests gate on the dependenc
 | No. | File | Slice |
 |---|---|---|
 | 0744 | `0744_odoo_ledger_feed.sql` + rollback | S2 |
-| 0745 | `0745_odoo_ledger_health.sql` + rollback | S4 |
+| 0745 | `0764_odoo_ledger_health.sql` + rollback | S4 |
 | 0746 | `0746_odoo_statements.sql` + rollback | S5 |
-| 0747 | `0747_odoo_ledger_basis.sql` + rollback | S6 |
+| 0747 | `0765_odoo_ledger_basis.sql` + rollback | S6 |
 | 0748–0749 | reserved for a gap found by S2-T1/S6-T5 (`create or replace` only; denominator + rollback each) | any |
 
 If S4 and S5 run in parallel, they hold 0745 and 0746 fixed as above; a collision uses `scripts/renumber-migration.sh <old> <new>`.
