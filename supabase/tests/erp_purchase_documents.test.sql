@@ -148,7 +148,10 @@ select ok(
                        -- recorded-by-PMO rule reads the flag. Neither feeds actuals (the page apply's linked-row update writes the mirror tables, not this one).
                        'apply_odoo_purchase_page','mark_odoo_purchase_census_seen','finish_odoo_purchase_census','erp_document_recorded_by_pmo',
                        -- AMENDED BY 0651: the set-based form of procurement_ledger_held (same guards, per id) — a commitment reader.
-                       'procurement_ledger_held_many'))
+                       'procurement_ledger_held_many',
+                       -- AMENDED BY 0765 (#1507 S6): the journal list EXCLUDES a move mirrored as a document, and the link column
+                       -- reads nothing from it. Neither feeds actuals (erp_journal_cost_lines feeds the commitment via procurement_ledger_held, listed above).
+                       'erp_journal_cost_lines','project_erp_journal_lines'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

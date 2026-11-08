@@ -29,6 +29,7 @@ const DOMAIN = 'ledger:odoo';
 const LINKS_DOMAIN = 'ledger-links:odoo';
 // Whether the last finished pass left the feed caught up; its updated_at is that pass's time, so a quiet Odoo still reads fresh (get_odoo_ledger_health).
 const CAUGHT_UP_DOMAIN = 'ledger-caught-up:odoo';
+const PUBLISHED_DOMAIN = 'ledger-published:odoo';
 // The reconciliation against Odoo's grouped totals runs at most hourly (S4-T4); a result keeps its 50 largest-account differences.
 const CHECK_EVERY_MS = 3_600_000;
 const MAX_DIFFERENCES = 50;
@@ -57,10 +58,25 @@ export async function ledgerFeedEmployed(sc: SupabaseClient, orgId: string): Pro
 }
 
 /** The Admin's explicit switch to ledger basis (S6 writes `config.ledger_basis_at`). Until then the feed fills the mirror and publishes nothing. */
-async function ledgerBasisSwitched(sc: SupabaseClient, orgId: string): Promise<boolean> {
+async function ledgerBasisSwitchedAt(sc: SupabaseClient, orgId: string): Promise<string | null> {
   const { data, error } = await sc.from('external_org_bindings').select('config').eq('org_id', orgId).eq('external_tier', 'odoo').maybeSingle();
   if (error) throw new Error('could not read the Odoo binding for the ledger feed');
-  return !!(data as { config?: { ledger_basis_at?: string | null } } | null)?.config?.ledger_basis_at;
+  return (data as { config?: { ledger_basis_at?: string | null } } | null)?.config?.ledger_basis_at || null;
+}
+
+/** When the actuals snapshot was last published for the ledger basis (a marker, so an empty snapshot still counts as published). */
+async function publishedAt(sc: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data, error } = await sc.from('external_sync_watermarks').select('updated_at')
+    .eq('org_id', orgId).eq('external_tier', 'odoo').eq('domain', PUBLISHED_DOMAIN).maybeSingle();
+  if (error) throw new Error('could not read the Odoo ledger publish marker');
+  return (data as { updated_at?: string } | null)?.updated_at ?? null;
+}
+
+async function firstPublishDue(sc: SupabaseClient, orgId: string): Promise<boolean> {
+  const at = await ledgerBasisSwitchedAt(sc, orgId);
+  if (!at) return false;
+  const done = await publishedAt(sc, orgId);
+  return !done || Date.parse(done) < Date.parse(at);
 }
 
 async function readCursor(sc: SupabaseClient, orgId: string, domain = DOMAIN): Promise<string> {
@@ -260,7 +276,15 @@ export async function runLedgerPass(
     if (check) result.check = check;
   }
 
-  // Publish only for an org an Admin has switched to Odoo's ledger, and only when a page changed or removed a row (the RPC counts those).
-  if ((changed > 0 || deleted > 0) && await ledgerBasisSwitched(sc, orgId)) await refreshActuals(sc as never, orgId, { projectMap });
+  // Publish only for an org an Admin has switched to Odoo's ledger: when a page changed or removed a row (the RPC counts those), and once
+  // on the first pass after the switch, so a caught-up, quiet ledger does not leave the money screens on an empty snapshot.
+  if (changed > 0 || deleted > 0 || await firstPublishDue(sc, orgId)) {
+    if (await ledgerBasisSwitchedAt(sc, orgId)) {
+      await refreshActuals(sc as never, orgId, { projectMap });
+      const marker = await sc.from('external_sync_watermarks').upsert(
+        { org_id: orgId, external_tier: 'odoo', domain: PUBLISHED_DOMAIN, watermark_cursor: 'published', updated_at: now.toISOString() }, { onConflict: 'org_id,external_tier,domain' });
+      if (marker.error) console.error('could not save the Odoo ledger publish marker');
+    }
+  }
   return result;
 }
