@@ -26,6 +26,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue, SARSeed } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -168,6 +169,7 @@ test.describe('AC-SAR-042: SI cancel + amend through the real served adapter-dis
 
       // ERP-side proof (optional): the SI is docstatus 2.
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(siName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });
@@ -261,6 +263,7 @@ test.describe('AC-SAR-042: SI cancel + amend through the real served adapter-dis
       // SI — a DIFFERENT approver submits it. Asserting docstatus 0 here is what keeps that
       // guarantee honest at the real ERP boundary.
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(newName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });

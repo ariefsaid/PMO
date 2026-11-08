@@ -25,6 +25,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -203,6 +204,7 @@ test.describe('AC-ENA-013: PI after-commit-before-mirror fault-seam interruption
       // idempotency key — the live proof that the PI remarks-anchor survives validate+submit+refetch
       // and the recovery probe's filter would find it (R3). ──
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Purchase%20Invoice/${encodeURIComponent(piName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });

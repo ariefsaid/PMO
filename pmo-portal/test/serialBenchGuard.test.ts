@@ -12,6 +12,8 @@
  * Lives in `test/` (like `e2eSignIn.test.ts`) because the vitest projects exclude `e2e/**`; the
  * guard module itself sits beside the helpers it protects, in `e2e/serial/`.
  */
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { assertLocalBenchUrl, isLocalBenchHost, remoteErpAllowed } from '../e2e/serial/_benchGuard';
@@ -213,5 +215,23 @@ describe('_benchGuard — opt-in cleanup deletes the ERP Projects the run create
       projectId: 'p', erpProject: 'PROJ-EXP', employee: 'HR-EMP-00001', employeeRowId: 'e', previousBinding: null,
     }, []);
     expect(deleteCalls(fetchMock)).toEqual(['http://localhost:8080/api/resource/Project/PROJ-EXP']);
+  });
+});
+
+describe('_benchGuard — every serial spec that dials the bench directly is guarded (#2036)', () => {
+  /** A spec dials the bench DIRECTLY when it interpolates its bench-URL constant into a fetch (its own
+   *  wrapper or an inline fetch) or hands it to a lib client (`baseUrl:` — refreshAging). Specs that only
+   *  borrow the GUARDED helpers (`benchGet`/`benchPost` from _tspHelpers/_budHelpers) need no guard line
+   *  of their own and never match, so this sweep stays exactly as wide as the raw-call surface. */
+  const DIRECT_BENCH_CALL = /\$\{\s*(?:ERPNEXT_BENCH_URL|BENCH_URL)\s*\}|\bbaseUrl:\s*(?:ERPNEXT_BENCH_URL|BENCH_URL)\b/;
+
+  it('every AC-* spec that fetches the bench itself mentions the guard, so no raw bench call can return', () => {
+    const serialDir = resolve(__dirname, '../e2e/serial');
+    const offenders: string[] = [];
+    for (const name of readdirSync(serialDir).filter((f) => /^AC-.*\.spec\.ts$/.test(f)).sort()) {
+      const source = readFileSync(resolve(serialDir, name), 'utf8');
+      if (DIRECT_BENCH_CALL.test(source) && !source.includes('assertLocalBenchUrl')) offenders.push(name);
+    }
+    expect(offenders, `${offenders.length} serial spec(s) fetch the bench directly without running the URL through assertLocalBenchUrl first (re-use the guarded _tspHelpers/_budHelpers fns, or call assertLocalBenchUrl before the first bench request): ${offenders.join(', ')}`).toEqual([]);
   });
 });
