@@ -96,7 +96,7 @@ describe('AnalyticsOptOutToggle', () => {
     render(<AnalyticsOptOutToggle />);
     const box = screen.getByRole('checkbox');
     expect(box).toBeChecked();
-    expect(box).toHaveAttribute('aria-disabled', 'true');
+    expect(box).toBeDisabled();
     expect(screen.getByText(/do not track/i)).toBeInTheDocument();
     await userEvent.click(box);
     expect(analytics.analyticsOptOut).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe('AnalyticsOptOutToggle', () => {
     render(<AnalyticsOptOutToggle />);
     const box = screen.getByRole('checkbox');
     expect(box).toBeChecked();
-    expect(box).toHaveAttribute('aria-disabled', 'true');
+    expect(box).toBeDisabled();
     expect(screen.getByText(/isn't enabled/i)).toBeInTheDocument();
     await userEvent.click(box);
     expect(analytics.analyticsOptOut).not.toHaveBeenCalled();
