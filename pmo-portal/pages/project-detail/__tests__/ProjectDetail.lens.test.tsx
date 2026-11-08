@@ -60,6 +60,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
 vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="project-profit-loss">Project totals {projectId}</div> }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
@@ -243,17 +244,15 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByText(/5,000,000/)).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('More actions'));
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(within(menu!).getByRole('button', { name: 'Project details' })).toBeInTheDocument();
-    expect(within(menu!).getByTestId('project-erp-link')).toBeInTheDocument();
-    expect(within(menu!).queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    expect(await screen.findByTestId('project-detail-rail')).toBeInTheDocument();
+    expect(screen.getByTestId('project-erp-link')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
     // AC-IXD-PROJ-W5-C3-09: an Engineer is never offered the contract-value editor or its read-only lock.
-    expect(within(menu!).queryByRole('button', { name: /contract value/i })).not.toBeInTheDocument();
-    expect(within(menu!).queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /contract value/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /contract value/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
     expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
-    await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
-    expect(within(menu!).getByTestId('project-detail-rail')).toBeInTheDocument();
     engineer.unmount();
   });
 
@@ -309,8 +308,8 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
     expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('More actions'));
-    await userEvent.click(screen.getByRole('button', { name: 'Change contract value' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Change contract value' }));
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
     expect(screen.getByLabelText('Contract value')).toBeInTheDocument();
     // the pipeline lens is NOT mounted

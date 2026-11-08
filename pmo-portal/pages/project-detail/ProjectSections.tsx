@@ -53,7 +53,8 @@ const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project 
   return (
     <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
       <ProjectActivity projectId={project.id} compact title={t('projectDetail.activity.notesTitle', 'Notes and activity')} />
-      <div className="min-w-0"><DocumentsTab projectId={project.id} projectCode={project.code} /></div>
+      {/* Its own boundary: the rest of the Overview must not wait on the Documents chunk. */}
+      <div className="min-w-0"><React.Suspense fallback={<ListState variant="loading" rows={3} className="min-h-40" />}><DocumentsTab projectId={project.id} projectCode={project.code} /></React.Suspense></div>
     </div>
   );
 };
