@@ -310,15 +310,7 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('opens the project edit form from the single header Edit action', async () => {
     await renderAt('/projects/p1');
-    // Edit is the header's one primary action, or a menu item when the state has its own verb.
-    const header = within(screen.getByTestId('record-header-actions'));
-    const editButton = header.queryByRole('button', { name: /^Edit$/i });
-    if (editButton) {
-      await userEvent.click(editButton);
-    } else {
-      await userEvent.click(header.getByRole('button', { name: 'More actions' }));
-      await userEvent.click(await screen.findByRole('menuitem', { name: /^Edit$/i }));
-    }
+    await userEvent.click(within(screen.getByTestId('record-header-actions')).getByRole('button', { name: /^Edit$/i }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });

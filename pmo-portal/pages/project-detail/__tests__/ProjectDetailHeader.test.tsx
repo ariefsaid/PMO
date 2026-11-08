@@ -257,7 +257,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(within(header).queryByText('PO CPO-2026-001')).not.toBeInTheDocument();
   });
 
-  it('2057: Edit is the one primary action; when the state has its own verb, Edit moves into the More actions menu', async () => {
+  it('2057: Edit is the primary action; when the state has its own verb that is primary and Edit stays one click away', async () => {
     const onEditProject = vi.fn();
     const { unmount } = render(
       <MemoryRouter>
@@ -266,7 +266,9 @@ describe('ProjectDetailHeader — content', () => {
         </ToastProvider>
       </MemoryRouter>,
     );
-    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('button', { name: /^Edit$/i }));
+    const edit = within(screen.getByTestId('record-header')).getByRole('button', { name: /^Edit$/i });
+    expect(edit).toHaveClass('bg-primary');
+    await userEvent.click(edit);
     expect(onEditProject).toHaveBeenCalledOnce();
     unmount();
 
@@ -278,10 +280,11 @@ describe('ProjectDetailHeader — content', () => {
         </ToastProvider>
       </MemoryRouter>,
     );
-    const header = screen.getByTestId('record-header');
-    expect(within(header).queryByRole('button', { name: /^Edit$/i })).toBeNull();
-    await userEvent.click(within(header).getByRole('button', { name: 'More actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /^Edit$/i }));
+    const header = within(screen.getByTestId('record-header'));
+    expect(header.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    const quietEdit = header.getByRole('button', { name: /^Edit$/i });
+    expect(quietEdit).not.toHaveClass('bg-primary');
+    await userEvent.click(quietEdit);
     expect(onEditAgain).toHaveBeenCalledOnce();
   });
 

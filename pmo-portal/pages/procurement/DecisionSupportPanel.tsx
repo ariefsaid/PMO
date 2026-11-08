@@ -256,7 +256,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
           </p>
         </div>
-        <StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} variant="bare" />
+        {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
+        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} variant="bare" /></div>
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not

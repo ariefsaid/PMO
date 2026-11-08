@@ -478,16 +478,16 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       toast(t('projectDetail.header.toast.linkCopyFailed', 'Could not copy project link'), href, 'warning');
     }
   };
+  // The state's own verb (Raise invoice, Chase payment) is the primary action when the page offers one;
+  // otherwise Edit is. Edit stays one click away either way.
   const editButton = canEdit ? (
-    <Button variant="primary" size="sm" className="touch-target" onClick={onEditProject}>
+    <Button variant={primaryAction ? 'outline' : 'primary'} size="sm" className="touch-target" onClick={onEditProject}>
       {t('projectDetail.header.action.edit', 'Edit')}
     </Button>
   ) : undefined;
-  // One primary action: the state's own verb when there is one, otherwise Edit.
   const headerPrimary = primaryAction ?? editButton;
   const menuItems: RecordMenuItem[] = [
     ...(compact ? [{ key: 'copy-link', label: t('projectDetail.header.copyLink', 'Copy link'), onSelect: () => void copyProjectLink() }] : []),
-    ...(primaryAction && canEdit ? [{ key: 'edit', label: t('projectDetail.header.action.edit', 'Edit'), onSelect: () => onEditProject?.() }] : []),
     ...(compact && canChangeValue ? [{ key: 'change-value', label: t('projectDetail.header.changeContractValue', 'Change contract value'), onSelect: () => beginValueEdit() }] : []),
     ...(canArchive ? [{ key: 'archive', label: t('projectDetail.header.action.archive', 'Archive'), onSelect: () => setArchiveOpen(true) }] : []),
     ...(canDelete ? [{ key: 'delete', label: t('projectDetail.header.action.delete', 'Delete'), onSelect: () => setDeleteOpen(true), danger: true }] : []),
@@ -551,8 +551,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         </button>
       )}
       {detailsPanel}
+      {primaryAction && editButton}
     </>
-  ) : undefined;
+  ) : primaryAction ? editButton : undefined;
 
   /** Existing explicit editor + role explanation; the idle value lives only in the metric. */
   const sodRow = isDelivery ? (
