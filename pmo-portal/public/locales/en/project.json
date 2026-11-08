@@ -355,7 +355,22 @@
       "getInputLabel": "Chance we win if the client proceeds (%)",
       "saveProbability": "Save",
       "getProbabilitySaved": "Opportunity estimate updated",
-      "probabilityFailed": "Couldn't save this probability. Check your access and retry."
+      "probabilityFailed": "Couldn't save this probability. Check your access and retry.",
+      "nextStage": {
+        "quotation": "Quotation",
+        "preQualification": "Pre-Qualification",
+        "tender": "Tender",
+        "negotiation": "Negotiation"
+      },
+      "journey": {
+        "leads": "Leads",
+        "quotation": "Quotation",
+        "preQualification": "Pre-Qualification",
+        "tender": "Tender",
+        "negotiation": "Negotiation",
+        "won": "Won",
+        "lost": "Lost"
+      }
     },
     "activity": {
       "title": "Activity",

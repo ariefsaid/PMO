@@ -355,7 +355,22 @@
       "getInputLabel": "Peluang kita menang jika klien melanjutkan (%)",
       "saveProbability": "Simpan",
       "getProbabilitySaved": "Perkiraan peluang diperbarui",
-      "probabilityFailed": "Perkiraan peluang tidak dapat disimpan. Periksa akses Anda lalu coba lagi."
+      "probabilityFailed": "Perkiraan peluang tidak dapat disimpan. Periksa akses Anda lalu coba lagi.",
+      "nextStage": {
+        "quotation": "Penawaran",
+        "preQualification": "Pra-kualifikasi",
+        "tender": "Tender",
+        "negotiation": "Negosiasi"
+      },
+      "journey": {
+        "leads": "Prospek",
+        "quotation": "Penawaran",
+        "preQualification": "Pra-kualifikasi",
+        "tender": "Tender",
+        "negotiation": "Negosiasi",
+        "won": "Menang",
+        "lost": "Kalah"
+      }
     },
     "activity": {
       "title": "Aktivitas",
