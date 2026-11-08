@@ -153,6 +153,20 @@ export function numberSymbols(locale = getNumberLocale()): { decimal: string; gr
   };
 }
 
+/**
+ * A plain decimal string (`-1234.5`) shown with the viewer's grouping and decimal marks and exactly two decimals, no currency
+ * symbol. Exact: nothing passes through a float. Anything that is not a plain decimal comes back as given.
+ */
+export function formatExactDecimal(value: string, locale = getNumberLocale()): string {
+  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) return value;
+  const [, sign, whole, fraction = ''] = match;
+  const cents = fraction.padEnd(2, '0');
+  const grouped = numberFormatterFor('exact-decimal-whole', locale, undefined, { maximumFractionDigits: 0 }).format(BigInt(whole));
+  const negative = sign === '-' && (BigInt(whole) !== 0n || cents !== '00');
+  return `${negative ? '−' : ''}${grouped}${numberSymbols(locale).decimal}${cents}`;
+}
+
 interface ParsedMoneyDraft {
   value: number;
   normalized: string;
