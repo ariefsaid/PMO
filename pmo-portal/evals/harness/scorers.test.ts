@@ -13,6 +13,7 @@ import {
   judgeModelFromEnv,
   llmJudge,
   noProposal,
+  notContains,
   notUsesTool,
   proposesAction,
   runScorers,
@@ -222,3 +223,11 @@ describe('noProposal (#1639)', () => {
   });
 });
 
+
+describe('notContains', () => {
+  it('passes when the answer lacks the needle and fails when it matches', async () => {
+    expect((await notContains(/https?:\/\//)(runWith({ answerText: 'no links here' }))).pass).toBe(true);
+    expect((await notContains(/https?:\/\//)(runWith({ answerText: 'see https://x.test' }))).pass).toBe(false);
+    expect((await notContains('abc')(runWith({ answerText: 'xabcx' }))).pass).toBe(false);
+  });
+});

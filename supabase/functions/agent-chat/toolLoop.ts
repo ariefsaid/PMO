@@ -8,6 +8,7 @@
 import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
 import { recordUsage } from '../_shared/usage.ts';
+import { wrapUntrustedToolResult } from './untrustedEnvelope.ts';
 import { compactTranscript, DEFAULT_COMPACTION } from '../_shared/transcriptCompaction.ts';
 import { keyForTool, isToolAllowed, isKeyEnabled, notOnPlanError, type FeatureSwitches } from './featureSwitches.ts';
 import { runComposeView } from './actions.ts';
@@ -304,7 +305,7 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
             if (widget) yield emit('artifact', { payload: { kind: 'widget', widget } });
           }
           yield emit('tool', { payload: { name: tc.function.name, input, result } });
-          messages.push({ role: 'tool', tool_call_id: tc.id, name: tc.function.name, content: JSON.stringify(result) });
+          messages.push({ role: 'tool', tool_call_id: tc.id, name: tc.function.name, content: wrapUntrustedToolResult(result) });
         }
         continue;
       }
@@ -629,7 +630,7 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
       if (rendered) yield emit('assistant', { text: rendered.markdown });
 
       // Append the single tool-result message for the next round (FR-MC-006).
-      messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(modelResult) });
+      messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: wrapUntrustedToolResult(modelResult) });
     }
 
     // Loop fell through — step cap reached (D7/R4: graceful completed, not errored).
