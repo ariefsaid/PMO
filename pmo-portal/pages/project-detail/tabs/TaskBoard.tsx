@@ -121,6 +121,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             {(dropState) => (
           <KanbanColumn
             title={s}
+            presentation="flat"
             dropState={dropState}
             count={col.length}
             emptyMessage={t('projectDetail.tasks.board.noTasks', 'No tasks')}

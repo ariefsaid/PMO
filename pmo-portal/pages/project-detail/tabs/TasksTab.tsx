@@ -439,7 +439,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
   return (
     <div>
-      <Card className="min-w-0 overflow-hidden">
+      {/* Board view: bare panel, so the task cards are the only framed surfaces (no card inside a card). */}
+      <Card variant={view === 'board' ? 'bare' : undefined} className="min-w-0 overflow-hidden">
       <div className="mb-3.5 flex flex-col gap-3 p-[var(--panel-inset)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-page font-bold tracking-[-0.02em]">{t('projectDetail.tasks.heading', 'Tasks')}</h2>
