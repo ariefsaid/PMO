@@ -9,6 +9,7 @@ import { formatLedgerAmount, netDebit } from '@/src/components/odoo-ledger/ledge
 import { useOdooLedgerHealth, useOdooLedgerLines, useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatDateOnly } from '@/src/lib/format';
 import type { OdooLedgerLine } from '@/src/lib/db/odooLedger';
 
@@ -20,6 +21,7 @@ export function BudgetOdooActuals({ projectId }: { projectId: string }) {
   const { t: tc } = useTranslation();
   const may = usePermission();
   const can = useOdooCan();
+  const currency = useOrgCurrency();
   const { onLedger, linked, unlinked } = useOdooProjectActuals(projectId);
   const health = useOdooLedgerHealth(projectId, onLedger && linked === true);
   if (!onLedger) return null;
@@ -48,6 +50,7 @@ export function BudgetOdooActuals({ projectId }: { projectId: string }) {
           unmapped={health.data.unmapped}
           unattributed={health.data.unattributed}
           unlinked={health.data.unlinked}
+          currency={currency}
         />
       )}
     </section>
@@ -69,6 +72,7 @@ export function BudgetOdooCategoryLines({ projectId, category, fallback }: { pro
 function CategoryLinesTable({ projectId, category }: { projectId: string; category: string }) {
   const { t } = useTranslation('finance');
   const { t: tc } = useTranslation();
+  const currency = useOrgCurrency();
   const lines = useOdooLedgerLines(projectId, category);
   const [loadingAll, setLoadingAll] = useState(false);
   if (lines.isPending) return <ListState variant="loading" rows={3} />;
@@ -80,7 +84,7 @@ function CategoryLinesTable({ projectId, category }: { projectId: string; catego
     { key: 'move', header: t('odooLedger.lines.document', 'Document'), kind: 'primary', cell: (r) => r.moveName },
     { key: 'account', header: t('odooLedger.lines.account', 'Account'), kind: 'text', cell: (r) => r.account },
     { key: 'partner', header: t('odooLedger.lines.partner', 'Partner'), kind: 'text', cell: (r) => r.partner ?? '—' },
-    { key: 'amount', header: t('odooLedger.lines.amount', 'Amount'), kind: 'money', align: 'num', cell: (r) => formatLedgerAmount(netDebit(r.debit, r.credit)) },
+    { key: 'amount', header: t('odooLedger.lines.amount', 'Amount ({{currency}})', { currency }), kind: 'money', align: 'num', cell: (r) => formatLedgerAmount(netDebit(r.debit, r.credit)) },
   ];
   const showAll = async () => {
     setLoadingAll(true);

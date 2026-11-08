@@ -824,10 +824,14 @@
     },
     "remainder": {
       "aria": "Amounts not counted in a category or project",
-      "unmapped": "Accounts without a budget category ({{accounts}}): {{amount}}, lines: {{count}}. Not counted in any category.",
-      "unattributed": "Belong to no project: {{amount}}, lines: {{count}}.",
-      "unlinked": "In cost accounts no project is linked to: {{amount}}, lines: {{count}}."
+      "unmapped_one": "Accounts without a budget category ({{accounts}}): debits {{debit}}, credits {{credit}} ({{count}} line). Not counted in any category.",
+      "unmapped_other": "Accounts without a budget category ({{accounts}}): debits {{debit}}, credits {{credit}} ({{count}} lines). Not counted in any category.",
+      "unattributed_one": "Belong to no project: debits {{debit}}, credits {{credit}} ({{count}} line).",
+      "unattributed_other": "Belong to no project: debits {{debit}}, credits {{credit}} ({{count}} lines).",
+      "unlinked_one": "In cost accounts no project is linked to: debits {{debit}}, credits {{credit}} ({{count}} line).",
+      "unlinked_other": "In cost accounts no project is linked to: debits {{debit}}, credits {{credit}} ({{count}} lines)."
     },
+    "amountsIn": "Amounts in {{currency}}",
     "budget": {
       "title": "Actuals from Odoo",
       "unlinked": "Actual cost cannot be shown yet: no Odoo cost account is linked to this project.",
@@ -843,7 +847,7 @@
       "document": "Document",
       "account": "Account",
       "partner": "Partner",
-      "amount": "Amount",
+      "amount": "Amount ({{currency}})",
       "table": "Odoo lines behind this category",
       "empty": "No lines in this category",
       "emptySub": "Posted Odoo lines in this project’s cost account and a mapped account appear here.",

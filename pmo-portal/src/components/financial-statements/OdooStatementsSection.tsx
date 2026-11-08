@@ -12,6 +12,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { useOdooStatement, useOdooStatementCatalogue } from '@/src/hooks/useOdooLedger';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatDateOnly } from '@/src/lib/format';
 import type { OdooLedgerCheck, OdooStatementKind, OdooStatementPair, OdooStatementProvenance, OdooStatementRead } from '@/src/lib/db/odooLedger';
@@ -34,6 +35,7 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
   const { t } = useTranslation('finance');
   const { t: tc } = useTranslation();
   const today = useOrgToday();
+  const currency = useOrgCurrency();
   const catalogueQuery = useOdooStatementCatalogue(projectId);
   const catalogue = catalogueQuery.data;
   const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
@@ -154,6 +156,7 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
         }}
         onRetry={() => void readQuery.refetch()}
       >
+        {complete && <p className="mb-2 text-sm text-muted-foreground">{t('odooLedger.amountsIn', 'Amounts in {{currency}}', { currency })}</p>}
         {complete && complete.viewKind === 'project_totals' && (
           <DataTable embedded rows={totalsRows} columns={totalsColumns} rowKey={(r) => r.key} tableId="odoo-project-totals"
             accessibleName={tc('financialStatements.projectProfitAndLoss', 'Project profit and loss')} cardBelow={420} />

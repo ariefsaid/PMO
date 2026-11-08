@@ -1,3 +1,5 @@
+-- UNDO (do this when done): `supabase db reset`. This disconnects the seed ERPNext binding and replaces the budget category account map, which breaks the ERPNext e2e specs until reset.
+-- Never run by seed.sql, CI or any script.
 -- LOCAL ONLY. Turns the seed organisation into an Odoo-bound one with a read copy of a small ledger (invented names and amounts),
 -- so the project budget, the statements and the Odoo setup screen can be rendered with data (#1507 S7, scripts/ux-proof.sh).
 -- Run inside scripts/with-db-lock.sh after `supabase db reset`:  psql ... -f scripts/seed-odoo-ledger-demo.sql

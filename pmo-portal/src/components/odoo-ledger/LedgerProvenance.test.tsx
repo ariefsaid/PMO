@@ -75,9 +75,20 @@ describe('LedgerProvenance: what is left out (FR-ODA-031)', () => {
     });
     const list = screen.getByRole('list', { name: 'Amounts not counted in a category or project' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(3);
-    expect(within(list).getByText(/Accounts without a budget category \(6100, 6200\): 1,500\.00, lines: 2/)).toBeInTheDocument();
-    expect(within(list).getByText(/Belong to no project: 15\.00, lines: 3/)).toBeInTheDocument();
-    expect(within(list).getByText(/In cost accounts no project is linked to: 7\.00, lines: 1/)).toBeInTheDocument();
+    expect(within(list).getByText(/Accounts without a budget category \(6100, 6200\): debits 1,500\.00, credits 0\.00 \(2 lines\)/)).toBeInTheDocument();
+    expect(within(list).getByText(/Belong to no project: debits 20\.00, credits 5\.00 \(3 lines\)/)).toBeInTheDocument();
+    expect(within(list).getByText(/In cost accounts no project is linked to: debits 7\.00, credits 0\.00 \(1 line\)/)).toBeInTheDocument();
+  });
+
+  it('never blends income credits into one signed figure', () => {
+    mount({ unmapped: { count: 2, debit: '4500000.00', credit: '300000000.00', accounts: ['4100', '5900'] } });
+    expect(screen.getByText(/debits 4,500,000\.00, credits 300,000,000\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/−295,500,000/)).not.toBeInTheDocument();
+  });
+
+  it('says which currency the amounts are in', () => {
+    mount({ currency: 'IDR', unattributed: { count: 1, debit: '1.00', credit: '0.00' } });
+    expect(screen.getByText('Amounts in IDR')).toBeInTheDocument();
   });
 
   it('prints nothing for a reason with no lines', () => {

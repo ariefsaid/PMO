@@ -824,10 +824,14 @@
     },
     "remainder": {
       "aria": "Jumlah yang tidak dihitung dalam kategori atau proyek",
-      "unmapped": "Akun tanpa kategori anggaran ({{accounts}}): {{amount}}, baris: {{count}}. Tidak dihitung dalam kategori mana pun.",
-      "unattributed": "Tidak termasuk proyek mana pun: {{amount}}, baris: {{count}}.",
-      "unlinked": "Di akun biaya yang belum ditautkan ke proyek: {{amount}}, baris: {{count}}."
+      "unmapped_one": "Akun tanpa kategori anggaran ({{accounts}}): debit {{debit}}, kredit {{credit}} ({{count}} baris). Tidak dihitung dalam kategori mana pun.",
+      "unmapped_other": "Akun tanpa kategori anggaran ({{accounts}}): debit {{debit}}, kredit {{credit}} ({{count}} baris). Tidak dihitung dalam kategori mana pun.",
+      "unattributed_one": "Tidak termasuk proyek mana pun: debit {{debit}}, kredit {{credit}} ({{count}} baris).",
+      "unattributed_other": "Tidak termasuk proyek mana pun: debit {{debit}}, kredit {{credit}} ({{count}} baris).",
+      "unlinked_one": "Di akun biaya yang belum ditautkan ke proyek: debit {{debit}}, kredit {{credit}} ({{count}} baris).",
+      "unlinked_other": "Di akun biaya yang belum ditautkan ke proyek: debit {{debit}}, kredit {{credit}} ({{count}} baris)."
     },
+    "amountsIn": "Jumlah dalam {{currency}}",
     "budget": {
       "title": "Biaya aktual dari Odoo",
       "unlinked": "Biaya aktual belum dapat ditampilkan: belum ada akun biaya Odoo yang ditautkan ke proyek ini.",
@@ -843,7 +847,7 @@
       "document": "Dokumen",
       "account": "Akun",
       "partner": "Mitra",
-      "amount": "Jumlah",
+      "amount": "Jumlah ({{currency}})",
       "table": "Baris Odoo di balik kategori ini",
       "empty": "Tidak ada baris pada kategori ini",
       "emptySub": "Baris Odoo yang sudah diposting pada akun biaya proyek ini dan akun yang dipetakan muncul di sini.",

@@ -9,6 +9,7 @@ import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({ catalogue: vi.fn(), statement: vi.fn() }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { odooLedger: { statementCatalogue: h.catalogue, statement: h.statement } } }));
 
@@ -90,7 +91,8 @@ describe('OdooStatementsSection: populated', () => {
     expect(within(table).getAllByText('1,500.50').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Matches Odoo')).toBeInTheDocument();
     expect(screen.getByText('Up to date')).toBeInTheDocument();
-    expect(screen.getByText(/Belong to no project: 30\.00, lines: 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Belong to no project: debits 30\.00, credits 0\.00 \(2 lines\)/)).toBeInTheDocument();
+    expect(screen.getByText('Amounts in IDR')).toBeInTheDocument();
     expect(h.statement).toHaveBeenCalledWith({ statement: 'trial_balance', periodKind: 'month', periodStart: '2026-10-01' });
   });
 

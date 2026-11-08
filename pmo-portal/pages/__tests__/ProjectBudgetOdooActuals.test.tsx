@@ -10,6 +10,7 @@ import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({ getConnection: vi.fn(), reads: vi.fn(), health: vi.fn(), lines: vi.fn(), linked: vi.fn() }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
@@ -93,7 +94,8 @@ describe('BudgetOdooActuals strip (FR-ODA-050/052)', () => {
   it('unmapped amounts are a separate, labelled line that names the accounts', async () => {
     h.health.mockResolvedValue(health({ unmapped: { count: 4, debit: '250.00', credit: '0.00', accounts: ['6100'] } }));
     setup()(<BudgetOdooActuals projectId={PROJECT} />);
-    expect(await screen.findByText(/Accounts without a budget category \(6100\): 250\.00, lines: 4/)).toBeInTheDocument();
+    expect(await screen.findByText(/Accounts without a budget category \(6100\): debits 250\.00, credits 0\.00 \(4 lines\)/)).toBeInTheDocument();
+    expect(screen.getByText('Amounts in IDR')).toBeInTheDocument();
   });
 
   it('no linked cost account: says actual cost cannot be shown, links the setup to a manager, and never shows a zero', async () => {
@@ -151,6 +153,7 @@ describe('BudgetOdooCategoryLines (FR-ODA-051)', () => {
     expect(within(table).getByText('BILL/2026/1')).toBeInTheDocument();
     expect(within(table).getAllByText('Vendor A')).toHaveLength(2);
     expect(screen.getByText('Showing 2 of 2')).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: /Amount \(IDR\)/ })).toBeInTheDocument();
     expect(h.lines).toHaveBeenCalledWith({ projectId: PROJECT, category: 'materials', after: null, limit: 50 });
   });
 
