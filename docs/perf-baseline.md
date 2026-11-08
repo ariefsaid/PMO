@@ -143,6 +143,12 @@ Ranked by expected TBT saving per page at 4x (from the profiles above). "Verify"
    `contain-intrinsic-size` on below-the-fold project-detail blocks so they are not laid out in the first frame.
    Expected: (a)+(b) split the task (about 50 ms each); (c) removes real layout (the part worth 100-250 ms on project detail). Verify (c) first, it is the only part that removes work.
    Evidence: `DataTableDesktop.tsx:64` 220 ms self (procurement), `Tabs.tsx:59` 273 ms self (project detail), native `(program)` 150 ms in the largest procurement task.
+   **Result (2026-11-08, `perf/first-frame-layout`).** Lighthouse TBT swings 300+ ms run to run on this Mac (project detail 920 / 1,230 / 1,140 ms for base / (c) / all), so it cannot resolve a 50-100 ms change; used Chrome's own `Performance.getMetrics` (LayoutDuration, TaskDuration) at 4x CPU instead, median of 7, same page DOM (591 vs 590 nodes, same h1).
+   - (b) `Tabs` skips its first-mount scroll when the first tab is active (a deep link to a later tab still scrolls): project detail Layout 306 -> 88 ms, Task 2,141 -> 1,919 ms.
+   - (c) `content-visibility:auto` on the overview Delivery block: Layout 302 -> 258 ms and 306 -> 294 ms in two runs (noisy), Task 2,209 -> 1,955 ms and 2,141 -> 2,015 ms. Kept.
+   - (a) `DataTableDesktop` without the synchronous measure: procurement Layout 238 -> 242 ms, receivables 217 -> 261 ms. No gain, reverted. The measure is not the cost; the layout it forces is needed anyway.
+   - Procurement and receivables unchanged by this slice.
+
 2. **First `Intl.DateTimeFormat` costs about 34 ms each at 4x; every page builds 2-5 on first render (68-73 ms).**
    What: find which `dateFormatterFor` shapes run during first render (the ones that pass a `timeZone` are the first suspects; not yet confirmed); build the zoned ones
    from one shared formatter, or construct them in a post-paint idle callback after the first frame so first render uses a plain formatter.
