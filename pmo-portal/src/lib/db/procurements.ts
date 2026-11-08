@@ -39,8 +39,10 @@ export function externalRefsOf(p: ProcurementWithRefs): string[] {
 const SELECT =
   '*, project:projects(name,short_name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment';
 
+/** The shared list's open commitment is NOT embedded: the per-row SQL function costs ~4.6 ms a row, so
+ *  `attachOpenCommitments` reads it for every listed row in one set-based call (`procurement_open_commitments`). */
 const SELECT_SHARED_LIST =
-  '*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment';
+  '*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)';
 
 const PROCUREMENT_LIST_DETAILS = [
   'status_events:procurement_status_events(to_status,created_at)',
@@ -154,6 +156,26 @@ export async function getProjectReservedSpend(projectId: string): Promise<Projec
   };
 }
 
+const OPEN_COMMITMENT_CHUNK = 1000;
+
+/** FR-PFE-037: each row's `open_commitment`, one RPC per 1,000 rows. SECURITY INVOKER: RLS decides which ids exist.
+ *  A failed read throws: a silent fallback to `total_value` would show a different committed figure. */
+async function attachOpenCommitments<T extends { id: string }>(rows: T[]): Promise<(T & { open_commitment?: number | null })[]> {
+  if (rows.length === 0) return rows;
+  const chunks: string[][] = [];
+  for (let i = 0; i < rows.length; i += OPEN_COMMITMENT_CHUNK) chunks.push(rows.slice(i, i + OPEN_COMMITMENT_CHUNK).map((r) => r.id));
+  const results = await Promise.all(chunks.map((p_ids) => supabase.rpc('procurement_open_commitments' as never, { p_ids } as never) as unknown as PromiseLike<{
+    data: { procurement_id: string; amount: number | string | null }[] | null;
+    error: { message: string; code?: string } | null;
+  }>));
+  const byId = new Map<string, number | null>();
+  for (const { data, error } of results) {
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) byId.set(r.procurement_id, r.amount == null ? null : Number(r.amount));
+  }
+  return rows.map((r) => (byId.has(r.id) ? { ...r, open_commitment: byId.get(r.id) } : r));
+}
+
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
  * scopes rows (FR-DAL-PROC-001). Reads every page by keyset (ordered by id) so the list is never cut at the row cap: the ⌘K CommandPalette record search indexes
@@ -169,7 +191,8 @@ export async function listProcurements(
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
   });
-  return opts?.withoutRoutes ? data : attachApprovalRoutes(data);
+  const rows = selection === SELECT_WITH_SHARED_DETAILS ? await attachOpenCommitments(data) : data;
+  return opts?.withoutRoutes ? rows : attachApprovalRoutes(rows);
 }
 
 /**
@@ -185,7 +208,7 @@ export async function listProcurementsByProject(projectId: string): Promise<Proc
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
   });
-  return attachApprovalRoutes(data);
+  return attachApprovalRoutes(await attachOpenCommitments(data));
 }
 
 /**
