@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import type { Json, Tables } from '@/src/lib/supabase/database.types';
 
 /**
@@ -381,6 +382,17 @@ export async function confirmTmSignoff(claimId: string): Promise<TmConfirmResult
     basis: oneOf(raw.basis, CONFIRM_BASES, 'confirmation basis'),
     grossAmount: finite(raw.gross_amount, 'claim gross amount'),
   };
+}
+
+/**
+ * #1817: an org with no ERP bills a confirmed claim in PMO. The new Draft invoice shares the claim's id; it is approved by
+ * someone outside the claim's author set. Refusal details (e.g. `claim-already-invoiced`) become the error code.
+ */
+export async function invoiceTmClaimNative(claimId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('create_native_tm_invoice', { p_claim: claimId });
+  if (error) throw new AppError(error.message, revenueRefusalCode(error));
+  if (typeof data !== 'string' || data === '') throw new AppError('the server recorded the invoice but returned no id', 'tm-malformed');
+  return data;
 }
 
 // ── reads (0518) ────────────────────────────────────────────────────────────────────────────────

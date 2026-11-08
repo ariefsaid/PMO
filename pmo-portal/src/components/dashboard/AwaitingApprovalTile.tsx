@@ -46,7 +46,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   const { realRole } = useEffectiveRole();
   const selfId = currentUser?.id;
 
-  const { data: procurements, isPending: procPending, isError: procError } = useProcurements();
+  const { data: procurements, isPending: procPending, isError: procError } = useProcurements({ status: 'Requested' });
   const { data: timesheets, isPending: tsPending, isError: tsError } = useTimesheetsAwaitingApproval();
   // Loading until BOTH contributing queries settle, else the tile briefly shows a
   // procurement-only count as if final (review #4).

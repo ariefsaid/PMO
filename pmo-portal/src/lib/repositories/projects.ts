@@ -12,6 +12,7 @@ import {
   setProjectContractValue,
   getProjectVatEditability,
   listProjectIdentity,
+  listProjectPickerOptions,
   listProjectNumbers,
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
@@ -25,6 +26,7 @@ export const projectRepository: ProjectRepository = {
   listByClient: (id) => wrap(() => listProjectsByClient(id)),
   getWithRefs: (id) => wrap(() => getProject(id)),
   listPipelineStageConfig: () => wrap(() => listPipelineStageConfig()),
+  listPickerOptions: () => wrap(() => listProjectPickerOptions()),
   listIdentity: () => wrap(() => listProjectIdentity()),
   listNumbers: (ids) => wrap(() => listProjectNumbers(ids)),
   get: (id) => wrap(() => getOpportunity(id)),

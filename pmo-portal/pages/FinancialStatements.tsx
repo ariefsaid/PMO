@@ -13,7 +13,9 @@ import { Button } from '@/src/components/ui/Button';
 import { FormGrid, SelectField } from '@/src/components/ui/FormFields';
 import { ListPage } from '@/src/components/ui/ListPage';
 import { ListState } from '@/src/components/ui/ListState';
+import { OdooStatementsSection } from '@/src/components/financial-statements/OdooStatementsSection';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
+import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
 import { formatDateOnly } from '@/src/lib/format';
@@ -65,7 +67,9 @@ const FinancialStatements: React.FC = () => {
   const identityReady = !loading && profileError === null && session?.user.id === currentUser?.id &&
     currentUser?.status === 'active' && Boolean(currentUser.org_id?.trim()) && realRole === currentUser.role;
   const companyReadAllowed = identityReady && may('view', 'financialStatements');
-  const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed);
+  // #1507 S7: an Odoo organisation reads its statements from the Odoo ledger; the saved-report path below is not asked for them.
+  const odooMode = useOdooLedgerMode(companyReadAllowed);
+  const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed && !odooMode.odoo);
   const catalogue = catalogueQuery.data;
 
   const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
@@ -257,6 +261,14 @@ const FinancialStatements: React.FC = () => {
             {t('financialStatements.backToDashboard', 'Back to dashboard')}
           </Button>
         </section>
+      </ListPage>
+    );
+  }
+
+  if (odooMode.odoo) {
+    return (
+      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')} className="min-w-0">
+        <OdooStatementsSection />
       </ListPage>
     );
   }

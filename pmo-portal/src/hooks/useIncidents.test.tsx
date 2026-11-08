@@ -7,6 +7,8 @@ import React from 'react';
 const { incident } = vi.hoisted(() => ({
   incident: {
     list: vi.fn(),
+    listPage: vi.fn(),
+    count: vi.fn(),
     get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -19,7 +21,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 
-import { useIncidents, useIncident, useIncidentMutations } from './useIncidents';
+import { useIncidents, useIncidentsPage, useIncident, useIncidentMutations } from './useIncidents';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -46,10 +48,36 @@ const seed = [
 
 beforeEach(() => {
   incident.list.mockResolvedValue(seed);
+  incident.listPage.mockResolvedValue({ rows: seed, total: 9 });
+  incident.count.mockResolvedValue(30);
   incident.create.mockResolvedValue({ ...seed[0], id: 'i2', type: 'Spill' });
   incident.update.mockResolvedValue(undefined);
   incident.transition.mockResolvedValue(undefined);
   incident.delete.mockResolvedValue(undefined);
+});
+
+describe('useIncidentsPage (#1991)', () => {
+  it('unfiltered: reads one page and uses its total as the denominator, no count request', async () => {
+    const { result } = renderHook(() => useIncidentsPage({ page: 2, pageSize: 50 }), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
+    expect(incident.listPage).toHaveBeenCalledWith({ page: 2, pageSize: 50 });
+    expect(result.current.allTotal).toBe(9);
+    expect(incident.count).not.toHaveBeenCalled();
+  });
+
+  it('filtered: forwards status + search and takes the denominator from the unfiltered count', async () => {
+    const args = { page: 1, pageSize: 50, status: 'Open' as const, search: 'spill' };
+    const { result } = renderHook(() => useIncidentsPage(args), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.allTotal).toBe(30));
+    expect(incident.listPage).toHaveBeenCalledWith(args);
+  });
+
+  it('keys under [incidents, orgId] so a mutation invalidates the page', async () => {
+    const client = freshClient();
+    const { result } = renderHook(() => useIncidentsPage({ page: 1, pageSize: 50 }), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
+    expect(client.getQueryCache().findAll({ queryKey: ['incidents', 'org-1'] }).length).toBe(2); // page + count
+  });
 });
 
 describe('useIncidents', () => {

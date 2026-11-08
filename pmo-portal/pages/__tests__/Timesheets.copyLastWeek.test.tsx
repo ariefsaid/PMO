@@ -57,7 +57,7 @@ vi.mock('@/src/hooks/useTimesheetEntries', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => projectsState,
+  useProjectPickerOptions: () => projectsState,
 }));
 
 vi.mock('@/src/auth/impersonation', async (importOriginal) => {

@@ -31,6 +31,7 @@ import { formatMoneyInputValue } from '../../src/lib/format';
 import { login } from '../helpers';
 import { SAR_CURRENCY } from './_sarHelpers';
 import { runFullSweep } from './_sweepHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -67,6 +68,7 @@ const resource = (doctype: string, name?: string) =>
   `/api/resource/${encodeURIComponent(doctype)}${name === undefined ? '' : `/${encodeURIComponent(name)}`}`;
 
 async function erp(method: 'GET' | 'POST', path: string, body?: unknown): Promise<{ status: number; data: unknown }> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}` },

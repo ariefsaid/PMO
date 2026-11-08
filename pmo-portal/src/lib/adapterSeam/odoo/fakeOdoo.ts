@@ -354,6 +354,17 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
     search_read: (m, b) => select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined)),
     search: (m, b) => select(m, b).map((r) => r.id),
+    // Odoo 20's grouped read (V-ODA5): one entry per many2one group with the summed aggregates, in group order.
+    formatted_read_group: (m, b) => {
+      const [by] = b.groupby as string[];
+      const sums = new Map<string, { key: unknown; sums: Record<string, number> }>();
+      for (const r of select(m, { domain: b.domain })) {
+        const g = sums.get(JSON.stringify(r[by])) ?? { key: r[by], sums: {} };
+        for (const agg of b.aggregates as string[]) g.sums[agg] = (g.sums[agg] ?? 0) + cents(r[agg.split(':')[0]]);
+        sums.set(JSON.stringify(r[by]), g);
+      }
+      return [...sums.values()].map((g) => ({ [by]: g.key, ...Object.fromEntries(Object.entries(g.sums).map(([k, v]) => [k, units(v)])) }));
+    },
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(shaped(m, r), b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {

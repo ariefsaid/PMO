@@ -47,6 +47,16 @@ interface Entry {
   severity?: 'info';
 }
 
+/** Codes whose copy lives in the `project` locale (`projectDetail.budget.pushError.<code>`). The rest of this
+ *  module is still inline English: translating it is a follow-up. */
+export const TRANSLATED_PUSH_ERRORS: ReadonlySet<string> = new Set([
+  'budget-project-start-date-missing',
+  'budget-fiscal-year-unresolved',
+  'budget-fiscal-year-ambiguous',
+  'budget-multi-fiscal-year-unphased',
+  'outbox-finalize-refused',
+]);
+
 const CODES: Record<string, Entry> = {
   // ── budget push ──────────────────────────────────────────────────────────────────────────────
   'budget-category-unmapped': {
@@ -60,6 +70,35 @@ const CODES: Record<string, Entry> = {
     message: 'This budget spans more than one fiscal year, which ERPNext records as one budget per year.',
     retryable: false,
     remedy: 'Split the budget so each version covers a single fiscal year, then activate it again.',
+  },
+  // #1364 — refused before anything was written: the project's own dates decide the fiscal years, so the
+  // fix is on the project, and a retry cannot succeed until it is made.
+  'budget-project-start-date-missing': {
+    message: 'The project has no start date, so PMO cannot tell which fiscal year this budget belongs to.',
+    retryable: false,
+    remedy: 'Set the project start and end dates, then retry the push.',
+  },
+  'budget-fiscal-year-unresolved': {
+    message: 'No ERPNext fiscal year contains the project start or end date.',
+    retryable: false,
+    remedy: 'Add the missing fiscal year in ERPNext, or correct the project dates, then retry the push.',
+  },
+  'budget-fiscal-year-ambiguous': {
+    message: 'More than one ERPNext fiscal year contains the project start date, so PMO will not pick one.',
+    retryable: false,
+    remedy: 'Remove the overlap between the fiscal years in ERPNext, then retry the push.',
+  },
+  'budget-multi-fiscal-year-unphased': {
+    message: 'The project spans more than one fiscal year but some budget lines have no fiscal year.',
+    retryable: false,
+    remedy: 'Set a fiscal year on every budget line (or shorten the project dates to one year), then activate again.',
+  },
+  // #1364 — the ERP document exists but PMO's finalize step refused to record it, repeatedly. The refusals
+  // behind it are rules (a different Budget on the slot, a changed version), so a Retry meets the same one.
+  'outbox-finalize-refused': {
+    message: 'ERPNext accepted the budget, but PMO could not record its reference after several tries.',
+    retryable: false,
+    remedy: "Retrying repeats the same refusal. Ask an administrator to check the ERPNext connection and the budget's saved reference.",
   },
   'budget-draft-rival-on-grain': {
     message: 'ERPNext already holds an unsubmitted budget for this project and fiscal year.',
