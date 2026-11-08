@@ -30,6 +30,7 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { runFullSweep } from './_sweepHelpers';
+import { assertLocalBenchUrl, remoteErpAllowed } from './_benchGuard';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 export const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
@@ -59,6 +60,7 @@ const benchHeaders = (): Record<string, string> => ({
 
 /** A live-bench GET (never a mock). Returns the parsed `data` payload. */
 export async function benchGet<T = unknown>(path: string): Promise<T> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}${path}`, { headers: benchHeaders() });
   const body = (await res.json()) as { data?: T };
   if (!res.ok) throw new Error(`bench GET ${path} -> ${res.status} ${JSON.stringify(body)}`);
@@ -66,6 +68,7 @@ export async function benchGet<T = unknown>(path: string): Promise<T> {
 }
 
 export async function benchPost<T = unknown>(doctype: string, body: unknown): Promise<T> {
+  assertLocalBenchUrl(BENCH_URL);
   // Frappe's naming-series counter (`tabSeries`) can raise a QueryDeadlockError under back-to-back
   // inserts. That is bench plumbing, not product behaviour — retry it rather than let it masquerade as
   // a failed AC. Any other non-2xx throws immediately.
@@ -86,6 +89,7 @@ export async function benchPost<T = unknown>(doctype: string, body: unknown): Pr
 }
 
 export async function benchPut<T = unknown>(doctype: string, name: string, body: unknown): Promise<T> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
     method: 'PUT',
     headers: benchHeaders(),
@@ -94,6 +98,19 @@ export async function benchPut<T = unknown>(doctype: string, name: string, body:
   const parsed = (await res.json()) as { data?: T };
   if (!res.ok) throw new Error(`bench PUT ${doctype}/${name} -> ${res.status} ${JSON.stringify(parsed)}`);
   return parsed.data as T;
+}
+
+/** DELETE a bench document — used by the remote-bench opt-in cleanup (a shared bench must not keep
+ *  a run's residue; 404 tolerated, the document may already be gone). */
+export async function benchDelete(doctype: string, name: string): Promise<void> {
+  assertLocalBenchUrl(BENCH_URL);
+  const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: benchHeaders(),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`bench DELETE ${doctype}/${name} -> ${res.status} ${JSON.stringify((await res.json()) as unknown)}`);
+  }
 }
 
 /** Every ERPNext `Timesheet` whose recovery ANCHOR (`note`, doctypeRegistry) carries this run's key.
@@ -317,6 +334,18 @@ export async function cleanupTsp(admin: SupabaseClient, seed: TspSeed): Promise<
   await admin.from('projects').delete().in('id', [seed.projectAId, seed.projectBId]);
   await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'timesheets');
   await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+  // #1359: ONLY under the remote-bench opt-in — the local bench is disposable and rebuilt between
+  // runs (no behaviour change for local runs), while a remote bench is shared, so this run's
+  // Projects must not linger there. Best effort: teardown must never mask the test's own result.
+  if (remoteErpAllowed()) {
+    for (const name of [seed.erpProjectA, seed.erpProjectB]) {
+      try {
+        await benchDelete('Project', name);
+      } catch {
+        // best effort
+      }
+    }
+  }
 }
 
 /**
