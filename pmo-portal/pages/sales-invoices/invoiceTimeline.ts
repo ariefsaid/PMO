@@ -7,10 +7,10 @@ export function invoiceTimelineSteps(inv: Pick<SalesInvoiceRow, 'status' | 'rece
   if (inv.status === 'Cancelled') return null;
   const reached = inv.status === 'Paid' ? 3 : inv.status === 'Draft' ? 0 : inv.received_date ? 2 : 1;
   const labels = [
-    t('invoiceTimeline.draft', 'Draft'),
-    t('invoiceTimeline.submitted', 'Submitted'),
-    t('invoiceTimeline.received', 'Received by client'),
-    t('invoiceTimeline.paid', 'Paid'),
+    t('finance:invoiceTimeline.draft', 'Draft'),
+    t('finance:invoiceTimeline.submitted', 'Submitted'),
+    t('finance:invoiceTimeline.received', 'Received by client'),
+    t('finance:invoiceTimeline.paid', 'Paid'),
   ];
   return labels.map((label, i) => ({
     label,

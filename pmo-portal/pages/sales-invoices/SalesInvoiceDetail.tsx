@@ -89,7 +89,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
               ]}
             />
-            {timeline && <LifecycleStepper variant="bar" steps={timeline} aria-label={t('invoiceTimeline.label', 'Invoice status timeline')} className="mb-5" />}
+            {timeline && <LifecycleStepper variant="bar" steps={timeline} aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')} className="mb-5" />}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>

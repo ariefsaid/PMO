@@ -915,5 +915,12 @@
       "reasonHelp": "Kept in the audit trail with your name.",
       "confirmAction": "Move to the Odoo ledger"
     }
+  },
+  "invoiceTimeline": {
+    "label": "Invoice status timeline",
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "received": "Received by client",
+    "paid": "Paid"
   }
 }

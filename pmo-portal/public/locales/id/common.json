@@ -4559,12 +4559,10 @@
     "manualHandoffHelp": "Unduh PDF dan kirim sendiri ke klien Anda.",
     "preparingPdf": "Menyiapkan PDF…",
     "downloadApprovedPdf": "Unduh PDF yang disetujui",
-    "collectionSummary": "Rincian penagihan faktur",
     "invoiceDate": "Tanggal faktur",
     "dueDate": "Tanggal jatuh tempo",
     "dateNotRecorded": "Belum dicatat",
     "dueDateUnavailable": "Tanggal jatuh tempo tidak tersedia",
-    "status": "Status",
     "outstandingUnavailable": "Jumlah terutang tidak tersedia",
     "overdue": "Terlambat",
     "daysOverdue": "Terlambat {{count}} hari",
@@ -4963,12 +4961,5 @@
       "summary": "Tertaut: {{linked}} · Perlu pilihan Anda: {{needsChoice}} · Tidak ada folder yang cocok atau tanpa kode: {{missing}} · Gagal: {{failed}} · Sudah tertaut: {{skipped}}",
       "resolve": "Untuk menyelesaikannya, buka proyek atau kasus, lalu gunakan \"Pilih folder yang ada\" atau \"Buat folder di SharePoint\"."
     }
-  },
-  "invoiceTimeline": {
-    "label": "Linimasa status faktur",
-    "draft": "Draf",
-    "submitted": "Diajukan",
-    "received": "Diterima klien",
-    "paid": "Dibayar"
   }
 }

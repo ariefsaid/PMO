@@ -915,5 +915,12 @@
       "refusedStale": "Pencocokan terakhir sudah usang. Tunggu pencocokan berikutnya.",
       "refusedUnconfirmed": "Selisih perlu alasan tertulis sebelum Anda dapat melanjutkan."
     }
+  },
+  "invoiceTimeline": {
+    "label": "Linimasa status faktur",
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "received": "Diterima klien",
+    "paid": "Dibayar"
   }
 }

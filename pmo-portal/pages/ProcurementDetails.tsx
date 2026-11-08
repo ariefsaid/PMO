@@ -13,7 +13,6 @@ import {
   Combobox,
   StatusPill,
   ListState,
-  Icon,
   ConfirmDialog,
   TextArea,
   Tabs,

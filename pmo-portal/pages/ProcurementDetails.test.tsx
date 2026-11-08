@@ -974,7 +974,7 @@ describe('Action bar covers mid-flow transitions', () => {
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
     // Finance may request, source, invoice and pay; it is not the requester and not a receiver, so no receipt.
-    const menu = await screen.findByRole('menu', { name: /record another document/i });
+    await screen.findByRole('menu', { name: /record another document/i });
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment',
       'Add quotation', 'Link from accounting system',

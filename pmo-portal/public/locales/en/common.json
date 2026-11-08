@@ -4559,12 +4559,10 @@
     "manualHandoffHelp": "Download the PDF and send it to your client yourself.",
     "preparingPdf": "Preparing PDF…",
     "downloadApprovedPdf": "Download approved PDF",
-    "collectionSummary": "Invoice collection details",
     "invoiceDate": "Invoice date",
     "dueDate": "Due date",
     "dateNotRecorded": "Not recorded",
     "dueDateUnavailable": "Due date not available",
-    "status": "Status",
     "outstandingUnavailable": "Outstanding amount not available",
     "overdue": "Overdue",
     "daysOverdue": "{{count}} days overdue",
@@ -4963,12 +4961,5 @@
       "summary": "Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}",
       "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
     }
-  },
-  "invoiceTimeline": {
-    "label": "Invoice status timeline",
-    "draft": "Draft",
-    "submitted": "Submitted",
-    "received": "Received by client",
-    "paid": "Paid"
   }
 }
