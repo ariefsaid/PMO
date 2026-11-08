@@ -930,7 +930,7 @@ describe('Action bar covers mid-flow transitions', () => {
     expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(screen.queryByByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('FR-PFE-005 payment-first: a Draft purchase with a recorded payment shows Mark as Paid to Finance, not to its approver', async () => {
@@ -945,7 +945,7 @@ describe('Action bar covers mid-flow transitions', () => {
     renderPage();
     const newHeader = screen.getByTestId('record-header');
     await userEvent.click(within(newHeader).getByRole('button', { name: /more procurement actions/i }));
-    expect(screen.queryByByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('a Draft purchase with no payment recorded has no secondary paid transition', async () => {
@@ -953,7 +953,7 @@ describe('Action bar covers mid-flow transitions', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(screen.queryByByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('ADR-0093: a Requested purchase offers no record action; an approver is told to approve, the requester to wait', () => {
@@ -1100,8 +1100,8 @@ describe('Action bar covers mid-flow transitions', () => {
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
     expect(await screen.findByRole('menuitem', { name: 'Receipt' })).toBeInTheDocument();
-    expect(screen.queryByByRole('menuitem', { name: 'Supplier invoice' })).toBeNull();
-    expect(screen.queryByByRole('menuitem', { name: 'Payment' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Supplier invoice' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Payment' })).toBeNull();
   });
 
   it('D2 C3: Mark as Paid is not offered on a purchase with nothing on it, and one line says why', () => {
@@ -1338,7 +1338,7 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
-    expect(screen.queryByByRole('menuitem', { name: 'Receipt' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Receipt' })).toBeNull();
   });
 
   it('clicking Create GR shows the form', async () => {
@@ -1575,7 +1575,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     renderPage();
     const header = screen.getByTestId('record-header');
     fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(screen.queryByByTestId('edit-header')).toBeNull();
+    expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
   it('AC-PROC-004: the Select-quote action shows at Vendor Quoted for a sourcing role', () => {
@@ -1664,7 +1664,8 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const header = screen.getByTestId('record-header');
-    await userEvent.click(within(header).getByRole('button', { name: /^Reject$/ }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Reject$/ }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByRole('button', { name: /^Reject$/ })).toBeVisible();
     expect(mockTransition).not.toHaveBeenCalled();
