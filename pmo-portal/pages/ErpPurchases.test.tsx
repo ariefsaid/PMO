@@ -17,7 +17,6 @@ const { orphansMock, projectsMock, mayMock, roleState } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpOrphans: orphansMock,
   useErpPurchases: () => ({ data: [], isPending: false, isError: false }),
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: projectsMock, useProject: () => ({ data: null }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useProjectOptions: () => ({ data: [] }), useVendorOptions: () => ({ data: [] }) }));
