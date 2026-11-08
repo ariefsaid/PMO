@@ -113,3 +113,17 @@ failure counts with the latencies. The 502/504 are the local PostgREST/gateway s
 Heaviest statements by total DB time (both runs agree on the order): the Executive/PM dashboard RPCs
 (`get_executive_dashboard`, `get_pm_dashboard_projects`, and the management-pack/delivery RPC family at 30 to 320 ms mean)
 and the `procurements` list query (84 ms mean, 1,583 calls) with its project-embedded variant.
+
+## `/procurement`: open commitment set-based (0723)
+
+The list embedded `procurement_open_commitment(p)` per row (about 4.6 ms a row on a 1,021-row org, 2.2 to 2.5 s for the
+list). `procurement_open_commitments(p_ids)` computes the same figures in one call (0 of 1,021 differ). The list now reads
+them with one extra RPC per 1,000 rows. Back-to-back, 50 users x 60 s, same host:
+
+| Run | Pages | p50 ms | p95 ms | p99 ms | 502 |
+|---|---|---|---|---|---|
+| before (`procurement`) | 1,116 | 1,524 | 4,343 | 6,408 | 21 |
+| after (`procurement-set`) | 1,658 | 644 | 1,968 | 2,955 | 32 |
+
+`procurements` list statement: 119.8 ms mean before, 20.3 ms after (plus 11.5 ms for the new RPC). Next heaviest on this
+route: `get_procurement_approval_routes` (35 ms mean, 3 Requested rows).
