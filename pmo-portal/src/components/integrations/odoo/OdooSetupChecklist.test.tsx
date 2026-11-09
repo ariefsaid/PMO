@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({
   conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> },
-  proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true },
+  proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true, manage: true },
+  status: { data: { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} } as unknown },
+  employ: vi.fn(),
   accounts: { data: { rows: [{ external_id: '210', name: 'Advance Liability', code: '210', attrs: {} }, { external_id: '88', name: 'Tax Prepayments', code: '1350', attrs: {} }], total: 2 }, isError: false },
   accountSummary: { data: { inactive: 0, tombstoned: 0, asOf: new Date().toISOString() } },
 }));
@@ -12,6 +15,8 @@ vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooConnection: () => h.conn,
   useOdooJournalProposal: () => h.proposal,
   useOdooSetup: () => ({ mutateAsync: h.save, isPending: false }),
+  useOdooConnectStatus: () => h.status,
+  useOdooEmploy: () => ({ mutateAsync: h.employ, isPending: false }),
   useMasterRecords: () => h.accounts,
   useMasterSummary: () => h.accountSummary,
 }));
@@ -32,7 +37,7 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
   h.conn.data = read({});
   render(<OdooSetupChecklist />);
   const names = screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'));
-  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo']);
+  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();
 });
@@ -147,4 +152,102 @@ it('AC-OCI-091 saves the account defaults using the mirror ids', async () => {
   await userEvent.click(within(item('Tax-prepaid account')).getByRole('button', { name: 'Save' }));
   expect(h.save).toHaveBeenNthCalledWith(1, { customer_advance_account_ref: 'account.account:210' });
   expect(h.save).toHaveBeenNthCalledWith(2, { tax_prepaid_account_id: '88' });
+});
+
+describe('AC-ODS-005 let Odoo manage vendors and clients', () => {
+  const STEP = 'Vendors and clients managed in Odoo';
+  const EMPLOY = 'Let Odoo manage vendors and clients';
+  beforeEach(() => {
+    h.employ.mockReset();
+    h.employ.mockResolvedValue({ employed: true });
+    h.can.setValue = true;
+    h.can.manage = true;
+    h.owned.data = [];
+    h.conn.data = read({});
+    h.proposal.data = undefined;
+    h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
+  });
+
+  it('AC-ODS-005 the Admin confirms once and companies are handed to Odoo', async () => {
+    render(<OdooSetupChecklist />);
+    await userEvent.click(within(item(STEP)).getByRole('button', { name: EMPLOY }));
+    const dialog = await screen.findByRole('dialog', { name: `${EMPLOY}?` });
+    expect(within(dialog).getByText(/Odoo holds your vendor and client records/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Let Odoo manage them' }));
+    await waitFor(() => expect(h.employ).toHaveBeenCalledWith('companies'));
+  });
+
+  it('AC-ODS-005 while records are still on their way the action is off and says why', () => {
+    h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 2, proposalCounts: {} };
+    render(<OdooSetupChecklist />);
+    expect(within(item(STEP)).getByRole('button', { name: EMPLOY })).toBeDisabled();
+    expect(within(item(STEP)).getByText('Wait until every record has reached Odoo.')).toBeInTheDocument();
+  });
+
+  it('AC-ODS-005 a refusal because sends are pending shows plain words, never the server text', async () => {
+    h.employ.mockRejectedValue(new AppError('Some records are still being sent to Odoo', 'sends-pending'));
+    render(<OdooSetupChecklist />);
+    await userEvent.click(within(item(STEP)).getByRole('button', { name: EMPLOY }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Let Odoo manage them' }));
+    const alert = await within(item(STEP)).findByRole('alert');
+    expect(alert).toHaveTextContent('Some records are still on their way to Odoo. Try again when they have arrived.');
+    expect(alert).not.toHaveTextContent('still being sent to Odoo');
+  });
+
+  it('AC-ODS-005 Finance (no manage) sees the step as To do with no action', () => {
+    h.can.manage = false;
+    render(<OdooSetupChecklist />);
+    expect(doneOf(STEP)).toBe(false);
+    expect(within(item(STEP)).queryByRole('button')).toBeNull();
+  });
+
+  it('AC-ODS-005 once employed the step is Done and the action is gone', () => {
+    h.owned.data = [{ externalTier: 'odoo', domain: 'companies' }];
+    render(<OdooSetupChecklist />);
+    expect(doneOf(STEP)).toBe(true);
+    expect(within(item(STEP)).queryByRole('button')).toBeNull();
+  });
+});
+
+describe('AC-ODS-006 send purchases to Odoo', () => {
+  const STEP = 'Purchases go to Odoo';
+  beforeEach(() => {
+    h.employ.mockReset();
+    h.employ.mockResolvedValue({ employed: true });
+    h.can.setValue = true;
+    h.can.manage = true;
+    h.owned.data = [];
+    h.conn.data = read({});
+    h.proposal.data = undefined;
+    h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
+  });
+
+  it('AC-ODS-006 the Admin confirms once and purchases are handed to Odoo', async () => {
+    render(<OdooSetupChecklist />);
+    await userEvent.click(within(item(STEP)).getByRole('button', { name: 'Send purchases to Odoo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Send purchases to Odoo?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send purchases' }));
+    await waitFor(() => expect(h.employ).toHaveBeenCalledWith('procurement'));
+  });
+
+  it('AC-ODS-006 purchases do not wait for sends', () => {
+    h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 4, proposalCounts: {} };
+    render(<OdooSetupChecklist />);
+    expect(within(item(STEP)).getByRole('button', { name: 'Send purchases to Odoo' })).toBeEnabled();
+  });
+
+  it('AC-ODS-006 once employed the step is Done and the action is gone', () => {
+    h.owned.data = [{ externalTier: 'odoo', domain: 'procurement' }];
+    render(<OdooSetupChecklist />);
+    expect(doneOf(STEP)).toBe(true);
+    expect(within(item(STEP)).queryByRole('button')).toBeNull();
+  });
+
+  it('AC-ODS-006 Odoo missing something it needs is said in plain words', async () => {
+    h.employ.mockRejectedValue(new AppError('config check failed: no journal', 'config-rejected'));
+    render(<OdooSetupChecklist />);
+    await userEvent.click(within(item(STEP)).getByRole('button', { name: 'Send purchases to Odoo' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Send purchases' }));
+    expect(await within(item(STEP)).findByRole('alert')).toHaveTextContent('Odoo is missing something this needs. Check the connection again, then try again.');
+  });
 });
