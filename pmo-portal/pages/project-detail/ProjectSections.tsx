@@ -292,7 +292,7 @@ const ProjectActionButton: React.FC<{ mobileBar: boolean; to: string; children: 
     ? (
       <>
         <div aria-hidden="true" className="h-20 md:hidden" />
-        <MobileActionBar className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{button}</MobileActionBar>
+        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{button}</MobileActionBar>
       </>
     )
     : button;

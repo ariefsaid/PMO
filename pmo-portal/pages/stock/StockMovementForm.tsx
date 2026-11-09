@@ -287,7 +287,7 @@ const StockMovementForm: React.FC = () => {
           {!insufficient && <StockError error={submitError} />}
 
           {canSubmit ? (
-            <MobileActionBar className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
+            <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
               <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/documents')} loading={create.isPending} />
             </MobileActionBar>
           ) : (

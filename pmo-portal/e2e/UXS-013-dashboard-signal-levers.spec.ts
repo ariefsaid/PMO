@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — dashboard signal→lever journeys; nav/assert only over seeded data, no DB writes.
 import { test, expect } from '@playwright/test';
-import { signIn, waitForFonts } from './helpers';
+import { openAppPath, signIn, waitForFonts } from './helpers';
 
 /**
  * UXS-013 — a named risk/budget signal carries its own lever (rendered acceptance).
@@ -41,7 +41,11 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await pinEnglishLocale(page);
     await signIn(page, 'exec@acme.test');
-    await page.goto('/');
+    // #2061: a phone now OPENS on the my-queue Home, so the journey to the dashboard goes through
+    // the phone navigation's More drawer (the same destination, one deliberate extra step). The
+    // goal under test — the dashboard signal carries its lever — is unchanged.
+    await openAppPath(page, '/');
+    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
     await waitForFonts(page);
 
     // The risk block carries a risk-specific doorway (zero risks render no false action).

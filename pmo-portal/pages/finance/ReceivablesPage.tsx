@@ -287,7 +287,7 @@ export default function ReceivablesPage() {
         </div>
       </section>
 
-      {canCreateInvoice && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+      {canCreateInvoice && <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
         <Button type="button" variant="primary" onClick={openNewInvoice} className="w-full">
           <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
         </Button>
