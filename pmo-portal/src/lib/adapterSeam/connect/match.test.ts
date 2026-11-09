@@ -66,6 +66,32 @@ describe('AC-ECA-002 proposeMatches gives every row exactly one outcome and neve
   });
 });
 
+describe('AC-ODC-094 / #2052 a project links to a cost account whose code equals any key the project is known by', () => {
+  // Rule: codes compare trimmed and case-insensitive; a project's `altCodes` are matched exactly like its `code`.
+  const acct = (externalId: string, code: string): NormalisedMaster => ({ kind: 'project', externalId, name: `Account ${externalId}`, code, active: true });
+  const proj = (id: string, code: string | null, altCodes?: string[]): PmoMaster => ({ id, name: `Project ${id}`, code, altCodes });
+
+  it('an account carrying the alternate key (the client project code) links', () => {
+    expect(proposeMatches('project', [proj('p', 'PRJ-26-0001', ['CLIENT-7'])], [acct('9', 'CLIENT-7')]))
+      .toEqual([{ outcome: 'link', pmoId: 'p', externalId: '9', key: 'code' }]);
+  });
+  it('the primary key still links, and a project with both keys is one link, not two', () => {
+    expect(proposeMatches('project', [proj('p', 'PRJ-26-0001', ['PRJ-26-0001'])], [acct('9', 'PRJ-26-0001')]))
+      .toEqual([{ outcome: 'link', pmoId: 'p', externalId: '9', key: 'code' }]);
+  });
+  it('codes compare trimmed and case-insensitive', () => {
+    expect(proposeMatches('project', [proj('p', 'PRJ-26-0001', ['Client-7'])], [acct('9', '  client-7 ')]))
+      .toEqual([{ outcome: 'link', pmoId: 'p', externalId: '9', key: 'code' }]);
+  });
+  it('no key equal means no link: the project is sent', () => {
+    expect(proposeMatches('project', [proj('p', 'PRJ-26-0001', ['CLIENT-7'])], [acct('9', 'OTHER')])).toEqual([{ outcome: 'send', pmoId: 'p' }]);
+  });
+  it('two projects known by the same key are a review, never a link', () => {
+    expect(proposeMatches('project', [proj('a', 'PRJ-1', ['SHARED']), proj('b', 'PRJ-2', ['shared'])], [acct('9', 'SHARED')]))
+      .toEqual([{ outcome: 'review', pmoIds: ['a', 'b'], externalIds: ['9'], reason: 'ambiguous' }]);
+  });
+});
+
 describe('C1 a person or an account never links on a bare name', () => {
   const emp = (externalId: string, name: string, o: Partial<NormalisedMaster> = {}): NormalisedMaster => ({ kind: 'employee', externalId, name, active: true, ...o });
   it('a unique employee name is a review, never a link', () => {

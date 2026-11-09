@@ -16,10 +16,10 @@ const ORG = '0d000000-0000-4000-8000-0000000000a1';
 // Both columns on one row: the declared field alone decides which value the matcher sees.
 const PROJECT = { id: 'p1', name: 'Jembatan', code: 'CLIENT-1', pmo_project_number: 'PRJ-26-0001' };
 
-async function projectMasters(field?: 'code' | 'pmo_project_number') {
+async function projectMasters(field?: 'code' | 'pmo_project_number', alt?: 'code' | 'pmo_project_number') {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   return await withFetchMock([supabaseSelect('projects', () => jsonResponse([PROJECT]))], async ({ calls }) => {
-    const rows = field === undefined ? await pmoMasters(sc, ORG, 'project') : await pmoMasters(sc, ORG, 'project', field);
+    const rows = field === undefined ? await pmoMasters(sc, ORG, 'project') : await pmoMasters(sc, ORG, 'project', field, alt);
     const read = calls.find((c) => c.url.pathname === '/rest/v1/projects')!;
     return {
       rows,
@@ -47,6 +47,12 @@ describe('#1692 the project matcher reads the column the adapter declares', () =
     const r = await projectMasters();
     assertEquals(r.select, 'id,name,code');
     assertEquals(r.rows, [{ id: 'p1', name: 'Jembatan', code: 'CLIENT-1' }]);
+  });
+
+  it('#2052 a declared alternate field is read too and offered to the matcher as a second key', async () => {
+    const r = await projectMasters('pmo_project_number', 'code');
+    assertEquals(r.select, 'id,name,pmo_project_number,code');
+    assertEquals(r.rows, [{ id: 'p1', name: 'Jembatan', code: 'PRJ-26-0001', altCodes: ['CLIENT-1'] }]);
   });
 
   it('the read stays this org\'s unarchived projects, whatever the declared field', async () => {

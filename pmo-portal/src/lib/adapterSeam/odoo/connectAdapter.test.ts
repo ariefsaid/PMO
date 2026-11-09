@@ -189,10 +189,16 @@ describe('#1692 which PMO field Odoo matches its project code on', () => {
     expect(adapter.projectCodeField).toBe('pmo_project_number');
   });
 
+  it('#2052 it also matches the client project code, the code PMO\'s own send gives a cost account', () => {
+    const { adapter } = setup();
+    expect(adapter.projectAltCodeField).toBe('code');
+  });
+
   it('the setup adapter the run resolves declares the same field', () => {
     const fake = createFakeOdoo({ key: 'k' });
     const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: fake.fetch });
     expect(createOdooSetupAdapter(call, CTX).projectCodeField).toBe('pmo_project_number');
+    expect(createOdooSetupAdapter(call, CTX).projectAltCodeField).toBe('code');
   });
 });
 
