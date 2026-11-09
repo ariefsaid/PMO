@@ -1,15 +1,17 @@
-// @e2e-isolation: dedicated-row — owns a fresh org; it also stops and restarts the Odoo bed, so it runs only under the Odoo lock after the other Odoo journeys (the bed lock, not the lane, isolates it).
+// @e2e-isolation: serial — stops and restarts the shared Odoo bed, so it runs in the one-worker serial lane and no other bed journey can overlap it.
 // AC-ODC-014: a connected org whose Odoo goes away keeps its last data with its age, shows the unavailable notice, queues nothing, and clears the notice after the bed returns.
+// Open halves, kept visible rather than implied: the project's link screen does not render the unavailable notice yet (the soft assertion below stays a failure),
+// and creating a cost account from PMO has no affordance yet (FR-ODC-072 is a later slice), so that half of the AC is not walked.
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { adminClient, must, provisionOdooOrg, scenarioGate, accessToken, openOdooSection, setup, signIn, sweep, type ScenarioOrg } from './_connectScenario';
+import { accessToken, adminClient, must, provisionOdooOrg, scenarioGate, openOdooSection, setup, signIn, sweep, type ScenarioOrg } from '../_connectScenario';
 
 const gate = scenarioGate('AC-ODC-014');
 test.skip(!gate.ready, gate.reason);
 test.setTimeout(900_000);
 
-const BED_SCRIPT = fileURLToPath(new URL('../../scripts/odoo-dev-bed.sh', import.meta.url));
+const BED_SCRIPT = fileURLToPath(new URL('../../../scripts/odoo-dev-bed.sh', import.meta.url));
 const bed = (verb: 'up' | 'down') => execFileSync(BED_SCRIPT, [verb], { stdio: 'pipe', timeout: 300_000 });
 
 // Re-check is limited to one a minute, so each press waits out the window; the answer is the card's own notice or alert.
@@ -27,6 +29,7 @@ async function recheck(page: import('@playwright/test').Page): Promise<string> {
 
 let scenario: ScenarioOrg | undefined;
 let productId = 0;
+let projectId = '';
 // The bed is brought back even when the journey fails, so the next spec (and the next agent) finds it up.
 test.afterAll(async () => {
   test.setTimeout(300_000);
@@ -40,12 +43,17 @@ test('AC-ODC-014: with Odoo down the item directory shows last data and the unav
   const stamp = `ODC014-${Date.now().toString(36)}`;
   scenario = await provisionOdooOrg(admin, stamp);
   const { orgId, call } = scenario;
+  const token = await accessToken(scenario.admin);
   productId = (await call<number[]>('product.product', 'create', { vals_list: [{ name: `${stamp} Barang`, default_code: `${stamp}-1`.toUpperCase(), purchase_ok: true }] }))[0];
-  await sweep();   // the directory now holds the product while Odoo is up
+  // A pilot project whose link screen reads the cost accounts from PMO's mirror, so it has last data to keep showing while Odoo is away.
+  projectId = crypto.randomUUID();
+  await must('project', admin.from('projects').insert({ id: projectId, org_id: orgId, code: `${stamp}-P1`.toUpperCase(), name: `${stamp} pilot`, status: 'Ongoing Project' }).select('id'));
+  await sweep();   // mirror the plan and the directories first: the plan must be a mirrored one
+  await setup(token, { setupAction: 'set-analytic-plan', planId: String(scenario.planId) });
 
   await signIn(page, scenario.admin);
   // Same call the button makes, first, so a failure names the function's own answer (the UI shows only a generic sentence).
-  const direct = await setup<{ state: string }>(await accessToken(scenario.admin), { setupAction: 'recheck' }).then((r) => r, (e: Error) => ({ state: `ERR ${e.message}` }));
+  const direct = await setup<{ state: string }>(token, { setupAction: 'recheck' }).then((r) => r, (e: Error) => ({ state: `ERR ${e.message}` }));
   expect(direct.state, 'a Re-check against a healthy Odoo').toBe('healthy');
   await page.waitForTimeout(61_000);
   await openOdooSection(page);
@@ -65,11 +73,18 @@ test('AC-ODC-014: with Odoo down the item directory shows last data and the unav
   await expect(banner).toContainText('Odoo cannot be reached');
   await expect(banner).toContainText(/as of \d/);
 
-  // Last data, with its age, and the same notice on the directory.
+  // Last data, with its age, and the same notice on the item directory.
   await page.goto('/master-data/product');
   await expect(page.getByText(`${stamp} Barang`)).toBeVisible();
   await expect(page.getByText(/^As of /).first()).toBeVisible();
   await expect(page.getByTestId('odoo-connection-banner')).toContainText('Odoo cannot be reached');
+
+  // The project's link screen: the mirrored cost accounts stay readable, and the notice belongs here too (soft: still a failure until the screen renders it).
+  await page.goto(`/projects/${projectId}`);
+  const projectLink = page.getByTestId('project-odoo-link');
+  await projectLink.waitFor({ timeout: 60_000 });
+  await expect(projectLink.getByLabel('Cost account')).toBeVisible();
+  expect.soft(await projectLink.innerText(), "the project's link screen carries the unavailable notice (the AC names this screen as well as the directory)").toContain('Odoo cannot be reached');
 
   // Nothing was queued for Odoo while it was away.
   const outbox = await must('outbox', admin.from('external_command_outbox').select('id').eq('org_id', orgId));

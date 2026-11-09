@@ -13,7 +13,7 @@ import { companyDomain, KIND_SPECS, type DirectoryKind } from '../../../pmo-port
 
 const BED = Deno.env.get('ODOO_BED_URL');
 const ORG = Deno.env.get('ODOO_BED_ORG');
-const ready = Boolean(BED && ORG && Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+const ready = Boolean(BED && ORG && Deno.env.get('ODOO_BED_DB') && Deno.env.get('ODOO_BED_KEY') && Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
 
 Deno.test({
   name: 'AC-ODC-023 on the bed: an archived item is inactive, a deleted one tombstoned and kept, a renamed one updated',

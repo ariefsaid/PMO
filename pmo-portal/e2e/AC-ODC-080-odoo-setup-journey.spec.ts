@@ -1,6 +1,6 @@
 // @e2e-isolation: dedicated-row — owns a fresh PMO org and uniquely stamped Odoo records; nothing shared is mutated.
-// AC-ODC-080 (goal oracle): an Admin connects a new org to Odoo, maps once, links the pilot project by sending it, reviews a partner, employs companies;
-// the setup checklist is complete after a fresh sign-in and the project's cost account equals the bed's value.
+// AC-ODC-080 (goal oracle): an Admin connects a new org to Odoo, maps once, links the pilot project by sending it, reviews the partner rows Odoo's own logins leave behind, employs companies;
+// the setup checklist is complete after a fresh sign-in, the brought-in partner and the saved defaults are read back, and the project's cost account equals the bed's value.
 // The Odoo section has no census/accept/send/employ screen yet, so those steps call the same setup verbs the Integrations screen calls (see s10-app-failures).
 import { test, expect } from '@playwright/test';
 import { accessToken, adminClient, must, provisionOdooOrg, scenarioGate, setup, openOdooSection, signIn, sweep, sweepUntil, type ScenarioOrg } from './_connectScenario';
@@ -47,8 +47,11 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   await expect(acceptAll).toBeVisible({ timeout: 60_000 });
   const unitRow = page.getByTestId('odoo-map-once').getByLabel('Unit "Units"');
   await expect(unitRow).toBeVisible();
-  if (!(await unitRow.inputValue().catch(() => ''))) await unitRow.selectOption({ label: 'Units' }).catch(() => undefined);
-  if (await acceptAll.isEnabled()) { await acceptAll.click(); await expect(page.getByText('Saved.')).toBeVisible(); }
+  // A blank match is a person's step on this screen, not a failure to swallow; then the screen must offer Accept all.
+  if (!(await unitRow.inputValue())) await unitRow.selectOption({ label: 'Units' });
+  await expect(acceptAll).toBeEnabled({ timeout: 30_000 });
+  await acceptAll.click();
+  await expect(page.getByText('Saved.')).toBeVisible();
   await setup(token, { setupAction: 'set-analytic-plan', planId: String(scenario.planId) });
 
   // Link the pilot project by sending it: census, accept, drain.
@@ -74,6 +77,14 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   const binding = await must('binding config', admin.from('external_org_bindings').select('config').eq('org_id', orgId).eq('external_tier', 'odoo'));
   const cfg = (binding[0]?.config ?? {}) as Record<string, unknown>;
   const saved = ['account_defaults', 'unit_map', 'default_warehouse_id'].map((k) => `${k}=${JSON.stringify(cfg[k] ?? null)}`).join(' ');
+  // The defaults half of the AC: Map once saved the account defaults, the PMO unit's match and the receiving warehouse, and they survive re-login.
+  expect(Object.keys((cfg.account_defaults ?? {}) as Record<string, string>), `the account defaults Map once saved (${saved})`).not.toHaveLength(0);
+  expect((cfg.unit_map as Record<string, string> | undefined)?.Units, `the "Units" match Map once saved (${saved})`).toBeTruthy();
+  expect(cfg.default_warehouse_id, `the default warehouse Map once saved (${saved})`).toBeTruthy();
+  // The partner half: the Odoo-only partner came into PMO as a company, so the review step and the bring-in both did their job.
+  const broughtIn = await must('brought-in partner', admin.from('companies').select('name,type').eq('org_id', orgId).eq('name', `${stamp} Odoo-only partner`));
+  expect(broughtIn, 'the Odoo-only partner is one PMO company').toHaveLength(1);
+  expect(broughtIn[0].type).toBe('Vendor');
   const checklist = page.getByTestId('odoo-checklist');
   for (const step of ['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Sends finished', 'Vendors and clients managed in Odoo']) {
     // soft: a step that stays To do is reported with the saved config, and the remaining steps and the goal oracle still run

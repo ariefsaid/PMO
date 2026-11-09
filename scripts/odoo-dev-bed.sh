@@ -44,12 +44,20 @@ seed() {
 
 # The Indonesian chart (PPN taxes, IDR) is what the connect capability check and the journeys expect; loaded once, skipped when already loaded.
 load_chart() {
-  odoo_run odoo shell -d "$ODOO_DB" --no-http >/dev/null 2>&1 <<'PY' || echo "indonesian chart load skipped (best effort)" >&2
+  local log; log="$(mktemp)"
+  if odoo_run odoo shell -d "$ODOO_DB" --no-http >"$log" 2>&1 <<'PY'
 co = self.env.company
 if co.chart_template != 'id':
     self.env['account.chart.template'].sudo().try_loading('id', co, install_demo=False)
     self.env.cr.commit()
 PY
+  then
+    rm -f "$log"; return 0
+  fi
+  # Best effort (the journeys still run on whatever chart is loaded), but never silent: the tail is what explains a missing tax later.
+  echo "indonesian chart load skipped (best effort); the odoo shell said:" >&2
+  tail -20 "$log" >&2
+  rm -f "$log"
 }
 
 mint_key() {

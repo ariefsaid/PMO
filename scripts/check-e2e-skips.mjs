@@ -32,6 +32,9 @@ const isRunAsMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').hre
  * after re-reading the spec; bumping the date without checking defeats the whole point.
  * @type {Array<{file: string, reason: string, restore: string, verified: string}>}
  */
+// One restore path for the bed journeys, in neutral words: the runbook and the bed script name the settings they need.
+const ODOO_BED_RESTORE = 'Run under the Odoo and DB locks with the Odoo bed up and the functions served (see odoo-client-setup and the bed script), then scripts/e2e-local.sh <fragment>.';
+
 export const ALLOWED_SKIPS = [
   {
     file: 'AC-LEG-024-mobile-account-menu.spec.ts',
@@ -92,33 +95,33 @@ export const ALLOWED_SKIPS = [
   },
   {
     file: 'serial/AC-ODC-093-odoo-empty-erp.spec.ts',
-    reason: 'The empty-Odoo scenario needs a freshly reset Odoo bed and the served-functions lane.',
-    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
-    verified: '2026-11-08',
+    reason: 'The empty-Odoo scenario needs the Odoo bed and the served-functions lane.',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
   },
   {
     file: 'AC-ODC-091-odoo-new-org-existing-erp.spec.ts',
     reason: 'The new-org-existing-Odoo scenario needs the Odoo bed and the served-functions lane.',
-    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
-    verified: '2026-11-08',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
   },
   {
     file: 'AC-ODC-094-odoo-both-have-data.spec.ts',
     reason: 'The both-have-data scenario needs the Odoo bed and the served-functions lane.',
-    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
-    verified: '2026-11-08',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
   },
   {
     file: 'AC-ODC-080-odoo-setup-journey.spec.ts',
     reason: 'The Odoo setup journey needs the Odoo bed and the served-functions lane.',
-    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
-    verified: '2026-11-08',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
   },
   {
-    file: 'AC-ODC-014-odoo-unavailable.spec.ts',
+    file: 'serial/AC-ODC-014-odoo-unavailable.spec.ts',
     reason: 'The Odoo-unavailable journey stops and restarts the Odoo bed and needs the served-functions lane.',
-    restore: 'Run scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh <fragment> with the Odoo bed up and the functions served (ODOO_BED_*, ODOO_SWEEP_SECRET).',
-    verified: '2026-11-08',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
   },
   {
     file: 'serial/AC-PLN-015-switch-off-journey.spec.ts',

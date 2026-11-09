@@ -2,20 +2,34 @@
 // AC-ODC-094 (scenario S-D; AC-ECA-051 Odoo parity): PMO and Odoo both hold data. Matching partners link, PMO-only ones are sent, Odoo-only ones brought in, an ambiguous name waits for a person.
 // The Odoo section has no census/accept screen yet, so the journey calls the same setup verbs the Integrations screen calls (see s10-app-failures).
 import { test, expect } from '@playwright/test';
-import { accessToken, adminClient, must, provisionOdooOrg, scenarioGate, setup, sweep, sweepUntil, type ScenarioOrg } from './_connectScenario';
+import { accessToken, adminClient, must, provisionOdooOrg, scenarioGate, setup, sweep, sweepUntil, type Admin, type ScenarioOrg } from './_connectScenario';
 
 const gate = scenarioGate('AC-ODC-094');
 test.skip(!gate.ready, gate.reason);
 test.setTimeout(420_000);
 
+// Only on a failure: the proposals, counts and refs that explain why the project has no binding (extra reads that would otherwise run on every pass).
+async function projectLinkDump(token: string, admin: Admin, orgId: string, project: string): Promise<string> {
+  const status = await setup<{ proposalCounts: unknown }>(token, { setupAction: 'connect-status' });
+  const refs = await must('project refs', admin.from('external_refs').select('domain,external_record_id').eq('org_id', orgId).eq('pmo_record_id', project));
+  const allProposals: unknown[] = [];
+  for (const state of ['open', 'sending', 'applied', 'dismissed']) {
+    const r = await setup<{ proposals: Array<{ kind: string; outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', state });
+    allProposals.push(...r.proposals.map((p) => [p.kind, p.outcome, p.state, p.reason]));
+  }
+  const applied = await setup<{ proposals: Array<{ outcome: string; state: string }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'applied' });
+  const open = await setup<{ proposals: Array<{ outcome: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'open' });
+  return `counts=${JSON.stringify(status.proposalCounts)} refs=${JSON.stringify(refs)} all=${JSON.stringify(allProposals)} project applied=${JSON.stringify(applied.proposals.map((p) => [p.outcome, p.state]))} open=${JSON.stringify(open.proposals.map((p) => [p.outcome, p.reason]))}`;
+}
+
 let scenario: ScenarioOrg | undefined;
 let bedIds: number[] = [];
+let bedAccounts: number[] = [];
 test.afterAll(async () => {
   await scenario?.call('res.partner', 'unlink', { ids: bedIds }).catch(() => undefined);
   await scenario?.call('account.analytic.account', 'unlink', { ids: bedAccounts }).catch(() => undefined);
   await scenario?.cleanup();
 });
-let bedAccounts: number[] = [];
 
 test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are brought in, two same-name companies stay for review, and a matching project code links', async () => {
   const admin = adminClient();
@@ -58,6 +72,7 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
   // The sweep proposes ONE kind per tick, in order party, item, project, employee, account, so the party counts being
   // ready is not the run being ready: accepting there would leave the project's link proposal unwritten (a later tick
   // writes it) and the project would never bind. Wait for the whole run, or at least the project kind, before accepting.
+  // The project-kind branch stays on purpose: a run that fails after the project tick must still let accept apply the project link.
   type Status = { run: { state: 'staging' | 'proposing' | 'ready' | 'failed' } | null; proposalCounts: Record<string, { link: number; send: number; bring_in: number; review: number }> };
   await sweepUntil<Status>(
     () => setup<Status>(token, { setupAction: 'connect-status' }),
@@ -83,8 +98,10 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
   // One PMO row per partner: PMO-only C sent (+1), D brought in; bed holds A', B', C', D, E' = 5.
   const onBed = await call<Array<{ name: string; ref: string | false }>>('res.partner', 'search_read', { domain: [['name', 'like', stamp]], fields: ['name', 'ref'], context: { active_test: false } });
   expect(onBed, JSON.stringify(onBed)).toHaveLength(5);
-  const { data: companies } = await admin.from('companies').select('name').eq('org_id', orgId);
-  expect((companies ?? []).filter((c) => c.name === n('PT Sinar Baja D'))).toHaveLength(1);
+  const { data: companies } = await admin.from('companies').select('name,type').eq('org_id', orgId);
+  const broughtIn = (companies ?? []).filter((c) => c.name === n('PT Sinar Baja D'));
+  expect(broughtIn, JSON.stringify(companies)).toHaveLength(1);
+  expect(broughtIn[0].type).toBe('Vendor');
 
   // E stays a review row; resolving it by linking records one link and creates nothing.
   const open = await setup<{ proposals: Array<{ id: string; outcome: string; pmo_ids: string[]; external_ids: string[] }> }>(token, { setupAction: 'list-proposals', state: 'open', outcome: 'review' });
@@ -99,14 +116,7 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
   const accounts = await call<Array<{ id: number }>>('account.analytic.account', 'search_read', { domain: [['code', '=', code]], fields: ['id'] });
   expect(accounts).toHaveLength(1);
   const bound = await must('binding', admin.from('external_project_bindings').select('external_container_id').eq('org_id', orgId).eq('project_id', project).eq('external_tier', 'odoo'));
-  const status = await setup<{ proposalCounts: unknown }>(token, { setupAction: 'connect-status' });
-  const projRefs = await must('project refs', admin.from('external_refs').select('domain,external_record_id').eq('org_id', orgId).eq('pmo_record_id', project));
-  const allProposals: unknown[] = [];
-  for (const state of ['open', 'sending', 'applied', 'dismissed']) {
-    const r = await setup<{ proposals: Array<{ kind: string; outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', state });
-    allProposals.push(...r.proposals.map((p) => [p.kind, p.outcome, p.state, p.reason]));
-  }
-  const projectRows = await setup<{ proposals: Array<{ outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'applied' });
-  const projectOpen = await setup<{ proposals: Array<{ outcome: string; state: string; reason: string | null }> }>(token, { setupAction: 'list-proposals', kind: 'project', state: 'open' });
-  expect(bound.map((b) => b.external_container_id), `all=${JSON.stringify(allProposals)} counts=${JSON.stringify(status.proposalCounts)} refs=${JSON.stringify(projRefs)} project proposals applied=${JSON.stringify(projectRows.proposals.map((p) => [p.outcome, p.state]))} open=${JSON.stringify(projectOpen.proposals.map((p) => [p.outcome, p.reason]))}`).toEqual([String(accounts[0].id)]);
+  const linkedIds = bound.map((b) => b.external_container_id);
+  // Only on a miss: read the proposals, counts and refs that explain why the project has no binding.
+  if (!(linkedIds.length === 1 && linkedIds[0] === String(accounts[0].id))) expect(linkedIds, await projectLinkDump(token, admin, orgId, project)).toEqual([String(accounts[0].id)]);
 });

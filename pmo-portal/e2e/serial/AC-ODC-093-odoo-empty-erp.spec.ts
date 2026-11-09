@@ -1,4 +1,4 @@
-// @e2e-isolation: serial — resets the shared Odoo bed to empty (run first in the Odoo group: `scripts/odoo-dev-bed.sh reset`), then counts the bed's whole database before and after.
+// @e2e-isolation: serial — sends into the shared Odoo bed and counts its whole database before and after, so it must not overlap another bed journey; no reset is needed (the oracle is the delta).
 // AC-ODC-093 (scenario S-C; AC-ECA-051 Odoo parity): PMO has data, the connected Odoo has none of it. Accepting everything sends it once.
 // The Odoo section has no census/accept screen yet, so the journey calls the same setup verbs the Integrations screen calls (see s10-app-failures).
 import { test, expect } from '@playwright/test';
