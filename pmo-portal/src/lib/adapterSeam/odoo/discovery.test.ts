@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bindCall, OdooError } from './client.ts';
 import { createFakeOdoo } from './fakeOdoo.ts';
-import { discoverCapabilities, LATER_MODELS, O1_MODELS, versionPolicy } from './discovery.ts';
+import { ASSET_MODELS, discoverCapabilities, LATER_MODELS, O1_MODELS, versionPolicy } from './discovery.ts';
 
 describe('odoo/discovery — AC-ODC-012 version policy', () => {
   it.each([
@@ -39,6 +39,22 @@ describe('odoo/discovery — AC-ODC-011 capability snapshot', () => {
     expect(typeof snap.later['purchase.order']).toBe('boolean');
     expect(snap).toMatchObject({ observed_at: NOW.toISOString(), version_major: 20, untested_version: false, companies: [{ id: 1, name: 'Main Co' }] });
     expect(fake.calls.some((c) => c.model === 'ir.module.module')).toBe(false);
+    expect(Object.keys(snap.assets ?? {}).sort()).toEqual(Object.keys(ASSET_MODELS).sort());
+  });
+
+  it('AC-OFM-001 the asset models are probed with access and recorded under assets', async () => {
+    const { discover } = stockFake();
+    const snap = await discover();
+    expect(Object.keys(snap.assets ?? {}).sort()).toEqual(Object.keys(ASSET_MODELS).sort());
+    for (const p of Object.values(snap.assets ?? {})) expect(p).toMatchObject({ exists: true, read: true, create: true, write: true, fields_missing: [] });
+  });
+
+  it('AC-OFM-001 a missing fleet app is recorded as absent and does not add to missing', async () => {
+    const { fake, discover } = stockFake();
+    fake.dropModel('fleet.vehicle');
+    const snap = await discover();
+    expect(snap.assets?.['fleet.vehicle']).toMatchObject({ exists: false, read: false });
+    expect(snap.missing).toEqual([]);
   });
 
   it('AC-ODC-011 a missing field is named <model>:<field>', async () => {
