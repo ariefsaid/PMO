@@ -538,8 +538,8 @@ verify_jwt = false
 
 # ── Edge Function: clickup-webhook ─────────────────────────────────────────────
 # verify_jwt = false: a PUBLIC, unauthenticated surface — ClickUp (not a browser) POSTs task
-# webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by CLICKUP_WEBHOOK_SECRET) is
-# the SOLE trust boundary (FR-CUA-041, NFR-CUA-SEC-002): an absent/invalid signature ⇒ 401 with no
+# webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by the org's own webhook
+# secret, resolved from its binding) is the SOLE trust boundary (FR-CUA-041, NFR-CUA-SEC-002): an absent/invalid signature ⇒ 401 with no
 # side effect (STRIDE spoofing/tampering). The handler verifies the signature itself before any apply.
 [functions.clickup-webhook]
 verify_jwt = false

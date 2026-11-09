@@ -26,7 +26,7 @@ const { handleClickUpWebhook } = await import('./index.ts');
 type ClickUpWebhookHandlerDeps = Parameters<typeof handleClickUpWebhook>[1];
 
 const SECRET = 'test-clickup-webhook-secret';
-Deno.env.set('CLICKUP_WEBHOOK_SECRET', SECRET);
+const OTHER_SECRET = 'test-other-org-webhook-secret';
 
 const FIXTURES_DIR = new URL('../_shared/testing/fixtures/clickup-webhook/', import.meta.url);
 
@@ -44,9 +44,9 @@ const FIXTURE_FILES = readdirSync(FIXTURES_DIR)
   .sort();
 
 /** Compute the valid X-Signature for a body (hex HMAC-SHA256, keyed by SECRET) — mirrors signature.ts. */
-async function sign(body: string): Promise<string> {
+async function sign(body: string, secret: string = SECRET): Promise<string> {
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(body));
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -58,12 +58,14 @@ function req(body: string, signature: string | null): Request {
   return new Request('https://clickup-webhook.test', { method: 'POST', headers, body });
 }
 
-function deps(): ClickUpWebhookHandlerDeps & { enqueued: unknown[] } {
+function deps(
+  orgSecrets: Array<{ orgId: string; secret: string }> = [{ orgId: 'org-a', secret: SECRET }],
+): ClickUpWebhookHandlerDeps & { enqueued: unknown[] } {
   const enqueued: unknown[] = [];
   const enqueue: ClickUpWebhookHandlerDeps['enqueue'] = async (payload) => {
     enqueued.push(payload);
   };
-  return { enqueue, enqueued };
+  return { enqueue, enqueued, resolveWebhookSecrets: async () => orgSecrets };
 }
 
 // ── Fixture-driven: every one of the 7 REAL captured deliveries enqueues cleanly, and the fixture
@@ -95,6 +97,7 @@ Deno.test('replay protection: enqueue receives a SHA-256 digest of the raw body 
   const sig = await sign(body);
   let digest = '';
   const d: ClickUpWebhookHandlerDeps = {
+    resolveWebhookSecrets: async () => [{ orgId: 'org-a', secret: SECRET }],
     enqueue: async (_payload, rawBodySha256) => {
       digest = rawBodySha256;
       const duplicate = new Error('duplicate') as Error & { code: string };
@@ -206,6 +209,7 @@ Deno.test('an enqueue failure ⇒ 500 GENERIC (never leaks the raw error detail)
   const body = JSON.stringify(payload);
   const sig = await sign(body);
   const failingDeps: ClickUpWebhookHandlerDeps = {
+    resolveWebhookSecrets: async () => [{ orgId: 'org-a', secret: SECRET }],
     enqueue: async () => {
       throw new Error('relation "clickup_webhook_inbox" constraint violation on column secret_col');
     },
@@ -215,4 +219,52 @@ Deno.test('an enqueue failure ⇒ 500 GENERIC (never leaks the raw error detail)
   const responseBody = (await res.json()) as { error?: string; message?: string };
   assert(responseBody.error === 'ENQUEUE_FAILED', `expected ENQUEUE_FAILED, got ${responseBody.error}`);
   assert(!JSON.stringify(responseBody).includes('secret_col'), 'the raw error detail must NOT leak to the public surface');
+});
+
+
+// ── Per-org secret resolution: each org's deliveries verify only against its own secret. ──────────
+const PER_ORG_BODY = JSON.stringify({ event: 'taskUpdated', task_id: 'abc123', history_items: [] });
+
+Deno.test("a delivery signed with org B's secret cannot verify against org A's binding", async () => {
+  const d = deps([{ orgId: 'org-a', secret: SECRET }]);
+  const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY, OTHER_SECRET)), d);
+  assert(res.status === 401, `expected 401, got ${res.status}`);
+  assert(d.enqueued.length === 0, 'a foreign-secret delivery must not enqueue');
+});
+
+Deno.test('with two orgs bound, each org own secret verifies and enqueues', async () => {
+  const both = [{ orgId: 'org-a', secret: SECRET }, { orgId: 'org-b', secret: OTHER_SECRET }];
+  for (const secret of [SECRET, OTHER_SECRET]) {
+    const d = deps(both);
+    const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY, secret)), d);
+    assert(res.status === 200, `expected 200, got ${res.status}`);
+    assert(d.enqueued.length === 1, 'the verified delivery enqueues');
+  }
+});
+
+Deno.test('no org has a webhook binding: fails closed (401, no enqueue) even with a deployment-wide env value set', async () => {
+  Deno.env.set('CLICKUP_WEBHOOK_SECRET', SECRET);
+  try {
+    const d = deps([]);
+    const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY)), d);
+    assert(res.status === 401, `expected 401, got ${res.status}`);
+    assert(d.enqueued.length === 0, 'no binding must not enqueue');
+  } finally {
+    Deno.env.delete('CLICKUP_WEBHOOK_SECRET');
+  }
+});
+
+Deno.test('a secret shared by two orgs is ambiguous: rejected with no enqueue', async () => {
+  const d = deps([{ orgId: 'org-a', secret: SECRET }, { orgId: 'org-b', secret: SECRET }]);
+  const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY)), d);
+  assert(res.status === 401, `expected 401, got ${res.status}`);
+  assert(d.enqueued.length === 0, 'ambiguous match must not enqueue');
+});
+
+Deno.test('a failed secret lookup is a retryable 500, not a 401', async () => {
+  const d = deps();
+  d.resolveWebhookSecrets = async () => { throw new Error('db blip'); };
+  const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY)), d);
+  assert(res.status === 500, `expected 500, got ${res.status}`);
+  assert(d.enqueued.length === 0, 'no enqueue on a failed lookup');
 });

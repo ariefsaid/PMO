@@ -15,9 +15,7 @@
  * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under multiListSweep.test.ts. This
  * file's wiring (`buildSweepDepsLive`) is pinned by liveWiring.test.ts, plus `deno check` + the boot-smoke.
  *
- * Phase 1b (task 1.6): Per-org Vault credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
- * When flag is ON: iterate external_org_bindings for ClickUp tier, resolve each org's token via Vault.
- * When flag is OFF (default): legacy global CLICKUP_API_TOKEN behavior unchanged.
+ * Each org's ClickUp token resolves from its own binding (Vault); an org with no binding fails closed.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
@@ -31,8 +29,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { lookupOrgBindingSecretRef, resolveOrgSecretOrFallback } from '../_shared/perOrgSecret.ts';
-import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
+import { resolveClickUpOrgToken } from '../_shared/clickupOrgSecret.ts';
 import {
   CLICKUP_TIER,
   CLICKUP_TASKS_DOMAIN,
@@ -211,35 +208,6 @@ async function sweepOrg(
   }
 }
 
-/** Resolve a single org's ClickUp token: Vault-first when EXTERNAL_CONNECT_ENABLED=true, else global fallback.
- * ClickUp: fail CLOSED on binding-vault-miss (bound org with missing Vault secret). */
-async function resolveOrgClickUpToken(
-  serviceClient: SupabaseClient,
-  orgId: string,
-): Promise<string> {
-  const globalToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-
-  // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state result)
-  const connectEnabled = externalConnectEnabled();
-  if (!connectEnabled) {
-    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
-  }
-  return resolveOrgSecretOrFallback(
-    {
-      connectEnabled,
-      orgId,
-      tier: 'clickup',
-      lookupBinding: lookupOrgBindingSecretRef(serviceClient),
-      readVaultSecret: async (ref) => {
-        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) throw new AppError(error.message, error.code);
-        return (data as string | null) ?? null;
-      },
-    },
-    globalToken,
-  );
-}
-
 /** job_run summary (#1532 S3). No ClickUp-bound org is `skipped` (standalone is legitimate, ADR-0094); an org failure fails the run. */
 export function summarizeClickupSweep(body: unknown): JobSummary | null {
   const b = body as { orgs?: number; applied?: number; failures?: unknown[] } | null;
@@ -308,7 +276,7 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
     // sweep error for ONE org must not abort reconciliation for the OTHERS (no cross-org DoS). Record
     // the failure and continue; the org's watermark simply does not advance and retries next schedule.
     try {
-      const token = await resolveOrgClickUpToken(serviceClient, orgId);
+      const token = await resolveClickUpOrgToken(serviceClient, orgId);
       const result = await sweepOrg(serviceClient, orgId, token, readDeadlineAtMs);
       totalApplied += result.applied;
       perOrg.push({ orgId, ...result });
