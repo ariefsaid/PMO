@@ -22,6 +22,7 @@ import { useDocumentVerification } from '@/src/hooks/useDocumentVerification';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useRevision } from '@/src/hooks/useRevision';
 import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
+import { MicrosoftEntry } from './ProjectDocumentMicrosoft';
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
 import { projectOwner } from '@/src/lib/m365/reference';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
@@ -432,6 +433,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         />
       </div>
 
+      {microsoftEntry && (
+        <MicrosoftEntry code={projectCode} onClose={() => setMicrosoftEntry(null)} onSelect={onSelectReference} />
+      )}
+
       {/* SoD block (approver = author): persistent inline reason for a hidden Approve/Reject. */}
       {sodBlocked && (
         <GateNotice variant="blocked" className="mb-3.5" data-testid="document-sod-gate">
@@ -603,10 +608,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         formTarget={formTarget}
         setFormTarget={setFormTarget}
         canCreateMicrosoftReference={canCreateMicrosoftReference}
-        projectCode={projectCode}
-        microsoftEntry={microsoftEntry}
-        onMicrosoftClose={() => setMicrosoftEntry(null)}
-        onSelectReference={onSelectReference}
         onCreateDocument={async (input) => {
           const reference = formTarget?.reference;
           if (reference && !documentLinkPermissions.projectCreate()) {

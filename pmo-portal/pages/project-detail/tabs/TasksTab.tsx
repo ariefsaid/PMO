@@ -31,6 +31,7 @@ import MilestoneGroupedList from './MilestoneGroupedList';
 import { useProjectTaskColumns } from './TaskList';
 import TaskRecordDrawer from './TaskRecordDrawer';
 import TasksToolbar from './TasksToolbar';
+import type { ViewMode, TaskScope, BulkAction } from './taskViewModel';
 
 function localTodayIso(): string {
   const now = new Date();
@@ -38,9 +39,6 @@ function localTodayIso(): string {
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
 }
-
-type ViewMode = 'list' | 'board' | 'timeline' | 'calendar';
-type TaskScope = 'mine' | 'all';
 
 interface TasksTabProps {
   projectId: string;
@@ -95,7 +93,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     ? requestedScope
     : realRole === 'Engineer' ? 'mine' : 'all';
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(() => new Set());
-  const [bulkAction, setBulkAction] = useState<'status' | 'assignee' | 'due' | 'archive' | null>(null);
+  const [bulkAction, setBulkAction] = useState<BulkAction>(null);
   const setTaskView = (nextView: ViewMode) => {
     setSelectedTaskIds(new Set());
     setBulkAction(null);

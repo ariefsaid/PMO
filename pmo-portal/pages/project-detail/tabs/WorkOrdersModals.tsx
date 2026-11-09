@@ -74,7 +74,7 @@ const WorkOrdersModals: React.FC<{
   onCreateOrder: (input: WorkOrderInput) => Promise<void>;
   onUpdateOrder: (id: string, patch: WorkOrderPatch) => Promise<void>;
   onCloseLines: () => void;
-  onCreateLine: (boqItemId: string, quantity: number) => Promise<void>;
+  onCreateLine: (workOrderId: string, boqItemId: string, quantity: number) => Promise<void>;
   onUpdateLine: (id: string, quantity: number) => Promise<void>;
   onDeleteLine: (id: string) => Promise<void>;
   onCloseBast: () => void;
@@ -187,7 +187,7 @@ const WorkOrdersModals: React.FC<{
           allocations={allocationsById.get(linesFor.id) ?? []}
           canEdit={canEditLinesFor(linesFor)}
           onClose={onCloseLines}
-          onCreate={onCreateLine}
+          onCreate={(boqItemId, quantity) => onCreateLine(linesFor.id, boqItemId, quantity)}
           onUpdate={onUpdateLine}
           onDelete={onDeleteLine}
           onError={onError}

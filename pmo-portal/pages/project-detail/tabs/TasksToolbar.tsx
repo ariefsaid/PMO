@@ -9,12 +9,9 @@ import {
   ViewToggle,
 } from '@/src/components/ui';
 import type { TaskStatus } from '@/src/lib/db/tasks';
-import { STATUSES, STATUS_OPTIONS } from './taskViewModel';
+import { STATUSES, STATUS_OPTIONS, type ViewMode, type TaskScope, type BulkAction } from './taskViewModel';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 
-type ViewMode = 'list' | 'board' | 'timeline' | 'calendar';
-type TaskScope = 'mine' | 'all';
-type BulkAction = 'status' | 'assignee' | 'due' | 'archive' | null;
 
 /** The tasks toolbar: heading, more-options menu, filters, search, view toggle and the bulk bars. */
 const TasksToolbar: React.FC<{

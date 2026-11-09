@@ -58,10 +58,7 @@ export const WorkOrderLineDrawer: React.FC<{
     status={<StatusPill variant={selected.order.status === 'Closed' ? 'won' : 'progress'}>{selected.order.status}</StatusPill>}
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
-      {!lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: selected.order.status } }) && <Button variant="outline" size="sm" onClick={() => {
-        onClose();
-        onAllocateLines(selected.order);
-      }}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}</Button>}
+      {!lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: selected.order.status } }) && <Button variant="outline" size="sm" onClick={() => onAllocateLines(selected.order)}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}</Button>}
       <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(selected.order.id)}`} onClick={onClose}>
         {t('projectDetail.drawer.openFullPage', 'Open full page')}
       </Link>
@@ -116,7 +113,7 @@ export const WorkOrderPoDrawer: React.FC<{
     status={<StatusPill variant={row.status === 'Closed' ? 'won' : 'progress'}>{row.status}</StatusPill>}
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
-      {may('edit', 'workOrder', { record: { status: row.status } }) && <Button variant="outline" size="sm" onClick={() => { onClose(); onEdit(row); }}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
+      {may('edit', 'workOrder', { record: { status: row.status } }) && <Button variant="outline" size="sm" onClick={() => onEdit(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
       <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(row.id)}`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
     <dl className="space-y-4 p-4 text-sm">
@@ -171,8 +168,8 @@ export const WorkOrderClaimDrawer: React.FC<{
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
       {!claim.withdrawn_at && !claim.invoice && canBill && ((claim.evidence?.length ?? 0) > 0
-        ? <Button variant="primary" size="sm" onClick={() => { onClose(); onRaise(claim); }}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
-        : <Button variant="outline" size="sm" onClick={() => { onClose(); onAttachEvidence(claim.id); }}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
+        ? <Button variant="primary" size="sm" onClick={() => onRaise(claim)}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
+        : <Button variant="outline" size="sm" onClick={() => onAttachEvidence(claim.id)}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
       <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={claim.invoice ? `/sales-invoices/${encodeURIComponent(claim.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">

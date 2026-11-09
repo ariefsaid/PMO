@@ -17,7 +17,7 @@ export interface DocumentRegisterCellDeps {
 }
 
 /**
- * The register's cell renderers (source, owner, status, date, Microsoft reference), built once per
+ * The register's cell renderers (source, owner, status, date), built once per
  * render from the tab's reads — the exact closures the tab used inline, moved beside the columns.
  */
 export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {

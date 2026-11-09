@@ -795,7 +795,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         onCreateOrder={runCreate}
         onUpdateOrder={runUpdate}
         onCloseLines={() => setLinesFor(null)}
-        onCreateLine={async (boqItemId, quantity) => { await quantityMutations.createLine.mutateAsync({ workOrderId: linesFor!.id, boqItemId, quantity }); }}
+        onCreateLine={async (workOrderId, boqItemId, quantity) => { await quantityMutations.createLine.mutateAsync({ workOrderId, boqItemId, quantity }); }}
         onUpdateLine={async (id, quantity) => { await quantityMutations.updateLine.mutateAsync({ id, quantity }); }}
         onDeleteLine={async (id) => { await quantityMutations.deleteLine.mutateAsync(id); }}
         onCloseBast={() => setBastFor(null)}

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ConfirmDialog } from '@/src/components/ui';
 import { DocumentFormModal } from './DocumentFormModal';
-import { MicrosoftEntry } from './ProjectDocumentMicrosoft';
 import { NewRevisionModal } from '@/src/components/NewRevisionModal';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
 import type { ProjectDocumentRow, DocStatus } from '@/src/lib/db/documents';
@@ -36,15 +35,11 @@ export interface DocumentsPendingTransition {
   verb: string;
 }
 
-/** The register's dialogs: Microsoft entry, create/edit modal, file input, new revision, and the four confirms. */
+/** The register's dialogs: create/edit modal, file input, new revision, and the four confirms. */
 const DocumentsDialogs: React.FC<{
   formTarget: { doc: ProjectDocumentRow | null; reference?: MicrosoftReferenceInput } | null;
   setFormTarget: React.Dispatch<React.SetStateAction<{ doc: ProjectDocumentRow | null; reference?: MicrosoftReferenceInput } | null>>;
   canCreateMicrosoftReference: boolean;
-  projectCode: string | null;
-  microsoftEntry: { kind: 'create' } | { kind: 'link'; doc: ProjectDocumentRow } | null;
-  onMicrosoftClose: () => void;
-  onSelectReference: (reference: MicrosoftReferenceInput) => Promise<void>;
   onCreateDocument: React.ComponentProps<typeof DocumentFormModal>['onCreate'];
   onUpdateDocument: React.ComponentProps<typeof DocumentFormModal>['onUpdate'];
   onDocumentError: React.ComponentProps<typeof DocumentFormModal>['onError'];
@@ -77,10 +72,6 @@ const DocumentsDialogs: React.FC<{
   formTarget,
   setFormTarget,
   canCreateMicrosoftReference,
-  projectCode,
-  microsoftEntry,
-  onMicrosoftClose,
-  onSelectReference,
   onCreateDocument,
   onUpdateDocument,
   onDocumentError,
@@ -113,14 +104,6 @@ const DocumentsDialogs: React.FC<{
 
   return (
     <>
-      {microsoftEntry && (
-        <MicrosoftEntry
-          code={projectCode}
-          onClose={onMicrosoftClose}
-          onSelect={onSelectReference}
-        />
-      )}
-
       {/* Create / edit metadata modal */}
       {formTarget && (
         <DocumentFormModal
