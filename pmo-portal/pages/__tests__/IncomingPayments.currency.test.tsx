@@ -105,7 +105,7 @@ describe('IncomingPayments — currency (#530)', () => {
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Co/ }));
-    await user.click(screen.getByRole('combobox', { name: 'Sales Invoice' }));
+    await user.click(screen.getByRole('combobox', { name: /^Sales Invoice/ }));
     await user.click(await screen.findByRole('option', { name: /SI-IDR/ }));
 
     const settled = screen.getByLabelText(/^Amount settled/);

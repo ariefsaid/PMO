@@ -30,4 +30,9 @@ describe('AC-DTR-001 InvoicedTrendCard states', () => {
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(screen.queryByTestId('invoiced-trend')).toBeNull();
   });
+
+  it('holds the loaded tile height while loading so the page does not jump', () => {
+    const { container } = render(<InvoicedTrendCard trend={null} pending />);
+    expect((container.firstElementChild as HTMLElement).className).toMatch(/min-h-\[/);
+  });
 });

@@ -170,6 +170,14 @@ export const MODULES: ModuleDef[] = [
     path: '/my-tasks',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin],
   },
+  // #1982: Calendar — every role (reads are RLS-scoped); mirrors the rail item.
+  {
+    module: 'calendar',
+    icon: 'cal',
+    label: 'Calendar', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.calendar',
+    path: '/calendar',
+  },
   // Fix #7 (AC-FIX7-CMDK-*): Approvals — promoted from PLACEHOLDER_TITLES to MODULES
   // so it appears in the ⌘K Navigate group for roles that can approve (mirrors Rail).
   // Finance approves procurement; Exec·PM·Admin approve timesheets. Engineer stays OUT.

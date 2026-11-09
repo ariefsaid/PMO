@@ -13,8 +13,8 @@ const H = 88;
 const PAD = 6;
 const monthText = (iso: string) => formatUtcMonthYearFull(new Date(`${iso}T00:00:00Z`));
 
-/** Decorative: the text summary beside it carries the same facts (AC-DTR-003). Scaled from zero so a fall to nothing reads as one. */
-const Line: React.FC<{ points: InvoicedTrend['points'] }> = ({ points }) => {
+/** Named as one image; the text summary beside it carries the same facts (AC-DTR-003). Scaled from zero so a fall to nothing reads as one. */
+const Line: React.FC<{ points: InvoicedTrend['points']; name: string }> = ({ points, name }) => {
   const values = points.map((p) => p.amount);
   const lo = Math.min(0, ...values);
   const span = Math.max(0, ...values) - lo;
@@ -25,7 +25,7 @@ const Line: React.FC<{ points: InvoicedTrend['points'] }> = ({ points }) => {
   const [lx, ly] = xy[xy.length - 1];
   const primary = chartTheme.series.primary;
   return (
-    <svg aria-hidden="true" focusable="false" viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
+    <svg role="img" aria-label={name} focusable="false" viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
       <line x1={PAD} x2={W - PAD} y1={y(0)} y2={y(0)} stroke={chartTheme.grid} strokeWidth="1" />
       <polygon points={`${PAD},${y(0)} ${path} ${W - PAD},${y(0)}`} fill={primary} fillOpacity="0.1" />
       <polyline points={path} fill="none" stroke={primary} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
@@ -81,7 +81,7 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend }> = ({ trend })
       </div>
       {trend.hasLine && (
         <div className="flex min-w-0 basis-72 flex-1 flex-col gap-1.5 sm:max-w-lg">
-          <Line points={trend.points} />
+          <Line points={trend.points} name={t('trend.chartName', 'Invoiced trend, {{first}} to {{last}}: {{direction}}', { first: monthText(first.month), last: monthText(last.month), direction })} />
           <div aria-hidden="true" className="flex justify-between gap-3 text-[12px] text-muted-foreground tabular">
             <span>{firstText}</span>
             <span>{lastText}</span>

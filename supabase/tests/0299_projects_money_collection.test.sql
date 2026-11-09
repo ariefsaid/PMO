@@ -19,8 +19,11 @@ values
  ('02990000-0000-0000-0000-0000000000d3','02990000-0000-0000-0000-000000000002','Foreign project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-FOREIGN');
 insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id) values
  ('02990000-0000-0000-0000-0000000000f1','02990000-0000-0000-0000-000000000001','ERP committed PO','Ordered',75,'02990000-0000-0000-0000-0000000000d1','02990000-0000-0000-0000-0000000000a1');
-insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id,currency) values
- ('02990000-0000-0000-0000-0000000000f2','02990000-0000-0000-0000-000000000001','PMO committed PO','Ordered',45,'02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-0000000000a1','USD');
+insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id,currency,budget_category) values
+ ('02990000-0000-0000-0000-0000000000f2','02990000-0000-0000-0000-000000000001','PMO paid PO','Ordered',45,'02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-0000000000a1','USD','Labor');
+-- #1739 (0700): the PMO Actual is the pre-tax paid amount, so the PMO project's purchase is fully paid.
+insert into public.payments (id,org_id,procurement_id,status,date,amount,currency) values
+ ('02990000-0000-0000-0000-0000000000fa','02990000-0000-0000-0000-000000000001','02990000-0000-0000-0000-0000000000f2','Paid','2026-10-10',45,'USD');
 insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
 values ('02990000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active','02990000-0000-0000-0000-0000000000a1',now());
 set local request.jwt.claims='{}';
@@ -73,14 +76,14 @@ update public.external_org_bindings set status='disconnected' where org_id='0299
 set local role authenticated;
 set local request.jwt.claims='{"sub":"02990000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((select (actuals->>'total')::numeric from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
-          45::numeric,'AC-S02-001 non-ERP org returns committed PO Actual');
+          45::numeric,'AC-S02-001 non-ERP org returns the paid PO Actual');
 select is((select ledger_basis from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
           'pmo','AC-S02-001 non-ERP org returns PMO basis');
 select is((select count(*)::int from public.get_projects_money_collection(array[
           '02990000-0000-0000-0000-0000000000d1'::uuid,'02990000-0000-0000-0000-0000000000d1'::uuid,
           '02990000-0000-0000-0000-0000000000d3'::uuid])),1,'AC-S02-003 duplicate IDs collapse and foreign-org projects are excluded');
 select is((select (actuals->>'total') from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
-          '45.00','AC-S02-001 the non-ERP project uses its committed PO instead of a missing ERP snapshot');
+          '45.00','AC-S02-001 the non-ERP project uses its paid PO instead of a missing ERP snapshot');
 select is((select actuals->>'complete' from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
           'true','A2 a successful PO read is complete without ERP categories');
 select is((public.get_executive_dashboard()->>'projects_at_risk')::int,1,'A2 committed-PO project is included in dashboard at-risk');

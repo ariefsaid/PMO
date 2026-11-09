@@ -68,7 +68,7 @@ vi.mock('@/src/hooks/useTimesheetEntries', () => ({
     deleteRow: { mutate: vi.fn(), isPending: false },
   }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [] }) }));
 
 // An IC (Engineer) entering hours is the natural journey; render under the Engineer real role
 // so the A-6 entry-gate (Admin·Exec·PM·Engineer) keeps the editable grid + Save/Submit footer.

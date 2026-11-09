@@ -8,6 +8,7 @@ import { assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from './testing/edgeTestKit.ts';
 import { matchNewPartners } from './odooPartyFeed.ts';
+import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import type { DirectoryRow } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
 
 const env = installEdgeEnv();
@@ -24,13 +25,19 @@ const partner = (id: number, over: Partial<DirectoryRow> & { attrs?: Record<stri
 const company = (id: string, name: string, tax: string | null = null) => ({ id, name, erp_tax_id: tax });
 
 interface Opts {
-  accepted?: boolean; companies?: Array<{ id: string; name: string; erp_tax_id: string | null }>; refs?: string[]; mirrorCompanies?: string[];
+  accepted?: boolean; companies?: Array<{ id: string; name: string; erp_tax_id: string | null }>; refs?: string[]; ownPartners?: number[];
   apply?: (c: FetchCall) => Response; review?: (c: FetchCall) => Response;
 }
+/** The one Odoo read the feed makes: the partner ids of the database's companies (PMO's own organisation), as the setup pass reads them. */
+const odoo = (ownPartners: number[]): OdooCall => (model, method) => {
+  if (model === 'res.company' && method === 'search_read') {
+    return Promise.resolve(ownPartners.map((id) => ({ id: 1, partner_id: [id, 'Own Co'] })) as never);
+  }
+  return Promise.reject(new Error(`unexpected odoo call: ${model}.${method}`));
+};
 function routes(o: Opts): MockRoute[] {
   return [
     supabaseSelect('erp_connect_census', () => (o.accepted === false ? none() : one({ accepted_at: '2026-11-01T00:00:00Z' }))),
-    supabaseSelect('external_master_records', () => jsonResponse((o.mirrorCompanies ?? []).map((name) => ({ name })))),
     supabaseSelect('external_refs', (c) => jsonResponse(c.url.searchParams.has('external_record_id') ? (o.refs ?? []).map((id) => ({ external_record_id: id })) : [])),
     supabaseSelect('companies', () => jsonResponse(o.companies ?? [])),
     supabaseRpc('apply_connect_outcome', o.apply ?? (() => jsonResponse(null))),
@@ -40,7 +47,7 @@ function routes(o: Opts): MockRoute[] {
 async function feed(rows: DirectoryRow[], o: Opts = {}, deadlineAt?: number) {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   return await withFetchMock(routes(o), async ({ calls }) => {
-    await matchNewPartners(sc, ORG, rows, deadlineAt);
+    await matchNewPartners(sc, ORG, rows, deadlineAt, odoo(o.ownPartners ?? []));
     return { calls, applied: rpcCall(calls, 'apply_connect_outcome').map((c) => c.bodyJson as Record<string, unknown>), reviews: rpcCall(calls, 'record_connect_review').map((c) => c.bodyJson as Record<string, unknown>) };
   });
 }
@@ -108,13 +115,22 @@ describe('AC-ECA-005 Odoo partner feed', () => {
     assertEquals(none.calls.some((c) => c.url.pathname === '/rest/v1/companies'), false);
   });
 
-  it('contacts of a partner, partners with no role, archived partners and the database\'s own company are not touched', async () => {
+  it('PMO\'s own company is told apart by its partner id, not its name (#1690)', async () => {
+    // A real vendor may share the company's name: it is matched like any other partner...
+    const vendor = await feed([partner(5, { name: 'Main Co' })], { ownPartners: [2] });
+    assertEquals(vendor.applied.map((a) => a.p_external_id), ['Vendor:5']);
+    // ...while the company's own partner is never brought in, whatever its name.
+    const own = await feed([partner(2, { name: 'Main Co' })], { ownPartners: [2] });
+    assertEquals([own.applied.length, own.reviews.length], [0, 0]);
+  });
+
+  it('contacts of a partner, partners with no role and archived partners are not touched', async () => {
     const r = await feed([
       partner(1, { parent_external_id: '9', attrs: { is_company: false } }),
       partner(2, { attrs: { supplier_rank: 0, customer_rank: 0 } }),
       partner(3, { active: false }),
       partner(4, { name: 'Main Co' }),
-    ], { mirrorCompanies: ['Main Co'] });
+    ], { ownPartners: [4] });
     assertEquals(r.applied.length, 0);
   });
 

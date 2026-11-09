@@ -1,9 +1,10 @@
 -- #1506 O3 C3 (migration 0511): the Odoo facts on sales_invoices are written only by the service-role mirror writer.
+-- #1825 (migration 0695): odoo_matched_payment_refs joins them — the receipt references the invoice read-back shows matched.
 -- AC-OCI-070 (partial; C6 extends): a user JWT cannot write odoo_state / odoo_attention / odoo_sent_total / odoo_read_at, the service role
 -- can, and the org scope holds. Two layers are proved apart so neither hides behind the other: the column grants (no client UPDATE/INSERT
 -- on the new columns) and the trigger pin (the table OWNER, which grants do not stop, still cannot write them under a user's JWT claims).
 begin;
-select plan(29);
+select plan(32);
 
 insert into organizations (id, name) values
  ('a5110000-0000-0000-0000-000000000001', 'Mirror guard A'),
@@ -24,10 +25,10 @@ insert into sales_invoices (id, org_id, customer_id, invoice_date, amount, tax_a
   'a5110000-0000-0000-0000-0000000000a1', '[{"item_code":"ITEM-A","description":"original","qty":1,"rate":100,"amount":100}]'::jsonb);
 
 -- the columns exist with Odoo's vocabulary and start empty
-select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 the four Odoo facts start empty');
+select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null and odoo_matched_payment_refs = '{}'::text[] from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 the four Odoo facts start empty, and so do the matched receipt references (0695 default: an empty set, not null)');
 
 -- layer 1: grants. No client role can write the new columns (UPDATE is revoked on the table since 0176; INSERT is a column list)
-select is((select count(*)::int from unnest(array['odoo_state','odoo_attention','odoo_sent_total','odoo_read_at']) c
+select is((select count(*)::int from unnest(array['odoo_state','odoo_attention','odoo_sent_total','odoo_read_at','odoo_matched_payment_refs']) c
             where has_column_privilege('authenticated', 'public.sales_invoices', c, 'update') or has_column_privilege('authenticated', 'public.sales_invoices', c, 'insert')
                or has_column_privilege('anon', 'public.sales_invoices', c, 'update') or has_column_privilege('anon', 'public.sales_invoices', c, 'insert')), 0,
           'AC-OCI-070 neither authenticated nor anon holds a UPDATE or INSERT privilege on any Odoo fact');
@@ -44,6 +45,7 @@ select throws_ok($$update sales_invoices set odoo_state = 'posted' where id = 'a
 select throws_ok($$update sales_invoices set odoo_attention = 'total-mismatch' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '42501', 'the Odoo facts of an invoice are written only by the mirror', 'AC-OCI-070 a user JWT cannot write odoo_attention (it could hide a mismatch, or invent one)');
 select throws_ok($$update sales_invoices set odoo_sent_total = 1.00 where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '42501', 'the Odoo facts of an invoice are written only by the mirror', 'AC-OCI-070 a user JWT cannot write odoo_sent_total');
 select throws_ok($$update sales_invoices set odoo_read_at = now() where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '42501', 'the Odoo facts of an invoice are written only by the mirror', 'AC-OCI-070 a user JWT cannot write odoo_read_at (it would make a stale read look fresh)');
+select throws_ok($$update sales_invoices set odoo_matched_payment_refs = array['account.payment:42'] where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '42501', 'the Odoo facts of an invoice are written only by the mirror', '#1825 a user JWT cannot write odoo_matched_payment_refs (it would clear the awaiting flag without an Odoo read-back)');
 select throws_ok($$update sales_invoices set odoo_state = 'posted', odoo_attention = null where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '42501', 'the Odoo facts of an invoice are written only by the mirror', 'AC-OCI-070 several columns at once are refused too');
 
 -- the pin holds whoever owns revenue (a native org's users must not write them either)
@@ -51,7 +53,7 @@ delete from external_domain_ownership where org_id = 'a5110000-0000-0000-0000-00
 select throws_ok($$update sales_invoices set odoo_attention = 'money-unreadable' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '42501', 'the Odoo facts of an invoice are written only by the mirror', 'AC-OCI-070 the pin does not depend on revenue being externally owned');
 insert into external_domain_ownership (org_id, external_tier, domain) values ('a5110000-0000-0000-0000-000000000001', 'odoo', 'revenue');
 
-select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 every refused write left the row untouched');
+select is((select odoo_state is null and odoo_attention is null and odoo_sent_total is null and odoo_read_at is null and odoo_matched_payment_refs = '{}'::text[] from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), true, 'AC-OCI-070 every refused write left the row untouched');
 
 -- the service role (the mirror writer) can
 set local request.jwt.claims = '{"role":"service_role"}';
@@ -82,6 +84,8 @@ select is((select amount = 200.00 and reference_number = 'PO-2' and native_lines
 reset role;
 set local role service_role;
 select lives_ok($$update sales_invoices set odoo_state = 'posted', odoo_attention = 'total-mismatch', odoo_sent_total = 1000.00, odoo_read_at = '2026-11-03T10:00:00Z' where org_id = 'a5110000-0000-0000-0000-000000000001' and id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-070 the service role writes the Odoo facts');
+select lives_ok($$update sales_invoices set odoo_matched_payment_refs = array['account.payment:7','account.payment:42'] where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '#1825 the service-role mirror writer records the receipt references the read-back matched');
+select is((select odoo_matched_payment_refs from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), array['account.payment:7','account.payment:42']::text[], '#1825 the matched references are the read-back''s account.payment refs, in order');
 select is((select odoo_state || '/' || odoo_attention || '/' || odoo_sent_total::text from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), 'posted/total-mismatch/1000.00', 'AC-OCI-013 the figure PMO sent stays beside Odoo''s amount (amount is not replaced)');
 select is((select amount from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), 1110.00::numeric, 'AC-OCI-013 amount is Odoo''s total, untouched by the flag');
 select lives_ok($$update sales_invoices set odoo_attention = null where org_id = 'a5110000-0000-0000-0000-000000000001' and id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-070 the service role clears a flag (a later read that agrees)');

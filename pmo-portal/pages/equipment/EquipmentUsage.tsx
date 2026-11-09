@@ -11,7 +11,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
   useApproveWeek, useArchiveUsage, useEquipmentAssets, useEquipmentUsage, useSaveUsage, useTransitionUsage,
 } from '@/src/hooks/useEquipment';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
 import { LIST_LIMIT, type EquipmentAssetRow, type EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -79,7 +79,7 @@ const EquipmentUsagePage: React.FC = () => {
   const weekEnd = days[6];
   const assetsQ = useEquipmentAssets();
   const usageQ = useEquipmentUsage({ from: weekStart, to: weekEnd });
-  const projectsQ = useProjects();
+  const projectsQ = useProjectPickerOptions();
   const usersQ = useUsers();
   const save = useSaveUsage();
   const transition = useTransitionUsage();

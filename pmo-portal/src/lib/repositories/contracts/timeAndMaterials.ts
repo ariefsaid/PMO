@@ -19,6 +19,8 @@ export interface TimeAndMaterialsRepository {
   prepareTmSignoff: typeof dal.prepareTmSignoff;
   withdrawTmSignoff: typeof dal.withdrawTmSignoff;
   confirmTmSignoff: typeof dal.confirmTmSignoff;
+  /** #1817: no-ERP orgs only; the ERP path stays `raiseInvoice`. */
+  invoiceNativeTmClaim: typeof dal.invoiceTmClaimNative;
   listTmClaims: typeof dal.listTmClaims;
   previewTmClaim: typeof dal.previewTmClaim;
   listTmClaimSources: typeof dal.listTmClaimSources;

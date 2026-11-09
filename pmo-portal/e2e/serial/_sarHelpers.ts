@@ -27,6 +27,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -81,6 +82,10 @@ export const SAR_CURRENCY = 'IDR';
 
 /** Seed the shared org for SAR e2e: Customer company + Project + binding + revenue flip. */
 export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SARSeed> {
+  // ⚑ FIRST statement, before any DB write or bench fetch (#1359): a non-local bench host must
+  // refuse before the seed touches anything — including the best-effort Customer POST below, whose
+  // catch would otherwise swallow the refusal as "the bench may already have the fixture".
+  assertLocalBenchUrl(ERPNEXT_SITE_URL);
   const companyId = crypto.randomUUID();
   const projectId = crypto.randomUUID();
   const siRecordId = crypto.randomUUID();

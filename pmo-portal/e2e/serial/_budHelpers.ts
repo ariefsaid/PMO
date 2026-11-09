@@ -21,6 +21,7 @@
 import { expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { runFullSweep } from './_sweepHelpers';
+import { assertLocalBenchUrl, remoteErpAllowed } from './_benchGuard';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 /** The local seed password every e2e user shares (`supabase/seed.sql`). */
@@ -50,6 +51,7 @@ const benchHeaders = (): Record<string, string> => ({
 });
 
 export async function benchGet<T = unknown>(path: string): Promise<T> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}${path}`, { headers: benchHeaders() });
   const body = (await res.json()) as { data?: T };
   if (!res.ok) throw new Error(`bench GET ${path} -> ${res.status} ${JSON.stringify(body)}`);
@@ -57,6 +59,7 @@ export async function benchGet<T = unknown>(path: string): Promise<T> {
 }
 
 export async function benchPost<T = unknown>(doctype: string, body: unknown): Promise<T> {
+  assertLocalBenchUrl(BENCH_URL);
   // Frappe's naming-series counter (`tabSeries`) can raise a QueryDeadlockError under back-to-back
   // inserts. That is bench plumbing, not product behaviour — retry it rather than let it masquerade as
   // a failed AC. Any other non-2xx throws immediately.
@@ -192,8 +195,22 @@ export async function twoAdjacentFiscalYears(): Promise<[BenchFiscalYear, BenchF
   throw new Error(`the bench has no two CONSECUTIVE Fiscal Years — the multi-FY fixture needs them: ${JSON.stringify(years)}`);
 }
 
+/** DELETE a bench document — used by the remote-bench opt-in cleanup (404 tolerated: the document
+ *  may already be gone). */
+export async function benchDelete(doctype: string, name: string): Promise<void> {
+  assertLocalBenchUrl(BENCH_URL);
+  const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: benchHeaders(),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`bench DELETE ${doctype}/${name} -> ${res.status} ${JSON.stringify((await res.json()) as unknown)}`);
+  }
+}
+
 /** Submit a bench document (`docstatus: 1`) — what makes an ERP `Budget` actually enforce. */
 export async function benchSubmit(doctype: string, name: string): Promise<void> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
     method: 'PUT',
     headers: benchHeaders(),
@@ -391,6 +408,17 @@ export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<
   await admin.from('budget_versions').delete().eq('project_id', seed.projectId);
   await admin.from('notifications').delete().eq('org_id', ORG_ID).contains('metadata', { action_required: 'budget-push-failed' });
   await admin.from('projects').delete().eq('id', seed.projectId);
+
+  // #1359: ONLY under the remote-bench opt-in — the local bench is disposable (no behaviour change
+  // for local runs), while a remote bench is shared, so this run's ERP Project must not linger
+  // there. Best effort: teardown must never mask the test's own result.
+  if (remoteErpAllowed()) {
+    try {
+      await benchDelete('Project', seed.erpProject);
+    } catch {
+      // best effort
+    }
+  }
 
   // ── ⚑ MEDIUM-2: ORG-GLOBAL STATE IS RESTORED, NEVER DELETED ─────────────────────────────────────
   // These tables are keyed on the ORG, so they are shared with every other spec AND with

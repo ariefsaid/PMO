@@ -45,12 +45,11 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => erpState,
   useErpOrphans: () => erpState,
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState, useProject: () => ({ data: null }) }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
+vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: fkState.data, isPending: false, isError: false, refetch: fkState.refetch }),
   useVendorOptions: () => ({ data: [], isPending: false, isError: false, refetch: fkState.refetch }),

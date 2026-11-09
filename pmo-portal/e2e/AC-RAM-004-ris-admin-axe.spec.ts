@@ -82,7 +82,7 @@ function runAxeSuite(viewport: { width: number; height: number; label: string },
         else await expect(page.locator('html')).not.toHaveClass(/dark/);
 
         await expect(s.ready(page)).toBeVisible({ timeout: 20_000 });
-        await page.waitForLoadState('networkidle').catch(() => {});
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
         const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
         expect(

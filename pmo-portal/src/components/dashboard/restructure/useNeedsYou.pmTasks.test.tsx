@@ -40,7 +40,8 @@ vi.mock('@/src/lib/db/dashboard', () => ({
 vi.mock('@/src/lib/db/timesheetTransition', () => ({ listTimesheetsAwaitingApproval: () => Promise.resolve([]) }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
-    revenue: { listInvoices: () => Promise.resolve([]) },
+    fxRates: { context: () => Promise.resolve({ currency: 'USD', timezone: 'UTC' }) },
+    revenue: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
     expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
     task: { list: h.list, listDueRows: h.listDueRows },
   },

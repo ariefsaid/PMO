@@ -31,7 +31,7 @@
     "excessDetailUnavailable": "Rincian tagihan di balik kelebihan ini tidak dapat diverifikasi.",
     "contractComparisonUnavailable": "Perbandingan kontrak tidak tersedia: nilai kontrak belum dicatat, atau tagihan kontrak tidak dapat dibandingkan (mata uang atau dasar pajak).",
     "currencyUnavailable": "Mata uang tidak tersedia",
-    "pmoPartial": "Posisi belum lengkap; mata uang lain atau jumlah yang tidak tersedia tidak disertakan.",
+    "pmoPartial": "Belanja belum diketahui: ada pembayaran dalam mata uang lain atau tidak dapat dibaca.",
     "contractAfterCostSource": "Nilai kontrak dikurangi Aktual tercatat yang dapat dibandingkan.",
     "contractAfterCostPending": "Ditampilkan setelah pengeluaran tercatat lengkap."
   },
@@ -51,7 +51,7 @@
         "invoiced": "Sumber: jumlah faktur yang bukan draf atau dibatalkan.",
         "paid": "Sumber: jumlah faktur dikurangi saldo terutang menurut akuntansi.",
         "canInvoice": "Kuantitas terkirim yang belum difakturkan, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
-        "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo di ERP.",
+        "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo.",
         "notOrderedValue": "Sumber: kuantitas kontrak yang belum dialokasikan dikalikan tarif kontraknya.",
         "downPayment": "Sumber: total uang muka proyek yang ditagihkan dan dipulihkan.",
         "contractQuantity": "Sumber: kuantitas pada baris kontrak berharga.",
@@ -203,6 +203,7 @@
         "billingEmptySub": "Klaim menagih uang muka atau kuantitas pekerjaan yang selesai sebagai satu faktur ERP.",
         "toast": {
           "raised": "Faktur diterbitkan di ERP",
+          "raisedNative": "Draf faktur dibuat di PMO",
           "evidenceAttached": "Bukti dilampirkan",
           "withdrawn": "Tagihan ditarik",
           "created": "Tagihan dibuat"
@@ -214,7 +215,10 @@
           "confirm": "Tarik tagihan"
         },
         "errors": {
-          "claimWithdrawn": "Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan."
+          "claimWithdrawn": "Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.",
+          "alreadyInvoiced": "Tagihan ini sudah memiliki faktur.",
+          "noClient": "Proyek ini belum punya klien untuk ditagih. Atur klien proyek terlebih dahulu.",
+          "totalMismatch": "Rincian tagihan ini tidak sesuai dengan totalnya. Tarik tagihan lalu susun ulang."
         },
         "withdrawn": "Ditarik",
         "kind": {
@@ -223,6 +227,11 @@
         },
         "errorSub": "Coba lagi, atau buka ulang proyek.",
         "empty": "Belum ada tagihan",
+        "confirmRaiseNative": {
+          "body": "Draf faktur dibuat di PMO dari tagihan ini. Pengguna Admin atau Finance lain yang menyetujuinya.",
+          "confirm": "Buat faktur",
+          "title": "Buat faktur tagihan ini?"
+        },
         "confirmRaise": {
           "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
           "body": "Draf faktur penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
@@ -346,7 +355,22 @@
       "getInputLabel": "Peluang kita menang jika klien melanjutkan (%)",
       "saveProbability": "Simpan",
       "getProbabilitySaved": "Perkiraan peluang diperbarui",
-      "probabilityFailed": "Perkiraan peluang tidak dapat disimpan. Periksa akses Anda lalu coba lagi."
+      "probabilityFailed": "Perkiraan peluang tidak dapat disimpan. Periksa akses Anda lalu coba lagi.",
+      "nextStage": {
+        "quotation": "Penawaran",
+        "preQualification": "Pra-kualifikasi",
+        "tender": "Tender",
+        "negotiation": "Negosiasi"
+      },
+      "journey": {
+        "leads": "Prospek",
+        "quotation": "Penawaran",
+        "preQualification": "Pra-kualifikasi",
+        "tender": "Tender",
+        "negotiation": "Negosiasi",
+        "won": "Menang",
+        "lost": "Kalah"
+      }
     },
     "activity": {
       "title": "Aktivitas",
@@ -667,7 +691,29 @@
       "spentAndCommitted": "Terpakai + komitmen",
       "unavailable": "Tidak tersedia",
       "watch": "Perlu dipantau",
-      "wholeProject": "Seluruh proyek"
+      "wholeProject": "Seluruh proyek",
+      "pushError": {
+        "budget-project-start-date-missing": {
+          "message": "Proyek belum punya tanggal mulai, jadi PMO tidak bisa menentukan tahun fiskal anggaran ini.",
+          "remedy": "Isi tanggal mulai dan selesai proyek, lalu coba kirim ulang."
+        },
+        "budget-fiscal-year-unresolved": {
+          "message": "Tidak ada tahun fiskal ERPNext yang memuat tanggal mulai atau selesai proyek.",
+          "remedy": "Tambahkan tahun fiskal yang kurang di ERPNext, atau perbaiki tanggal proyek, lalu coba kirim ulang."
+        },
+        "budget-fiscal-year-ambiguous": {
+          "message": "Lebih dari satu tahun fiskal ERPNext memuat tanggal mulai proyek, jadi PMO tidak memilih salah satunya.",
+          "remedy": "Hilangkan tumpang tindih antar tahun fiskal di ERPNext, lalu coba kirim ulang."
+        },
+        "budget-multi-fiscal-year-unphased": {
+          "message": "Proyek mencakup lebih dari satu tahun fiskal, tetapi sebagian baris anggaran belum punya tahun fiskal.",
+          "remedy": "Isi tahun fiskal pada setiap baris anggaran (atau persingkat tanggal proyek menjadi satu tahun), lalu aktifkan lagi."
+        },
+        "outbox-finalize-refused": {
+          "message": "ERPNext menerima anggaran ini, tetapi PMO gagal mencatat referensinya setelah beberapa kali mencoba.",
+          "remedy": "Mencoba lagi akan ditolak dengan alasan yang sama. Minta administrator memeriksa koneksi ERPNext dan referensi tersimpan anggaran ini."
+        }
+      }
     },
     "documents": {
       "category": {
@@ -917,6 +963,27 @@
         "import": "Impor",
         "backfill": "Pengisian awal"
       }
+    },
+    "gantt": {
+      "continues": "berlanjut",
+      "datesColumn": "Tanggal",
+      "durationDays_one": "{{count}} hari",
+      "durationDays_other": "{{count}} hari",
+      "goToDate": "Ke tanggal",
+      "jumpToBar": "Gulir ke \"{{title}}\"",
+      "loading": "Memuat",
+      "milestoneTarget": "Tanggal target",
+      "next": "Berikutnya",
+      "previous": "Sebelumnya",
+      "progress": "{{percent}}% selesai",
+      "resizePanel": "Ubah lebar panel tugas",
+      "scale": {
+        "year": "Tahun"
+      },
+      "statusColumn": "Status",
+      "ungrouped": "Tanpa fase",
+      "zoomIn": "Perbesar",
+      "zoomOut": "Perkecil"
     }
   },
   "common": {
@@ -957,5 +1024,6 @@
     "confirmDescription": "Ganti anggaran ERP {{name}} untuk {{account}}, {{year}}, dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmDescriptionYear": "Ganti anggaran ERP {{name}} untuk {{year}} dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmLabel": "Ganti anggaran ERP"
-  }
+  },
+  "pmoSpentCoverage": "Pembayaran pembelian PMO dan biaya sewa peralatan internal, sebelum pajak"
 }

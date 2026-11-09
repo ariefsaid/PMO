@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button } from '@/src/components/ui';
-import { analyticsClient } from '@/src/lib/analytics/client';
-import { safeTrack } from '@/src/lib/analytics';
+import { captureHandledError, safeTrack } from '@/src/lib/analytics';
 
 /**
  * App-level error boundary (reliability harden #4).
@@ -36,7 +35,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     // console-forwarding error reporter. We intentionally do not swallow it silently.
     console.error('ErrorBoundary caught a render error:', error, info.componentStack);
     safeTrack(() =>
-      analyticsClient.captureException({
+      captureHandledError({
         name: error.name,
         message: error.message,
         componentStack: info.componentStack ?? undefined,

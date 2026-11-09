@@ -10,6 +10,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, SAR_CURRENCY, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -30,6 +31,7 @@ test.setTimeout(180_000);
 const benchHeaders = { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`, 'Content-Type': 'application/json' };
 
 async function erpInvoicesWithPo(po: string): Promise<Array<{ name: string; docstatus: number }>> {
+  assertLocalBenchUrl(BENCH_URL);
   const params = new URLSearchParams({ filters: JSON.stringify([['po_no', '=', po]]), fields: JSON.stringify(['name', 'docstatus']) });
   const res = await fetch(`${BENCH_URL}/api/resource/Sales%20Invoice?${params}`, { headers: benchHeaders });
   expect(res.status).toBe(200);

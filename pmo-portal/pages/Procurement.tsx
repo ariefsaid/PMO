@@ -25,7 +25,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
-import { withLinkedDocuments } from './procurement/blocks/procurementMoney';
+import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { ProcurementBlock } from '@/src/components/procurement';
@@ -40,8 +40,8 @@ import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorking
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
-import type { StageKey } from './procurement/blocks/stage';
-import { matchesSearch, matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from './procurement/list/model';
+import type { StageKey } from '@/src/lib/procurement/stage';
+import { matchesSearch, matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
 import { tabId, tabPanelId } from '@/src/components/ui/tabIds';
 
@@ -101,6 +101,9 @@ function reasonCopy(result: NeedsYouResult, t: (key: string, options?: Record<st
   const orderedDate = formatWeekdayMonthDay(result.since);
   return t('needsYou.receive', { date: orderedDate, age, defaultValue: 'Waiting for receipt · ordered {{date}} · {{age}}' });
 }
+
+/** The list renders through ProcurementBlock; these columns only describe the export, so they carry no cell. */
+const noCell = () => null;
 
 function distinctOptions<T extends string>(entries: Array<{ value: T | null; label: string | null | undefined }>) {
   const options = new Map<T, string>();
@@ -244,17 +247,20 @@ const ProcurementPage: React.FC = () => {
     (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0),
   [needsById]);
 
-  const setTab = (next: ProcurementTab) => updateQuery({ tab: next });
-  const onViewChange = (next: ProcurementRouteView) => {
+  const setTab = useCallback((next: ProcurementTab) => updateQuery({ tab: next }), [updateQuery]);
+  const onViewChange = useCallback((next: ProcurementRouteView) => {
     if (next === 'grouped') {
       updateQuery({ view: next });
       return;
     }
     writeProcurementView(next);
     setWorkingSet((current) => ({ ...current, view: next }));
-  };
+  }, [setWorkingSet, updateQuery]);
 
-  const tabRows = tab === 'needs-you' ? needsYouRows.map(({ row }) => row) : all;
+  // Memoised: `filtered` is a dependency of the export button and the memoised list block, and an
+  // inline `needsYouRows.map(...)` here gave it a fresh identity on every render — so every query
+  // settle re-filtered and re-sorted the whole list for nothing.
+  const tabRows = useMemo(() => (tab === 'needs-you' ? needsYouRows.map(({ row }) => row) : all), [all, needsYouRows, tab]);
   const filtered = useMemo(() => {
     return tabRows
       .filter((row) => matchesWorkingSetStatus(row.status, workingSet))
@@ -268,14 +274,13 @@ const ProcurementPage: React.FC = () => {
         : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [needsById, projectId, raisedById, search, selectedStage, supplierId, tab, tabRows, workingSet]);
 
-  const onOpen = (row: ProcurementWithRefs) => {
+  const onOpen = useCallback((row: ProcurementWithRefs) => {
     trackProcurementDetailOpened('/procurement/:procurementId', 'card');
     openRecord(`/procurement/${row.id}`);
-  };
+  }, [openRecord]);
 
   // The list itself renders through ProcurementBlock; these columns only describe the export.
-  const noCell = () => null;
-  const exportColumns: Column<ProcurementWithRefs>[] = [
+  const exportColumns: Column<ProcurementWithRefs>[] = useMemo(() => [
     ...withCurrencyColumn<ProcurementWithRefs>([
       { key: 'request', header: t('column.procurement', 'Procurement'), cell: noCell, exportValue: (row) => row.title },
       { key: 'project', header: t('column.project', 'Project'), cell: noCell, exportValue: (row) => row.project?.name ?? '' },
@@ -285,69 +290,110 @@ const ProcurementPage: React.FC = () => {
       { key: 'status', header: t('column.status', 'Status'), cell: noCell, exportValue: (row) => statusLabel(row.status as ProcurementStatus) },
     ], 'value', (row) => row.currency),
     { key: 'external-refs', header: t('column.externalReferences', 'External references'), cell: noCell, exportValue: (row) => externalRefsOf(row).join(', ') },
-  ];
+  ], [statusLabel, t]);
 
-  const projectFilters = distinctOptions(all.map((row) => ({ value: row.project_id, label: row.project ? projectDisplayName(row.project) : null })));
-  const supplierFilters = distinctOptions(all.map((row) => ({ value: row.vendor_id, label: row.vendor?.name })));
-  const raisedByFilters = distinctOptions(all.map((row) => ({ value: row.requested_by_id, label: row.requested_by?.full_name })));
-  const statusOptions: Array<{ value: string; label: string }> = STATUS_FILTERS
-    .filter((filter) => filter !== 'Needs approval' || canApprove)
-    .map((filter) => ({
-      value: filter === 'Ordered' ? 'group:Ordered' : filter,
-      label: t(`statusFilter.${filter === 'Vendor Invoiced' ? 'supplierInvoiced' : filter === 'Needs approval' ? 'needsApproval' : filter.toLowerCase()}`, filter === 'Vendor Invoiced' ? 'Supplier invoiced' : filter),
-    }));
+  const projectFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.project_id, label: row.project ? projectDisplayName(row.project) : null }))), [all]);
+  const supplierFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.vendor_id, label: row.vendor?.name }))), [all]);
+  const raisedByFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.requested_by_id, label: row.requested_by?.full_name }))), [all]);
+  const statusOptions: Array<{ value: string; label: string }> = useMemo(() => {
+    const options = STATUS_FILTERS
+      .filter((filter) => filter !== 'Needs approval' || canApprove)
+      .map((filter) => ({
+        value: filter === 'Ordered' ? 'group:Ordered' : filter,
+        label: t(`statusFilter.${filter === 'Vendor Invoiced' ? 'supplierInvoiced' : filter === 'Needs approval' ? 'needsApproval' : filter.toLowerCase()}`, filter === 'Vendor Invoiced' ? 'Supplier invoiced' : filter),
+      }));
+    const selected = workingSet.statusMode === 'exact'
+      ? `exact:${workingSet.status}`
+      : workingSet.status === 'Ordered' ? 'group:Ordered' : workingSet.status;
+    // A working set restored from the session can name a status no longer offered (e.g. Needs approval for a
+    // role that lost approval rights); it still has to show as the selected option, so it is appended once.
+    if (workingSet.statusMode === 'exact' && !options.some(({ value }) => value === selected)) {
+      options.push({ value: selected, label: statusLabel(workingSet.status as ProcurementStatus) });
+    }
+    return options;
+  }, [canApprove, statusLabel, t, workingSet.status, workingSet.statusMode]);
   const statusValue = workingSet.statusMode === 'exact'
     ? `exact:${workingSet.status}`
     : workingSet.status === 'Ordered' ? 'group:Ordered' : workingSet.status;
-  if (workingSet.statusMode === 'exact' && !statusOptions.some(({ value }) => value === statusValue)) {
-    statusOptions.push({ value: statusValue, label: statusLabel(workingSet.status as ProcurementStatus) });
-  }
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSearch('');
     const params = new URLSearchParams(location.search);
     for (const key of ['q', 'status', 'project', 'supplier', 'raisedBy', 'stage']) params.delete(key);
     const next = params.toString();
     navigate(`${location.pathname}${next ? `?${next}` : ''}`, { replace: true, state: location.state });
-  };
-  const changeStatusFilter = (value: string) => {
+  }, [location.pathname, location.search, location.state, navigate, setSearch]);
+  const changeStatusFilter = useCallback((value: string) => {
     const status = value.startsWith('exact:') ? value.slice('exact:'.length) : value;
     updateQuery({ status: status === 'All' ? null : status });
     trackFilterApplied('status', statusOptions.length, 'procurement');
-  };
+  }, [statusOptions.length, updateQuery]);
 
-  const filterControls = (withRaisedBy = true) => (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
+  // Each filter control is its own memoised element, so a page re-render that changes none of them (a
+  // reference query settling, a wizard opening, a search keystroke elsewhere) hands ProcurementBlock
+  // the SAME `toolbarExtra` element identity and its memo boundary can bail.
+  const projectFilterSelect = useMemo(() => (
+    <>
       <label className="sr-only" htmlFor="procurement-project-filter">{t('filter.project', 'Project')}</label>
       <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => updateQuery({ project: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.project', 'Project')}</option>
         {projectFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
+    </>
+  ), [projectFilters, projectId, t, updateQuery]);
+  const supplierFilterSelect = useMemo(() => (
+    <>
       <label className="sr-only" htmlFor="procurement-supplier-filter">{t('filter.supplier', 'Supplier')}</label>
       <select id="procurement-supplier-filter" aria-label={t('filter.supplier', 'Supplier')} value={supplierId} onChange={(event) => updateQuery({ supplier: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.supplier', 'Supplier')}</option>
         {supplierFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
-      {withRaisedBy && <>
+    </>
+  ), [supplierFilters, supplierId, t, updateQuery]);
+  const raisedByFilterSelect = useMemo(() => (
+    <>
       <label className="sr-only" htmlFor="procurement-raised-by-filter">{t('filter.raisedBy', 'Raised by')}</label>
       <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => updateQuery({ raisedBy: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.raisedBy', 'Raised by')}</option>
         {raisedByFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
-      </>}
+    </>
+  ), [raisedByFilters, raisedById, t, updateQuery]);
+  const statusFilterSelect = useMemo(() => (
+    <>
       <label className="sr-only" htmlFor="procurement-status-filter">{t('filter.status', 'Status')}</label>
       <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
+    </>
+  ), [changeStatusFilter, statusOptions, statusValue, t]);
+  const filterControlsElement = useMemo(() => (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {projectFilterSelect}
+      {supplierFilterSelect}
+      {raisedByFilterSelect}
+      {statusFilterSelect}
     </div>
-  );
+  ), [projectFilterSelect, raisedByFilterSelect, statusFilterSelect, supplierFilterSelect]);
+  // Inside the list's own toolbar the Raised-by filter only appears once one is active (it is the
+  // list's "clear this" affordance there, not a third selector on every visit).
+  const blockFilterControlsElement = useMemo(() => (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {projectFilterSelect}
+      {supplierFilterSelect}
+      {raisedById ? raisedByFilterSelect : null}
+      {statusFilterSelect}
+    </div>
+  ), [projectFilterSelect, raisedById, raisedByFilterSelect, statusFilterSelect, supplierFilterSelect]);
 
   const orphanQuery = useErpOrphans(undefined, { enabled: canViewOrphans });
   const projectQueryForOrphans = useProjects({ enabled: canViewOrphans && tab === 'orphans' });
   const projectNames = useMemo(() => new Map((projectQueryForOrphans.data ?? []).map((project) => [project.id, project.name])), [projectQueryForOrphans.data]);
-  const orphanRows = orphanQuery.data ?? [];
-  const reasonText = tab === 'needs-you'
+  // Stable empty list: an inline `?? []` re-identified every render and knocked out the memo on the
+  // orphan money/count derived from it.
+  const orphanRows = useMemo(() => orphanQuery.data ?? [], [orphanQuery.data]);
+  const reasonText = useMemo(() => (tab === 'needs-you'
     ? new Map([...needsYouReasons].map(([id, value]) => [id, value.text]))
-    : new Map<string, string>();
+    : new Map<string, string>()), [needsYouReasons, tab]);
 
   const title = isEngineer ? t('title.engineer', 'Your procurements') : t('title.default', 'Procurement');
   const description = isEngineer
@@ -378,20 +424,23 @@ const ProcurementPage: React.FC = () => {
       trackEmptyStateSeen('procurement-empty', realRole, 'procurement');
     }
   }, [all.length, ready, realRole]);
-  const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = [
+  const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = useMemo(() => [
     { value: 'table', label: t('view.table', 'Table'), icon: 'table' },
     { value: 'grouped', label: t('view.grouped', 'Grouped'), icon: 'grid' },
     { value: 'board', label: t('view.board', 'Board'), icon: 'cols' },
-  ];
-  const currentNeedsReasons = tab === 'needs-you' ? needsYouReasons : new Map<string, { result: NeedsYouResult['reason']; text: string }>();
+  ], [t]);
+  const currentNeedsReasons = useMemo(
+    () => (tab === 'needs-you' ? needsYouReasons : new Map<string, { result: NeedsYouResult['reason']; text: string }>()),
+    [needsYouReasons, tab],
+  );
   // O7: the tabs are the one place the scope counts live, so the money they hold rides in the tab label.
-  const needsYouMoney = shortTotalsLabel(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason]))));
-  const orphanMoney = canViewOrphans ? shortTotalsLabel(orphanTotals(orphanRows)) : '';
-  const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = [
+  const needsYouMoney = useMemo(() => shortTotalsLabel(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason])))), [needsYouRows, realRole]);
+  const orphanMoney = useMemo(() => (canViewOrphans ? shortTotalsLabel(orphanTotals(orphanRows)) : ''), [canViewOrphans, orphanRows]);
+  const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = useMemo(() => [
     { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: needsYouMoney },
     { key: 'all', label: t('tab.all', 'All'), count: all.length, money: '' },
     ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: orphanMoney }] : []),
-  ];
+  ], [all.length, canSeeOrphans, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
 
   return (
     // L6: the All tab carries the total, so the title has no second count.
@@ -435,14 +484,14 @@ const ProcurementPage: React.FC = () => {
                 resultCount={filtered.length}
                 containerClassName="min-w-[220px] flex-1 max-sm:basis-full max-sm:w-full max-sm:min-w-0"
               />
-              <div className="hidden min-w-0 flex-wrap items-center gap-2 md:flex">{filterControls()}</div>
+              <div className="hidden min-w-0 flex-wrap items-center gap-2 md:flex">{filterControlsElement}</div>
               <MobileToolbarDisclosure
                 label={t('filter.filters', 'Filters')}
                 count={[projectId, supplierId, raisedById, statusValue !== 'All' ? statusValue : '', selectedStage ?? ''].filter(Boolean).length || undefined}
                 className="relative md:hidden"
                 panelClassName="absolute left-0 top-full z-30 mt-1 flex w-[min(330px,calc(100vw-2rem))] flex-col gap-2 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md"
               >
-                <div className="flex flex-col gap-2">{filterControls()}</div>
+                <div className="flex flex-col gap-2">{filterControlsElement}</div>
               </MobileToolbarDisclosure>
               <span aria-live="polite" className="ml-auto whitespace-nowrap text-[12px] text-muted-foreground">
                 {t(filtered.length === 1 ? 'result.one' : 'result.many', { count: filtered.length, defaultValue: `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}` })}
@@ -507,7 +556,7 @@ const ProcurementPage: React.FC = () => {
           )}
 
           {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
-            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} toolbarExtra={filterControls(Boolean(raisedById))} onClearFilters={clearFilters} />
+            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} toolbarExtra={blockFilterControlsElement} onClearFilters={clearFilters} />
           )}
         </div>
 

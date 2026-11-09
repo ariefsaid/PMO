@@ -72,6 +72,17 @@ never touches a row that was ever claimed: an unknown outcome belongs to the swe
 a silent failure. The sweep treats a retry refused because the bill is held (`payment-in-flight-for-bill`) as a
 deferral — quiet, tried again next tick — not an error.
 
+**The statement recovery scan (0698).** The 0685 post-confirm statement trigger fires only on
+`UPDATE OF state`, so a confirmation that never passes through it — a row written already-confirmed,
+or one whose post-confirm bookkeeping rolled back — would otherwise wait for the nightly 02:00
+materialization. The sweep's per-tick call to `scan_erp_statement_confirmed_misses`
+(`supabase/migrations/0698_statement_confirmed_recovery_scan.sql`) stamps those rows
+(`external_command_outbox.statement_intent_at`, supported by a matching partial index) and raises one
+coalesced reserved-path intent, so the refresh runs on the next tick instead of at 02:00. The same
+migration backfills the pre-rollout confirmed history, so the first scan reports only real misses;
+the scan is fenced by the same 0685 lease/binding machinery as every other writer and is a no-op for
+organizations with the feature disabled.
+
 ## Numeric relationships that MUST hold (a whole round was lost to one of these)
 
 These constants live in different files and nothing type-checks their relationship. If you change one,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -44,6 +44,8 @@ import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvid
 import { ShellChrome } from '@/App';
 
 const LocationProbe = () => <output data-testid="location">{useLocation().pathname}</output>;
+// The slot imports the panel chunk on first open; warm it so the cold jsdom import is not inside findByRole's 1 s.
+beforeAll(async () => { await import('@/src/components/panel/AssistantPanel'); }, 60_000);
 beforeEach(() => { roleState.value = null; });
 
 describe('Ask AI palette integration', () => {
@@ -62,7 +64,8 @@ describe('Ask AI palette integration', () => {
     await user.type(screen.getByRole('combobox'), query);
     await user.click(await screen.findByRole('option', { name: /ask ai/i }));
     expect(screen.queryByRole('dialog', { name: /command palette/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: /agent assistant/i })).toBeVisible();
+    // The panel is lazy-loaded (#1978): wait for it to mount; the oracle is unchanged.
+    expect(await screen.findByRole('complementary', { name: /agent assistant/i })).toBeVisible();
     expect(screen.getByRole('textbox', { name: /ask a question/i })).toHaveValue(query);
     expect(screen.getByText(/ask your agent/i)).toBeVisible();
     expect(runtime.createRun).not.toHaveBeenCalled();

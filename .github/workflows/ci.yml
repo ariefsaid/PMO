@@ -278,6 +278,8 @@ jobs:
             --min 80
       - name: Build
         run: npm run build
+      - name: Entry preload list excludes recharts/markdown/compiler
+        run: npx vitest run src/lib/build/entryPreload.test.ts
       - name: Lock wrapper process tests
         working-directory: .
         run: python3 -m unittest discover -s scripts/tests -v
@@ -783,12 +785,14 @@ jobs:
           npx playwright test --project=chromium --shard=2/2 --list --reporter=json > /tmp/pw-chromium-2-list.json
           node ../scripts/check-browser-shard-inventory.mjs --full /tmp/pw-chromium-full-list.json /tmp/pw-chromium-1-list.json /tmp/pw-chromium-2-list.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json
 
-      # playwright.config.ts's `webServer` is now an ARRAY of two Vite dev servers: the ordinary
-      # one (`npm run dev`, :3000, analytics disabled) and a second, analytics-ENABLED one (:3100,
-      # the `consent` project's lane, D6 in docs/plans/2026-07-25-observability-analytics.md — a
-      # dev server with a real key was the only way to make AC-CON-003 non-vacuous). Both are
-      # started for every project invocation below since `webServer` is a top-level config, not
-      # per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle for both.
+      # playwright.config.ts's `webServer` is an ARRAY of two servers (#1968: PRODUCTION builds
+      # served via `vite build` + `vite preview` — CI defaults to E2E_SERVER=build): the ordinary
+      # one (:3000, analytics disabled) and a second, analytics-ENABLED one (:3100, the `consent`
+      # project's lane, D6 in docs/plans/2026-07-25-observability-analytics.md — a server with a
+      # real key was the only way to make AC-CON-003 non-vacuous; its env is baked in at build
+      # time). Both are started for every project invocation below since `webServer` is a top-level
+      # config, not per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle
+      # for both.
       - name: E2E tests (Playwright / serial)
         id: serial_e2e
         continue-on-error: true

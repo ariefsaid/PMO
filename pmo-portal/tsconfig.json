@@ -30,5 +30,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["coverage", "dist", "node_modules"]
+  "exclude": ["coverage", "dist", "dist-consent", "node_modules"]
 }

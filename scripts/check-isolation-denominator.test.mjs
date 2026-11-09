@@ -172,6 +172,14 @@ test('probe expectations are mandatory, constrained and round-trip through regen
   const bad = structuredClone(shipped);
   bad.rpcs[0].expect_denial = [{ http: 401, sqlstate: '42501' }];
   assert.throws(() => validateDenominator(bad), /401/);
+  // P0001 (raise exception) is HTTP 400 through PostgREST; any other pairing for it is a bad expectation.
+  const idx = shipped.rpcs.findIndex(r => r.expect_denial.some(e => e.sqlstate === 'P0001'));
+  assert.deepEqual(shipped.rpcs[idx].expect_denial.find(e => e.sqlstate === 'P0001'), { http: 400, sqlstate: 'P0001' });
+  for (const http of [403, 500]) {
+    const wrong = structuredClone(shipped);
+    wrong.rpcs[idx].expect_denial = [{ http, sqlstate: 'P0001' }];
+    assert.throws(() => validateDenominator(wrong), /SQLSTATE\/HTTP/);
+  }
   const merged = preserveTableExpectations(shipped.tables.map(({ table, has_org, pk }) => ({ table, has_org, pk })), shipped.tables);
   assert.deepEqual(merged, shipped.tables);
   assert.deepEqual(JSON.parse(formatEntry('tables', shipped.tables[0])), shipped.tables[0]);
