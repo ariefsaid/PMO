@@ -833,6 +833,10 @@
       "unlinked_other": "Di akun biaya yang belum ditautkan ke proyek: debit {{debit}}, kredit {{credit}} ({{count}} baris)."
     },
     "amountsIn": "Jumlah dalam {{currency}}",
+    "mode": {
+      "loadFailed": "Kami tidak dapat memeriksa dari mana angka-angka ini berasal",
+      "loadFailedSub": "Angka mengikuti dokumen PMO atau buku besar Odoo. Coba lagi sebelum mengandalkannya."
+    },
     "budget": {
       "title": "Biaya aktual dari Odoo",
       "unlinked": "Biaya aktual belum dapat ditampilkan: belum ada akun biaya Odoo yang ditautkan ke proyek ini.",

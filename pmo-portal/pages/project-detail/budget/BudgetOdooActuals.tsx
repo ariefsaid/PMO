@@ -5,6 +5,7 @@ import { Link } from 'react-router';
 import { Button, ListState } from '@/src/components/ui';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { LedgerProvenance } from '@/src/components/odoo-ledger/LedgerProvenance';
+import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import { formatLedgerAmount, netDebit } from '@/src/components/odoo-ledger/ledgerFormat';
 import { useOdooLedgerCurrency, useOdooLedgerHealth, useOdooLedgerLines, useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
 import { usePermission } from '@/src/auth/usePermission';
@@ -21,9 +22,9 @@ export function BudgetOdooActuals({ projectId }: { projectId: string }) {
   const may = usePermission();
   const can = useOdooCan();
   const currency = useOdooLedgerCurrency();
-  const { onLedger, linked, unlinked } = useOdooProjectActuals(projectId);
+  const { onLedger, linked, unlinked, modeError, retryMode } = useOdooProjectActuals(projectId);
   const health = useOdooLedgerHealth(projectId, onLedger && linked === true);
-  if (!onLedger) return null;
+  if (!onLedger) return modeError ? <LedgerModeNotice onRetry={retryMode} /> : null;
   const canSetUp = can.manage || can.setValue;
   const detail = may('view', 'odooLedgerHealth');
   return (

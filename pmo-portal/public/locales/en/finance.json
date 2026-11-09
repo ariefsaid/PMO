@@ -833,6 +833,10 @@
       "unlinked_other": "In cost accounts no project is linked to: debits {{debit}}, credits {{credit}} ({{count}} lines)."
     },
     "amountsIn": "Amounts in {{currency}}",
+    "mode": {
+      "loadFailed": "We could not check where these figures come from",
+      "loadFailedSub": "They follow either PMO documents or the Odoo ledger. Try again before relying on them."
+    },
     "budget": {
       "title": "Actuals from Odoo",
       "unlinked": "Actual cost cannot be shown yet: no Odoo cost account is linked to this project.",
