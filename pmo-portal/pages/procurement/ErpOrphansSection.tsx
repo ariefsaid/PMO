@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, DataTable, MenuButton, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
@@ -28,11 +28,32 @@ type Outcome =
   | { kind: 'result'; verb: 'added' | 'linked'; made: number; targets: string[]; refused: string[] }
   | { kind: 'error'; headline: string; detail?: string };
 
+/**
+ * #2104 — one orphan row's select checkbox, as its own memoised component. Its props are all
+ * primitives plus the stable `onToggle`, so selecting ONE document re-renders that row's checkbox
+ * and leaves every other row's untouched.
+ */
+const DocumentSelectCell = React.memo<{
+  id: string;
+  checked: boolean;
+  onToggle: (id: string) => void;
+  label: string;
+}>(({ id, checked, onToggle, label }) => (
+  <Checkbox
+    className="max-[767px]:!size-6"
+    checked={checked}
+    onChange={() => onToggle(id)}
+    label={label}
+  />
+));
+
 /** FR-PFE-041 — ERPNext documents not yet in a purchase: one "Link…" action per row, plus bulk link / new purchase. */
 export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, projectId, canLink, projectNames, tableId }) => {
   const { t } = useTranslation('finance');
   const navigate = useNavigate();
-  const link = useLinkErpDocuments();
+  // The mutation's `mutateAsync` is stable across renders; the mutation OBJECT is not, so take the
+  // function — a callback that closed over the object would change identity on every render (#2104).
+  const { mutateAsync: linkDocuments } = useLinkErpDocuments();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [dialogDocs, setDialogDocs] = useState<ErpPurchaseRow[] | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -42,24 +63,28 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
   const allChosen = rows.length > 0 && chosen.length === rows.length;
   const selecting = chosen.length > 0;
-  const toggle = (id: string) => setSelected((s) => {
+  // #2104: stable identity — the memoised select cell takes this as a prop, so a selection change
+  // must not hand every row a new callback (that alone re-renders every checkbox).
+  const toggle = useCallback((id: string) => setSelected((s) => {
     const next = new Set(s);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
-  });
+  }), []);
   const toggleAll = () => setSelected(allChosen ? new Set() : new Set(rows.map((r) => r.id)));
 
   /** FR-PFE-025/026 — the project a new purchase lands on: the scoped project, else the document's only project. */
-  const targetProject = (d: ErpPurchaseRow): string | null => projectId ?? (d.projectIds.length === 1 ? d.projectIds[0] : null);
+  const targetProject = useCallback((d: ErpPurchaseRow): string | null =>
+    projectId ?? (d.projectIds.length === 1 ? d.projectIds[0] : null), [projectId]);
   /** Only a document split across several projects is ambiguous; one with none is an explicit "No project" purchase. */
-  const isSplit = (d: ErpPurchaseRow) => projectId === undefined && d.projectIds.length > 1;
+  const isSplit = useCallback((d: ErpPurchaseRow) => projectId === undefined && d.projectIds.length > 1, [projectId]);
   const bulkNewBlocked = chosen.some(isSplit);
-  const projectName = (id: string) => projectNames?.get(id) ?? t('erpLinks.thisProject', 'the project');
+  const projectName = useCallback((id: string) =>
+    projectNames?.get(id) ?? t('erpLinks.thisProject', 'the project'), [projectNames, t]);
 
-  const openDialog = (docs: ErpPurchaseRow[]) => { setOutcome(null); setDialogDocs(docs); };
+  const openDialog = useCallback((docs: ErpPurchaseRow[]) => { setOutcome(null); setDialogDocs(docs); }, []);
 
   /** FR-PFE-026 — a new Draft purchase for the documents (one per project; a bulk call shares one group key). */
-  const newPurchaseFrom = async (docs: ErpPurchaseRow[], key: string) => {
+  const newPurchaseFrom = useCallback(async (docs: ErpPurchaseRow[], key: string) => {
     setOutcome(null);
     setBusyKey(key);
     const group = docs.length > 1 ? `bulk-${docs[0].name}` : undefined;
@@ -70,7 +95,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       ...(group ? { group } : {}),
     }));
     try {
-      const res = await link.mutateAsync({ rows: linkRows });
+      const res = await linkDocuments({ rows: linkRows });
       const refused = res.results.filter((r) => r.outcome === 'refused')
         .map((r) => `${r.erp_name ?? ''}: ${erpLinkReasonText(r.reason, t)}`);
       const targets = [...new Set(res.results.filter((r) => r.outcome !== 'refused')
@@ -87,9 +112,9 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     } finally {
       setBusyKey(null);
     }
-  };
+  }, [linkDocuments, navigate, t, targetProject]);
 
-  const rowMenu = (r: ErpPurchaseRow): RowMenuItem[] => {
+  const rowMenu = useCallback((r: ErpPurchaseRow): RowMenuItem[] => {
     // An invoice split across projects is not linked into one purchase (the server refuses it): say how to add it instead.
     if (r.doctype === 'Purchase Invoice' && r.projectIds.length > 1) {
       return [{ label: t('erpLinks.splitInvoice', 'Split across projects: link it per project in ERPNext, or record it in PMO'), onClick: () => undefined, disabled: true }];
@@ -107,20 +132,23 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       }
     }
     return items;
-  };
+  }, [busyKey, isSplit, navigate, newPurchaseFrom, openDialog, projectName, t, targetProject]);
 
-  const projectLabel = (r: ErpPurchaseRow) => r.projectIds.length === 0
+  const projectLabel = useCallback((r: ErpPurchaseRow) => r.projectIds.length === 0
     ? t('erpPurchases.noProject', 'No project')
     : r.projectIds.map((id) => {
       const name = projectNames?.get(id);
       return name?.trim() ? name : t('erpPurchases.projectUnavailable', 'Project unavailable ({{id}})', { id });
-    }).join(', ');
-  const amountOf = (r: ErpPurchaseRow) => {
+    }).join(', '), [projectNames, t]);
+  const amountOf = useCallback((r: ErpPurchaseRow) => {
     const amount = erpPreTaxAmount(r);
     return amount === null || !r.currency ? '—' : formatCurrency(amount, r.currency);
-  };
+  }, []);
 
-  const columns: Column<ErpPurchaseRow>[] = [
+  // #2104 — the columns are rebuilt only when something they close over actually changes. The
+  // checkbox cell is additionally its own memoised component (below), so a selection change
+  // re-renders the ONE row whose `checked` flipped instead of every orphan row.
+  const columns: Column<ErpPurchaseRow>[] = useMemo(() => [
     {
       key: 'document',
       header: t('erpPurchases.column.document', 'Document'),
@@ -131,10 +159,10 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       cell: (r) => (
         <span className="inline-flex items-center gap-2">
           {canLink && (
-            <Checkbox
-              className="max-[767px]:!size-6"
+            <DocumentSelectCell
+              id={r.id}
               checked={selected.has(r.id)}
-              onChange={() => toggle(r.id)}
+              onToggle={toggle}
               label={t('erpLinks.selectOne', 'Select {{name}}', { name: r.name })}
             />
           )}
@@ -173,13 +201,13 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         </div>
       )),
     }] : []),
-  ];
+  ], [amountOf, canLink, projectLabel, projectNames, rowMenu, selected, selecting, t, toggle]);
 
-  const exportColumns: Column<ErpPurchaseRow>[] = columns.filter((column) => column.exportValue !== undefined).flatMap((column) =>
+  const exportColumns: Column<ErpPurchaseRow>[] = useMemo(() => columns.filter((column) => column.exportValue !== undefined).flatMap((column) =>
     column.key === 'amount' ? [
       { ...column, header: t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)') },
       { key: 'currency', header: t('erpPurchases.column.currency', 'Currency'), cell: () => null, exportValue: (r: ErpPurchaseRow) => r.currency ?? '' },
-    ] : [column]);
+    ] : [column]), [columns, t]);
 
   return (
     <div>
