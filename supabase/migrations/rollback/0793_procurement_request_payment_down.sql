@@ -1,5 +1,6 @@
 -- Reverses 0793: create_payment returns to its 0710 body (per-currency billed ceiling, no bill-less cap); create_purchase_request
--- to the 0771 body (purchase-row lock, always inserts a new request; 0238 plus the lock).
+-- to the 0771 body (purchase-row lock, always inserts a new request; 0238 plus the lock). This branch carries 0771 and its
+-- lock test, so the down restores 0238 + the lock whichever of the two ships first; the lock alone is only stricter.
 
 create or replace function public.create_payment(
   p_procurement_id uuid, p_invoice_id uuid, p_reference_number text, p_status text, p_date date, p_amount numeric,

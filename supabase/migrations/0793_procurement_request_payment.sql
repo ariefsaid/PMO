@@ -14,8 +14,8 @@ declare v_org uuid; v_row public.payments;
         v_status procurement_status; v_approved numeric; v_cap numeric; v_paid numeric;      -- 0793
 begin
   perform public.assert_is_active_member();  -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller.
-  select org_id, currency, status, nullif(approved_total_value, 0) into v_org, v_currency, v_status, v_approved
-    from public.procurements where id = p_procurement_id;                                    -- 0373, 0793
+  select org_id, currency into v_org, v_currency
+    from public.procurements where id = p_procurement_id;                                    -- 0373
   if v_org is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
@@ -43,7 +43,10 @@ begin
       using errcode = 'P0001';
   end if;
   if p_amount is not null then                                                               -- 0349
-    perform 1 from public.procurements where id = p_procurement_id for update;               -- 0349
+    -- 0793: status and approved amount are read under the row lock, so a Paid transition that committed while this
+    -- call waited is seen. Approved 0 is a cap of 0 (nothing payable without a bill); never approved is no cap.
+    select status, approved_total_value into v_status, v_approved
+      from public.procurements where id = p_procurement_id for update;                       -- 0349, 0793
     -- #1354: compared in the payment's own currency (the purchase's). A bill or payment in another currency
     -- (an ERP mirror row) is never added to this sum, so it can neither lift nor eat into this currency's cap.
     -- Bills exist but none in this currency => billed 0 here => refused.
@@ -60,13 +63,16 @@ begin
       raise exception 'scheduled payments cannot exceed the billed gross amount'
         using errcode = '23514';
     end if;
-    -- 0793: no live vendor bill → payments (this one included) may not pass the approved amount; once the purchase is
-    -- Paid with no bill, nothing more may be added to what it already paid. (total_value follows the recorded payments
-    -- on an unapproved purchase, so it is no ceiling; an unapproved, unpaid purchase has no cap at all.)
+    -- 0793: no live vendor bill → payments (this one included) may not pass the approved amount (pre-tax: the
+    -- procurement stores no tax for it, so a tax-inclusive payment waits for its bill); once the purchase is Paid with
+    -- no bill, nothing more may be added to what it already paid. (total_value follows the recorded payments on an
+    -- unapproved purchase, so it is no ceiling; an unapproved, unpaid purchase has no cap at all.)
     if not v_has_bills then
       v_cap := least(v_approved, case when v_status = 'Paid' then v_paid end);
       if v_cap is not null and p_amount + v_paid > v_cap then
-        raise exception 'payments cannot exceed the purchase value' using errcode = '23514';
+        raise exception '%', case when v_status = 'Paid' then 'payments cannot be added to a paid purchase'
+          else 'payments cannot exceed the approved amount until the vendor bill is recorded' end
+          using errcode = '23514';
       end if;
     end if;
   end if;                                                                                    -- 0349

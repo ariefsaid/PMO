@@ -2,7 +2,7 @@
 -- transition wrote; capture-then-transition is 0766), and a payment on a purchase with no vendor bills cannot take the paid
 -- total past the purchase's approved amount, nor add to a Paid purchase.
 begin;
-select plan(18);
+select plan(27);
 
 insert into organizations(id,name,default_currency) values ('07930000-0000-0000-0000-000000000001','Request Payment Org','IDR');
 insert into auth.users(id,email) values
@@ -14,12 +14,14 @@ insert into profiles(id,org_id,full_name,email,role,status) values
 insert into procurements(id,org_id,title,requested_by_id,status,total_value,currency,approved_total_value)
 select ('07930000-0000-0000-0000-000000000' || n::text)::uuid,'07930000-0000-0000-0000-000000000001','Case '||n,
        '07930000-0000-0000-0000-000000000011',
-       case when n = 201 then 'Paid' when n in (202,204) then 'Approved' else 'Draft' end,
-       1000,'IDR', case when n in (202,204) then 1000 end
-  from unnest(array[101,102,103,104,201,202,203,204]) n;
+       case when n in (201,207) then 'Paid' when n in (202,204,205,206) then 'Approved' else 'Draft' end,
+       1000,'IDR', case when n in (201,202,204,206,207) then 1000 when n = 205 then 0 end
+  from unnest(array[101,102,103,104,105,106,107,201,202,203,204,205,206,207]) n;
 -- 201: paid in full with no vendor bills (what the Paid transition's own payment looks like)
+-- 207: paid 600 of a 1,000 approval with no vendor bills
 insert into payments(org_id,procurement_id,status,amount,currency,date) values
- ('07930000-0000-0000-0000-000000000001','07930000-0000-0000-0000-000000000201','Paid',1000,'IDR',current_date);
+ ('07930000-0000-0000-0000-000000000001','07930000-0000-0000-0000-000000000201','Paid',1000,'IDR',current_date),
+ ('07930000-0000-0000-0000-000000000001','07930000-0000-0000-0000-000000000207','Paid',600,'IDR',current_date);
 -- 204: a live vendor bill larger than the approved amount; the billed ceiling, not the approved amount, governs
 insert into procurement_invoices(id,org_id,procurement_id,status,amount,tax_treatment,tax_amount,currency) values
  ('07930000-0000-0000-0000-000000001204','07930000-0000-0000-0000-000000000001','07930000-0000-0000-0000-000000000204','Received',5000,'exclusive',0,'IDR');
@@ -63,14 +65,37 @@ select is((select count(*)::int from purchase_requests where procurement_id='079
 select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000101'),2,
   'the other purchase''s requests are untouched');
 
+-- ── the bare request is completed only when it is untouched: each of these differs in one conjunct ────
+select transition_procurement(('07930000-0000-0000-0000-000000000' || n::text)::uuid,'Requested') from unnest(array[105,106,107]) n;
+reset role;
+update purchase_requests set external_ref = 'EXT-1' where procurement_id='07930000-0000-0000-0000-000000000105';
+update purchase_requests set status = 'Draft' where procurement_id='07930000-0000-0000-0000-000000000106';
+update purchase_requests set date = current_date - 1 where procurement_id='07930000-0000-0000-0000-000000000107';
+set local role authenticated;
+select create_purchase_request(('07930000-0000-0000-0000-000000000' || n::text)::uuid,'REF-X','Draft',current_date,9) from unnest(array[105,106,107]) n;
+select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000105' and reference_number is null),1,
+  'a bare request with an external reference is not completed by a capture');
+select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000105'),2,
+  'the capture beside a bare request with an external reference is its own request');
+select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000106' and reference_number is null),1,
+  'a bare request that is no longer Submitted is not completed by a capture');
+select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000106'),2,
+  'the capture beside a bare request that is no longer Submitted is its own request');
+select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000107' and reference_number is null),1,
+  'a bare request dated away from its creation day is not completed by a capture');
+select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000107'),2,
+  'the capture beside a bare request dated away from its creation day is its own request');
+
 -- ── payments with no vendor bills ──────────────────────────────────────────────────────────────────
 set local request.jwt.claims='{"sub":"07930000-0000-0000-0000-000000000012","role":"authenticated"}';
 select throws_ok($$select create_payment('07930000-0000-0000-0000-000000000201',null,null,'Scheduled',current_date,1)$$,'23514',
-  'payments cannot exceed the purchase value','a payment on top of the paid-in-full amount is refused when there are no vendor bills');
+  'payments cannot be added to a paid purchase','a payment on top of the paid-in-full amount is refused when there are no vendor bills');
+select throws_ok($$select create_payment('07930000-0000-0000-0000-000000000207',null,null,'Scheduled',current_date,1)$$,'23514',
+  'payments cannot be added to a paid purchase','a Paid purchase paid 600 of a 1,000 approval takes nothing more (the paid amount, not the approval, is the cap)');
 select lives_ok($$select create_payment('07930000-0000-0000-0000-000000000202',null,null,'Scheduled',current_date,600)$$,
   'a payment within the approved amount passes when there are no vendor bills');
 select throws_ok($$select create_payment('07930000-0000-0000-0000-000000000202',null,null,'Scheduled',current_date,600)$$,'23514',
-  'payments cannot exceed the purchase value','payments taking the total past the approved amount are refused');
+  'payments cannot exceed the approved amount until the vendor bill is recorded','payments taking the total past the approved amount are refused');
 select lives_ok($$select create_payment('07930000-0000-0000-0000-000000000202',null,null,'Scheduled',current_date,400)$$,
   'payments up to exactly the approved amount pass');
 select lives_ok($$select create_payment('07930000-0000-0000-0000-000000000203',null,null,'Scheduled',current_date,5000)$$,
@@ -79,6 +104,11 @@ select lives_ok($$select create_payment('07930000-0000-0000-0000-000000000203',n
   'a second payment on an unapproved purchase still passes');
 select lives_ok($$select create_payment('07930000-0000-0000-0000-000000000204',null,null,'Scheduled',current_date,3000)$$,
   'with a live vendor bill the billed ceiling governs, not the approved amount');
+
+select throws_ok($$select create_payment('07930000-0000-0000-0000-000000000205',null,null,'Scheduled',current_date,1)$$,'23514',
+  'payments cannot exceed the approved amount until the vendor bill is recorded','an approval of 0 allows no payment when there are no vendor bills');
+select throws_ok($$select create_payment('07930000-0000-0000-0000-000000000206',null,null,'Scheduled',current_date,1110)$$,'23514',
+  'payments cannot exceed the approved amount until the vendor bill is recorded','the approved amount is pre-tax: a tax-inclusive payment waits for its vendor bill');
 
 select * from finish();
 rollback;
