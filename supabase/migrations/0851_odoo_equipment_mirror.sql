@@ -42,30 +42,38 @@ revoke all on function public.odoo_pmo_id(text) from public, anon, authenticated
 
 create function public.apply_odoo_master_rows(p_org_id uuid, p_kind text, p_rows jsonb)
 returns integer language plpgsql security definer set search_path = public as $$
-declare v_n integer;
+declare v_n integer; v_ids text[];
 begin
   if current_setting('role', true) <> 'service_role' then raise exception 'service role required' using errcode = '42501'; end if;
   perform public.assert_odoo_activated(p_org_id);
   perform public.assert_odoo_master_kind(p_kind);
-  insert into public.external_master_records as m
-    (id, org_id, external_tier, kind, external_id, code, name, parent_external_id, active, attrs, source_write_date, as_of, tombstoned_at)
-  select case when r ? 'pmo_id' then public.odoo_pmo_id(r->>'pmo_id') else gen_random_uuid() end,
-         p_org_id, 'odoo', p_kind, r->>'external_id', r->>'code', r->>'name', r->>'parent_external_id',
-         coalesce((r->>'active')::boolean, true), coalesce(r->'attrs', '{}'::jsonb), r->>'source_write_date', now(), null
-    from jsonb_array_elements(p_rows) r
-  on conflict (org_id, external_tier, kind, external_id) do update set
-    code = excluded.code, name = excluded.name, parent_external_id = excluded.parent_external_id, active = excluded.active,
-    attrs = excluded.attrs, source_write_date = excluded.source_write_date, as_of = now(), tombstoned_at = null
-  where m.source_write_date <= excluded.source_write_date;   -- never older over newer (FR-ODC-042)
-  get diagnostics v_n = row_count;
+  -- A PMO id is used only when no row has it and no earlier row of the page claimed it; otherwise a fresh id (never abort the page).
+  with src as (
+    select r, row_number() over (partition by r->>'pmo_id' order by o) as rn
+      from jsonb_array_elements(p_rows) with ordinality t(r, o)),
+  ins as (
+    insert into public.external_master_records as m
+      (id, org_id, external_tier, kind, external_id, code, name, parent_external_id, active, attrs, source_write_date, as_of, tombstoned_at)
+    select case when r->>'pmo_id' is not null and rn = 1
+                     and not exists (select 1 from public.external_master_records x where x.id = public.odoo_pmo_id(r->>'pmo_id'))
+                then public.odoo_pmo_id(r->>'pmo_id') else gen_random_uuid() end,
+           p_org_id, 'odoo', p_kind, r->>'external_id', r->>'code', r->>'name', r->>'parent_external_id',
+           coalesce((r->>'active')::boolean, true), coalesce(r->'attrs', '{}'::jsonb), r->>'source_write_date', now(), null
+      from src
+    on conflict (org_id, external_tier, kind, external_id) do update set
+      code = excluded.code, name = excluded.name, parent_external_id = excluded.parent_external_id, active = excluded.active,
+      attrs = excluded.attrs, source_write_date = excluded.source_write_date, as_of = now(), tombstoned_at = null
+    where m.source_write_date <= excluded.source_write_date   -- never older over newer (FR-ODC-042)
+    returning m.external_id)
+  select count(*), coalesce(array_agg(external_id), '{}') into v_n, v_ids from ins;
   if p_kind in ('vehicle', 'equipment') then
     -- FR-OFM-012 / D10: name follows Odoo; archived (or removed) in Odoo archives the PMO asset, never the reverse; the code is untouched.
     update public.equipment_assets a
-       set name = left(btrim(m.name), 120),
+       set name = coalesce(nullif(left(btrim(m.name), 120), ''), a.name),   -- a blank Odoo name keeps the PMO name
            archived_at = case when m.active and m.tombstoned_at is null then a.archived_at else coalesce(a.archived_at, now()) end
       from public.external_master_records m
      where m.org_id = p_org_id and m.external_tier = 'odoo' and m.kind = p_kind
-       and m.external_id in (select r->>'external_id' from jsonb_array_elements(p_rows) r)
+       and m.external_id = any(v_ids)   -- only rows this page actually wrote
        and a.org_id = p_org_id and a.external_tier = 'odoo' and a.external_ref = p_kind || ':' || m.external_id;
   end if;
   return v_n;

@@ -1,7 +1,7 @@
 -- Employing `equipment` under Odoo (#1511 F2, migration 0852): the database refuses unless the stored capability snapshot
 -- shows every fleet and maintenance model present, readable and (for the four writable ones + the anchor) writable.
 begin;
-select plan(10);
+select plan(11);
 
 insert into organizations (id, name) values ('15110000-0000-0000-0000-000000000011','Equipment Employ');
 insert into auth.users (id, email) values
@@ -27,6 +27,8 @@ select throws_ok($$select public.admin_change_domain_ownership('15110000-0000-00
 set local request.jwt.claims = '{"sub":"15110000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$select public.admin_change_domain_ownership('15110000-0000-0000-0000-000000000011','erpnext','equipment','employ')$$, 'P0001',
   'The equipment register is available with Odoo only', 'AC-OFM-002 employing equipment under ERPNext is refused');
+select throws_ok($$select public.admin_change_domain_ownership('15110000-0000-0000-0000-000000000011','other','equipment','employ')$$, 'P0001',
+  'The equipment register is available with Odoo only', 'AC-OFM-002 employing equipment under any other tier is refused');
 select lives_ok($$select public.admin_change_domain_ownership('15110000-0000-0000-0000-000000000011','odoo','equipment','employ')$$, 'AC-OFM-001 the Admin employs equipment with a full snapshot');
 reset role;
 select is((select count(*)::int from external_domain_ownership where org_id = '15110000-0000-0000-0000-000000000011' and domain = 'equipment' and external_tier = 'odoo'), 1, 'AC-OFM-001 the ownership row exists');

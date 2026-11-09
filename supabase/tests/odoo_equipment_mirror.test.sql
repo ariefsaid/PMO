@@ -1,6 +1,6 @@
 -- Odoo fleet and maintenance mirror (#1511 F2, migration 0851): the row writer, the asset name/archive propagation, the census.
 begin;
-select plan(14);
+select plan(20);
 
 insert into organizations (id, name) values
  ('15110000-0000-0000-0000-000000000001','Equipment Mirror A'),
@@ -38,6 +38,21 @@ select public.apply_odoo_master_rows('15110000-0000-0000-0000-000000000001','mai
 select is((select id from external_master_records where kind = 'maintenance_request' and external_id = '7'), '15110000-0000-0000-0000-0000000000e1'::uuid, 'AC-OFM-030 a row carrying the PMO id inserts with it');
 select throws_ok($$select public.apply_odoo_master_rows('15110000-0000-0000-0000-000000000001','maintenance_request',
   '[{"external_id":"8","name":"x","active":true,"attrs":{},"source_write_date":"2026-11-09 08:00:00","pmo_id":"not-a-uuid"}]')$$, '22023', null, 'AC-OFM-030 a malformed PMO id is refused');
+
+-- A blank Odoo name keeps the PMO name; the page still applies (it must not abort the sweep tick).
+select lives_ok($$select public.apply_odoo_master_rows('15110000-0000-0000-0000-000000000001','equipment',
+  '[{"external_id":"43","code":"EXC-002","name":"   ","active":true,"attrs":{},"source_write_date":"2026-11-09 09:00:00"}]')$$, 'AC-OFM-012 a blank Odoo name does not abort the page');
+select is((select name from equipment_assets where id = '15110000-0000-0000-0000-0000000000d2'), 'Second', 'AC-OFM-012 a blank Odoo name keeps the PMO asset name');
+
+-- A PMO id that collides (another row, or twice in one page) or is null falls back to a fresh id instead of aborting.
+select lives_ok($$select public.apply_odoo_master_rows('15110000-0000-0000-0000-000000000001','maintenance_request',
+  '[{"external_id":"9","name":"c1","active":true,"attrs":{},"source_write_date":"2026-11-09 08:00:00","pmo_id":"15110000-0000-0000-0000-0000000000e1"},
+    {"external_id":"10","name":"c2","active":true,"attrs":{},"source_write_date":"2026-11-09 08:00:00","pmo_id":"15110000-0000-0000-0000-0000000000e2"},
+    {"external_id":"11","name":"c3","active":true,"attrs":{},"source_write_date":"2026-11-09 08:00:00","pmo_id":"15110000-0000-0000-0000-0000000000e2"},
+    {"external_id":"12","name":"n","active":true,"attrs":{},"source_write_date":"2026-11-09 08:00:00","pmo_id":null}]')$$, 'AC-OFM-030 a colliding or null PMO id does not abort the page');
+select is((select count(*)::int from external_master_records where kind = 'maintenance_request' and external_id in ('9','10','11','12')), 4, 'AC-OFM-030 every row of the page lands');
+select is((select id from external_master_records where kind = 'maintenance_request' and external_id = '10'), '15110000-0000-0000-0000-0000000000e2'::uuid, 'AC-OFM-030 the first claimant of a PMO id keeps it');
+select is((select id from external_master_records where kind = 'maintenance_request' and external_id = '7'), '15110000-0000-0000-0000-0000000000e1'::uuid, 'AC-OFM-030 an existing row keeps its id');
 
 select public.apply_odoo_master_page('15110000-0000-0000-0000-000000000001','equipment','[]','cur-1');
 select is((select watermark_cursor from external_sync_watermarks where org_id = '15110000-0000-0000-0000-000000000001' and domain = 'master:equipment'), 'cur-1', 'AC-OFM-010 the page writer still moves the cursor');

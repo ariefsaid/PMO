@@ -84,10 +84,10 @@ begin
 
   -- ⚑ 0505 (FR-OPP-001) / 0510 (FR-OCI-001..003) / 0743 / 0852 (FR-OFM-001..002): these domains are employed under an ERP only when
   -- they can work, and under one ERP at a time; the equipment register exists under Odoo only.
+  if p_action = 'employ' and p_domain = 'equipment' and p_external_tier <> 'odoo' then
+    raise exception 'The equipment register is available with Odoo only' using errcode = 'P0001';
+  end if;
   if p_action = 'employ' and p_domain in ('procurement', 'revenue', 'companies', 'equipment') and p_external_tier in ('erpnext', 'odoo') then
-    if p_domain = 'equipment' and p_external_tier = 'erpnext' then
-      raise exception 'The equipment register is available with Odoo only' using errcode = 'P0001';
-    end if;
     if exists (select 1 from public.external_domain_ownership
                 where org_id = p_org_id and domain = p_domain and external_tier in ('erpnext', 'odoo')
                   and external_tier <> p_external_tier) then
