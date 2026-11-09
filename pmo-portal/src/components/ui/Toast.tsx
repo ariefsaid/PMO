@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Toaster, toast as sonnerToast, type ToastClassnames, type ToastIcons } from 'sonner';
-import { cn } from './cn';
+import { Toaster, toast as sonnerToast, type ToastClassnames } from 'sonner';
 import { Icon, type IconName } from './icons';
 
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
@@ -33,7 +32,7 @@ const TOAST_CLASSNAMES: ToastClassnames = {
   success: 'save-pulse',
 };
 
-const TOAST_ICONS: ToastIcons = {
+const TOAST_ICONS: React.ComponentProps<typeof Toaster>['icons'] = {
   info: <Icon name={KIND_ICON.info} className={KIND_ICON_TONE.info} />,
   success: <Icon name={KIND_ICON.success} className={KIND_ICON_TONE.success} />,
   warning: <Icon name={KIND_ICON.warning} className={KIND_ICON_TONE.warning} />,

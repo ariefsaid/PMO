@@ -90,7 +90,7 @@ async function toastWith(text: RegExp | string, role: 'status' | 'alert' = 'stat
     expect(match, `expected a visible toast matching ${String(text)}`).toBeDefined();
     return match!;
   });
-  const kind = visual.getAttribute('data-type') as 'info' | 'success' | 'warning' | 'error' | undefined;
+  const kind = visual.getAttribute('data-type') as 'info' | 'success' | 'warning' | undefined;
   return { el, kind };
 }
 

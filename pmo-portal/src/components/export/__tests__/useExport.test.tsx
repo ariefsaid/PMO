@@ -8,12 +8,13 @@
  * (no longer re-throws silently). The updated test asserts the new behaviour:
  * exportXlsx resolves (not rejects) and busy resets after an error.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, render, waitFor, screen } from '@testing-library/react';
 import React from 'react';
 import type { Column } from '@/src/components/ui';
 import { ToastProvider } from '@/src/components/ui';
 import { useExport } from '../useExport';
+import { toast as sonnerToast } from 'sonner';
 
 vi.mock('@/src/lib/export/toWorkbookBuffer', () => ({
   toWorkbookBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
@@ -28,6 +29,11 @@ const cols: Column<R>[] = [
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <ToastProvider>{children}</ToastProvider>
 );
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
 
 describe('useExport', () => {
   beforeEach(() => {
@@ -117,6 +123,6 @@ describe('useExport', () => {
     // element on its own tick; the sr-only announcement region mirrors the same headline).
     const toastTitle = await findByText('Export failed', { selector: '[data-title]' });
     expect(toastTitle).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Export failed'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Export failed')); // a failure toast is assertive (warning)
   });
 });
