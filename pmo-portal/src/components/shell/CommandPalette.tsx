@@ -321,7 +321,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     </Command.Item>
   );
 
-  const askAiQuery = debouncedQuery;
+  // The draft goes to the assistant as typed (debouncedQuery is lowercased for matching).
+  const askAiQuery = debounced.trim();
   const showAskAi = !!onAskAi && !showLoading && searchSettled && askAiQuery.length > 0;
 
   return (

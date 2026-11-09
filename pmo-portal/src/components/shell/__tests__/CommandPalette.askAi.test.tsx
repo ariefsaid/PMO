@@ -8,7 +8,7 @@ vi.mock('@/src/hooks/useReferenceRecordSearch', () => ({
 }));
 
 describe('CommandPalette Ask AI fallback', () => {
-  it('AC-AT2-006 zero-result query renders Ask AI only when flag on', async () => {
+  it('AC-AT2-006 zero-result query renders Ask AI only when flag on, passing the draft as typed', async () => {
     const onAskAi = vi.fn();
     const onClose = vi.fn();
     render(
@@ -17,17 +17,17 @@ describe('CommandPalette Ask AI fallback', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'over budget cases' } });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Over budget PRJ cases' } });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     });
 
     const option = await screen.findByRole('option', { name: /ask ai/i });
-    expect(option).toHaveTextContent('over budget cases');
+    expect(option).toHaveTextContent('Over budget PRJ cases');
     expect(screen.queryByText(/no results for/i)).not.toBeInTheDocument();
 
     fireEvent.click(option);
-    expect(onAskAi).toHaveBeenCalledWith('over budget cases');
+    expect(onAskAi).toHaveBeenCalledWith('Over budget PRJ cases');
     expect(onClose).toHaveBeenCalled();
   });
 
