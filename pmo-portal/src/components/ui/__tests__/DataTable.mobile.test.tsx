@@ -43,7 +43,8 @@ const rows: Row[] = [
 const columns: Column<Row>[] = [
   { key: 'name', header: 'Company', cell: (r) => r.name },
   { key: 'value', header: 'Value', align: 'num', cell: (r) => r.value },
-  { key: 'status', header: 'Status', cell: (r) => r.status },
+  // #2061: `status` is the shared status-column kind — the card lifts it onto the identity line.
+  { key: 'status', header: 'Status', kind: 'status', cell: (r) => r.status },
 ];
 
 /**
@@ -161,26 +162,36 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(screen.getByText('Beta Ltd')).toBeInTheDocument();
   });
 
-  it('remaining columns render as <dt>/<dd> pairs in the card <dl>', () => {
+  it('#2061: a card is a TWO-LINE row — name + status, then the remaining values inline', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    const cardBranch = getCardBranch()!;
-    const dtTexts = Array.from(cardBranch.querySelectorAll('dt')).map((dt) => dt.textContent);
-    expect(dtTexts).toContain('Value');
-    expect(dtTexts).toContain('Status');
-    expect(cardBranch.textContent).toContain('125000');
-    expect(cardBranch.textContent).toContain('Active');
+    const card = getCardBranch()!.querySelector(':scope > li') as HTMLElement;
+    // Line 1 (identity): the name and the status pill, side by side.
+    const identityLine = card.firstElementChild as HTMLElement;
+    expect(identityLine.textContent).toContain('Alpha Corp');
+    expect(identityLine.textContent).toContain('Active');
+    // Line 2 (meta): the remaining values on ONE line, dot-separated — not a label/value stack.
+    const metaLine = card.querySelector('[data-card-meta-line]') as HTMLElement;
+    expect(metaLine.textContent).toContain('125000');
+    // The column labels stay in the card for screen readers (sr-only <dt>), never as visible rows.
+    expect(metaLine.querySelector('dt')?.textContent).toBe('Value');
+    expect(metaLine.querySelector('dt')?.className).toContain('sr-only');
+    expect(metaLine.className).toContain('flex-wrap');
+    expect(card.querySelectorAll('dl')).toHaveLength(1);
   });
 
-  it('AC-TBL-CARDS-001: card field labels align with the top of multi-line values', () => {
+  it('#2061: a multi-line value keeps its label in the DOM for AT on the meta line', () => {
     mockViewport(false);
     const multiline: Column<Row>[] = [
       columns[0],
       { key: 'value', header: 'Budget used', cell: () => <div><div>95%</div><div>$95,000.00 of $100,000.00 Active budget</div></div> },
     ];
     render(<DataTable rows={[rows[0]]} columns={multiline} rowKey={(r) => r.id} />);
-    const label = Array.from(getCardBranch()!.querySelectorAll('dt')).find((dt) => dt.textContent === 'Budget used');
-    expect(label).toHaveClass('self-start');
+    const metaLine = getCardBranch()!.querySelector('[data-card-meta-line]') as HTMLElement;
+    const label = Array.from(metaLine.querySelectorAll('dt')).find((dt) => dt.textContent === 'Budget used');
+    expect(label).toBeTruthy();
+    expect(label!.className).toContain('sr-only');
+    expect(metaLine.textContent).toContain('$95,000.00 of $100,000.00 Active budget');
   });
 
   it('numeric columns keep the tabular figures on their <dd>, left-aligned like every card value', () => {
@@ -324,11 +335,17 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
 
   // ── No data dropped ──────────────────────────────────────────────────────
 
-  it('every non-title column has a <dt> label in the card (no data dropped)', () => {
+  it('every non-title column keeps its LABEL and its value in the card (no data dropped)', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    // columns: Company (title), Value, Status → 2 dt per card × 2 rows = 4
-    expect(getCardBranch()!.querySelectorAll('dt')).toHaveLength(4);
+    const card = getCardBranch()!.querySelector(':scope > li') as HTMLElement;
+    // Value's label is its sr-only <dt>; Status's label is the sr-only span beside the pill.
+    expect(card.textContent).toContain('Value');
+    expect(card.textContent).toContain('Status');
+    expect(card.textContent).toContain('125000');
+    expect(card.textContent).toContain('Active');
+    // Two rows → two identity lines and two meta lines; no duplicated per-row <dl> stacks.
+    expect(getCardBranch()!.querySelectorAll('[data-card-meta-line]')).toHaveLength(2);
   });
 
   // ── Touch-target sweep (C6) ──────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { grantM365EntitlementFixture, signIn, stubM365StatusUnavailable, waitForFonts } from '../helpers';
+import { grantM365EntitlementFixture, openAppPath, signIn, stubM365StatusUnavailable, waitForFonts } from '../helpers';
 import { assertIconSizes, assertNoBleed, assertProjectsDisclosures, assertPageWithinWidth } from './layout-oracles';
 
 interface LayoutRoute {
@@ -30,7 +30,7 @@ export function registerLayoutSweep(route: LayoutRoute) {
         await grantM365EntitlementFixture(page);
         await stubM365StatusUnavailable(page);
       }
-      await page.goto(route.path);
+      await openAppPath(page, route.path);
       if (route.ready) await expect(route.ready(page)).toBeVisible({ timeout: 20_000 });
       if (route.integrations) await expect(page.getByTestId('m365-connection-card')).toBeVisible({ timeout: 20_000 });
       await settle(page);
@@ -48,7 +48,7 @@ export function registerLayoutSweep(route: LayoutRoute) {
     test(`@layout AC-VISUAL-ICON-001 ${route.label} @desktop`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 860 });
       await signIn(page, 'admin@acme.test');
-      await page.goto(route.path);
+      await openAppPath(page, route.path);
       if (route.ready) await expect(route.ready(page)).toBeVisible({ timeout: 20_000 });
       await settle(page);
       await assertIconSizes(page);

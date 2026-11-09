@@ -33,6 +33,11 @@ interface AppShellProps {
   assistant?: React.ReactNode;
   /** Whether the keep-mounted assistant is currently open/visible. */
   assistantOpen?: boolean;
+  /**
+   * #2061 phone bottom bar (Home · Approvals · Search · More). Rendered as a fixed element
+   * outside `<main>`; absent on desktop, where nothing about the shell changes.
+   */
+  phoneNav?: React.ReactNode;
 }
 
 /**
@@ -65,6 +70,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   onCloseRail,
   assistant,
   assistantOpen = false,
+  phoneNav,
 }) => {
   const { t } = useTranslation();
   const location = useLocation();
@@ -279,8 +285,10 @@ export const AppShell: React.FC<AppShellProps> = ({
         inert={railOpen || undefined}
       >
         {banner}
-        {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px. */}
-        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4">
+        {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px.
+            #2061: on a phone the fixed bottom bar reserves its own height (token is 0px above
+            the phone breakpoint), so the last row is never hidden behind it. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]">
           {children}
         </div>
       </main>
@@ -298,6 +306,14 @@ export const AppShell: React.FC<AppShellProps> = ({
           inert={railOpen || undefined}
         >
           {assistant}
+        </div>
+      )}
+
+      {/* #2061: phone bottom bar. A sibling of <main> (never inside the main landmark), and
+          inert while the rail drawer is open — the drawer is then the only surface. */}
+      {phoneNav && (
+        <div className="contents" inert={railOpen || undefined}>
+          {phoneNav}
         </div>
       )}
 

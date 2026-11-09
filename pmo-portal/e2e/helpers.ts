@@ -163,9 +163,35 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
   // Re-navigate to '/' rather than reload(): reload() reloads the CURRENT url, which — if the
   // app's async unauth-redirect already bounced us to /login — would reload /login (no
   // already-authed guard there) and hang the assertion. An explicit goto('/') boots the app
-  // authenticated (session now in localStorage) and lands deterministically on '/'.
+  // authenticated (session now in localStorage) and lands deterministically on '/' — or, below the
+  // phone breakpoint, on the my-queue Home (#2061: a phone opens on Home, not the dashboard).
   await page.goto('/');
 
+  await expect(page).toHaveURL(/\/(home)?$/);
+}
+
+/**
+ * #2061: open an app path the way the app itself routes it.
+ *
+ * Below the phone breakpoint (640px) the app OPENS on the my-queue Home, so a spec that asks for
+ * the dashboard ('/') at phone width would be redirected to '/home'. This helper completes that
+ * journey the way a phone user does — the phone navigation's More drawer → Dashboard — instead of
+ * asserting a URL the product no longer uses for phone entry. Any other path is untouched.
+ */
+export async function openAppPath(page: Page, path: string) {
+  await page.goto(path);
+  if (path !== '/') return;
+  if ((page.viewportSize()?.width ?? 1280) >= 640) return;
+  // The landing redirect runs in an effect one tick after load, so wait for whichever landing
+  // actually paints before deciding — reading the URL straight after goto() raced the redirect.
+  await page
+    .waitForFunction(() => document.querySelector('[data-testid="my-queue-page"]') !== null, { timeout: 5000 })
+    .catch(() => {});
+  if (new URL(page.url()).pathname !== '/home') return;
+  // Locale-independent: the bar's More item is the nav's last button, and the drawer's dashboard
+  // link is the rail's own `href="/"` (a Bahasa run translates both labels).
+  await page.getByTestId('phone-nav').getByRole('button').last().click();
+  await page.getByRole('dialog').locator('a[href="/"]').first().click();
   await expect(page).toHaveURL(/\/$/);
 }
 

@@ -175,6 +175,9 @@
   --space-group: 16px;
   --rail-w: 224px;
   --header-h: 56px;
+  /* Phone bottom navigation (#2061). Zero above the phone breakpoint, so the shell's bottom
+     padding, the mobile action bars' offset and the toast offset are all no-ops on desktop. */
+  --phone-nav-height: 0px;
   --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
   /* Motion tokens (DESIGN.md motion). Exits run ~20% shorter than their entrance. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -491,6 +494,15 @@
 @media (max-width: 921px) {
   :root {
     --space-page-gutter: 16px;
+  }
+}
+
+/* #2061: the phone bottom bar owns 56px plus the device safe-area inset below the `sm`
+   breakpoint (the same edge `useIsNarrow` reads). Above it the token stays 0, so nothing
+   moves on desktop or tablet. */
+@media (max-width: 639px) {
+  :root {
+    --phone-nav-height: calc(3.5rem + env(safe-area-inset-bottom));
   }
 }
 

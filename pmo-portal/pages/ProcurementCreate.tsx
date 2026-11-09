@@ -305,7 +305,7 @@ export default function ProcurementCreate() {
             <h1 className="text-2xl font-semibold">{t('heading', 'New procurement')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{draftNote}</p>
           </div>
-          <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:ml-auto md:border-0 md:bg-transparent md:p-0">
+          <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:ml-auto md:border-0 md:bg-transparent md:p-0">
             <Button type="submit" variant="primary" loading={submitBusy} className="w-full md:w-auto">
               {submitLabel}
             </Button>
