@@ -12,6 +12,13 @@
  *
  * Real boundaries only (served functions, real Postgres, real bench). Gated on the DEPENDENCY, never on process.env.CI.
  * Run: scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-ECA-050
+ *
+ * ⚑ BLOCKED ON A PRODUCT FIX (not on this spec): "Record order" reaches the ERP before the order can land. The money bodies
+ * for a Purchase Order carry supplier, project and items but not the binding's company, so ERPNext files the document under the
+ * integration user's own default company; the Project this journey sent belongs to the connected company, and ERPNext refuses the
+ * document ("Project ... does not belong to the Company ..."). Everything up to that call is proven here (census, accept all,
+ * vendor/project/item sends, the sweep ticking); the journey passes once a Purchase Order sent from PMO names the connected
+ * company. Do not soften this assertion to work around it.
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
