@@ -41,9 +41,10 @@ describe('AC-JR-W3B-03: ApprovalRow shell contract', () => {
 
   it('AC-JR-W3B-03: timesheet row has leading avatar initial', () => {
     render(<ApprovalRow name="Dave PM" week="Week of Jun 23" hours={35} />);
-    // Avatar initial is aria-hidden; verify the letter is in the DOM
+    // Avatar initials are aria-hidden; the shared initials helper reads first + second word
+    // ('Dave PM' → 'DP', the one-Avatar contract from #2059). Verify the initials are in the DOM.
     const avatar = document.querySelector('[aria-hidden="true"]');
     expect(avatar).not.toBeNull();
-    expect(avatar!.textContent).toBe('D');
+    expect(avatar!.textContent).toBe('DP');
   });
 });

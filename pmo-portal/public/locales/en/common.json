@@ -264,8 +264,7 @@
     "noRateForDate": "No JISDOR rate for {{date}}."
   },
   "toast": {
-    "dismiss": "Dismiss notification",
-    "more": "+{{count}} more"
+    "dismiss": "Dismiss notification"
   },
   "efaktur": {
     "title": "Record e-Faktur details",

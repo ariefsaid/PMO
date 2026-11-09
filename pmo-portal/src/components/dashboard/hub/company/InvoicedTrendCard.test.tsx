@@ -13,6 +13,17 @@ describe('AC-DTR-001 InvoicedTrendCard states', () => {
     expect(screen.getByTestId('invoiced-trend')).toHaveTextContent('700');
   });
 
+  it('#2055: hides the trend until it has three months, shows it at three', () => {
+    const twoMonths = selectInvoicedTrend({
+      totals: [{ currency: 'IDR', months: [100_00, 0].map((invoiced, i) => ({ month: `2026-0${i + 1}-01`, invoiced })) }],
+    } as never, 'IDR');
+    expect(twoMonths?.points).toHaveLength(2);
+    const { container, rerender } = render(<InvoicedTrendCard trend={twoMonths} />);
+    expect(container).toBeEmptyDOMElement();
+    rerender(<InvoicedTrendCard trend={trend} />);
+    expect(screen.getByTestId('invoiced-trend')).toBeInTheDocument();
+  });
+
   it('renders nothing when nothing has been invoiced', () => {
     const { container } = render(<InvoicedTrendCard trend={null} />);
     expect(container).toBeEmptyDOMElement();
