@@ -3,7 +3,7 @@ import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tooltip } from '../Tooltip';
-import { ToastView, ToastProvider, useToast } from '../Toast';
+import { ToastProvider, useToast } from '../Toast';
 
 describe('Tooltip', () => {
   it('is hidden until hover/focus, then shows with role=tooltip', async () => {
@@ -73,21 +73,8 @@ describe('Tooltip', () => {
 describe('Toast', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('renders aria-live polite (does not steal focus) + maps kind to its icon tone', () => {
-    render(<ToastView kind="success" title="Saved" sub="Budget v3 activated" />);
-    const toast = screen.getByText('Saved').closest('[role="status"]')!;
-    expect(toast).toHaveAttribute('aria-live', 'polite');
-    expect(toast.className).toContain('[&_svg]:text-success');
-    expect(toast.className).not.toContain('border-l-');
-  });
-
-  it('warning kind maps to the warning icon tone', () => {
-    render(<ToastView kind="warning" title="Heads up" />);
-    expect(screen.getByText('Heads up').closest('[role="alert"]')!.className).toContain(
-      '[&_svg]:text-warning-foreground'
-    );
-  });
-
+  // aria-live/role and kind-tone behaviour of the announced surface is owned by
+  // Toast.accessibility.test.tsx; this file only keeps the provider lifecycle proof.
   it('provider shows a toast then auto-dismisses it', async () => {
     vi.useFakeTimers();
     const Trigger: React.FC = () => {
@@ -102,9 +89,15 @@ describe('Toast', () => {
     act(() => {
       screen.getByText('fire').click();
     });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(screen.getByText('Saved')).toBeInTheDocument();
     act(() => {
-      vi.advanceTimersByTime(4100);
+      vi.advanceTimersByTime(4_100);
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
     });
     expect(screen.queryByText('Saved')).not.toBeInTheDocument();
   });
