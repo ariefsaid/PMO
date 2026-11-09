@@ -23,10 +23,28 @@ async function mockAdapter(page: Page) {
   });
 }
 
-test('AC-BAD-011 Finance ticks two imported drafts on the Finance hub and activates them in one confirmed step', async ({ page }) => {
+function serviceClient() {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('AC-BAD-011 needs the service role key');
-  const admin = createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '', key, { auth: { persistSession: false } });
+  return createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '', key, { auth: { persistSession: false } });
+}
+
+// Drafts are org-wide: one left behind by a failed run would show on every later /finance visit, so each run starts
+// and ends with none of ours (Active versions are the journey's intended result and stay, as in AC-732).
+async function removeBulkDrafts() {
+  const admin = serviceClient();
+  const drafts = await admin.from('budget_versions').select('id').eq('status', 'Draft').like('name', 'E2E bulk %').throwOnError();
+  for (const { id } of drafts.data ?? []) {
+    await admin.from('budget_line_items').delete().eq('budget_version_id', id).throwOnError();
+    await admin.from('budget_versions').delete().eq('id', id).throwOnError();
+  }
+}
+
+test.beforeEach(removeBulkDrafts);
+test.afterEach(removeBulkDrafts);
+
+test('AC-BAD-011 Finance ticks two imported drafts on the Finance hub and activates them in one confirmed step', async ({ page }) => {
+  const admin = serviceClient();
   const pm = (await admin.from('profiles').select('id,org_id').eq('email', 'pm@acme.test').single().throwOnError()).data!;
   const tag = `E2E bulk ${Date.now()}`;
   const ids: string[] = [];
@@ -42,6 +60,10 @@ test('AC-BAD-011 Finance ticks two imported drafts on the Finance hub and activa
   await page.goto('/finance');
   const panel = page.getByRole('region', { name: 'Review and activate drafts' });
   await expect(panel).toBeVisible({ timeout: 15_000 });
+  // Collapsed by default (no readiness reads until opened); readiness runs 10 drafts at a time, so check the rest too.
+  await panel.getByRole('button', { name: /^Review \d+ drafts?$/ }).click();
+  const rest = panel.getByRole('button', { name: 'Check the rest' });
+  if (await rest.isVisible()) await rest.click();
   const first = panel.getByRole('checkbox', { name: new RegExp(`${tag} 1`) });
   const second = panel.getByRole('checkbox', { name: new RegExp(`${tag} 2`) });
   await expect(first).not.toHaveAttribute('aria-disabled', 'true', { timeout: 15_000 });
