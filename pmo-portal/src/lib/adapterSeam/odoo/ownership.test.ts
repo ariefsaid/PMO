@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ODOO_TIER } from './connectAdapter.ts';
-import { odooOwnsProcurementTier, odooOwnsRevenueTier } from './ownership.ts';
+import { odooOwnsCompaniesTier, odooOwnsProcurementTier, odooOwnsProjectsTier, odooOwnsRevenueTier } from './ownership.ts';
 
 describe('Odoo tier ownership seam', () => {
   it('identifies only the tier that owns Odoo revenue', () => {
@@ -13,5 +13,17 @@ describe('Odoo tier ownership seam', () => {
     expect(odooOwnsProcurementTier(ODOO_TIER)).toBe(true);
     expect(odooOwnsProcurementTier('erpnext')).toBe(false);
     expect(odooOwnsProcurementTier(undefined)).toBe(false);
+  });
+
+  it('identifies only the tier that owns Odoo companies', () => {
+    expect(odooOwnsCompaniesTier(ODOO_TIER)).toBe(true);
+    expect(odooOwnsCompaniesTier('erpnext')).toBe(false);
+    expect(odooOwnsCompaniesTier(undefined)).toBe(false);
+  });
+
+  it('identifies only the tier that owns Odoo projects', () => {
+    expect(odooOwnsProjectsTier(ODOO_TIER)).toBe(true);
+    expect(odooOwnsProjectsTier('erpnext')).toBe(false);
+    expect(odooOwnsProjectsTier(undefined)).toBe(false);
   });
 });

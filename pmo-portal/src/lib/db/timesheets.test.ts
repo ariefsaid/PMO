@@ -6,11 +6,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // the builder for upsert/delete) resolves to the configured { data, error }.
 // ---------------------------------------------------------------------------
 
-const { mockFrom, mockSelect, mockEq, mockOrder, mockRange, mockInsert, mockSingle, mockUpsert, mockDelete } =
+const { mockFrom, mockSelect, mockEq, mockGte, mockOrder, mockRange, mockInsert, mockSingle, mockUpsert, mockDelete } =
   vi.hoisted(() => ({
     mockFrom: vi.fn(),
     mockSelect: vi.fn(),
     mockEq: vi.fn(),
+    mockGte: vi.fn(),
     mockOrder: vi.fn(),
     mockRange: vi.fn(),
     mockInsert: vi.fn(),
@@ -36,6 +37,7 @@ function builderResolving(resolved: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
+  mockGte.mockReturnValue(builder);
   mockOrder.mockReturnValue(builder);
   builder.gt = () => builder;
   builder.limit = () => builder;
@@ -48,6 +50,7 @@ function builderResolving(resolved: { data: unknown; error: unknown }) {
   mockDelete.mockReturnValue(builder);
   builder.select = mockSelect;
   builder.eq = mockEq;
+  builder.gte = mockGte;
   builder.order = mockOrder;
   builder.range = mockRange;
   builder.insert = mockInsert;
@@ -65,6 +68,7 @@ beforeEach(() => {
   mockFrom.mockReset();
   mockSelect.mockReset();
   mockEq.mockReset();
+  mockGte.mockReset();
   mockOrder.mockReset();
   mockRange.mockReset();
   mockInsert.mockReset();
@@ -126,6 +130,15 @@ describe('listTimesheets', () => {
   it('throws on PostgREST error (AC-608)', async () => {
     builderResolving({ data: null, error: { message: 'boom' } });
     await expect(listTimesheets('u1')).rejects.toThrow('boom');
+  });
+
+  it('perf q12: with fromWeek it filters week_start_date >= fromWeek server-side and still keyset-scans the window; without it sends no date filter', async () => {
+    builderResolving({ data: [], error: null });
+    await listTimesheets('u1');
+    expect(mockGte).not.toHaveBeenCalled();
+    await listTimesheets('u1', { fromWeek: '2026-03-02' });
+    expect(mockGte).toHaveBeenCalledWith('week_start_date', '2026-03-02');
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
   });
 
   it('data-layer perf hardening #4: does NOT range-bound the query when called with no page params (opt-in pagination)', async () => {

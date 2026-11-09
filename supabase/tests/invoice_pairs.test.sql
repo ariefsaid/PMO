@@ -66,6 +66,7 @@ insert into public.incoming_payments (id, org_id, customer_id, sales_invoice_id,
                                       status, currency, pmo_native, pmo_number) values
   ('04840000-0000-0000-0000-0000000006a3', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000f1',
    '04840000-0000-0000-0000-0000000005a3', '2026-03-20', 1000, 1000, 0, 'Paid', 'USD', true, 'PMO-R3');
+select public.native_receipt_allocations_backfill();  -- 0731 (#1415): a directly seeded receipt gets the allocation the RPCs would have written
 -- ERP side: brought in by the feed (not native, submitted, an ERP number), not yet attributed to a project.
 insert into public.sales_invoices (id, org_id, project_id, work_order_id, customer_id, si_number, invoice_date, amount,
                                    erp_outstanding_amount, tax_treatment, tax_amount, currency, status, erp_docstatus, reference_number) values

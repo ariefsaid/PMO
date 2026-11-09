@@ -11,9 +11,10 @@
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
 **2026-11-05 — Odoo P9/C9 evidence (#1505/#1506):** `purchase.link-existing`, `cutover.purchase`, and
-`cutover.activation` are supported; `purchase.push`, `bill.push`, `vendor-payment.push`, and
-`purchase-order.revise` remain pending under #1505. `invoice.push` is supported; `receipt.read`,
-`invoice.pair-existing`, and `tax-document.read` remain pending under #1506, while `cutover.revenue`
+`cutover.activation` are supported. **2026-11-07 update:** `purchase.push`, `bill.push`, `vendor-payment.push`,
+`purchase-order.revise` and `receipt.read` are now supported too: Odoo procurement runs the shared link check
+before adapter selection and the shared push suites' link cases run against that production resolver. `invoice.push` is supported;
+`invoice.pair-existing` and `tax-document.read` remain pending under #1506, while `cutover.revenue`
 remains pending under #1602. The vocabulary guard covers the purchase and revenue model and field terms.
 The P9 composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and the
 different-Finance-user gate. Receipt interruption is covered by `odooReceipt.bed.test.ts`; bill and payment
@@ -1205,7 +1206,7 @@ segment is in front of us.
 > **No longer a candidate.** The wayfinder route map (GitHub #459, charted 2026-08-18) places this
 > program inside milestone 1 (first client live). The batches and the OD-CR-* decisions below stand;
 > the **sequence at the bottom of this section was revised** — read that, not the July one.
-Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
+Source: (a competitor review, kept private)
 (four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
 **Prereq (SATISFIED 2026-08-18):** the integrations program had to land on `main` first. It was
 blocked in a three-way loop — parity waited on integrations, integrations' M365 acceptance was parked

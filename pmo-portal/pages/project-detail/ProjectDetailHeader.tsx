@@ -51,6 +51,7 @@ import { UnknownFigure } from './UnknownFigure';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
@@ -282,6 +283,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   menuContent,
 }) => {
   const { t } = useTranslation('project');
+  // #1339: the status pill names the project status in the viewer's language; the enum itself is data.
+  const projectStatusLabel = useProjectStatusLabel();
 
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -320,7 +323,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // Model B (ADR-0020): a pre-win (pipeline) / terminal (lost) deal has no contract yet, so the
   // delivery summary (StatTiles: Contract/Committed/Actual/margin/Spend) and the contract-value
   // SoD editor are mounted only for the DELIVERY lens (on-hand ∪ internal). Pre-win, the deal's
-  // figures live in the PipelineLens (Value / Win probability / Weighted) instead.
+  // figures live in the DealBand (Value / Win probability / Weighted) instead.
   const group = projectStatusGroup(project.status as never);
   const isDelivery = group === 'onHand' || group === 'internal';
 
@@ -530,7 +533,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                   <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
                 </div>}
                 <div className="border-b border-border px-3 py-3">
-                  <ProjectErpLink projectId={project.id} />
+                  <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
                 </div>
               </>
             )}
@@ -702,7 +705,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
+        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.

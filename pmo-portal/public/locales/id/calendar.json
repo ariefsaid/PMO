@@ -1,0 +1,19 @@
+{
+  "title": "Kalender",
+  "subtitle": "Tugas menurut tenggat dan milestone menurut tanggal target, di semua proyek Anda.",
+  "today": "Hari ini",
+  "previous": "Sebelumnya",
+  "next": "Berikutnya",
+  "viewAria": "Tampilan kalender",
+  "view": {
+    "month": "Bulan",
+    "week": "Minggu",
+    "day": "Hari",
+    "agenda": "Agenda"
+  },
+  "empty": "Tidak ada yang jatuh tempo pada periode ini",
+  "error": {
+    "title": "Kalender tidak dapat dimuat",
+    "sub": "Periksa koneksi Anda lalu coba lagi."
+  }
+}

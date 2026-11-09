@@ -437,3 +437,10 @@ test('isExcludedSource excludes tests, e2e, configs, d.ts, test dirs', () => {
   assert.equal(isExcludedSource('pmo-portal/src/a.ts'), false);
   assert.equal(isExcludedSource('pmo-portal/pages/Companies.tsx'), false);
 });
+
+test('isExcludedSource excludes vendored UI kits (reui, shadcn) but not our wrappers', () => {
+  assert.equal(isExcludedSource('pmo-portal/src/components/reui/gantt/gantt-view.tsx'), true);
+  assert.equal(isExcludedSource('pmo-portal/src/components/shadcn/button.tsx'), true);
+  assert.equal(isExcludedSource('pmo-portal/src/components/ui/Button.tsx'), false);
+  assert.equal(isExcludedSource('pmo-portal/src/lib/gantt/reuiModel.ts'), false);
+});

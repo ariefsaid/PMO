@@ -62,6 +62,16 @@ describe('listProcurements', () => {
     expect(result[0].vendor).toBeNull();
   });
 
+  it('PERF-APPR-1: { status } filters server-side and keeps the default select', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ status: 'Requested' });
+    expect(mockEq).toHaveBeenCalledWith('status', 'Requested');
+    expect(mockSelect.mock.calls.at(-1)![0]).toMatch(/open_commitment:procurement_open_commitment$/);
+    mockEq.mockClear();
+    await listProcurements();
+    expect(mockEq).not.toHaveBeenCalled();
+  });
+
   it('AC-EXT-001: the shared select carries NO record-reference embeds; only { withRefs: true } adds them', async () => {
     makeBuilder({ data: [], error: null });
     await listProcurements();
@@ -85,6 +95,21 @@ describe('listProcurements', () => {
     expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)');
     expect(sel).toContain('payments(amount,date,created_at,status)');
     expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
+  });
+
+  it('PERF-PROC-1: the shared list drops the per-row open-commitment embed and attaches it from one set-based RPC', async () => {
+    rpcSpy.mockReset().mockResolvedValue({ data: [{ procurement_id: 'a', amount: '400.50' }, { procurement_id: 'b', amount: null }], error: null });
+    makeBuilder({ data: [{ id: 'a', status: 'Ordered' }, { id: 'b', status: 'Paid' }, { id: 'c', status: 'Draft' }], error: null });
+    const rows = await listProcurements({ withRefs: true, withSharedDetails: true });
+    expect(mockSelect.mock.calls.at(-1)![0]).not.toContain('open_commitment');
+    expect(rpcSpy).toHaveBeenCalledWith('procurement_open_commitments', { p_ids: ['a', 'b', 'c'] });
+    expect(rows.map((r) => r.open_commitment)).toEqual([400.5, null, undefined]);
+  });
+
+  it('PERF-PROC-1: a failed open-commitment read throws instead of falling back to total_value', async () => {
+    rpcSpy.mockReset().mockResolvedValue({ data: null, error: { message: 'boom' } });
+    makeBuilder({ data: [{ id: 'a', status: 'Ordered' }], error: null });
+    await expect(listProcurements({ withRefs: true, withSharedDetails: true })).rejects.toThrow('boom');
   });
 
   it('PERF-DASH-1: the lean list keeps the money/stage inputs but drops the SQL open commitment and the record-reference embeds', async () => {
@@ -262,6 +287,7 @@ describe('AC-RB-003: Committed and Reserved sets are disjoint', () => {
 describe('listProcurementsByProject complete reads', () => {
   it('returns every project purchase beyond the server cap and rejects a later page failure', async () => {
     const rows = Array.from({ length: 1001 }, (_, i) => ({ id: String(i).padStart(4, '0'), status: 'Ordered' }));
+    rpcSpy.mockReset().mockResolvedValue({ data: [], error: null });
     let fail = false;
     const builder = { select: () => builder, eq: () => builder, order: () => builder,
       gt: (_column: string, cursor: string) => { after = cursor; return builder; },
@@ -272,6 +298,7 @@ describe('listProcurementsByProject complete reads', () => {
     mockFrom.mockImplementation(() => { after = ''; return builder; });
     const result = await listProcurementsByProject('proj-1');
     expect(result).toHaveLength(1001);
+    expect(rpcSpy.mock.calls.map((c) => (c[1] as { p_ids: string[] }).p_ids.length)).toEqual([1000, 1]);
     fail = true;
     await expect(listProcurementsByProject('proj-1')).rejects.toThrow('page failed');
   });
@@ -280,6 +307,7 @@ describe('listProcurementsByProject complete reads', () => {
 describe('listProcurementsByProject', () => {
   it('AC-OVERFETCH-002 filters server-side with project_id and keeps the list row shape', async () => {
     const rows = [{ id: 'pr1', project_id: 'proj-1', status: 'Draft', title: 'T' }];
+    rpcSpy.mockReset().mockResolvedValue({ data: [{ procurement_id: 'pr1', amount: 12 }], error: null });
     makeBuilder({ data: rows, error: null });
     const out = await listProcurementsByProject('proj-1');
     expect(mockFrom).toHaveBeenCalledWith('procurements');
@@ -287,6 +315,7 @@ describe('listProcurementsByProject', () => {
     expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('status_events:procurement_status_events(to_status,created_at)'));
     expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
     expect(out.map((r) => r.id)).toEqual(['pr1']);
+    expect(out[0].open_commitment).toBe(12);
   });
 });
 

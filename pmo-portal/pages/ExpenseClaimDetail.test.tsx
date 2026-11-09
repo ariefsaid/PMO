@@ -54,8 +54,8 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.us
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
 
 import ExpenseClaimDetail from './ExpenseClaimDetail';
-import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
-import { financeTestI18n } from './__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const base = {
   id: 'c1', kind: 'claim', claim_number: 'EXP-2610060001', claimant_id: 'eng', claimant: { full_name: 'Budi Field' },

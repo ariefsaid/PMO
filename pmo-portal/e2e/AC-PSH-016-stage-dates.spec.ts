@@ -47,6 +47,8 @@ test('AC-PSH-016: a PM advances a deal, backdates the new stage on the deal page
 
   // Single click, no dialog (write policy AC-IXD-WP-004): the move is dated today.
   await page.getByRole('button', { name: /advance to/i }).click();
+  // The deal page keeps the sales history in a disclosure beside the figures.
+  await page.getByText('Sales history').click();
   const history = page.getByRole('list', { name: 'Stage history' });
   await expect(history.getByRole('listitem').first()).toContainText(`Pre-qual sent ${orgDayMonth(0)}`);
 

@@ -16,7 +16,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useImprestPosition: (id: string) => ({ data: h.positions[id], isPending: !(id in h.positions), isError: false }),
   useEstablishFloat: () => h.establish,
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: 'u-pm' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: 'u-pm' }] }) }));
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [
     { id: 'u-pm', full_name: 'Pia Manager', role: 'Project Manager' },

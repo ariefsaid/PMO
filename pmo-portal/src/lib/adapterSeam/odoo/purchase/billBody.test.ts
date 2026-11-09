@@ -10,6 +10,13 @@ const INPUT: BillInput = {
 const CTX: BillCtx = { companyId: 1, currencyId: 12, itemMap: { 'Cable tray': '55', Bolt: '56' }, unitMap: {}, costAccountId: '101', taxes: [VAT, PPH] };
 const reason = (fn: () => unknown) => { try { fn(); } catch (e) { return (e as Error).message; } return 'no refusal'; };
 
+describe('a unit text with stray spaces looks up the trimmed key the map is saved under', () => {
+  it('bill lines', () => {
+    const body = buildBillBody({ ...INPUT, lines: [{ name: 'Cable tray', quantity: 4, rate: 10, unit: ' m ' }] }, { ...CTX, unitMap: { m: '11' } }) as { invoice_line_ids: Array<[number, number, Record<string, unknown>]> };
+    expect(body.invoice_line_ids[0][2].product_uom_id).toBe(11);
+  });
+});
+
 describe('FR-OPP-040 the bill body', () => {
   it('sends the vendor invoice number as the reference, the vendor date, explicit tax ids, the cost account and the order-line link', () => {
     const body = buildBillBody(INPUT, CTX) as Record<string, unknown>;

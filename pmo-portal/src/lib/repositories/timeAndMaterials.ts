@@ -28,6 +28,7 @@ export const timeAndMaterialsRepository: TimeAndMaterialsRepository = {
   prepareTmSignoff: (input) => wrap(() => dal.prepareTmSignoff(input)),
   withdrawTmSignoff: (claimId) => wrap(() => dal.withdrawTmSignoff(claimId)),
   confirmTmSignoff: (claimId) => wrap(() => dal.confirmTmSignoff(claimId)),
+  invoiceNativeTmClaim: (claimId) => wrap(() => dal.invoiceTmClaimNative(claimId)),
   listTmClaims: (projectId) => wrap(() => dal.listTmClaims(projectId)),
   previewTmClaim: (input) => wrap(() => dal.previewTmClaim(input)),
   listTmClaimSources: (claimId) => wrap(() => dal.listTmClaimSources(claimId)),

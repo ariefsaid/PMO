@@ -74,6 +74,7 @@ test('AC-002 #1325: create, find, edit, reload and clear a project alias without
     await page.goto('/sales?status=Leads');
     const openDeal = page.getByRole('button', { name: new RegExp(initialAlias) });
     await openDeal.click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u);
     await page.getByRole('button', { name: /^Edit$/i }).click();
     const editDialog = page.getByRole('dialog');

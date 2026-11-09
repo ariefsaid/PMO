@@ -24,6 +24,7 @@ import { financialStatementsRepository } from './financialStatements';
 import { expensePostingsRepository } from './expensePostings';
 import { erpPurchasesRepository } from './erpPurchases';
 import { erpJournalLinesRepository } from './erpJournalLines';
+import { odooLedgerRepository } from './odooLedger';
 import { projectRepository } from './projects';
 import { projectMoneyRepository } from './projectMoney';
 import { projectOverviewRepository } from './projectOverview';
@@ -128,6 +129,7 @@ export const repositories: Repositories = {
   expensePostings: expensePostingsRepository,
   erpPurchases: erpPurchasesRepository,
   erpJournalLines: erpJournalLinesRepository,
+  odooLedger: odooLedgerRepository,
   contact: contactRepository,
   meeting: meetingRepository,
   userView: userViewRepository,

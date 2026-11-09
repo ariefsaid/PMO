@@ -23,8 +23,7 @@ interface AgentRuntimeProviderProps {
 export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ children }) => {
   const { session } = useAuth();
   const [open, setOpen] = useState(false);
-  const pendingPrefillRef = useRef<string | null>(null);
-  const [prefillVersion, setPrefillVersion] = useState(0);
+  const [pendingPrefill, setPendingPrefill] = useState<string | null>(null);
   const [edgeVersion, setEdgeVersion] = useState<string | null>(null);
 
   // Keep a mutable ref to the current session so getJwt always reads the latest
@@ -52,26 +51,22 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
 
   const openPanel = useCallback((prefill?: string) => {
     const nextPrefill = typeof prefill === 'string' ? prefill.trim() : '';
-    if (nextPrefill) {
-      pendingPrefillRef.current = nextPrefill;
-      setPrefillVersion((v) => v + 1);
-    }
+    setPendingPrefill(nextPrefill || null);
     setOpen(true);
     // GAP-1 (docs/plans/2026-07-03-agent-posthog-events.md §0): no scope-binding UI
     // entry point exists in this codebase yet — every real call site opens unscoped.
     safeTrack(() => trackAgentPanelOpened(false));
   }, []);
-  const consumePrefill = useCallback(() => {
-    const prefill = pendingPrefillRef.current;
-    pendingPrefillRef.current = null;
-    return prefill;
+  const clearPrefill = useCallback(() => setPendingPrefill(null), []);
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    setPendingPrefill(null);
   }, []);
-  const closePanel = useCallback(() => setOpen(false), []);
   const togglePanel = useCallback(() => setOpen((o) => !o), []);
 
   const ctxValue = useMemo(
-    () => ({ runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill, edgeVersion }),
-    [runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill, edgeVersion],
+    () => ({ runtime, open, openPanel, closePanel, togglePanel, pendingPrefill, clearPrefill, edgeVersion }),
+    [runtime, open, openPanel, closePanel, togglePanel, pendingPrefill, clearPrefill, edgeVersion],
   );
 
   return (

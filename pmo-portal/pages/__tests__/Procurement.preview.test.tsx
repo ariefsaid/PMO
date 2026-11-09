@@ -41,7 +41,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   useVendorOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
-vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
+vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
   useProjectProcurements: () => procState,
