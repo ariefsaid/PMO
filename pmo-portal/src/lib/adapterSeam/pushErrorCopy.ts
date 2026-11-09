@@ -166,6 +166,14 @@ const CODES: Record<string, Entry> = {
     retryable: true,
     remedy: 'Retry the push to queue a fresh command.',
   },
+  // ⚑ rm-1472 — a parked unit RETIRED because it is no longer part of the active budget. Not a failure:
+  // the account left the plan when the previous version's ERPNext budget was cancelled, so there is
+  // nothing to push for it, and a retry could only re-loop.
+  'budget-archive-cancellation-superseded': {
+    message: 'This account is no longer part of the active budget, and its earlier ERPNext budget was already cancelled with the previous version.',
+    retryable: false,
+    remedy: 'Nothing to push for this account. Activate a new version if it becomes part of the budget again.',
+  },
   // ── cut-over (FR-ECA-030, OQ-ECA-1) ──────────────────────────────────────────────────────────
   // Not a failure: a purchase ordered before the ERP connection is finished in PMO, on purpose.
   'pre-cutover': {

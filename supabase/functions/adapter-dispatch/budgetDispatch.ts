@@ -47,14 +47,34 @@ export interface BudgetDispatchUnit {
   record: AdapterCommand['record'];
 }
 
-/** Return whether an archive cancellation can still have changed ERP state. A `superseded` intent
- *  is safe to release only when the service-role lookup proves no cancellation outbox row was ever
- *  issued for it; a stale/superseded command can still have reached ERPNext. */
-export async function hasUnsettledBudgetArchiveCancellation(
+/**
+ * ⚑ rm-1472 — THE NAME of the durable wait a v16 range unit is parked under while its predecessor's
+ * archive cancellation has not settled. It is written by the 202 branch below and read back by the
+ * sweep's resume driver, so the marker is a shared constant, never a repeated literal.
+ */
+export const BUDGET_ARCHIVE_CANCEL_WAIT = 'waiting-for-budget-archive-cancellation';
+
+/** What the project's archive-cancellation queue says about releasing parked successor units.
+ *  `settled` = every intent is `complete`, or `superseded` with proof that no cancellation command was
+ *  ever issued for it. `pending` = something may still reach (or has reached) ERPNext. `held` = the
+ *  only outstanding intents are ones a person must resolve, so waiting longer releases nothing. */
+export type BudgetArchiveCancelState = 'settled' | 'pending' | 'held';
+
+/**
+ * The ONE derivation of the archive-cancellation fence, used by BOTH sides of rm-1472:
+ *  - the gate (which parks new units rather than fanning out while a cancellation is unsettled), and
+ *  - the sweep (which resumes those units once — and only once — the fence says `settled`).
+ * Two derivations would let the resume release units the gate is still fencing, or wait forever on a
+ * fence the gate already considers clear.
+ *
+ * A `superseded` intent is safe to release only when the service-role lookup proves no cancellation
+ * outbox row was ever issued for it; a stale/superseded command can still have reached ERPNext.
+ */
+export async function budgetArchiveCancelState(
   serviceClient: SupabaseClient,
   orgId: string,
   projectId: string,
-): Promise<boolean> {
+): Promise<BudgetArchiveCancelState> {
   const intents = await fetchAllRowsByKeyset<{ id: string; state: string }>((afterId, limit) => {
     let query = serviceClient.from('budget_archive_cancel_intents')
       .select('id,state').eq('org_id', orgId).eq('project_id', projectId)
@@ -62,15 +82,30 @@ export async function hasUnsettledBudgetArchiveCancellation(
     if (afterId !== null) query = query.gt('id', afterId);
     return query as never;
   });
+  let held = false;
+  let issued = false;
   for (const intent of intents) {
-    if (intent.state !== 'superseded') return true;
+    // A person must resolve this one, but it releases nothing by itself — record it and keep looking:
+    // a sibling intent still in flight can still change ERP state, so `pending` outranks `held`.
+    if (intent.state === 'held') { held = true; continue; }
+    if (intent.state !== 'superseded') return 'pending';
     const { data, error } = await serviceClient.from('external_command_outbox')
       .select('id').eq('org_id', orgId).eq('domain', 'budget').eq('operation', 'create')
       .filter('payload->>budget_archive_cancel_job_id', 'eq', intent.id).limit(1);
     if (error) throw new AppError('budget push: predecessor cancellation state could not be read', 'external-unreachable');
-    if ((data ?? []).length > 0) return true;
+    if ((data ?? []).length > 0) issued = true;
   }
-  return false;
+  if (issued) return 'pending';
+  return held ? 'held' : 'settled';
+}
+
+/** Return whether an archive cancellation can still have changed ERP state. */
+export async function hasUnsettledBudgetArchiveCancellation(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  projectId: string,
+): Promise<boolean> {
+  return (await budgetArchiveCancelState(serviceClient, orgId, projectId)) !== 'settled';
 }
 
 export function isBudgetPushCommand(cmd: { domain: string; record: Record<string, unknown> }): boolean {
@@ -532,7 +567,7 @@ export async function buildBudgetDispatchPlan(args: {
         let cancellationWait: string | null = null;
         if (isWholeProjectRange) {
           if (await hasUnsettledBudgetArchiveCancellation(serviceClient, orgId, gate.projectId)) {
-            cancellationWait = 'waiting-for-budget-archive-cancellation';
+            cancellationWait = BUDGET_ARCHIVE_CANCEL_WAIT;
           }
         }
         const slots = budgetUnits.map((unit) => ({
@@ -568,7 +603,7 @@ export async function buildBudgetDispatchPlan(args: {
             .is('erp_cancelled_at', null);
           waitingRows = cancellationWait
             ? waitingRows.in('push_state', ['pending', 'failed']) as typeof waitingRows
-            : waitingRows.eq('push_state', 'pending').eq('push_error', 'waiting-for-budget-archive-cancellation') as typeof waitingRows;
+            : waitingRows.eq('push_state', 'pending').eq('push_error', BUDGET_ARCHIVE_CANCEL_WAIT) as typeof waitingRows;
           const { error: waitingError } = await waitingRows;
           if (waitingError) throw new BudgetGateError('commit-rejected', 'budget push: predecessor cancellation wait state could not be recorded');
           if (cancellationWait) {

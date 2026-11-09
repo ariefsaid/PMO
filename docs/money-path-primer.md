@@ -83,6 +83,17 @@ migration backfills the pre-rollout confirmed history, so the first scan reports
 the scan is fenced by the same 0685 lease/binding machinery as every other writer and is a no-op for
 organizations with the feature disabled.
 
+**The parked-unit resume (202 `budget-cancellation-pending`).** A v16 whole-project range activation whose
+*predecessor* still has an unsettled ERPNext archive cancellation is PARKED, not pushed: the budget gate
+writes `push_error='waiting-for-budget-archive-cancellation'` on each account unit and returns 202 with
+**no outbox row at all** (the fan-out never begins). The sweep's budget backstop therefore cannot find a
+candidate for those rows and must not call them orphaned. Once the project's `budget_archive_cancel_intents`
+are all settled (`budgetArchiveCancelState` — the same classifier the gate uses), the resume re-runs
+`buildBudgetDispatchPlan` (the SAME gate) and drives each unit through the ordinary outbox path, attributed
+to the archive intent's recorded actor and re-authorized at drive time. A held intent parks the units
+`held` with `budget-archive-cancellation-held`; a unit the re-derived plan no longer contains (the account
+left the budget) is retired as `budget-archive-cancellation-superseded`. Never a second push path.
+
 ## Numeric relationships that MUST hold (a whole round was lost to one of these)
 
 These constants live in different files and nothing type-checks their relationship. If you change one,

@@ -163,6 +163,18 @@ import {
   type BudgetArchiveBackstopDeps,
   type BudgetArchiveCancelIntent,
 } from './budgetArchiveBackstop.ts';
+// ⚑ rm-1472 — the parked-unit resume. `buildBudgetDispatchPlan` is the SAME gate wiring the
+// foreground activation uses, so a resumed unit is derived, keyed and authorized exactly as the
+// activation would have derived it (no second push path, no second key derivation).
+import {
+  BUDGET_ARCHIVE_CANCEL_WAIT,
+  budgetArchiveCancelState,
+  buildBudgetDispatchPlan,
+  recordBudgetPushFailure,
+} from '../adapter-dispatch/budgetDispatch.ts';
+import { commandForBudgetUnit } from '../adapter-dispatch/commandUnit.ts';
+import { checkCreateTargetUnmapped } from '../adapter-dispatch/transitionTargetGuard.ts';
+import { resolveErpBindingRow } from '../adapter-dispatch/dispatchAdapters.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
@@ -2298,6 +2310,249 @@ function byQueueFairness(a: { last_attempt_at?: string | null; created_at?: stri
  *  not — the crash-between-the-ERP-write-and-the-finalize window (⚑ MEDIUM-2). */
 const BUDGET_MIRROR_ABSENT = 'absent';
 
+/** ⚑ rm-1472 — the named reason a unit is parked when an archive cancellation needs a PERSON (the
+ *  intent is `held`, or no recorded actor is left to attribute the replacement push to). It is
+ *  distinct from the generic `budget-push-no-outbox-candidate` so the screen says "a person must
+ *  resolve the predecessor's cancellation", not "this push lost its command". */
+export const BUDGET_ARCHIVE_CANCEL_HELD = 'budget-archive-cancellation-held';
+
+/** What the resume driver did with one version's parked units this tick. */
+export type BudgetArchiveWaitResumeOutcome = 'driven' | 'waiting' | 'held';
+
+/** ⚑ rm-1472 — the named reason a parked unit is RETIRED: the re-derived plan no longer contains that
+ *  account, because the archive cancellation tombstoned the document it named. Nothing will ever push
+ *  it, so it must stop looking queued (and must not re-run the gate on every tick). */
+export const BUDGET_ARCHIVE_CANCEL_SUPERSEDED = 'budget-archive-cancellation-superseded';
+
+/** Hold every unit of one version that is still parked on the archive-cancellation wait. Scoped by
+ *  org + version and fenced on the wait marker itself, so a unit the foreground just pushed (or that
+ *  a person already resolved) can never be relabelled by this pass. */
+async function holdWaitingBudgetUnits(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  versionId: string,
+  reason: string,
+): Promise<void> {
+  const { error } = await serviceClient.from('budget_version_account_erp_mirror')
+    .update({ push_state: 'held', push_error: reason })
+    .eq('org_id', orgId)
+    .eq('budget_version_id', versionId)
+    .eq('push_error', BUDGET_ARCHIVE_CANCEL_WAIT)
+    .is('erp_cancelled_at', null)
+    .in('push_state', ['pending', 'failed']);
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** Park a version's waiting units because a PERSON must act (a held cancellation, or no actor left to
+ *  attribute the replacement push to) — and say so once on the operator surface. */
+async function parkWaitingBudgetUnitsForPerson(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  versionId: string,
+  projectId: string,
+): Promise<void> {
+  await holdWaitingBudgetUnits(serviceClient, orgId, versionId, BUDGET_ARCHIVE_CANCEL_HELD);
+  await surfaceActionRequired(serviceClient, orgId, 'budget-archive-cancellation-held', { versionId, projectId });
+}
+
+/** Retire every parked unit the re-derived plan no longer contains: the account left the plan because
+ *  the archive cancellation tombstoned the very document that unit named, so nothing will ever push
+ *  it. Leaving it on the wait marker made the screen say "queued" forever AND re-ran the gate for it on
+ *  every tick. Retired with a reason, never silently, and never as a push that happened. */
+async function retirePlanAbsentWaitingUnits(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  versionId: string,
+  units: ReadonlyArray<{ identity: string }>,
+): Promise<void> {
+  const planned = new Set(units.map((unit) => unit.identity));
+  const { data, error } = await serviceClient.from('budget_version_account_erp_mirror')
+    .select('id,fiscal_year,to_fiscal_year,erp_account')
+    .eq('org_id', orgId)
+    .eq('budget_version_id', versionId)
+    .eq('push_error', BUDGET_ARCHIVE_CANCEL_WAIT)
+    .is('erp_cancelled_at', null)
+    .in('push_state', ['pending', 'failed']);
+  if (error) throw new AppError(error.message, error.code);
+  for (const row of (data ?? []) as Array<{ id?: string; fiscal_year?: string; to_fiscal_year?: string | null; erp_account?: string | null }>) {
+    if (typeof row.id !== 'string' || typeof row.fiscal_year !== 'string') continue;
+    let identity: string;
+    try {
+      identity = row.to_fiscal_year
+        ? budgetRangeIdentity(versionId, row.fiscal_year, row.to_fiscal_year, row.erp_account ?? '')
+        : budgetAccountIdentity(versionId, row.fiscal_year, row.erp_account ?? '');
+    } catch {
+      continue;
+    }
+    if (planned.has(identity)) continue;
+    const { error: holdError } = await serviceClient.from('budget_version_account_erp_mirror')
+      .update({ push_state: 'held', push_error: BUDGET_ARCHIVE_CANCEL_SUPERSEDED })
+      .eq('org_id', orgId)
+      .eq('id', row.id)
+      .eq('push_error', BUDGET_ARCHIVE_CANCEL_WAIT)
+      .in('push_state', ['pending', 'failed']);
+    if (holdError) throw new AppError(holdError.message, holdError.code);
+  }
+}
+
+/** The recorded person the predecessor's archive decision belongs to — the ONLY honest attribution a
+ *  sweep-side resume can carry (the activation actor is not persisted, and FR-BUD-102 forbids minting
+ *  an unattributed money command). Re-authorized at drive time by `checkErpnextCommandAuthorization`
+ *  against their CURRENT role, exactly like every other sweep-originated money write. */
+async function settledBudgetArchiveActor(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  projectId: string,
+): Promise<string | null> {
+  const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
+    .select('actor_user_id')
+    .eq('org_id', orgId).eq('project_id', projectId)
+    .in('state', ['complete', 'superseded'])
+    .order('updated_at', { ascending: false })
+    .limit(1).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const actor = (data as { actor_user_id?: unknown } | null)?.actor_user_id;
+  return typeof actor === 'string' && actor !== '' ? actor : null;
+}
+
+/**
+ * ⚑ rm-1472 — RESUME a version whose units were parked by the budget gate's `202
+ * budget-cancellation-pending`.
+ *
+ * The defect this removes: the gate parks v16 range units as `pending` with
+ * `push_error='waiting-for-budget-archive-cancellation'` and writes NO outbox row (the fan-out never
+ * begins). Nothing re-ran the gate when the cancellations settled, so ERPNext kept enforcing nothing
+ * while PMO said "Version activated" — and the backstop, which only looks for an EXISTING outbox row,
+ * parked the units `held` and ended automatic recovery for good.
+ *
+ * The release is the SAME gate, run again from CURRENT truth (`buildBudgetDispatchPlan`): it re-reads
+ * the plan, re-derives each unit's year-qualified identity and server key from `activated_at`, and
+ * re-plans against the now-tombstoned predecessor history — so a resumed unit is byte-identical to
+ * what the activation would have produced had the cancellation already settled. Each unit then goes
+ * through the ordinary `dispatchMoneyWrite`/outbox path (SoD re-authorization, claim fencing,
+ * one-in-flight, one-document-per-record), never a second push path.
+ *
+ * Fail-closed and quiet where that is right:
+ *  - fence `pending` → the units stay parked on the wait (a later tick retries);
+ *  - fence `held`, or no attributable actor → the units are HELD with a named reason + one
+ *    action-required notice (waiting longer would release nothing);
+ *  - the gate refusing → its own durable failure row is written by the gate itself, and the units stay
+ *    parked so the pass resumes by itself once a person fixes the cause (the FR-BFY-075 posture).
+ */
+export function budgetArchiveWaitResumeLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  cache?: ErpAuthPairCache,
+): (versionId: string, projectId: string | null) => Promise<BudgetArchiveWaitResumeOutcome> {
+  // One gate run per version per tick: several parked units of one version must not each re-run it.
+  const perVersion = new Map<string, Promise<BudgetArchiveWaitResumeOutcome>>();
+  return (versionId, projectId) => {
+    const running = perVersion.get(versionId);
+    if (running) return running;
+    const started = resumeWaitingBudgetVersion(serviceClient, org, versionId, projectId, cache);
+    perVersion.set(versionId, started);
+    return started;
+  };
+}
+
+async function resumeWaitingBudgetVersion(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  versionId: string,
+  projectId: string | null,
+  cache?: ErpAuthPairCache,
+): Promise<BudgetArchiveWaitResumeOutcome> {
+  // The fence is project-scoped (that is the grain the gate reasons on). Without the project there is
+  // nothing to prove, so never release: leave the units parked for a later tick.
+  if (!projectId) return 'waiting';
+  const state = await budgetArchiveCancelState(serviceClient, org.orgId, projectId);
+  if (state === 'pending') return 'waiting';
+  if (state === 'held') {
+    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
+    return 'held';
+  }
+  const actorUserId = await settledBudgetArchiveActor(serviceClient, org.orgId, projectId);
+  if (!actorUserId) {
+    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
+    return 'held';
+  }
+  // Re-authorize the recorded actor NOW (never trust that they were allowed when the archive was
+  // requested) — the same rule the synchronous dispatch and the outbox replay apply.
+  const authorization = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, actorUserId, {
+    domain: ERPNEXT_BUDGET_DOMAIN,
+    record: { erp_doc_kind: 'budget' },
+  });
+  if (!authorization.ok) {
+    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
+    return 'held';
+  }
+
+  // The SAME gate the activation ran. Its own reads are org-checked (the gate refuses a version or a
+  // project outside `deps.orgId`) and every per-version read is keyed on the version the parked row
+  // names, so a service-role client here cannot widen anything.
+  const command: AdapterCommand = {
+    domain: ERPNEXT_BUDGET_DOMAIN,
+    operation: 'create',
+    // `commandForBudgetUnit` replaces this with the unit's own server-derived key; it never reaches
+    // the outbox (the fan-out mints one per unit, exactly as `dispatchBudgetPush` does).
+    idempotencyKey: '',
+    record: { id: versionId, erp_doc_kind: 'budget' },
+  };
+  const plan = await buildBudgetDispatchPlan({
+    command,
+    // The sweep carries no user JWT; the gate's org assertions are the tenancy boundary here.
+    callerClient: serviceClient,
+    serviceClient,
+    orgId: org.orgId,
+    erpAuth: cache ?? createErpAuthPairCache(),
+    headers: new Headers(),
+    resolveBinding: resolveErpBindingRow,
+  });
+  // A Response means the gate refused (its 422 writes its own durable failure row) or a cancellation
+  // became unsettled again (202). Either way nothing is pushed and the units stay parked: the pass
+  // resumes by itself once the cause is fixed. NEVER silent — a resume that keeps refusing is a stuck
+  // money push and must be visible in the tick's own logs.
+  if (plan instanceof Response) {
+    console.warn(`[erpnext-sweep] org ${org.orgId} budget ${versionId}: archive-cancellation resume not released (HTTP ${plan.status}) ${await plan.clone().text()}`);
+    return 'waiting';
+  }
+
+  for (const unit of plan.units ?? []) {
+    const unitCommand = commandForBudgetUnit(command, unit);
+    try {
+      // BLOCK #4, per unit, on the year-qualified identity — the same pre-outbox guard the served
+      // fan-out runs, so a resume can never mint a second ERP document for an already-mapped unit.
+      const createTarget = await checkCreateTargetUnmapped(serviceClient as never, org.orgId, unitCommand, unit.idempotencyKey);
+      if (!createTarget.ok) {
+        await recordBudgetPushFailure({
+          serviceClient, orgId: org.orgId, command: unitCommand,
+          budgetVersionMajor: plan.versionMajor, failure: new AppError(createTarget.message, 'commit-rejected'),
+        });
+        continue;
+      }
+      await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org, {
+        command: unitCommand,
+        actorUserId,
+        outboxRecordId: unit.identity,
+        persistPayload: true,
+      }, cache));
+    } catch (err) {
+      // PER-UNIT containment (the served fan-out's rule): one account's refusal must not abandon the
+      // rest of the fan-out, and it is recorded durably rather than swallowed.
+      const failure = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : String(err), 'commit-rejected');
+      try {
+        await recordBudgetPushFailure({
+          serviceClient, orgId: org.orgId, command: unitCommand,
+          budgetVersionMajor: plan.versionMajor, failure,
+        });
+      } catch { /* the durable write must never mask the original failure */ }
+      console.warn(`[erpnext-sweep] org ${org.orgId} budget ${versionId} resume unit ${unit.identity}: ${failure.message}`);
+    }
+  }
+  await retirePlanAbsentWaitingUnits(serviceClient, org.orgId, versionId, plan.units ?? []);
+  return 'driven';
+}
+
 /** The live `BudgetBackstopDeps` for one org — the mirror's own work queue (FR-BUD-123, index-served
  *  on `(org_id, push_state)`), the re-asserted version gate (FR-BUD-102), and driving a found
  *  candidate through the EXACT SAME `dispatchMoneyWrite`/`buildReconcileDepsLive` machinery the
@@ -2311,17 +2566,22 @@ export function budgetBackstopDepsLive(
   eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null; to_fiscal_year?: string | null; budget_intent?: 'ensure' | 'remove' | null }>,
   /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
   retryPendingIds: ReadonlySet<string> = new Set(),
+  /** ⚑ rm-1472 — the parked-unit resume. A row whose own `push_error` says it is waiting on an
+   *  archive cancellation is NOT an outbox orphan: the fan-out never began, so there is nothing for
+   *  this queue to find. The resume runs the gate again (once per version per tick) and releases the
+   *  units through it. Absent ⇒ such a row is left exactly as it is, never relabelled `held`. */
+  resumeArchiveWait?: (versionId: string, projectId: string | null) => Promise<BudgetArchiveWaitResumeOutcome>,
 ): BudgetBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
   return {
     listPendingBudgetPushes: async (orgId, limit) => {
       const [legacyResult, accountResult] = await Promise.all([
         serviceClient.from('budget_version_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at,last_attempt_at')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at,last_attempt_at,push_error')
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
           .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
         serviceClient.from('budget_version_account_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,to_fiscal_year,erp_account,budget_intent,created_at,last_attempt_at')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,to_fiscal_year,erp_account,budget_intent,created_at,last_attempt_at,push_error')
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
           .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
       ]);
@@ -2338,6 +2598,7 @@ export function budgetBackstopDepsLive(
           erp_account: (r.erp_account as string | null) ?? null,
           budget_intent: (r.budget_intent as 'ensure' | 'remove' | null) ?? null,
         } : { erp_account: null, budget_intent: 'ensure' as const }),
+        push_error: (r.push_error as string | null) ?? null,
         created_at: (r.created_at as string | null) ?? null,
         last_attempt_at: (r.last_attempt_at as string | null) ?? null,
       });
@@ -2410,7 +2671,7 @@ export function budgetBackstopDepsLive(
       // explicitly, since service role bypasses RLS. Never trust the mirror row's own push_state.
       const { data, error } = await serviceClient
         .from('budget_versions')
-        .select('id, status, activated_at')
+        .select('id, status, activated_at, project_id')
         .eq('id', versionId)
         .eq('org_id', org.orgId)
         .maybeSingle();
@@ -2436,6 +2697,17 @@ export function budgetBackstopDepsLive(
           : budgetPushKey(row.budget_version_id, version.activated_at);
       const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, identity, idempotencyKey);
       if (!outboxRow) {
+        // ⚑ rm-1472 — A PARKED UNIT IS NOT AN ORPHAN. When the gate parked this unit behind an
+        // unsettled predecessor cancellation, the fan-out never began, so "no outbox row" is the
+        // EXPECTED state, not the crash-between-commit-and-finalize window the hold below is for.
+        // Relabelling it `held` (the shipped behaviour) ended automatic recovery for good: ERPNext had
+        // cancelled the old Budgets, the new one was never sent, and PMO still said "Version active".
+        // Release is the SAME gate, re-run by the resume driver; while the fence still says pending the
+        // row stays parked on its own reason and the next tick tries again.
+        if (row.push_error === BUDGET_ARCHIVE_CANCEL_WAIT) {
+          if (resumeArchiveWait) await resumeArchiveWait(row.budget_version_id, version.project_id ?? null);
+          return;
+        }
         // FR-BUD-102 ("never finalize with a NULL actor"): the foreground dispatch never even reached
         // the outbox for this activation (e.g. the browser tab died mid-request before the fetch) — so
         // there is no RECORDED actor to reconcile against. Never mint a fresh, unattributed outbox row
@@ -2508,7 +2780,12 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
       }));
     const retryPendingIds = await listRetryPendingLive(serviceClient, org.orgId);
     const result = await reconcileOrgBudgetPushes(
-      budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates, retryPendingIds),
+      budgetBackstopDepsLive(
+        serviceClient, org, eligibleBudgetCandidates, retryPendingIds,
+        // ⚑ rm-1472 — units the gate parked behind an unsettled archive cancellation are resumed here,
+        // through the SAME gate, once that fence settles.
+        budgetArchiveWaitResumeLive(serviceClient, org, cache),
+      ),
       { orgId: org.orgId },
     );
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that

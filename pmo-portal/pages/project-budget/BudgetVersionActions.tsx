@@ -148,6 +148,15 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
               t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: confirm.label }),
               'warning',
             );
+          } else if (pushState === 'pending-cancellation') {
+            // rm-1472 — a 202 is not a push. The replacement is queued behind an earlier cancellation
+            // that is still settling; the sweep pushes it by itself once that clears, so this must not
+            // read as "activated and enforcing" (the Budget tab shows the queued unit underneath).
+            toast(
+              t('financeCopy.versionActivatedPushQueued', 'Version activated: the ERPNext budget is queued'),
+              t('financeCopy.cancellationPendingQueuedDetail', '{{version}}. An earlier ERPNext budget cancellation is still settling, so the replacement is queued and will be pushed automatically once it settles.', { version: confirm.label }),
+              'warning',
+            );
           } else {
             toast(t('financeCopy.versionActivated', 'Version activated'), confirm.label, 'success');
           }

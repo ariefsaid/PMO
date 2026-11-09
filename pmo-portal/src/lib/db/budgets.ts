@@ -103,8 +103,14 @@ export interface ActivateVersionResult {
    * announced a push that never happened (the per-year banner underneath simultaneously said
    * `never-pushed`); reading it as `'failed'` would invent an attempt that was never made. Nothing was
    * sent because there was nothing to send, and the surface says exactly that.
+   *
+   * ⚑ `'pending-cancellation'` (rm-1472) is a FOURTH outcome for the same reason: the served gate
+   * answers `202 { error: 'budget-cancellation-pending' }` while a predecessor's ERPNext cancellation
+   * is still settling — the activation stands, the units are queued, and NOTHING has been pushed yet.
+   * The sweep resumes the push by itself once the cancellation settles, so this is "queued", neither a
+   * success nor a failure the operator must fix.
    */
-  pushState: 'pushed' | 'failed' | 'nothing-to-push';
+  pushState: 'pushed' | 'failed' | 'nothing-to-push' | 'pending-cancellation';
 }
 
 export interface ArchiveVersionResult {
@@ -1064,6 +1070,12 @@ interface BudgetFanOutResult {
  * value: it resolved, so the year the operator asked about is the year that pushed.
  */
 function pushStateForYear(result: unknown, fiscalYear: string | null): ActivateVersionResult['pushState'] {
+  // ⚑ rm-1472 — a 202 `budget-cancellation-pending` body is NOT a push that happened. The served gate
+  // parked the whole-project range's units behind an unsettled predecessor cancellation: no outbox row
+  // was written, so no ERPNext Budget exists yet. The body names no `years`, so the face-value rule
+  // below announced "pushed" about a project ERPNext is enforcing nothing for — while the sweep was
+  // already queued to resume it. Activation stands; the push is pending.
+  if ((result as { error?: unknown } | null | undefined)?.error === 'budget-cancellation-pending') return 'pending-cancellation';
   const years = (result as BudgetFanOutResult | null | undefined)?.years;
   // A pre-BFY server names no years at all — taken at face value, as before.
   if (!Array.isArray(years)) return 'pushed';
