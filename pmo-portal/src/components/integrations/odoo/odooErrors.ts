@@ -23,6 +23,9 @@ export function odooErrorMessage(t: TFunction, err: unknown): string {
     REFUSED: t('administration:odoo.error.refused', 'That choice is no longer available in Odoo, or is already linked to another project. Reload and choose again.'),
     FORBIDDEN: t('administration:odoo.error.forbidden', 'Your role cannot do this.'),
     RATE_LIMITED: t('administration:odoo.error.rateLimited', 'This was just run. Try again in a minute.'),
+    'sends-pending': t('administration:odoo.error.sendsPending', 'Some records are still on their way to Odoo. Try again when they have arrived.'),
+    'config-rejected': t('administration:odoo.error.configRejected', 'Odoo is missing something this needs. Check the connection again, then try again.'),
+    feature_off: t('administration:odoo.error.featureOff', 'Connecting an accounting system is not turned on for your organization.'),
     SYNC_RUNNING: t('administration:odoo.error.syncRunning', 'A sync is running. Try again in a minute.'),
   };
   return (code && m[code]) || t('administration:odoo.error.generic', 'Something went wrong. Nothing was changed. Try again.');

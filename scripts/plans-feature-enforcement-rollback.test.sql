@@ -10,6 +10,10 @@
 -- `auth_org_id()` — no longer matches `(select public.auth_org_id())` and silently leaves the
 -- conjunct in place. 0646's down restores the pre-0646 expressions (the form 0534's pattern targets);
 -- 0646's up re-wraps them last, so the round trip ends at HEAD.
+-- 0820 brackets the round trip for the same reason one layer up: it splits the five ALL `<t>_write`
+-- policies that 0646's shipped text alters by name into `_write_insert`/`_update`/`_delete`. Reversing
+-- 0820 first puts the catalog back into the pre-0820 shape 0646's files were generated against; its up
+-- reapplies last, so the database is left at HEAD.
 \set ON_ERROR_STOP on
 begin;
 create extension if not exists pgtap;
@@ -18,6 +22,7 @@ select plan(7);
 -- 0538 and 0646 change procurement/write policies after 0534. Reverse every later overlapping
 -- migration first (newest first), then restore in forward order so this round trip models a real
 -- rollback to 0534 and back to HEAD.
+-- @0820_DOWN@
 -- @0646_DOWN@
 -- @0538_DOWN@
 -- @0534_DOWN@
@@ -63,6 +68,7 @@ select is((select count(*)::int from pg_policies
 -- @0534_UP@
 -- @0538_UP@
 -- @0646_UP@
+-- @0820_UP@
 
 select is((select count(*)::int from pg_policies
             where schemaname = 'public' and tablename = 'incoming_payments'

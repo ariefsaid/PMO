@@ -3,7 +3,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { wrap } from './repositoryErrors';
 import { erpSetupRequest } from './integrations';
 import { odooPaymentRef, odooRevenueDocumentRef } from '@/src/lib/adapterSeam/odoo/purchase/anchors';
-import { SENDS_FINISHED_KEY, type ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
+import type { ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
 import type { MirrorKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository, PurchaseCommand, PurchaseCommandKind, RevenueCommand, RevenueCommandKind, OdooCreditNote } from './contracts/odoo';
 
 // ilike pattern inside a double-quoted PostgREST value: commas and parens are then literal. LIKE wildcards get a `\` escape, then `\` and `"` are escaped for the quoting.
@@ -59,7 +59,7 @@ function revenueCommands(rows: Array<Record<string, unknown>>, now: Date): Reven
   }).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', 'default_payment_journal_id', SENDS_FINISHED_KEY];
+const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', 'default_payment_journal_id'];
 
 export const odooRepository: OdooRepository = {
   listMasterRecords: (input: ListMasterInput) => wrap(async () => {

@@ -747,8 +747,27 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  it('requires the current mode while confirming a sole-operator activation', async () => {
+  /**
+   * ⚑ rm-1472 — a 202 `budget-cancellation-pending` is the queue, not a push. ERPNext holds nothing for
+   * the new version until the predecessor's cancellation settles (the sweep then pushes it by itself),
+   * so the activation toast must not read as a clean success — and must not tell the operator to fix
+   * something either: nothing on this screen is wrong.
+   */
+  it('rm-1472 activation queued behind an earlier cancellation says so — never a clean "Version activated"', async () => {
     roleState.realRole = 'Finance';
+    mockActivate.mockResolvedValueOnce({ pushState: 'pending-cancellation' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/queued/i);
+    expect(toast).toHaveTextContent(/cancellation/i);
+    resetState();
+  });
+
+  it('requires the current mode while confirming a sole-operator activation', async () => {    roleState.realRole = 'Finance';
     budgetState.data = 100;
     versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
     activationModeState.data = 'sole_operator';

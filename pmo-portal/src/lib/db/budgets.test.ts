@@ -670,6 +670,26 @@ describe('activateVersion', () => {
     await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
   });
 
+  /**
+   * ⚑ rm-1472 — a 202 `budget-cancellation-pending` is NOT a push.
+   *
+   * The served gate parks a whole-project range's units behind an unsettled predecessor cancellation
+   * and answers `202 { error: 'budget-cancellation-pending' }` WITHOUT writing a single outbox row: no
+   * ERPNext Budget exists yet. The body names no `years`, and the pre-fix "absent years ⇒ face value"
+   * rule read that as success — the toast said the budget was pushed while the per-year banner said
+   * nothing was. Activation stands; the push is queued and the sweep resumes it by itself.
+   */
+  it('rm-1472 a 202 cancellation-pending answer is reported as pending, never as a push that happened', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { error: 'budget-cancellation-pending', message: 'An earlier ERPNext Budget cancellation is unresolved; range units are pending and no replacement was created.' },
+      error: null,
+    });
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'pending-cancellation' });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pending-cancellation' });
+  });
+
   it('AC-BFY-009 activation reports nothing-to-push too — an activated version with no lines pushed nothing', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });

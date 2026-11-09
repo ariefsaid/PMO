@@ -109,7 +109,9 @@
       "employHint": "After this, Odoo owns vendor and client records.",
       "title": "Odoo setup",
       "done": "Done",
-      "todo": "To do"
+      "todo": "To do",
+      "procurement": "Purchases go to Odoo",
+      "procurementHint": "After this, approved purchase orders, goods receipts and supplier bills are also created in Odoo."
     },
     "picker": {
       "placeholder": "Select an item",
@@ -137,7 +139,10 @@
       "rateLimited": "This was just run. Try again in a minute.",
       "syncRunning": "A sync is running. Try again in a minute.",
       "generic": "Something went wrong. Nothing was changed. Try again.",
-      "refused": "That choice is no longer available in Odoo, or is already linked to another project. Reload and choose again."
+      "refused": "That choice is no longer available in Odoo, or is already linked to another project. Reload and choose again.",
+      "sendsPending": "Some records are still on their way to Odoo. Try again when they have arrived.",
+      "configRejected": "Odoo is missing something this needs. Check the connection again, then try again.",
+      "featureOff": "Connecting an accounting system is not turned on for your organization."
     },
     "master": {
       "items": "Items",
@@ -213,6 +218,33 @@
       "save": "Save",
       "archived": "Needs attention: the default warehouse was archived in Odoo. Choose another.",
       "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another."
+    },
+    "records": {
+      "title": "Records in PMO and Odoo",
+      "planTitle": "Project cost accounts",
+      "planIntro": "Choose the Odoo analytic plan that holds one account per project. PMO sends each project there. This is done once.",
+      "planProposed": "Proposed: {{name}}",
+      "planUseNamed": "Use {{name}}",
+      "planNone": "Odoo has no analytic plan yet. Add one in Odoo, then check again.",
+      "planLoadFailed": "The analytic plans could not be loaded",
+      "censusFailed": "Projects could not be checked yet. Press Check again."
+    },
+    "send": {
+      "title": "Records going to Odoo",
+      "sending": "Sending to Odoo",
+      "waiting": "{{count}} waiting for Odoo to confirm.",
+      "addPeople": "Add these people in Odoo. PMO does not send people to Odoo yet."
+    },
+    "employ": {
+      "companiesAction": "Let Odoo manage vendors and clients",
+      "companiesTitle": "Let Odoo manage vendors and clients?",
+      "companiesBody": "From now on, Odoo holds your vendor and client records. New vendors and clients, and changes to names and tax numbers, are saved in Odoo through PMO's forms.",
+      "companiesConfirm": "Let Odoo manage them",
+      "procurementAction": "Send purchases to Odoo",
+      "procurementTitle": "Send purchases to Odoo?",
+      "procurementBody": "From now on, approved purchase orders, goods receipts and supplier bills are also created in Odoo.",
+      "procurementConfirm": "Send purchases",
+      "waitSends": "Wait until every record has reached Odoo."
     },
     "projectLink": {
       "title": "Odoo cost account",

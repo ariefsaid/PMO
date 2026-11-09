@@ -26,6 +26,9 @@ const ALL_CODES = [
   'command-held',
   'external-unreachable',
   'DISPATCH_FAILED',
+  // rm-1472 / M-2 — the two reasons a parked replacement push is held once the fence settles.
+  'budget-archive-cancellation-held',
+  'budget-archive-resume-actor-unauthorized',
 ] as const;
 
 describe('describePushError — no raw adapter token may reach the DOM (I-5/I-15)', () => {

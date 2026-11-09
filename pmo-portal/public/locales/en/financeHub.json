@@ -165,6 +165,7 @@
     "paymentRecord": "Payment record"
   },
   "managementPack": {
+    "basisEarned": "Earned value",
     "search": "Search projects",
     "projectManager": "Project manager",
     "progressValue": "Progress {{percent}}%",
@@ -253,6 +254,8 @@
     "confirmLabel_other": "Activate {{count}} drafts",
     "activatedErpFailed": "Activated, but ERPNext was not updated",
     "activatedNothingSent": "Activated, but nothing was sent to ERPNext: no budget lines",
-    "nothingSent": "{{count}} activated but nothing was sent to ERPNext (no budget lines); add lines and activate a new version to enforce one."
+    "nothingSent": "{{count}} activated but nothing was sent to ERPNext (no budget lines); add lines and activate a new version to enforce one.",
+    "activatedErpPending": "Activated, ERPNext update queued behind an earlier cancellation",
+    "erpPushQueued": "{{count}} activated with the ERPNext push queued behind an earlier budget cancellation; it is pushed automatically once that settles."
   }
 }
