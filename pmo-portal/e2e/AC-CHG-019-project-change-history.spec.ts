@@ -57,8 +57,8 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   });
 
   await page.goto(projectUrl);
-  await page.getByRole('button', { name: /^Activity · \d+ comments$/ }).click();
-  const activity = page.getByRole('dialog', { name: 'Activity' });
+  // #2057: a deal's Overview carries its notes and activity inline (no drawer doorway).
+  const activity = page.getByRole('region', { name: 'Notes and activity' });
   await expect(activity).toBeVisible({ timeout: 15_000 });
   await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
   await expect(activity.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible({ timeout: 15_000 });
@@ -78,8 +78,6 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await expect(events.nth(1)).toContainText(new RegExp(`Client: ${CLIENT_A}[^→]* → ${CLIENT_B}`));
   await expect(events.nth(1)).toContainText(/End date: \D*30\D*2026 → \D*31\D*2026/);
   await expect(events.nth(1)).toContainText('Diego Salvatierra');
-
-  await activity.getByRole('button', { name: 'Close', exact: true }).click();
 
   // Mobile: no horizontal overflow (fonts settled before measuring).
   await page.setViewportSize({ width: 390, height: 800 });

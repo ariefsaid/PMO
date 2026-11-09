@@ -294,6 +294,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const { toast } = useToast();
   const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
+  const isDesktopHeader = useIsDesktop();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -352,7 +353,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
   const meta = compact ? (
-    customerName ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground"><span className="inline-flex items-center">{customerName}</span></div> : null
+    customerName ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground max-md:hidden"><span className="inline-flex items-center">{customerName}</span></div> : null
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
@@ -480,7 +481,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   };
   // The state's own verb (Raise invoice, Chase payment) is the primary action when the page offers one;
   // otherwise Edit is. Edit stays one click away either way.
-  const editButton = canEdit ? (
+  // Phone keeps the header to one row: Edit moves into the menu there.
+  const editInMenu = canEdit && compact && !isDesktopHeader;
+  const editButton = canEdit && !editInMenu ? (
     <Button variant={primaryAction ? 'outline' : 'primary'} size="sm" className="touch-target" onClick={onEditProject}>
       {t('projectDetail.header.action.edit', 'Edit')}
     </Button>
@@ -488,6 +491,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const headerPrimary = primaryAction ?? editButton;
   const menuItems: RecordMenuItem[] = [
     ...(compact ? [{ key: 'copy-link', label: t('projectDetail.header.copyLink', 'Copy link'), onSelect: () => void copyProjectLink() }] : []),
+    ...(editInMenu ? [{ key: 'edit', label: t('projectDetail.header.action.edit', 'Edit'), onSelect: () => onEditProject?.() }] : []),
     ...(compact && canChangeValue ? [{ key: 'change-value', label: t('projectDetail.header.changeContractValue', 'Change contract value'), onSelect: () => beginValueEdit() }] : []),
     ...(canArchive ? [{ key: 'archive', label: t('projectDetail.header.action.archive', 'Archive'), onSelect: () => setArchiveOpen(true) }] : []),
     ...(canDelete ? [{ key: 'delete', label: t('projectDetail.header.action.delete', 'Delete'), onSelect: () => setDeleteOpen(true), danger: true }] : []),
@@ -538,8 +542,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       </PopoverContent>
     </Popover>
   ) : undefined;
+  const statusPill = <StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>;
+  // Phone: the status pill joins the action row (one row less above the work).
+  const statusOnPhoneRow = compact && !isDesktopHeader;
   const actions = compact ? (
     <>
+      {statusOnPhoneRow && statusPill}
       {secondaryAction}
       {showCompactContractLock && (
         <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason"
@@ -676,7 +684,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>}
+        status={statusOnPhoneRow ? undefined : statusPill}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
@@ -685,7 +693,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         primaryAction={headerPrimary}
         menuItems={menuItems}
         menuLabel={t('projectDetail.header.more', 'More actions')}
-        className="mb-4"
+        className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
       />
 
       {showCompactContractLock && (
