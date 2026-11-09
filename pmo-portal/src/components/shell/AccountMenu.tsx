@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
+import { Menu } from '@base-ui/react/menu';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +8,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
+import { menuPopupClass, menuPopupOrigin, menuSeparatorClass } from '@/src/components/ui/menuStyles';
 import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
@@ -22,22 +24,22 @@ const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole
  * org (the `m365_integration` entitlement defaults OFF), so a non-entitled org sees no dead link. Mounted only while
  * the menu is open, so the entitlement read costs nothing until then.
  */
-const MyIntegrationsItem: React.FC<{ className: string; onSelect: () => void }> = ({ className, onSelect }) => {
+const MyIntegrationsItem: React.FC<{ className: string }> = ({ className }) => {
   const { t } = useTranslation();
   const { data: orgFeatures } = useOrgFeatures();
   if (orgFeatures?.m365_integration !== true) return null;
   return (
-    <Link to="/integrations" role="menuitem" onClick={onSelect} className={className}>
+    <Menu.LinkItem render={<Link to="/integrations" />} className={className}>
       <Icon name="plug" className="text-muted-foreground [&_svg]:size-[17px]" />
       {t('shell.nav.integrations', 'My integrations')}
-    </Link>
+    </Menu.LinkItem>
   );
 };
 
 /**
  * AccountMenu — the ONE responsive avatar/identity account control in the top bar
- * (AC-ACCT-001). Owns the avatar/identity trigger, the single `role="menu"` popup,
- * outside-click/Escape close, arrow-key navigation, and focus return. It is the sole home of:
+ * (AC-ACCT-001), on Base UI Menu: focus, arrow/Home/End roving, Tab/Escape dismissal, focus return and
+ * flip/clamp positioning come from the library. It is the sole home of:
  *   - the signed-in identity;
  *   - the Profile & preferences link (`/settings/profile`, still directly routable);
  *   - the Theme section (Light / Dark `menuitemradio`, driven by `useTheme`);
@@ -48,289 +50,152 @@ const MyIntegrationsItem: React.FC<{ className: string; onSelect: () => void }> 
  * `viewAs` remains view-only; `useTheme` remains responsible for the document class + best-effort
  * storage; `signOut` is the auth context action. No new fetch, subscription, or persistence.
  */
+const TEXT_SIZES: TextSize[] = ['default', 'large', 'larger'];
+
 export const AccountMenu: React.FC = () => {
   const { t } = useTranslation();
   const { currentUser, signOut } = useAuth();
   const { realRole, effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
   const { theme, setTheme } = useTheme();
   const { textSize, setTextSize } = useTextSize();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const menuItems = () =>
-    Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? []);
-
-  useEffect(() => {
-    if (open) menuItems()[0]?.focus();
-  }, [open]);
-
-  const onMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = menuItems();
-    const current = items.indexOf(document.activeElement as HTMLElement);
-    let next: number | null = null;
-    if (e.key === 'ArrowDown') next = (current + 1) % items.length;
-    if (e.key === 'ArrowUp') next = (current - 1 + items.length) % items.length;
-    if (e.key === 'Home') next = 0;
-    if (e.key === 'End') next = items.length - 1;
-    if (next !== null && items.length > 0) {
-      e.preventDefault();
-      items[next]?.focus();
-    }
-    if (e.key === 'Tab') {
-      // The popup disappears on Tab. Move directly to the adjacent control in
-      // document order so neither Tab nor Shift+Tab requires an extra keystroke.
-      e.preventDefault();
-      const trigger = triggerRef.current;
-      const isVisible = (element: HTMLElement) => {
-        for (let node: HTMLElement | null = element; node; node = node.parentElement) {
-          if (node.hasAttribute('hidden') || node.hasAttribute('inert') || node.getAttribute('aria-hidden') === 'true') return false;
-          const style = getComputedStyle(node);
-          if (style.display === 'none' || style.visibility === 'hidden') return false;
-        }
-        return true;
-      };
-      const focusable = Array.from(document.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )).filter((element) =>
-        (element === trigger || !rootRef.current?.contains(element)) && isVisible(element),
-      );
-      const index = trigger ? focusable.indexOf(trigger) : -1;
-      const destination = e.shiftKey ? focusable[index - 1] ?? focusable.at(-1) : focusable[index + 1] ?? focusable[0];
-      setOpen(false);
-      destination?.focus();
-    }
-  };
-
-  // Listeners exist ONLY while the menu is open; they clean up on close/unmount so no
-  // duplicate listeners or steady-state re-render work accumulate (non-goal: performance).
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        // Escape restores focus to the trigger (AC-ACCT-003/FR-ACCT-006).
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   const rowBase =
-    'flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] transition-colors';
+    'flex h-8 w-full cursor-default items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] outline-none transition-colors';
+  const rowClass = cn(rowBase, 'text-foreground data-[highlighted]:bg-accent');
+  const radioClass = cn(
+    rowBase,
+    'text-foreground data-[highlighted]:bg-accent data-[checked]:bg-primary/10 data-[checked]:font-medium data-[checked]:text-nav-active-text',
+  );
+  const groupLabelClass = 'px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground';
+  const sep = <Menu.Separator className={menuSeparatorClass} />;
+  const textSizeLabel = (size: TextSize) =>
+    size === 'default' ? t('profilePreferences:textSize.default', 'Default') : size === 'large' ? t('profilePreferences:textSize.large', 'Large') : t('profilePreferences:textSize.larger', 'Larger');
 
   return (
-    <div ref={rootRef} className="relative flex shrink-0 items-center">
-      <button
-        type="button"
-        ref={triggerRef}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
-        onClick={() => setOpen((v) => !v)}
-        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card pl-1.5 pr-2.5 hover:bg-accent"
-      >
-        <Avatar name={currentUser?.full_name} decorative fallback="U" />
-        <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
-          <span className="block max-w-full truncate text-[13px] font-semibold">{currentUser?.full_name}</span>
-          <span className="text-[11px] leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
-        </span>
-        <Icon name="chev" className="hidden rotate-90 text-muted-foreground sm:block [&_svg]:size-3.5" />
-      </button>
-
-      {open && (
-        <div
-          ref={menuRef}
-          role="menu"
+    <div className="relative flex shrink-0 items-center">
+      <Menu.Root>
+        <Menu.Trigger
           aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
-          onKeyDown={onMenuKeyDown}
-          className="menu-pop-anim [--menu-origin:top_right] motion-reduce:animate-none absolute right-0 top-full z-50 mt-2 overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
-          style={{
-            width: 'min(320px, calc(100vw / var(--app-zoom) - 24px))',
-            maxHeight: 'calc(100dvh / var(--app-zoom) - var(--header-h) - 16px)',
-          }}
+          className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card pl-1.5 pr-2.5 hover:bg-accent"
         >
-          {/* Signed-in identity header */}
-          <div className="flex items-center gap-2.5 px-2.5 py-2">
-            <Avatar name={currentUser?.full_name} size="md" decorative />
-            <span className="min-w-0">
-              <span className="block truncate text-[13px] font-semibold leading-tight">
-                {currentUser?.full_name}
-              </span>
-              <span className="block text-[11px] leading-tight text-muted-foreground">
-                {realRole ?? effectiveRole}
-              </span>
-            </span>
-          </div>
-
-          <div className="my-1 border-t border-border" />
-
-          {/* Profile & preferences — same translated label the direct route/breadcrumb uses. */}
-          <Link
-            to="/settings/profile"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className={cn(rowBase, 'text-foreground hover:bg-accent')}
-          >
-            <Icon name="pencil" className="text-muted-foreground [&_svg]:size-[17px]" />
-            {t('shell.nav.profileSettings', 'Profile & preferences')}
-          </Link>
-          <MyIntegrationsItem className={cn(rowBase, 'text-foreground hover:bg-accent')} onSelect={() => setOpen(false)} />
-
-          <div className="my-1 border-t border-border" />
-
-          {/* Theme — explicit choices leave the popup open so the new selection is seen/announced. */}
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
-            {t('shell.contextBar.themeHeading', 'Theme')}
-          </div>
-          <button
-            role="menuitemradio"
-            aria-checked={theme === 'light'}
-            type="button"
-            onClick={() => setTheme('light')}
-            className={cn(
-              rowBase,
-              theme === 'light' ? 'bg-primary/10 font-medium text-nav-active-text' : 'text-foreground hover:bg-accent',
-            )}
-          >
-            <Icon name="sun" className="text-muted-foreground [&_svg]:size-[15px]" />
-            {t('shell.contextBar.themeLight', 'Light')}
-          </button>
-          <button
-            role="menuitemradio"
-            aria-checked={theme === 'dark'}
-            type="button"
-            onClick={() => setTheme('dark')}
-            className={cn(
-              rowBase,
-              theme === 'dark' ? 'bg-primary/10 font-medium text-nav-active-text' : 'text-foreground hover:bg-accent',
-            )}
-          >
-            <Icon name="moon" className="text-muted-foreground [&_svg]:size-[15px]" />
-            {t('shell.contextBar.themeDark', 'Dark')}
-          </button>
-
-          <div className="my-1 border-t border-border" />
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
-            {t('profilePreferences:textSize.label', 'Text size')}
-          </div>
-          <div role="group" aria-label={t('profilePreferences:textSize.label', 'Text size')}>
-            {(['default', 'large', 'larger'] as TextSize[]).map((size) => (
-              <button key={size} type="button" role="menuitemradio" aria-checked={textSize === size}
-                onClick={() => setTextSize(size)}
-                className={cn(rowBase, textSize === size ? 'bg-primary/10 font-medium text-nav-active-text' : 'text-foreground hover:bg-accent')}>
-                {size === 'default' ? t('profilePreferences:textSize.default', 'Default') : size === 'large' ? t('profilePreferences:textSize.large', 'Large') : t('profilePreferences:textSize.larger', 'Larger')}
-              </button>
-            ))}
-          </div>
-
-          {/* Sample-org-only, view-only role preview — gated by the existing canImpersonate. */}
-          {canImpersonate && (
-            <>
-              <div className="my-1 border-t border-border" />
-              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
-                {t('shell.contextBar.viewAsRoleHeading', 'View as role')}
-              </div>
-              {effectiveRole !== realRole && (
-                <button
-                  role="menuitem"
-                  type="button"
-                  onClick={() => {
-                    viewAs(null);
-                    setOpen(false);
-                  }}
-                  className={cn(rowBase, 'text-foreground hover:bg-accent')}
-                >
-                  {t('shell.contextBar.returnToAdmin', 'Return to Admin')}
-                </button>
-              )}
-              {IMPERSONATION_ROLES.map((role) => (
-                <button
-                  key={role}
-                  role="menuitemradio"
-                  aria-checked={effectiveRole === role}
-                  type="button"
-                  onClick={() => {
-                    viewAs(role);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    rowBase,
-                    effectiveRole === role
-                      ? 'bg-primary/10 font-medium text-nav-active-text'
-                      : 'text-foreground hover:bg-accent',
-                  )}
-                >
-                  {role}
-                </button>
-              ))}
-            </>
-          )}
-
-          {SHOW_LEGAL_SUPPORT && (
-            <>
-              <div className="my-1 border-t border-border" />
-              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground">
-                {t('shell.contextBar.legalAndSupport', 'Legal & support')}
-              </div>
-              <Link
-                to="/terms"
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className={cn(rowBase, 'text-foreground hover:bg-accent')}
-              >
-                {t('shell.contextBar.terms', 'Terms')}
-              </Link>
-              <Link
-                to="/privacy"
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className={cn(rowBase, 'text-foreground hover:bg-accent')}
-              >
-                {t('shell.contextBar.privacy', 'Privacy')}
-              </Link>
-            </>
-          )}
-
-          {HELP_URL && (
-            <a
-              href={HELP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              role="menuitem"
-              aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
-              onClick={() => setOpen(false)}
-              className={cn(rowBase, 'text-foreground hover:bg-accent')}
+          <Avatar name={currentUser?.full_name} decorative fallback="U" />
+          <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
+            <span className="block max-w-full truncate text-[13px] font-semibold">{currentUser?.full_name}</span>
+            <span className="text-[11px] leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
+          </span>
+          <Icon name="chev" className="hidden rotate-90 text-muted-foreground sm:block [&_svg]:size-3.5" />
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner side="bottom" align="end" sideOffset={8} collisionPadding={12} className="z-50">
+            <Menu.Popup
+              aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
+              className={cn(menuPopupClass, 'w-[min(320px,calc(100vw/var(--app-zoom)_-_24px))] max-h-[calc(100dvh/var(--app-zoom)_-_var(--header-h)_-_16px)]')}
+              style={menuPopupOrigin}
             >
-              <Icon name="message" className="text-muted-foreground [&_svg]:size-[17px]" />
-              {t('shell.contextBar.help', 'Help')}
-            </a>
-          )}
+              {/* Signed-in identity header */}
+              <div className="flex items-center gap-2.5 px-2.5 py-2">
+                <Avatar name={currentUser?.full_name} size="md" decorative />
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold leading-tight">{currentUser?.full_name}</span>
+                  <span className="block text-[11px] leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
+                </span>
+              </div>
 
-          <div className="my-1 border-t border-border" />
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              void signOut();
-            }}
-            className={cn(rowBase, 'text-destructive-text hover:bg-accent')}
-          >
-            <Icon name="alert" className="[&_svg]:size-[17px]" />
-            {t('shell.contextBar.signOut', 'Sign out')}
-          </button>
-        </div>
-      )}
+              {sep}
+
+              {/* Profile & preferences — same translated label the direct route/breadcrumb uses. */}
+              <Menu.LinkItem render={<Link to="/settings/profile" />} className={rowClass}>
+                <Icon name="pencil" className="text-muted-foreground [&_svg]:size-[17px]" />
+                {t('shell.nav.profileSettings', 'Profile & preferences')}
+              </Menu.LinkItem>
+              <MyIntegrationsItem className={rowClass} />
+
+              {sep}
+
+              {/* Theme — explicit choices leave the popup open so the new selection is seen/announced. */}
+              <Menu.Group>
+                <Menu.GroupLabel className={groupLabelClass}>{t('shell.contextBar.themeHeading', 'Theme')}</Menu.GroupLabel>
+                <Menu.RadioGroup value={theme} onValueChange={(v) => setTheme(v as typeof theme)}>
+                  <Menu.RadioItem value="light" closeOnClick={false} className={radioClass}>
+                    <Icon name="sun" className="text-muted-foreground [&_svg]:size-[15px]" />
+                    {t('shell.contextBar.themeLight', 'Light')}
+                  </Menu.RadioItem>
+                  <Menu.RadioItem value="dark" closeOnClick={false} className={radioClass}>
+                    <Icon name="moon" className="text-muted-foreground [&_svg]:size-[15px]" />
+                    {t('shell.contextBar.themeDark', 'Dark')}
+                  </Menu.RadioItem>
+                </Menu.RadioGroup>
+              </Menu.Group>
+
+              {sep}
+              <Menu.Group>
+                <Menu.GroupLabel className={groupLabelClass}>{t('profilePreferences:textSize.label', 'Text size')}</Menu.GroupLabel>
+                <Menu.RadioGroup value={textSize} onValueChange={(v) => setTextSize(v as TextSize)}>
+                  {TEXT_SIZES.map((size) => (
+                    <Menu.RadioItem key={size} value={size} closeOnClick={false} className={radioClass}>
+                      {textSizeLabel(size)}
+                    </Menu.RadioItem>
+                  ))}
+                </Menu.RadioGroup>
+              </Menu.Group>
+
+              {/* Sample-org-only, view-only role preview — gated by the existing canImpersonate. */}
+              {canImpersonate && (
+                <>
+                  {sep}
+                  <Menu.Group>
+                    <Menu.GroupLabel className={groupLabelClass}>{t('shell.contextBar.viewAsRoleHeading', 'View as role')}</Menu.GroupLabel>
+                    {effectiveRole !== realRole && (
+                      <Menu.Item onClick={() => viewAs(null)} className={rowClass}>
+                        {t('shell.contextBar.returnToAdmin', 'Return to Admin')}
+                      </Menu.Item>
+                    )}
+                    <Menu.RadioGroup value={effectiveRole} onValueChange={(v) => viewAs(v as Role)}>
+                      {IMPERSONATION_ROLES.map((role) => (
+                        <Menu.RadioItem key={role} value={role} className={radioClass}>
+                          {role}
+                        </Menu.RadioItem>
+                      ))}
+                    </Menu.RadioGroup>
+                  </Menu.Group>
+                </>
+              )}
+
+              {SHOW_LEGAL_SUPPORT && (
+                <>
+                  {sep}
+                  <Menu.Group>
+                    <Menu.GroupLabel className={groupLabelClass}>{t('shell.contextBar.legalAndSupport', 'Legal & support')}</Menu.GroupLabel>
+                    <Menu.LinkItem render={<Link to="/terms" />} className={rowClass}>
+                      {t('shell.contextBar.terms', 'Terms')}
+                    </Menu.LinkItem>
+                    <Menu.LinkItem render={<Link to="/privacy" />} className={rowClass}>
+                      {t('shell.contextBar.privacy', 'Privacy')}
+                    </Menu.LinkItem>
+                  </Menu.Group>
+                </>
+              )}
+
+              {HELP_URL && (
+                <Menu.LinkItem
+                  render={<a href={HELP_URL} target="_blank" rel="noopener noreferrer" />}
+                  aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
+                  className={rowClass}
+                >
+                  <Icon name="message" className="text-muted-foreground [&_svg]:size-[17px]" />
+                  {t('shell.contextBar.help', 'Help')}
+                </Menu.LinkItem>
+              )}
+
+              {sep}
+              <Menu.Item onClick={() => void signOut()} className={cn(rowBase, 'text-destructive-text data-[highlighted]:bg-accent')}>
+                <Icon name="alert" className="[&_svg]:size-[17px]" />
+                {t('shell.contextBar.signOut', 'Sign out')}
+              </Menu.Item>
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
     </div>
   );
 };

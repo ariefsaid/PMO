@@ -2,7 +2,7 @@
  * AC-PRJUX-003 — MobileToolbarDisclosure: a real labelled inline region, not a popover.
  *
  * Locked behaviour:
- *  - trigger `aria-expanded` reflects state and `aria-controls` stays stable;
+ *  - trigger `aria-expanded` reflects state and `aria-controls` names the open panel;
  *  - the open panel is a labelled `role="region"` in normal flow (won't clip @390);
  *  - focus lands on the first ENABLED interactive descendant on open, skipping a
  *    disabled first child, and falls back to the panel when none is enabled;
@@ -32,24 +32,21 @@ const renderOpenSubject = () => {
 };
 
 describe('MobileToolbarDisclosure (AC-PRJUX-003)', () => {
-  it('AC-PRJUX-003: closed trigger exposes aria-expanded=false and a stable aria-controls target', () => {
-    const { container } = renderOpenSubject();
+  it('AC-PRJUX-003: closed trigger exposes aria-expanded=false and no controls target until the panel exists', () => {
+    renderOpenSubject();
     const trigger = screen.getByRole('button', { name: /Filters/i });
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    const controlsId = trigger.getAttribute('aria-controls');
-    expect(controlsId).toBeTruthy();
-    // Panel not open, so the controls target does not exist yet — but the id is stable
-    // once open (asserted below).
-    expect(container.querySelector(`#${controlsId}`)).not.toBeInTheDocument();
+    expect(trigger).not.toHaveAttribute('aria-controls');
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
   });
 
   it('AC-PRJUX-003: opening yields a labelled inline region with the same aria-controls id', async () => {
     const user = userEvent.setup();
     const { container } = renderOpenSubject();
     const trigger = screen.getByRole('button', { name: /Filters/i });
-    const controlsId = trigger.getAttribute('aria-controls');
     await user.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const controlsId = trigger.getAttribute('aria-controls');
     const panel = container.querySelector(`#${controlsId}`);
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveAttribute('role', 'region');
