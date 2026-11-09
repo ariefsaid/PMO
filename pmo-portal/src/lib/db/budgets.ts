@@ -103,8 +103,12 @@ export interface ActivateVersionResult {
    * announced a push that never happened (the per-year banner underneath simultaneously said
    * `never-pushed`); reading it as `'failed'` would invent an attempt that was never made. Nothing was
    * sent because there was nothing to send, and the surface says exactly that.
+   *
+   * ⚑ `'queued'` (ADR-0062): ACTIVATION returns this as soon as the PMO write commits — the push is
+   * started in the background and its real outcome shows on the push-status read, never on this result.
+   * Only `retryBudgetPush` (an explicit operator wait) still reports `'pushed'`/`'failed'`.
    */
-  pushState: 'pushed' | 'failed' | 'nothing-to-push';
+  pushState: 'pushed' | 'failed' | 'nothing-to-push' | 'queued';
 }
 
 export interface ArchiveVersionResult {
@@ -968,35 +972,27 @@ async function readActivatedAt(versionId: string): Promise<string | null> {
  * re-thrown here: this function still only throws for a REAL activation failure (the RPC's own
  * authorization/state-machine rejection), exactly as it did before P3c.
  */
-export async function activateVersion(versionId: string): Promise<ActivateVersionResult> {
-  // ⚑ FU-2 round 2: the dispatch's own RESPONSE is kept, because "the promise resolved" and "a push
-  // happened" are not the same fact — an empty fan-out resolves 200 having sent nothing.
-  // `activateAndPush` owns only the money invariant (a push failure never fails the activation), so the
-  // outcome is refined here rather than teaching that module the budget response shape.
-  let dispatchResult: unknown = null;
+export async function activateVersion(
+  versionId: string,
+  onPushSettled?: (pushState: Exclude<ActivateVersionResult['pushState'], 'queued'>) => void,
+): Promise<ActivateVersionResult> {
+  // ⚑ ADR-0062: resolves on the PMO write; the push runs in the background (see `activateAndPush`).
+  // `onPushSettled` fires when it ends, success or failure, so the caller re-reads `get_budget_push_status`
+  // — the durable per-year truth (HIGH-C: a dispatch that never reached the function leaves no mirror row,
+  // which that read reports as `never-pushed`, with the retry beside it).
   const result = await activateAndPush({
     versionId,
     rpc: async (_fn, args) => {
       const { error } = await supabase.rpc('activate_budget_version', args as { version_id: string });
       return { error };
     },
-    dispatch: async (id) => {
-      dispatchResult = await pushActivatedBudget(id);
-      return dispatchResult;
-    },
+    dispatch: (id) => pushActivatedBudget(id),
+    // The whole fan-out is the unit (activation names no year); an empty fan-out resolves having pushed nothing.
+    onPushSettled: (state, dispatchResult) =>
+      onPushSettled?.(state === 'pushed' ? (pushStateForYear(dispatchResult, null) as 'pushed' | 'failed' | 'nothing-to-push') : 'failed'),
   });
   if (!result.activated) throw toAppError(result.error);
-  // The whole fan-out is the unit here (activation names no year), and only a RESOLVED dispatch can be
-  // refined — a rejected one already carries its own `'failed'`.
-  if (result.pushState === 'pushed') return { pushState: pushStateForYear(dispatchResult, null) };
-  // ⚑ HIGH-C (Luna re-audit round 2): the push outcome is RETURNED, not discarded. Every writer of
-  // `budget_version_erp_mirror` lives INSIDE `adapter-dispatch`, so a dispatch that never REACHES the
-  // function (a dropped connection, the tab closed mid-request, a 502 from the platform) leaves no
-  // mirror row at all — and the sweep backstop's work queue IS that mirror, so nothing ever re-drives
-  // it. Discarding this made the UI show a plain success while ERPNext kept enforcing the previous
-  // budget (or none) forever, with nobody notified. The durable half of the same fix is
-  // `get_budget_projection`'s `'never-pushed'` state (migration 0149) + the retry below.
-  return { pushState: result.pushState ?? 'failed' };
+  return { pushState: 'queued' };
 }
 
 /**

@@ -556,6 +556,14 @@ describe('cloneVersion', () => {
 });
 
 describe('activateVersion', () => {
+  /** ADR-0062: activation resolves `queued` on the PMO write; the push outcome arrives via `onPushSettled`. */
+  async function activateAndSettle(id: string) {
+    let settled!: (s: string) => void;
+    const outcome = new Promise<string>((r) => (settled = r));
+    const result = await activateVersion(id, settled);
+    return { result, outcome: await outcome };
+  }
+
   it('activateVersion calls the activate RPC with version_id, no org_id (FR-BV-005)', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
@@ -579,20 +587,26 @@ describe('activateVersion', () => {
     // at all (every mirror writer lives inside `adapter-dispatch`), so the sweep backstop — whose work
     // queue IS that mirror — is structurally blind to it. Returning `void` made the UI show a plain
     // success while ERPNext kept enforcing the previous budget indefinitely.
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('failed');
   });
 
   it('HIGH-C a SUCCESSFUL push is reported as such', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: 'BUDGET-2026-00001', canonical: { id: 'v-draft' } }, error: null });
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'pushed' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('pushed');
   });
 
   it('AC-BUD-032 activation still succeeds when the version carries no activation stamp to key the push on', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: null }, error: null }); // budgetPushKey fails closed on this
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('failed');
     expect(mockFunctionsInvoke).not.toHaveBeenCalled();
   });
 
@@ -674,7 +688,9 @@ describe('activateVersion', () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: { years: [] }, error: null });
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'nothing-to-push' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('nothing-to-push');
   });
 
   // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────
@@ -697,7 +713,7 @@ describe('activateVersion', () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-draft' } }, error: null });
-    await activateVersion('v-draft');
+    await activateAndSettle('v-draft');
     expect(mockFunctionsInvoke).toHaveBeenCalledTimes(1);
     const body = mockFunctionsInvoke.mock.calls[0][1].body;
     // ⚑ `record.id` is the BARE budget_version_id — the year-qualified identity is derived server-side

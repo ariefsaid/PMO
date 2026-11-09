@@ -569,7 +569,6 @@
       "activationDateNeeded": "Add an activation date",
       "openVersion": "Open version",
       "compare": "Compare",
-      "erpReviewHint": "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.",
       "draftEditor": "Draft budget editor",
       "title": "Project budget",
       "noMoneyAccess": "Budget details are available to project management and finance.",

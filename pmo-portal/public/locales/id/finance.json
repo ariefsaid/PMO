@@ -569,7 +569,6 @@
       "activationDateNeeded": "Tambahkan tanggal aktivasi",
       "openVersion": "Buka versi",
       "compare": "Bandingkan",
-      "erpReviewHint": "{{version}}. Anggaran sudah aktif; minta tim Keuangan atau administrator meninjau penerapannya di ERP.",
       "draftEditor": "Editor anggaran draf",
       "title": "Anggaran proyek",
       "noMoneyAccess": "Detail anggaran tersedia bagi manajemen proyek dan tim keuangan.",
