@@ -11,7 +11,8 @@
     "openIntegrations": "Open My integrations",
     "sourceLabel": "Source: {{place}}",
     "preview": "Preview",
-    "previewNamed": "Preview {{name}}"
+    "previewNamed": "Preview {{name}}",
+    "unavailableDocument": "Document not available"
   },
   "failure": {
     "accessDenied": "Your Microsoft account can't open this file. Ask the owner for access, or open it in {{place}}.",

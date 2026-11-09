@@ -9,6 +9,7 @@ import { I18nextProvider } from 'react-i18next';
 import { axe } from 'jest-axe';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext } from '@/src/components/documents';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
@@ -387,6 +388,34 @@ describe('TimeAndMaterials', () => {
     );
     await user.click(screen.getByRole('button', { name: /Create invoice/ }));
     expect(createInvoice).toHaveBeenCalledWith('claim-1');
+  });
+
+  it('AC-016 the claim detail shows the signed sign-off document and opens the viewer', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    const open = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={page()}>
+        <MemoryRouter><ToastProvider><DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>
+          <main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={vi.fn()} canCreateInvoice={() => true} /></main>
+        </DocumentViewerContext.Provider></ToastProvider></MemoryRouter>
+      </I18nextProvider>,
+    );
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByText(/Signed sign-off:/)).toBeInTheDocument();
+    await user.click(within(drawer).getByRole('button', { name: 'Preview Approved timesheet summary' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].key).toBe('project-document:doc-1');
+  });
+
+  it('AC-017 no sign-off document shows nothing extra', async () => {
+    h.claims = { ...h.claims, data: { rows: [claim], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).queryByText(/Signed sign-off:/)).toBeNull();
+    expect(within(drawer).queryByText('Document not available')).toBeNull();
   });
 
   it('AC-TM-016 hides write actions in view-as mode and confirms a sign-off withdrawal', async () => {

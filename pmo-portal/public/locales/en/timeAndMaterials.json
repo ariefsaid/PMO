@@ -113,6 +113,7 @@
     "invoiced": "Invoiced · {{number}}"
   },
   "signoff": {
+    "documentLabel": "Signed sign-off:",
     "prepared": "Client sign-off prepared",
     "confirmed": "Client sign-off confirmed",
     "withdrawn": "Client sign-off withdrawn",

@@ -430,6 +430,7 @@
       "loadError": "Could not load the acceptances.",
       "empty": "No acceptances recorded",
       "document": "Signed document: {{title}}",
+      "documentLabel": "Signed document:",
       "noDocument": "No signed document linked",
       "soleOperator": "Confirmed by the only active member",
       "review": "Review draft",

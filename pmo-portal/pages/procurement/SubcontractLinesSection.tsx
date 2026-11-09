@@ -12,6 +12,7 @@ import { useDocuments } from '@/src/hooks/useDocuments';
 import type { SubcontractAcceptanceWithLines, SubcontractCapExceptionRow, SubcontractPoPositionRow } from '@/src/lib/db/subcontracts';
 import SubcontractAcceptanceModal from './SubcontractAcceptanceModal';
 import { SubcontractLinesEditor, SubcontractAttributeModal } from './SubcontractLinesEditor';
+import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 import PoVariationModal from './PoVariationModal';
 import { PoVariationsList } from './PoVariationsList';
 
@@ -255,7 +256,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                           {t(`subcontract.acceptance.status.${a.status}`, a.status)}
                         </StatusPill>
                         <span className="text-[12px] text-muted-foreground">
-                          {doc ? t('subcontract.acceptance.document', 'Signed document: {{title}}', { title: doc.title })
+                          {doc ? <>{t('subcontract.acceptance.documentLabel', 'Signed document:')} <ProjectDocumentLink documentId={a.document_id} documents={documents.data ?? []} /></>
                             : t('subcontract.acceptance.noDocument', 'No signed document linked')}
                         </span>
                         {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (

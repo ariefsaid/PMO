@@ -11,7 +11,8 @@
     "openIntegrations": "Buka Integrasi Saya",
     "sourceLabel": "Sumber: {{place}}",
     "preview": "Pratinjau",
-    "previewNamed": "Pratinjau {{name}}"
+    "previewNamed": "Pratinjau {{name}}",
+    "unavailableDocument": "Dokumen tidak tersedia"
   },
   "failure": {
     "accessDenied": "Akun Microsoft Anda tidak dapat membuka berkas ini. Minta akses kepada pemiliknya, atau buka di {{place}}.",

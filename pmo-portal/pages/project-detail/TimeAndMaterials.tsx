@@ -17,6 +17,7 @@ import { useDocuments } from '@/src/hooks/useDocuments';
 import { useEquipmentAssets } from '@/src/hooks/useEquipment';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { LIST_LIMIT, type ContractRateLineInput, type ContractRateLineRow, type TmClaimPreviewRow, type TmClaimSourceDetail, type TmClaimSummary } from '@/src/lib/db/timeAndMaterials';
+import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -528,7 +529,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
         toast(t('rateCard.assigned', 'Person assigned to rate'), undefined, 'success');
       }} onError={reportActionError} />}
       {prepareFor && <PrepareSignoffModal claim={prepareFor} documents={eligibleDocuments} documentsPending={documents.isPending} documentsError={documents.isError} onRetry={() => void documents.refetch()} loading={prepare.isPending} onClose={() => setPrepareFor(null)} onPrepare={runPrepare} />}
-      {currentSelectedClaim && <ClaimDetail claim={currentSelectedClaim} sources={sourceRows} sourcesTotal={claimSources.data?.totalCount ?? sourceRows.length} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} statusPill={statusPill(currentSelectedClaim)} unitCount={unitCount} awaitingHint={currentSelectedClaim.status === 'Draft' && Boolean(currentSelectedClaim.signoff_prepared_by) && !mayConfirm(currentSelectedClaim)} staleSignoffHint={currentSelectedClaim.status === 'Draft' && Boolean(currentSelectedClaim.signoff_prepared_by) && mayConfirm(currentSelectedClaim) && signoffDoesNotMatchClaim} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
+      {currentSelectedClaim && <ClaimDetail claim={currentSelectedClaim} sources={sourceRows} sourcesTotal={claimSources.data?.totalCount ?? sourceRows.length} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} statusPill={statusPill(currentSelectedClaim)} unitCount={unitCount} documents={documents.data ?? []} awaitingHint={currentSelectedClaim.status === 'Draft' && Boolean(currentSelectedClaim.signoff_prepared_by) && !mayConfirm(currentSelectedClaim)} staleSignoffHint={currentSelectedClaim.status === 'Draft' && Boolean(currentSelectedClaim.signoff_prepared_by) && mayConfirm(currentSelectedClaim) && signoffDoesNotMatchClaim} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
         prepareAction={canPrepareClaims && currentSelectedClaim.status === 'Draft' ? () => setPrepareFor(currentSelectedClaim) : undefined}
         confirmAction={currentSelectedClaim.status === 'Draft' && currentSelectedClaim.signoff_prepared_by && mayConfirm(currentSelectedClaim) && signoffMatchesClaim ? () => setConfirmFor(currentSelectedClaim) : undefined}
         withdrawAction={currentSelectedClaim.status === 'Draft' && currentSelectedClaim.signoff_prepared_by && canPrepareClaims ? () => setWithdrawFor(currentSelectedClaim) : undefined}
@@ -732,6 +733,7 @@ const PrepareSignoffModal: React.FC<PrepareSignoffModalProps> = ({ claim, docume
 };
 
 interface ClaimDetailProps {
+  documents: ProjectDocumentRow[];
   claim: TmClaimSummary;
   sources: TmClaimSourceDetail[];
   sourcesTotal: number;
@@ -776,7 +778,7 @@ function groupClaimSources(sources: TmClaimSourceDetail[], personUnavailable: st
   return [...groups.values()];
 }
 
-const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, staleSignoffHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction, canDeselect, deselecting, onDeselect }) => {
+const ClaimDetail: React.FC<ClaimDetailProps> = ({ documents, claim, sources, sourcesTotal, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, staleSignoffHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction, canDeselect, deselecting, onDeselect }) => {
   const { t } = useTranslation('timeAndMaterials');
   const sourceGroups = groupClaimSources(sources, t('preview.personUnavailable', 'Person no longer active'));
   const standbyLabel = (label: string, basis: string) => basis === 'standby' ? `${label} (${t('basis.standby', 'standby')})` : label;
@@ -792,6 +794,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
       <div><dt className="text-muted-foreground">{t('claims.period', 'Period')}</dt><dd className="mt-1 font-medium">{formatDateOnly(claim.period_from)} – {formatDateOnly(claim.period_to)}</dd></div>
       <div><dt className="text-muted-foreground">{t('claims.total', 'Claim total')}</dt><dd className="mt-1 font-semibold tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</dd></div>
     </dl>
+    {claim.document_id && <p className="px-4 pb-3 text-sm">{t('signoff.documentLabel', 'Signed sign-off:')} <ProjectDocumentLink documentId={claim.document_id} documents={documents} /></p>}
     {awaitingHint && <p className="px-4 pb-3 text-sm text-muted-foreground">{t('signoff.preparerHint', 'A different user must confirm this sign-off.')}</p>}
     {staleSignoffHint && <p role="status" className="px-4 pb-3 text-sm text-muted-foreground">{t('signoff.stale', 'This claim changed after the sign-off was prepared. Prepare it again before confirmation.')}</p>}
     <section className="border-t border-border px-4 py-3" aria-labelledby="tm-claim-lines-heading">
