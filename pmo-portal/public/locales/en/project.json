@@ -515,7 +515,10 @@
       "snapshotOver": "{{amount}} over budget",
       "snapshotOverOnCommitments": "{{amount}} over once committed orders land",
       "atRisk": "At risk",
-      "rowBudgetOnly": "{{budget}} budgeted"
+      "rowBudgetOnly": "{{budget}} budgeted",
+      "helpLabel": "the budget view",
+      "legendSpent": "Spent",
+      "legendCommitted": "Committed in orders"
     },
     "milestones": {
       "currentPhaseLabel": "Current phase",
@@ -569,7 +572,23 @@
       "progressAria": "Project progress {{percent}}%",
       "progressLoading": "Progress loading",
       "updatedTooltip": "Last updated on {{date}}.",
-      "updated": "Updated {{when}}"
+      "updated": "Updated {{when}}",
+      "manager": "Project manager",
+      "noManager": "Not assigned",
+      "schedule": "Schedule",
+      "daysLate": "{{n}} days late",
+      "phaseCount": "{{n}} phases",
+      "vsPlan": "vs {{plan}}% plan",
+      "noPhases": "No phases yet",
+      "contract": "Contract",
+      "budgetUsed": "Budget used",
+      "budgetTooltip": "Recorded spending against the active budget; the line below adds purchase orders already committed. Same totals as the Budget tab.",
+      "ofBudget": "of {{budget}}",
+      "committed": "+ {{amount}} committed",
+      "noBudget": "No active budget",
+      "invoicedPaid": "Invoiced · paid",
+      "nothingBilled": "Nothing billed yet",
+      "billingUnknown": "Not known yet"
     },
     "header": {
       "toast": {
@@ -985,6 +1004,35 @@
       "ungrouped": "Ungrouped",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out"
+    },
+    "schedule": {
+      "sub": "Plan vs actual by phase",
+      "barAria": "{{name}}: {{pct}}% complete",
+      "done": "Done",
+      "lateChip": "{{pct}}% · {{days}}d",
+      "plan": "Plan",
+      "actual": "Actual",
+      "today": "Today",
+      "helpLabel": "how phases are drawn",
+      "help": "Each phase's plan runs from the previous phase's target date (the project start for the first) to its own target. The solid bar is the share of that window already done."
+    },
+    "purchases": {
+      "total": "{{n}} open",
+      "all": "All",
+      "title": "Open purchases",
+      "error": "Couldn't load purchases",
+      "empty": "No open purchases.",
+      "purchase": "Purchase",
+      "stage": "Stage",
+      "amount": "Amount"
+    },
+    "curve": {
+      "sub": "Planned {{planned}}% · actual {{actual}}%",
+      "behind": "{{pts}} pts behind plan",
+      "title": "Progress curve"
+    },
+    "health": {
+      "behind": "Behind plan"
     }
   },
   "common": {

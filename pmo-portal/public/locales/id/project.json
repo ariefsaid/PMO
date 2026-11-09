@@ -515,7 +515,10 @@
       "snapshotOver": "{{amount}} melebihi anggaran",
       "snapshotOverOnCommitments": "{{amount}} lebih begitu pesanan terikat masuk",
       "atRisk": "Berisiko",
-      "rowBudgetOnly": "{{budget}} dianggarkan"
+      "rowBudgetOnly": "{{budget}} dianggarkan",
+      "helpLabel": "tampilan anggaran",
+      "legendSpent": "Terpakai",
+      "legendCommitted": "Terikat di pesanan"
     },
     "milestones": {
       "currentPhaseLabel": "Fase saat ini",
@@ -569,7 +572,23 @@
       "progressAria": "Progres proyek {{percent}}%",
       "progressLoading": "Progres sedang dimuat",
       "updatedTooltip": "Terakhir diperbarui pada {{date}}.",
-      "updated": "Diperbarui {{when}}"
+      "updated": "Diperbarui {{when}}",
+      "manager": "Manajer proyek",
+      "noManager": "Belum ditetapkan",
+      "schedule": "Jadwal",
+      "daysLate": "terlambat {{n}} hari",
+      "phaseCount": "{{n}} fase",
+      "vsPlan": "vs rencana {{plan}}%",
+      "noPhases": "Belum ada fase",
+      "contract": "Kontrak",
+      "budgetUsed": "Anggaran terpakai",
+      "budgetTooltip": "Pengeluaran tercatat terhadap anggaran aktif; baris di bawahnya menambah pesanan pembelian yang sudah terikat. Total sama dengan tab Anggaran.",
+      "ofBudget": "dari {{budget}}",
+      "committed": "+ {{amount}} terikat",
+      "noBudget": "Belum ada anggaran aktif",
+      "invoicedPaid": "Ditagih · dibayar",
+      "nothingBilled": "Belum ada tagihan",
+      "billingUnknown": "Belum diketahui"
     },
     "header": {
       "toast": {
@@ -985,6 +1004,35 @@
       "ungrouped": "Tanpa fase",
       "zoomIn": "Perbesar",
       "zoomOut": "Perkecil"
+    },
+    "schedule": {
+      "sub": "Rencana vs aktual per fase",
+      "barAria": "{{name}}: {{pct}}% selesai",
+      "done": "Selesai",
+      "lateChip": "{{pct}}% · {{days}}h",
+      "plan": "Rencana",
+      "actual": "Aktual",
+      "today": "Hari ini",
+      "helpLabel": "cara fase digambar",
+      "help": "Rencana tiap fase berjalan dari tanggal target fase sebelumnya (awal proyek untuk fase pertama) sampai targetnya sendiri. Batang penuh adalah porsi jendela itu yang sudah selesai."
+    },
+    "purchases": {
+      "total": "{{n}} terbuka",
+      "all": "Semua",
+      "title": "Pembelian terbuka",
+      "error": "Pembelian tidak dapat dimuat",
+      "empty": "Tidak ada pembelian terbuka.",
+      "purchase": "Pembelian",
+      "stage": "Tahap",
+      "amount": "Jumlah"
+    },
+    "curve": {
+      "sub": "Rencana {{planned}}% · aktual {{actual}}%",
+      "behind": "{{pts}} poin di bawah rencana",
+      "title": "Kurva kemajuan"
+    },
+    "health": {
+      "behind": "Di bawah rencana"
     }
   },
   "common": {

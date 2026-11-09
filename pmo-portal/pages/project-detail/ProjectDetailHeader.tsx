@@ -1,5 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { initials } from '@/src/lib/initials';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
@@ -104,6 +105,8 @@ export interface ProjectDetailHeaderProps {
   secondaryAction?: React.ReactNode;
   /** Existing project detail content mounted from the header's single overflow menu. */
   menuContent?: React.ReactNode;
+  /** Schedule-health pill shown beside the status pill (compact record header). */
+  healthPill?: React.ReactNode;
 }
 
 interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project' | 'committedSpend' | 'committedOtherCurrencies' | 'commitmentSource' | 'ledgerBasis' | 'commitmentPending' | 'commitmentError'> {
@@ -281,6 +284,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   editValueRequest = 0,
   secondaryAction,
   menuContent,
+  healthPill,
 }) => {
   const { t } = useTranslation('project');
   // #1339: the status pill names the project status in the viewer's language; the enum itself is data.
@@ -350,7 +354,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
   const meta = compact ? (
-    customerName ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground"><span className="inline-flex items-center">{customerName}</span></div> : null
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground" data-testid="record-header-meta">
+      {[project.code, customerName, project.service_line].filter(Boolean).map((part, i) => (
+        <React.Fragment key={i}>{i > 0 && <span aria-hidden="true">·</span>}<span>{part}</span></React.Fragment>
+      ))}
+    </div>
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
@@ -702,10 +710,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   return (
     <>
       <RecordHeader
-        icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
+        icon={initials(projectDisplayName(project), { fallback: '•', style: 'tile' })}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>}
+        status={<>{healthPill}<StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill></>}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.

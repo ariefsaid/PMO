@@ -14,6 +14,7 @@ import {
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from '@/src/hooks/useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
+import { BudgetBarsCard, OpenPurchasesCard, ProgressCurveCard, ScheduleCard } from './OverviewCards';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
@@ -102,14 +103,19 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
       </div>
     ) : (
       <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-        {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
-            so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
-        <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
-          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
-          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
+        {/* Target composition: work on the left, what needs you and the record's activity on the right.
+            DOM order is the phone order (attention first); xl places the cells into the two columns. */}
+        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,1fr)_21rem]">
+          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-2 xl:row-start-1" />
+          <div className="min-w-0 xl:col-start-1 xl:row-start-1"><ScheduleCard project={project} /></div>
+          <div className="grid min-w-0 gap-[var(--space-panel-gap)] lg:grid-cols-2 xl:col-start-1 xl:row-start-2">
+            <BudgetBarsCard project={project} onOpenBudget={openBudget} />
+            <OpenPurchasesCard project={project} />
+          </div>
+          <div className={`min-w-0 xl:col-start-1 xl:row-start-3 ${BELOW_FOLD}`}><ProgressCurveCard project={project}>{curve}</ProgressCurveCard></div>
+          <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-2"><ProjectActivity projectId={project.id} compact /></div>
         </div>
-        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
+        {canSeeMoney && <div className={BELOW_FOLD}><MoneyBlock project={project} /></div>}
         <WhenNearViewport>
           <BillingMilestonesBlock projectId={project.id} />
         </WhenNearViewport>
@@ -192,6 +198,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const reportDocumentCount = useCallback((count: number | null) => updateCount('documents', count), [updateCount]);
   const currentCounts = loadedCounts.projectId === project.id ? loadedCounts.values : {};
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
+  const lens = useLens();
   const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
   const items: TabItem<Area>[] = areas.map((a) => {
     if (a === 'procurement' || a === 'tasks' || a === 'documents') {
@@ -240,7 +247,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
         </Suspended>
       </div>
       {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
-      {panel === 'overview' && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
+      {panel === 'overview' && !(!isPipeline && lens === 'money') && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
     </>
   );
 };
