@@ -52,7 +52,7 @@ it('FR-ODC-110 each step is done only when its own fact holds', () => {
   expect(doneOf('Vendors and clients managed in Odoo')).toBe(true);
 });
 
-it('AC-ODC-080 the sends step follows the send state, so a stored marker alone does not make it Done', () => {
+it('FR-ODC-110 the sends step follows the send state, so a stored marker alone does not make it Done', () => {
   h.owned.data = [];
   h.conn.data = read({ sends_finished_at: '2026-11-01' });
   h.sends.data = false;
@@ -63,6 +63,17 @@ it('AC-ODC-080 the sends step follows the send state, so a stored marker alone d
   h.sends.data = true;
   render(<OdooSetupChecklist />);
   expect(doneOf('Sends finished')).toBe(true);
+});
+
+it('FR-ODC-113 Finance (may set values, may not manage) is not shown the Admin-only sends step', () => {
+  h.conn.data = read({});
+  h.owned.data = [];
+  h.can.manage = false;
+  try {
+    render(<OdooSetupChecklist />);
+    expect(screen.queryByRole('listitem', { name: 'Sends finished' })).not.toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: 'Payment journal' })).toBeInTheDocument();
+  } finally { h.can.manage = true; }
 });
 
 it('FR-ODC-110 an org that is connected but not activated has only the first step done', () => {

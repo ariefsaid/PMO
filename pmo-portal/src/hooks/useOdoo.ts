@@ -101,14 +101,16 @@ export function useOdooJournalProposal(enabled = true) {
   });
 }
 
-/** Whether the first sends are done, from the setup run's send state (AC-ODC-080). Admin only: Finance's counts cover accounts alone. `['odoo']` is invalidated by every setup save. */
+/** Whether the first sends are done, from the setup run's send state (FR-ODC-110). Admin only: Finance's counts cover accounts alone. Shares the connect-status cache with the review screen and polls while sends wait, as `ErpSendStates` does. */
 export function useOdooSendsFinished(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
-    queryKey: ['odoo', 'sends-finished', orgId],
-    queryFn: async () => sendsFinished(await repositories.integrations.getConnectStatus('odoo')),
+    queryKey: ['integrations', 'connect-status', 'odoo'],
+    queryFn: () => repositories.integrations.getConnectStatus('odoo'),
+    select: sendsFinished,
     enabled: Boolean(orgId) && enabled,
     retry: false,
+    refetchInterval: (q) => (q.state.data?.waitingForSend ? 10_000 : false),
   });
 }
 
