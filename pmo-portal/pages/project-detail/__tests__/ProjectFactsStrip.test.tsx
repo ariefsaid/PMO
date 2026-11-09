@@ -39,7 +39,7 @@ describe('ProjectFactsStrip', () => {
     expect(screen.getByText('Diego Salvatierra')).toBeInTheDocument();
     expect(screen.getByText('131 days late', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('vs 100% plan')).toBeInTheDocument();
-    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent(/5\.[23]M/);
+    expect(screen.getByText('Contract').parentElement).toHaveTextContent(/5\.[23]M/);
     expect(screen.getByText('95%', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('Nothing billed yet')).toBeInTheDocument();
   });

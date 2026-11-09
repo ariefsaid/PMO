@@ -16,23 +16,26 @@ type ActivityView = 'all' | 'comments' | 'changes';
 export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }> = ({ projectId, compact = false }) => {
   const { t } = useTranslation('project');
   const [view, setView] = useState<ActivityView>('all');
+  const toggle = (
+    <ViewToggle<ActivityView>
+      ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
+      value={view}
+      onChange={setView}
+      options={[
+        { value: 'all', label: t('projectDetail.activity.all', 'All') },
+        { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
+        { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
+      ]}
+    />
+  );
   return (
     <Card role="region" aria-label={t('projectDetail.activity.title', 'Activity')} className="min-w-0">
-      <CardHead>{t('projectDetail.activity.title', 'Activity')}</CardHead>
+      <CardHead actions={compact ? toggle : undefined}>{t('projectDetail.activity.title', 'Activity')}</CardHead>
       <CardPad className="flex min-w-0 flex-col gap-4">
-      <ViewToggle<ActivityView>
-        ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
-        value={view}
-        onChange={setView}
-        options={[
-          { value: 'all', label: t('projectDetail.activity.all', 'All') },
-          { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
-          { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
-        ]}
-      />
+      {!compact && toggle}
       {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {(view === 'all' || view === 'changes') && (
-        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact} />
       )}
       </CardPad>
     </Card>

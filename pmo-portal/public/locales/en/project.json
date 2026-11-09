@@ -436,7 +436,19 @@
       "approveMany": "{{count}} procurements waiting for your approval",
       "approveSize": "{{count}} procurements",
       "approveAction": "Review",
-      "approveTooltip": "Counts project procurements that are waiting for your approval."
+      "approveTooltip": "Counts project procurements that are waiting for your approval.",
+      "kind": {
+        "task": "Task",
+        "late": "Late",
+        "budget": "Budget",
+        "approve": "Approve",
+        "overdue": "Overdue",
+        "billing": "Billing"
+      },
+      "billingWhat": "No work orders yet",
+      "billingSize": "Nothing to invoice against",
+      "billingAction": "Contract & billing",
+      "billingTooltip": "A won project bills against its work orders; none are recorded yet."
     },
     "money": {
       "positionTitle": "Money position",
@@ -602,7 +614,9 @@
       "contractValueReadOnlyExplanation": "The approved contract value is locked for project managers after the project is won. An executive, Finance, or an administrator can update it, with the change recorded.",
       "changeDeliveryStatus": "Change delivery status",
       "copyLink": "Copy link",
-      "changeContractValue": "Change contract value"
+      "changeContractValue": "Change contract value",
+      "logProgress": "Log progress",
+      "newPurchase": "New purchase"
     },
     "rail": {
       "contractDate": "Contract date"
@@ -1034,6 +1048,12 @@
     },
     "health": {
       "behind": "Behind plan"
+    },
+    "team": {
+      "title": "Team",
+      "help": "Project manager and people with tasks on this project",
+      "helpLabel": "the team",
+      "more": "+{{n}} more"
     }
   },
   "common": {

@@ -59,7 +59,7 @@ export const ProjectFactsStrip: React.FC<{ project: ProjectWithRefs }> = ({ proj
       </Fact>
       {canViewMoney && (
         <Fact label={t('projectDetail.facts.contract', 'Contract')}>
-          <Value><span data-testid="contract-value-amount">{project.contract_value == null ? '—' : formatCompactCurrency(project.contract_value, cur)}</span></Value>
+          <Value>{project.contract_value == null ? '—' : formatCompactCurrency(project.contract_value, cur)}</Value>
           {isTaxTreatment(project.tax_treatment) && <Sub><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} showDetails={false} className="inline" /></Sub>}
         </Fact>
       )}

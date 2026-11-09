@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ListState, StatusPill } from '@/src/components/ui';
+import { Avatar, Card, CardHead, CardPad, ListState, StatusPill } from '@/src/components/ui';
 import { HelpPopover } from '@/src/components/ui/HelpPopover';
 import { cn } from '@/src/components/ui/cn';
 import { usePermission } from '@/src/auth/usePermission';
@@ -24,7 +24,12 @@ export const ScheduleCard: React.FC<{ project: ProjectWithRefs }> = ({ project }
   const schedule = useScheduleSummary(project);
   const tasks = useTasks(project.id);
   const may = usePermission();
-  const [managing, setManaging] = useState(false);
+  // "Log progress" in the header arrives as ?phases=edit: open the phase editor and bring it into view.
+  const [searchParams] = useSearchParams();
+  const [managing, setManaging] = useState(() => searchParams.get('phases') === 'edit' && may('edit', 'project'));
+  useEffect(() => {
+    if (managing && searchParams.get('phases') === 'edit') document.getElementById('pd-delivery')?.scrollIntoView?.({ block: 'start' });
+  }, [managing, searchParams]);
   const phases = schedule.milestones;
   const title = t('projectDetail.delivery.timelineTitle', 'Phase timeline');
   const manage = may('edit', 'project') && (
@@ -42,6 +47,9 @@ export const ScheduleCard: React.FC<{ project: ProjectWithRefs }> = ({ project }
     </CardHead>
   );
   if (managing) return <section aria-labelledby="pd-delivery"><Card>{head}<CardPad><MilestoneStrip projectId={project.id} /></CardPad></Card></section>;
+  if (schedule.isError || tasks.isError) {
+    return <section aria-labelledby="pd-delivery"><Card>{head}<CardPad><ListState variant="error" title={t('projectDetail.delivery.error', "Couldn't load the phase timeline")} onRetry={schedule.retry} /></CardPad></Card></section>;
+  }
   if (schedule.isPending || tasks.isPending) return <section aria-labelledby="pd-delivery"><Card>{head}<CardPad><ListState variant="loading" rows={3} /></CardPad></Card></section>;
   if (phases.length === 0) {
     return (
@@ -95,7 +103,7 @@ export const ScheduleCard: React.FC<{ project: ProjectWithRefs }> = ({ project }
                     {planLeft !== null && (
                       <>
                         <span className="absolute top-0.5 h-3.5 rounded border border-dashed border-primary bg-primary/10" style={{ left: `${planLeft}%`, width: `${planWidth}%` }} />
-                        {started && <span className={cn('absolute top-[5px] h-2 rounded', tone)} style={{ left: `${planLeft}%`, width: `${Math.max(planWidth * Math.min(phase.effective_pct, 100) / 100, 0.8)}%` }} />}
+                        {phase.effective_pct > 0 && <span className={cn('absolute top-[5px] h-2 rounded', tone)} style={{ left: `${planLeft}%`, width: `${Math.max(planWidth * Math.min(phase.effective_pct, 100) / 100, 0.8)}%` }} />}
                       </>
                     )}
                     <span aria-hidden="true" className="absolute -bottom-1 -top-1 w-0.5 bg-destructive" style={{ left: `${todayPos}%` }} />
@@ -150,9 +158,10 @@ export const BudgetBarsCard: React.FC<{ project: ProjectWithRefs; onOpenBudget: 
         {head}
         <CardPad>
           <ul className="flex flex-col">
-            {pos.rows.map((row) => {
-              const committed = usage.committedByCategory.get(row.category) ?? 0;
-              const spent = row.actual;
+            {/* The Budget tab's own rows, so a committed-only "Uncategorized" row shows here too. */}
+            {(usage.summaryRows ?? pos.rows.map((row) => ({ category: row.category, budget: row.budget, spent: row.actual, committed: usage.committedByCategory.get(row.category) ?? 0 }))).map((row) => {
+              const committed = row.committed ?? 0;
+              const spent = row.spent;
               const base = row.budget > 0 ? row.budget : Math.max((spent ?? 0) + committed, 1);
               const spentPct = spent === null ? 0 : Math.min((spent / base) * 100, 100);
               const committedPct = Math.min((committed / base) * 100, 100 - spentPct);
@@ -219,9 +228,10 @@ export const OpenPurchasesCard: React.FC<{ project: ProjectWithRefs }> = ({ proj
                     <tbody>
                       {open.slice(0, 5).map((row) => (
                         <tr key={row.id} className="border-b border-border/60 last:border-b-0">
-                          <td className="max-w-0 truncate py-2 pr-2">
-                            <Link to={`/projects/${project.id}/procurement?open=${encodeURIComponent(row.id)}`} className="text-foreground hover:underline">
-                              {[row.code, row.title].filter(Boolean).join(' ')}
+                          <td className="max-w-0 py-2 pr-2">
+                            <Link to={`/projects/${project.id}/procurement?open=${encodeURIComponent(row.id)}`} className="block text-foreground hover:underline">
+                              <span className="block whitespace-nowrap font-medium">{row.code ?? row.title}</span>
+                              {row.code && row.title && <span className="block truncate text-xs text-muted-foreground">{row.title}</span>}
                             </Link>
                           </td>
                           <td className="py-2 pr-2"><StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill></td>
@@ -241,6 +251,7 @@ export const OpenPurchasesCard: React.FC<{ project: ProjectWithRefs }> = ({ proj
 export const ProgressCurveCard: React.FC<{ project: ProjectWithRefs; children: React.ReactNode }> = ({ project, children }) => {
   const { t } = useTranslation('project');
   const schedule = useScheduleSummary(project);
+  if (schedule.milestones.every((phase) => !phase.target_date)) return null;
   const behind = schedule.progress !== null && schedule.planned !== null && schedule.progress < schedule.planned
     ? schedule.planned - schedule.progress : null;
   return (
@@ -254,6 +265,36 @@ export const ProgressCurveCard: React.FC<{ project: ProjectWithRefs; children: R
           {t('projectDetail.curve.title', 'Progress curve')}
         </CardHead>
         <CardPad>{children}</CardPad>
+      </Card>
+    </section>
+  );
+};
+
+/** Team: the project manager and the people holding tasks here, as avatars. */
+export const TeamCard: React.FC<{ project: ProjectWithRefs; className?: string }> = ({ project, className }) => {
+  const { t } = useTranslation('project');
+  const tasks = useTasks(project.id);
+  const people = useMemo(() => {
+    const names = new Set<string>();
+    if (project.pm?.full_name) names.add(project.pm.full_name);
+    for (const task of tasks.data ?? []) if (task.assignee?.full_name) names.add(task.assignee.full_name);
+    return [...names];
+  }, [project.pm?.full_name, tasks.data]);
+  if (people.length === 0) return null;
+  const shown = people.slice(0, 5);
+  return (
+    <section aria-labelledby="pd-team" className={className}>
+      <Card>
+        <CardHead id="pd-team" className="py-3">
+          {t('projectDetail.team.title', 'Team')}
+          <HelpPopover subject={t('projectDetail.team.helpLabel', 'the team')}>
+            {t('projectDetail.team.help', 'Project manager and people with tasks on this project')}
+          </HelpPopover>
+        </CardHead>
+        <CardPad className="flex items-center gap-1.5">
+          {shown.map((name) => <Avatar key={name} name={name} size="md" />)}
+          {people.length > shown.length && <span className="ml-1 text-xs text-muted-foreground">{t('projectDetail.team.more', '+{{n}} more', { n: people.length - shown.length })}</span>}
+        </CardPad>
       </Card>
     </section>
   );

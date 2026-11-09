@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useTasks } from '@/src/hooks/useTasks';
+import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -14,7 +16,7 @@ import {
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from '@/src/hooks/useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
-import { BudgetBarsCard, OpenPurchasesCard, ProgressCurveCard, ScheduleCard } from './OverviewCards';
+import { BudgetBarsCard, OpenPurchasesCard, ProgressCurveCard, ScheduleCard, TeamCard } from './OverviewCards';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
@@ -62,6 +64,9 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   // F8: the curve is gated on data only (ProjectSCurve draws nothing without dated phases), never on role.
   const curve = useMemo(() => !isPipeline
     ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
+    : null, [isPipeline, project.id]);
+  const moneyCurve = useMemo(() => !isPipeline
+    ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} hideHeading /></React.Suspense>
     : null, [isPipeline, project.id]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
   const canSeeMoney = may('view', 'salesInvoice');
@@ -113,8 +118,9 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             <BudgetBarsCard project={project} onOpenBudget={openBudget} />
             <OpenPurchasesCard project={project} />
           </div>
-          <div className={`min-w-0 xl:col-start-1 xl:row-start-3`}><ProgressCurveCard project={project}>{curve}</ProgressCurveCard></div>
-          <div className="max-h-[36rem] min-w-0 overflow-y-auto xl:col-start-2 xl:row-span-2 xl:row-start-2 xl:max-h-[44rem]"><ProjectActivity projectId={project.id} compact /></div>
+          <div className={`min-w-0 xl:col-start-1 xl:row-start-3`}><ProgressCurveCard project={project}>{moneyCurve}</ProgressCurveCard></div>
+          <TeamCard project={project} className="min-w-0 xl:col-start-2 xl:row-start-2" />
+          <div className="max-h-[36rem] min-w-0 overflow-y-auto xl:col-start-2 xl:row-start-3 xl:row-span-1 xl:max-h-[44rem]"><ProjectActivity projectId={project.id} compact /></div>
         </div>
         {canSeeMoney && <MoneyBlock project={project} />}
         <WhenNearViewport>
@@ -197,7 +203,15 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const reportProcurementCount = useCallback((count: number | null) => updateCount('procurement', count), [updateCount]);
   const reportTaskCount = useCallback((count: number | null) => updateCount('tasks', count), [updateCount]);
   const reportDocumentCount = useCallback((count: number | null) => updateCount('documents', count), [updateCount]);
-  const currentCounts = loadedCounts.projectId === project.id ? loadedCounts.values : {};
+  // Before a tab is visited its count comes from the same cached reads the overview already makes.
+  const canViewProcurement = usePermission()('view', 'procurement');
+  const taskRows = useTasks(project.id);
+  const purchaseRows = useProjectProcurements(canViewProcurement && !isPipeline ? project.id : null);
+  const seededCounts: ProjectTabCounts = {
+    ...(taskRows.data ? { tasks: taskRows.data.length } : {}),
+    ...(purchaseRows.data ? { procurement: purchaseRows.data.length } : {}),
+  };
+  const currentCounts = { ...seededCounts, ...(loadedCounts.projectId === project.id ? loadedCounts.values : {}) };
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
   const lens = useLens();
   const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
@@ -258,6 +272,26 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
  * an overdue customer invoice makes it "Chase payment"; otherwise "Raise invoice" while a meaningful
  * share (≥5%) of the contract is still to invoice; otherwise none.
  */
+export const ProjectQuickActions: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation('project');
+  const navigate = useNavigate();
+  const may = usePermission();
+  return (
+    <>
+      {may('edit', 'project') && (
+        <Button variant="outline" size="sm" onClick={() => navigate(`/projects/${project.id}?phases=edit`)}>
+          {t('projectDetail.header.logProgress', 'Log progress')}
+        </Button>
+      )}
+      {may('create', 'procurement') && (
+        <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/new?project=${encodeURIComponent(project.id)}`)}>
+          {t('projectDetail.header.newPurchase', 'New purchase')}
+        </Button>
+      )}
+    </>
+  );
+};
+
 export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; mobileBar?: boolean; chaseOnly?: boolean }> = ({ project, isPipeline, mobileBar = false, chaseOnly = false }) => {
   const { t } = useTranslation('project');
   const may = usePermission();

@@ -22,12 +22,12 @@ import StageHistory from './StageHistory';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
-import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
+import ProjectSections, { PrimaryProjectAction, ProjectQuickActions } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /** "Behind plan" when a started phase is past its target or the project end has passed unfinished. */
-const BehindPlanPill: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+export const BehindPlanPill: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
   const schedule = useScheduleSummary(project);
   if (schedule.lateCount === 0 && schedule.endLate === null) return null;
@@ -182,6 +182,7 @@ const ProjectDetail: React.FC = () => {
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
+        secondaryAction={!isPipelineRecord && area === 'overview' ? <span className="hidden items-center gap-2 md:inline-flex"><ProjectQuickActions project={project} /></span> : undefined}
         healthPill={!isPipelineRecord ? <BehindPlanPill project={project} /> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectFactsStrip project={project} />

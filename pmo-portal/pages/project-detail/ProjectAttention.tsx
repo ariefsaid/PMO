@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, StatusPill, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { AttentionItem } from '@/src/hooks/useProjectPosition';
 
@@ -39,6 +39,17 @@ export const ProjectAttention: React.FC<{
       </section>
     );
   }
+  const kindLabel = (key: string): string | undefined => {
+    if (key.startsWith('task-')) return t('projectDetail.attention.kind.task', 'Task');
+    switch (key) {
+      case 'phases': return t('projectDetail.attention.kind.late', 'Late');
+      case 'budget': return t('projectDetail.attention.kind.budget', 'Budget');
+      case 'approve': return t('projectDetail.attention.kind.approve', 'Approve');
+      case 'ar': return t('projectDetail.attention.kind.overdue', 'Overdue');
+      case 'billing': return t('projectDetail.attention.kind.billing', 'Billing');
+      default: return undefined;
+    }
+  };
   const visibleItems = excludeKeys ? items.filter((item) => !excludeKeys.has(item.key)) : items;
   if (excludeKeys && visibleItems.length === 0) return null;
   if (visibleItems.length === 0) {
@@ -56,30 +67,34 @@ export const ProjectAttention: React.FC<{
       </section>
     );
   }
-  // Flat rows: the status word sits in `what`; its size carries the status colour (UX SD1). No stripes, no pills.
+  // Each row: a kind chip in the item's tone, the title with its size underneath, the fixing verb on the right.
   return (
     <section aria-labelledby="pd-attention" className={className}>
       <Card>
         <CardHead id="pd-attention" actions={<Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
-          <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
+          <span tabIndex={0}><StatusPill variant="neutral">{visibleItems.length}</StatusPill></span>
         </Tooltip>}>
           {t('projectDetail.attention.title', 'Needs attention')}
         </CardHead>
         <CardPad>
           <ul className="divide-y divide-border/70">
-        {visibleItems.map((item) => (
-          <li key={item.key}>
-            <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
-              <Link to={item.to} className="touch-target flex items-baseline gap-x-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <span className="min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-foreground">{item.what}</span>
-                  {item.size && <>{' '}<span className={cn('block text-xs font-medium tabular-nums sm:ml-3 sm:inline', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size}</span></>}
-                </span>
-                <span className="shrink-0 text-xs font-semibold text-primary-text">{item.action}</span>
-              </Link>
-            </Tooltip>
-          </li>
-        ))}
+            {visibleItems.map((item) => {
+              const kind = kindLabel(item.key);
+              return (
+                <li key={item.key}>
+                  <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
+                    <Link to={item.to} className="touch-target flex items-center gap-x-3 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      {kind && <StatusPill variant={item.tone === 'danger' ? 'lost' : 'warn'}>{kind}</StatusPill>}
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-foreground">{item.what}</span>
+                        {item.size && <span className={cn('block text-xs font-medium tabular-nums', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size}</span>}
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-primary-text">{item.action}</span>
+                    </Link>
+                  </Tooltip>
+                </li>
+              );
+            })}
           </ul>
         </CardPad>
       </Card>

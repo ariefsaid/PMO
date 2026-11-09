@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones } from '@/src/hooks/useMilestones';
@@ -20,7 +20,10 @@ export function useScheduleSummary(project: ProjectWithRefs) {
   const today = useOrgToday();
   const phases = useMilestones(project.id);
   const tasks = useTasks(project.id);
-  return useMemo(() => {
+  const { refetch: refetchPhases } = phases;
+  const { refetch: refetchTasks } = tasks;
+  const retry = useCallback(() => { void refetchPhases(); void refetchTasks(); }, [refetchPhases, refetchTasks]);
+  const summary = useMemo(() => {
     const milestones = phases.data ?? [];
     const totalWeight = milestones.reduce((sum, phase) => sum + phase.weight, 0);
     const progress = totalWeight > 0
@@ -39,8 +42,10 @@ export function useScheduleSummary(project: ProjectWithRefs) {
       today, milestones, progress, endLate, lateCount: late.length, worst,
       planned: planned === null ? null : Math.round(planned),
       isPending: phases.isPending,
+      isError: phases.isError || tasks.isError,
     };
-  }, [phases.data, phases.isPending, tasks.data, today, project.end_date]);
+  }, [phases.data, phases.isPending, phases.isError, tasks.isError, tasks.data, today, project.end_date]);
+  return { ...summary, retry };
 }
 
 /** Spent + committed against the active budget: the same totals the Budget tab shows. */
@@ -65,7 +70,7 @@ export function useBudgetUsage(project: ProjectWithRefs) {
     const unavailable = canReadProcurements && committed.commitmentSource !== 'not-tracked' && committedAll === null;
     const spentAndCommitted = pos.spent === null || unavailable ? null : pos.spent + (committedAll ?? 0);
     return {
-      pos, committedByCategory, committed: committedAll, spentAndCommitted,
+      pos, summaryRows: summary, committedByCategory, committed: committedAll, spentAndCommitted,
       usedPercent: pos.budget > 0 && spentAndCommitted !== null ? Math.round((spentAndCommitted / pos.budget) * 100) : null,
       remaining: spentAndCommitted === null ? null : pos.budget - spentAndCommitted,
     };

@@ -57,8 +57,7 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   });
 
   await page.goto(projectUrl);
-  await page.getByRole('button', { name: /^Activity · \d+ comments$/ }).click();
-  const activity = page.getByRole('dialog', { name: 'Activity' });
+  const activity = page.getByRole('region', { name: 'Activity' });
   await expect(activity).toBeVisible({ timeout: 15_000 });
   await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
   await expect(activity.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible({ timeout: 15_000 });
