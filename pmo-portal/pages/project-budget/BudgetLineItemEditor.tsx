@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -7,6 +7,11 @@ import type { BudgetLineItemRow, NewLineItem, BudgetVersionMode } from '@/src/li
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
+
+/** The inline-input class shared by every editor field. Hoisted (#2104) so the memoised column
+ *  definitions close over a constant, not a string rebuilt per render. */
+const FIELD_CLS =
+  'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 // ---------------------------------------------------------------------------
 // Line-item editor (for Draft versions)
@@ -88,7 +93,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     [lineItems, fiscalYearNames],
   );
 
-  const validateFiscalYear = (value: string): boolean => {
+  const validateFiscalYear = useCallback((value: string): boolean => {
     const fiscalYear = value.trim();
     if (!fiscalYear) return true;
     // ERPNext's exact names are authoritative when available. During an outage, reject obviously
@@ -96,9 +101,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     return fiscalYearNames === null
       ? !/^\d+$/.test(fiscalYear) || /^\d{4}$/.test(fiscalYear)
       : fiscalYearNames.includes(fiscalYear);
-  };
+  }, [fiscalYearNames]);
 
-  const openEdit = (li: BudgetLineItemRow) => {
+  const openEdit = useCallback((li: BudgetLineItemRow) => {
     if (editingId) {
       setEditDrafts((drafts) => ({ ...drafts, [editingId]: { category: editCategory, description: editDesc, amount: editAmount, fiscalYear: editFiscalYear, amountError: editAmountError, fiscalYearError: editFiscalYearError } }));
     }
@@ -110,9 +115,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     setEditFiscalYear(draft?.fiscalYear ?? li.fiscal_year ?? '');
     setEditAmountError(draft?.amountError ?? null);
     setEditFiscalYearError(draft?.fiscalYearError ?? null);
-  };
+  }, [editAmount, editAmountError, editCategory, editDesc, editDrafts, editFiscalYear, editFiscalYearError, editingId]);
 
-  const closeEdit = () => {
+  const closeEdit = useCallback(() => {
     if (editingId) setEditDrafts((drafts) => {
       const next = { ...drafts };
       delete next[editingId];
@@ -121,17 +126,17 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     setEditingId(null);
     setEditAmountError(null);
     setEditFiscalYearError(null);
-  };
+  }, [editingId]);
 
-  const validate = (fiscalYear: string, amount: string) => {
+  const validate = useCallback((fiscalYear: string, amount: string) => {
     if (!validateFiscalYear(fiscalYear)) return { fiscalYearError: t('finance:budgetActivation.invalidFiscalYearName', 'Choose a fiscal year from ERPNext, or leave it blank.'), amountError: null, amount: null };
     const parsed = parseMoneyInputAtScale(amount, 2);
     if (parsed === null) return { fiscalYearError: null, amountError: 'Enter a valid amount with no more than 2 decimal places', amount: null };
     if (parsed <= 0) return { fiscalYearError: null, amountError: t('financeCopy.amountMustBeGreaterThanZero', 'Amount must be greater than 0'), amount: null };
     return { fiscalYearError: null, amountError: null, amount: parsed };
-  };
+  }, [t, validateFiscalYear]);
 
-  const handleSaveEdit = async (li: BudgetLineItemRow) => {
+  const handleSaveEdit = useCallback(async (li: BudgetLineItemRow) => {
     const validation = validate(editFiscalYear, editAmount);
     setEditFiscalYearError(validation.fiscalYearError);
     setEditAmountError(validation.amountError);
@@ -153,9 +158,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     } catch (err) {
       onSaveError?.(err);
     }
-  };
+  }, [closeEdit, editAmount, editCategory, editDesc, editFiscalYear, onSaveError, onSaveSuccess, onUpdateLineItem, validate, wholeProject]);
 
-  const handleAdd = async () => {
+  const handleAdd = useCallback(async () => {
     const validation = validate(newFiscalYear, newAmount);
     setNewFiscalYearError(validation.fiscalYearError);
     setNewAmountError(validation.amountError);
@@ -180,18 +185,18 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     } catch (err) {
       onSaveError?.(err);
     }
-  };
+  }, [newAmount, newCategory, newDesc, newFiscalYear, onCreateLineItem, onSaveError, validate, wholeProject]);
 
-  const fieldCls =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
-
-  const total = lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
-  const rows: EditorRow[] = [
+  const total = useMemo(
+    () => lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
+    [lineItems],
+  );
+  const rows = useMemo<EditorRow[]>(() => [
     ...lineItems.map((li): EditorRow => ({ kind: 'item', li })),
     ...(adding ? [{ kind: 'new' } as EditorRow] : []),
-  ];
+  ], [adding, lineItems]);
 
-  const fiscalYearDatalist = (
+  const fiscalYearDatalist = useMemo(() => (
     // ⚑ A datalist, not a <select>: the valid values are the CLIENT's own ERPNext Fiscal
     // Year names, which this write path cannot read (FR-BFY-022). The years the project
     // already uses are offered; a year it is only now moving into stays typeable.
@@ -200,15 +205,15 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         <option key={y} value={y} />
       ))}
     </datalist>
-  );
+  ), [knownFiscalYears]);
 
-  const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean; disabled?: boolean }) => (
+  const categorySelect = useCallback((props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean; disabled?: boolean }) => (
     <select
       id={props.id}
       aria-label={props.label}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value as Enums<'budget_category'>)}
-      className={`${fieldCls} max-w-full`}
+      className={`${FIELD_CLS} max-w-full`}
       autoFocus={props.autoFocus}
       disabled={props.disabled}
     >
@@ -218,9 +223,12 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         </option>
       ))}
     </select>
-  );
+  ), [t]);
 
-  const allColumns: Column<EditorRow>[] = [
+  // #2104 — the column definitions are rebuilt only when the state they close over changes. Every
+  // keystroke in a field re-rendered the editor, and the fresh `columns` array made DataTable
+  // rebuild its table model for a list that had not changed.
+  const allColumns: Column<EditorRow>[] = useMemo(() => [
     {
       key: 'category',
       header: t('financeCopy.category', "Category"),
@@ -251,7 +259,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               value={newDesc}
               disabled={createIsPending}
               onChange={(e) => setNewDesc(e.target.value)}
-              className={`${fieldCls} w-full`}
+              className={`${FIELD_CLS} w-full`}
             />
           );
         }
@@ -264,7 +272,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
             value={editDesc}
             disabled={updateIsPending}
             onChange={(e) => setEditDesc(e.target.value)}
-            className={`${fieldCls} w-full`}
+            className={`${FIELD_CLS} w-full`}
           />
         ) : (
           <span className="text-muted-foreground">{li.description ?? '—'}</span>
@@ -295,7 +303,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
                   setNewFiscalYear(e.target.value);
                   setNewFiscalYearError(null);
                 }}
-                className={`${fieldCls} w-32`}
+                className={`${FIELD_CLS} w-32`}
               />
               {newFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{newFiscalYearError}</p>}
               {fiscalYearDatalist}
@@ -322,7 +330,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
                 setEditFiscalYear(e.target.value);
                 setEditFiscalYearError(null);
               }}
-              className={`${fieldCls} w-32`}
+              className={`${FIELD_CLS} w-32`}
             />
             {editFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{editFiscalYearError}</p>}
             {fiscalYearDatalist}
@@ -480,13 +488,19 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         );
       },
     },
-  ];
+  ], [
+    categorySelect, closeEdit, createIsPending, currency, editAmount, editAmountError, editCategory,
+    editDesc, editFiscalYear, editFiscalYearError, editingId, fiscalYearDatalist, handleAdd,
+    handleSaveEdit, newAmount, newAmountError, newCategory, newDesc, newFiscalYear,
+    newFiscalYearError, onDeleteLineItem, openEdit, t, updateIsPending,
+  ]);
 
   // #1472 FR-001: a whole-project source editor has NO fiscal-year control — the column, its
   // input and its per-line validation belong to the per-year mode only.
-  const columns: Column<EditorRow>[] = wholeProject
-    ? allColumns.filter((column) => column.key !== 'fiscal_year')
-    : allColumns;
+  const columns = useMemo<Column<EditorRow>[]>(
+    () => (wholeProject ? allColumns.filter((column) => column.key !== 'fiscal_year') : allColumns),
+    [allColumns, wholeProject],
+  );
 
   return (
     <div className="relative mt-4">

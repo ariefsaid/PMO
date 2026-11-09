@@ -110,8 +110,9 @@ function buildTaskColumns(
 /**
  * The workspace's column factory. Binds the `project` namespace here (the cells' t() calls
  * live in THIS file, so the i18n completeness gate resolves their catalogue here too) and
- * hands TasksTab a stable-shaped `buildColumns(depths)` factory — the same per-render
- * identity and recompute behavior the inline factory always had.
+ * hands TasksTab a stable-shaped `buildColumns(depths)` factory. The factory's identity follows
+ * `deps` — TasksTab memoises that object (#2104), so an unrelated re-render no longer rebuilds
+ * the columns and the memoised tables keep bailing out.
  */
 export function useProjectTaskColumns(
   deps: TaskColumnDeps,

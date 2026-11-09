@@ -30,6 +30,7 @@ const { listState, profilesState, mutations, milestoneState } = vi.hoisted(() =>
     remove: { mutateAsync: vi.fn(), isPending: false },
     addDependency: { mutateAsync: vi.fn(), isPending: false },
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
 

@@ -52,8 +52,20 @@ export const ProcurementListColumns: React.FC = () => {
   );
 };
 
+/** list-working-set-return (#682): captures the list URL + scroll before opening a record. */
+export type OpenRecord = (recordPath: string) => boolean;
+
+export interface ProcurementListRowBaseProps {
+  row: ProcurementWithRefs;
+  /** The list-owned opener. Passed in so a row never subscribes to the router itself (#2104). */
+  openRecord: OpenRecord;
+}
+
 export interface ProcurementListRowProps {
   row: ProcurementWithRefs;
+  /** Optional: a list that already owns the return-context hook passes it down; a standalone row
+   *  falls back to its own `useListReturn` (#2104). */
+  openRecord?: OpenRecord;
 }
 
 /**
@@ -152,7 +164,12 @@ const ExpandedPanel: React.FC<{
   );
 };
 
-export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
+/**
+ * #2104 — the router-free row. Everything it needs about navigation arrives as a prop, so the row
+ * holds no `location`/`navigate` subscription: a URL change re-renders the LIST, not each of its
+ * (up to ~1k) rows. The grouped list memoises this component.
+ */
+export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ row, openRecord }) => {
   const { t } = useTranslation();
   const statusLabel = useProcurementStatusLabel();
   const nextStepLabel = useProcurementNextStepLabel();
@@ -160,9 +177,6 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
   const [expanded, setExpanded] = useState(false);
   const status = row.status as ProcurementStatus;
   const nextStep = nextStepLabel(status);
-  // list-working-set-return (#682, AC-LRC-005): captures the current Procurement list URL +
-  // scroll as validated return context before navigating to the canonical detail route.
-  const { openRecord } = useListReturn({ list: 'procurement' });
   // Native modified/new-tab clicks keep the plain href (no return context to carry into a separate
   // browsing context) — only a plain left-click is intercepted to route through the shared opener
   // (AC-LRC-005), matching the row-click behaviour.
@@ -270,4 +284,14 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
       {expanded && <ExpandedPanel row={row} panelId={panelId} onLinkClick={onLinkClick} />}
     </div>
   );
+};
+
+/**
+ * Standalone row: owns the list-return hook for callers that render a single row outside a list
+ * (the row's own tests and any one-off preview). Lists render {@link ProcurementListRowBase} with
+ * an opener they hold once, so their rows never subscribe to the router (#2104).
+ */
+export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row, openRecord }) => {
+  const { openRecord: rowListReturn } = useListReturn({ list: 'procurement' });
+  return <ProcurementListRowBase row={row} openRecord={openRecord ?? rowListReturn} />;
 };
