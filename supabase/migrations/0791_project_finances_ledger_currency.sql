@@ -350,7 +350,7 @@ begin
                                       'currency',b.currency,'amount',bs.amount::text)
               from chosen_budget b cross join budget_sum bs),
     'actuals',jsonb_build_object(
-      'currency',case when public.org_reads_erp_ledger() then coalesce((select m.attrs->>'currency' from public.external_master_records m where m.org_id = p.org_id and m.external_tier = 'odoo' and m.kind = 'company' and m.tombstoned_at is null and m.attrs->>'currency' ~ '^[A-Z]{3}$' order by m.active desc limit 1), o.default_currency) else p.currency end,'as_of',(select max(actuals_as_of) from gl),
+      'currency',case when public.org_reads_erp_ledger() then coalesce((select m.attrs->>'currency' from public.external_master_records m where m.org_id = p.org_id and m.external_tier = 'odoo' and m.kind = 'company' and m.tombstoned_at is null and m.attrs->>'currency' ~ '^[A-Z]{3}$' order by m.active desc, m.external_id limit 1), o.default_currency) else p.currency end,'as_of',(select max(actuals_as_of) from gl),
       'excludes_restricted_rows',not coalesce(public.holds_spend_approval_authority(v_role),false),
       'total',(select case when count(*) filter(where mapped) = 0
                                   or count(*) filter(where mapped and actuals_to_date is null) > 0 then null

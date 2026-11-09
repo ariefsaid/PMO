@@ -588,6 +588,7 @@
       "spendingUnavailable": "Pengeluaran tidak diketahui atau tidak tersedia.",
       "commitmentsUnavailable": "Komitmen tidak diketahui atau tidak tersedia.",
       "currencyBasisNotice": "Anggaran: {{budgetCurrency}}. Pengeluaran dan komitmen: {{projectCurrency}}. Perbandingan antar mata uang tidak tersedia.",
+      "currencyBasisSplitNotice": "Anggaran: {{budgetCurrency}}. Pengeluaran: {{spendCurrency}}. Komitmen: {{projectCurrency}}. Perbandingan antar mata uang tidak tersedia.",
       "currencyComparisonUnavailable": "Perbandingan tidak tersedia karena anggaran dan pengeluaran menggunakan mata uang yang berbeda.",
       "leftUnavailable": "Sisa anggaran tidak diketahui saat pengeluaran atau komitmen tidak tersedia.",
       "budgetVsActual": "Anggaran vs aktual",

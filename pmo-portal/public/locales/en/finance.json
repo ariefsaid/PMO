@@ -588,6 +588,7 @@
       "spendingUnavailable": "Spending is unknown or unavailable.",
       "commitmentsUnavailable": "Commitments are unknown or unavailable.",
       "currencyBasisNotice": "Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
+      "currencyBasisSplitNotice": "Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
       "currencyComparisonUnavailable": "Comparison unavailable because budget and spending use different currencies.",
       "leftUnavailable": "Left is unknown while spending or commitments are unavailable.",
       "budgetVsActual": "Budget vs actual",
