@@ -87,7 +87,6 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
   const shownMode: PasteMode | null = mode ?? (amountMapped && !pairMapped ? 'amount' : pairMapped && !amountMapped ? 'quantity-rate' : null);
 
   const hasInput = text.trim() !== '';
-  const previewBlocked = preview.errors.length > 0 || parsed.failed;
   const validRows = preview.rows.filter((row) => row.errors.length === 0 && row.category !== null && row.amount !== null);
   // `12,345` is a thousands group by the dot-decimal rule; an Indonesian comma decimal would mean 12.345. One confirmation covers the current set.
   const ambiguousRows = validRows.filter((row) => (shownMode === 'quantity-rate' ? [row.raw.quantity, row.raw.rate] : [row.raw.amount]).some(isAmbiguousCommaNumber));
@@ -95,7 +94,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
   const ambiguousRowNumbers = new Set(ambiguousRows.map((row) => row.rowNumber));
   const [confirmedKey, setConfirmedKey] = useState('');
   const ambiguityConfirmed = ambiguousRows.length === 0 || confirmedKey === ambiguousKey;
-  const canSave = hasInput && !previewBlocked && validRows.length > 0 && ambiguityConfirmed && !hasResults && !paste.isSaving;
+  const canSave = hasInput && validRows.length > 0 && ambiguityConfirmed && !hasResults && !paste.isSaving;
   const unresolved = results.some((r) => r.status !== 'created');
   const failedRetryable = results.filter((r) => r.status === 'failed' && r.retryable);
 
