@@ -2,6 +2,7 @@
 import {test,expect} from '@playwright/test';
 import {createClient} from '@supabase/supabase-js';
 import {signInAdmin} from './_sarHelpers';
+import {assertLocalBenchUrl} from './_benchGuard';
 const FUNCTIONS_URL=process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL=process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
 const ANON_KEY=process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
@@ -30,11 +31,11 @@ test('AC-SETUP-001 a saved native project links to the actual ERP Project and re
   };
   erpProject=await ensure();expect(await ensure()).toBe(erpProject);
   const {data:stored,error:storedError}=await admin.from('external_org_bindings').select('config').eq('org_id',ORG_ID).eq('external_tier','erpnext').single();expect(storedError).toBeNull();expect(stored?.config.project_map[id]).toBe(erpProject);
-  const readback=await fetch(`${BENCH_URL}/api/resource/Project/${encodeURIComponent(erpProject)}`,{headers:{Authorization:`token ${BENCH_KEY}:${BENCH_SECRET}`}});expect(readback.status).toBe(200);expect((await readback.json()).data).toMatchObject({name:erpProject,project_name:name,company:binding!.config.company,is_active:'Yes'});
+  assertLocalBenchUrl(BENCH_URL);const readback=await fetch(`${BENCH_URL}/api/resource/Project/${encodeURIComponent(erpProject)}`,{headers:{Authorization:`token ${BENCH_KEY}:${BENCH_SECRET}`}});expect(readback.status).toBe(200);expect((await readback.json()).data).toMatchObject({name:erpProject,project_name:name,company:binding!.config.company,is_active:'Yes'});
   const {count,error:countError}=await user.from('projects').select('id',{head:true,count:'exact'}).eq('id',id);expect(countError).toBeNull();expect(count).toBe(1);
  }finally{
   const {error:restoreError}=await admin.from('external_org_bindings').update({config:binding!.config}).eq('org_id',ORG_ID).eq('external_tier','erpnext');expect(restoreError).toBeNull();
   const {error:deleteError}=await admin.from('projects').delete().eq('id',id);expect(deleteError).toBeNull();
-  if(erpProject){const removed=await fetch(`${BENCH_URL}/api/resource/Project/${encodeURIComponent(erpProject)}`,{method:'DELETE',headers:{Authorization:`token ${BENCH_KEY}:${BENCH_SECRET}`}});expect(removed.ok).toBe(true);}
+  if(erpProject){assertLocalBenchUrl(BENCH_URL);const removed=await fetch(`${BENCH_URL}/api/resource/Project/${encodeURIComponent(erpProject)}`,{method:'DELETE',headers:{Authorization:`token ${BENCH_KEY}:${BENCH_SECRET}`}});expect(removed.ok).toBe(true);}
  }
 });

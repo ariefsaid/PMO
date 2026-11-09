@@ -425,7 +425,7 @@ export async function assertProjectsTableLayout(page: Page) {
     await expect(scroller).toBeVisible({ timeout: 20_000 });
     const table = scroller.locator('table');
     await expect(table.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
-    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
     await waitForFonts(page);
 
     const rows = table.locator('tbody tr');
@@ -546,7 +546,7 @@ export async function assertProjectsTableLayout(page: Page) {
   expect(progressText.left - actualText.right).toBeGreaterThanOrEqual(12);
   await expect(scroller).toBeVisible({ timeout: 20_000 });
   await expect(scroller.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
-  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
   await waitForFonts(page);
 
   const scrollerBox = await scroller.boundingBox();

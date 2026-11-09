@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { FinancialStatementsSection, type FinancialStatementsSectionState } from '@/src/components/financial-statements/FinancialStatementsSection';
 import { ProjectStatementTotals } from '@/src/components/financial-statements/ProjectStatementTotals';
 import { StatementPeriodPicker, type StatementPeriodKind } from '@/src/components/financial-statements/StatementPeriodPicker';
+import { OdooStatementsSection } from '@/src/components/financial-statements/OdooStatementsSection';
 import { FormGrid } from '@/src/components/ui/FormFields';
+import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
@@ -44,7 +46,7 @@ function totalsContext(read: FinancialStatementRead, currentLabel: string): stri
   ].join(' · ');
 }
 
-const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
+const ErpnextProjectProfitLoss: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
   const { t } = useTranslation('project');
   const today = useOrgToday();
   const catalogueQuery = useFinancialStatementCatalogue({ kind: 'project', projectId });
@@ -186,6 +188,19 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
           />
         )}
       </FinancialStatementsSection>
+    </div>
+  );
+};
+
+/** #1507 S7: an Odoo organisation reads project profit and loss from the Odoo ledger; the saved-report section is the ERPNext path and is left as it was. */
+const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
+  const { odoo } = useOdooLedgerMode();
+  const { t } = useTranslation();
+  if (!odoo) return <ErpnextProjectProfitLoss projectId={projectId} />;
+  return (
+    <div className="mt-6 min-w-0 border-t border-border/70 pt-4">
+      <h2 className="sr-only">{t('financialStatements.projectProfitAndLoss', 'Project profit and loss')}</h2>
+      <OdooStatementsSection projectId={projectId} />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 # Lost reason: a required reason when a deal is lost, and win/loss by reason and by client (LR)
 
-Issue #1577 (map #459). Source: `docs/reviews/2026-10-31-feature-comparison.md` §3b. Status: **Draft, 2026-11-01**
+Issue #1577 (map #459). Source: (a competitor review, kept private). Status: **Draft, 2026-11-01**
 (decisions DD-LR-1..8 below are Director-delegate calls with a recommended default; owner may override; spec and plan
 reviewed against the code 2026-11-01, Director accepted the defaults). Plan:
 `docs/plans/2026-11-01-lost-reason.md`. Related, not blocking: board drag and drop `docs/specs/board-drag-drop.spec.md`

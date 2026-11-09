@@ -123,6 +123,30 @@ describe('usePermission() — binds can() to the REAL role (ADR-0016)', () => {
   });
 });
 
+describe('Odoo ledger affordances match the database (#1507 S7, FR-ODA-061/062)', () => {
+  const read = (role: Role) => renderHook(() => usePermission(), { wrapper: wrap(role) }).result.current;
+  it.each<[Role, boolean, boolean, boolean]>([
+    // role, health card, source lines, switch (act + confirm)
+    ['Admin', true, true, true],
+    ['Finance', true, true, false],
+    ['Executive', false, true, false],
+    ['Project Manager', false, false, false],
+    ['Engineer', false, false, false],
+  ])('%s: health=%s lines=%s switch=%s', (role, health, lines, sw) => {
+    const may = read(role);
+    expect(may('view', 'odooLedgerHealth')).toBe(health);
+    expect(may('view', 'odooLedgerLines')).toBe(lines);
+    expect(may('act', 'odooLedgerBasis')).toBe(sw);
+    expect(may('confirm', 'odooLedgerBasis')).toBe(sw);
+  });
+  it('viewing as another role is view-only: the real Admin gets no switch while the fence is up', () => {
+    const may = read('Admin');
+    expect(may('act', 'odooLedgerBasis', { record: { viewOnly: true } })).toBe(false);
+    expect(may('confirm', 'odooLedgerBasis', { record: { viewOnly: true } })).toBe(false);
+    expect(may('view', 'odooLedgerHealth', { record: { viewOnly: true } })).toBe(true);
+  });
+});
+
 describe('<CanWrite> — declarative render gate (ADR-0016)', () => {
   it('ADR-0016: renders children when the real role is permitted', () => {
     render(

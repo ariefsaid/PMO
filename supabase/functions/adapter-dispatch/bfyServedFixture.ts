@@ -65,6 +65,8 @@ export interface ServedSeed {
   grainByAccountYear?: Record<string, Array<Record<string, unknown>>>;
   /** `external_refs.pmo_record_id` → external record id (the PMO ownership witness, FR-BFY-076). */
   externalRefs?: Record<string, string>;
+  /** `record_outbox_ref` refuses (answers 0 rows) — the finalize step a still-`committed` row cannot pass. */
+  refuseOutboxRef?: boolean;
   /** Test-only ERP validation rejection for one v16 Budget account. */
   rejectBudgetAccount?: string;
   /** Existing account mirror rows returned by the real handler's project-scoped keyset scan. */
@@ -110,6 +112,9 @@ export interface ServedRoutesResult {
   /** Every ERP `Budget` document the mocked ERP now holds, in creation order. */
   erpBudgets: Array<{ name: string; body: Record<string, unknown>; docstatus: number }>;
   accountMirrorRows: Array<Record<string, unknown>>;
+  /** The per-year (`budget_version_erp_mirror`) rows upserted through this fixture — the v15 side mirror
+   *  whose grain is (org, version, fiscal year), failures included. */
+  budgetMirrorRows: Array<Record<string, unknown>>;
   /** The outbox rows this fixture holds, keyed `<pmo_record_id>|<idempotency_key>` — so a test can state the
    *  shape a row was left in (its saved canonical, its digest) by a writer outside this request. */
   outboxRows: Map<string, Record<string, unknown>>;
@@ -122,6 +127,7 @@ export interface ServedRoutesResult {
 export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_SITE_URL): ServedRoutesResult {
   const erpBudgets: ServedRoutesResult['erpBudgets'] = [];
   const accountMirrorRows: Array<Record<string, unknown>> = [];
+  const budgetMirrorRows: Array<Record<string, unknown>> = [];
   let mirrorSeq = 0;
   let outboxSeq = 0;
   const outboxRows = new Map<string, Record<string, unknown>>();
@@ -199,9 +205,17 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       return call.headers.get('accept')?.includes('vnd.pgrst.object') ? objectResponse(rows[0] ?? null) : jsonResponse(rows);
     }),
     {
+      label: 'legacy mirror keyless-refusal retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_erp_mirror',
+      response: (call) => {
+        const year = call.url.searchParams.get('fiscal_year')?.replace(/^eq\./, '');
+        for (let index = budgetMirrorRows.length - 1; index >= 0; index--) if (budgetMirrorRows[index]?.fiscal_year === year) budgetMirrorRows.splice(index, 1);
+        return jsonResponse([]);
+      },
+    },
+    {
       label: 'v16 account mirror sentinel retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_account_erp_mirror',
       response: (call) => {
-        const yearFilter = call.url.searchParams.get('fiscal_year')?.replace(/^in\./, '').replace(/[()]/g, '').split(',') ?? [];
+        const yearFilter = call.url.searchParams.get('fiscal_year')?.replace(/^(in|eq)\./, '').replace(/[()]/g, '').split(',') ?? [];
         for (let index = accountMirrorRows.length - 1; index >= 0; index--) {
           if (accountMirrorRows[index]?.erp_account === '' && yearFilter.includes(String(accountMirrorRows[index]?.fiscal_year))) accountMirrorRows.splice(index, 1);
         }
@@ -313,7 +327,15 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       label: 'outbox update (committed/failed)',
       method: 'PATCH',
       pathname: '/rest/v1/external_command_outbox',
-      response: () => jsonResponse([{ id: 'outbox-updated' }]),
+      response: (call) => {
+        // The committed write-back is what moves the row on; without it a refusing `record_outbox_ref`
+        // could never be reached (the row would read back `committing` for ever).
+        const body = (call.bodyJson ?? {}) as Record<string, unknown>;
+        const id = new URL(call.url).searchParams.get('id')?.replace(/^eq\./, '');
+        const row = [...outboxRows.values()].find((r) => r.id === id);
+        if (row && body.state === 'committed') Object.assign(row, { state: 'committed', external_record_id: body.external_record_id ?? null, canonical: body.canonical ?? null });
+        return jsonResponse([{ id: 'outbox-updated' }]);
+      },
     },
     supabaseRpc('claim_outbox_for_commit', (call) => {
       const id = String((call.bodyJson as { p_id?: unknown })?.p_id ?? '');
@@ -325,7 +347,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       return jsonResponse(row ? { ...row } : null);
     }),
     supabaseRpc('quarantine_committing', () => jsonResponse(null)),
-    supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
+    supabaseRpc('record_outbox_ref', () => jsonResponse(seed.refuseOutboxRef ? 0 : 1)),
     supabaseRpc('confirm_outbox', (call) => {
       const id = String((call.bodyJson as { p_id?: unknown })?.p_id ?? '');
       const row = [...outboxRows.values()].find((r) => r.id === id);
@@ -334,11 +356,36 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
     }),
 
     // ── the read-model mirror + the operator surface ─────────────────────────────────────────────
+    // The per-year side mirror. The only READ the served push makes of it is the budget writer's replay
+    // tombstone check (`select('erp_cancelled_at')…maybeSingle()`) — a Desk-cancelled Budget must stay
+    // cancelled even when a stored-canonical replay converges (BLOCKER 2/FU-2). Every write is an upsert
+    // on the mirror's own (org_id, budget_version_id, fiscal_year) grain.
+    supabaseSelect('budget_version_erp_mirror', (call) => {
+      const eq = (key: string) => {
+        const raw = call.url.searchParams.get(key);
+        return raw?.startsWith('eq.') ? decodeURIComponent(raw.slice(3)) : null;
+      };
+      const org = eq('org_id');
+      const version = eq('budget_version_id');
+      const year = eq('fiscal_year');
+      const row = budgetMirrorRows.find((candidate) => (!org || candidate.org_id === org) &&
+        (!version || candidate.budget_version_id === version) && (!year || candidate.fiscal_year === year));
+      return row ? objectResponse({ erp_cancelled_at: row.erp_cancelled_at ?? null }) : nullObjectResponse();
+    }),
     {
-      label: 'budget mirror upsert',
+      label: 'budget mirror upsert (per-year grain)',
       method: 'POST',
       pathname: '/rest/v1/budget_version_erp_mirror',
-      response: () => jsonResponse([]),
+      response: (call) => {
+        const incomingRows = (Array.isArray(call.bodyJson) ? call.bodyJson : [call.bodyJson]) as Array<Record<string, unknown>>;
+        for (const incoming of incomingRows) {
+          const keyOf = (row: Record<string, unknown>) => ['org_id', 'budget_version_id', 'fiscal_year'].map((field) => row[field]).join('|');
+          const old = budgetMirrorRows.find((row) => keyOf(row) === keyOf(incoming));
+          if (old) Object.assign(old, incoming);
+          else budgetMirrorRows.push({ ...incoming });
+        }
+        return jsonResponse([]);
+      },
     },
     supabaseRpc('surface_action_required', () => jsonResponse(null)),
     {
@@ -385,7 +432,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
     },
   ];
 
-  return { routes, erpBudgets, accountMirrorRows, outboxRows };
+  return { routes, erpBudgets, accountMirrorRows, budgetMirrorRows, outboxRows };
 }
 
 /** `?pmo_record_id=eq.<id>&idempotency_key=eq.<key>` → the map key the fixture stores rows under. */

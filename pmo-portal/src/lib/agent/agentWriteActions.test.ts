@@ -967,5 +967,5 @@ it('#1315 refused user (RLS filters the update to 0 rows): tool result is an ERR
   const secondRoundMessages = create.mock.calls[1][0].messages as { role: string; name?: string; content: string }[];
   const toolResultMsg = secondRoundMessages.find((m) => m.role === 'tool' && m.name === 'update_task_status');
   expect(toolResultMsg).toBeDefined();
-  expect(JSON.parse(toolResultMsg!.content)).toMatchObject({ error: expect.stringContaining("can't change this task's status") });
+  expect(JSON.parse(toolResultMsg!.content)).toMatchObject({ untrusted_record_data: true, result: { error: expect.stringContaining("can't change this task's status") } });
 });
