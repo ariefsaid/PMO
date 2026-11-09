@@ -160,6 +160,9 @@ describe('0373 — a quarantined procurement create re-asks the purchase rules b
     const r = await retry(null);
     assert(r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/procurement_create_refusal'), 'the purchase rules were asked');
     assert(!r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/mark_outbox_held'), 'an allowed reissue is not held');
-    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST' && c.url.pathname === '/api/resource/Purchase%20Order').length, 1, r.body);
+    const posts = r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST' && c.url.pathname === '/api/resource/Purchase%20Order');
+    assertEquals(posts.length, 1, r.body);
+    // The order states the binding's company — ERPNext must not file it under the integration user's default.
+    assertEquals((posts[0].bodyJson as { company?: string }).company, COMPANY);
   });
 });
