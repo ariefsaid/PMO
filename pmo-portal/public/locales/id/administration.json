@@ -49,6 +49,7 @@
       "noCompanies": "Kunci ini tidak melihat perusahaan Odoo mana pun. Periksa aksesnya di Odoo, lalu sambungkan ulang.",
       "connect": "Sambungkan Odoo",
       "rechecked": "Baru saja dicek.",
+      "recheckFailed": "Pengecekan tidak dapat selesai, jadi koneksi mungkin tidak berubah. Coba lagi dalam semenit.",
       "recheck": "Cek ulang",
       "refreshed": "Penyegaran dimulai.",
       "refresh": "Segarkan sekarang",
@@ -135,6 +136,10 @@
       "companyNotFound": "Perusahaan itu tidak tersedia untuk kunci ini.",
       "forbidden": "Peran Anda tidak dapat melakukan ini.",
       "rateLimited": "Baru saja dijalankan. Coba lagi dalam semenit.",
+      "serverError": "Odoo menjawab dengan kesalahan. Coba lagi.",
+      "killSwitch": "Integrasi dimatikan.",
+      "notSetUp": "Koneksi Odoo belum diatur. Selesaikan pengaturannya dulu.",
+      "storeFailed": "Pengecekan berjalan tetapi hasilnya tidak dapat disimpan. Coba lagi.",
       "syncRunning": "Sinkronisasi sedang berjalan. Coba lagi dalam semenit.",
       "generic": "Terjadi kesalahan. Tidak ada yang berubah. Coba lagi.",
       "refused": "Pilihan itu sudah tidak tersedia di Odoo, atau sudah terhubung ke proyek lain. Muat ulang lalu pilih lagi."

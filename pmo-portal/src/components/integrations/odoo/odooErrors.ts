@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 import { AppError } from '@/src/lib/appError';
 
 /** Wire codes from external-connect / external-set-company -> localised copy. The server's English line is never shown. */
-export function odooErrorMessage(t: TFunction, err: unknown): string {
+export function odooErrorMessage(t: TFunction, err: unknown, fallback?: string): string {
   const code = err instanceof AppError ? err.code : undefined;
   const m: Record<string, string> = {
     'another-erp-active': t('administration:odoo.error.anotherErpActive', 'Another accounting system is already connected. Disconnect it first.'),
@@ -23,7 +23,16 @@ export function odooErrorMessage(t: TFunction, err: unknown): string {
     REFUSED: t('administration:odoo.error.refused', 'That choice is no longer available in Odoo, or is already linked to another project. Reload and choose again.'),
     FORBIDDEN: t('administration:odoo.error.forbidden', 'Your role cannot do this.'),
     RATE_LIMITED: t('administration:odoo.error.rateLimited', 'This was just run. Try again in a minute.'),
+    'server-error': t('administration:odoo.error.serverError', 'Odoo answered with an error. Try again.'),
+    validation: t('administration:odoo.error.serverError', 'Odoo answered with an error. Try again.'),
+    credentials: t('administration:odoo.error.keyRejected', 'Odoo rejected the API key. Check the key and try again.'),
+    'invalid-site': t('administration:odoo.error.destinationRefused', 'That address cannot be used. Use the public https address of your Odoo.'),
+    'kill-switch': t('administration:odoo.error.killSwitch', 'Integrations are switched off.'),
+    inactive: t('administration:odoo.error.notSetUp', 'The Odoo connection is not set up. Finish setting it up first.'),
+    'company-not-set': t('administration:odoo.error.notSetUp', 'The Odoo connection is not set up. Finish setting it up first.'),
+    'not-found': t('administration:odoo.error.notSetUp', 'The Odoo connection is not set up. Finish setting it up first.'),
+    STORE_FAILED: t('administration:odoo.error.storeFailed', 'The check ran but its result could not be saved. Try again.'),
     SYNC_RUNNING: t('administration:odoo.error.syncRunning', 'A sync is running. Try again in a minute.'),
   };
-  return (code && m[code]) || t('administration:odoo.error.generic', 'Something went wrong. Nothing was changed. Try again.');
+  return (code && m[code]) || fallback || t('administration:odoo.error.generic', 'Something went wrong. Nothing was changed. Try again.');
 }

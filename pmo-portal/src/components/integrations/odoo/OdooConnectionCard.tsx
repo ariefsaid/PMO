@@ -82,6 +82,18 @@ export function OdooConnectionCard() {
     try { await m.mutateAsync(input); return true; } catch (err) { setError(odooErrorMessage(t, err)); return false; }
   };
 
+  // The check itself answers 200 even when Odoo failed it: a failure class in the answer is shown, plainly, instead of "Checked just now".
+  const checkNow = async () => {
+    setError(null); setNotice(null);
+    try {
+      const r = (await recheck.mutateAsync({})) as { errorClass?: string | null } | undefined;
+      if (r?.errorClass) setError(odooErrorMessage(t, new AppError('', r.errorClass)));
+      else setNotice(t('administration:odoo.card.rechecked', 'Checked just now.'));
+    } catch (err) {
+      setError(odooErrorMessage(t, err, t('administration:odoo.card.recheckFailed', 'The check could not finish, so the connection was not changed. Try again in a minute.')));
+    }
+  };
+
   const state = read ? displayedConnection(read.connection, new Date(), { status: read.status, activated: read.activated }) : null;
   const pill: Record<string, { v: StatusVariant; label: string }> = {
     healthy: { v: 'won', label: t('administration:odoo.pill.healthy', 'Connected') },
@@ -159,7 +171,7 @@ export function OdooConnectionCard() {
               </Button>
             )}
             {active && read.activated && may.manage && (
-              <Button variant="outline" size="sm" loading={recheck.isPending} onClick={() => void run(recheck).then((ok) => ok && setNotice(t('administration:odoo.card.rechecked', 'Checked just now.')))}>
+              <Button variant="outline" size="sm" loading={recheck.isPending} onClick={() => void checkNow()}>
                 <Icon name="refresh" className="size-3.55" aria-hidden="true" />{t('administration:odoo.card.recheck', 'Re-check')}
               </Button>
             )}
