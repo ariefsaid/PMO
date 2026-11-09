@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { toast as sonnerToast } from 'sonner';
 import { ToastProvider, useToast, type ToastKind } from '../Toast';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 let fire: (title: string, sub?: string, kind?: ToastKind) => void;
 const Harness: React.FC = () => {
@@ -171,8 +172,8 @@ describe('Toast accessibility and timing', () => {
     renderToast();
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
     expect(screen.getByRole('alert')).toBeEmptyDOMElement();
-    // The library's stack is itself a polite live region.
-    expect(document.querySelector('section[aria-live="polite"]')).not.toBeNull();
+    // Our two regions own announcements; the library stack must not be a third live region.
+    expect(document.querySelector('section[aria-live]')).toBeNull();
     show('Saved', undefined, 'success');
     expect(screen.getByRole('status')).toHaveTextContent('Saved');
     expect(screen.getByRole('alert')).toBeEmptyDOMElement();
@@ -180,5 +181,38 @@ describe('Toast accessibility and timing', () => {
     // Backward-compatible two-argument calls classify the second argument as the toast kind.
     show('Failed', 'error');
     expect(screen.getByRole('alert')).toHaveTextContent('Failed');
+  });
+
+  it('keeps the library stack out of the live-region set after it moves to the top edge', async () => {
+    renderToast();
+    show('First', undefined, 'success');
+    // An open aria-modal overlay moves the stack to top-right (placement re-render).
+    const modal = document.createElement('div');
+    modal.setAttribute('aria-modal', 'true');
+    await act(async () => { document.body.appendChild(modal); });
+    show('Second', undefined, 'success');
+    expect(document.querySelector('section[aria-live]')).toBeNull();
+    expect(document.querySelector('[data-sonner-toaster][data-y-position="top"]')).not.toBeNull();
+    modal.remove();
+  });
+
+  it('keeps a persistent error dismissible while a ConfirmDialog is open and the shell is inert', () => {
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    render(
+      <ToastProvider>
+        <Harness />
+        <ConfirmDialog open title="Delete" description="Sure?" confirmLabel="Delete" onConfirm={() => {}} onCancel={() => {}} />
+      </ToastProvider>,
+    );
+    expect(shell).toHaveAttribute('inert');
+    show('Push failed', 'Retry after the ERP window', 'error');
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
+    expect(dismiss.closest('[inert],[aria-hidden="true"]')).toBeNull();
+    act(() => dismiss.click());
+    act(() => vi.advanceTimersByTime(300));
+    expect(sonnerToasts()).toHaveLength(0);
+    shell.remove();
   });
 });

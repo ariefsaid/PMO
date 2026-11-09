@@ -225,6 +225,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         gap={10}
         visibleToasts={4}
         theme="light"
+        // Sonner defaults to a 999999999 stack; menus/popovers sit at 1010 and must stay above it.
+        style={{ zIndex: 1000 } as React.CSSProperties}
         closeButton
         toastOptions={{ unstyled: true, classNames: TOAST_CLASSNAMES, closeButtonAriaLabel: t('toast.dismiss', 'Dismiss notification') }}
         icons={TOAST_ICONS}
