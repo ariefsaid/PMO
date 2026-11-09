@@ -12,10 +12,11 @@
  * copied verbatim from ImportWizard.
  */
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { Dialog } from '@base-ui/react/dialog';
 import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { Button, Icon, StatusPill } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
+import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components/ui/OverlaySurface';
 import type { RefLookup } from '@/src/lib/import';
 import type { CycleRow, ValidatedGroup, ValidatedRow } from '@/src/lib/import/procurementCycle/types';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -69,7 +70,6 @@ export function ProcurementCycleImportWizard({
   const titleId = useId();
   const subId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
 
   const requestClose = useCallback(() => {
     if (wiz.step === 'committing') return;
@@ -77,76 +77,42 @@ export function ProcurementCycleImportWizard({
     onClose(didImport);
   }, [wiz.step, wiz.result, onClose]);
 
-  // ESC to close (blocked while committing).
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        requestClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [requestClose]);
-
-  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open.
   useEffect(() => {
     return acquireBackgroundInert();
   }, []);
 
-  // Focus-in on open; restore trigger on unmount.
-  useEffect(() => {
-    triggerRef.current = document.activeElement as HTMLElement | null;
+  // Initial focus: the first real control in the dialog (Base UI restores focus to the opener on close).
+  const initialFocus = useCallback(() => {
     const root = dialogRef.current;
     const firstField = root?.querySelector<HTMLElement>(
       'input:not([disabled]), select:not([disabled]), button:not([disabled])',
     );
-    (firstField ?? root)?.focus();
-    return () => {
-      triggerRef.current?.focus();
-      triggerRef.current = null;
-    };
-  }, []);
-
-  // Focus trap.
-  const onTrapKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const root = dialogRef.current;
-    if (!root) return;
-    const f = root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (f.length === 0) return;
-    const first = f[0];
-    const last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
+    return firstField ?? root ?? true;
   }, []);
 
   // How many valid records across all valid groups (for the Import button label).
   const validRecordCount = wiz.counts.validRecords;
 
-  return createPortal(
+  return (
+    <Dialog.Root
+      open
+      modal="trap-focus"
+      onOpenChange={(next, details) => {
+        if (next) return;
+        // The parent owns mount: Esc / scrim only ASK to close (blocked while committing).
+        details.cancel();
+        requestClose();
+      }}
+    >
+    <Dialog.Portal>
     <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
-      <div
-        data-testid="cycle-import-scrim"
-        aria-hidden
-        onClick={requestClose}
-        className="confirm-scrim-anim absolute inset-0 bg-foreground/40"
-      />
-      <div
+      <Dialog.Backdrop data-testid="cycle-import-scrim" className={overlayBackdropClassName} style={overlayBackdropStyle} />
+      <Dialog.Popup
         ref={dialogRef}
-        role="dialog"
+        initialFocus={initialFocus}
         aria-modal="true"
-        aria-labelledby={titleId}
         aria-describedby={subId}
-        tabIndex={-1}
-        onKeyDown={onTrapKeyDown}
         className={cn(
           'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
           'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
@@ -156,15 +122,15 @@ export function ProcurementCycleImportWizard({
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
           <div className="min-w-0 flex-1">
-            <h2
+            <Dialog.Title
               id={titleId}
               className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
             >
               {STEP_TITLE[wiz.step]}
-            </h2>
-            <p id={subId} className="mt-px text-[12.5px] text-muted-foreground">
+            </Dialog.Title>
+            <Dialog.Description render={<p />} id={subId} className="mt-px text-[12.5px] text-muted-foreground">
               {STEP_SUBTITLE[wiz.step]}
-            </p>
+            </Dialog.Description>
           </div>
           <Button
             variant="ghost"
@@ -226,9 +192,10 @@ export function ProcurementCycleImportWizard({
             )}
           </div>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </Dialog.Popup>
+    </div>
+    </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
