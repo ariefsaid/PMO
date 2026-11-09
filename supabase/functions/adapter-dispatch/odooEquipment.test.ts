@@ -35,6 +35,10 @@ const CALLER = '66666666-6666-4666-8666-666666666666';
 const ASSET_ID = '15110000-0000-4000-8000-000000000001';
 const REQUEST_ID = '15110000-0000-4000-8000-000000000002';
 const VEHICLE_ASSET_ID = '15110000-0000-4000-8000-000000000003';
+// A register CREATE reserves a NEW asset id (the recorder refuses one the book already holds), so the create fixtures mint fresh ones.
+const FRESH_VEHICLE_ASSET_ID = '15110000-0000-4000-8000-000000000011';
+const FRESH_ITEM_ASSET_ID = '15110000-0000-4000-8000-000000000012';
+const SERVICE_ID = '15110000-0000-4000-8000-000000000013';
 const ODOO_HOST = 'odoo.example.test';
 const KEY = 'odoo-test-key';
 const CLIENT_KEY = 'cccccccc-cccc-4ccc-8ccc-000000000051';
@@ -54,16 +58,26 @@ const assetsSnapshot = (over: Record<string, { create?: boolean }> = {}) => Obje
 );
 
 interface Asset { id: string; org_id: string; code: string; name: string; external_ref: string | null }
+/** One mirrored row of the org's Odoo directory: a register row, a maintenance row (with the asset it hangs off), or a picker. */
+interface MirrorRow { kind: string; external_id: string; parent_external_id?: string }
 interface State {
   fake: FakeOdoo;
   outbox: Map<string, Record<string, unknown>>;
   assets: Asset[];
-  mirrorRows: Array<{ kind: string; external_id: string }>;
+  mirrorRows: MirrorRow[];
   mirror: Array<{ fn: string; args: Record<string, unknown> }>;
   role: string;
   /** The step whose ANSWER is lost after Odoo committed it (the transport died on the way back). */
   loseNext?: 'create' | 'anchor';
 }
+/** The pickers an org's directory mirror already holds: every Odoo id a body NAMES must be one of these (never a client-taken id). */
+const PICKERS: MirrorRow[] = [
+  { kind: 'vehicle_model', external_id: '3' },
+  { kind: 'maintenance_stage', external_id: '1' },
+  { kind: 'maintenance_stage', external_id: '4' },
+  { kind: 'service_type', external_id: '2' },
+  { kind: 'partner', external_id: '5' },
+];
 const newState = (): State => ({
   fake: createFakeOdoo({ key: KEY }),
   outbox: new Map(),
@@ -71,7 +85,7 @@ const newState = (): State => ({
     { id: ASSET_ID, org_id: ORG_ID, code: 'EXC-001', name: 'Excavator 20t', external_ref: 'equipment:42' },
     { id: VEHICLE_ASSET_ID, org_id: ORG_ID, code: 'B 1234 XY', name: 'Hilux', external_ref: 'vehicle:7' },
   ],
-  mirrorRows: [],
+  mirrorRows: [...PICKERS],
   mirror: [],
   role: 'Engineer',
 });
@@ -99,11 +113,13 @@ function routes(unexpected: FetchCall[], st: State, world: World): MockRoute[] {
       const answer = world.assets ? world.assets(st) : asset;
       return objectResponse(answer);
     }),
-    // A register update must name a mirror row of the matching kind in this org.
+    // A register update must name a mirror row of the matching kind in this org; a maintenance update must hang off the asset the
+    // command names (the row's own Odoo parent), so the answer carries the parent the directory mirror holds.
     supabaseSelect('external_master_records', (call) => {
       const id = param(call, 'external_id');
       const kind = param(call, 'kind');
-      return st.mirrorRows.some((r) => r.external_id === id && r.kind === kind) ? objectResponse({ id: 'mirror-1' }) : nullObjectResponse();
+      const row = st.mirrorRows.find((r) => r.external_id === id && r.kind === kind);
+      return row ? objectResponse({ id: 'mirror-1', parent_external_id: row.parent_external_id ?? null }) : nullObjectResponse();
     }),
     { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: (call) => {
       const row = st.outbox.get(`${param(call, 'pmo_record_id')}|${param(call, 'idempotency_key')}`);
@@ -165,11 +181,15 @@ const outboxInserts = (calls: FetchCall[]) => calls.filter((c) => c.method === '
 
 const vehicleCreate = (over: Record<string, unknown> = {}) => ({
   domain: 'equipment', operation: 'create', idempotencyKey: CLIENT_KEY,
-  record: { id: ASSET_ID, erp_doc_kind: 'register-vehicle', license_plate: 'B 1234 XY', model_id: '3', vin: 'MR0XX', acquisition_date: '2025-02-01', default_unit: 'hours', ...over },
+  record: { id: FRESH_VEHICLE_ASSET_ID, erp_doc_kind: 'register-vehicle', license_plate: 'B 1234 XY', model_id: '3', vin: 'MR0XX', acquisition_date: '2025-02-01', default_unit: 'hours', ...over },
 });
 const equipmentCreate = (over: Record<string, unknown> = {}) => ({
   domain: 'equipment', operation: 'create', idempotencyKey: CLIENT_KEY,
-  record: { id: ASSET_ID, erp_doc_kind: 'register-equipment', name: 'Excavator 20t', serial_no: 'EXC-001', model: 'PC200', location: 'Site A', default_unit: 'days', ...over },
+  record: { id: FRESH_ITEM_ASSET_ID, erp_doc_kind: 'register-equipment', name: 'Excavator 20t', serial_no: 'EXC-001', model: 'PC200', location: 'Site A', default_unit: 'days', ...over },
+});
+const serviceCreate = (over: Record<string, unknown> = {}) => ({
+  domain: 'equipment', operation: 'create', idempotencyKey: CLIENT_KEY,
+  record: { id: SERVICE_ID, erp_doc_kind: 'vehicle-service', asset_id: VEHICLE_ASSET_ID, service_type_id: '2', date: '2026-11-01', state: 'done', amount: 150000, odometer: 15000, vendor_id: '5', notes: 'Oil', ...over },
 });
 const requestCreate = (over: Record<string, unknown> = {}) => ({
   domain: 'equipment', operation: 'create', idempotencyKey: CLIENT_KEY,
@@ -202,7 +222,7 @@ describe('AC-OFM-031 the register keeps its own role; maintenance is every activ
     assertEquals(r.unexpected, []);
     assertEquals(r.status, 200, r.text);
     assertEquals(st.fake.rows('fleet.vehicle').length, 1);
-    assertEquals(outboxInserts(r.calls).map((c) => [body(c).domain, body(c).pmo_record_id, body(c).idempotency_key, body(c).external_tier]), [['equipment', ASSET_ID, `equipment:${ASSET_ID}`, 'odoo']]);
+    assertEquals(outboxInserts(r.calls).map((c) => [body(c).domain, body(c).pmo_record_id, body(c).idempotency_key, body(c).external_tier]), [['equipment', FRESH_VEHICLE_ASSET_ID, `equipment:${FRESH_VEHICLE_ASSET_ID}`, 'odoo']]);
   });
 
   it('an Engineer sending a maintenance request for a linked asset is accepted and mirrors the request', async () => {
@@ -246,6 +266,76 @@ describe('AC-OFM-033 a write is refused before any outbox row when its target ca
     assertNotEquals(r.status, 200);
     assertEquals(JSON.parse(r.text).error, 'cross-org-link-rejected');
     assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length], [0, 0]);
+  });
+
+  it('a register create whose PMO asset id the book already holds is refused before the outbox and before any Odoo create', async () => {
+    const st = newState();
+    st.role = 'Project Manager';
+    // The id is this org's linked equipment asset: the recorder would raise at finalize, leaving an orphan Odoo record behind.
+    const r = await dispatch(equipmentCreate({ id: ASSET_ID }), st);
+    assertEquals(r.unexpected, []);
+    assertEquals([r.status, JSON.parse(r.text).message], [422, 'record-id-invalid']);
+    assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length, st.fake.rows('maintenance.equipment').length], [0, 0, 0]);
+  });
+
+  it('a register create whose PMO asset id belongs to ANOTHER org is refused too: the id is the recorder\'s identity', async () => {
+    const st = newState();
+    st.role = 'Project Manager';
+    st.assets.push({ id: FRESH_ITEM_ASSET_ID, org_id: OTHER_ORG, code: 'OTH-1', name: 'Another org\'s asset', external_ref: null });
+    const r = await dispatch(equipmentCreate(), st);
+    assertEquals(r.unexpected, []);
+    assertEquals([r.status, JSON.parse(r.text).message], [422, 'record-id-invalid']);
+    assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length], [0, 0]);
+  });
+});
+
+describe('an Odoo id the client names must be a row this org already mirrors', () => {
+  it('a vehicle create naming a model this org does not mirror is refused before the outbox', async () => {
+    const st = newState();
+    st.role = 'Project Manager';
+    const r = await dispatch(vehicleCreate({ model_id: '999' }), st);
+    assertEquals(r.unexpected, []);
+    assertEquals([r.status, JSON.parse(r.text).message], [422, 'vehicle-model-invalid']);
+    assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length], [0, 0]);
+  });
+
+  it('a maintenance request naming a stage this org does not mirror is refused before the outbox', async () => {
+    const st = newState();
+    st.role = 'Engineer';
+    const r = await dispatch(requestCreate({ stage_id: '9' }), st);
+    assertEquals(r.unexpected, []);
+    assertEquals([r.status, JSON.parse(r.text).message], [422, 'stage-invalid']);
+    assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length], [0, 0]);
+  });
+
+  it('a service log naming a service type this org does not mirror is refused before the outbox', async () => {
+    const st = newState();
+    st.role = 'Engineer';
+    const r = await dispatch(serviceCreate({ service_type_id: '77' }), st);
+    assertEquals(r.unexpected, []);
+    assertEquals([r.status, JSON.parse(r.text).message], [422, 'service-type-invalid']);
+    assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length], [0, 0]);
+  });
+
+  it('a service log naming a vendor this org does not mirror is refused before the outbox', async () => {
+    const st = newState();
+    st.role = 'Engineer';
+    const r = await dispatch(serviceCreate({ vendor_id: '88' }), st);
+    assertEquals(r.unexpected, []);
+    assertEquals([r.status, JSON.parse(r.text).message], [422, 'vendor-invalid']);
+    assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length], [0, 0]);
+  });
+
+  it('a service log whose type and vendor ARE mirrored is accepted and sends the linked Odoo vehicle', async () => {
+    const st = newState();
+    st.role = 'Engineer';
+    const r = await dispatch(serviceCreate(), st);
+    assertEquals(r.unexpected, []);
+    assertEquals(r.status, 200, r.text);
+    const [row] = st.fake.rows('fleet.vehicle.log.services');
+    assertEquals([row.vehicle_id, row.service_type_id, row.vendor_id, row.state, row.amount], [7, 2, 5, 'done', 150000]);
+    const mirror = st.mirror.filter((m) => m.fn === 'apply_odoo_master_rows');
+    assertEquals([mirror.length, (mirror[0].args.p_rows as Array<Record<string, unknown>>)[0].pmo_id], [1, SERVICE_ID]);
   });
 });
 
@@ -315,12 +405,38 @@ describe('AC-OFM-030 one PMO record, one Odoo record', () => {
     const refused = await dispatch(requestUpdate(), st);
     assertEquals([refused.status, JSON.parse(refused.text).message], [422, 'equipment-not-linked']);
     assertEquals(st.fake.rows('maintenance.request')[0].stage_id, [1, 'New Request']);
-    st.mirrorRows.push({ kind: 'maintenance_request', external_id: '11' });
+    // The mirror row PMO holds for request 11 hangs off Odoo equipment 42 — the asset the command names.
+    st.mirrorRows.push({ kind: 'maintenance_request', external_id: '11', parent_external_id: '42' });
     const r = await dispatch(requestUpdate(), st);
     assertEquals(r.unexpected, []);
     assertEquals(r.status, 200, r.text);
     assertEquals(st.fake.rows('maintenance.request')[0].stage_id, 4);
     assertEquals(st.fake.rows('maintenance.request')[0].close_date, st.fake.rows('maintenance.request')[0].write_date);
+  });
+
+  it('a maintenance update is refused when the request it edits hangs off a DIFFERENT asset than the one the command names', async () => {
+    const st = newState();
+    st.role = 'Engineer';
+    st.fake.seed('maintenance.request', [{ id: 11, name: 'Hydraulic leak', equipment_id: [42, 'Excavator 20t'], stage_id: [1, 'New Request'], maintenance_type: 'corrective', archive: false, company_id: 1 }]);
+    st.fake.seed('maintenance.stage', [{ id: 4, name: 'Repaired', sequence: 30, done: true }]);
+    // PMO mirrors request 11 under equipment 43; the command says asset ASSET_ID (Odoo equipment 42). Nothing ties the two, so nothing
+    // proves this edit is aimed at the record the PMO row describes: refused before the outbox row and before any Odoo write.
+    st.mirrorRows.push({ kind: 'maintenance_request', external_id: '11', parent_external_id: '43' });
+    const r = await dispatch(requestUpdate(), st);
+    assertEquals(r.unexpected, []);
+    assertEquals([r.status, JSON.parse(r.text).message], [422, 'equipment-not-linked']);
+    assertEquals([outboxInserts(r.calls).length, odooRequests(r.calls).length], [0, 0]);
+    assertEquals(st.fake.rows('maintenance.request')[0].stage_id, [1, 'New Request'], 'the request was not written');
+  });
+
+  it('one dispatch resolves the Odoo connection ONCE: the adapter factory and the outbox deps read the same answer', async () => {
+    const st = newState();
+    st.role = 'Project Manager';
+    const r = await dispatch(equipmentCreate(), st);
+    assertEquals(r.unexpected, []);
+    assertEquals(r.status, 200, r.text);
+    const bindings = r.calls.filter((c) => c.url.pathname === '/rest/v1/external_org_bindings');
+    assertEquals(bindings.length, 1, 'the connection was resolved twice in one dispatch');
   });
 
   it('a register create by a Project Manager reserves the PMO asset through the recorder', async () => {
@@ -330,7 +446,7 @@ describe('AC-OFM-030 one PMO record, one Odoo record', () => {
     assertEquals(r.unexpected, []);
     assertEquals(r.status, 200, r.text);
     const [recorder] = st.mirror.filter((m) => m.fn === 'record_odoo_asset_created');
-    assertEquals([recorder.args.p_kind, recorder.args.p_asset_id, recorder.args.p_default_unit], ['equipment', ASSET_ID, 'days']);
+    assertEquals([recorder.args.p_kind, recorder.args.p_asset_id, recorder.args.p_default_unit], ['equipment', FRESH_ITEM_ASSET_ID, 'days']);
     assertEquals((recorder.args.p_row as Record<string, unknown>).code, 'EXC-001');
   });
 });

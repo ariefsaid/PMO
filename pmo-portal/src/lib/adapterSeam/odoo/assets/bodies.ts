@@ -108,10 +108,10 @@ const MAINTENANCE_TYPES = ['corrective', 'preventive'] as const;
 function maintenanceRequest(record: Record<string, unknown>, ctx: EquipmentBodyCtx): EquipmentBodyResult {
   const body: Record<string, unknown> = {};
   if (ctx.operation === 'create') {
-    if (present(record, 'subject')) {
-      if (text(record.subject) === '') return refuse('name-required');
-      body.name = text(record.subject);
-    }
+    // Odoo requires a name on a request: a create without one is refused HERE, before any outbox row, rather than by Odoo afterwards.
+    const subject = present(record, 'subject') ? text(record.subject) : '';
+    if (subject === '') return refuse('name-required');
+    body.name = subject;
     const equipmentId = ctx.odooEquipmentId;
     if (equipmentId === undefined) return refuse('equipment-not-linked');
     body.equipment_id = equipmentId;

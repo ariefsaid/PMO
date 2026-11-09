@@ -83,15 +83,13 @@ import { commandForBudgetUnit } from './commandUnit.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import { odooCompanyAnchorKey } from './odooCompanies.ts';
-import { equipmentKey, resolveOdooEquipmentAdapter } from './odooEquipment.ts';
+import { equipmentKey } from './odooEquipment.ts';
 import { EQUIPMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { odooOwnsCompaniesTier, odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 
 export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
-// #1511 F4 — re-exported so the served suite binds to the SHIPPED module (scripts/check-edge-fn-test-binding.mjs).
-export { resolveOdooEquipmentAdapter } from './odooEquipment.ts';
 export type { AdapterSelectContext } from './dispatchAdapters.ts';
 export { buildPaymentCompositePayload, readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 

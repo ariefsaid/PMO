@@ -183,6 +183,35 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Ask an Admin or a Project Manager to save this change; anyone can record maintenance.',
   },
+  // The id a register CREATE reserves is already in the book (this org's or another's): nothing was sent, and a retry would meet the
+  // same row. The asset page is where the fresh id comes from.
+  'record-id-invalid': {
+    message: 'This save would reuse a PMO asset identity that already belongs to a record, so it was not sent to the register.',
+    retryable: false,
+    remedy: 'Start the register entry again from the asset page, so it gets its own identity.',
+  },
+  // A picker the caller named — a vehicle model, a maintenance stage, a service type, a vendor — is not one the Odoo directory
+  // mirrors for this organisation, so the register holds no row PMO could point at. Refused before any outbox row.
+  'vehicle-model-invalid': {
+    message: 'The vehicle model this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a model from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'stage-invalid': {
+    message: 'The maintenance stage this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a stage from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'service-type-invalid': {
+    message: 'The service type this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a service type from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'vendor-invalid': {
+    message: 'The vendor this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a vendor from the Odoo list, or sync the Odoo directory, then save again.',
+  },
   // ── cut-over (FR-ECA-030, OQ-ECA-1) ──────────────────────────────────────────────────────────
   // Not a failure: a purchase ordered before the ERP connection is finished in PMO, on purpose.
   'pre-cutover': {

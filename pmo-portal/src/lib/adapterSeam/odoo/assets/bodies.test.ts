@@ -64,6 +64,13 @@ describe('buildEquipmentBody — maintenance-request', () => {
       .toEqual({ outcome: 'refused', code: 'date-invalid' });
   });
 
+  it('refuses a create with no subject: Odoo requires a name on a request, and a body without one is refused before the outbox', () => {
+    expect(buildEquipmentBody('maintenance-request', { type: 'corrective', stage_id: '1' }, create({ odooEquipmentId: 42 })))
+      .toEqual({ outcome: 'refused', code: 'name-required' });
+    expect(buildEquipmentBody('maintenance-request', { subject: '   ' }, create({ odooEquipmentId: 42 })))
+      .toEqual({ outcome: 'refused', code: 'name-required' });
+  });
+
   it('an update patches the stage and the close fields it carries, never the asset it hangs off', () => {
     expect(buildEquipmentBody('maintenance-request', { stage_id: '4', duration_hours: 3 }, update()))
       .toEqual({ outcome: 'ready', body: { stage_id: 4, duration: 3 } });

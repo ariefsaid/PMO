@@ -41,7 +41,7 @@ const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
   // onto another tenant's ERP project dimension — refused here, before the adapter exists.
   budget: ['projectId'],
   // #1511 F4: the register link a maintenance command carries (`asset_id`). A register create has no PMO row yet — its id is
-  // reserved by the command and the recorder refuses an id that already belongs to another org (0854 §4).
+  // reserved by the command, and the dispatch refuses one the book already holds before any outbox row (0854 §4 records it at finalize).
   equipment: ['asset_id'],
 };
 

@@ -316,4 +316,15 @@ describe('describePushError — the register and maintenance refusals (#1511 F4)
       expect(describePushError(code).message).not.toMatch(RAW_ADAPTER_TOKEN);
     }
   });
+
+  it('names a reused asset identity, and each unresolvable picker, as a sentence with a route out and no retry', () => {
+    for (const code of ['record-id-invalid', 'vehicle-model-invalid', 'stage-invalid', 'service-type-invalid', 'vendor-invalid']) {
+      const copy = describePushError(code);
+      expect(copy.code).toBe(code);
+      expect(copy.message).not.toMatch(/could not be classified/i);
+      expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+      expect(copy.retryable).toBe(false);
+      expect(copy.remedy).not.toBeNull();
+    }
+  });
 });
