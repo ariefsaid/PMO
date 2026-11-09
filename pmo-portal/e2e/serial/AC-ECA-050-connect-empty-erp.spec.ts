@@ -17,13 +17,13 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import {
   AUTH_URL, SERVICE_KEY, benchPartyCount, FUNCTIONS_URL, READY, activateBinding, benchCount, benchDoc, benchList,
-  createBenchCompany, createOrg, dropOrg, loginAs, openMatchRecords, untilWithSweep,
+  createBenchCompany, createOrg, dropOrg, loginAs, openMatchRecords, orgSendState, untilWithSweep,
 } from './_ecaHelpers';
 import { runFullSweep } from './_sweepHelpers';
 
 if (FUNCTIONS_URL && !READY) throw new Error('AC-ECA-050: the served lane is up but its disposable ERP fixture env is incomplete: never a silent skip.');
 test.skip(!READY, 'AC-ECA-050 requires the served lane and the prepared ERPNext bed.');
-test.setTimeout(420_000);
+test.setTimeout(600_000);
 
 test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are sent, a new purchase reaches the ERP, nothing before the connection is sent', async ({ page }) => {
   const admin = createClient(AUTH_URL, SERVICE_KEY);
@@ -74,7 +74,9 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
     // The sweep sends the masters; then the Admin re-reads both sides (the census is a snapshot) and sees the ERP side hold them. The bed's other parties are brought in too, so the PMO-side count is bed-dependent; links are asserted on the records below.
     await untilWithSweep(org.orgId, async () => {
       expect(await benchPartyCount(), 'the sends reached the ERP').toBe(partiesBefore + 3);
-    }, 90_000);
+    }, 90_000).catch(async (err) => {
+      throw new Error(`the three sent vendors did not all reach the ERP: ${(err as Error).message}; ${await orgSendState(admin, org.orgId)}`, { cause: err });
+    });
     await review.getByRole('button', { name: 'Check again' }).click();
     await untilWithSweep(org.orgId, async () => {
       await expect(partyCard).toContainText(`${partiesBefore + 3} in the connected system`, { timeout: 3_000 });
@@ -86,6 +88,15 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
     await page.getByRole('button', { name: 'Approve' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Approve', exact: true }).click();
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 30_000 });
+    // A line item is only offered to the ERP once its purchase is approved (a Draft line can still be renamed), so the new
+    // purchase's own item goes out on the next tick. An order naming an item the ERP does not hold yet is refused, so the
+    // Admin waits for the send to land — the ERP really holding all four — before placing the order on them.
+    await untilWithSweep(org.orgId, async () => {
+      expect(await benchCount('Item', [['item_code', 'like', `%${suffix}%`]]), 'the four sent line items reached the ERP').toBe(item.length);
+    }, 300_000).catch(async (err) => {
+      const sent = (await benchList('Item', [['item_code', 'like', `%${suffix}%`]], ['item_code'])).map((r) => r.item_code);
+      throw new Error(`the sent line items are not all in the ERP (there: ${JSON.stringify(sent)}): ${(err as Error).message}; ${await orgSendState(admin, org.orgId)}`, { cause: err });
+    });
     // An ERP-owned purchase places its order through the Purchase Order capture, which sends it to the ERP.
     await page.getByRole('button', { name: 'Record order' }).click();
     await page.getByTestId('purchase_order-ref-input').fill(`PO-NEW-${suffix}`);
@@ -99,7 +110,7 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
       expect(pos, 'exactly one ERP Purchase Order (the new purchase), none for the pre-connect one').toHaveLength(1);
       poName = String(pos[0].name);
     }, 90_000).catch(async (err) => {
-      const { data: rows } = await admin.from('external_command_outbox').select('domain,state,operation,last_error,attempt_count').eq('org_id', org.orgId).not('domain', 'in', '(companies,items)');
+      const { data: rows } = await admin.from('external_command_outbox').select('domain,state,operation,last_error,attempt_count').eq('org_id', org.orgId);
       const { data: own } = await admin.from('external_domain_ownership').select('domain').eq('org_id', org.orgId);
       const { data: pos } = await admin.from('purchase_orders').select('po_number,status').eq('org_id', org.orgId);
       const { data: pr } = await admin.from('procurements').select('title,status').eq('org_id', org.orgId);

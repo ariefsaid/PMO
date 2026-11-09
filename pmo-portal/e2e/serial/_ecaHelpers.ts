@@ -169,3 +169,14 @@ export async function openMatchRecords(page: Page, org: EcaOrg): Promise<void> {
 
 /** Parties the bench already holds before the test adds any: ERPNext suppliers/customers are site-wide, not per Company. */
 export const benchPartyCount = async (): Promise<number> => (await benchCount('Supplier')) + (await benchCount('Customer'));
+
+/**
+ * The org's own record of what it tried to send, for a failure message: a journey that waits for a send to land
+ * has to say WHY it did not, not just that a count stayed short.
+ */
+export async function orgSendState(admin: SupabaseClient, orgId: string): Promise<string> {
+  const { data: outbox } = await admin.from('external_command_outbox')
+    .select('domain,state,operation,attempt_count,last_error').eq('org_id', orgId);
+  const { data: own } = await admin.from('external_domain_ownership').select('domain').eq('org_id', orgId);
+  return `owned domains: ${JSON.stringify(own ?? [])}; outbox: ${JSON.stringify(outbox ?? []).slice(0, 3000)}`;
+}
