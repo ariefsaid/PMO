@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import { Command, defaultFilter, useCommandState, type CommandFilter } from 'cmdk';
+import { Command, defaultFilter, useCommandState } from 'cmdk';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { cn } from '@/src/components/ui/cn';
@@ -271,7 +271,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // Static commands are scored by cmdk's fuzzy matcher; record rows are already
   // filtered/ranked above (filterAndCap) so cmdk passes them through and counts them;
   // the Ask AI and note rows are offered verbatim (forceMount) and are never results.
-  const commandFilter = useMemo<CommandFilter>(() => (value, search, keywords) => {
+  const commandFilter = useMemo(() => (value: string, search: string, keywords?: string[]) => {
     if (value.startsWith(RECORD_VALUE_PREFIX)) return 1;
     if (value.startsWith(ASK_AI_VALUE_PREFIX) || value.startsWith('note:')) return 0;
     return defaultFilter(value, search, keywords);
