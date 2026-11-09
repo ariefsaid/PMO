@@ -10,3 +10,4 @@ drop policy if exists equipment_assets_odoo_owned_delete on public.equipment_ass
 drop function if exists public.record_odoo_asset_created(uuid, text, jsonb, uuid, text);
 drop function if exists public.accept_equipment_asset_matches(jsonb);
 drop function if exists public.list_equipment_asset_matches();
+drop function if exists public.odoo_adoption_code(uuid, text, text, text, uuid);

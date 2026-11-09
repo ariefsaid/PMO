@@ -3,16 +3,20 @@
 --   1. list_equipment_asset_matches — the proposal an Admin reviews: every unlinked mirrored vehicle / equipment item,
 --      matched by code (trimmed, case-insensitive) to exactly one live unlinked PMO asset, else proposed as new. Two
 --      candidates on either side are proposed as new, never linked (never auto-merge, OQ-9).
---   2. accept_equipment_asset_matches — Admin only, one transaction for the whole batch, audited: links the accepted
---      pairs and adds the rest as new PMO assets. Called by the asset-matching screen.
---   3. record_odoo_asset_created — service role only: a confirmed Odoo create of a vehicle / equipment item lands in
+--   2. odoo_adoption_code — the one rule both writers use for the PMO code an adopted asset takes: Odoo's plate /
+--      serial when it is free in the org, else the made-up `ODOO-<kind initial><odoo id>`. A code that is already live
+--      is never taken away from the asset that holds it, and never refuses the batch (D10: the code is the key).
+--   3. accept_equipment_asset_matches — Admin only, one transaction for the whole batch, audited: links the accepted
+--      pairs and adds the rest as new PMO assets. Called by the asset-matching screen, whose "Accept all" sends the
+--      proposal back exactly as the read returned it.
+--   4. record_odoo_asset_created — service role only: a confirmed Odoo create of a vehicle / equipment item lands in
 --      the mirror and as one linked PMO asset under the id the outbox command reserved.
---   4. equipment_assets_odoo_owned_{insert,update,delete} — restrictive RLS: while the org employs `equipment` under
+--   5. equipment_assets_odoo_owned_{insert,update,delete} — restrictive RLS: while the org employs `equipment` under
 --      Odoo, no client may insert, rename or delete an asset; the register is the only way in (D8). Before employ the
 --      shipped rules apply unchanged.
 -- Reversal: rollback/0854_odoo_equipment_adoption_down.sql.
 -- ── REVERSE ─────────────────────────────────────────────────────────────────────────────────────────────
---   drop the three restrictive policies and the three functions. The links already made (external_tier /
+--   drop the three restrictive policies and the four functions. The links already made (external_tier /
 --   external_ref on equipment_assets) are NOT cleared: the columns predate 0854 (#1519 OQ-9), and a down migration
 --   must not lose what people adopted in use.
 
@@ -55,7 +59,10 @@ language sql stable security invoker set search_path = public as $$
          case when o.is_link then o.hit_id end,
          case when o.is_link then o.hit_code end,
          case when o.is_link then o.hit_name end,
-         case when o.hit_id is null then 'no-code'
+         -- A tie is named a tie whether or not a PMO asset carries the code: two Odoo rows over one code are never
+         -- merged, and the Admin is told why the row is being added (the accept falls back to a made-up code).
+         case when o.mirror_n > 1 then 'two-codes'
+              when o.hit_id is null then 'no-code'
               when o.is_link then 'same-code'
               else 'two-codes' end
     from one o
@@ -64,7 +71,36 @@ $$;
 revoke all on function public.list_equipment_asset_matches() from public, anon;
 grant execute on function public.list_equipment_asset_matches() to authenticated;
 
--- ── 2. accept the proposals, once ────────────────────────────────────────────────────────────────────────────────
+-- ── 2. the code an adopted asset takes, shared by the accept RPC and the recorder ────────────────────────────────
+-- Odoo's plate / serial when it is still free in the org, else the made-up `ODOO-<kind initial><odoo id>` (unique per
+-- kind and id, so two Odoo rows that share a code both land). A live code is never taken from the asset that holds it
+-- (D10: the code is the key in T&M, costing and the CLI), and taking one never refuses the batch (D9 "Accept all").
+-- 23505 only when even the made-up code is taken — then something is genuinely wrong with the book.
+-- p_exclude_id is the asset being written, so a replayed finalize sees its own code as free.
+create function public.odoo_adoption_code(p_org_id uuid, p_kind text, p_external_id text, p_code text, p_exclude_id uuid default null)
+returns text language plpgsql stable security invoker set search_path = public as $$
+declare v_code text; v_taken boolean;
+begin
+  v_code := nullif(btrim(p_code), '');
+  if v_code is not null then
+    select exists (select 1 from public.equipment_assets a
+                    where a.org_id = p_org_id and a.archived_at is null
+                      and lower(btrim(a.code)) = lower(btrim(v_code))
+                      and a.id is distinct from p_exclude_id) into v_taken;
+    if not v_taken then return v_code; end if;
+  end if;
+  v_code := 'ODOO-' || upper(left(p_kind, 1)) || p_external_id;
+  if exists (select 1 from public.equipment_assets a
+              where a.org_id = p_org_id and a.archived_at is null
+                and lower(btrim(a.code)) = lower(btrim(v_code))
+                and a.id is distinct from p_exclude_id) then
+    raise exception 'a PMO asset with code % already exists', v_code using errcode = '23505';
+  end if;
+  return v_code;
+end $$;
+revoke all on function public.odoo_adoption_code(uuid,text,text,text,uuid) from public, anon, authenticated;
+
+-- ── 3. accept the proposals, once ────────────────────────────────────────────────────────────────────────────────
 create function public.accept_equipment_asset_matches(p_pairs jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
@@ -107,9 +143,9 @@ begin
     v_ext := split_part(v_ref, ':', 2);
     select * into m from public.external_master_records r
      where r.org_id = v_org and r.external_tier = 'odoo' and r.kind = v_kind and r.external_id = v_ext
-       and r.tombstoned_at is null;
+       and r.active and r.tombstoned_at is null;   -- archived in Odoo: never adopt it (the proposal hides it too)
     if not found then
-      raise exception 'Odoo asset % is not in this organization', v_ref using errcode = 'P0002';
+      raise exception 'Odoo asset % is not an active asset in this organization', v_ref using errcode = 'P0002';
     end if;
     if exists (select 1 from public.equipment_assets l
                 where l.org_id = v_org and l.external_tier = 'odoo' and l.external_ref = v_ref) then
@@ -134,7 +170,9 @@ begin
       update public.equipment_assets set external_tier = 'odoo', external_ref = v_ref where id = v_asset.id;
       v_linked := v_linked + 1;
     else
-      v_code := coalesce(nullif(btrim(m.code), ''), 'ODOO-' || upper(left(v_kind, 1)) || v_ext);
+      -- A proposed code that is already live (a tie the Admin accepted, a legacy row, an asset the feed linked) is
+      -- never refused: the asset takes the made-up code instead, so "Accept all" of the proposal always lands (I1).
+      v_code := public.odoo_adoption_code(v_org, v_kind, v_ext, m.code);
       v_name := coalesce(nullif(left(btrim(m.name), 120), ''), v_code);
       v_unit := coalesce(nullif(btrim(coalesce(p->>'default_unit', '')), ''), 'hours');
       if v_unit not in ('hours','days') then
@@ -142,11 +180,6 @@ begin
       end if;
       if char_length(v_code) > 40 then
         raise exception 'the PMO code % is longer than 40 characters', v_code using errcode = '22023';
-      end if;
-      if exists (select 1 from public.equipment_assets a
-                  where a.org_id = v_org and a.archived_at is null
-                    and lower(btrim(a.code)) = lower(btrim(v_code))) then
-        raise exception 'a PMO asset with code % already exists', v_code using errcode = '23505';
       end if;
       insert into public.equipment_assets (org_id, code, name, default_unit, external_tier, external_ref, created_by)
       values (v_org, v_code, v_name, v_unit, 'odoo', v_ref, v_actor);
@@ -160,7 +193,7 @@ end $$;
 revoke all on function public.accept_equipment_asset_matches(jsonb) from public, anon, authenticated;
 grant execute on function public.accept_equipment_asset_matches(jsonb) to authenticated;
 
--- ── 3. the created-asset recorder (a confirmed Odoo create) ─────────────────────────────────────────────────────
+-- ── 4. the created-asset recorder (a confirmed Odoo create) ─────────────────────────────────────────────────────
 create function public.record_odoo_asset_created(p_org_id uuid, p_kind text, p_row jsonb, p_asset_id uuid, p_default_unit text)
 returns void language plpgsql security definer set search_path = public as $$
 declare v_ext text; v_ref text; v_code text; v_name text; v_unit text;
@@ -186,7 +219,9 @@ begin
                 and a.id <> p_asset_id) then
     raise exception 'Odoo asset % is already linked to a PMO asset', v_ref using errcode = '23505';
   end if;
-  v_code := coalesce(nullif(btrim(p_row->>'code'), ''), 'ODOO-' || upper(left(p_kind, 1)) || v_ext);
+  -- A plate / serial that is already a live PMO code must not pin the finalize forever: the asset lands under the
+  -- made-up code, exactly as the accept RPC's add path does (I2 — one rule, one place).
+  v_code := public.odoo_adoption_code(p_org_id, p_kind, v_ext, p_row->>'code', p_asset_id);
   v_name := coalesce(nullif(left(btrim(p_row->>'name'), 120), ''), v_code);
   v_unit := coalesce(nullif(btrim(coalesce(p_default_unit, '')), ''), 'hours');
   if v_unit not in ('hours','days') then
@@ -199,25 +234,34 @@ begin
   insert into public.equipment_assets (id, org_id, code, name, default_unit, external_tier, external_ref)
   values (p_asset_id, p_org_id, v_code, v_name, v_unit, 'odoo', v_ref)
   on conflict (id) do nothing;
+  -- The reserved id is the command's identity, so a replay must land the same record in the same org. An id that
+  -- already belongs to another org, or to a different Odoo record, is reported and never counted as done (M3).
+  if not exists (select 1 from public.equipment_assets a
+                  where a.id = p_asset_id and a.org_id = p_org_id and a.external_ref = v_ref) then
+    raise exception 'the PMO asset id % is already in use', p_asset_id using errcode = '23505';
+  end if;
 end $$;
 revoke all on function public.record_odoo_asset_created(uuid,text,jsonb,uuid,text) from public, anon, authenticated;
 grant execute on function public.record_odoo_asset_created(uuid,text,jsonb,uuid,text) to service_role;
 
--- ── 4. the PMO-asset guard (D8, FR-OFM-022) ─────────────────────────────────────────────────────────────────────
--- 0646 initplan form: the ownership test is a scalar sub-select so it resolves once per statement. The F3 definer
--- writers above are unaffected (they run as the owner, which bypasses RLS); clients are the only audience of these.
+-- ── 5. the PMO-asset guard (D8, FR-OFM-022) ─────────────────────────────────────────────────────────────────────
+-- 0646 initplan form, and the whole test is the scalar sub-select: `org_employs_odoo_equipment` is `set search_path`,
+-- so it cannot be inlined and would otherwise run once per row; wrapped, the ownership test and the `auth_org_id()`
+-- inside it resolve once per statement. The F3 definer writers above are unaffected (they run as the owner, which
+-- bypasses RLS); clients are the only audience of these.
 create policy equipment_assets_odoo_owned_insert on public.equipment_assets as restrictive for insert to authenticated
-  with check (not public.org_employs_odoo_equipment((select public.auth_org_id())));
+  with check ((select not public.org_employs_odoo_equipment((select public.auth_org_id()))));
 create policy equipment_assets_odoo_owned_update on public.equipment_assets as restrictive for update to authenticated
-  using (not public.org_employs_odoo_equipment((select public.auth_org_id())))
-  with check (not public.org_employs_odoo_equipment((select public.auth_org_id())));
+  using ((select not public.org_employs_odoo_equipment((select public.auth_org_id()))))
+  with check ((select not public.org_employs_odoo_equipment((select public.auth_org_id()))));
 create policy equipment_assets_odoo_owned_delete on public.equipment_assets as restrictive for delete to authenticated
-  using (not public.org_employs_odoo_equipment((select public.auth_org_id())));
+  using ((select not public.org_employs_odoo_equipment((select public.auth_org_id()))));
 
 do $$ begin
   if has_function_privilege('anon', 'public.accept_equipment_asset_matches(jsonb)', 'execute')
      or has_function_privilege('anon', 'public.list_equipment_asset_matches()', 'execute')
-     or has_function_privilege('authenticated', 'public.record_odoo_asset_created(uuid,text,jsonb,uuid,text)', 'execute') then
-    raise exception 'the accept RPC and the proposal read are client-only; the recorder is service-only';
+     or has_function_privilege('authenticated', 'public.record_odoo_asset_created(uuid,text,jsonb,uuid,text)', 'execute')
+     or has_function_privilege('authenticated', 'public.odoo_adoption_code(uuid,text,text,text,uuid)', 'execute') then
+    raise exception 'the accept RPC and the proposal read are client-only; the recorder and the code rule are internal';
   end if;
 end $$;
