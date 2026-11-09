@@ -292,7 +292,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
     const rpc = vi.fn(async (_n: string, args: { p_rows: unknown[] }) => ({ data: args.p_rows.length, error: null }));
     const fetchImpl = vi.fn(async (url: string) => new Response(JSON.stringify({
-      data: decodeURIComponent(url).includes('Purchase Invoice Item') ? [] : [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 })) as unknown as typeof fetch;
+      data: decodeURIComponent(url).includes(' Item') ? [] : [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 })) as unknown as typeof fetch;
     const from = (table: string) => {
       const builder = fake.from(table) as Record<string, (...args: unknown[]) => unknown>;
       return { ...builder, update: (...args: unknown[]) => {
@@ -317,7 +317,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
       lists += 1;
       if (lists > 1) throw new Error('later read failed');
       return new Response(JSON.stringify({ data: rows }), { status: 200 });
-    });
+    }) as unknown as typeof fetch;
     const sc = { from: (t: string) => fake.from(t), rpc } as never;
     const client = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 };
 
@@ -378,7 +378,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     try {
       const h = harness({});
       let reads = 0;
-      const fetchImpl = vi.fn(async () => {
+      const fetchImpl = vi.fn(async (_url?: string) => {
         reads += 1;
         if (reads === 1) vi.setSystemTime(21000); // 4s left, under one request timeout
         return new Response(JSON.stringify({ data: reads === 1 ? [PO] : [] }), { status: 200 });
@@ -459,9 +459,11 @@ describe('erpnext/purchaseMirrorFeed', () => {
     vi.setSystemTime(0);
     try {
       const h = harness({});
-      h.client.fetchImpl = vi.fn(async () => {
-        vi.setSystemTime(25000);
-        return new Response(JSON.stringify({ data: [PO] }), { status: 200 });
+      h.client.fetchImpl = vi.fn(async (url: string) => {
+        // the item read (after the list, before the write) is what burns the budget
+        const isItems = decodeURIComponent(url).includes('Purchase Order Item');
+        if (isItems) vi.setSystemTime(25000);
+        return new Response(JSON.stringify({ data: isItems ? [] : [PO] }), { status: 200 });
       }) as unknown as typeof fetch;
       await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('Purchase mirror pass deadline exceeded');
       expect(h.rpc).not.toHaveBeenCalled();
