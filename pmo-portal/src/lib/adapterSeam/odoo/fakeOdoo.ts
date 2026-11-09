@@ -27,7 +27,7 @@ const FIELDS: Record<string, string[]> = {
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
   'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
-  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'journal_id', 'date', 'invoice_line_ids', 'line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
+  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'narration', 'invoice_date', 'invoice_date_due', 'journal_id', 'date', 'invoice_line_ids', 'line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
@@ -48,6 +48,10 @@ const FIELDS: Record<string, string[]> = {
 
 const fmt = (n: number) => new Date(Date.UTC(2026, 0, 1) + n * 1000).toISOString().slice(0, 19).replace('T', ' ');
 const scalar = (v: unknown) => (Array.isArray(v) ? v[0] : v ?? false);
+/** Odoo's Monetary rounding: half away from zero, so a split of 100.01 at 60 % is 60.01 and the remainder 40.00 (V-ODA2). */
+const roundHalfAway = (v: number) => Math.sign(v) * Math.round(Math.abs(v));
+/** The fields V-OLH-9 locks on a posted move: its lines and its amounts, never `ref`/`narration` (V-OPP2 verified those save). */
+const POSTED_MOVE_LOCKED = ['line_ids', 'debit', 'credit', 'balance', 'amount_untaxed', 'amount_tax', 'amount_total', 'analytic_distribution'] as const;
 
 function matchLeaf(row: Row, [field, op, value]: [string, string, unknown]): boolean {
   const v = scalar(row[field]);
@@ -318,7 +322,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const id = newId('account.move');
     const { line_ids: tuples, ...rest } = vals;
     const stamp = fmt(++clock);
-    table('account.move').set(id, { active: true, state: 'draft', name: '/', ...rest, id, create_date: stamp, write_date: stamp });
+    // V-ODA1: `name` and `move_name` read false until the move is posted, never `/`.
+    table('account.move').set(id, { active: true, state: 'draft', name: false, ...rest, id, create_date: stamp, write_date: stamp });
     const lineIds = ((tuples as unknown[][] | undefined) ?? []).map((tuple) => {
       const v = (tuple[2] ?? {}) as Record<string, unknown>;
       const debit = Number(v.debit ?? 0), credit = Number(v.credit ?? 0);
@@ -326,7 +331,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       table('account.move.line').set(lineId, {
         id: lineId, move_id: id, display_type: 'product', name: v.name ?? false, account_id: v.account_id ?? false,
         debit, credit, balance: debit - credit, analytic_distribution: v.analytic_distribution ?? false,
-        move_name: '/', parent_state: 'draft', date: rest.date ?? false, journal_id: rest.journal_id ?? false,
+        move_name: false, parent_state: 'draft', date: rest.date ?? false, journal_id: rest.journal_id ?? false,
         company_id: rest.company_id ?? false, write_date: stamp,
       });
       return lineId;
@@ -335,13 +340,31 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     return id;
   };
   /**
-   * `action_post {ids}` on an entry (V-OLH-7): the move goes `posted`, and each debit line's `analytic_distribution`
-   * generates one `account.analytic.line` per split at that share of the debit — the GL and the analytic ledger meeting.
+   * Odoo's analytic split of one line's `balance` (V-ODA2): each share is `round(balance × share %)` and the last takes
+   * the remainder, so the generated amounts sum to the balance exactly and the odd cent lands on the larger share.
+   */
+  const splitBalance = (balanceCents: number, shares: Array<[string, number]>): number[] => {
+    const out: number[] = [];
+    let allocated = 0;
+    shares.forEach(([, share], i) => {
+      const cents = i === shares.length - 1 ? balanceCents - allocated : roundHalfAway(balanceCents * share / 100);
+      allocated += cents;
+      out.push(cents);
+    });
+    return out;
+  };
+  /**
+   * `action_post {ids}` on an entry (V-OLH-7): the move goes `posted`, and each line's `analytic_distribution` generates
+   * one `account.analytic.line` per split at that share of the line's balance — the GL and the analytic ledger meeting.
    */
   const postEntryMove = (row: Row) => {
     if (row.state !== 'draft') throw userError('The entry must be in draft state to be posted.');
     const stamp = fmt(++clock);
-    const name = `MISC/2026/${String(++entrySeq).padStart(5, '0')}`;
+    // A misc entry's name is `<journal code>/<year>/<sequence>` (V-ODA1): the year is the entry's own date, not the clock's.
+    const journal = table('account.journal').get(Number(row.journal_id));
+    const code = typeof journal?.code === 'string' ? journal.code : 'MISC';
+    const year = String(row.date ?? fmt(clock)).slice(0, 4);
+    const name = `${code}/${year}/${String(++entrySeq).padStart(5, '0')}`;
     Object.assign(row, { state: 'posted', name, write_date: stamp });
     for (const lineId of ((row.line_ids as number[] | undefined) ?? [])) {
       const line = table('account.move.line').get(lineId);
@@ -349,19 +372,24 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       Object.assign(line, { move_name: name, parent_state: 'posted', write_date: stamp });
       const dist = line.analytic_distribution;
       if (!dist || typeof dist !== 'object' || Array.isArray(dist)) continue;
-      for (const [accountId, share] of Object.entries(dist as Record<string, unknown>)) {
-        if (typeof share !== 'number' || !Number.isFinite(share)) continue;
+      // V-ODA2 verified: the generated line's `amount` is the NEGATIVE of the move line's balance (+100.01 writes −100.01),
+      // and `account_id` reads false on v20 (the account sits in per-plan columns; `plan_id` is not a field there). A
+      // created *timesheet* line does carry `account_id` — the two paths differ, as they do on the bed.
+      const shares = Object.entries(dist as Record<string, unknown>)
+        .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]));
+      const amounts = splitBalance(Math.round(Number(line.balance ?? 0) * 100), shares);
+      for (const amount of amounts) {
         const id = newId('account.analytic.line');
-        const debitCents = Math.round(Number(line.debit ?? 0) * 100);
         table('account.analytic.line').set(id, {
-          id, name: line.name ?? false, account_id: Number(accountId), project_id: false, employee_id: false,
-          date: row.date ?? false, unit_amount: 0, amount: Math.round(debitCents * share / 100) / 100,
+          id, name: line.name ?? false, account_id: false, project_id: false, employee_id: false,
+          date: row.date ?? false, unit_amount: 0, amount: units(-amount),
           company_id: row.company_id ?? false, write_date: stamp,
         });
       }
     }
   };
-  const postInvoice = (row: Row) => {    if (row.state !== 'draft') throw userError('The entry must be in draft state to be posted.');
+  const postInvoice = (row: Row) => {
+    if (row.state !== 'draft') throw userError('The entry must be in draft state to be posted.');
     if (!row.partner_id) throw userError('The field Customer is required.');
     const t = totals(row.id);
     if (t.total < 0) throw userError('An invoice with a negative total cannot be posted.');
@@ -454,8 +482,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const r = table(m).get(id);
         if (!r) continue;
-        // V-OLH-9: a posted journal entry refuses a write, so a correction must be a new entry (D7).
-        if (m === 'account.move' && r.state === 'posted') throw userError('You cannot modify a posted entry.');
+        // V-OLH-9: a posted move refuses a write to its lines or amounts, so a correction must be a new entry (D7).
+        // `ref` and `narration` stay writable — V-OPP2 verified a posted bill's narration save on the bed.
+        if (m === 'account.move' && r.state === 'posted' && POSTED_MOVE_LOCKED.some((field) => field in (b.vals as Record<string, unknown>))) throw userError('You cannot modify a posted entry.');
         const { order_line: lines, ...rest } = b.vals as Record<string, unknown>;
         table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : (b.vals as object)), id, write_date: fmt(++clock) });
         if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);

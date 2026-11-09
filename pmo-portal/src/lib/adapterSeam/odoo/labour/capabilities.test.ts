@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LABOUR_MODELS, type ModelProbe } from '../discovery.ts';
-import { LABOUR_WRITE_MODELS, labourCapabilityGap } from './capabilities.ts';
+import { labourCapabilityGap } from './capabilities.ts';
 
 const OK: ModelProbe = { exists: true, read: true, create: true, write: true, unlink: false, fields_missing: [] };
 const full = () => Object.fromEntries(Object.keys(LABOUR_MODELS).map((m) => [m, { ...OK }])) as Record<string, ModelProbe>;
@@ -38,8 +38,7 @@ describe('odoo/labour/capabilities — AC-OLH-001 labourCapabilityGap', () => {
     expect(labourCapabilityGap(snap({ 'hr.employee': { read: false } }))).toBe('hr.employee');
   });
   it('AC-OLH-001 the walk order is LABOUR_MODELS order, and it names the first gap it finds', () => {
-    expect([...LABOUR_WRITE_MODELS]).toEqual(['account.analytic.line', 'account.move', 'account.move.line']);
-    expect(Object.keys(LABOUR_MODELS)[0]).toBe('hr.employee');
     expect(labourCapabilityGap(snap({ 'hr.employee': { read: false }, 'account.move': { write: false } }))).toBe('hr.employee');
+    expect(labourCapabilityGap(snap({ 'account.move': { write: false }, 'hr.employee': { create: false, write: false } }))).toBe('account.move:write');
   });
 });

@@ -151,34 +151,80 @@ describe('fakeOdoo', () => {
       expect((fake.rows('hr.employee')[0].write_date as string) > before).toBe(true);
     });
 
-    it('V-OLH-7 posting an entry posts it and generates one analytic line per distribution split, at the debit', async () => {
+    it('V-OLH-7 posting an entry posts it and generates one analytic line per distribution at the negative of the balance', async () => {
       const { fake, call } = setup();
       const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [ENTRY] });
       expect(fake.rows('account.move')[0]).toMatchObject({ state: 'draft', move_type: 'entry', journal_id: 9 });
       await call('account.move', 'action_post', { ids: [moveId] });
       const move = fake.rows('account.move')[0];
       expect(move.state).toBe('posted');
-      expect(move.name).not.toBe('/');
+      expect(move.name).not.toBe(false);
       expect(fake.rows('account.move.line')).toMatchObject([
         { move_id: moveId, account_id: 41, debit: 1000000, credit: 0, parent_state: 'posted' },
         { move_id: moveId, account_id: 42, debit: 0, credit: 1000000, parent_state: 'posted' },
       ]);
-      expect(fake.rows('account.analytic.line')).toMatchObject([{ account_id: 77, amount: 1000000, date: '2026-10-31' }]);
+      // V-ODA2 verified: amount is the negative of the line's balance, and a generated line's account_id reads false on v20.
+      expect(fake.rows('account.analytic.line')).toMatchObject([{ account_id: false, amount: -1000000, date: '2026-10-31' }]);
     });
 
     it('V-OLH-8 a distribution split across two analytic accounts generates one analytic line per split share', async () => {
       const { fake, call } = setup();
       const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [{ ...ENTRY, line_ids: [[0, 0, { account_id: 41, name: 'Labour · P-1', debit: '1000000.00', credit: '0.00', analytic_distribution: { '77': 60, '78': 40 } }], [0, 0, { account_id: 42, name: 'Payroll payable', debit: '0.00', credit: '1000000.00' }]] }] });
       await call('account.move', 'action_post', { ids: [moveId] });
-      expect(fake.rows('account.analytic.line')).toMatchObject([{ account_id: 77, amount: 600000 }, { account_id: 78, amount: 400000 }]);
+      expect(fake.rows('account.analytic.line')).toMatchObject([{ amount: -600000 }, { amount: -400000 }]);
     });
 
-    it('V-OLH-9 a posted journal entry refuses a write', async () => {
+    it('V-OLH-7 a credit-side expense line reverses in the analytic ledger, so a downward revision posts its own line', async () => {
+      const { fake, call } = setup();
+      const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [{ ...ENTRY, line_ids: [
+        [0, 0, { account_id: 41, name: 'Labour · P-2', debit: '0.00', credit: '1000.00', analytic_distribution: { '78': 100 } }],
+        [0, 0, { account_id: 42, name: 'Payroll payable', debit: '1000.00', credit: '0.00' }],
+      ] }] });
+      await call('account.move', 'action_post', { ids: [moveId] });
+      expect(fake.rows('account.move')[0].state).toBe('posted');
+      expect(fake.rows('account.analytic.line')).toMatchObject([{ account_id: false, amount: 1000 }]);
+    });
+
+    it('V-ODA2 the split rounds each share and gives the last the remainder, so the amounts sum to the balance exactly', async () => {
+      const { fake, call } = setup();
+      const entry = (debit: string, distribution: Record<string, number>) => ({
+        ...ENTRY,
+        line_ids: [[0, 0, { account_id: 41, name: 'Labour · P-1', debit, credit: '0.00', analytic_distribution: distribution }]],
+      });
+      const [odd] = await call<number[]>('account.move', 'create', { vals_list: [entry('100.01', { '77': 60, '78': 40 })] });
+      const [even] = await call<number[]>('account.move', 'create', { vals_list: [entry('0.05', { '77': 50, '78': 50 })] });
+      await call('account.move', 'action_post', { ids: [odd, even] });
+      expect(fake.rows('account.analytic.line').map((l) => l.amount)).toEqual([-60.01, -40, -0.03, -0.02]);
+    });
+
+    it('V-OLH-9 a posted move refuses a write to its lines or amounts, while ref and narration stay writable', async () => {
       const { fake, call } = setup();
       const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [ENTRY] });
       await call('account.move', 'action_post', { ids: [moveId] });
-      await expect(call('account.move', 'write', { ids: [moveId], vals: { ref: 'again' } })).rejects.toMatchObject({ errorClass: 'validation' });
-      expect(fake.rows('account.move')[0].ref).toBe('PMO labour 2026-10');
+      await expect(call('account.move', 'write', { ids: [moveId], vals: { line_ids: [] } })).rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('account.move.line')).toHaveLength(2);
+      // V-OPP2 verified a second user saving a posted bill's narration: ref and narration are not locked.
+      await call('account.move', 'write', { ids: [moveId], vals: { ref: 'again', narration: 'why the correction' } });
+      expect(fake.rows('account.move')[0]).toMatchObject({ ref: 'again', narration: 'why the correction' });
+    });
+
+    it('V-OPP2 a posted invoice still accepts a narration write', async () => {
+      const { fake, call } = setup();
+      const [id] = await call<number[]>('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: 5, invoice_line_ids: [[0, 0, { name: 'Progress claim', quantity: 1, price_unit: 10 }]] }] });
+      await call('account.move', 'action_post', { ids: [id] });
+      await call('account.move', 'write', { ids: [id], vals: { narration: 'posted note' } });
+      expect(fake.rows('account.move')[0]).toMatchObject({ state: 'posted', narration: 'posted note' });
+    });
+
+    it('V-ODA1 a draft entry reads name false and move_name false; posting numbers it from the journal code and the entry year', async () => {
+      const { fake, call } = setup();
+      fake.seed('account.journal', [{ id: 9, code: 'MISC', name: 'Miscellaneous Operations' }]);
+      const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [{ ...ENTRY, date: '2025-12-31' }] });
+      expect(fake.rows('account.move')[0].name).toBe(false);
+      expect(fake.rows('account.move.line')[0].move_name).toBe(false);
+      await call('account.move', 'action_post', { ids: [moveId] });
+      expect(fake.rows('account.move')[0].name).toBe('MISC/2025/00001');
+      expect(fake.rows('account.move.line')[0].move_name).toBe('MISC/2025/00001');
     });
 
     it('V-OLH-11 deleting an analytic line removes it and leaves no tombstone anywhere', async () => {

@@ -4,10 +4,23 @@
  * journal entry reaches both the analytic and the financial ledger (D1). Amounts are integer cents in and decimal
  * strings out — never a float (NFR-ODA-001).
  *
+ * A revision is signed: a project whose batch allocation *fell* posts its delta on the credit side, and the payable leg
+ * follows the signed total (credit when it rises, debit when it falls) so `debit total = credit total` holds exactly
+ * (AC-OLH-030). `settled` means every delta is exactly zero, nothing else (FR-OLH-022): a non-zero delta is money the
+ * ledger is owed, and posting nothing for it would leave Odoo's labour expense permanently apart from PMO's figure.
+ *
  * Bed claims this file is written to, still assumptions behind the plan's fake until L0 records a verdict:
- * V-OLH-7 (`account.move/create {move_type:'entry', journal_id, line_ids}` then `action_post` posts it),
- * V-OLH-8 (`analytic_distribution` keys are analytic-account ids **as strings**, values numbers, and a yearless key is
- * accepted on an entry line). No anchor travels in the body: the anchor is the `ir.model.data` row (V-OLH-6).
+ * V-OLH-7 (`account.move/create {move_type:'entry', journal_id, line_ids}` then `action_post` posts it — and, per this
+ * file, that `action_post` accepts a line carrying a credit and a move whose payable leg is a debit, which no probe has
+ * exercised yet: an L0 verdict owed by the plan's V-OLH-7 battery), V-OLH-8 (`analytic_distribution` keys are
+ * analytic-account ids **as strings**, values numbers, and a yearless key is accepted on an entry line). No anchor
+ * travels in the body: the anchor is the `ir.model.data` row (V-OLH-6).
+ *
+ * The money is sent as decimal strings (`'1000000.00'`), not JSON numbers. That is deliberate — exact decimal out of
+ * integer cents is the one form with no float in the path — but it is a wire format no V-OLH row has verified, and every
+ * other Odoo money body in this repo sends numbers. It is a claim, not a fact: L0's V-OLH-7 battery must create the entry
+ * with this exact body and read it back; if the bed refuses or truncates a string on a Monetary field, the change is
+ * `Number(formatCents(...))` at the two `formatCents` call sites plus the test fixture.
  */
 import { formatCents } from '../ledger/cents.ts';
 import { isIsoDate } from './bodies.ts';
@@ -19,7 +32,7 @@ export interface CostLine {
   projectCode: string;
   /** The project's analytic account; null when the link is missing, and then nothing can be posted for it. */
   analyticAccountId: number | null;
-  /** New − already posted, in the company currency's minor unit. Negative and zero deltas post nothing (see below). */
+  /** New − already posted, in the company currency's minor unit. Signed: a decrease posts on the credit side. */
   deltaCents: number;
 }
 
@@ -42,9 +55,10 @@ export type BuiltCostEntry =
   | { outcome: 'settled' };
 
 /**
- * The journal body, or a refusal, or `settled` when there is nothing to post. Only positive deltas are posted: a zero
- * delta posts nothing (FR-OLH-022), and a non-positive delta list is settled, so this builder never emits a credit-side
- * expense line. The credit line is derived from the debits, so a body can never be out of balance.
+ * The journal body, or a refusal, or `settled` when every delta is zero. Each non-zero delta posts on its signed side —
+ * debit when the project's cost rose, credit when it fell — on that project's analytic account, and the payable leg is
+ * derived from the signed total. A net-zero revision (one project up, another down by the same amount) needs no payable
+ * leg: its two expense lines already balance. Totals are bigint cents, so the one summed value stays off the float path.
  */
 export function buildCostEntry(input: CostEntryInput): BuiltCostEntry {
   const { periodEnd, currency } = input.batch;
@@ -53,26 +67,29 @@ export function buildCostEntry(input: CostEntryInput): BuiltCostEntry {
   if (input.lines.some((line) => !Number.isSafeInteger(line.deltaCents))) return { outcome: 'refused', code: 'labour-cost-precision' };
 
   const posted = [...input.lines]
-    .filter((line) => line.deltaCents > 0)
+    .filter((line) => line.deltaCents !== 0)
     .sort((a, b) => a.projectCode.localeCompare(b.projectCode) || a.projectId.localeCompare(b.projectId));
   if (!posted.length) return { outcome: 'settled' };
+  // A credit needs a distribution just as a debit does, so the unmapped check runs over the signed list.
   const unmapped = posted.find((line) => line.analyticAccountId === null);
   if (unmapped) return { outcome: 'refused', code: 'project-unmapped', projectCode: unmapped.projectCode };
 
-  const total = posted.reduce((sum, line) => sum + line.deltaCents, 0);
+  const total = posted.reduce((sum, line) => sum + BigInt(line.deltaCents), 0n);
   const line_ids: Array<[0, 0, Record<string, unknown>]> = posted.map((line) => [0, 0, {
     account_id: input.maps.expenseAccountId,
     name: `Labour · ${line.projectCode}`,
-    debit: formatCents(BigInt(line.deltaCents)),
-    credit: '0.00',
+    debit: line.deltaCents > 0 ? formatCents(BigInt(line.deltaCents)) : '0.00',
+    credit: line.deltaCents < 0 ? formatCents(BigInt(-line.deltaCents)) : '0.00',
     analytic_distribution: { [String(line.analyticAccountId)]: 100 },
   }]);
-  line_ids.push([0, 0, {
-    account_id: input.maps.payableAccountId,
-    name: 'Payroll payable',
-    debit: '0.00',
-    credit: formatCents(BigInt(total)),
-  }]);
+  if (total !== 0n) {
+    line_ids.push([0, 0, {
+      account_id: input.maps.payableAccountId,
+      name: 'Payroll payable',
+      debit: total < 0n ? formatCents(-total) : '0.00',
+      credit: total > 0n ? formatCents(total) : '0.00',
+    }]);
+  }
   return {
     outcome: 'ready',
     body: {

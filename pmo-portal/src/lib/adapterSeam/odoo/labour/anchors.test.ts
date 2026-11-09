@@ -34,6 +34,15 @@ describe('odoo/labour/anchors — AC-OLH-022 one immutable identifier per (sheet
     expect(keyFromLabourExternalIdentifier(labourExternalIdentifier(labourCostKey(BATCH, 12)).name)).toBe(`lcost:${BATCH}:12`);
   });
 
+  it('AC-OLH-022 the same ids in another case are the same anchor, so one triple cannot be keyed twice', () => {
+    const mixed = 'ABCDEF12-0000-4000-8000-00000000000A';
+    const lowered = mixed.toLowerCase();
+    expect(labourLineKey(mixed, mixed, '2026-11-02')).toBe(`lbl:${lowered}:${lowered}:20261102`);
+    expect(labourCostKey(mixed, 2)).toBe(`lcost:${lowered}:2`);
+    expect(keyFromLabourExternalIdentifier(labourExternalIdentifier(labourLineKey(mixed, PROJECT, '2026-11-02')).name))
+      .toBe(`lbl:${lowered}:${PROJECT}:20261102`);
+  });
+
   it('AC-OLH-022 no cross-family adoption: a purchase identifier and garbage are both null', () => {
     expect(parseLabourLineKey('po_15100000_0000_4000_8000_000000000001')).toBeNull();
     expect(parseLabourLineKey('garbage')).toBeNull();

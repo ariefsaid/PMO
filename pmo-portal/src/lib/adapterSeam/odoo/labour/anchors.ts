@@ -31,13 +31,14 @@ const dashed = (compactDate: string) => `${compactDate.slice(0, 4)}-${compactDat
 export function labourLineKey(timesheetId: string, projectId: string, date: string): string {
   if (!UUID_RE.test(timesheetId) || !UUID_RE.test(projectId)) throw new Error('Invalid labour line key');
   if (!isIsoDate(date)) throw new Error('Invalid labour line date');
-  return `lbl:${timesheetId}:${projectId}:${compact(date)}`;
+  // Postgres uuids are lower case; folding here keeps a differently-cased id on the one anchor instead of keying it twice.
+  return `lbl:${timesheetId.toLowerCase()}:${projectId.toLowerCase()}:${compact(date)}`;
 }
 
 /** The immutable key of one labour-cost batch revision (revisions start at 1, D7). */
 export function labourCostKey(batchId: string, revision: number): string {
   if (!UUID_RE.test(batchId) || !Number.isSafeInteger(revision) || revision < 1) throw new Error('Invalid labour cost key');
-  return `lcost:${batchId}:${revision}`;
+  return `lcost:${batchId.toLowerCase()}:${revision}`;
 }
 
 /** The `ir.model.data` row that anchors a document: `name` carries the key with every non-alphanumeric replaced (V-OLH-6). */

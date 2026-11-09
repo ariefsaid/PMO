@@ -7,8 +7,10 @@
  * without one), V-OLH-2 (`account_id` is derived from `project_id` on create, so only `project_id` travels),
  * V-OLH-4 (`amount` is writable at create and stored verbatim — the `payroll` basis sends `0`).
  *
- * Hours are decimal strings and are summed as integers (hundredths of an hour), never as floats: a week of 0.1 + 0.2
- * must not become 0.30000000000000004 in an analytic ledger.
+ * Hours are decimal strings and are summed as integers (nano of an hour), never as floats: a week of 0.1 + 0.2
+ * must not become 0.30000000000000004 in an analytic ledger. A (project, day)'s entries are summed in nano and rounded to
+ * hundredths **once** at the end, so 0.005 + 0.005 is 0.01 and not the double-rounded 0.02 (the day total is the only
+ * rounding point).
  */
 import { divRound, toNano } from '../ledger/cents.ts';
 
@@ -19,7 +21,11 @@ export interface LabourEntry {
   entry_date: string;
   /** A decimal string, 2 dp in practice (V-OLH-2 `unit_amount`). */
   hours: string;
-  /** The project's org, when the gate supplied it; a foreign project refuses the push (FR-OLH-011). */
+  /**
+   * The project's org, when the gate supplied it; a foreign project refuses the push (FR-OLH-011). When the caller knows
+   * its org and this is absent, the entry is refused too: an unknown org is not the same org, and a tenancy rule may not
+   * be disarmed by an omitted column.
+   */
   project_org_id?: string | null;
 }
 
@@ -30,8 +36,9 @@ export type PackedHours =
   | { outcome: 'ready'; lines: PackedLabourLine[] }
   | { outcome: 'refused'; code: 'daily-hours-exceed-24' | 'hours-invalid' | 'date-invalid' | 'project-foreign-org' };
 
-const HUNDREDTH = 10_000_000n;   // `toNano` is 1e-9 of a unit, so 1e7 nano is one hundredth of an hour
-const DAY_LIMIT = 2400n;         // 24.00 h
+const HOUR_NANO = 1_000_000_000n; // `toNano` is 1e-9 of an hour
+const HUNDREDTH = 10_000_000n;    // 1e7 nano is one hundredth of an hour
+const DAY_LIMIT = 24n * HOUR_NANO; // 24.00 h, compared before rounding so a fault is not rounded away
 
 /** `YYYY-MM-DD` naming a day that exists (`2026-02-30` does not). */
 export function isIsoDate(value: unknown): value is string {
@@ -46,20 +53,21 @@ export function isIsoDate(value: unknown): value is string {
  * fault, not a rounding question. Non-positive day totals are dropped (an analytic line of 0 h says nothing).
  */
 export function packLabourLines(entries: readonly LabourEntry[], orgId?: string): PackedHours {
-  const byDay = new Map<string, { projectId: string; date: string; hundredths: bigint }>();
+  const byDay = new Map<string, { projectId: string; date: string; nano: bigint }>();
   for (const entry of entries) {
-    if (orgId !== undefined && entry.project_org_id != null && entry.project_org_id !== orgId) return { outcome: 'refused', code: 'project-foreign-org' };
+    // Fail closed: with the caller's org known, an entry whose org is absent cannot be shown to be ours (FR-OLH-011).
+    if (orgId !== undefined && (entry.project_org_id == null || entry.project_org_id !== orgId)) return { outcome: 'refused', code: 'project-foreign-org' };
     if (!isIsoDate(entry.entry_date)) return { outcome: 'refused', code: 'date-invalid' };
     const nano = toNano(entry.hours);
     if (nano === null || nano < 0n) return { outcome: 'refused', code: 'hours-invalid' };
-    const hundredths = divRound(nano, HUNDREDTH);
     const key = `${entry.project_id}\u0000${entry.entry_date}`;
-    const day = byDay.get(key) ?? { projectId: entry.project_id, date: entry.entry_date, hundredths: 0n };
-    day.hundredths += hundredths;
-    if (day.hundredths > DAY_LIMIT) return { outcome: 'refused', code: 'daily-hours-exceed-24' };
+    const day = byDay.get(key) ?? { projectId: entry.project_id, date: entry.entry_date, nano: 0n };
+    day.nano += nano;
+    if (day.nano > DAY_LIMIT) return { outcome: 'refused', code: 'daily-hours-exceed-24' };
     byDay.set(key, day);
   }
   const lines = [...byDay.values()]
+    .map((day) => ({ projectId: day.projectId, date: day.date, hundredths: divRound(day.nano, HUNDREDTH) }))
     .filter((day) => day.hundredths > 0n)
     .map((day) => ({ projectId: day.projectId, date: day.date, hours: Number(day.hundredths) / 100 }));
   return { outcome: 'ready', lines };
