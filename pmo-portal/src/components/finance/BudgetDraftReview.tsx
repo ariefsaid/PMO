@@ -13,6 +13,9 @@ import { savedPlanMatchesDraft, type DistributionReadinessStatus } from '@/src/l
 import { draftTickState, type DraftTickState } from './draftTickState';
 import { Button, Checkbox, ConfirmDialog } from '@/src/components/ui';
 
+/** Readiness reads (an eligibility RPC and a live ERPNext precheck per draft) run for at most this many drafts at a time. */
+const CHECK_CAP = 10;
+
 type RowResult = { ok: true; erpNotUpdated: boolean } | { ok: false; message: string };
 
 /**
@@ -26,36 +29,46 @@ export function BudgetDraftReview() {
   const { currentUser } = useAuth();
   const realRole = useOptionalRealRole();
   const qc = useQueryClient();
-  const drafts = useOrgBudgetDrafts(true);
+  // Role-only probe ("a draft someone else prepared"): a role that can activate nothing reads nothing. The per-draft rules stay in `can()` below and in the RPC.
+  const canActivateAny = may('transition', 'budgetVersion', { currentUserId: currentUser?.id ?? null, record: { status: 'Draft', created_by: 'another-drafter', editor_ids: [] } });
+  const drafts = useOrgBudgetDrafts(Boolean(currentUser) && canActivateAny);
   const rows = drafts.data ?? [];
+  const [open, setOpen] = useState(false);
+  const [checkedCount, setCheckedCount] = useState(CHECK_CAP);
+  const isChecked = (i: number) => open && i < checkedCount;
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<Record<string, RowResult>>({});
 
-  const modes = useQueries({ queries: rows.map((r) => ({
+  const modes = useQueries({ queries: rows.map((r, i) => ({
     queryKey: ['budget-activation-mode', r.id, currentUser?.org_id, currentUser?.id, currentUser?.role],
     queryFn: () => repositories.budget.getActivationMode(r.id),
-    enabled: Boolean(currentUser?.id),
+    enabled: Boolean(currentUser?.id) && isChecked(i),
+    refetchOnWindowFocus: false,
   })) });
-  const prechecks = useQueries({ queries: rows.map((r) => ({
+  const prechecks = useQueries({ queries: rows.map((r, i) => ({
     queryKey: ['budget-activation-precheck', r.id],
     queryFn: () => repositories.budget.precheckActivation(r.id),
     staleTime: 0,
+    enabled: isChecked(i),
+    refetchOnWindowFocus: false,
   })) });
 
   // Whole-project drafts also need the Budget tab's distribution gate (saved plan vs the live ERPNext fiscal years).
-  const distributions = useQueries({ queries: rows.map((r) => ({
+  const distributions = useQueries({ queries: rows.map((r, i) => ({
     queryKey: budgetDistributionKey(currentUser?.org_id, r.projectId, r.id),
     queryFn: () => repositories.budget.getDistribution(r.id),
-    enabled: r.budgetMode === 'whole_project',
+    enabled: r.budgetMode === 'whole_project' && isChecked(i),
+    refetchOnWindowFocus: false,
   })) });
 
   if (!currentUser || (rows.length === 0 && Object.keys(results).length === 0)) return null;
 
   const view = rows.map((row, i) => {
-    const mode = modes[i]?.data;
-    const precheck = prechecks[i]?.data;
+    // A row that is refetching is not ready (as on the Budget tab), whatever its previous answer was.
+    const mode = modes[i]?.isFetching ? undefined : modes[i]?.data;
+    const precheck = prechecks[i]?.isFetching ? undefined : prechecks[i]?.data;
     const canTransition = may('transition', 'budgetVersion', {
       currentUserId: currentUser.id,
       record: { status: 'Draft', created_by: row.createdBy, editor_ids: row.editorIds },
@@ -66,7 +79,7 @@ export function BudgetDraftReview() {
       : !dq || dq.isPending || dq.isFetching ? 'loading'
       : !dq.data ? 'absent'
       : savedPlanMatchesDraft(dq.data, row.lines, row.projectStart, row.projectEnd, precheck?.fiscalYears ?? null) ? 'current' : 'stale';
-    return { row, mode, tick: draftTickState({ mode, precheck, canTransition, distribution, checkFailed: !!(modes[i]?.isError || prechecks[i]?.isError) }) };
+    return { row, mode, tick: draftTickState({ mode, precheck, canTransition, distribution, unchecked: !isChecked(i), checkFailed: !!(modes[i]?.isError || prechecks[i]?.isError) }) };
   });
   const selected = view.filter((v) => ticked.has(v.row.id) && v.tick === 'ready');
   const soleOperator = selected.some((v) => v.mode === 'sole_operator');
@@ -126,9 +139,18 @@ export function BudgetDraftReview() {
           <h2 id="budget-draft-review" className="text-base font-semibold">{t('draftReview.title', 'Review and activate drafts')}</h2>
           <p className="text-sm text-muted-foreground">{t('draftReview.hint', 'Check each draft against its source, tick the ones to activate, then confirm once. Each draft is activated and recorded on its own.')}</p>
         </div>
-        <Button variant="primary" disabled={selected.length === 0 || running} onClick={() => setConfirming(true)}>
-          {t('draftReview.activateSelected', { count: selected.length, defaultValue: 'Activate selected ({{count}})' })}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" aria-expanded={open} disabled={running} onClick={() => setOpen((o) => !o)}>
+            {open
+              ? t('draftReview.hide', 'Hide drafts')
+              : t('draftReview.review', { count: rows.length, defaultValue_one: 'Review {{count}} draft', defaultValue_other: 'Review {{count}} drafts' })}
+          </Button>
+          {open && (
+            <Button variant="primary" disabled={selected.length === 0 || running} onClick={() => setConfirming(true)}>
+              {t('draftReview.activateSelected', { count: selected.length, defaultValue: 'Activate selected ({{count}})' })}
+            </Button>
+          )}
+        </div>
       </div>
       {done.length > 0 && (
         <p role="status" className="mt-2 text-sm">
@@ -136,6 +158,7 @@ export function BudgetDraftReview() {
           {erpCount > 0 && <span className="block font-medium">{t('draftReview.erpNotUpdated', { count: erpCount, defaultValue: '{{count}} activated but ERPNext was not updated; ask Finance or an administrator to review it.' })}</span>}
         </p>
       )}
+      {open && (
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -166,7 +189,7 @@ export function BudgetDraftReview() {
                   <td className="py-1.5">{row.projectCode ? `${row.projectCode} · ` : ''}{row.projectName}</td>
                   <td className="py-1.5">v{row.version} {row.name}</td>
                   <td className="py-1.5 text-right tabular-nums">{money(row, row.total)}</td>
-                  <td className="py-1.5">{tick === 'checking' ? '…' : tick === 'check-failed' ? '—' : tick === 'unmapped' ? t('draftReview.no', 'No') : t('draftReview.yes', 'Yes')}</td>
+                  <td className="py-1.5">{tick === 'checking' ? '…' : tick === 'check-failed' || tick === 'unchecked' ? '—' : tick === 'unmapped' ? t('draftReview.no', 'No') : t('draftReview.yes', 'Yes')}</td>
                   <td className="py-1.5">
                     {row.documentUrl
                       ? <a href={row.documentUrl} target="_blank" rel="noopener noreferrer" className="text-primary-text underline underline-offset-2">{t('draftReview.open', 'Open')}</a>
@@ -182,7 +205,14 @@ export function BudgetDraftReview() {
             })}
           </tbody>
         </table>
+        {rows.length > checkedCount && (
+          <p className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
+            {t('draftReview.checkedOf', { checked: checkedCount, total: rows.length, defaultValue: 'Readiness checked for {{checked}} of {{total}} drafts' })}
+            <Button variant="outline" size="sm" onClick={() => setCheckedCount(rows.length)}>{t('draftReview.checkRest', 'Check the rest')}</Button>
+          </p>
+        )}
       </div>
+      )}
       {confirming && (
         <ConfirmDialog
           open

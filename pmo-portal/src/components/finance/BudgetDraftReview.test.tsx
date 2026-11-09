@@ -44,12 +44,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function mount() {
+/** The panel is collapsed by default (no readiness reads until opened); most tests open it. */
+async function mount(opts: { open?: boolean; role?: 'Finance' | 'Engineer' } = {}) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ImpersonationProvider realRole="Finance"><BudgetDraftReview /></ImpersonationProvider>
+      <ImpersonationProvider realRole={opts.role ?? 'Finance'}><BudgetDraftReview /></ImpersonationProvider>
     </QueryClientProvider>,
   );
+  if (opts.open !== false && opts.role !== 'Engineer') fireEvent.click(await screen.findByRole('button', { name: /^Review \d+ drafts?$/ }));
 }
 const box = (name: RegExp) => screen.getByRole('checkbox', { name });
 
@@ -81,7 +83,7 @@ describe('draftTickState', () => {
 });
 
 it('AC-BAD-001/002/003 lists total, mapped and source link; unmapped and SoD-blocked drafts cannot be ticked', async () => {
-  mount();
+  await mount();
   await screen.findByText(/Project a/);
   await waitFor(() => expect(box(/Project a/)).not.toHaveAttribute('aria-disabled'));
   expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', 'https://sp.example/a.xlsx');
@@ -95,7 +97,7 @@ it('AC-BAD-001/002/003 lists total, mapped and source link; unmapped and SoD-blo
 it('AC-BAD-008 a draft I prepared myself is not tickable even when the server mode says allowed', async () => {
   h.listOrgDrafts.mockResolvedValue([draft('f', { createdBy: 'me', editorIds: [] }), draft('g')]);
   h.getActivationMode.mockResolvedValue('allowed');
-  mount();
+  await mount();
   await waitFor(() => expect(box(/Project g/)).not.toHaveAttribute('aria-disabled'));
   expect(box(/Project f/)).toHaveAttribute('aria-disabled', 'true');
   expect(screen.getByText('Someone else must activate this draft')).toBeInTheDocument();
@@ -107,7 +109,7 @@ it('AC-BAD-012 a whole-project draft is tickable only while its saved distributi
   h.getDistribution.mockImplementation(async (id: string) => (id === 'w' ? savedPlan() : id === 'x'
     ? { ...savedPlan(), basis: { ...savedPlan().basis, years: [{ name: 'FY2025', start: '2025-01-01', end: '2025-12-31' }] } }
     : null));
-  mount();
+  await mount();
   await waitFor(() => expect(box(/Project w/)).not.toHaveAttribute('aria-disabled'));
   expect(box(/Project x/)).toHaveAttribute('aria-disabled', 'true');
   expect(box(/Project y/)).toHaveAttribute('aria-disabled', 'true');
@@ -116,7 +118,7 @@ it('AC-BAD-012 a whole-project draft is tickable only while its saved distributi
 });
 
 it('AC-BAD-004/006 one confirm with the count; nothing activates before it; only the ticked draft does', async () => {
-  mount();
+  await mount();
   await waitFor(() => expect(box(/Project a/)).not.toHaveAttribute('aria-disabled'));
   expect(screen.getByRole('button', { name: /Activate selected \(0\)/ })).toBeDisabled();
   fireEvent.click(box(/Project a/));
@@ -132,7 +134,7 @@ it('AC-BAD-004/006 one confirm with the count; nothing activates before it; only
 });
 
 it('AC-BAD-004 cancel activates nothing', async () => {
-  mount();
+  await mount();
   await waitFor(() => expect(box(/Project a/)).not.toHaveAttribute('aria-disabled'));
   fireEvent.click(box(/Project a/));
   fireEvent.click(screen.getByRole('button', { name: /Activate selected/ }));
@@ -143,7 +145,7 @@ it('AC-BAD-004 cancel activates nothing', async () => {
 it('AC-BAD-005 the sole-operator wording appears only when a selected draft is in sole-operator mode', async () => {
   h.getActivationMode.mockResolvedValue('sole_operator');
   h.listOrgDrafts.mockResolvedValue([draft('a', { createdBy: 'me', editorIds: ['me'] })]);
-  mount();
+  await mount();
   await waitFor(() => expect(box(/Project a/)).not.toHaveAttribute('aria-disabled'));
   fireEvent.click(box(/Project a/));
   fireEvent.click(screen.getByRole('button', { name: /Activate selected/ }));
@@ -156,7 +158,7 @@ it('AC-BAD-007 a refused draft shows its own failure; the others still activate,
     if (id === 'd') throw new Error('only a Draft version can be activated');
     return { pushState: 'pushed' };
   });
-  mount();
+  await mount();
   await waitFor(() => expect(box(/Project e/)).not.toHaveAttribute('aria-disabled'));
   for (const n of [/Project a/, /Project d/, /Project e/]) fireEvent.click(box(n));
   fireEvent.click(screen.getByRole('button', { name: /Activate selected \(3\)/ }));
@@ -169,7 +171,7 @@ it('AC-BAD-007 a refused draft shows its own failure; the others still activate,
 it('AC-BAD-007 an activation whose ERP push failed is counted and flagged, not reported as plain success', async () => {
   h.listOrgDrafts.mockResolvedValue([draft('a'), draft('e')]);
   h.activateVersion.mockImplementation(async (id: string) => ({ pushState: id === 'a' ? 'failed' : 'pushed' }));
-  mount();
+  await mount();
   await waitFor(() => expect(box(/Project e/)).not.toHaveAttribute('aria-disabled'));
   for (const n of [/Project a/, /Project e/]) fireEvent.click(box(n));
   fireEvent.click(screen.getByRole('button', { name: /Activate selected \(2\)/ }));
@@ -180,14 +182,58 @@ it('AC-BAD-007 an activation whose ERP push failed is counted and flagged, not r
 
 it('AC-BAD-002 a failed readiness check is shown, never left as Checking, and cannot be ticked', async () => {
   h.precheckActivation.mockRejectedValue(new Error('edge down'));
-  mount();
+  await mount();
   expect(await screen.findAllByText("Couldn't check readiness")).toHaveLength(3);
   expect(box(/Project a/)).toHaveAttribute('aria-disabled', 'true');
 });
 
 it('renders nothing when there are no drafts', async () => {
   h.listOrgDrafts.mockResolvedValue([]);
-  mount();
+  await mount({ open: false });
   await waitFor(() => expect(h.listOrgDrafts).toHaveBeenCalled());
   expect(screen.queryByRole('heading', { name: 'Review and activate drafts' })).toBeNull();
+});
+
+it('AC-BAD-013 the panel is collapsed by default: no readiness read fires until it is opened', async () => {
+  await mount({ open: false });
+  await screen.findByRole('button', { name: 'Review 3 drafts' });
+  expect(h.getActivationMode).not.toHaveBeenCalled();
+  expect(h.precheckActivation).not.toHaveBeenCalled();
+  expect(screen.queryByRole('checkbox')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Review 3 drafts' }));
+  await waitFor(() => expect(h.precheckActivation).toHaveBeenCalledTimes(3));
+  expect(h.getActivationMode).toHaveBeenCalledTimes(3);
+});
+
+it('AC-BAD-013 readiness reads are capped at 10 drafts at a time; the rest are checked on request', async () => {
+  h.listOrgDrafts.mockResolvedValue(Array.from({ length: 12 }, (_, i) => draft(`d${String(i).padStart(2, '0')}`)));
+  await mount();
+  await waitFor(() => expect(h.precheckActivation).toHaveBeenCalledTimes(10));
+  expect(h.getActivationMode).toHaveBeenCalledTimes(10);
+  expect(screen.getByText('Readiness checked for 10 of 12 drafts')).toBeInTheDocument();
+  expect(screen.getAllByText('Not checked yet')).toHaveLength(2);
+  expect(box(/Project d11/)).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Check the rest' }));
+  await waitFor(() => expect(h.precheckActivation).toHaveBeenCalledTimes(12));
+  expect(screen.queryByText('Not checked yet')).toBeNull();
+});
+
+it('AC-BAD-013 a role that can activate nothing reads no drafts and sees no panel', async () => {
+  await mount({ role: 'Engineer' });
+  await new Promise((r) => setTimeout(r, 0));
+  expect(h.listOrgDrafts).not.toHaveBeenCalled();
+  expect(h.getActivationMode).not.toHaveBeenCalled();
+  expect(screen.queryByRole('heading', { name: 'Review and activate drafts' })).toBeNull();
+});
+
+it('AC-BAD-013 a row that is refetching is not treated as ready', async () => {
+  let release: (v: unknown) => void = () => {};
+  await mount();
+  await waitFor(() => expect(box(/Project a/)).not.toHaveAttribute('aria-disabled'));
+  h.precheckActivation.mockImplementation(() => new Promise((r) => { release = r; }));
+  fireEvent.click(screen.getByRole('button', { name: 'Hide drafts' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Review \d+ drafts?$/ }));
+  await waitFor(() => expect(h.precheckActivation.mock.calls.length).toBeGreaterThan(3));
+  expect(box(/Project a/)).toHaveAttribute('aria-disabled', 'true');
+  release(ready);
 });

@@ -242,6 +242,11 @@
     "eligibilityUnavailable": "Kelayakan aktivasi tidak tersedia. Muat ulang halaman ini dan coba lagi.",
     "distributionMissing": "Simpan alokasi tahun fiskal di tab Anggaran proyek terlebih dahulu.",
     "distributionStale": "Alokasi tahun fiskal yang tersimpan tidak lagi sesuai dengan draf ini. Tinjau di tab Anggaran proyek.",
-    "unchecked": "Belum diperiksa"
+    "unchecked": "Belum diperiksa",
+    "hide": "Sembunyikan draf",
+    "review_one": "Tinjau {{count}} draf",
+    "review_other": "Tinjau {{count}} draf",
+    "checkedOf": "Kesiapan diperiksa untuk {{checked}} dari {{total}} draf",
+    "checkRest": "Periksa sisanya"
   }
 }

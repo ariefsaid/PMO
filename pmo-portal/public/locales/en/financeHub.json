@@ -242,6 +242,11 @@
     "eligibilityUnavailable": "Activation eligibility is unavailable. Refresh this page and try again.",
     "distributionMissing": "Save a fiscal-year distribution on the project's Budget tab first.",
     "distributionStale": "The saved fiscal-year distribution no longer matches this draft. Review it on the project's Budget tab.",
-    "unchecked": "Not checked yet"
+    "unchecked": "Not checked yet",
+    "hide": "Hide drafts",
+    "review_one": "Review {{count}} draft",
+    "review_other": "Review {{count}} drafts",
+    "checkedOf": "Readiness checked for {{checked}} of {{total}} drafts",
+    "checkRest": "Check the rest"
   }
 }
