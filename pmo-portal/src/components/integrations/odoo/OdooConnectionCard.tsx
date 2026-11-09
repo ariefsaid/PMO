@@ -90,7 +90,7 @@ export function OdooConnectionCard() {
       if (r?.errorClass) setError(odooErrorMessage(t, new AppError('', r.errorClass)));
       else setNotice(t('administration:odoo.card.rechecked', 'Checked just now.'));
     } catch (err) {
-      setError(odooErrorMessage(t, err, t('administration:odoo.card.recheckFailed', 'The check could not finish, so the connection was not changed. Try again in a minute.')));
+      setError(odooErrorMessage(t, err, t('administration:odoo.card.recheckFailed', 'The check could not finish, so the connection may not have changed. Try again in a minute.')));
     }
   };
 
