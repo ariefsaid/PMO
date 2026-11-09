@@ -343,7 +343,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <Card className="min-w-0">
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('dashboard:hub.company.billing', 'Billing and collections')}</CardHead>
         <CardPad className="grid gap-3">
-          <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }, ...(stillToInvoice ? [{ ...stillToInvoice, help: help('still-to-invoice') }] : [])]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
+          <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }, ...(stillToInvoice ? [{ ...stillToInvoice, help: help('still-to-invoice') }] : [])]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading twoUp />
           <InvoicedTrendCard bare compact trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
           {finance && <ClientAgingBlock />}
         </CardPad>

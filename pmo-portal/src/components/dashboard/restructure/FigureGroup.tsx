@@ -31,6 +31,8 @@ export interface FigureGroupProps {
   className?: string;
   /** Let the containing area panel own the heading and basis line. */
   hideHeading?: boolean;
+  /** Fixed two-up grid for narrow cards (default packs as many 10.5rem columns as fit). */
+  twoUp?: boolean;
 }
 
 export const FigureGroup: React.FC<FigureGroupProps> = ({
@@ -42,6 +44,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
   onRetry,
   className = '',
   hideHeading = false,
+  twoUp = false,
 }) => {
   const { t } = useTranslation('dashboard');
   if (isPending) return <ListState variant="loading" shape="cards" rows={Math.max(figures.length, 2)} testId="figure-group-loading" className={className} />;
@@ -61,7 +64,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
         <h2 className="text-[18px] font-semibold leading-[1.3]">{heading}</h2>
         {basis && <span className="text-[12px] text-muted-foreground">{basis}</span>}
       </div>}
-      <div className={figures.length === 1 ? 'grid grid-cols-1 gap-x-4' : 'grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4'}>
+      <div className={figures.length === 1 ? 'grid grid-cols-1 gap-x-4' : twoUp ? 'grid grid-cols-2 gap-x-4' : 'grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4'}>
         {figures.map((figure) => {
           const value = figure.value === null ? (
             <span title={figure.unavailableReason ?? t('figures.unknownReason', 'The source could not provide this figure.')}>—
