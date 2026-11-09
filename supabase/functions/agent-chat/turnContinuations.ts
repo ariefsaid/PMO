@@ -16,6 +16,7 @@ import { AGENT_READ_ROW_CAP } from './actions.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { HandlerDeps, PersistenceRuntime, CanFn } from './handlerTypes.ts';
+import { wrapUntrustedToolResult } from './untrustedEnvelope.ts';
 
 // ── ADR-0045 §2: Answer handler (resolve a pending ask_user question) ─────────
 
@@ -356,7 +357,7 @@ export async function* handleDecision(
     role: 'tool',
     tool_call_id: toolId,
     name: toolName,
-    content: JSON.stringify(writeResult),
+    content: wrapUntrustedToolResult(writeResult),
   });
 
   // Continue the loop so the model acknowledges

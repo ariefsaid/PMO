@@ -465,7 +465,7 @@ billing) and spine 8 (asset registry) and is sequenced after them. Defined in
 
 ## OD-DOC — Document file storage (grill-with-docs session, owner-locked 2026-06-12)
 
-First issue of the KANNA gap-closing series (`review/kanna-gap-analysis.md`). Grilled per the
+First issue of the KANNA gap-closing series (a competitor review, kept private). Grilled per the
 new playbook §2 step-1b gate.
 
 ### OD-DOC-1 — Issue scope: infra + Documents tab only; procurement next; photos out
@@ -1098,7 +1098,7 @@ deferred under this single-org decision.
 
 ## OD-CR-1..6 — RIS-parity + CRM-v2 candidate program (owner grill 2026-07-22)
 
-Candidate program, **not scheduled**. Analysis: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md).
+Candidate program, **not scheduled**. Analysis: (a competitor review, kept private).
 Full decision text (batches A–D + the resulting sequence) lives in the **CANDIDATE PROGRAM** section of
 [`docs/backlog.md`](backlog.md) — indexed here so `OD-CR-*` resolves by id:
 
@@ -3717,3 +3717,14 @@ every signal read runs under the caller's RLS, and the function adds no per-role
 ranking over the projects and signals their role can read (as with top_projects); the role-aware queues stay on the "waiting for you" line. Proven in
 `supabase/tests/0732_executive_attention_ranking.test.sql` (AC-1418-01..18) and
 `pmo-portal/pages/ExecutiveDashboard.test.tsx` (F2/#1418, returned order rendered).
+
+### DD-TMN-1 — A no-ERP org invoices a T&M claim through its own RPC; invoice id = claim id (#1817, 2026-11-06)
+`create_native_tm_invoice(claim)` (migration 0704) is a new RPC, not a `p_id` argument on `create_native_sales_invoice`:
+that function is pinned by signature in six pgTAP files, the function-ACL proof and the isolation manifest, and a
+client-supplied id on a general creator would need the whole claim gate inside it anyway. The cost is VAT/currency drift
+between the two creators, covered by a parity test (AC-TM-025). The invoice takes the claim's id, which is the
+double-billing guard (primary key plus an explicit check that also blocks a cancelled invoice) and how the existing author
+trigger finds the claim. The work-order fence refuses any insert that reuses a claim id; it now lets this RPC through
+with a transaction-local marker that names the claim. Defaults taken from the plan (owner questions open): the approval
+rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
+line, no item code; no re-invoice after a cancel.

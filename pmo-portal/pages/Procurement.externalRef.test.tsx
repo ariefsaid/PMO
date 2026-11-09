@@ -48,7 +48,6 @@ const useProcurementsMock = vi.fn((_opts?: { withRefs?: boolean; withSharedDetai
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useErpOrphans: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));

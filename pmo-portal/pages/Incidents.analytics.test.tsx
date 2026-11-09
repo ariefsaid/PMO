@@ -28,7 +28,16 @@ const { listState, mutations } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useIncidents', () => ({
-  useIncidents: () => listState,
+  useIncidentsPage: () => ({
+    list: {
+      data: { rows: listState.data, total: listState.data.length },
+      isPending: listState.isPending,
+      isError: listState.isError,
+      refetch: listState.refetch,
+    },
+    allTotal: listState.data.length,
+  }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useIncidentMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useProjectOptions: () => ({ data: [] }) }));

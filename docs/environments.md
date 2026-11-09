@@ -552,7 +552,8 @@ intent for the same bill. Order, receipt and revision recovery are covered by un
 matching Odoo document, including the supplier, totals, order relationship and creation window. When the
 intended Odoo document is clear, restore or correct its stock external identifier so the original command can
 find it, then use the audited `release_outbox_hold` route and retry the original command. Keep the row held
-when more than one document or owner could match; do not start a new intent to work around the hold.
+when more than one document or owner could match; do not start a new intent to work around the hold. A row held as `committed-anchor-owned-elsewhere` was already committed in Odoo but
+its document is anchored to a different PMO record: check which record owns the document before releasing.
 
 **Held payment procedure:** only an Admin or Finance user other than the dispatching user may resolve a held
 payment. Compare the candidate in Odoo with the bill, vendor, amount and bounded creation window; adopt only

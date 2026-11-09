@@ -20,7 +20,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useMeetings, useMeetingMutations } from '@/src/hooks/useMeetings';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
@@ -73,7 +73,7 @@ const Meetings: React.FC = () => {
     list: 'meetings',
     contentReady: !isPending && !isError && !isPlaceholderData,
   });
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjectPickerOptions();
   const { archive, restore, remove } = useMeetingMutations();
   const [archiveTarget, setArchiveTarget] = useState<MeetingListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MeetingListItem | null>(null);

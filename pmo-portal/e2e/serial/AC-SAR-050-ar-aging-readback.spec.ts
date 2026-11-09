@@ -23,6 +23,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { refreshAging, type AgingScope } from '../../src/lib/adapterSeam/erpnext/agingSnapshot.ts';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue, type SARSeed } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -137,6 +138,7 @@ test.describe('AC-SAR-050: AR aging read-back stores report-backed buckets', () 
         ageingBasedOn: 'Due Date',
         partyType: 'Customer',
       };
+      assertLocalBenchUrl(ERPNEXT_BENCH_URL);
       await refreshAging(
         admin as unknown as never,
         { fetchImpl: globalThis.fetch, apiKey: ERPNEXT_ADMIN_KEY, apiSecret: ERPNEXT_ADMIN_SECRET, baseUrl: ERPNEXT_BENCH_URL },
@@ -180,6 +182,7 @@ test.describe('AC-SAR-050: AR aging read-back stores report-backed buckets', () 
       // Cleanup: cancel the open SI on the bench (best-effort), clear the AR snapshot, un-seed.
       if (siName) {
         try {
+          assertLocalBenchUrl(ERPNEXT_BENCH_URL);
           await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(siName)}`, {
             method: 'PUT',
             headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}`, 'Content-Type': 'application/json' },

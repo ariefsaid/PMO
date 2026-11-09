@@ -58,6 +58,7 @@ import type {
   ErpPurchaseRepository,
 } from './contracts/erpPurchases';
 import type { ErpJournalLineRepository } from './contracts/erpJournalLines';
+import type { OdooLedgerRepository } from './contracts/odooLedger';
 import type {
   ExpenseClaimRepository,
   ExpensePostingRepository,
@@ -144,6 +145,7 @@ export interface Repositories {
   expensePostings: ExpensePostingRepository;
   erpPurchases: ErpPurchaseRepository;
   erpJournalLines: ErpJournalLineRepository;
+  odooLedger: OdooLedgerRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;
@@ -170,7 +172,7 @@ export type { CommandIntent } from './contracts/commandIntent';
 export type { SubcontractRepository, CaptureSubcontractVendorInvoiceInput } from './contracts/subcontracts';
 export type { FieldChange, HistoryCursor, HistoryEvent, HistoryNameKind, HistoryPage, RecordHistoryRepository } from './contracts/recordHistory';
 export type { ProjectStageRepository } from './contracts/projectStages';
-export type { DirectoryKind, MirrorKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository } from './contracts/odoo';
+export type { DirectoryKind, MirrorKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository, OdooConfigProposalRead, OdooProjectLinksRead, SaveDefaultsInput } from './contracts/odoo';
 export type { ProjectRepository } from './contracts/projects';
 export type { CompanyCollectionsRepository, CompanyRepository, ContactRepository } from './contracts/companies';
 export type { TaskRepository } from './contracts/tasks';
@@ -195,6 +197,7 @@ export type { EquipmentRepository } from './contracts/equipment';
 export type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';
 export type { ErpJournalLineRepository } from './contracts/erpJournalLines';
+export type { OdooLedgerRepository } from './contracts/odooLedger';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';
 export type { ErpSnapshotsRepository, FinancialStatementsRepository, FxCommitCounts, FxRateInput, FxRateMatch, FxRatePage, FxRateRow, FxRatesRepository, ReportsRepository } from './contracts/reporting';

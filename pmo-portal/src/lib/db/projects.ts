@@ -234,6 +234,25 @@ export async function listProjects(
   return data;
 }
 
+/** The columns a project picker reads; no joins. */
+export type ProjectPickerOption = Pick<ProjectRow, 'id' | 'name' | 'short_name' | 'code' | 'status' | 'project_manager_id'>;
+
+/**
+ * Picker read: the same rows as `listProjects()` (active partition, unarchived, ordered by `id`
+ * for total-order paging, #1774) but only the columns pickers use and none of the three joins.
+ */
+export async function listProjectPickerOptions(): Promise<ProjectPickerOption[]> {
+  return fetchAllPages<ProjectPickerOption>((from, to) =>
+    supabase
+      .from('projects')
+      .select('id,name,short_name,code,status,project_manager_id')
+      .in('status', ACTIVE_PROJECT_STATUSES)
+      .is('archived_at', null)
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+}
+
 /**
  * Every project's id + name, at ANY stage (on-hand, internal, pipeline or lost) — the
  * cross-org identity lookup behind record search and the pipeline's project labels.

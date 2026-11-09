@@ -148,3 +148,4 @@ from whom, and that nothing is counted twice.
 | AC-JEC-016 | **Given** an org reading no ERP ledger **When** the Procurement tab renders **Then** no journal section shows | Vitest |
 | AC-JEC-017 | **Given** the CLI with a JSON file of lines **When** `pmo purchases attach-journals <file> --dry-run` runs **Then** it prints each line's outcome and writes nothing | node test (`scripts/pmo-purchases.test.mjs`) |
 | AC-JEC-018 | **Given** an attached line and a later negative journal line on its project and account **When** the project's lines are listed **Then** the attached line is flagged possibly reversed and keeps its hold | pgTAP 0687 |
+| AC-JEC-020 | **Given** a purchase with attached journal lines **When** its project is changed **Then** the change is refused with a message to ask Finance or an Admin to detach the lines, and the purchase and lines stay on their project; an unattached purchase, or an attached one after detach, moves | pgTAP 0699 |

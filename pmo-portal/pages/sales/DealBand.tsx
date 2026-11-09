@@ -8,7 +8,7 @@ import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { dealJourneySteps, pillVariantForStatus } from '../../components/salesPipeline';
 import StageHistory from '../project-detail/StageHistory';
-import { NEXT_STAGE_LABEL, useDealActions } from './useDealActions';
+import { useDealActions, useStageJourneyStepLabel } from './useDealActions';
 import { DealActionButtons, DealActionsZone, DealDialogs, DealFigures } from './DealParts';
 
 /** Stage history opens on demand: closed, it costs no read. */
@@ -32,12 +32,13 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
   const d = useDealActions(project);
   const stageLabel = useProjectStatusLabel();
+  const journeyStepLabel = useStageJourneyStepLabel();
   const { state } = useLocation();
   const back = listReturnNavigation(state, 'sales');
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const pill = <StatusPill variant={pillVariantForStatus(project.status as never)}>{project.status}</StatusPill>;
+  const pill = <StatusPill variant={pillVariantForStatus(project.status as never)}>{stageLabel(project.status as never)}</StatusPill>;
   const stepper = (
-    <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
+    <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
   );
   const backLink = (
     <Link to={back.path} state={back.state} className="inline-flex text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1">
@@ -63,7 +64,7 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
             <p className="line-clamp-1 text-sm text-muted-foreground">{t('projectDetail.pipeline.readOnlyShort', 'Project manager manages this pipeline.')}</p>
           ) : !d.isTerminal && d.nextStage ? (
             <Button variant="primary" disabled={d.pending} onClick={() => void d.runTransition(d.nextStage!)}>
-              {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_STAGE_LABEL[d.status] ?? d.nextStage}`}
+              {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${d.nextStageLabel}`}
             </Button>
           ) : !d.isTerminal && d.canWin ? (
             <Button variant="primary" disabled={d.pending} onClick={() => { d.setShowWonPanel(true); setDetailsOpen(true); }}>

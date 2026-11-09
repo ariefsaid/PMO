@@ -12576,6 +12576,7 @@ export type Database = {
         }
         Returns: string
       }
+      create_native_tm_invoice: { Args: { p_claim: string }; Returns: string }
       create_payment: {
         Args: {
           p_amount: number
