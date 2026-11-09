@@ -856,7 +856,6 @@
       "table": "Odoo lines behind this category",
       "empty": "No lines in this category",
       "emptySub": "Posted Odoo lines in this project’s cost account and a mapped account appear here.",
-      "showingSoFar": "Showing {{shown}} so far",
       "showing": "Showing {{shown}} of {{total}}",
       "more": "Show more",
       "all": "All"

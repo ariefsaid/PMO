@@ -189,7 +189,7 @@ describe('BudgetOdooCategoryLines (FR-ODA-051)', () => {
   });
 
   it('lists the lines of the category and says "Showing x of x" when all are loaded', async () => {
-    h.lines.mockResolvedValue({ lines: [line(1), line(2)], next: null, limit: 50, linked: true });
+    h.lines.mockResolvedValue({ lines: [line(1), line(2)], next: null, limit: 50, linked: true, total: 2 });
     setup()(<BudgetOdooCategoryLines projectId={PROJECT} category="materials" fallback={fallback} />);
     const table = await screen.findByRole('table', { name: 'Odoo lines behind this category' });
     expect(within(table).getByText('BILL/2026/1')).toBeInTheDocument();
@@ -199,23 +199,32 @@ describe('BudgetOdooCategoryLines (FR-ODA-051)', () => {
     expect(h.lines).toHaveBeenCalledWith({ projectId: PROJECT, category: 'materials', after: null, limit: 50 });
   });
 
-  it('pages by key: Show more fetches the next page, All fetches the rest', async () => {
+  it('#2064 says "Showing x of y" from the first page; Show more fetches the next page, All fetches the rest', async () => {
     h.lines
-      .mockResolvedValueOnce({ lines: [line(1)], next: 'l1', limit: 50, linked: true })
-      .mockResolvedValueOnce({ lines: [line(2)], next: 'l2', limit: 50, linked: true })
-      .mockResolvedValueOnce({ lines: [line(3)], next: null, limit: 50, linked: true });
+      .mockResolvedValueOnce({ lines: [line(1)], next: 'l1', limit: 50, linked: true, total: 3 })
+      .mockResolvedValueOnce({ lines: [line(2)], next: 'l2', limit: 50, linked: true, total: 3 })
+      .mockResolvedValueOnce({ lines: [line(3)], next: null, limit: 50, linked: true, total: 3 });
     setup()(<BudgetOdooCategoryLines projectId={PROJECT} category="materials" fallback={fallback} />);
-    expect(await screen.findByText('Showing 1 so far')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1 of 3')).toBeInTheDocument();
+    expect(screen.queryByText(/so far/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
-    expect(await screen.findByText('Showing 2 so far')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 2 of 3')).toBeInTheDocument();
     expect(h.lines).toHaveBeenLastCalledWith({ projectId: PROJECT, category: 'materials', after: 'l1', limit: 50 });
     await userEvent.click(screen.getByRole('button', { name: 'All' }));
     expect(await screen.findByText('Showing 3 of 3')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
   });
 
+  it('#2064 the Indonesian label also carries the total from the first page', async () => {
+    await financeTestI18n.changeLanguage('id');
+    h.lines.mockResolvedValueOnce({ lines: [line(1)], next: 'l1', limit: 50, linked: true, total: 7 });
+    setup()(<BudgetOdooCategoryLines projectId={PROJECT} category="materials" fallback={fallback} />);
+    expect(await screen.findByText('Menampilkan 1 dari 7')).toBeInTheDocument();
+  });
+
   it('shows an empty category as empty, not as a zero', async () => {
-    h.lines.mockResolvedValue({ lines: [], next: null, limit: 50, linked: true });
+    h.lines.mockResolvedValue({ lines: [], next: null, limit: 50, linked: true, total: 0 });
     setup()(<BudgetOdooCategoryLines projectId={PROJECT} category="materials" fallback={fallback} />);
     expect(await screen.findByText('No lines in this category')).toBeInTheDocument();
   });

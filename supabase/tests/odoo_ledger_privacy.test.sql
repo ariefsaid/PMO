@@ -1,6 +1,6 @@
 -- #1507 S5 AC-ODA-015 (statements half): who may reach the Odoo statement reads. S4 extends this file for line detail and health.
 begin;
-select plan(41);
+select plan(45);
 
 insert into organizations (id, name) values
  ('a7460000-0000-0000-0000-000000000011','Priv A'),
@@ -92,6 +92,11 @@ select isnt(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor'
 select is(jsonb_array_length(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',null,2)->>'next',2)->'lines'), 1, 'AC-ODA-015 the next page continues after the cursor');
 select is(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',null,2)->>'next',2)->>'next', null, 'AC-ODA-015 the last page has no cursor');
 select throws_ok($$select get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000ca','Labor')$$, '42501', null, 'AC-ODA-015 a foreign project behaves as not found for line detail');
+-- #2064: every page says how many lines the whole filter has, so the list shows "Showing x of y" from its first page.
+select is(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',null,2)->>'total', '3', 'AC-ODA-015 the first page carries the total for the filter, not the page size');
+select is(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',null,2)->>'next',2)->>'total', '3', 'AC-ODA-015 ... and a later page carries the same total');
+select is(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Materials')->>'total', '0', 'AC-ODA-015 a category with no mapped account has a total of 0 lines');
+select is(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',null,200)->>'total', jsonb_array_length(get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','Labor',null,200)->'lines')::text, 'AC-ODA-015 the total equals the lines when one page holds them all (cancelled excluded from both)');
 select throws_ok($$select get_odoo_ledger_lines('a7460000-0000-0000-0000-0000000000c9','NoSuchCategory')$$, '22023', null, 'AC-ODA-015 an unknown category is refused');
 select isnt(get_odoo_ledger_health()->>'state', null, 'AC-ODA-015 Finance reads company health');
 select throws_ok($$select get_odoo_ledger_health('a7460000-0000-0000-0000-0000000000ca')$$, '42501', null, 'AC-ODA-015 a foreign project behaves as not found for health');

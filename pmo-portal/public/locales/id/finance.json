@@ -856,7 +856,6 @@
       "table": "Baris Odoo di balik kategori ini",
       "empty": "Tidak ada baris pada kategori ini",
       "emptySub": "Baris Odoo yang sudah diposting pada akun biaya proyek ini dan akun yang dipetakan muncul di sini.",
-      "showingSoFar": "Menampilkan {{shown}} sejauh ini",
       "showing": "Menampilkan {{shown}} dari {{total}}",
       "more": "Tampilkan lagi",
       "all": "Semua"

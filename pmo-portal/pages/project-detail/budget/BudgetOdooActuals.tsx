@@ -79,6 +79,8 @@ function CategoryLinesTable({ projectId, category }: { projectId: string; catego
   if (lines.isError) return <ListState variant="error" title={t('odooLedger.lines.loadFailed', 'The lines could not be read')} onRetry={() => void lines.refetch()} retryLabel={tc('common.retry', 'Retry')} />;
   const rows = lines.data.pages.flatMap((p) => p.lines);
   const more = lines.hasNextPage;
+  // The newest page's count of the whole filter; never fewer than what is already on screen.
+  const total = Math.max(lines.data.pages[lines.data.pages.length - 1].total, rows.length);
   const columns: Column<OdooLedgerLine>[] = [
     { key: 'date', header: t('odooLedger.lines.date', 'Date'), kind: 'date', cell: (r) => formatDateOnly(r.date) },
     { key: 'move', header: t('odooLedger.lines.document', 'Document'), kind: 'primary', cell: (r) => r.moveName },
@@ -113,9 +115,7 @@ function CategoryLinesTable({ projectId, category }: { projectId: string; catego
       />
       {rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-          <span>{more
-            ? t('odooLedger.lines.showingSoFar', 'Showing {{shown}} so far', { shown: rows.length })
-            : t('odooLedger.lines.showing', 'Showing {{shown}} of {{total}}', { shown: rows.length, total: rows.length })}</span>
+          <span>{t('odooLedger.lines.showing', 'Showing {{shown}} of {{total}}', { shown: rows.length, total })}</span>
           {more && <Button variant="outline" size="sm" loading={lines.isFetchingNextPage && !loadingAll} onClick={() => void lines.fetchNextPage()}>{t('odooLedger.lines.more', 'Show more')}</Button>}
           {more && <Button variant="ghost" size="sm" loading={loadingAll} onClick={() => void showAll()}>{t('odooLedger.lines.all', 'All')}</Button>}
         </div>
