@@ -27,6 +27,10 @@ type ClickUpWebhookHandlerDeps = Parameters<typeof handleClickUpWebhook>[1];
 
 const SECRET = 'test-clickup-webhook-secret';
 const OTHER_SECRET = 'test-other-org-webhook-secret';
+// The real fixtures' ClickUp workspace, bound to org-a.
+const FIXTURE_TEAM = '90182862715';
+const TEAM_ORGS: Record<string, string> = { [FIXTURE_TEAM]: 'org-a', 'team-b': 'org-b' };
+const orgForTeam = async (teamId: string) => TEAM_ORGS[teamId] ?? null;
 
 const FIXTURES_DIR = new URL('../_shared/testing/fixtures/clickup-webhook/', import.meta.url);
 
@@ -65,7 +69,7 @@ function deps(
   const enqueue: ClickUpWebhookHandlerDeps['enqueue'] = async (payload) => {
     enqueued.push(payload);
   };
-  return { enqueue, enqueued, resolveWebhookSecrets: async () => orgSecrets };
+  return { enqueue, enqueued, resolveWebhookSecrets: async () => orgSecrets, orgForTeam };
 }
 
 // ── Fixture-driven: every one of the 7 REAL captured deliveries enqueues cleanly, and the fixture
@@ -98,6 +102,7 @@ Deno.test('replay protection: enqueue receives a SHA-256 digest of the raw body 
   let digest = '';
   const d: ClickUpWebhookHandlerDeps = {
     resolveWebhookSecrets: async () => [{ orgId: 'org-a', secret: SECRET }],
+    orgForTeam,
     enqueue: async (_payload, rawBodySha256) => {
       digest = rawBodySha256;
       const duplicate = new Error('duplicate') as Error & { code: string };
@@ -210,6 +215,7 @@ Deno.test('an enqueue failure ⇒ 500 GENERIC (never leaks the raw error detail)
   const sig = await sign(body);
   const failingDeps: ClickUpWebhookHandlerDeps = {
     resolveWebhookSecrets: async () => [{ orgId: 'org-a', secret: SECRET }],
+    orgForTeam,
     enqueue: async () => {
       throw new Error('relation "clickup_webhook_inbox" constraint violation on column secret_col');
     },
@@ -223,7 +229,8 @@ Deno.test('an enqueue failure ⇒ 500 GENERIC (never leaks the raw error detail)
 
 
 // ── Per-org secret resolution: each org's deliveries verify only against its own secret. ──────────
-const PER_ORG_BODY = JSON.stringify({ event: 'taskUpdated', task_id: 'abc123', history_items: [] });
+const bodyFor = (teamId: string) => JSON.stringify({ event: 'taskUpdated', task_id: 'abc123', team_id: teamId, history_items: [] });
+const PER_ORG_BODY = bodyFor(FIXTURE_TEAM);
 
 Deno.test("a delivery signed with org B's secret cannot verify against org A's binding", async () => {
   const d = deps([{ orgId: 'org-a', secret: SECRET }]);
@@ -234,9 +241,10 @@ Deno.test("a delivery signed with org B's secret cannot verify against org A's b
 
 Deno.test('with two orgs bound, each org own secret verifies and enqueues', async () => {
   const both = [{ orgId: 'org-a', secret: SECRET }, { orgId: 'org-b', secret: OTHER_SECRET }];
-  for (const secret of [SECRET, OTHER_SECRET]) {
+  for (const [secret, team] of [[SECRET, FIXTURE_TEAM], [OTHER_SECRET, 'team-b']]) {
     const d = deps(both);
-    const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY, secret)), d);
+    const body = bodyFor(team);
+    const res = await handleClickUpWebhook(req(body, await sign(body, secret)), d);
     assert(res.status === 200, `expected 200, got ${res.status}`);
     assert(d.enqueued.length === 1, 'the verified delivery enqueues');
   }
@@ -264,6 +272,27 @@ Deno.test('a secret shared by two orgs is ambiguous: rejected with no enqueue', 
 Deno.test('a failed secret lookup is a retryable 500, not a 401', async () => {
   const d = deps();
   d.resolveWebhookSecrets = async () => { throw new Error('db blip'); };
+  const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY)), d);
+  assert(res.status === 500, `expected 500, got ${res.status}`);
+  assert(d.enqueued.length === 0, 'no enqueue on a failed lookup');
+});
+
+Deno.test("org A's secret cannot act on org B's ClickUp team: rejected with no enqueue", async () => {
+  const d = deps([{ orgId: 'org-a', secret: SECRET }, { orgId: 'org-b', secret: OTHER_SECRET }]);
+  for (const team of ['team-b', 'team-unbound']) {
+    const body = bodyFor(team);
+    const res = await handleClickUpWebhook(req(body, await sign(body, SECRET)), d);
+    assert(res.status === 401, `expected 401 for team ${team}, got ${res.status}`);
+  }
+  const noTeam = JSON.stringify({ event: 'taskDeleted', task_id: 'abc123', history_items: [] });
+  const res = await handleClickUpWebhook(req(noTeam, await sign(noTeam, SECRET)), d);
+  assert(res.status === 401, `expected 401 without a team, got ${res.status}`);
+  assert(d.enqueued.length === 0, 'a delivery naming a foreign team must not enqueue');
+});
+
+Deno.test('a failed team lookup is a retryable 500, not a 401', async () => {
+  const d = deps();
+  d.orgForTeam = async () => { throw new Error('db blip'); };
   const res = await handleClickUpWebhook(req(PER_ORG_BODY, await sign(PER_ORG_BODY)), d);
   assert(res.status === 500, `expected 500, got ${res.status}`);
   assert(d.enqueued.length === 0, 'no enqueue on a failed lookup');
