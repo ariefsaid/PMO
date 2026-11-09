@@ -73,6 +73,8 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
       }
       const narrowed = page.url();
       await intended.click();
+      // The pipeline row opens the deal preview first (#1426); the user continues with "Open deal".
+      if (route === 'sales') await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
       await expect(page).toHaveURL(new RegExp(`/projects/${ids[route === 'projects' ? 1 : 3]}$`));
       await expect(page.getByTestId('record-header')).toContainText(names[1]);
       if (route === 'projects') await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Projects', exact: true }).click();
