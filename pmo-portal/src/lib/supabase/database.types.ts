@@ -3235,6 +3235,7 @@ export type Database = {
           grand_total: number | null
           id: string
           is_return: boolean
+          item_projects: string[]
           net_total: number | null
           org_id: string
           outstanding_amount: number | null
@@ -3258,6 +3259,7 @@ export type Database = {
           grand_total?: number | null
           id?: string
           is_return?: boolean
+          item_projects?: string[]
           net_total?: number | null
           org_id?: string
           outstanding_amount?: number | null
@@ -3281,6 +3283,7 @@ export type Database = {
           grand_total?: number | null
           id?: string
           is_return?: boolean
+          item_projects?: string[]
           net_total?: number | null
           org_id?: string
           outstanding_amount?: number | null

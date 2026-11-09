@@ -53,6 +53,13 @@ export interface PackFactsProgress {
   entered_by_name: string | null;
 }
 
+/** 0810: per-line earned value (net, in the project currency) as at the end of `month`, for projects with contract lines. */
+export interface PackFactsEarned {
+  project_id: string;
+  month: string;
+  earned_value: number;
+}
+
 export interface ManagementPackFacts {
   from: string;
   to: string;
@@ -63,6 +70,8 @@ export interface ManagementPackFacts {
   invoiced: PackFactsInvoiced[];
   invoiced_before: PackFactsInvoicedBefore[];
   progress: PackFactsProgress[];
+  /** Absent on a pre-0810 server; treated as no contract-line projects. */
+  earned?: PackFactsEarned[];
 }
 
 export interface ProjectProgressInput {

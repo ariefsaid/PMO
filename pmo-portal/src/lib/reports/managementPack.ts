@@ -6,7 +6,8 @@ import type { ManagementPackFacts, PackFactsProgress, PackFactsProject } from '@
  * Every figure is NET of tax, in the row's own currency, in integer cents (NFR-MMP-002).
  */
 export type Cents = number;
-export type RecognitionBasis = 'progress' | 'invoiced';
+/** 'earned' = per-line earned value (projects with contract lines, #1279); 'progress' = percent complete x net contract. */
+export type RecognitionBasis = 'progress' | 'earned' | 'invoiced';
 export type PackRowKind = 'contract' | 'otherCurrency' | 'unassigned';
 
 export interface PackMonth {
@@ -124,6 +125,8 @@ interface RowInput {
   invoicedBefore: Cents;
   invoiceCountBefore: number;
   progress: PackFactsProgress[];
+  /** month -> earned cents; set only for a project with contract lines. */
+  earned: Map<string, Cents> | null;
   months: string[];
   from: string;
   to: string;
@@ -133,6 +136,7 @@ interface RowInput {
 function buildRow(r: RowInput): PackRow {
   const contractNet = r.kind === 'contract' && r.project ? toCents(r.project.contract_net) : null;
   const recognisedToDateAt = (month: string, invoicedToDate: Cents): { value: Cents; basis: RecognitionBasis } => {
+    if (contractNet !== null && r.earned) return { value: r.earned.get(month) ?? 0, basis: 'earned' };
     const entry = contractNet !== null ? latestAtOrBefore(r.progress, month) : null;
     return entry && contractNet !== null
       ? { value: pctOf(contractNet, entry.pct_complete), basis: 'progress' }
@@ -261,6 +265,13 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
     progressByProject.set(p.project_id, list);
   }
 
+  const earnedByProject = new Map<string, Map<string, Cents>>();
+  for (const e of facts.earned ?? []) {
+    const byMonth = earnedByProject.get(e.project_id) ?? new Map<string, Cents>();
+    byMonth.set(e.month, toCents(e.earned_value));
+    earnedByProject.set(e.project_id, byMonth);
+  }
+
   const common = { months, from: facts.from, to: facts.to };
   const rows: PackRow[] = [];
   const covered = new Set<string>();
@@ -272,7 +283,7 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
       ...common, kind: 'contract', project, currency: project.currency,
       invoicedByMonth: invoiced.get(k) ?? new Map(), invoiceCountByMonth: invoiceCounts.get(k) ?? new Map(),
       invoicedBefore: before.get(k) ?? 0, invoiceCountBefore: invoiceCountBefore.get(k) ?? 0,
-      progress: progressByProject.get(project.id) ?? [], backlogReconciled: !foreignInvoiceProjects.has(project.id),
+      progress: progressByProject.get(project.id) ?? [], earned: earnedByProject.get(project.id) ?? null, backlogReconciled: !foreignInvoiceProjects.has(project.id),
     }));
   }
 
@@ -290,7 +301,7 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
       currency: k.slice(sep + 1),
       invoicedByMonth: invoiced.get(k) ?? new Map(), invoiceCountByMonth: invoiceCounts.get(k) ?? new Map(),
       invoicedBefore: before.get(k) ?? 0, invoiceCountBefore: invoiceCountBefore.get(k) ?? 0,
-      progress: [], backlogReconciled: false,
+      progress: [], earned: null, backlogReconciled: false,
     }));
   }
 
