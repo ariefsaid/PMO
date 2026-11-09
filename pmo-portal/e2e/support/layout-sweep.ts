@@ -15,7 +15,9 @@ interface LayoutRoute {
 }
 
 async function settle(page: Page) {
-  await page.waitForLoadState('networkidle').catch(() => {});
+  // Best-effort and bounded: networkidle can never fire after a goto that cancels the previous page's
+  // in-flight fetches (Playwright keeps them as in flight), and unbounded it ate the whole test timeout.
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
   await expect(page.getByRole('status', { name: 'Loading page' })).toHaveCount(0, { timeout: 30_000 });
   await page.waitForTimeout(1500);
   await waitForFonts(page);
