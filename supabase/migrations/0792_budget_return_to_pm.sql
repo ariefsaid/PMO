@@ -10,7 +10,7 @@ alter table public.budget_versions
   add constraint budget_versions_return_state_ck
   check ((returned_at is null) = (return_reason is null) and (returned_at is null or length(btrim(return_reason)) > 0));
 
--- Clients hold UPDATE(status) only (0178), so the columns are written solely by the definers below.
+-- Clients hold no UPDATE on budget_versions (0178, 0387), so the columns are written solely by the definers below.
 -- A returned Draft is not waiting for approval, so it cannot be activated until resubmitted.
 create or replace function public.assert_budget_returned_not_activated() returns trigger
   language plpgsql set search_path = public, pg_temp as $$

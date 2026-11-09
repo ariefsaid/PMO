@@ -1,7 +1,7 @@
 -- AC-1413-01..: an approver returns a waiting Draft to the PM (server-enforced SoD, role, org, state).
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(23);
 
 insert into organizations (id, name) values
  ('b1413000-0000-0000-0000-000000000001','Return Org'),('b1413000-0000-0000-0000-000000000002','Return Other Org');
@@ -9,12 +9,16 @@ insert into auth.users (id, email) values
  ('b1413000-0000-0000-0000-0000000000a1','pm-ret@example.com'),
  ('b1413000-0000-0000-0000-0000000000a2','fin-ret@example.com'),
  ('b1413000-0000-0000-0000-0000000000a3','eng-ret@example.com'),
- ('b1413000-0000-0000-0000-0000000000a4','out-ret@example.com');
+ ('b1413000-0000-0000-0000-0000000000a4','out-ret@example.com'),
+ ('b1413000-0000-0000-0000-0000000000a5','off-ret@example.com');
 insert into profiles (id, org_id, full_name, email, role) values
  ('b1413000-0000-0000-0000-0000000000a1','b1413000-0000-0000-0000-000000000001','PM','pm-ret@example.com','Project Manager'),
  ('b1413000-0000-0000-0000-0000000000a2','b1413000-0000-0000-0000-000000000001','Fin','fin-ret@example.com','Finance'),
  ('b1413000-0000-0000-0000-0000000000a3','b1413000-0000-0000-0000-000000000001','Eng','eng-ret@example.com','Engineer'),
  ('b1413000-0000-0000-0000-0000000000a4','b1413000-0000-0000-0000-000000000002','Out','out-ret@example.com','Finance');
+-- a deactivated in-org Finance member (profiles.status is what is_active_member() reads)
+insert into profiles (id, org_id, full_name, email, role, status) values
+ ('b1413000-0000-0000-0000-0000000000a5','b1413000-0000-0000-0000-000000000001','Off','off-ret@example.com','Finance','disabled');
 insert into projects (id, org_id, name, status) values
  ('b1413111-0000-0000-0000-000000000001','b1413000-0000-0000-0000-000000000001','Return Project','Ongoing Project');
 
@@ -61,6 +65,25 @@ reset role;
 select ok((select count(*) = 1 from audit_events where action='budget_version.return' and entity_id='b1413222-0000-0000-0000-000000000001'
   and actor_id='b1413000-0000-0000-0000-0000000000a2'),
  'AC-1413-09 the return is audited');
+
+-- D1 is returned: resubmit and return must still refuse outsiders, non-approver roles and deactivated members.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"b1413000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select throws_ok($$select resubmit_budget_version('b1413222-0000-0000-0000-000000000001')$$,'42501','not authorized',
+ 'AC-1413-19 another org cannot resubmit');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"b1413000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok($$select resubmit_budget_version('b1413222-0000-0000-0000-000000000001')$$,'42501','not authorized',
+ 'AC-1413-20 a non-approver role cannot resubmit');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"b1413000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok($$select return_budget_version('b1413222-0000-0000-0000-000000000002','x')$$,'42501','not authorized',
+ 'AC-1413-21 a deactivated member cannot return');
+select throws_ok($$select resubmit_budget_version('b1413222-0000-0000-0000-000000000001')$$,'42501','not authorized',
+ 'AC-1413-22 a deactivated member cannot resubmit');
+reset role;
 
 -- PM sees the reason, still edits, resubmits; the approver then activates.
 set local role authenticated;
