@@ -79,9 +79,12 @@ export interface ProjectFormInitial extends ProjectClassification {
   pmName?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** #1275: when the host supplies it (even null) the header form shows and writes the default receipt article. */
+  receipt_withholding_article?: 'pph23' | 'pph4_2' | null;
 }
 
 interface FormValues {
+  receiptWithholdingArticle: string;
   serviceLine: string;
   sector: string;
   location: string;
@@ -207,6 +210,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const form = useEntityForm<FormValues>({
     initialValues: {
+      receiptWithholdingArticle: initial?.receipt_withholding_article ?? '',
       serviceLine: initial?.service_line ?? '',
       sector: initial?.sector ?? '',
       location: initial?.location ?? '',
@@ -369,6 +373,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             project_manager_id: values.pmId,
             start_date: values.startDate || null,
             end_date: values.endDate || null,
+            ...(initial.receipt_withholding_article !== undefined
+              ? { receipt_withholding_article: values.receiptWithholdingArticle === 'pph23' || values.receiptWithholdingArticle === 'pph4_2' ? values.receiptWithholdingArticle : null }
+              : {}),
           };
           await onSave(initial.id, input);
         } else if (onSubmit) {
@@ -661,6 +668,16 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             value={form.values.biddingEntity} onChange={(value) => form.setValue('biddingEntity', value)}
             options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
           <TextField {...form.fieldProps('location')} id="project-classification-location" label={t('projectClassification.location', 'Location')} fullWidth />
+          {isEdit && initial?.receipt_withholding_article !== undefined && (
+            <SelectField id="project-receipt-withholding-article" label={t('projects:receiptWithholding.article', 'Client withholding article')}
+              value={form.values.receiptWithholdingArticle} onChange={(value) => form.setValue('receiptWithholdingArticle', value)}
+              helper={t('projects:receiptWithholding.articleHelper', 'Pre-fills new receipts. Each receipt can change it.')}
+              options={[
+                { value: '', label: t('projectClassification.notSet', 'Not set') },
+                { value: 'pph23', label: t('finance:financeCopy.withholdingArticlePph23', 'PPh 23') },
+                { value: 'pph4_2', label: t('finance:financeCopy.withholdingArticlePph42', 'PPh 4(2)') },
+              ]} />
+          )}
         </FormGrid>
       </FormSection>
 
