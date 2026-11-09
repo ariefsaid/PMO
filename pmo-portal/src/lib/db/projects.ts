@@ -188,6 +188,8 @@ export interface ProjectHeaderInput extends ProjectClassification {
   project_manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
+  /** #1275: the client's default tax article for this project's receipts (pre-fill only). Omitted preserves it. */
+  receipt_withholding_article?: 'pph23' | 'pph4_2' | null;
 }
 
 /**
@@ -394,6 +396,7 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       ...(input.location !== undefined ? { location: input.location } : {}),
       ...(input.award_type !== undefined ? { award_type: input.award_type } : {}),
       ...(input.bidding_entity !== undefined ? { bidding_entity: input.bidding_entity } : {}),
+      ...(input.receipt_withholding_article !== undefined ? { receipt_withholding_article: input.receipt_withholding_article } : {}),
     })
     .eq('id', id)
     .select('id');

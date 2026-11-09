@@ -40,7 +40,8 @@ describe('odoo/sendsFinished: FR-ODC-110 the sends step follows send state, not 
   });
 
   it('FR-ODC-110 open link and bring-in rows do not hold the sends step', () => {
-    expect(sendsFinished(settled({ proposalCounts: { party: { ...none, link: 4, bring_in: 2, applied_link: 1 } } }))).toBe(true);
+    const open = { ...none, link: 4, bring_in: 2, applied_link: 1 };
+    expect(sendsFinished(settled({ proposalCounts: { party: open } }))).toBe(true);
   });
 
   it('FR-ODC-110 counts that were not returned cannot show Done', () => {

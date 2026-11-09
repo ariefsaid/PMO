@@ -80,5 +80,9 @@
     "startDate": "Start date",
     "endDate": "End date",
     "contractValue": "Contract value"
+  },
+  "receiptWithholding": {
+    "article": "Client withholding article",
+    "articleHelper": "Pre-fills new receipts. Each receipt can change it."
   }
 }

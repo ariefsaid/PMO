@@ -32,6 +32,9 @@ export function odooErrorMessage(t: TFunction, err: unknown, fallback?: string):
     'company-not-set': t('administration:odoo.error.notSetUp', 'The Odoo connection is not set up. Finish setting it up first.'),
     'not-found': t('administration:odoo.error.notSetUp', 'The Odoo connection is not set up. Finish setting it up first.'),
     STORE_FAILED: t('administration:odoo.error.storeFailed', 'The check ran but its result could not be saved. Try again.'),
+    'sends-pending': t('administration:odoo.error.sendsPending', 'Some records are still on their way to Odoo. Try again when they have arrived.'),
+    'config-rejected': t('administration:odoo.error.configRejected', 'Odoo is missing something this needs. Check the connection again, then try again.'),
+    feature_off: t('administration:odoo.error.featureOff', 'Connecting an accounting system is not turned on for your organization.'),
     SYNC_RUNNING: t('administration:odoo.error.syncRunning', 'A sync is running. Try again in a minute.'),
   };
   return (code && m[code]) || fallback || t('administration:odoo.error.generic', 'Something went wrong. Nothing was changed. Try again.');

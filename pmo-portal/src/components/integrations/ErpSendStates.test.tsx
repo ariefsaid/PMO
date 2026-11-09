@@ -103,3 +103,30 @@ describe('ECA3-T11 ErpSendStates', () => {
     expect(repo.getConnectStatus).not.toHaveBeenCalled();
   });
 });
+
+describe('AC-ODS-003 Odoo send states', () => {
+  const renderOdoo = () => render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ErpSendStates enabled tier="odoo" /></QueryClientProvider>,
+  );
+
+  it('AC-ODS-003 waiting sends and a held record are read from Odoo, named Odoo, and retry goes to Odoo', async () => {
+    repo.retryConnectSend.mockResolvedValue(undefined);
+    answer(3, [proposal({ id: 'h1', kind: 'project', reason: 'held', snapshot: { name: 'PT Sinar Baja' }, reason_text: 'We could not confirm whether Odoo created this record' })]);
+    renderOdoo();
+    expect(await screen.findByText('Sending to Odoo')).toBeTruthy();
+    expect(screen.getByText(/3 waiting for Odoo to confirm/)).toBeTruthy();
+    expect(screen.getByText('Records going to Odoo')).toBeTruthy();
+    expect(repo.getConnectStatus).toHaveBeenCalledWith('odoo');
+    expect(repo.listConnectProposals.mock.calls[0][0]).toBe('odoo');
+    expect(await screen.findByText('PT Sinar Baja')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'It is not there: send it again' }));
+    await waitFor(() => expect(repo.retryConnectSend).toHaveBeenCalledWith('odoo', 'h1'));
+  });
+
+  it('AC-ODS-003 people Odoo cannot take are listed to add in Odoo', async () => {
+    answer(0, [], [proposal({ id: 'e1', kind: 'employee', outcome: 'send', snapshot: { name: 'Siti Rahma' } })]);
+    renderOdoo();
+    expect(await screen.findByText(/Add these people in Odoo/)).toBeTruthy();
+    expect(repo.listConnectProposals).toHaveBeenCalledWith('odoo', 'employee', 'send', null);
+  });
+});

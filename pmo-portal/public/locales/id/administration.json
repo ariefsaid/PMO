@@ -110,7 +110,9 @@
       "employHint": "Setelah ini, Odoo memegang data vendor dan klien.",
       "title": "Penyiapan Odoo",
       "done": "Selesai",
-      "todo": "Belum"
+      "todo": "Belum",
+      "procurement": "Pembelian dicatat di Odoo",
+      "procurementHint": "Setelah ini, pesanan pembelian, penerimaan barang, dan tagihan pemasok yang disetujui juga dibuat di Odoo."
     },
     "picker": {
       "placeholder": "Pilih barang",
@@ -142,7 +144,10 @@
       "storeFailed": "Pengecekan berjalan tetapi hasilnya tidak dapat disimpan. Coba lagi.",
       "syncRunning": "Sinkronisasi sedang berjalan. Coba lagi dalam semenit.",
       "generic": "Terjadi kesalahan. Tidak ada yang berubah. Coba lagi.",
-      "refused": "Pilihan itu sudah tidak tersedia di Odoo, atau sudah terhubung ke proyek lain. Muat ulang lalu pilih lagi."
+      "refused": "Pilihan itu sudah tidak tersedia di Odoo, atau sudah terhubung ke proyek lain. Muat ulang lalu pilih lagi.",
+      "sendsPending": "Beberapa data masih dalam perjalanan ke Odoo. Coba lagi setelah semuanya sampai.",
+      "configRejected": "Odoo belum memiliki sesuatu yang diperlukan. Periksa koneksi lagi, lalu coba lagi.",
+      "featureOff": "Koneksi sistem akuntansi belum diaktifkan untuk organisasi Anda."
     },
     "master": {
       "items": "Barang",
@@ -218,6 +223,33 @@
       "save": "Simpan",
       "archived": "Perlu perhatian: gudang utama diarsipkan di Odoo. Pilih yang lain.",
       "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain."
+    },
+    "records": {
+      "title": "Data di PMO dan Odoo",
+      "planTitle": "Akun biaya proyek",
+      "planIntro": "Pilih rencana analitik Odoo yang memuat satu akun untuk setiap proyek. PMO mengirim setiap proyek ke sana. Ini dilakukan sekali.",
+      "planProposed": "Diusulkan: {{name}}",
+      "planUseNamed": "Pakai {{name}}",
+      "planNone": "Odoo belum punya rencana analitik. Tambahkan di Odoo, lalu periksa lagi.",
+      "planLoadFailed": "Rencana analitik tidak dapat dimuat",
+      "censusFailed": "Proyek belum dapat diperiksa. Tekan Periksa lagi."
+    },
+    "send": {
+      "title": "Data yang sedang dikirim ke Odoo",
+      "sending": "Mengirim ke Odoo",
+      "waiting": "{{count}} menunggu konfirmasi Odoo.",
+      "addPeople": "Tambahkan orang-orang ini di Odoo. PMO belum mengirim data orang ke Odoo."
+    },
+    "employ": {
+      "companiesAction": "Biarkan Odoo mengelola vendor dan klien",
+      "companiesTitle": "Biarkan Odoo mengelola vendor dan klien?",
+      "companiesBody": "Mulai sekarang, Odoo menyimpan data vendor dan klien Anda. Vendor dan klien baru, serta perubahan nama dan NPWP, disimpan di Odoo melalui formulir PMO.",
+      "companiesConfirm": "Biarkan Odoo mengelola",
+      "procurementAction": "Kirim pembelian ke Odoo",
+      "procurementTitle": "Kirim pembelian ke Odoo?",
+      "procurementBody": "Mulai sekarang, pesanan pembelian, penerimaan barang, dan tagihan pemasok yang disetujui juga dibuat di Odoo.",
+      "procurementConfirm": "Kirim pembelian",
+      "waitSends": "Tunggu sampai semua data sampai di Odoo."
     },
     "projectLink": {
       "title": "Akun biaya Odoo",
@@ -383,6 +415,15 @@
     "retry": "Coba lagi"
   },
   "admin": {
+    "receiptWithholding": {
+      "defaultLabel": "Akun bawaan",
+      "defaultNoun": "akun bawaan",
+      "pph23Label": "Akun PPh 23 dibayar di muka",
+      "pph23Noun": "akun PPh 23",
+      "pph42Label": "Akun PPh 4(2) dibayar di muka",
+      "pph42Noun": "akun PPh 4(2)",
+      "fallbackHint": "Penerimaan tanpa pasal, atau pasal tanpa akun sendiri, dicatat ke akun bawaan."
+    },
     "users": {
       "pager": {
             "label": "Halaman",
