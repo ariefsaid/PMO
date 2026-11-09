@@ -186,6 +186,7 @@
   --motion-drawer-in: 200ms;
   --motion-drawer-out: 160ms;
   --motion-menu-in: 120ms;
+  --motion-tooltip: 125ms;
   --motion-icon-swap: 180ms;
   --motion-save-pulse: 450ms;
 
@@ -639,6 +640,16 @@
    placement (e.g. "top right" under the trigger, "bottom left" when flipped up). ---------- */
 .menu-pop-anim { transform-origin: var(--menu-origin, top left); animation: menuPopIn var(--motion-menu-in) var(--ease-out); }
 @keyframes menuPopIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- Tooltips grow from their trigger: Base UI sets --transform-origin on the
+   positioner from the resolved placement, so the entrance starts at the trigger edge.
+   data-instant covers a neighbour within the delay group (and focus), which must not animate. */
+.tooltip-anim {
+  transform-origin: var(--transform-origin);
+  transition: opacity var(--motion-tooltip) var(--ease-out), transform var(--motion-tooltip) var(--ease-out);
+}
+.tooltip-anim[data-starting-style], .tooltip-anim[data-ending-style] { opacity: 0; transform: scale(0.97); }
+.tooltip-anim[data-instant] { transition-duration: 0ms; }
 
 /* ---------- Save pulse: one short ring on the saved element/toast (box-shadow-free:
    a pseudo-element's opacity/transform only). ---------- */

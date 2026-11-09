@@ -51,7 +51,8 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
 import { usePermission } from '@/src/auth/usePermission';
 import { UserRole } from './types';
-import { AccessDenied, ToastProvider } from '@/src/components/ui';
+import { AccessDenied, ToastProvider, TOOLTIP_OPEN_DELAY_MS } from '@/src/components/ui';
+import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { DocumentViewerProvider } from '@/src/components/documents';
@@ -753,29 +754,34 @@ const Shell: React.FC = () => {
   return (
     <ImpersonationProvider realRole={role} demoEligibility={demoEligibility}>
       <ToastProvider>
-        {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
-            so the runtime + open state survive route changes. It is the SOLE
-            importer of PmoNativeRuntime (port isolation, AC-AP-024).
-            Flag-off: provides runtime=null, open=false — zero overhead.
-            ADR-0045 §3: AgentContextProvider nests inside — it reads the router
-            location (useLocation, available here since Shell renders inside
-            the data router) and is the source useAssistantPanel reads via
-            useAgentContext() when threading context on createRun/followUp. */}
-        <AgentRuntimeProvider>
-          <AgentContextProvider>
-            {/* Reliability harden #4: a render throw anywhere in the authenticated
-                shell/routes renders the ErrorBoundary fallback (retry / reload / home)
-                instead of white-screening the SPA. Wrapped inside the providers so a
-                recovery keeps auth/runtime/toast context intact. */}
-            <ErrorBoundary>
-              {/* #1474: one side-panel document viewer for every document entry point; it sits inside the
-                  router (route change closes it) and above the routes so the panel survives list re-renders. */}
-              <DocumentViewerProvider>
-                <ShellChrome />
-              </DocumentViewerProvider>
-            </ErrorBoundary>
-          </AgentContextProvider>
-        </AgentRuntimeProvider>
+        {/* #2123: one tooltip delay group for the whole shell. 400ms of hover intent stops a
+            pointer sweeping a table from flashing a panel per cell; Base UI then opens a
+            neighbour instantly (data-instant) once one tooltip has opened. */}
+        <BaseTooltip.Provider delay={TOOLTIP_OPEN_DELAY_MS} closeDelay={0}>
+          {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
+              so the runtime + open state survive route changes. It is the SOLE
+              importer of PmoNativeRuntime (port isolation, AC-AP-024).
+              Flag-off: provides runtime=null, open=false — zero overhead.
+              ADR-0045 §3: AgentContextProvider nests inside — it reads the router
+              location (useLocation, available here since Shell renders inside
+              the data router) and is the source useAssistantPanel reads via
+              useAgentContext() when threading context on createRun/followUp. */}
+          <AgentRuntimeProvider>
+            <AgentContextProvider>
+              {/* Reliability harden #4: a render throw anywhere in the authenticated
+                  shell/routes renders the ErrorBoundary fallback (retry / reload / home)
+                  instead of white-screening the SPA. Wrapped inside the providers so a
+                  recovery keeps auth/runtime/toast context intact. */}
+              <ErrorBoundary>
+                {/* #1474: one side-panel document viewer for every document entry point; it sits inside the
+                    router (route change closes it) and above the routes so the panel survives list re-renders. */}
+                <DocumentViewerProvider>
+                  <ShellChrome />
+                </DocumentViewerProvider>
+              </ErrorBoundary>
+            </AgentContextProvider>
+          </AgentRuntimeProvider>
+        </BaseTooltip.Provider>
       </ToastProvider>
     </ImpersonationProvider>
   );

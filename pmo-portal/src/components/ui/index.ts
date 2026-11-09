@@ -31,7 +31,7 @@ export { ViewToggle, type ViewOption, type ViewToggleProps } from './ViewToggle'
 export { ProgressBar, type ProgressBarProps, type ProgressTone } from './ProgressBar';
 export { ListState, type ListStateProps } from './ListState';
 export { WhenNearViewport, type WhenNearViewportProps } from './WhenNearViewport';
-export { Tooltip, type TooltipProps } from './Tooltip';
+export { Tooltip, TOOLTIP_OPEN_DELAY_MS, type TooltipProps } from './Tooltip';
 export { ToastProvider, useToast, type ToastKind } from './Toast';
 export {
   ConfirmDialog,
