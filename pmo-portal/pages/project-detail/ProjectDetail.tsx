@@ -257,7 +257,7 @@ const ProjectDetail: React.FC = () => {
             pmName: project.pm?.full_name ?? null,
             start_date: project.start_date,
             end_date: project.end_date,
-            receipt_withholding_article: (project.receipt_withholding_article as 'pph23' | 'pph4_2' | null) ?? null,
+            receipt_withholding_article: project.receipt_withholding_article as 'pph23' | 'pph4_2' | null,
           }}
           onClose={closeEditProject}
           onSave={saveProjectHeader}

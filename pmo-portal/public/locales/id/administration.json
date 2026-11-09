@@ -380,8 +380,11 @@
   "admin": {
     "receiptWithholding": {
       "defaultLabel": "Akun bawaan",
+      "defaultNoun": "akun bawaan",
       "pph23Label": "Akun PPh 23 dibayar di muka",
+      "pph23Noun": "akun PPh 23",
       "pph42Label": "Akun PPh 4(2) dibayar di muka",
+      "pph42Noun": "akun PPh 4(2)",
       "fallbackHint": "Penerimaan tanpa pasal, atau pasal tanpa akun sendiri, dicatat ke akun bawaan."
     },
     "users": {

@@ -35,9 +35,9 @@ export default function OrgWithholdingAccount() {
   const pph23Draft = useRemoteStringDraft({ remote: query.data?.pph23Account, isSuccess: query.isSuccess });
   const pph42Draft = useRemoteStringDraft({ remote: query.data?.pph42Account, isSuccess: query.isSuccess });
   const fields = [
-    { key: 'default', draft: defaultDraft, label: t('administration:admin.receiptWithholding.defaultLabel', 'Default account') },
-    { key: 'pph23', draft: pph23Draft, label: t('administration:admin.receiptWithholding.pph23Label', 'PPh 23 prepaid account') },
-    { key: 'pph42', draft: pph42Draft, label: t('administration:admin.receiptWithholding.pph42Label', 'PPh 4(2) prepaid account') },
+    { key: 'default', draft: defaultDraft, label: t('administration:admin.receiptWithholding.defaultLabel', 'Default account'), noun: t('administration:admin.receiptWithholding.defaultNoun', 'default account') },
+    { key: 'pph23', draft: pph23Draft, label: t('administration:admin.receiptWithholding.pph23Label', 'PPh 23 prepaid account'), noun: t('administration:admin.receiptWithholding.pph23Noun', 'PPh 23 account') },
+    { key: 'pph42', draft: pph42Draft, label: t('administration:admin.receiptWithholding.pph42Label', 'PPh 4(2) prepaid account'), noun: t('administration:admin.receiptWithholding.pph42Noun', 'PPh 4(2) account') },
   ] as const;
   const catalogue = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],
@@ -99,7 +99,7 @@ export default function OrgWithholdingAccount() {
               }}>{t('uxs11.reloadSaved', 'Reload saved value')}</Button>
             </div>
           )}
-          {fields.map(({ key, draft: d, label }) => {
+          {fields.map(({ key, draft: d, label, noun }) => {
             const candidate = candidates.find((account) => account.account === d.draft);
             const isStaleSavedChoice = Boolean(d.draft && !candidate && !d.dirty && catalogue.isSuccess);
             const isUnavailableDraftChoice = Boolean(d.draft && !candidate && d.dirty && catalogue.isSuccess);
@@ -124,7 +124,7 @@ export default function OrgWithholdingAccount() {
                 clearable={Boolean(d.draft && !mutation.isPending)}
                 error={isUnavailableDraftChoice ? t('v024Polish.accountDraftUnavailable', 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.') : undefined}
                 loadOptions={loadOptions}
-                noun={t('uxs11.accountNoun', 'account')}
+                noun={noun}
                 placeholder={t('uxs11.withholdingPlaceholder', 'Choose an Asset account')}
                 searchPlaceholder={t('uxs11.accountSearch', 'Search account name or number')}
                 disabled={mutation.isPending || !canBrowse}

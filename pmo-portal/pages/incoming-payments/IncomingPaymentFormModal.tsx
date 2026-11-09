@@ -219,6 +219,8 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   const withheldAmountField = form.fieldProps('withheldAmount');
   const slipField = form.fieldProps('withholdingSlipNumber');
   const articleField = form.fieldProps('withholdingArticle');
+  // #1275: an invoice change re-pre-fills the article only until the accountant hand-picks one.
+  const articlePicked = React.useRef(false);
   const dateField = form.fieldProps('date');
   const journalField = form.fieldProps('journalId');
   const withholdingPanelId = React.useId();
@@ -349,6 +351,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             onChange={(value) => {
               if (value !== customerField.value) {
                 form.setValues({ customerId: value, salesInvoiceId: null, paidAmount: '0', receivedAmount: '0', withheldAmount: '0', withholdingSlipNumber: '', withholdingArticle: '' });
+                articlePicked.current = false;
               }
             }}
             error={customerField.error}
@@ -363,7 +366,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             onChange={(value, _option) => {
               salesInvoiceField.onChange(value ?? '');
               // #1275 (AC-WHA-007): pre-fill the article from the invoice's project; the accountant can change it.
-              if (!native) form.setValues({ withholdingArticle: invoices?.find((inv) => inv.id === value)?.project_receipt_withholding_article ?? '' });
+              if (!native && !articlePicked.current) form.setValues({ withholdingArticle: invoices?.find((inv) => inv.id === value)?.project_receipt_withholding_article ?? '' });
               // #784 (DD-NAR-17): a PMO receipt's amount starts at what the chosen invoice still owes.
               const chosen = native ? invoices?.find((inv) => inv.id === value) : undefined;
               if (chosen?.erp_outstanding_amount != null && chosen.erp_outstanding_amount > 0) {
@@ -458,7 +461,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
                     id={articleField.id}
                     label={t('finance:financeCopy.withholdingArticle', 'Withholding article')}
                     value={articleField.value}
-                    onChange={(v) => articleField.onChange(v as FormValues['withholdingArticle'])}
+                    onChange={(v) => { articlePicked.current = true; articleField.onChange(v as FormValues['withholdingArticle']); }}
                     options={[
                       { value: '', label: t('finance:financeCopy.withholdingArticleNone', 'Not stated') },
                       { value: 'pph23', label: t('finance:financeCopy.withholdingArticlePph23', 'PPh 23') },

@@ -71,7 +71,7 @@ it('AC-WHT-004: clearing an existing account explicitly disables receipt withhol
   h.get.mockResolvedValue(only('Tax Prepaid - DEMO'));
   renderSetting();
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'Clear account' }));
+  await user.click(await screen.findByRole('button', { name: 'Clear default account' }));
   await user.click(screen.getByRole('button', { name: 'Save account' }));
   expect(h.set).toHaveBeenCalledWith(NONE);
 });
@@ -151,7 +151,7 @@ it('AC-S11-002: without an active ERPNext binding the chart is not queried and t
   expect(h.listAccounts).not.toHaveBeenCalled();
   expect(field).toHaveTextContent('Tax Prepaid - DEMO');
 
-  await user.click(screen.getByRole('button', { name: 'Clear account' }));
+  await user.click(screen.getByRole('button', { name: 'Clear default account' }));
   await user.click(screen.getByRole('button', { name: 'Save account' }));
   expect(h.set).toHaveBeenCalledWith(NONE);
 });
@@ -254,4 +254,11 @@ it('AC-WHA-001: a non-Admin sees the three accounts read-only', async () => {
   expect(screen.getByText('Not configured')).toBeInTheDocument();
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Save account' })).not.toBeInTheDocument();
+});
+
+it('AC-WHA-001: the three Clear buttons carry distinct names, one per account field', async () => {
+  h.get.mockResolvedValue({ defaultAccount: 'D - DEMO', pph23Account: 'P23 - DEMO', pph42Account: 'P42 - DEMO' });
+  renderSetting();
+  const names = (await screen.findAllByRole('button', { name: /^Clear / })).map((b) => b.getAttribute('aria-label'));
+  expect(names).toEqual(['Clear default account', 'Clear PPh 23 account', 'Clear PPh 4(2) account']);
 });

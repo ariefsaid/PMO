@@ -316,6 +316,23 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     expect(hoisted.createPaymentMutate.mock.calls.at(-1)?.[0]).toMatchObject({ withholdingArticle: 'pph23' });
   });
 
+  it('AC-WHA-007: changing the invoice keeps an article the accountant hand-picked', async () => {
+    hoisted.invoicesState.data = [
+      invoice({ id: 'si-wha4', si_number: 'SI-WHA4', project_receipt_withholding_article: 'pph4_2' }),
+      invoice({ id: 'si-wha5', si_number: 'SI-WHA5', project_receipt_withholding_article: 'pph4_2' }),
+    ];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA4');
+    await enterWithholding(user);
+    const article = screen.getByLabelText('Withholding article');
+    await user.selectOptions(article, 'pph23');
+    await pick(user, /Sales Invoice/, 'SI-WHA5');
+    expect(screen.getByLabelText('Withholding article')).toHaveValue('pph23');
+  });
+
   it('AC-WHA-006: with nothing withheld the receipt carries no article', async () => {
     hoisted.invoicesState.data = [invoice({ id: 'si-wha3', si_number: 'SI-WHA3', project_receipt_withholding_article: 'pph4_2' })];
     const user = userEvent.setup();
