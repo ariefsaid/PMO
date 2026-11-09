@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, i18next } from './index';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -10,11 +10,13 @@ import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
  * Sits between `<AuthProvider>` and the router in `App.tsx`: it needs the profile (above it)
  * and every string-rendering subtree sits below it.
  *
- * ⚑ BOOT ORDERING. Before the profile resolves the language is `en` and the number locale is
- * `en-US`. When the profile lands this component re-runs, re-sets both, and re-renders its subtree —
- * so nothing keeps rendering English digits under an Indonesian UI. There is no memoised formatter
- * to invalidate: `format.ts` keys its cache BY LOCALE, so the switch misses into a fresh entry
- * instead of reusing a stale one.
+ * ⚑ BOOT ORDERING. The FIRST catalogue fetch is made in the resolved locale when there is one (a
+ * cached session resolves the profile before this provider's first render), so an Indonesian user
+ * starts in Indonesian instead of downloading English and switching (#2097). When the profile lands
+ * later, this component re-runs, re-sets both the language and the number locale, and re-renders its
+ * subtree — so nothing keeps rendering English digits under an Indonesian UI. There is no memoised
+ * formatter to invalidate: `format.ts` keys its cache BY LOCALE, so the switch misses into a fresh
+ * entry instead of reusing a stale one.
  *
  * ⛔ The language is SET here from `resolveLocale`'s output and is never detected. No
  * `navigator.language`, no `localStorage`, no detector plugin (FR-L10N-003).
@@ -39,10 +41,20 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // locale. An effect would let one paint escape with the previous locale's separators.
   setActiveLocale(stable);
 
+  // The locale the FIRST catalogue fetch must use. Read through a ref so the one-shot init below
+  // sees the latest resolution even if the profile lands mid-init (#2097).
+  const localeRef = useRef(stable.locale);
+  localeRef.current = stable.locale;
+
   useEffect(() => {
     let active = true;
-    void initI18n().then(() => {
+    // #2097: hand i18next the resolved locale NOW. When a cached session resolves the profile
+    // before the first render, an Indonesian user's first fetch is `/locales/id/...` instead of
+    // English-then-switch (which downloaded the English set and then the Indonesian one).
+    void initI18n(localeRef.current).then((instance) => {
       if (!active) return;
+      // The profile may have landed while the boot catalogue was in flight.
+      if (instance.language !== localeRef.current) void instance.changeLanguage(localeRef.current);
       markCataloguesLoaded(true);
     });
     return () => {
