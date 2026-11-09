@@ -123,9 +123,11 @@ describe('DataTable render count (desktop sticky seam)', () => {
     expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(rows.length + 1);
     expect(cell).toHaveBeenCalledTimes(rows.length); // a measurement flip alone re-renders no body row
 
-    metrics.scrollWidth = 300; // next page is one short row that fits
-    rerender(<DataTable rows={[rows[0]]} columns={columns} rowKey={(r) => r.id} rowMenu={rowMenu} />);
+    metrics.scrollWidth = 300; // next page is one changed row that fits (#2102 row memo:
+    // the row's DATA changes, so its cell re-runs — an unchanged row would correctly skip)
+    rerender(<DataTable rows={[{ ...rows[0], name: 'Renamed' }]} columns={columns} rowKey={(r) => r.id} rowMenu={rowMenu} />);
     // The data change itself re-renders the body exactly once (the surviving row's cell)...
+    expect(screen.getByText('Renamed')).toBeInTheDocument();
     expect(cell).toHaveBeenCalledTimes(rows.length + 1);
     act(() => { TestResizeObserver.instances[0].trigger(); });
     expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
