@@ -165,6 +165,7 @@
     "paymentRecord": "Detail pembayaran"
   },
   "managementPack": {
+    "basisEarned": "Nilai terealisasi",
     "search": "Cari proyek",
     "projectManager": "Manajer proyek",
     "progressValue": "Progres {{percent}}%",
