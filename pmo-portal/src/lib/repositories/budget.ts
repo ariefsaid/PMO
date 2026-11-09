@@ -49,7 +49,7 @@ export const budgetRepository: BudgetRepository = {
   findImportTargetDraft: (projectId) => wrap(() => findImportTargetDraft(projectId)),
   findImportedLine: (versionId, importKey) => wrap(() => findImportedLine(versionId, importKey)),
   cloneVersion: (versionId) => wrap(() => cloneVersion(versionId)),
-  activateVersion: (versionId) => wrap(() => activateVersion(versionId)),
+  activateVersion: (versionId, onPushSettled) => wrap(() => activateVersion(versionId, onPushSettled)),
   archiveVersion: (versionId, cancelErp) => wrap(() => archiveVersion(versionId, cancelErp)),
   deleteDraftVersion: (versionId) => wrap(() => deleteDraftVersion(versionId)),
   listDocumentLinks: (versionId) => wrap(() => listBudgetDocumentLinks(versionId)),

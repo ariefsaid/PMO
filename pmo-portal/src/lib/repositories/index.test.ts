@@ -1033,7 +1033,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.cloneVersion).toHaveBeenCalledWith('v1');
 
     await repositories.budget.activateVersion('v1');
-    expect(budgetsDal.activateVersion).toHaveBeenCalledWith('v1');
+    expect(budgetsDal.activateVersion).toHaveBeenCalledWith('v1', undefined);
 
     await repositories.budget.archiveVersion('v1', true);
     expect(budgetsDal.archiveVersion).toHaveBeenCalledWith('v1', true);
