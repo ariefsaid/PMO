@@ -145,6 +145,45 @@ it('FR-ODC-110 connected: state label, age, Re-check and Refresh now for Admin; 
   await waitFor(() => expect(h.disconnectIntegration).toHaveBeenCalledWith('org-1', 'odoo'));
 });
 
+it('#2051 Re-check that Odoo failed says why, never "Checked just now."', async () => {
+  const user = userEvent.setup();
+  h.setup.mockResolvedValue({ state: 'healthy', errorClass: 'unreachable' });
+  mount('Admin', connected());
+  await user.click(await screen.findByRole('button', { name: 'Re-check' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Odoo could not be reached. Check the address and try again.');
+  expect(screen.queryByText('Checked just now.')).not.toBeInTheDocument();
+});
+
+it('#2051 Re-check that could not finish (no usable answer) says the connection was not changed, not "Something went wrong"', async () => {
+  const user = userEvent.setup();
+  h.setup.mockImplementation(async (verb: string) => { if (verb === 'recheck') throw new AppError('Edge Function returned a non-2xx status code'); return { ok: true }; });
+  mount('Admin', connected());
+  await user.click(await screen.findByRole('button', { name: 'Re-check' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('The check could not finish, so the connection was not changed. Try again in a minute.');
+  expect(screen.queryByText(/Something went wrong/)).not.toBeInTheDocument();
+});
+
+it('#2051 Re-check whose result could not be saved, and a too-soon second check, each get their own line', async () => {
+  const user = userEvent.setup();
+  mount('Admin', connected());
+  const button = await screen.findByRole('button', { name: 'Re-check' });
+  h.setup.mockRejectedValueOnce(new AppError('x', 'STORE_FAILED'));
+  await user.click(button);
+  expect(await screen.findByRole('alert')).toHaveTextContent('The check ran but its result could not be saved. Try again.');
+  h.setup.mockRejectedValueOnce(new AppError('x', 'RATE_LIMITED'));
+  await user.click(screen.getByRole('button', { name: 'Re-check' }));
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('This was just run. Try again in a minute.'));
+});
+
+it('#2051 a healthy Re-check says "Checked just now."', async () => {
+  const user = userEvent.setup();
+  h.setup.mockResolvedValue({ state: 'healthy', errorClass: null });
+  mount('Admin', connected());
+  await user.click(await screen.findByRole('button', { name: 'Re-check' }));
+  expect(await screen.findByText('Checked just now.')).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
 it('FR-ODC-110 Finance sees the state and Refresh now only', async () => {
   mount('Finance', connected());
   expect(await screen.findByText('Connected')).toBeInTheDocument();
