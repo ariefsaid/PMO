@@ -525,7 +525,8 @@ export const ShellChrome: React.FC = () => {
   // (AC-CMDK-001/003/004/005)
   // #2096 (perf): the LIVE search implementation (six entity hooks → their domain repositories)
   // is mounted lazily from the FIRST palette open; until then this reads the published empty
-  // snapshot, which is byte-identical behaviour to the old enabled=false gating while closed.
+  // snapshot — equivalent to the old enabled=false gating VISUALLY, not byte-for-byte: the old
+  // disabled queries still aggregated isPending=true while closed, this snapshot reports false.
   const recordSearch = useRecordSearch();
   const [recordSearchMounted, setRecordSearchMounted] = useState(false);
   useEffect(() => {

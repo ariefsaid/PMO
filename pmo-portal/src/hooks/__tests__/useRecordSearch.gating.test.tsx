@@ -39,7 +39,7 @@ vi.mock('@/src/lib/repositories/projects', () => ({
   projectRepository: { list: dal.listProjects },
 }));
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 import * as features from '@/src/lib/features';
 
 const makeWrapper = (realRole: string | null) => {
@@ -56,9 +56,9 @@ afterEach(() => {
   for (const fn of Object.values(dal)) fn.mockClear();
 });
 
-describe('useRecordSearch — denied sources are never fetched (palette open)', () => {
+describe('useLiveRecordSearch — denied sources are never fetched (palette open)', () => {
   it('an Engineer (no procurement/sales/master-data nav) fires only the projects read', async () => {
-    renderHook(() => useRecordSearch(vi.fn(), { enabled: true }), { wrapper: makeWrapper('Engineer') });
+    renderHook(() => useLiveRecordSearch(vi.fn(), { enabled: true }), { wrapper: makeWrapper('Engineer') });
     await waitFor(() => expect(dal.listProjects).toHaveBeenCalled());
     await waitFor(() => expect(dal.listProjects.mock.calls.length).toBeGreaterThan(0));
     // Give any wrongly-enabled query a tick to fire before asserting the negatives.
@@ -72,7 +72,7 @@ describe('useRecordSearch — denied sources are never fetched (palette open)', 
   });
 
   it('an authorized Admin fires the visible sources (incidents stays flag-gated)', async () => {
-    renderHook(() => useRecordSearch(vi.fn(), { enabled: true }), { wrapper: makeWrapper('Admin') });
+    renderHook(() => useLiveRecordSearch(vi.fn(), { enabled: true }), { wrapper: makeWrapper('Admin') });
     await waitFor(() => expect(dal.listProjects).toHaveBeenCalled());
     await waitFor(() => expect(dal.listProcurements).toHaveBeenCalled());
     expect(dal.getSalesPipeline).toHaveBeenCalled();
@@ -85,7 +85,7 @@ describe('useRecordSearch — denied sources are never fetched (palette open)', 
     vi.spyOn(features, 'isFeatureEnabled').mockImplementation((key) =>
       key === 'incidents' ? true : features.FEATURES[key],
     );
-    renderHook(() => useRecordSearch(vi.fn(), { enabled: true }), { wrapper: makeWrapper('Admin') });
+    renderHook(() => useLiveRecordSearch(vi.fn(), { enabled: true }), { wrapper: makeWrapper('Admin') });
     await waitFor(() => expect(dal.listIncidents).toHaveBeenCalled());
   });
 });

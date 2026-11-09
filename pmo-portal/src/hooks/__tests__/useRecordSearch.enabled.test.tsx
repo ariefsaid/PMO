@@ -33,7 +33,7 @@ vi.mock('@/src/lib/repositories/projects', () => ({
   projectRepository: { list: dal.listProjects },
 }));
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -43,12 +43,12 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 
 describe('AC-OVERFETCH-001 ⌘K record search loads its lists only while the palette is open', () => {
   it('fires no list query while disabled (palette closed)', () => {
-    renderHook(() => useRecordSearch(vi.fn(), { enabled: false }), { wrapper });
+    renderHook(() => useLiveRecordSearch(vi.fn(), { enabled: false }), { wrapper });
     for (const fn of Object.values(dal)) expect(fn).not.toHaveBeenCalled();
   });
 
   it('loads the lists once enabled (palette open)', async () => {
-    renderHook(() => useRecordSearch(vi.fn(), { enabled: true }), { wrapper });
+    renderHook(() => useLiveRecordSearch(vi.fn(), { enabled: true }), { wrapper });
     await waitFor(() => expect(dal.listProjects).toHaveBeenCalled());
     expect(dal.listProcurements).toHaveBeenCalled();
     expect(dal.getSalesPipeline).toHaveBeenCalled();

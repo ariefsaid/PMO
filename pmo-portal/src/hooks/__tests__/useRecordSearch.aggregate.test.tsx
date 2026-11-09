@@ -27,7 +27,7 @@ vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => state.companies
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => state.contacts }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => state.incidents }));
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 
 const navigate = vi.fn();
 
@@ -35,18 +35,18 @@ const wrap = (realRole: string | null) => ({ children }: { children: React.React
   <ImpersonationProvider realRole={realRole as never}>{children}</ImpersonationProvider>
 );
 
-describe('useRecordSearch — aggregate covers only enabled sources', () => {
+describe('useLiveRecordSearch — aggregate covers only enabled sources', () => {
   it('an Engineer (sources denied): a denied source pending/errored never marks the palette', () => {
     // Denied sources report pending=true (procurement, companies, contacts, incidents) and the
     // pipeline even reports an error — none of that may surface for a role that cannot see them.
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrap('Engineer') });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrap('Engineer') });
     expect(result.current.isPending).toBe(false);
     expect(result.current.isError).toBe(false);
     expect(result.current.records).toHaveLength(0);
   });
 
   it('refetch retries only the enabled sources', () => {
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrap('Engineer') });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrap('Engineer') });
     result.current.refetch();
     // Projects is the only enabled source for an Engineer.
     expect(state.projects.refetch).toHaveBeenCalled();
@@ -58,7 +58,7 @@ describe('useRecordSearch — aggregate covers only enabled sources', () => {
   });
 
   it('an Admin: pending/error of every enabled source still aggregates', () => {
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrap('Admin') });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrap('Admin') });
     expect(result.current.isPending).toBe(true);
     expect(result.current.isError).toBe(true);
   });

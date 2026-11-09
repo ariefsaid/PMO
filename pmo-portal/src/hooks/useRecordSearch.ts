@@ -56,8 +56,11 @@ function subscribe(notify: () => void): () => void {
 
 /**
  * App-side hook — SAME signature the live hook had, so every call site is unchanged. Reads the
- * published snapshot; `navigate`/`opts` are accepted for call-site compatibility and ignored
- * (gating lives in the bridge: it mounts on first palette open and passes `open` through).
+ * published snapshot; `navigate`/`opts` are accepted for call-site compatibility and IGNORED —
+ * gating lives in the bridge (it mounts on first palette open and passes `open` through).
+ *
+ * @deprecated both parameters do nothing. Passing `{ enabled: false }` here will NOT disable the
+ * live rows — the bridge owns that gate. Drop the arguments rather than relying on them.
  */
 export function useRecordSearch(
   _navigate?: (path: string) => void,

@@ -7,7 +7,7 @@ import type { Role } from '@/src/auth/AuthContext';
 /**
  * AC-W2-RBAC-015 (A-8 ⌘K view-gate guard — the single canonical ⌘K-leak proof, referenced by
  * A-3 AC-W2-RBAC-007 and A-4 AC-W2-RBAC-009):
- *   `useRecordSearch` indexes a module's records ONLY when the viewer's REAL role may view that
+ *   `useLiveRecordSearch` indexes a module's records ONLY when the viewer's REAL role may view that
  *   module's index. An Engineer (no Procurement / Sales nav per rbac-visibility §A/§C/§E) must
  *   never surface procurement or pipeline rows via ⌘K, even if those caches hold rows; projects
  *   stay indexed for everyone.
@@ -34,7 +34,7 @@ vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => state.companies
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => state.contacts }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => state.incidents }));
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 
 const navigate = vi.fn();
 
@@ -78,9 +78,9 @@ beforeEach(() => {
   };
 });
 
-describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
+describe('useLiveRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
   it('AC-W2-RBAC-015 (PM, authorized): indexes projects + procurement + pipeline + master data', () => {
-    const { result } = renderHook(() => useRecordSearch(navigate), {
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), {
       wrapper: wrap('Project Manager'),
     });
     const subs = result.current.records.map((r) => r.sub);
@@ -93,7 +93,7 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
   });
 
   it('AC-W2-RBAC-015 (Engineer, denied): excludes procurement + pipeline + master data, keeps projects', () => {
-    const { result } = renderHook(() => useRecordSearch(navigate), {
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), {
       wrapper: wrap('Engineer'),
     });
     const subs = result.current.records.map((r) => r.sub);
@@ -101,7 +101,7 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     expect(subs).toContain('Project');
     // Incidents are hidden by the interim UI feature flag (FEATURES.incidents = false).
     // CW-4a originally indexed them for all roles; the flag supersedes that while the module is off.
-    // The flag-on proof lives in useRecordSearch.features.test.tsx.
+    // The flag-on proof lives in useLiveRecordSearch.features.test.tsx.
     expect(subs).not.toContain('Incident');
     // Procurement + Sales Pipeline have no Engineer nav → never surfaced via ⌘K.
     expect(subs).not.toContain('Procurement');
@@ -112,7 +112,7 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
   });
 
   it('AC-W2-RBAC-015: a null role indexes nothing reject-bound (deny-by-default)', () => {
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrap(null) });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrap(null) });
     const subs = result.current.records.map((r) => r.sub);
     // With no role, procurement + pipeline (view-gated) are excluded; projects (view=all) stay.
     expect(subs).not.toContain('Procurement');

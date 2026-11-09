@@ -6,7 +6,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 // The ⌘K index gates procurement + pipeline rows on the viewer's real role (A-8,
 // AC-W2-RBAC-015). These behaviour tests exercise the indexing itself, so they render
 // under an authorized role (Admin sees every module's rows) — the gate's own two-sided
-// proof lives in useRecordSearch.rbac.test.tsx.
+// proof lives in useLiveRecordSearch.rbac.test.tsx.
 const wrapAdmin = ({ children }: { children: React.ReactNode }) => (
   <ImpersonationProvider realRole="Admin">{children}</ImpersonationProvider>
 );
@@ -62,7 +62,7 @@ vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => stateCC.compani
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => stateCC.contacts }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => stateCC.incidents }));
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 import { rankRecords } from '../useRecordSearch';
 
 const navigate = vi.fn();
@@ -77,7 +77,7 @@ beforeEach(() => {
   stateCC.incidents = { data: undefined, isPending: false, isError: false };
 });
 
-describe('useRecordSearch — index of the 3 cached lists', () => {
+describe('useLiveRecordSearch — index of the 3 cached lists', () => {
   // AC-CMDK-001: projects appear as Records rows with title + code + module sub-label.
   it('AC-CMDK-001 / UIP-001: maps projects to Records rows with code, sub-label, and a run() → /projects/:id', () => {
     state.projects = {
@@ -85,7 +85,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const proj = result.current.records.find((r) => r.id.includes('p1'));
     expect(proj).toBeDefined();
     expect(proj!.group).toBe('Records');
@@ -106,7 +106,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     state.pipeline = { data: { stages: [], projects: [
       { id: 'pipeline-1', name: 'Contractual West Package', short_name: 'West Package' },
     ] }, isPending: false, isError: false };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const active = result.current.records.find((record) => record.id === 'projects:active-one')!;
     const pipeline = result.current.records.find((record) => record.id === 'sales:pipeline-1')!;
     expect(active.title).toBe('North Terminal');
@@ -123,7 +123,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
   it('AC-CODE-003: indexes and ranks PMO Project Number and Client Project Code for active and pipeline projects', () => {
     state.projects = { data: [{ id: 'p771', name: 'Active site', pmo_project_number: 'PMO-26-7711', code: 'CLIENT-81' }], isPending: false, isError: false };
     state.pipeline = { data: { stages: [], projects: [{ id: 'o771', name: 'Pipeline site', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82' }] }, isPending: false, isError: false };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const active = result.current.records.find((r) => r.id === 'projects:p771')!;
     const pipeline = result.current.records.find((r) => r.id === 'sales:o771')!;
     expect(active.code).toContain('PMO Project Number: PMO-26-7711');
@@ -143,7 +143,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const exact = result.current.records.find((record) => record.id === 'projects:p-order-exact');
 
     expect(exact?.searchCodes).toContain('PO-2026-081');
@@ -167,7 +167,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
 
     const opp = result.current.records.find((r) => r.title === 'Acme Tender');
     expect(opp?.sub).toBe('Project · Pipeline');
@@ -186,14 +186,14 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
   // AC-CMDK-004: isPending passthrough while any list is still fetching.
   it('AC-CMDK-004: reports isPending when any cached list is still fetching', () => {
     state.projects = { data: undefined, isPending: true, isError: false };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.isPending).toBe(true);
   });
 
   // AC-CMDK-005: isError passthrough when a list query failed.
   it('AC-CMDK-005: reports isError when a cached list query failed', () => {
     state.procurements = { data: undefined, isPending: false, isError: true };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.isError).toBe(true);
   });
 
@@ -205,7 +205,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const co = result.current.records.find((r) => r.title === 'Innovate Corp');
     expect(co).toBeDefined();
     expect(co!.group).toBe('Records');
@@ -223,7 +223,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const ct = result.current.records.find((r) => r.title === 'Dana Buyer');
     expect(ct).toBeDefined();
     expect(ct!.sub).toBe('Contact');
@@ -235,16 +235,16 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
 
   // CW-4a: incidents indexing is gated by the interim UI feature flag (FEATURES.incidents = false).
   // With the flag off, incident rows are excluded even when useIncidents returns data.
-  // The flag-on proof (incidents ARE indexed when enabled) lives in useRecordSearch.features.test.tsx.
+  // The flag-on proof (incidents ARE indexed when enabled) lives in useLiveRecordSearch.features.test.tsx.
   it('CW-4a (flag-off): incidents are NOT indexed while the feature flag is off', () => {
     stateCC.incidents = {
       data: [{ id: 'in1', type: 'Near Miss', severity: 'Low', status: 'Open' }],
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const inc = result.current.records.find((r) => r.title === 'Near Miss');
-    // Flag off → no incident entry in the index. See useRecordSearch.features.test.tsx for flag-on.
+    // Flag off → no incident entry in the index. See useLiveRecordSearch.features.test.tsx for flag-on.
     expect(inc).toBeUndefined();
   });
 
@@ -255,7 +255,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     stateCC.companies = { data: [], isPending: false, isError: false };
     stateCC.contacts = { data: [], isPending: false, isError: false };
     stateCC.incidents = { data: [], isPending: false, isError: false };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.records).toHaveLength(0);
   });
 });
@@ -312,7 +312,7 @@ describe('rankRecords — filter + exact-code-first + per-group cap', () => {
 
 it('company palette display uses the short name and either name finds the same record', () => {
   stateCC.companies = { data: [{ id: 'c1', name: 'Example Legal Company', short_name: 'Example' }], isPending: false, isError: false };
-  const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+  const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
   expect(rankRecords(result.current.records, 'Example Legal').items[0].title).toBe('Example');
   expect(rankRecords(result.current.records, 'Example').items[0].id).toBe('companies:c1');
 });

@@ -1,5 +1,5 @@
 /**
- * Feature-flag gate tests for useRecordSearch — incidents indexing (interim UI flag).
+ * Feature-flag gate tests for useLiveRecordSearch — incidents indexing (interim UI flag).
  *
  * Proves two sides:
  *  - Flag off → incident entries are excluded from the index even when useIncidents returns rows.
@@ -48,12 +48,12 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
   return { ...real };
 });
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 import * as features from '@/src/lib/features';
 
 const navigate = vi.fn();
 
-describe('useRecordSearch — incidents feature-flag gate', () => {
+describe('useLiveRecordSearch — incidents feature-flag gate', () => {
   let spy: ReturnType<typeof vi.spyOn>;
 
   afterEach(() => {
@@ -65,7 +65,7 @@ describe('useRecordSearch — incidents feature-flag gate', () => {
 
   it('flag-off: no incidents: entries in the record index even when useIncidents returns rows', () => {
     // isFeatureEnabled('incidents') is false by default (real FEATURES const)
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const incidentEntries = result.current.records.filter((r) => r.id.startsWith('incidents:'));
     expect(incidentEntries).toHaveLength(0);
   });
@@ -76,7 +76,7 @@ describe('useRecordSearch — incidents feature-flag gate', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const proj = result.current.records.find((r) => r.id === 'projects:p-flag');
     expect(proj).toBeDefined();
     // Clean up
@@ -89,7 +89,7 @@ describe('useRecordSearch — incidents feature-flag gate', () => {
     spy = vi.spyOn(features, 'isFeatureEnabled').mockImplementation((key) =>
       key === 'incidents' ? true : features.FEATURES[key],
     );
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const incidentEntries = result.current.records.filter((r) => r.id.startsWith('incidents:'));
     expect(incidentEntries.length).toBeGreaterThan(0);
     expect(incidentEntries[0].id).toBe(`incidents:${INCIDENT_ROW.id}`);

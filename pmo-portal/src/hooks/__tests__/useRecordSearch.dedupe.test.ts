@@ -39,7 +39,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidents: () => ({ data: [], isPending: false, isError: false }),
 }));
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 
 const navigate = vi.fn();
 
@@ -50,7 +50,7 @@ beforeEach(() => {
   state.pipeline = { data: { stages: [], projects: [] }, isPending: false, isError: false };
 });
 
-describe('useRecordSearch — pipeline record indexed once → canonical route (AC-IXD-PROJ-006)', () => {
+describe('useLiveRecordSearch — pipeline record indexed once → canonical route (AC-IXD-PROJ-006)', () => {
   it('AC-IXD-PROJ-006: a pipeline record emits exactly ONE row whose run() navigates to /projects/:id', () => {
     // The active projects cache (on-hand ∪ internal) does NOT hold the pre-win deal; the
     // pipeline cache is its sole source.
@@ -60,7 +60,7 @@ describe('useRecordSearch — pipeline record indexed once → canonical route (
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
 
     const rows = result.current.records.filter((r) => r.title === 'Harbour Tender');
     // de-dupe invariant: one entity → exactly one ⌘K row
@@ -77,7 +77,7 @@ describe('useRecordSearch — pipeline record indexed once → canonical route (
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const { result } = renderHook(() => useLiveRecordSearch(navigate), { wrapper: wrapAdmin });
     const row = result.current.records.find((r) => r.title === 'Harbour Tender');
     expect(row?.sub).toBe('Project · Pipeline');
     expect(row?.icon).toBe('pipeline');

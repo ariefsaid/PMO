@@ -19,15 +19,15 @@ vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], is
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => ({ data: [], isPending: false, isError: false }) }));
 
-import { useRecordSearch } from '../useRecordSearchData';
+import { useLiveRecordSearch } from '../useRecordSearchData';
 
 const wrap = ({ children }: { children: React.ReactNode }) => (
   <BahasaProvider><ImpersonationProvider realRole="Admin">{children}</ImpersonationProvider></BahasaProvider>
 );
 
-describe('useRecordSearch code line in Bahasa (#1339)', () => {
+describe('useLiveRecordSearch code line in Bahasa (#1339)', () => {
   it('names the PMO and client identifiers in Indonesian for project and pipeline rows', () => {
-    const { result } = renderHook(() => useRecordSearch(vi.fn()), { wrapper: wrap });
+    const { result } = renderHook(() => useLiveRecordSearch(vi.fn()), { wrapper: wrap });
     const project = result.current.records.find((r) => r.id.includes('p1'))!;
     const pipeline = result.current.records.find((r) => r.id.includes('o1'))!;
     for (const [row, pmo, client] of [[project, 'PMO-26-7711', 'CLIENT-81'], [pipeline, 'PMO-26-7712', 'CLIENT-82']] as const) {
