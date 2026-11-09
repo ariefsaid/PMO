@@ -164,3 +164,20 @@ describe('DD-I18N-10: neutral import float-noise tolerance', () => {
     expect(parseMoneyInputAtScale('1234.5600000000002', 2)).toBeNull();
   });
 });
+
+
+describe('formatExactDecimal (#1507 S7)', () => {
+  it('groups and marks the decimal for the viewer, exactly, with two decimals', async () => {
+    const { formatExactDecimal } = await import('./format');
+    expect(formatExactDecimal('1234567.5', 'en-US')).toBe('1,234,567.50');
+    expect(formatExactDecimal('1234567.5', 'id-ID')).toBe('1.234.567,50');
+    expect(formatExactDecimal('-0.10', 'en-US')).toBe('−0.10');
+    expect(formatExactDecimal('-0.00', 'en-US')).toBe('0.00');
+    expect(formatExactDecimal('90071992547409930.01', 'en-US')).toBe('90,071,992,547,409,930.01');
+  });
+  it('gives back what is not a plain decimal', async () => {
+    const { formatExactDecimal } = await import('./format');
+    expect(formatExactDecimal('1e5', 'en-US')).toBe('1e5');
+    expect(formatExactDecimal('1.234', 'en-US')).toBe('1.234');
+  });
+});

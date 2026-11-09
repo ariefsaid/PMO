@@ -45,7 +45,6 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => erpState,
   useErpOrphans: () => erpState,
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState, useProject: () => ({ data: null }) }));
