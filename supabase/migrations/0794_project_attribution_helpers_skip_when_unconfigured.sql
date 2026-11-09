@@ -7,7 +7,7 @@
 -- Change: one uncorrelated EXISTS per helper. The engine function scan is then never executed. Same bodies otherwise
 --   (0376 / 0497), same security definer, owner, search_path and grants (create or replace keeps them). Output is identical:
 --   no current rule and no actual_cost setting => no allocation row; no hire_rate setting => no charge row.
--- Rollback: supabase/migrations/rollback/0721_project_attribution_helpers_skip_when_unconfigured_down.sql
+-- Rollback: supabase/migrations/rollback/0794_project_attribution_helpers_skip_when_unconfigured_down.sql
 -- No begin/commit: the rollback round trip wraps this file in its own transaction.
 
 create or replace function public.cost_attribution_project_actuals(p_project_id uuid, p_fiscal_year text default null)
