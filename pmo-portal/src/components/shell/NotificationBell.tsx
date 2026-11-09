@@ -100,6 +100,9 @@ export const NotificationBell: React.FC = () => {
   const { openPanel, openThread } = useAssistantPanel();
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  // #2122: a keyboard-activated open appears instantly (no 120ms menuPopIn). A keyboard / AT
+  // activation arrives as a click with `detail === 0`; a pointer click has `detail >= 1`.
+  const [instant, setInstant] = useState(false);
   const [inbox, setInbox] = useState<InboxState>({ status: 'idle' });
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
@@ -242,7 +245,10 @@ export const NotificationBell: React.FC = () => {
         aria-label={`Notifications, ${unread} unread`}
         aria-haspopup="true"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          setInstant(e.detail === 0);
+          setOpen((v) => !v);
+        }}
         className="touch-target relative grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
       >
         <Icon name="bell" />
@@ -264,6 +270,7 @@ export const NotificationBell: React.FC = () => {
       {open && (
         <div
           aria-labelledby="notification-bell-inbox-heading"
+          data-instant={instant || undefined}
           className="menu-pop-anim [--menu-origin:top_right] motion-reduce:animate-none absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
         >
           <h2 id="notification-bell-inbox-heading" className="sr-only">

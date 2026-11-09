@@ -346,7 +346,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label={t('shell.palette.dialogLabel', 'Command palette')}
-            className="cmdk-anim relative w-full max-w-[600px] overflow-hidden rounded-overlay border border-border bg-popover shadow-[var(--shadow-lg)] motion-reduce:animate-none"
+            className="relative w-full max-w-[600px] overflow-hidden rounded-overlay border border-border bg-popover shadow-[var(--shadow-lg)] motion-reduce:animate-none"
           >
             <Command
               filter={commandFilter}
