@@ -42,6 +42,12 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         {slip && <span className="mt-0.5 block font-mono text-[13px] font-normal text-muted-foreground">{slip}</span>}
       </>,
     }] : []),
+    ...(withheldShown ? [{
+      label: t('finance:financeCopy.withholdingArticle', 'Withholding article'), testId: 'receipt-withholding-article',
+      value: receipt.withholding_article === 'pph23' ? t('finance:financeCopy.withholdingArticlePph23', 'PPh 23')
+        : receipt.withholding_article === 'pph4_2' ? t('finance:financeCopy.withholdingArticlePph42', 'PPh 4(2)')
+        : t('finance:financeCopy.withholdingArticleNotStated', 'Not stated'),
+    }] : []),
     ...(unappliedShown ? [{ label: t('uxs06.unappliedCol', 'Not yet applied'), testId: 'receipt-unapplied', value: money(unapplied) }] : []),
   ];
   const allocationColumns = useMemo<Column<ReceiptAllocation & { rowKey: string }>[]>(() => [

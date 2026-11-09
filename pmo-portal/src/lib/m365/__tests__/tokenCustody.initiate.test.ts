@@ -131,8 +131,13 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
 
   it('AC-M365SEP-020: repeated initiation is rate-limited before another PKCE state is stored', async () => {
     const service = mockClient();
+    // Ordered service-rpc mocks, one per gate step: membership → active, then the RESOLVED PLAN
+    // SWITCH → on (AC-M365SS-001 — entitlement is the `service_feature_enabled` rpc, not an
+    // `org_features` row), then the rate limiter → FALSE (= throttled). The caller is otherwise
+    // ALLOWED, so the 429 proves the limiter still applies after the entitlement gate.
     service.rpc
       .mockImplementationOnce(() => Promise.resolve({ data: { state: 'active', org_id: 'org-1', role: 'Admin' }, error: null }))
+      .mockImplementationOnce(() => Promise.resolve({ data: true, error: null }))
       .mockImplementationOnce(() => Promise.resolve({ data: false, error: null }));
     const caller = entitledCaller('Admin');
 
@@ -161,10 +166,9 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
   });
 
   it('AC-M365-102: an org without the entitlement is rejected (403 NOT_ENTITLED, no state stored)', async () => {
-    const service = mockClient();
+    const service = mockClient({}, { featureEnabled: false }); // plan resolves M365 off
     const caller = mockClient({
       profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
-      org_features: [{ data: { enabled: false }, error: null }],
     });
     const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));
     expect(result).toMatchObject({ status: 403, body: { error: 'NOT_ENTITLED' } });

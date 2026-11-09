@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { refreshBudgetQueries } from './useBudget';
@@ -73,33 +75,33 @@ function freezeResults(results: readonly BudgetPasteRowResult[]): readonly Budge
   })));
 }
 
-function snapshotRows(rows: readonly BudgetPasteRowInput[]): Readonly<{
+function snapshotRows(rows: readonly BudgetPasteRowInput[], t: TFunction): Readonly<{
   rows: readonly SnapshotRow[] | null;
   error: string | null;
 }> {
-  if (rows.length === 0) return { rows: null, error: 'Add at least one valid row before saving.' };
+  if (rows.length === 0) return { rows: null, error: t('budgetPaste.hook.noRows', 'Add at least one valid row before saving.') };
 
   const rowNumbers = new Set<number>();
   const snapshot: SnapshotRow[] = [];
   for (const row of rows) {
     if (!Number.isSafeInteger(row.rowNumber) || row.rowNumber < 1 || rowNumbers.has(row.rowNumber)) {
-      return { rows: null, error: 'Source row numbers must be unique positive integers.' };
+      return { rows: null, error: t('budgetPaste.hook.badRowNumbers', 'Source row numbers must be unique positive integers.') };
     }
     rowNumbers.add(row.rowNumber);
     if (!supportedCategories.has(row.category)) {
-      return { rows: null, error: 'One or more rows have an unsupported budget category.' };
+      return { rows: null, error: t('budgetPaste.hook.badCategory', 'One or more rows have an unsupported budget category.') };
     }
     if (row.description !== null && typeof row.description !== 'string') {
-      return { rows: null, error: 'One or more row descriptions are invalid.' };
+      return { rows: null, error: t('budgetPaste.hook.badDescription', 'One or more row descriptions are invalid.') };
     }
 
     const canonicalAmount = parsePasteAmount(row.amount);
     if (canonicalAmount === null || canonicalAmount !== row.amount) {
-      return { rows: null, error: 'One or more rows have an invalid or non-canonical amount.' };
+      return { rows: null, error: t('budgetPaste.hook.badAmount', 'One or more rows have an invalid or non-canonical amount.') };
     }
     const budgetedAmount = Number(row.amount);
     if (!Number.isFinite(budgetedAmount) || parsePasteAmount(String(budgetedAmount)) !== row.amount) {
-      return { rows: null, error: 'One or more amounts cannot be represented safely for saving.' };
+      return { rows: null, error: t('budgetPaste.hook.unsafeAmount', 'One or more amounts cannot be represented safely for saving.') };
     }
 
     snapshot.push(Object.freeze({
@@ -184,6 +186,7 @@ function makeReceipt(
  */
 export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation('finance');
   const { currentUser } = useAuth();
   const liveContext: LiveContext = {
     ...options,
@@ -314,7 +317,7 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
           await refreshBudgetQueries(queryClient, capture.orgId, capture.projectId);
         } catch {
           // A cache read failure cannot undo a server-confirmed write or turn it into a retry.
-          publishRefreshError('The budget refresh did not finish. Reload the budget before relying on totals.');
+          publishRefreshError(t('budgetPaste.hook.refreshFailed', 'The budget refresh did not finish. Reload the budget before relying on totals.'));
         }
       }
       return makeReceipt(capture, resultsRef.current, refreshErrorRef.current);
@@ -327,11 +330,11 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
   async function save(rows: readonly BudgetPasteRowInput[]): Promise<BudgetPasteBatchReceipt | null> {
     if (savingRef.current || !mountedRef.current) return null;
     if (resultsRef.current.some((result) => result.status !== 'created') || refreshErrorRef.current !== null) {
-      setValidationError('Reconcile the current results or start a new paste session before saving again.');
+      setValidationError(t('budgetPaste.hook.reconcileFirst', 'Reconcile the current results or start a new paste session before saving again.'));
       return null;
     }
 
-    const snapshot = snapshotRows(rows);
+    const snapshot = snapshotRows(rows, t);
     if (!snapshot.rows) {
       setValidationError(snapshot.error);
       return null;
@@ -344,7 +347,7 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
       userId: current.userId,
       orgId: current.orgId,
     })) {
-      setValidationError('The selected budget is not an editable Draft. Review it before saving.');
+      setValidationError(t('budgetPaste.hook.notDraft', 'The selected budget is not an editable Draft. Review it before saving.'));
       return null;
     }
     const capture = Object.freeze({
@@ -362,7 +365,7 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
     const capture = batchCaptureRef.current;
     if (!capture) return null;
     if (!isWritableTarget(latestContextRef.current, capture)) {
-      setValidationError('The original budget Draft is no longer selected or writable. Review it before retrying.');
+      setValidationError(t('budgetPaste.hook.originalGone', 'The original budget Draft is no longer selected or writable. Review it before retrying.'));
       return null;
     }
     const retryRows = resultsRef.current

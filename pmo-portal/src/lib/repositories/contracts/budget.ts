@@ -7,6 +7,7 @@ import type {
   BudgetArchiveLiveTarget,
   BudgetArchiveTarget,
   BudgetVersionRow,
+  OrgDraftBudget,
   BudgetVersionWithItems,
   BudgetDocumentLinkRow,
   BudgetLineItemRow,
@@ -19,6 +20,8 @@ export interface BudgetRepository {
   deriveProjectBudget(projectId: string): Promise<number>;
   getActivationMode(versionId: string): Promise<BudgetActivationMode>;
   precheckActivation(versionId: string): Promise<BudgetActivationPrecheckResult>;
+  /** #1273 — every Draft in the org, for the review-and-activate list. */
+  listOrgDrafts(): Promise<OrgDraftBudget[]>;
   listArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
   /** #1462 — legacy (year-grained) live targets, read from the older mirror. */
   listLegacyArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
@@ -60,9 +63,12 @@ export interface BudgetRepository {
   findImportTargetDraft(projectId: string): Promise<{ id: string } | null>;
   findImportedLine(versionId: string, importKey: string): Promise<{ id: string } | null>;
   cloneVersion(versionId: string): Promise<string>;
-  /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
-   *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
-  activateVersion(versionId: string): Promise<ActivateVersionResult>;
+  /** Resolves on the PMO transition alone (`pushState: 'queued'`, ADR-0062); the ERP push runs in the
+   *  background and `onPushSettled` fires when it ends so the caller re-reads the push status. */
+  activateVersion(
+    versionId: string,
+    onPushSettled?: (pushState: Exclude<ActivateVersionResult['pushState'], 'queued'>) => void,
+  ): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string, cancelErp: boolean): Promise<ArchiveVersionResult>;
   deleteDraftVersion(versionId: string): Promise<void>;
   listDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]>;

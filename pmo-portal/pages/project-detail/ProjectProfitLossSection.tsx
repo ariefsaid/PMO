@@ -6,6 +6,7 @@ import { StatementPeriodPicker, type StatementPeriodKind } from '@/src/component
 import { OdooStatementsSection } from '@/src/components/financial-statements/OdooStatementsSection';
 import { FormGrid } from '@/src/components/ui/FormFields';
 import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
+import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
@@ -194,9 +195,13 @@ const ErpnextProjectProfitLoss: React.FC<ProjectProfitLossSectionProps> = ({ pro
 
 /** #1507 S7: an Odoo organisation reads project profit and loss from the Odoo ledger; the saved-report section is the ERPNext path and is left as it was. */
 const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
-  const { odoo } = useOdooLedgerMode();
+  const { odoo, error, retry } = useOdooLedgerMode();
   const { t } = useTranslation();
-  if (!odoo) return <ErpnextProjectProfitLoss projectId={projectId} />;
+  if (!odoo) {
+    return error
+      ? <><LedgerModeNotice className="mt-6" onRetry={retry} /><ErpnextProjectProfitLoss projectId={projectId} /></>
+      : <ErpnextProjectProfitLoss projectId={projectId} />;
+  }
   return (
     <div className="mt-6 min-w-0 border-t border-border/70 pt-4">
       <h2 className="sr-only">{t('financialStatements.projectProfitAndLoss', 'Project profit and loss')}</h2>

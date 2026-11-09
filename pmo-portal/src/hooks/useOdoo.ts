@@ -4,6 +4,7 @@ import { odooRepository } from '@/src/lib/repositories/odoo';
 import type { MirrorKind, ListMasterInput, OdooConfigProposalRead, OdooProjectLinksRead } from '@/src/lib/repositories/types';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
+import { externalDomainOwnershipKey } from './approvalsQueryKeys';
 
 export function useOdooConnection(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
@@ -120,5 +121,31 @@ export function useOdooProjectLinks(enabled = true) {
     queryFn: () => odooRepository.setup<OdooProjectLinksRead>('list-projects'),
     enabled: Boolean(orgId) && enabled,
     retry: false,
+  });
+}
+
+/** The shared setup run for Odoo (census, waiting sends, proposal counts). Same key as the review panel and the send states, so they share one read; polls while sends wait. */
+export function useOdooConnectStatus(enabled = true) {
+  return useQuery({
+    queryKey: ['integrations', 'connect-status', 'odoo'],
+    queryFn: () => integrationsRepository.getConnectStatus('odoo'),
+    enabled,
+    retry: false,
+    refetchInterval: (q) => (q.state.data?.waitingForSend ? 10_000 : false),
+  });
+}
+
+/** Hand a domain to Odoo (`employ-domain`); refreshes ownership so the checklist step turns Done. */
+export function useOdooEmploy() {
+  const orgId = useAuth().currentUser?.org_id;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (domain: 'companies' | 'procurement') => odooRepository.setup('employ-domain', { domain }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['odoo'] });
+      void qc.invalidateQueries({ queryKey: externalDomainOwnershipKey(orgId) });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
+    },
   });
 }

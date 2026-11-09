@@ -3,6 +3,10 @@ import { SalesInvoiceDetail } from './sales-invoices/SalesInvoiceDetail';
 import { SalesInvoiceDialogs } from './sales-invoices/SalesInvoiceDialogs';
 import { useSalesInvoiceActions } from './sales-invoices/useSalesInvoiceActions';
 import { SalesInvoiceFormModal } from './sales-invoices/SalesInvoiceFormModal';
+import SalesInvoicesFilters from './sales-invoices/SalesInvoicesFilters';
+import SalesInvoicePanelDrawer from './sales-invoices/SalesInvoicePanelDrawer';
+import { createInvoiceReceiptGate, createInvoiceStatus } from './sales-invoices/salesInvoiceStatus';
+import { buildInvoiceRowMenu } from './sales-invoices/salesInvoiceRowMenu';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -10,19 +14,11 @@ import { revenueRepository } from '@/src/lib/repositories/revenue';
 import {
   ListPage,
   SearchMini,
-  ViewToggle,
   ListState,
   DataTable,
-  StatusPill,
   Button,
   Icon,
-  Drawer,
-  MenuButton,
-  TaxBasisLabel,
-  SelectField,
-  cn,
   useToast,
-  type RowMenuItem,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
 import { issuedWithinMonthWindow, monthWindowFromParams } from '@/src/lib/finance/invoicePeriod';
@@ -35,108 +31,36 @@ import { useAssignInvoiceProject, useSalesInvoices, useIncomingPayments } from '
 import { useClientCompanyOptions, useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import type { ProfileRow } from '@/src/lib/db/profiles';
 import { InvoiceProjectModal } from '@/src/components/InvoiceProjectModal';
 import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
-import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
-import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
+import { formatCurrencyCents } from '@/src/lib/format';
+import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { useAuth } from '@/src/auth/useAuth';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
-import { invoiceGross, invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
-import { invoiceReceiptAwaitingOdoo } from '@/src/lib/adapterSeam/odoo/revenue/status';
 import { odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useOdooRevenueCommandsForInvoices } from '@/src/hooks/useOdooRevenue';
 import { useOdooUnreachable } from '@/src/hooks/useOdooPurchase';
-import { odooOutcome as deriveOdooOutcome } from '@/src/lib/procurement/odooOutcome';
 
-import { ERP_STATUS_FILTERS, NATIVE_STATUS_FILTERS, salesInvoiceStatusLabel, matchesStatus, type StatusFilter } from './sales-invoices/salesInvoiceListModel';
-import { SalesInvoiceEvidenceSection } from './sales-invoices/SalesInvoiceEvidence';
+import { ERP_STATUS_FILTERS, NATIVE_STATUS_FILTERS, matchesStatus, type StatusFilter } from './sales-invoices/salesInvoiceListModel';
 
 type InvoiceGroupMode = 'none' | 'client' | 'project';
 
-const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: IncomingPaymentRow[]; profiles: ProfileRow[] }> = ({ invoice, payments, profiles }) => {
-  const { t } = useTranslation();
-  const approver = invoice.approved_by_id ? profiles.find((profile) => profile.id === invoice.approved_by_id)?.full_name : null;
-  const orderedPayments = [...payments]
-    .filter((payment) => payment.status === 'Paid' && !payment.cancelled_at && !payment.erp_cancelled_at)
-    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
-  const draft = invoice.status === 'Draft';
-  const received = Boolean(invoice.received_date) || invoice.status === 'Paid';
-  const hasBalance = (invoice.erp_outstanding_amount ?? 0) > 0;
-  const steps: { stage: string; state: 'done' | 'current' | 'future'; content: React.ReactNode }[] = [
-    {
-      stage: 'drafted', state: 'done',
-      content: t('finance:receivables.drafted', 'Drafted {{date}}', { date: formatInstantDate(invoice.created_at) }),
-    },
-    {
-      stage: 'approved', state: draft ? 'current' : 'done',
-      content: invoice.approved_at
-        ? approver
-          ? t('finance:receivables.approvedBySecond', 'Approved {{date}} by {{name}}, a second person', { date: formatInstantDate(invoice.approved_at), name: approver })
-          : t('finance:receivables.approvalRecorded', 'Approval recorded {{date}}', { date: formatInstantDate(invoice.approved_at) })
-        : draft
-          ? t('finance:receivables.awaitingApproval', 'Awaiting approval')
-          : t('finance:receivables.secondApprover', 'Second person approved'),
-    },
-    {
-      stage: 'received', state: received ? 'done' : draft ? 'future' : 'current',
-      content: invoice.received_date
-        ? t('finance:receivables.receivedByClient', 'Sent and received by client {{date}}', { date: formatDateOnly(invoice.received_date) })
-        : draft
-          ? t('finance:receivables.sentToClient', 'Sent and received by client')
-          : t('finance:receivables.notReceivedByClient', 'Not marked received'),
-    },
-    ...orderedPayments.map((payment) => ({
-      stage: 'payment', state: 'done' as const,
-      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{(() => {
-        // #1415: a split PMO receipt shows what reached THIS invoice, not the whole receipt.
-        const share = payment.pmo_native ? payment.allocations?.find((a) => a.sales_invoice_id === invoice.id) : undefined;
-        if (share) return formatCurrencyCents(share.cash_amount, payment.currency);
-        return payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—';
-      })()}</span></>,
-    })),
-    {
-      stage: 'paid',
-      state: invoice.status === 'Paid' ? 'done' : received && hasBalance && invoice.status !== 'Cancelled' ? 'current' : 'future',
-      content: invoice.status === 'Paid'
-        ? t('finance:receivables.statusPaid', 'Paid')
-        : t('finance:receivables.awaitingPayment', 'Awaiting full payment'),
-    },
-  ];
-  return (
-    <section aria-labelledby="receivable-invoice-timeline">
-      <h2 id="receivable-invoice-timeline" className="mb-2 text-sm font-semibold">{t('finance:receivables.timeline', 'Status timeline')}</h2>
-      <ol className="relative space-y-3 pl-7 text-sm before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-border">
-        {steps.map((step, index) => <li key={`${step.stage}-${index}`} data-stage={step.stage} data-state={step.state} className="relative flex min-h-4 items-start justify-between gap-3">
-          <span
-            aria-hidden="true"
-            className={`absolute -left-7 top-0.5 size-4 rounded-full border-2 ${step.state === 'done' ? 'border-[hsl(var(--success))] bg-[hsl(var(--success))]' : step.state === 'current' ? 'border-[hsl(var(--warning))] bg-[hsl(var(--warning))]' : 'border-muted-foreground bg-card'}`}
-          />
-          {step.content}
-        </li>)}
-      </ol>
-    </section>
-  );
-};
-
 interface SalesInvoicesProps {
   embedded?: boolean;
-  selectedKeys?: Set<string>;
-  onSelectionChange?: (keys: Set<string>) => void;
   onRecordPayment?: (invoice: SalesInvoiceRow) => void;
 }
 
-const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selectedKeys, onSelectionChange, onRecordPayment }) => {
+const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -193,75 +117,16 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
-  const receiptAwaitingOdooForInvoice = (inv: SalesInvoiceRow) => paymentRows.some((payment) =>
-    (payment.sales_invoice_id === inv.id || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === inv.id)))
-    && invoiceReceiptAwaitingOdoo({
-      invoiceStatus: inv.status,
-      invoiceErpModified: inv.erp_modified,
-      receiptCommandState: payment.push_command_state,
-      receiptCommandCreatedAt: payment.push_command_created_at,
-      // #1825: single-clock evidence — the receipt's own Odoo reference appearing in the invoice read-back
-      // (`odoo_matched_payment_refs`, recorded by the receipt finalize from its settle read) clears the flag;
-      // the wall-clock comparison inside is only the fallback for commands without that evidence.
-      invoiceMatchedPaymentRefs: inv.odoo_matched_payment_refs,
-      receiptCommandExternalRef: payment.push_command_external_record_id,
-      receiptCommandRecordedReadBack: (payment.push_command_matched_payment_refs?.length ?? 0) > 0,
-    }),
-  );
-  const invoiceStatus = (inv: SalesInvoiceRow) => {
-    const command = (odooCommands.data ?? []).find((row) => row.kind === 'sales-invoice' && row.recordId === inv.id);
-    const externalOutcome = odoo ? deriveOdooOutcome({
-      erpState: inv.odoo_state,
-      erpAttention: inv.odoo_attention,
-      erpReadAt: inv.odoo_read_at,
-      outboxState: command?.state,
-      outboxUpdatedAt: command?.updatedAt,
-      lastError: command?.lastError,
-    }) : null;
-    const result = <T extends { label: string; variant: ReturnType<typeof salesInvoiceStatusVariant>; partlySettled: boolean }>(row: T) => ({ ...row, odooOutcome: externalOutcome, odooOffline });
-    const gross = invoiceGross(inv);
-    const partlySettled = isPartlyPaid(inv) || (
-      (inv.status === 'Submitted' || inv.status === 'Unpaid')
-      && gross != null
-      && inv.erp_outstanding_amount != null
-      && inv.erp_outstanding_amount > 0
-      && inv.erp_outstanding_amount < gross
-    );
-    const lateDays = clientInvoiceOverdueDays(inv, organizationToday) ?? 0;
-    if (inv.status === 'Draft') return result({
-      label: canApproveDraft(inv)
-        ? t('finance:receivables.statusDraftApproval', 'Draft · to approve')
-        : t('finance:receivables.statusDraftSecond', 'Draft · needs a second approver'),
-      variant: salesInvoiceStatusVariant(inv.status),
-      partlySettled,
-    });
-    if (inv.status === 'Cancelled') return result({ label: t('finance:receivables.statusCancelled', 'Cancelled'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
-    if (inv.status === 'Paid') return result({ label: t('finance:receivables.statusPaid', 'Paid'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
-    if (receiptAwaitingOdooForInvoice(inv)) return result({
-      label: t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo'),
-      variant: 'progress' as const,
-      partlySettled,
-      receiptAwaitingOdoo: true,
-    });
-    if (partlySettled) return result({
-      label: lateDays > 0
-        ? lateDays === 1
-          ? t('finance:receivables.statusPartlyPaidLateDay', 'Partly paid · {{count}} day late', { count: lateDays })
-          : t('finance:receivables.statusPartlyPaidLateDays', 'Partly paid · {{count}} days late', { count: lateDays })
-        : t('finance:receivables.statusPartlyPaid', 'Partly paid · not yet due'),
-      variant: lateDays > 0 ? 'overdue' as const : salesInvoiceStatusVariant('Unpaid'),
-      partlySettled,
-    });
-    if (lateDays > 0) return result({
-      label: lateDays === 1
-        ? t('finance:receivables.statusOverdueDay', 'Overdue · {{count}} day', { count: lateDays })
-        : t('finance:receivables.statusOverdueDays', 'Overdue · {{count}} days', { count: lateDays }),
-      variant: 'overdue' as const,
-      partlySettled,
-    });
-    if (inv.status === 'Submitted') return result({ label: t('finance:receivables.statusSubmitted', 'Submitted'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
-    return result({ label: t('finance:receivables.statusUnpaid', 'Unpaid · not yet due'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
-  };
+  const receiptAwaitingOdooForInvoice = createInvoiceReceiptGate(paymentRows);
+  const invoiceStatus = createInvoiceStatus({
+    t,
+    canApproveDraft,
+    receiptAwaitingOdooForInvoice,
+    odoo,
+    odooOffline,
+    organizationToday,
+    odooCommandsData: odooCommands.data,
+  });
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -300,10 +165,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const openInvoiceId = embedded ? searchParams.get('open') : null;
   const panelInvoice = openInvoiceId ? all.find((inv) => inv.id === openInvoiceId) ?? null : null;
   const [localSelectedKeys, setLocalSelectedKeys] = useState<Set<string>>(() => new Set());
-  const effectiveSelectedKeys = selectedKeys ?? localSelectedKeys;
   const handleSelectionChange = (next: Set<string>) => {
-    if (selectedKeys === undefined) setLocalSelectedKeys(next);
-    onSelectionChange?.(next);
+    setLocalSelectedKeys(next);
   };
 
   const selectedProject = projectOptionsById.get(searchParams.get('project') ?? '') ?? null;
@@ -545,69 +408,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       : null;
   };
 
-  const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
-    const items: RowMenuItem[] = [{
-      label: t('financeCopy.viewInvoice', 'View invoice'),
-      onClick: () => recordContext.openRecord(inv.id),
-    }];
-    // #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history — no approve or cancel.
-    const frozen = Boolean(inv.pmo_native) && !native;
-    // #912 (OD-INV-PDF-1, AC-PDF-003): the ERP's own PDF of a submitted invoice — what the client receives.
-    // `can()` is UX only; external-invoice-pdf re-checks role, tenancy and the LIVE ERP docstatus.
-    // AC-PDF-011: while THIS invoice's download runs, the item disables itself under the busy
-    // label — a repeat click is impossible, not silent.
-    if (may('download_pdf', 'salesInvoice', { record: { status: inv.status, erp_docstatus: inv.erp_docstatus } }))
-      items.push({
-        label: pdfDownload.inFlightIds.has(inv.id)
-          ? t('financeCopy.invoicePdf.preparing', 'Preparing PDF…')
-          : t('financeCopy.invoicePdf.download', 'Download PDF'),
-        disabled: pdfDownload.inFlightIds.has(inv.id),
-        onClick: () => void pdfDownload.download(inv),
-      });
-    if (may('assign_project', 'salesInvoice') && canAttributeInvoice(inv)) {
-      items.push({
-        label: inv.project_id
-          ? t('invoiceProject.change', 'Change project')
-          : t('invoiceProject.assign', 'Assign project'),
-        onClick: () => setProjectTarget(inv),
-      });
-    } else if (may('assign_project', 'salesInvoice') && inv.project_id) {
-      // #1471 FR-004: a native or PMO-authored linked invoice keeps its project; only its billing kind is correctable.
-      items.push({ label: t('finance:billingKind.change', 'Change billing kind'), onClick: () => setProjectTarget(inv) });
-    }
-    // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
-    // state to the revenue write set (the RPC enforces it; `can()` is UX only).
-    // M-7: not on a Draft — the client cannot have received an invoice that has not been issued.
-    // #784 (DD-NAR-11): not on a frozen row — once an ERP owns revenue, a PMO invoice's fields are
-    // the ERP's history; `set_sales_invoice_received_date` refuses it server-side too.
-    if (canRecordReceipt && !frozen && inv.status !== 'Cancelled' && inv.status !== 'Draft')
-      items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
-    // FIN-S3: a Draft has no issued tax invoice yet, so there is nothing to record.
-    // An e-Faktur is a VAT document: a sale outside VAT (project not subject to VAT) has none to record (AC-OCI-081).
-    // A zero-rated invoice on a VAT-subject project still needs one, so tax_amount 0 does not hide it.
-    if (canRecordEfaktur && inv.project_subject_to_vat !== false && inv.status !== 'Cancelled' && inv.status !== 'Draft')
-      items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(inv) });
-    // A Paid PMO invoice is not cancellable (FR-NAR-009); an ERP one follows the ERP.
-    if (!odooOffline && canCancel && !frozen && inv.status !== 'Cancelled' && !(inv.pmo_native && inv.status === 'Paid'))
-      items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(inv), danger: true });
-    // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record
-    // context (SoD). The oracle is the APPEND-ONLY author SET (`sales_invoice_authors`, migration
-    // 0113) union the legacy scalar — the same one `submit_sales_invoice` enforces. Passing only the
-    // last-writer-wins scalar showed an EARLIER body writer an enabled "Submit" that 403'd on click
-    // (round-6 re-audit NIT 1). `can()` also fails closed on an unattributable invoice, so the
-    // separate author-not-null guard is no longer needed here.
-    // #784: a PMO Draft is APPROVED in PMO by a second person (DD-NAR-5) — the same predicate.
-    if (
-      !odooOffline && !frozen
-      && canApproveDraft(inv)
-    ) {
-      items.push({
-        label: inv.pmo_native ? t('financeCopy.approve', 'Approve') : t('financeCopy.submit', "Submit"),
-        onClick: () => inv.pmo_native ? recordContext.openRecord(inv.id) : setSubmitTarget(inv),
-      });
-    }
-    return items;
-  };
+  const rowMenu = buildInvoiceRowMenu({
+    t, may, pdfDownload, native, odooOffline: Boolean(odooOffline), canCancel, canRecordReceipt, canRecordEfaktur,
+    canApproveDraft, openRecord: recordContext.openRecord, setProjectTarget, setReceiptTarget, setEfakturTarget, setCancelTarget, setSubmitTarget,
+  });
 
   const panelPayments = panelInvoice
     ? paymentRows.filter((payment) => (!payment.pmo_native && payment.sales_invoice_id === panelInvoice.id)
@@ -651,99 +455,28 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
       filters={
         state !== 'loading' && (
-          <div
-            role="region"
-            aria-label={t('financeCopy.filterByStatus', "Filter by status")}
-            tabIndex={0}
-            className={embedded
-              // P5: on a phone the filters wrap onto a second line instead of running past the screen edge.
-              ? isDesktop
-                ? 'flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-                : 'flex min-w-0 max-w-full flex-wrap items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-              : 'min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
-          >
-            {isDesktop ? <ViewToggle<StatusFilter>
-              options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
-              value={statusFilter}
-              onChange={(v) => {
-                updateListParam('status', v);
-                trackFilterApplied('status', statusFilters.length, 'salesInvoices');
-              }}
-              ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
-            /> : <SelectField
-              label={t('financeCopy.filterByStatus', "Filter by status")}
-              hideLabel
-              value={statusFilter}
-              options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
-              onChange={(v) => {
-                updateListParam('status', v);
-                trackFilterApplied('status', statusFilters.length, 'salesInvoices');
-              }}
-              fullWidth
-              wrapperClassName="w-full"
-              className="h-11 w-full text-[16px]"
-            />}
-            <div data-testid="invoice-filter-group" className={embedded ? (isDesktop ? 'flex shrink-0 items-center gap-2' : 'flex min-w-0 max-w-full flex-wrap items-center gap-2') : 'mt-2 flex flex-wrap items-end gap-2'}>
-              {requestedCustomerId && (
-                <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
-                  <span role="status" className="min-w-0 break-words text-sm">
-                    {t('dashboard.uxs36CustomerFilterLabel', 'Customer')}: <span className="font-medium">
-                      {selectedCustomer?.label ?? (customerOptionsQuery.isPending
-                        // #1175: a still-loading option request has not decided anything yet — claim
-                        // "loading", not "unavailable", until it resolves.
-                        ? t('dashboard.uxs36CustomerFilterLoading', 'Loading customer…')
-                        : t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable'))}
-                    </span>
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => updateListParam('customer', '')}
-                  >{t('dashboard.uxs36CustomerFilterClear', 'Clear customer filter')}</Button>
-                </div>
-              )}
-              {contextualProjectId && (
-                <div data-testid="project-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
-                  <span role="status" className="min-w-0 break-words text-sm">
-                    {t('financeCopy.project', 'Project')}: <span className="font-medium">
-                      {selectedProject?.label ?? t('financeCopy.projectUnavailable', 'Project details unavailable')}
-                    </span>
-                  </span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => updateListParam('project', '')}>
-                    {t('finance:invoices.clearProject', 'Clear project filter')}
-                  </Button>
-                </div>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-pressed={searchParams.get('overdue') === 'true'}
-                disabled={!organizationToday && searchParams.get('overdue') !== 'true'}
-                onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
-                className={cn(
-                  'h-8',
-                  searchParams.get('overdue') === 'true'
-                    ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
-              {embedded && <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
-                <ViewToggle<InvoiceGroupMode>
-                  options={[
-                    { value: 'none', label: t('finance:receivables.groupNone', 'None') },
-                    { value: 'client', label: t('finance:receivables.groupClient', 'Client') },
-                    { value: 'project', label: t('finance:receivables.groupProject', 'Project') },
-                  ]}
-                  value={groupMode}
-                  onChange={(value) => setQueryValue('group', value === 'none' ? '' : value)}
-                  ariaLabel={t('finance:receivables.groupBy', 'Group by')}
-                />
-              </div>}
-            </div>
-          </div>
+          <SalesInvoicesFilters
+            embedded={embedded}
+            isDesktop={isDesktop}
+            statusFilters={statusFilters}
+            statusFilter={statusFilter}
+            onStatusChange={(v) => {
+              updateListParam('status', v);
+              trackFilterApplied('status', statusFilters.length, 'salesInvoices');
+            }}
+            requestedCustomerId={requestedCustomerId}
+            selectedCustomerLabel={selectedCustomer?.label ?? null}
+            customerOptionsPending={customerOptionsQuery.isPending}
+            onClearCustomer={() => updateListParam('customer', '')}
+            contextualProjectId={contextualProjectId}
+            selectedProjectLabel={selectedProject?.label ?? null}
+            onClearProject={() => updateListParam('project', '')}
+            overdueActive={searchParams.get('overdue') === 'true'}
+            organizationToday={organizationToday}
+            onToggleOverdue={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
+            groupMode={groupMode}
+            onGroupChange={(value) => setQueryValue('group', value === 'none' ? '' : value)}
+          />
         )
       }
       search={
@@ -765,10 +498,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       }
       exportAction={
         state !== 'loading' && !(searchParams.get('overdue') === 'true' && !organizationToday) && (
-          embedded && effectiveSelectedKeys.size > 0
-            ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
+          embedded && localSelectedKeys.size > 0
+            ? <BulkBar count={localSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
               <ExportButton
-                rows={all.filter((invoice) => effectiveSelectedKeys.has(invoice.id))}
+                rows={all.filter((invoice) => localSelectedKeys.has(invoice.id))}
                 columns={exportColumns}
                 entity="Sales Invoices"
                 label={t('finance:bulk.exportSelected', 'Export selected')}
@@ -854,7 +587,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           </span> : undefined}
           mobileCardDetails={embedded ? mobileCardDetails : undefined}
           selection={embedded ? {
-            selectedIds: effectiveSelectedKeys,
+            selectedIds: localSelectedKeys,
             onChange: handleSelectionChange,
             rowLabel: (inv) => t('finance:table.selectRow', 'Select {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }),
           } : undefined}
@@ -924,48 +657,20 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
       <SalesInvoiceDialogs actions={actions} submitFallback={(invoice) => invoice.id} />
 
-      <Drawer
-        open={Boolean(panelInvoice)}
-        // N5: the title names the client; the amount lives in the figures below, so the title never wraps on money.
-        title={panelInvoice ? panelInvoice.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded') : ''}
-        subtitle={panelInvoice ? <span className="flex flex-wrap items-center gap-2">
-          {invoiceNumber(panelInvoice) && <span className="font-mono text-xs">{invoiceNumber(panelInvoice)}</span>}
-          {projectLabelOf(panelInvoice) && <span className="text-xs">{projectLabelOf(panelInvoice)}</span>}
-        </span> : undefined}
-        icon={<Icon name="doc" />}
-        status={panelInvoice ? <StatusPill variant={invoiceStatus(panelInvoice).variant}>{invoiceStatus(panelInvoice).label}</StatusPill> : undefined}
-        headerActions={panelInvoice ? <>
-          {panelPrimary && <Button type="button" variant="primary" size="sm" onClick={panelPrimary.onClick}>{panelPrimary.label}</Button>}
-          <Button type="button" variant="outline" size="sm" onClick={openFullInvoice}>{t('finance:receivables.openFullRecord', 'Open full page')}</Button>
-          <MenuButton items={rowMenu(panelInvoice)} ariaLabel={t('finance:receivables.rowActions', 'Invoice actions')} />
-        </> : undefined}
+      <SalesInvoicePanelDrawer
+        panelInvoice={panelInvoice}
+        panelPayments={panelPayments}
+        profileRows={profileRows}
+        panelPrimary={panelPrimary}
+        invoiceStatus={invoiceStatus}
+        projectLabelOf={projectLabelOf}
+        rowMenu={rowMenu}
+        odoo={odoo}
         onClose={closeInvoicePanel}
-        width="lg"
-        loading={submitInvoice.isPending || setReceivedDate.isPending}
+        onOpenFullInvoice={openFullInvoice}
         nestedOpen={Boolean(submitTarget || receiptTarget || formTarget || cancelTarget || projectTarget || efakturTarget)}
-      >
-        {panelInvoice && <div className="space-y-5 p-4 sm:p-5">
-          {(() => {
-            // C4: a field with nothing recorded is left out; an unknown open balance is said once, never shown as a dash.
-            const due = deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date);
-            const outstandingUnknown = panelInvoice.erp_outstanding_amount == null && (panelInvoice.status === 'Unpaid' || panelInvoice.status === 'Submitted');
-            const field = (key: string, label: string, value: React.ReactNode) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1">{value}</dd></div>;
-            return <div className="border-b border-border pb-4">
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                {panelInvoice.amount != null && field('amount', t('finance:receivables.amount', 'Amount'), <span className="flex flex-wrap items-baseline gap-x-1.5"><span className="tabular font-semibold">{formatCurrency(panelInvoice.amount, panelInvoice.currency)}</span><TaxBasisLabel treatment={panelInvoice.tax_treatment} showDetails taxRate={panelInvoice.tax_rate} taxBaseNumerator={panelInvoice.tax_base_numerator} taxBaseDenominator={panelInvoice.tax_base_denominator} /></span>)}
-                {panelInvoice.erp_outstanding_amount != null && field('outstanding', t('finance:receivables.outstanding', 'Outstanding · tax included'), <span className="tabular">{formatCurrency(panelInvoice.erp_outstanding_amount, panelInvoice.currency)}</span>)}
-                {due && field('due', t('finance:receivables.dueDate', 'Due date'), formatDateOnly(due))}
-                {panelInvoice.invoice_date && field('invoiceDate', t('finance:receivables.invoiceDate', 'Invoice date'), formatDateOnly(panelInvoice.invoice_date))}
-                {panelInvoice.erp_payment_terms_days != null && field('terms', t('finance:receivables.paymentTerms', 'Terms'), t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days }))}
-                {panelInvoice.efaktur_number && field('efaktur', t('finance:receivables.eFaktur', 'e-Faktur'), `${panelInvoice.efaktur_number}${panelInvoice.efaktur_date ? ` · ${formatDateOnly(panelInvoice.efaktur_date)}` : ''}`)}
-              </dl>
-              {outstandingUnknown && <p className="mt-3 text-xs text-muted-foreground">{t('finance:receivables.outstandingUnknown', 'The outstanding balance is not known yet: the accounting system has not reported it for this invoice.')}</p>}
-            </div>;
-          })()}
-          <InvoiceStatusTimeline invoice={panelInvoice} payments={panelPayments} profiles={profileRows} />
-          <SalesInvoiceEvidenceSection invoice={panelInvoice} odoo={odoo} />
-        </div>}
-      </Drawer>
+        loading={submitInvoice.isPending || setReceivedDate.isPending}
+      />
     </ListPage>
   );
 };

@@ -444,13 +444,26 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
 
     expect(h.state.columnCalls).toContainEqual({
       table: 'sales_invoices',
-      columns: '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat)',
+      columns: '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)',
     });
     expect(h.state.eqCalls).toContainEqual(['id', 'si-1']);
     expect(row?.customer_name).toBe('Acme Co');
     expect(row?.author_user_ids).toEqual(['u-1']);
     expect(row?.efaktur_number).toBe('010.001-26.12345678');
     expect(row?.efaktur_date).toBe('2026-10-01');
+  });
+
+  it("AC-WHA-007: a sales invoice row carries its project's default receipt article", async () => {
+    h.state.singles.sales_invoices = {
+      id: 'si-wha', companies: null, sales_invoice_authors: [],
+      project: { subject_to_vat: true, receipt_withholding_article: 'pph4_2' },
+    };
+    expect((await getSalesInvoice('si-wha'))?.project_receipt_withholding_article).toBe('pph4_2');
+    h.state.singles.sales_invoices = {
+      id: 'si-wha-2', companies: null, sales_invoice_authors: [],
+      project: { subject_to_vat: true, receipt_withholding_article: 'pph21' },
+    };
+    expect((await getSalesInvoice('si-wha-2'))?.project_receipt_withholding_article).toBeNull();
   });
 
   it('AC-EFK-004: absent sales e-Faktur fields hydrate as nullable facts', async () => {

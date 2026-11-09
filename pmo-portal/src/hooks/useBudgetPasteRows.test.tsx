@@ -2,6 +2,7 @@ import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryCache, QueryClient, QueryClientProvider, useQueries, type QueryKey } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BahasaProvider } from '@/test/bahasa';
 
 const budget = vi.hoisted(() => ({ createLineItem: vi.fn() }));
 
@@ -555,5 +556,27 @@ describe('useBudgetPasteRows', () => {
     expect(refreshCalls).toEqual([2, 2, 2]);
     expect(result.current.paste.results).toHaveLength(500);
     expect(result.current.paste.results.every((row) => row.status === 'created')).toBe(true);
+  });
+
+  it('AC-005 rejects non-canonical amounts that parse to a valid number, before any write', async () => {
+    const { result } = setup();
+
+    for (const amount of ['1.5', '01.00', ' 5', '5.0']) {
+      await act(async () => { await result.current.save([{ ...rows[0], amount }]); });
+      expect(result.current.validationError).toMatch(/non-canonical amount/i);
+    }
+    expect(budget.createLineItem).not.toHaveBeenCalled();
+  });
+
+  it('#1473 shows validation messages in the user language (ID), not English', async () => {
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      <BahasaProvider locale="id"><QueryClientProvider client={queryClient}>{children}</QueryClientProvider></BahasaProvider>;
+    const { result } = renderHook(() => useBudgetPasteRows(baseProps), { wrapper });
+
+    await act(async () => { await result.current.save([]); });
+
+    expect(result.current.validationError).toBe('Tambahkan minimal satu baris valid sebelum menyimpan.');
+    expect(budget.createLineItem).not.toHaveBeenCalled();
   });
 });

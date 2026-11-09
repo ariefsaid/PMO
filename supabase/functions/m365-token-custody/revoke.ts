@@ -24,7 +24,7 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
   const fetchImpl = deps.fetch ?? fetch;
   const headers = { 'Content-Type': 'application/json' };
 
-  const resolved = await resolveOrgOrResult(deps);
+  const resolved = await resolveOrgOrResult(deps, { requireEntitlement: false }); // teardown of the caller's own connection stays available when the plan is off
   if (typeof resolved !== 'string') return resolved;
   const orgId = resolved;
 

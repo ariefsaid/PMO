@@ -3235,6 +3235,7 @@ export type Database = {
           grand_total: number | null
           id: string
           is_return: boolean
+          item_projects: string[]
           net_total: number | null
           org_id: string
           outstanding_amount: number | null
@@ -3258,6 +3259,7 @@ export type Database = {
           grand_total?: number | null
           id?: string
           is_return?: boolean
+          item_projects?: string[]
           net_total?: number | null
           org_id?: string
           outstanding_amount?: number | null
@@ -3281,6 +3283,7 @@ export type Database = {
           grand_total?: number | null
           id?: string
           is_return?: boolean
+          item_projects?: string[]
           net_total?: number | null
           org_id?: string
           outstanding_amount?: number | null
@@ -5055,6 +5058,7 @@ export type Database = {
           sales_invoice_id: string | null
           status: string
           withheld_amount: number | null
+          withholding_article: string | null
           withholding_slip_number: string | null
         }
         Insert: {
@@ -5081,6 +5085,7 @@ export type Database = {
           sales_invoice_id?: string | null
           status?: string
           withheld_amount?: number | null
+          withholding_article?: string | null
           withholding_slip_number?: string | null
         }
         Update: {
@@ -5107,6 +5112,7 @@ export type Database = {
           sales_invoice_id?: string | null
           status?: string
           withheld_amount?: number | null
+          withholding_article?: string | null
           withholding_slip_number?: string | null
         }
         Relationships: [
@@ -5713,7 +5719,9 @@ export type Database = {
           lifecycle_state: string | null
           name: string
           pph23_payable_account: string | null
+          pph23_prepaid_account: string | null
           pph4_2_payable_account: string | null
+          pph4_2_prepaid_account: string | null
           procurement_gates: Json
           project_number_pattern: string | null
           sector_options: string[]
@@ -5733,7 +5741,9 @@ export type Database = {
           lifecycle_state?: string | null
           name: string
           pph23_payable_account?: string | null
+          pph23_prepaid_account?: string | null
           pph4_2_payable_account?: string | null
+          pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
           project_number_pattern?: string | null
           sector_options?: string[]
@@ -5753,7 +5763,9 @@ export type Database = {
           lifecycle_state?: string | null
           name?: string
           pph23_payable_account?: string | null
+          pph23_prepaid_account?: string | null
           pph4_2_payable_account?: string | null
+          pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
           project_number_pattern?: string | null
           sector_options?: string[]
@@ -8061,6 +8073,7 @@ export type Database = {
           lost_note: string | null
           lost_reason: string | null
           name: string
+          receipt_withholding_article: string | null
           short_name: string | null
           org_id: string
           pmo_project_number: string
@@ -8106,6 +8119,7 @@ export type Database = {
           lost_note?: string | null
           lost_reason?: string | null
           name: string
+          receipt_withholding_article?: string | null
           short_name?: string | null
           org_id?: string
           pmo_project_number?: string
@@ -8151,6 +8165,7 @@ export type Database = {
           lost_note?: string | null
           lost_reason?: string | null
           name?: string
+          receipt_withholding_article?: string | null
           short_name?: string | null
           org_id?: string
           pmo_project_number?: string

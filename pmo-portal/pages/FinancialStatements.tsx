@@ -16,6 +16,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { OdooStatementsSection } from '@/src/components/financial-statements/OdooStatementsSection';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
+import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
 import { formatDateOnly } from '@/src/lib/format';
@@ -308,6 +309,7 @@ const FinancialStatements: React.FC = () => {
      
       className="min-w-0"
     >
+      {odooMode.error && <LedgerModeNotice className="mb-4" onRetry={odooMode.retry} />}
       {catalogue?.state === 'complete' && (
         <div className="mb-4 flex min-w-0 flex-col gap-4">
           <FormGrid className="min-w-0">

@@ -13,7 +13,8 @@ vi.mock('@/src/lib/repositories/odoo', () => ({
   odooRepository: h,
 }));
 
-import { useOdooConnection, useMasterRecords, useOdooSetup } from './useOdoo';
+import { useOdooConnection, useMasterRecords, useOdooSetup, useOdooEmploy } from './useOdoo';
+import { externalDomainOwnershipKey } from './approvalsQueryKeys';
 import { useOdooUnreachable } from './useOdooPurchase';
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -56,4 +57,15 @@ it('a setup action invalidates the Odoo and integration-health families', async 
   expect(keys).toContainEqual(['odoo']);
   expect(keys).toContainEqual(['integrations', 'health', 'org-a']);
   expect(keys).toContainEqual(['integrations', 'bindings', 'org-a']);
+});
+
+it('handing a domain to Odoo refreshes ownership so the checklist step turns Done', async () => {
+  const { client, wrapper } = mk();
+  const spy = vi.spyOn(client, 'invalidateQueries');
+  h.setup.mockResolvedValue({ employed: true });
+  const { result } = renderHook(() => useOdooEmploy(), { wrapper });
+  await act(async () => { await result.current.mutateAsync('companies'); });
+  expect(h.setup).toHaveBeenCalledWith('employ-domain', { domain: 'companies' });
+  const keys = spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey);
+  expect(keys).toContainEqual(externalDomainOwnershipKey('org-a'));
 });

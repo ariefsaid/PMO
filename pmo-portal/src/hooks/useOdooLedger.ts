@@ -31,6 +31,11 @@ export function useOdooLedgerMode(enabled = true) {
     onLedger: odoo && basis.data === true,
     pending: conn.isPending || (odoo && basis.isPending),
     error: conn.isError || basis.isError,
+    /** Reads again whichever of the two reads failed (#2065). */
+    retry: () => {
+      if (conn.isError) void conn.refetch();
+      if (basis.isError) void basis.refetch();
+    },
   };
 }
 
@@ -93,7 +98,7 @@ export function useOdooProjectActuals(projectId: string | undefined) {
     queryFn: () => odooLedgerRepository.projectLinked(projectId as string),
     enabled: s.ready && mode.onLedger && Boolean(projectId),
   });
-  return { onLedger: mode.onLedger, linked: link.data, linkError: link.isError, unlinked: mode.onLedger && link.data === false };
+  return { onLedger: mode.onLedger, modeError: mode.error, retryMode: mode.retry, linked: link.data, linkError: link.isError, unlinked: mode.onLedger && link.data === false };
 }
 
 /** The currency ledger amounts are in: the Odoo company's, else the org's until it is read (OQ-ODA-5). */
