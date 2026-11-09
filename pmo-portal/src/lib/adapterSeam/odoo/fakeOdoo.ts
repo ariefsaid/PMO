@@ -12,6 +12,7 @@ type Domain = unknown[];
 const FIELDS: Record<string, string[]> = {
   'res.partner': ['name', 'vat', 'ref', 'email', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
   'res.company': ['name', 'currency_id', 'partner_id', 'write_date'],
+  'res.users': ['partner_id', 'active', 'write_date'],
   'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
   'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
@@ -47,6 +48,7 @@ function matchLeaf(row: Row, [field, op, value]: [string, string, unknown]): boo
     case '=': return v === value;
     case '!=': return v !== value;
     case 'in': return (value as unknown[]).includes(v);
+    case 'not in': return !(value as unknown[]).includes(v);
     case '>': return (v as never) > (value as never);
     case '>=': return (v as never) >= (value as never);
     case '<': return (v as never) < (value as never);

@@ -77,6 +77,30 @@ describe('ECA setup verbs for Odoo — census', () => {
     assertEquals(JSON.stringify(r.calls.map((c) => c.url.toString())).includes('org-other'), false);
   });
 
+  it('#2048 the census counts the client\'s partners only: Odoo\'s company, system and login partners are left out, real customers and vendors stay', async () => {
+    const r = await call({ setupAction: 'census' }, { prepare: (f) => {
+      f.seed('res.partner', [
+        partner(99, { name: 'Main Co', supplier_rank: 0 }), partner(2, { name: 'OdooBot', supplier_rank: 0, active: false }), partner(3, { name: 'Administrator', supplier_rank: 0 }),
+        partner(4, { name: 'Public user', supplier_rank: 0, active: false }), partner(5, { name: 'PMO adapter', supplier_rank: 0 }),
+        partner(10, { name: 'PT Baja' }), partner(13, { name: 'PT Portal Vendor' }), partner(11, { name: 'PT Beton', supplier_rank: 0, customer_rank: 1 }), partner(12, { name: 'PT Lama', active: false }),
+      ]);
+      f.seed('res.users', [{ id: 1, active: false, partner_id: [2, 'OdooBot'] }, { id: 2, active: true, partner_id: [3, 'Administrator'] },
+        { id: 3, active: false, partner_id: [4, 'Public user'] }, { id: 4, active: true, partner_id: [5, 'PMO adapter'] }, { id: 5, active: true, partner_id: [13, 'PT Portal Vendor'] }]);
+    } });
+    assertEquals(r.res.status, 200);
+    // a vendor given a portal login still counts
+    assertEquals(rows(r).find((x) => x.kind === 'party')!.erpCount, 4);
+  });
+
+  it('#2048 a fresh Odoo with none of the client\'s partners counts 0 and the party kind is empty (S-C)', async () => {
+    const r = await call({ setupAction: 'census' }, { prepare: (f) => {
+      f.seed('res.partner', [partner(99, { name: 'My Company', supplier_rank: 0 }), partner(3, { name: 'Administrator', supplier_rank: 0 })]);
+      f.seed('res.users', [{ id: 2, active: true, partner_id: [3, 'Administrator'] }]);
+    } });
+    const party = rows(r).find((x) => x.kind === 'party')!;
+    assertEquals([party.erpCount, party.scenario], [0, 'S-C']);
+  });
+
   it('people are not served by Odoo yet and no analytic plan is chosen: both count 0 and the census still completes', async () => {
     const r = await call({ setupAction: 'census' }, { plan: null });
     assertEquals(r.res.status, 200);
