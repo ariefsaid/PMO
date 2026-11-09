@@ -145,4 +145,14 @@ describe('#2103 receivables row status does not scan every payment per invoice',
     // Every seeded invoice has a committed receipt the invoice read has not caught up with.
     expect(screen.getAllByText('Receipt sent, awaiting Odoo').length).toBe(COUNT);
   });
+
+  it('matches a receipt to its invoice through the allocation, not only the pointer', () => {
+    // ERP receipts can name the invoice only inside allocation_details, with no sales_invoice_id pointer;
+    // si-7 gets exactly that shape while si-8 loses its receipt entirely, so exactly si-7 may show the flag.
+    h.payments[7] = { ...h.payments[7], sales_invoice_id: null } as IncomingPaymentRow;
+    h.payments.splice(8, 1);
+    renderPage();
+    expect(screen.getByText('SI-00007').closest('tr')).toHaveTextContent('Receipt sent, awaiting Odoo');
+    expect(screen.getByText('SI-00008').closest('tr')).not.toHaveTextContent('Receipt sent, awaiting Odoo');
+  });
 });
