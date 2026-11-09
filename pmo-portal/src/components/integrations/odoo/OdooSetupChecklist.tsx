@@ -1,9 +1,8 @@
 /** The Odoo setup steps (FR-ODC-110, plan S5-T6). A tier-keyed list: ERPNext's activity-type and budget-category steps never appear here. */
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, SelectField } from '@/src/components/ui';
-import { SENDS_FINISHED_KEY } from '@/src/lib/adapterSeam/odoo/connectionState';
 import React, { useState } from 'react';
-import { useOdooConnection, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
+import { useOdooConnection, useOdooJournalProposal, useOdooSendsFinished, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
 import { useOdooCan } from './useOdooCan';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { OdooAccountSelect } from '@/src/components/procurement/OdooDirectoryPickers';
@@ -80,9 +79,11 @@ export function OdooSetupChecklist() {
   const { t } = useTranslation();
   const read = useOdooConnection().data;
   const owned = useExternalDomainOwnership().data ?? [];
-  const canSet = useOdooCan().setValue;
+  const may = useOdooCan();
+  const canSet = may.setValue;
   const active = Boolean(read && read.status === 'active');
   const proposal = useOdooJournalProposal(active && read!.activated).data;
+  const sendsDone = useOdooSendsFinished(active && read!.activated && may.manage).data === true;
   if (!read || read.status !== 'active') return null;
   const cfg = read.config;
   const missing = read.capabilities?.missing ?? [];
@@ -96,7 +97,7 @@ export function OdooSetupChecklist() {
       extra: <JournalDefault proposal={proposal} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.customerAdvance', 'Customer-advance account'), done: Boolean(cfg.customer_advance_account_ref), hint: t('administration:odoo.checklist.customerAdvanceHint', 'Choose the account that holds customer advances.'), extra: <AccountDefault kind="advance" value={String(cfg.customer_advance_account_ref ?? '')} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.taxPrepaid', 'Tax-prepaid account'), done: Boolean(cfg.tax_prepaid_account_id), hint: t('administration:odoo.checklist.taxPrepaidHint', 'Choose the asset account used for client tax withheld.'), extra: <AccountDefault kind="prepaid" value={String(cfg.tax_prepaid_account_id ?? '')} canSet={canSet} /> },
-    { name: t('administration:odoo.checklist.sends', 'Sends finished'), done: Boolean(cfg[SENDS_FINISHED_KEY]), hint: t('administration:odoo.checklist.sendsHint', 'Records PMO holds that Odoo should also have are sent once.') },
+    { name: t('administration:odoo.checklist.sends', 'Sends finished'), done: sendsDone, hint: t('administration:odoo.checklist.sendsHint', 'Records PMO holds that Odoo should also have are sent once.') },
     { name: t('administration:odoo.checklist.employ', 'Vendors and clients managed in Odoo'), done: owned.some((o) => o.externalTier === 'odoo' && o.domain === 'companies'), hint: t('administration:odoo.checklist.employHint', 'After this, Odoo owns vendor and client records.') },
   ];
   return (

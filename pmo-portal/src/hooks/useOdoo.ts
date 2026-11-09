@@ -3,6 +3,7 @@ import { repositories } from '@/src/lib/repositories';
 import type { MirrorKind, ListMasterInput, OdooConfigProposalRead, OdooProjectLinksRead } from '@/src/lib/repositories/types';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
+import { sendsFinished } from '@/src/lib/adapterSeam/odoo/sendsFinished';
 
 export function useOdooConnection(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
@@ -97,6 +98,17 @@ export function useOdooJournalProposal(enabled = true) {
     queryKey: ['odoo', 'journal-proposal', orgId],
     queryFn: () => repositories.odoo.setup<JournalProposal>('propose-config'),
     enabled: Boolean(orgId) && enabled,
+  });
+}
+
+/** Whether the first sends are done, from the setup run's send state (AC-ODC-080). Admin only: Finance's counts cover accounts alone. `['odoo']` is invalidated by every setup save. */
+export function useOdooSendsFinished(enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['odoo', 'sends-finished', orgId],
+    queryFn: async () => sendsFinished(await repositories.integrations.getConnectStatus('odoo')),
+    enabled: Boolean(orgId) && enabled,
+    retry: false,
   });
 }
 
