@@ -236,6 +236,12 @@
     "soleOperator": "You're the only person in this organisation, so you can activate budgets you prepared yourself. Once a colleague joins, a second person will need to activate them.",
     "confirmLabel": "Activate {{count}} drafts",
     "erpNotUpdated": "{{count}} activated but ERPNext was not updated; ask Finance or an administrator to review it.",
-    "checkFailed": "Couldn't check readiness"
+    "checkFailed": "Couldn't check readiness",
+    "blockedEditor": "You drafted or edited this draft, so someone else must activate it.",
+    "needsAdminFinance": "No drafter is recorded, so only Admin or Finance can activate this draft.",
+    "eligibilityUnavailable": "Activation eligibility is unavailable. Refresh this page and try again.",
+    "distributionMissing": "Save a fiscal-year distribution on the project's Budget tab first.",
+    "distributionStale": "The saved fiscal-year distribution no longer matches this draft. Review it on the project's Budget tab.",
+    "unchecked": "Not checked yet"
   }
 }

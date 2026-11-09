@@ -5,11 +5,12 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { repositories } from '@/src/lib/repositories';
-import { useOrgBudgetDrafts, invalidateBudgetQueries } from '@/src/hooks/useBudget';
+import { useOrgBudgetDrafts, invalidateBudgetQueries, budgetDistributionKey } from '@/src/hooks/useBudget';
 import { formatCurrency } from '@/src/lib/format';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
 import type { OrgDraftBudget } from '@/src/lib/db/budgets';
-import { draftTickState } from './draftTickState';
+import { savedPlanMatchesDraft, type DistributionReadinessStatus } from '@/src/lib/budget/savedDistribution';
+import { draftTickState, type DraftTickState } from './draftTickState';
 import { Button, Checkbox, ConfirmDialog } from '@/src/components/ui';
 
 type RowResult = { ok: true; erpNotUpdated: boolean } | { ok: false; message: string };
@@ -43,6 +44,13 @@ export function BudgetDraftReview() {
     staleTime: 0,
   })) });
 
+  // Whole-project drafts also need the Budget tab's distribution gate (saved plan vs the live ERPNext fiscal years).
+  const distributions = useQueries({ queries: rows.map((r) => ({
+    queryKey: budgetDistributionKey(currentUser?.org_id, r.projectId, r.id),
+    queryFn: () => repositories.budget.getDistribution(r.id),
+    enabled: r.budgetMode === 'whole_project',
+  })) });
+
   if (!currentUser || (rows.length === 0 && Object.keys(results).length === 0)) return null;
 
   const view = rows.map((row, i) => {
@@ -52,7 +60,13 @@ export function BudgetDraftReview() {
       currentUserId: currentUser.id,
       record: { status: 'Draft', created_by: row.createdBy, editor_ids: row.editorIds },
     });
-    return { row, mode, tick: draftTickState({ mode, precheck, canTransition, checkFailed: !!(modes[i]?.isError || prechecks[i]?.isError) }) };
+    const dq = distributions[i];
+    const distribution: DistributionReadinessStatus = row.budgetMode !== 'whole_project' ? 'current'
+      : dq?.isError ? 'error'
+      : !dq || dq.isPending || dq.isFetching ? 'loading'
+      : !dq.data ? 'absent'
+      : savedPlanMatchesDraft(dq.data, row.lines, row.projectStart, row.projectEnd, precheck?.fiscalYears ?? null) ? 'current' : 'stale';
+    return { row, mode, tick: draftTickState({ mode, precheck, canTransition, distribution, checkFailed: !!(modes[i]?.isError || prechecks[i]?.isError) }) };
   });
   const selected = view.filter((v) => ticked.has(v.row.id) && v.tick === 'ready');
   const soleOperator = selected.some((v) => v.mode === 'sole_operator');
@@ -62,12 +76,18 @@ export function BudgetDraftReview() {
   const totalText = [...selectedTotals].map(([c, n]) => formatCurrency(n, c || 'USD')).join(' + ');
 
   const toggle = (id: string, on: boolean) => setTicked((cur) => { const next = new Set(cur); if (on) next.add(id); else next.delete(id); return next; });
-  const tickReasons: Record<string, string> = {
+  const tickReasons: Record<Exclude<DraftTickState, 'ready'>, string> = {
+    unchecked: t('draftReview.unchecked', 'Not checked yet'),
     checking: t('draftReview.checking', 'Checking…'),
     'check-failed': t('draftReview.checkFailed', "Couldn't check readiness"),
     unmapped: t('draftReview.unmapped', 'Map the budget categories first'),
     blocked: t('draftReview.blocked', 'Not ready to activate'),
     'not-allowed': t('draftReview.notAllowed', 'Someone else must activate this draft'),
+    'blocked-editor': t('draftReview.blockedEditor', 'You drafted or edited this draft, so someone else must activate it.'),
+    'needs-admin-finance': t('draftReview.needsAdminFinance', 'No drafter is recorded, so only Admin or Finance can activate this draft.'),
+    'eligibility-unavailable': t('draftReview.eligibilityUnavailable', 'Activation eligibility is unavailable. Refresh this page and try again.'),
+    'distribution-missing': t('draftReview.distributionMissing', "Save a fiscal-year distribution on the project's Budget tab first."),
+    'distribution-stale': t('draftReview.distributionStale', "The saved fiscal-year distribution no longer matches this draft. Review it on the project's Budget tab."),
   };
 
   const activateSelected = async () => {

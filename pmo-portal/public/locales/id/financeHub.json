@@ -236,6 +236,12 @@
     "soleOperator": "Anda satu-satunya orang di organisasi ini, jadi Anda dapat mengaktifkan anggaran yang Anda siapkan sendiri. Setelah rekan bergabung, orang kedua perlu mengaktifkannya.",
     "confirmLabel": "Aktifkan {{count}} draf",
     "erpNotUpdated": "{{count}} diaktifkan tetapi ERPNext belum diperbarui; minta Finance atau administrator untuk memeriksanya.",
-    "checkFailed": "Tidak dapat memeriksa kesiapan"
+    "checkFailed": "Tidak dapat memeriksa kesiapan",
+    "blockedEditor": "Anda menyusun atau mengedit draf ini, jadi orang lain harus mengaktifkannya.",
+    "needsAdminFinance": "Penyusun tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkan draf ini.",
+    "eligibilityUnavailable": "Kelayakan aktivasi tidak tersedia. Muat ulang halaman ini dan coba lagi.",
+    "distributionMissing": "Simpan alokasi tahun fiskal di tab Anggaran proyek terlebih dahulu.",
+    "distributionStale": "Alokasi tahun fiskal yang tersimpan tidak lagi sesuai dengan draf ini. Tinjau di tab Anggaran proyek.",
+    "unchecked": "Belum diperiksa"
   }
 }

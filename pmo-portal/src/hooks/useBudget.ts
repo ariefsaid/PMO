@@ -15,7 +15,7 @@ const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
   ['budget-versions', orgId, projectId] as const;
 
 /** `versionId` omitted = the whole project's prefix (invalidation); given = one version's saved plan. */
-const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId?: string) =>
+export const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId?: string) =>
   (versionId === undefined
     ? ['budget-distribution', orgId, projectId]
     : ['budget-distribution', orgId, projectId, versionId]) as readonly unknown[];

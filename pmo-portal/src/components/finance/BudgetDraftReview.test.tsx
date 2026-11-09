@@ -8,17 +8,25 @@ const h = vi.hoisted(() => ({
   getActivationMode: vi.fn(),
   precheckActivation: vi.fn(),
   activateVersion: vi.fn(),
+  getDistribution: vi.fn(),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { budget: h } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1', role: 'Finance' } }) }));
 
 import { BudgetDraftReview } from './BudgetDraftReview';
 import { draftTickState } from './draftTickState';
+import { categoryTotals, planFor } from '@/src/lib/budget/savedDistribution';
+import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
 
 const draft = (id: string, extra: Record<string, unknown> = {}) => ({
   id, projectId: `p-${id}`, projectCode: `PRJ-${id}`, projectName: `Project ${id}`, currency: 'IDR', version: 1, name: 'Imported',
-  total: 1000, createdBy: 'u9', editorIds: ['u9'], documentUrl: null, ...extra,
+  total: 1000, createdBy: 'u9', editorIds: ['u9'], documentUrl: null,
+  budgetMode: 'per_year', projectStart: null, projectEnd: null, lines: [], ...extra,
 });
+const calendar = [{ name: 'FY2026', start: '2026-01-01', end: '2026-12-31' }];
+const wholeLines = [{ category: 'Labor', budgeted_amount: 1000 }];
+const whole = (id: string) => draft(id, { budgetMode: 'whole_project', projectStart: '2026-02-01', projectEnd: '2026-06-30', lines: wholeLines });
+const savedPlan = () => planFor(categoryTotals(wholeLines as never), yearsInSpan('2026-02-01', '2026-06-30', calendar), '2026-02-01', '2026-06-30', 'by_days', {}, {});
 const ready = { status: 'ready', erpCheck: 'available', fiscalYearNames: null, fiscalYears: null, issues: [] };
 const unmapped = { ...ready, status: 'blocked', issues: [{ code: 'budget-category-unmapped', categories: ['Labor'] }] };
 
@@ -32,6 +40,7 @@ beforeEach(() => {
   h.getActivationMode.mockImplementation(async (id: string) => (id === 'c' ? 'blocked_editor' : 'allowed'));
   h.precheckActivation.mockImplementation(async (id: string) => (id === 'b' ? unmapped : ready));
   h.activateVersion.mockResolvedValue({ pushState: 'pushed' });
+  h.getDistribution.mockResolvedValue(null);
 });
 afterEach(cleanup);
 
@@ -46,10 +55,18 @@ const box = (name: RegExp) => screen.getByRole('checkbox', { name });
 
 describe('draftTickState', () => {
   const base = { mode: 'allowed' as const, precheck: ready as never, canTransition: true };
-  it('AC-BAD-003 a mode that is not allowed/sole_operator is never tickable', () => {
-    expect(draftTickState({ ...base, mode: 'blocked_editor' })).toBe('not-allowed');
-    expect(draftTickState({ ...base, mode: 'blocked_no_drafter' })).toBe('not-allowed');
+  it('AC-BAD-003 a mode that is not allowed/sole_operator is never tickable, and each block names its own reason', () => {
+    expect(draftTickState({ ...base, mode: 'blocked_editor' })).toBe('blocked-editor');
+    expect(draftTickState({ ...base, mode: 'blocked_no_drafter' })).toBe('needs-admin-finance');
+    expect(draftTickState({ ...base, mode: 'blocked' })).toBe('eligibility-unavailable');
     expect(draftTickState({ ...base, canTransition: false })).toBe('not-allowed');
+  });
+  it('AC-BAD-012 a whole-project draft needs the Budget tab\'s distribution gate to be current', () => {
+    expect(draftTickState({ ...base, distribution: 'current' })).toBe('ready');
+    expect(draftTickState({ ...base, distribution: 'absent' })).toBe('distribution-missing');
+    for (const d of ['stale', 'dirty', 'invalid', 'saving'] as const) expect(draftTickState({ ...base, distribution: d })).toBe('distribution-stale');
+    expect(draftTickState({ ...base, distribution: 'loading' })).toBe('checking');
+    expect(draftTickState({ ...base, distribution: 'error' })).toBe('check-failed');
   });
   it('AC-BAD-002 unmapped categories and a blocked precheck are not tickable', () => {
     expect(draftTickState({ ...base, precheck: unmapped as never })).toBe('unmapped');
@@ -71,8 +88,31 @@ it('AC-BAD-001/002/003 lists total, mapped and source link; unmapped and SoD-blo
   expect(box(/Project b/)).toHaveAttribute('aria-disabled','true');
   expect(box(/Project c/)).toHaveAttribute('aria-disabled','true');
   expect(screen.getByText('Map the budget categories first')).toBeInTheDocument();
-  expect(screen.getByText('Someone else must activate this draft')).toBeInTheDocument();
+  expect(screen.getByText('You drafted or edited this draft, so someone else must activate it.')).toBeInTheDocument();
   expect(screen.getByText('No')).toBeInTheDocument();
+});
+
+it('AC-BAD-008 a draft I prepared myself is not tickable even when the server mode says allowed', async () => {
+  h.listOrgDrafts.mockResolvedValue([draft('f', { createdBy: 'me', editorIds: [] }), draft('g')]);
+  h.getActivationMode.mockResolvedValue('allowed');
+  mount();
+  await waitFor(() => expect(box(/Project g/)).not.toHaveAttribute('aria-disabled'));
+  expect(box(/Project f/)).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByText('Someone else must activate this draft')).toBeInTheDocument();
+});
+
+it('AC-BAD-012 a whole-project draft is tickable only while its saved distribution matches the live ERPNext fiscal years', async () => {
+  h.listOrgDrafts.mockResolvedValue([whole('w'), whole('x'), whole('y')]);
+  h.precheckActivation.mockResolvedValue({ ...ready, fiscalYears: calendar });
+  h.getDistribution.mockImplementation(async (id: string) => (id === 'w' ? savedPlan() : id === 'x'
+    ? { ...savedPlan(), basis: { ...savedPlan().basis, years: [{ name: 'FY2025', start: '2025-01-01', end: '2025-12-31' }] } }
+    : null));
+  mount();
+  await waitFor(() => expect(box(/Project w/)).not.toHaveAttribute('aria-disabled'));
+  expect(box(/Project x/)).toHaveAttribute('aria-disabled', 'true');
+  expect(box(/Project y/)).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByText(/no longer matches this draft/)).toBeInTheDocument();
+  expect(screen.getByText(/Save a fiscal-year distribution/)).toBeInTheDocument();
 });
 
 it('AC-BAD-004/006 one confirm with the count; nothing activates before it; only the ticked draft does', async () => {
