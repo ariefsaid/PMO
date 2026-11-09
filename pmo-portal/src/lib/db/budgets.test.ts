@@ -87,6 +87,8 @@ import {
   getBudgetDistribution,
   saveBudgetDistribution,
   switchBudgetDraftMode,
+  returnVersion,
+  resubmitVersion,
   type BudgetDistributionPlan,
 } from './budgets';
 import { AppError } from '@/src/lib/appError';
@@ -1192,6 +1194,31 @@ describe('saveBudgetDistribution (#1472 S6A)', () => {
     await expect(saveBudgetDistribution('v-draft', expectedPlan)).rejects.toMatchObject({
       message: 'budget distribution for Labor must reconcile to its source lines', code: 'P0001',
     });
+  });
+});
+
+describe('returnVersion / resubmitVersion (#1413)', () => {
+  it('returns a draft through the RPC with the reason and no tenant fields', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(returnVersion('v-draft', 'Split labour by quarter')).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('return_budget_version', { version_id: 'v-draft', reason: 'Split labour by quarter' });
+    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
+  });
+
+  it('surfaces a separation-of-duties refusal with its code', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'separation of duties: You edited this version, so someone else must return it.', code: '42501' } });
+    await expect(returnVersion('v-draft', 'x')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('resubmits a returned draft through the RPC', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(resubmitVersion('v-draft')).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('resubmit_budget_version', { version_id: 'v-draft' });
+  });
+
+  it('throws on a resubmit RPC error', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'only a returned Draft version can be resubmitted', code: 'P0001' } });
+    await expect(resubmitVersion('v-draft')).rejects.toThrow('only a returned Draft version can be resubmitted');
   });
 });
 

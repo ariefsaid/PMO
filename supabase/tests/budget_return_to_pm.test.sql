@@ -1,7 +1,7 @@
 -- AC-1413-01..: an approver returns a waiting Draft to the PM (server-enforced SoD, role, org, state).
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(19);
 
 insert into organizations (id, name) values
  ('b1413000-0000-0000-0000-000000000001','Return Org'),('b1413000-0000-0000-0000-000000000002','Return Other Org');
@@ -80,6 +80,26 @@ select lives_ok($$select activate_budget_version('b1413222-0000-0000-0000-000000
  'AC-1413-14 after resubmit the approver can activate');
 select throws_ok($$select return_budget_version('b1413222-0000-0000-0000-000000000001','late')$$,'P0001',
  'only a Draft version can be returned','AC-1413-15 a non-Draft version cannot be returned');
+reset role;
+-- Server-seeded versions (no JWT, so no editor row is captured): created_by alone must hold the SoD,
+-- and a version with no recorded drafter is returnable by Admin / Finance only.
+set local request.jwt.claims = '';
+insert into budget_versions (id, org_id, project_id, version, name, status, created_by) values
+ ('b1413222-0000-0000-0000-000000000003','b1413000-0000-0000-0000-000000000001','b1413111-0000-0000-0000-000000000001',3,'D3','Draft','b1413000-0000-0000-0000-0000000000a1'),
+ ('b1413222-0000-0000-0000-000000000004','b1413000-0000-0000-0000-000000000001','b1413111-0000-0000-0000-000000000001',4,'D4','Draft',null);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"b1413000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select return_budget_version('b1413222-0000-0000-0000-000000000003','mine')$$,'42501',
+ 'separation of duties: the person who drafted a budget version cannot return it',
+ 'AC-1413-16 the recorded drafter cannot return their draft even with no editor row');
+select throws_ok($$select return_budget_version('b1413222-0000-0000-0000-000000000004','x')$$,'42501',
+ 'a budget version with no recorded drafter can be returned by Admin or Finance only',
+ 'AC-1413-17 a Project Manager cannot return a version with no recorded drafter');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"b1413000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select lives_ok($$select return_budget_version('b1413222-0000-0000-0000-000000000004','No drafter on record')$$,
+ 'AC-1413-18 Finance can return a version with no recorded drafter');
 reset role;
 select * from finish();
 rollback;
