@@ -124,13 +124,21 @@ it('AC-BAD-004/006 one confirm with the count; nothing activates before it; only
   fireEvent.click(box(/Project a/));
   fireEvent.click(screen.getByRole('button', { name: /Activate selected \(1\)/ }));
   const dialog = await screen.findByRole('dialog');
-  expect(dialog).toHaveTextContent('Activate 1 draft budgets?');
+  expect(dialog).toHaveTextContent('Activate 1 draft budget?');
   expect(dialog).not.toHaveTextContent('only person');
   expect(h.activateVersion).not.toHaveBeenCalled();
-  fireEvent.click(within(dialog).getByRole('button', { name: /Activate 1 drafts/ }));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Activate 1 draft' }));
   await waitFor(() => expect(h.activateVersion).toHaveBeenCalledTimes(1));
   expect(h.activateVersion).toHaveBeenCalledWith('a');
   expect(await screen.findByText('1 activated, 0 failed')).toBeInTheDocument();
+});
+
+it('AC-BAD-014 the confirm wording is singular for one draft (several are covered by the 2- and 3-draft cases)', async () => {
+  await mount();
+  await waitFor(() => expect(box(/Project a/)).not.toHaveAttribute('aria-disabled'));
+  fireEvent.click(box(/Project a/));
+  fireEvent.click(screen.getByRole('button', { name: /Activate selected \(1\)/ }));
+  expect(await screen.findByRole('dialog')).toHaveTextContent(/makes 1 draft \(total .*\) the live active budget of its project/);
 });
 
 it('AC-BAD-004 cancel activates nothing', async () => {
@@ -236,4 +244,55 @@ it('AC-BAD-013 a row that is refetching is not treated as ready', async () => {
   await waitFor(() => expect(h.precheckActivation.mock.calls.length).toBeGreaterThan(3));
   expect(box(/Project a/)).toHaveAttribute('aria-disabled', 'true');
   release(ready);
+});
+
+it('AC-BAD-015 the outcome per project survives the rows refetching away: the failed and ERP-flagged project is still named', async () => {
+  h.listOrgDrafts.mockImplementation(async () => (h.activateVersion.mock.calls.length > 0 ? [] : [draft('a'), draft('d'), draft('e')]));
+  h.activateVersion.mockImplementation(async (id: string) => {
+    if (id === 'd') throw Object.assign(new Error('new row violates check constraint "x"'), { code: '23514' });
+    return { pushState: id === 'a' ? 'failed' : 'pushed' };
+  });
+  await mount();
+  await waitFor(() => expect(box(/Project e/)).not.toHaveAttribute('aria-disabled'));
+  for (const n of [/Project a/, /Project d/, /Project e/]) fireEvent.click(box(n));
+  fireEvent.click(screen.getByRole('button', { name: /Activate selected \(3\)/ }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Activate 3 drafts/ }));
+  await waitFor(() => expect(screen.queryByRole('checkbox')).toBeNull());
+  const line = (label: string) => screen.getByText(label).closest('li');
+  expect(line('PRJ-a Project a v1')).toHaveTextContent('Activated, but ERPNext was not updated');
+  expect(line('PRJ-d Project d v1')).toHaveTextContent('This change conflicts with the current document state. Refresh and try again.');
+  expect(line('PRJ-d Project d v1')).not.toHaveTextContent('check constraint');
+  expect(line('PRJ-e Project e v1')).toHaveTextContent('Activated');
+  expect(screen.getByText('2 activated, 1 failed')).toBeInTheDocument();
+});
+
+it('AC-BAD-016 an activation that sent nothing to ERPNext (no budget lines) is named, not reported as plain success', async () => {
+  h.listOrgDrafts.mockResolvedValue([draft('a'), draft('e')]);
+  h.activateVersion.mockImplementation(async (id: string) => ({ pushState: id === 'a' ? 'nothing-to-push' : 'pushed' }));
+  await mount();
+  await waitFor(() => expect(box(/Project e/)).not.toHaveAttribute('aria-disabled'));
+  for (const n of [/Project a/, /Project e/]) fireEvent.click(box(n));
+  fireEvent.click(screen.getByRole('button', { name: /Activate selected \(2\)/ }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Activate 2 drafts/ }));
+  expect(await screen.findByText('2 activated, 0 failed')).toBeInTheDocument();
+  expect(screen.getByText('PRJ-a Project a v1').closest('li')).toHaveTextContent('Activated, but nothing was sent to ERPNext: no budget lines');
+  expect(screen.getByText(/1 activated but nothing was sent to ERPNext/)).toBeInTheDocument();
+});
+
+it('AC-BAD-017 a second batch replaces the summary instead of adding to the first', async () => {
+  await mount();
+  await waitFor(() => expect(box(/Project a/)).not.toHaveAttribute('aria-disabled'));
+  const run = async (name: RegExp, size: RegExp) => {
+    await waitFor(() => expect(box(name)).not.toHaveAttribute('aria-disabled'));
+    fireEvent.click(box(name));
+    fireEvent.click(screen.getByRole('button', { name: /Activate selected \(1\)/ }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: size }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  };
+  await run(/Project a/, /^Activate 1 draft$/);
+  expect(await screen.findByText('1 activated, 0 failed')).toBeInTheDocument();
+  h.activateVersion.mockRejectedValueOnce(new Error('only a Draft version can be activated'));
+  await run(/Project a/, /^Activate 1 draft$/);
+  expect(await screen.findByText('0 activated, 1 failed')).toBeInTheDocument();
+  expect(screen.queryByText('1 activated, 0 failed')).toBeNull();
 });
