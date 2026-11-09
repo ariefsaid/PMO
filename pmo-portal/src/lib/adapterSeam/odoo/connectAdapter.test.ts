@@ -53,15 +53,18 @@ describe('odoo ConnectAdapter — listMasters / countDomain', () => {
     expect((await adapter.listMasters('project', null)).rows.map((r) => r.code)).toEqual(['A', 'B']);
   });
 
-  it('counts with search_count (census is read-only), leaving out the partners the database holds for itself', async () => {
+  it('counts with search_count (census is read-only), leaving out the company partners and the login partners with no trade role', async () => {
     const { fake, adapter, bodies } = setup();
-    fake.seed('res.partner', [partner(1), partner(2, { active: false }), { id: 3, name: 'c', parent_id: [1, 'P1'] }, partner(4), partner(5, { supplier_rank: 0 }), partner(6, { active: false }), partner(7, { customer_rank: 1, supplier_rank: 0 })]);
+    fake.seed('res.partner', [partner(1), partner(2, { active: false }), { id: 3, name: 'c', parent_id: [1, 'P1'] }, partner(4), partner(5, { supplier_rank: 0 }), partner(6, { supplier_rank: 0, active: false }), partner(7, { customer_rank: 1, supplier_rank: 0 }), partner(8)]);
     fake.seed('res.company', [{ id: 1, name: 'Own', partner_id: [4, 'P4'] }]);
-    fake.seed('res.users', [{ id: 2, active: true, partner_id: [5, 'P5'] }, { id: 3, active: false, partner_id: [6, 'P6'] }]);
-    // 1, 2 (archived, still a vendor) and 7 are the client's; 4 is the company, 5 a login, 6 an archived login
-    expect(await adapter.countDomain('party')).toBe(3);
+    fake.seed('res.users', [{ id: 2, active: true, partner_id: [5, 'P5'] }, { id: 3, active: false, partner_id: [6, 'P6'] }, { id: 4, active: true, partner_id: [8, 'P8'] }]);
+    // counted: 1, 2 (archived, still a vendor), 7, and 8 (a vendor with a portal login); left out: 4 the company's (whatever its rank), 5 and 6 logins with no role
+    expect(await adapter.countDomain('party')).toBe(4);
     const count = bodies.find((b) => b.method === 'search_count')!;
-    expect(count.body).toEqual({ domain: [['parent_id', '=', false], ['id', 'not in', [4, 5, 6]]], context: { active_test: false } });
+    expect(count.body).toEqual({
+      domain: [['parent_id', '=', false], ['id', 'not in', [4]], '!', '&', ['id', 'in', [5, 6, 8]], '&', ['supplier_rank', '=', 0], ['customer_rank', '=', 0]],
+      context: { active_test: false },
+    });
     expect(bodies.some((b) => ['create', 'write', 'unlink'].includes(b.method))).toBe(false);
   });
 
@@ -74,12 +77,20 @@ describe('odoo ConnectAdapter — listMasters / countDomain', () => {
     expect(await adapter.countDomain('party')).toBe(0);
   });
 
-  it('marks the partners of login users, archived and portal ones included, as internal so they never reach the review', async () => {
+  it('marks the role-less partners of login users, archived and portal ones included, as internal; a login partner that is a vendor or client is not', async () => {
     const { fake, adapter } = setup();
-    fake.seed('res.partner', [partner(1), partner(2, { supplier_rank: 0 }), partner(3, { supplier_rank: 0, active: false }), partner(4, { supplier_rank: 0 })]);
-    fake.seed('res.users', [{ id: 2, active: true, partner_id: [2, 'Administrator'] }, { id: 3, active: false, partner_id: [3, 'Public user'] }]);
+    fake.seed('res.partner', [partner(1), partner(2, { supplier_rank: 0 }), partner(3, { supplier_rank: 0, active: false }), partner(4, { supplier_rank: 0 }), partner(5), partner(6, { supplier_rank: 0, customer_rank: 1 })]);
+    fake.seed('res.users', [{ id: 2, active: true, partner_id: [2, 'Administrator'] }, { id: 3, active: false, partner_id: [3, 'Public user'] }, { id: 4, active: true, partner_id: [5, 'Vendor portal'] }, { id: 5, active: true, partner_id: [6, 'Client portal'] }]);
     const { rows } = await adapter.listMasters('party', null);
-    expect(rows.map((r) => [r.externalId, r.internal])).toEqual([['Vendor:1', false], ['2', true], ['3', true], ['4', false]]);
+    expect(rows.map((r) => [r.externalId, r.internal])).toEqual([['Vendor:1', false], ['2', true], ['3', true], ['4', false], ['Vendor:5', false], ['Client:6', false]]);
+  });
+
+  it('a company partner is internal whatever its trade role', async () => {
+    const { fake, adapter } = setup();
+    fake.seed('res.partner', [partner(1), partner(2)]);
+    fake.seed('res.company', [{ id: 1, name: 'Own', partner_id: [1, 'P1'] }]);
+    const { rows } = await adapter.listMasters('party', null);
+    expect(rows.map((r) => [r.externalId, r.internal])).toEqual([['Vendor:1', true], ['Vendor:2', false]]);
   });
 
   it('reads the database\'s own partners once per adapter, not once per page', async () => {

@@ -14,20 +14,26 @@ export const ODOO_TIER = 'odoo';
 export const LIST_PAGE = 200;
 
 /**
- * The partners Odoo holds for itself, not for the client's trade: the partners of the database's companies (PMO's own
- * organisation) and the partners of its login users (#2048, #2049). Decided by partner id, never the name (FR-ODC-052,
- * #1690): a real vendor may share the company's name. The user side is `res.users.partner_id` with `active_test` off,
- * which reaches every user Odoo itself creates without relying on its XML ids: Administrator, OdooBot, the public user,
- * the portal template user, archived and portal users, and PMO's own adapter login. Each user's partner is a person
- * record, never a customer or vendor. Both the setup pass and the partner feed read it.
+ * The partners Odoo holds for itself, not for the client's trade (#2048, #2049), decided by partner id, never the name
+ * (FR-ODC-052, #1690): a real vendor may share the company's name.
+ * - `company`: the partners of the database's companies (PMO's own organisation); never a customer or vendor, whatever
+ *   their rank.
+ * - `user`: the partners of its login users (`res.users.partner_id`, `active_test` off), which reaches every user Odoo
+ *   itself creates without relying on its XML ids: Administrator, OdooBot, the public user, the portal template user,
+ *   archived and portal users, and PMO's own adapter login. A user partner is Odoo's own only while it has no trade
+ *   role: a vendor or client given a portal login is still a vendor or client. (An employee's partner that carries a
+ *   supplier rank is a real payee, so it is a vendor.)
+ * Both the setup pass and the partner feed read it.
  * ponytail: one unpaged read of `res.users`; page it by id if a database holds tens of thousands of portal users.
  */
-export const odooOwnPartnerIds = async (call: OdooCall): Promise<Set<number>> => {
+export interface OdooOwnPartners { company: ReadonlySet<number>; user: ReadonlySet<number> }
+export const odooOwnPartnerIds = async (call: OdooCall): Promise<OdooOwnPartners> => {
+  const ids = (rows: Array<{ partner_id: [number, string] | false }>) => new Set(rows.flatMap((r) => (r.partner_id ? [r.partner_id[0]] : [])));
   const [companies, users] = await Promise.all([
     call<Array<{ partner_id: [number, string] | false }>>('res.company', 'search_read', { domain: [], fields: ['partner_id'] }),
     call<Array<{ partner_id: [number, string] | false }>>('res.users', 'search_read', { domain: [], fields: ['partner_id'], context: { active_test: false } }),
   ]);
-  return new Set([...companies, ...users].flatMap((r) => (r.partner_id ? [r.partner_id[0]] : [])));
+  return { company: ids(companies), user: ids(users) };
 };
 
 export interface OdooConnectCtx {
@@ -104,7 +110,7 @@ export async function odooSendProbe(call: OdooCall, ctx: OdooConnectCtx, kind: M
 export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): ConnectAdapter {
   const create = async (model: string, vals: Raw) => (await call<number[]>(model, 'create', { vals_list: [vals] }))[0];
   // read once per adapter (one tick), not once per page; a failed read is not remembered
-  let own: Promise<Set<number>> | undefined;
+  let own: Promise<OdooOwnPartners> | undefined;
   const ownPartnerIds = () => (own ??= odooOwnPartnerIds(call).catch((e) => { own = undefined; throw e; }));
   const norm = async (kind: MasterKind, rows: Raw[]): Promise<NormalisedMaster[]> => {
     if (kind === 'party') { const ids = await ownPartnerIds(); return rows.flatMap((r) => normaliseParty(r, ids)); }
@@ -128,9 +134,13 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
     async countDomain(domain) {
       const s = spec(domain);
       try {
-        // the census counts the client's partners only: listMasters keeps the internal ones (flagged, so the matcher and the
-        // review skip them), the count leaves them out so it agrees with what the Admin will see (#2048)
-        const d = domain === 'party' ? [...s.domain(ctx), ['id', 'not in', [...await ownPartnerIds()]]] : s.domain(ctx);
+        // the census leaves out Odoo's own partners (#2048): the companies' partners, and the login partners with no trade
+        // role. listMasters keeps them flagged `internal`, so the matcher and the review skip them.
+        let d = s.domain(ctx);
+        if (domain === 'party') {
+          const { company, user } = await ownPartnerIds();
+          d = [...d, ['id', 'not in', [...company]], '!', '&', ['id', 'in', [...user]], '&', ['supplier_rank', '=', 0], ['customer_rank', '=', 0]];
+        }
         return await call<number>(s.model, 'search_count', { domain: d, context: { active_test: false } });
       } catch (err) { toAdapterError(err); }
     },
