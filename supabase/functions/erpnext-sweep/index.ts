@@ -2958,6 +2958,10 @@ async function listApprovedSheetsWithoutMirror(
   nowMs: number = Date.now(),
 ): Promise<TimesheetMirrorCandidateRow[]> {
   if (limit <= 0 || !org.activatedAt) return [];
+  // ⚑ FR-OLH-002 / D14 (#1510 L2): the `absent` half is gated on the SAME predicate as the mirror half. Without it, an
+  // org that moved `timesheets` to Odoo would still have every approved sheet with no mirror row posted here — the
+  // second of the two queue halves the double-post defect lived in.
+  if (!(await erpnextOwnsTimesheets(serviceClient, org.orgId))) return [];
   // ⚑ BOUNDED LOOKBACK, and not a nicety: a sheet keeps its mirror row forever once it has one, so an
   // unbounded `approved_at asc` scan fills its whole page with long-settled sheets as the org's history
   // grows and would never reach a NEW stranded week — the queue would starve itself silently. The
@@ -3004,6 +3008,22 @@ export function absentQueueBudget(limit: number, mirroredCount: number): number 
   return Math.max(limit - mirroredCount, Math.min(reserved, limit));
 }
 
+/** ⚑ FR-OLH-002 / D14 (#1510 L2): does THIS tier own the org's `timesheets` domain? The ERPNext backstop may only drive a
+ *  week the ERPNext tier owns. An org that employs `timesheets` under Odoo while keeping an ERPNext binding for other
+ *  domains would otherwise have every approved week posted to BOTH ERPs — the same hours counted twice, in two ledgers.
+ *  Tier-scoped by construction (`domain_owned_by_tier(org, domain, tier)`, 0135), and FAIL CLOSED: only a literal `true`
+ *  admits the backstop; an error, a rejected read, a null or a non-boolean answer means "not ours, drive nothing". */
+export async function erpnextOwnsTimesheets(serviceClient: SupabaseClient, orgId: string): Promise<boolean> {
+  try {
+    const { data, error } = await serviceClient.rpc('domain_owned_by_tier', {
+      p_org_id: orgId, p_domain: 'timesheets', p_tier: 'erpnext',
+    });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
 /** The live `TimesheetBackstopDeps` for one org. */
 export function timesheetBackstopDepsLive(
   serviceClient: SupabaseClient,
@@ -3018,6 +3038,11 @@ export function timesheetBackstopDepsLive(
 ): TimesheetBackstopDeps {
   return {
     listPendingTimesheetPushes: async (orgId, limit) => {
+      // ⚑ FR-OLH-002 / D14 (#1510 L2): the tier question is asked ONCE and gates BOTH halves of this queue. An org whose
+      // `timesheets` domain belongs to Odoo has nothing for this tier to drive — not a mirror row, and not a stranded
+      // sheet. Each half is guarded separately (the `absent` half inside `listApprovedSheetsWithoutMirror`, so its guard
+      // travels with the function when L4 moves it to `_shared`) and each is mutation-checked on its own.
+      const ownedByThisTier = await erpnextOwnsTimesheets(serviceClient, orgId);
       // ⚑ Everything this pass must NEVER re-drive is expressed HERE, as query predicates:
       //   • only `pending`/`failed` — so `pushed` (done), `held` (ADR-0058-terminal until an operator)
       //     and `pushing` (an in-flight claim, owned by the stale-claim path — a naive re-POST would
@@ -3025,27 +3050,32 @@ export function timesheetBackstopDepsLive(
       //   • `erp_cancelled_at is null` — a Desk-cancelled sheet is never re-created (FR-TSP-084: never
       //     fight the accountant).
       // Index-served on (org_id, push_state) and bounded, ordered oldest-first so the queue is fair.
-      const { data, error } = await serviceClient
-        .from('timesheet_erp_mirror')
-        .select('id, timesheet_id, push_state, erp_cancelled_at, last_attempt_at')
-        .eq('org_id', orgId)
-        .in('push_state', ['pending', 'failed'])
-        .is('erp_cancelled_at', null)
-        // Fair order (0427): never attempted first, then the longest-waiting — see `stampQueueAttempt`.
-        .order('last_attempt_at', { ascending: true, nullsFirst: true })
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .limit(limit);
-      if (error) throw new AppError(error.message, error.code);
-      const mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null; last_attempt_at: string | null }> | null) ?? [])
-        .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at, last_attempt_at: r.last_attempt_at }));
+      let mirrored: TimesheetMirrorCandidateRow[] = [];
+      if (ownedByThisTier) {
+        const { data, error } = await serviceClient
+          .from('timesheet_erp_mirror')
+          .select('id, timesheet_id, push_state, erp_cancelled_at, last_attempt_at')
+          .eq('org_id', orgId)
+          .in('push_state', ['pending', 'failed'])
+          .is('erp_cancelled_at', null)
+          // Fair order (0427): never attempted first, then the longest-waiting — see `stampQueueAttempt`.
+          .order('last_attempt_at', { ascending: true, nullsFirst: true })
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .limit(limit);
+        if (error) throw new AppError(error.message, error.code);
+        mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null; last_attempt_at: string | null }> | null) ?? [])
+          .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at, last_attempt_at: r.last_attempt_at }));
+      }
       // …plus the `absent` half: APPROVED sheets that never got a mirror row at all (see
       // `listApprovedSheetsWithoutMirror` — the browser-died-before-the-fetch case this pass exists
       // for). Mirror rows come FIRST, and each half has a bounded budget NEITHER of which the other can
       // drive to zero (`absentQueueBudget`, HIGH-3): a large backlog of never-attempted sheets cannot
       // starve rows that already have recorded retryable state, and — the converse the original design
       // missed — a saturated `failed` mirror queue cannot blind the stranded-sheet detector.
-      const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, absentQueueBudget(limit, mirrored.length));
+      const absent = ownedByThisTier
+        ? await listApprovedSheetsWithoutMirror(serviceClient, org, absentQueueBudget(limit, mirrored.length))
+        : [];
       const rows = [...mirrored, ...absent];
       // 0534: while the module is held, only rows whose command ERP already accepted are recoverable.
       return recoverableOnlyIds ? rows.filter((r) => recoverableOnlyIds.has(r.timesheet_id)) : rows;
@@ -3224,6 +3254,10 @@ function timesheetEligibility(
  *  org that never assigned the `timesheets` domain to this tier has nothing to reconcile. */
 async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
   if (!org.ownedDomains.includes(ERPNEXT_TIMESHEETS_DOMAIN)) return { driven: 0 };
+  // ⚑ FR-OLH-002 / D14 (#1510 L2): the cheap `ownedDomains` pre-filter above is NOT the authority — it is the org's
+  // ERPNext ownership projection. The tier-scoped answer is the authority, so a stranded sheet is not even evaluated for
+  // a domain another tier owns, and the answer fails closed.
+  if (!(await erpnextOwnsTimesheets(serviceClient, org.orgId))) return { driven: 0 };
   // 0534: a switched-off module is HELD, not driven — reported with the typed reason so ops can see
   // it, and resumed on the next tick after re-enable (nothing is dropped or abandoned).
   //

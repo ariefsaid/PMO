@@ -118,6 +118,10 @@
 -- only; re-asserts active membership, org and the four budget-writer roles; proved by supabase/tests/budget_draft_mode_switch.test.sql.
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
+-- ⚑ AMENDED BY 0861 (#1510 L2): `set_odoo_labour_config` joins (+1, count 163 re-derived by hand from the list). A SECURITY
+-- DEFINER writer under a member's JWT: Admin/Finance, org re-asserted, active membership, ids validated against the org's
+-- own Odoo mirror; proved by supabase/tests/odoo_labour_employ.test.sql (AC-OLH-001). The other 0861 functions are
+-- service-role-only or SECURITY INVOKER and deliberately NOT listed.
 -- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
 -- Current retained set: 162 names after #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3) and 0704 (#1817, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
 -- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
@@ -401,6 +405,7 @@ insert into client_callable_rpc_names (proname) values
   ('submit_sales_invoice'),
   ('switch_budget_draft_mode'),
   ('switch_odoo_ledger_basis'),
+  ('set_odoo_labour_config'),  -- ⚑ AMENDED BY 0861 (#1510): Admin/Finance labour journal + accounts; the body re-asserts org + active membership + role
   ('transition_document_status'),
   ('transition_equipment_usage'),
   ('transition_expense_claim'),
@@ -438,8 +443,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  162,
-  'AC-ACL-002 all 162 retained client-callable RPC names still have a public function');
+  163,
+  'AC-ACL-002 all 163 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -448,8 +453,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  162,
-  'AC-ACL-003 all 162 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  163,
+  'AC-ACL-003 all 163 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

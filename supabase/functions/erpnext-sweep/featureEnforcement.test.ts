@@ -222,6 +222,9 @@ const BINDING = {
 Deno.test('FR-PLN-006: a held timesheets module still lists only accepted (committed) sheets for finalize', async () => {
   // The live queue read returns two sheets; only the one whose outbox command is `committed` is recoverable.
   const client = {
+    // D14 (#1510 L2): the queue halves ask the tier-scoped ownership question before reading; this org owns
+    // `timesheets` on ERPNext, so the held-module closure pass still runs.
+    rpc: () => Promise.resolve({ data: true, error: null }),
     from: (name: string) => {
       const data = name === 'timesheet_erp_mirror'
         ? [

@@ -147,8 +147,9 @@ select throws_ok($$select public.admin_change_domain_ownership('a5100000-0000-00
 -- ERPNext and other tiers and domains keep the shipped behaviour
 select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000005','erpnext','revenue','employ','a5100000-0000-0000-0000-0000000000e5')$$,
   'ERPNext revenue employ is unchanged (no extra precondition)');
-select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000005','odoo','timesheets','employ','a5100000-0000-0000-0000-0000000000e5')$$,
-  'an Odoo domain other than procurement and revenue is unchanged');
+-- ⚑ AMENDED BY 0861 (#1510 L2): `timesheets` is now guarded too, so the unguarded probe is `budget`.
+select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000005','odoo','budget','employ','a5100000-0000-0000-0000-0000000000e5')$$,
+  'an Odoo domain other than procurement, revenue and timesheets is unchanged');
 select lives_ok($$select public.admin_change_domain_ownership('a5100000-0000-0000-0000-000000000001','odoo','revenue','release','a5100000-0000-0000-0000-0000000000a1')$$,
   'releasing revenue is unchanged');
 select is((select count(*)::int from external_domain_ownership where org_id='a5100000-0000-0000-0000-000000000001'), 0, 'the release removed the ownership row');

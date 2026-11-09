@@ -20,6 +20,7 @@ import { reconcileOdooProcurementOutbox } from '../adapter-dispatch/odooProcurem
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 import { parseOdooOutboxRecoveryCandidates } from './odooOutboxRecovery.ts';
 import { sendAcceptedOdoo } from './odooConnectSends.ts';
+import { labourFeedEmployed, labourReadable, runLabourEmployeePass } from './odooLabourFeed.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
 export const ODOO_SWEEP_TICK_MAX_CALLS = 60;
@@ -169,10 +170,14 @@ export async function sweepOdooOrg(
       const revenue = (await revenueFeedEmployed(sc, orgId)) ? revenueDomainsReadable(capabilities) : [];
       // The ledger pass runs last and keeps its share of the tick, so a purchase or revenue backlog cannot starve it either.
       const ledger = (await ledgerFeedEmployed(sc, orgId)) ? 1 : 0;
+      // #1510 L2 (FR-OLH-003): the labour employee pass runs after the directory kinds, for an org that employs `timesheets`
+      // under Odoo whose stored snapshot shows `hr.employee` readable. It reserves a kind's share of the tick so a purchase
+      // or revenue backlog cannot starve it, and an org that does not employ labour reserves nothing.
+      const labour = (await labourFeedEmployed(sc, orgId)) && labourReadable(capabilities, 'hr.employee') ? 1 : 0;
       // Outbound recovery runs before the bounded inbound walk, so a long backfill cannot leave a
       // committed money document unconfirmed. Procurement runs first to guarantee room for a
       // payment candidate's 20-call reservation; unused calls are refunded for revenue to use.
-      const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length + ledger);
+      const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length + ledger + labour);
       const recoveryBudget: Budget = {
         left: () => calls < recoveryCap && left(),
         canSpend: (units = 1) => Number.isInteger(units) && units >= 0 && calls + units <= recoveryCap && left(),
@@ -233,7 +238,7 @@ export async function sweepOdooOrg(
         }
       }
       for (const [i, kind] of kinds.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length + revenue.length + ledger);
+        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length + revenue.length + ledger + labour);
         const kindBudget: Budget = {
           left: () => calls < cap && left(),
           spend: (units = 1) => calls + units <= cap && budget.spend(units),
@@ -244,8 +249,21 @@ export async function sweepOdooOrg(
         await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget, call);
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
       }
+      if (labour) {
+        // After the directory loop (an employee's company scoping needs the company row) and before the document feeds. A
+        // labour error fails only this pass: the directory already mirrored, and a store or parse problem must not cost the
+        // tick its purchase/revenue work. An Odoo error still ends the tick, as everywhere else.
+        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length + revenue.length + ledger);
+        const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
+        try {
+          skippedRows += (await runLabourEmployeePass(sc, orgId, call, r.companyId!, passBudget)).skipped;
+        } catch (err) {
+          if (err instanceof OdooError) throw err;
+          console.error('odoo labour employee pass failed');
+        }
+      }
       for (const [i, domain] of purchase.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i + revenue.length + ledger);
+        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i + revenue.length + ledger + labour);
         const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
         try {
           skippedRows += (await runPurchasePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
@@ -257,7 +275,7 @@ export async function sweepOdooOrg(
         }
       }
       for (const [i, domain] of revenue.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (revenue.length - 1 - i + ledger);
+        const cap = maxCalls - RESERVE_PER_KIND * (revenue.length - 1 - i + ledger + labour);
         const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
         try {
           skippedRows += (await runRevenuePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;

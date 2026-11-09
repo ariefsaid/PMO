@@ -8,8 +8,10 @@ import { odooError, type OdooCtx } from './router.ts';
 
 const JOURNAL_TYPES = new Set(['bank', 'cash']);
 
-/** The domains an Admin may employ under Odoo. The database (0743) refuses a companies employ while partner sends are still waiting. */
-const EMPLOYABLE = new Set(['procurement', 'companies']);
+/** The domains an Admin may employ under Odoo. The database (0743) refuses a companies employ while partner sends are still
+ *  waiting; 0861 refuses a `timesheets` employ unless the stored capability snapshot shows every labour model and the
+ *  labour journal/accounts are chosen (FR-OLH-001) — the database holds every rule, this set only says which verbs exist. */
+const EMPLOYABLE = new Set(['procurement', 'companies', 'timesheets']);
 
 export async function employDomain(c: OdooCtx): Promise<Response> {
   const domain = c.body.domain;

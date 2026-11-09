@@ -60,12 +60,35 @@ describe('Odoo router — employ-domain (P2-T9)', () => {
     }
   });
 
-  it('only procurement and companies are employable under odoo here: another domain is a bad request and reaches no verb', async () => {
-    for (const domain of ['revenue', 'timesheets', 'budget', 42, undefined]) {
+  it('only procurement, companies and timesheets are employable under odoo here: another domain is a bad request and reaches no verb', async () => {
+    // ⚑ AMENDED BY #1510 L2: `timesheets` joined EMPLOYABLE (0861). It has its own positive case below.
+    for (const domain of ['revenue', 'budget', 42, undefined]) {
       const r = await call({ setupAction: 'employ-domain', domain });
       assertEquals(r.res.status, 400, String(domain));
       assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').length, 0);
     }
+  });
+
+  it('FR-OLH-001 an Admin employs timesheets under odoo through the same guarded verb, as the verified actor (#1510)', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'timesheets' });
+    assertEquals([r.res.status, r.json], [200, { ok: true }]);
+    assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').map((c) => c.bodyJson),
+      [{ p_org_id: 'org-1', p_external_tier: 'odoo', p_domain: 'timesheets', p_action: 'employ', p_actor_id: 'user-1' }]);
+  });
+
+  it('FR-OLH-001 a labour employ refused for a missing model says so, and says to check the connection again', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'timesheets' },
+      { rpc: { admin_change_domain_ownership: () => pgError('P0001', 'Odoo is missing account.analytic.line:create') } });
+    assertEquals([r.res.status, r.json], [422, {
+      error: 'config-rejected',
+      message: 'Odoo is missing account.analytic.line:create. Check the connection again, then retry.',
+    }]);
+  });
+
+  it('AC-OLH-002 an ERPNext ownership of timesheets is the database\'s own refusal, not a second branch in the verb', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'timesheets' },
+      { rpc: { admin_change_domain_ownership: () => pgError('P0001', 'timesheets is already employed on another ERP') } });
+    assertEquals([r.res.status, r.json], [422, { error: 'config-rejected', message: 'timesheets is already employed on another ERP' }]);
   });
 
   it('FR-ODC-055 an Admin employs companies under odoo through the same guarded verb, as the verified actor', async () => {

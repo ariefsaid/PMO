@@ -30,7 +30,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; reconcileError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>>; ledgerLines?: number; failLedgerApply?: boolean; unswitched?: boolean; failCompanyYearRead?: boolean }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; reconcileError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>>; ledgerLines?: number; failLedgerApply?: boolean; unswitched?: boolean; failCompanyYearRead?: boolean; labourEmployed?: boolean }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -88,6 +88,8 @@ function harness(o: Opts = {}) {
   ];
   // #1507 S3: the ledger feed's own reads and writes, listed before the generic empty answers below.
   const ledger = { applied: 0, snapshots: 0, mirror: [] as Array<{ id: string; project: string | null; account: string; fiscal_year: string; debit: string; credit: string }> };
+  // #1510 L2: the Odoo labour employee pass (FR-OLH-003) — the rows it applied and the census ids it reported.
+  const employees = { applied: [] as Array<Record<string, unknown>>, census: [] as string[] };
   const ledgerRoutes: MockRoute[] = o.ledgerLines ? [
     { label: 'watermark-rewind', method: 'DELETE', pathname: '/rest/v1/external_sync_watermarks', response: () => { cursors.delete('ledger:odoo'); return new Response(null, { status: 204 }); } },
     { label: 'watermark-fingerprint', method: 'POST', pathname: '/rest/v1/external_sync_watermarks', response: (c) => { const b = c.bodyJson as { domain: string; watermark_cursor: string }; cursors.set(b.domain, b.watermark_cursor); return new Response(null, { status: 201 }); } },
@@ -121,6 +123,20 @@ function harness(o: Opts = {}) {
       return jsonResponse(answer);
     }),
     supabaseSelect('external_org_bindings', () => jsonResponse([o.binding ?? binding()])),
+    // #1510 L2 (FR-OLH-003): the org employs `timesheets` under Odoo, so the employee pass may read `hr.employee`.
+    supabaseRpc('org_employs_odoo_timesheets', () => jsonResponse(o.labourEmployed === true)),
+    supabaseRpc('apply_odoo_employees', (c) => {
+      const b = c.bodyJson as { p_rows: Array<Record<string, unknown>>; p_cursor?: string | null };
+      employees.applied.push(...b.p_rows);
+      if (b.p_cursor) cursors.set('labour:employee', b.p_cursor);
+      return jsonResponse(b.p_rows.length);
+    }),
+    supabaseRpc('finish_odoo_employee_census', (c) => {
+      const b = c.bodyJson as { p_seen: string[]; p_cursor?: string | null };
+      employees.census = b.p_seen;
+      if (b.p_cursor) cursors.set('labour:employee', b.p_cursor);
+      return jsonResponse(0);
+    }),
     supabaseRpc('outbox_reconcile_candidates', () => jsonResponse(o.recoveryCandidates ?? (o.recoveryCandidate ? [o.recoveryCandidate] : []))),
     supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
     supabaseSelect('external_sync_watermarks', (c) => {
@@ -176,7 +192,7 @@ function harness(o: Opts = {}) {
     } },
     { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => (o.version === null ? new Response('no', { status: 404 }) : jsonResponse({ result: { server_version_info: [o.version ?? 20, 0] } })) },
   ];
-  return { fake, cursors, lock, routes, sendOutbox, ledger };
+  return { fake, cursors, lock, routes, sendOutbox, ledger, employees };
 }
 
 const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
@@ -248,6 +264,39 @@ describe('odooSweep — AC-ODC-025 single flight and refusals', () => {
     const [a, b] = await withFetchMock(h.routes, () => Promise.all([sweepOdooOrg(client(), ORG), sweepOdooOrg(client(), ORG)]));
     assertEquals([a, b].filter((x) => 'skipped' in x && x.skipped === 'lock-held').length, 1);
     assertEquals([a, b].filter((x) => 'ok' in x).length, 1);
+  });
+});
+
+describe('odooSweep — #1510 L2 labour employee feed (FR-OLH-003)', () => {
+  const EMPLOYEE = { id: 3, name: 'Example One', work_email: 'one@example.com', active: true, company_id: [1, 'Main Co'], write_date: '2026-11-09 08:00:00' };
+  const labourSnapshot = (probe: Record<string, unknown> = { exists: true, read: true, create: false, write: false, unlink: false, fields_missing: [] }) => binding({
+    config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {}, labour: { 'hr.employee': probe } } },
+  });
+
+  it('FR-OLH-003 a labour-employing org reads hr.employee AFTER the directory and applies the page', async () => {
+    const r = await sweep({ labourEmployed: true, binding: labourSnapshot(), prepare: (f) => f.seed('hr.employee', [EMPLOYEE]) });
+    assert('ok' in r.result && !r.result.failed, `the tick must not fail: ${JSON.stringify(r.result)}`);
+    const requests = odooRequests(r.calls);
+    const employeeRead = requests.findIndex((q) => q.model === 'hr.employee' && q.method === 'search_read');
+    const partnerRead = requests.findIndex((q) => q.model === 'res.partner' && q.method === 'search_read');
+    assert(partnerRead >= 0, 'the directory still runs');
+    assert(employeeRead > partnerRead, `the employee pass runs after the directory loop: partner=${partnerRead} employee=${employeeRead}`);
+    assertEquals(r.employees.applied, [{ external_id: '3', name: 'Example One', work_email: 'one@example.com', active: true, write_date: '2026-11-09 08:00:00' }]);
+    assert(r.cursors.get('labour:employee') !== undefined, 'the employee cursor is stored by the writer, not by the sweep');
+  });
+
+  it('FR-OLH-003 an org that does not employ timesheets reads no employee and the tick does not fail', async () => {
+    const r = await sweep({ binding: labourSnapshot(), prepare: (f) => f.seed('hr.employee', [EMPLOYEE]) });
+    assert('ok' in r.result && !r.result.failed, `the tick must not fail: ${JSON.stringify(r.result)}`);
+    assert(!odooRequests(r.calls).some((q) => q.model === 'hr.employee'), 'no employee read for an org that does not employ timesheets');
+    assertEquals(r.employees.applied, []);
+  });
+
+  it('FR-OLH-003 an employed org whose stored snapshot lacks hr.employee reads no employee (fail closed, never degraded)', async () => {
+    const r = await sweep({ labourEmployed: true, binding: binding(), prepare: (f) => f.seed('hr.employee', [EMPLOYEE]) });
+    assert('ok' in r.result && !r.result.failed, `the tick must not fail: ${JSON.stringify(r.result)}`);
+    assert(!odooRequests(r.calls).some((q) => q.model === 'hr.employee'), 'an unreadable hr.employee is skipped, not attempted');
+    assertEquals(r.employees.applied, []);
   });
 });
 

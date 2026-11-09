@@ -62,6 +62,11 @@ interface DbOptions {
   /** Luna BLOCK 1: the FENCED mint guard's answer. `undefined` ⇒ it admits (mints); an error ⇒ it
    *  refuses (e.g. a re-open won the lock and the sheet is no longer Approved). */
   mintGuardError?: { message: string; code: string };
+  /** D14 (#1510 L2): does the ERPNext tier own this org's `timesheets` domain? The QUEUE halves ask this
+   *  first and drive nothing unless it is a literal `true`; the DRIVE tests below never call the queue, so
+   *  the default (`false`, which is also what the replay-authorization check needs to stop the drive at the
+   *  DB boundary) keeps them byte-for-byte. Queue tests opt in explicitly. */
+  ownsTimesheets?: boolean;
 }
 
 function fakeDb(opts: DbOptions = {}) {
@@ -158,9 +163,11 @@ function fakeDb(opts: DbOptions = {}) {
       if (fn === 'approved_timesheet_for_push') {
         return Promise.resolve({ data: [{ timesheet_id: args.p_timesheet_id, user_id: AUTHOR, approved_at: APPROVED_AT, entries: ENTRIES }], error: null });
       }
-      // Fail the REPLAY authorization on purpose: the mint has already happened by then, and this stops
+      // D14 (#1510 L2): the SAME RPC answers the backstop's tier gate (the queue halves) and the dispatch
+      // replay authorization. A queue test opts into `ownsTimesheets`; every DRIVE test keeps `false`, which
+      // fails the REPLAY authorization on purpose — the mint has already happened by then, and this stops
       // the drive deterministically at the DB boundary instead of reaching for bench credentials.
-      if (fn === 'domain_owned_by_tier') return Promise.resolve({ data: false, error: null });
+      if (fn === 'domain_owned_by_tier') return Promise.resolve({ data: opts.ownsTimesheets === true, error: null });
       return Promise.resolve({ data: null, error: null });
     },
   } as unknown as SupabaseClient;
@@ -173,6 +180,7 @@ const candidate = (push_state: string) => ({ timesheet_id: SHEET, push_state, er
 Deno.test('AC-TSP-022: an approved sheet with NO mirror row IS a candidate (the browser-died-before-the-fetch case)', async () => {
   const { client } = fakeDb({
     approvedSheets: [{ id: SHEET, approved_at: APPROVED_AT }],
+    ownsTimesheets: true,   // D14: the ERPNext tier owns timesheets, so the queue runs
     mirrorRows: [],
   });
   const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
@@ -185,6 +193,7 @@ Deno.test('AC-TSP-022: an approved sheet with NO mirror row IS a candidate (the 
 Deno.test('AC-TSP-022: a sheet that ALREADY has a mirror row is never double-queued', async () => {
   const { client } = fakeDb({
     approvedSheets: [{ id: SHEET, approved_at: APPROVED_AT }],
+    ownsTimesheets: true,   // D14: the ERPNext tier owns timesheets, so the queue runs
     mirrorRows: [{ timesheet_id: SHEET, push_state: 'pushed', erp_cancelled_at: null }],
   });
   const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
@@ -197,6 +206,7 @@ Deno.test('AC-TSP-022: a sheet that ALREADY has a mirror row is never double-que
 Deno.test('AC-TSP-022: ⚑ hours approved BEFORE the binding was activated are never retroactively posted', async () => {
   const { client } = fakeDb({
     approvedSheets: [{ id: SHEET, approved_at: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString() }],
+    ownsTimesheets: true,   // D14: the gate must not be what makes this pass
     mirrorRows: [],
   });
   const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
@@ -208,6 +218,7 @@ Deno.test('AC-TSP-022: the `absent` scan is BOUNDED — a long-settled sheet can
   const { client } = fakeDb({
     // Approved well inside the binding's lifetime, but far outside the recovery lookback.
     approvedSheets: [{ id: SHEET, approved_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString() }],
+    ownsTimesheets: true,   // D14: the gate must not be what makes this pass
     mirrorRows: [],
   });
   const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
@@ -358,7 +369,8 @@ function busyOrg(count: number, mirrorState = 'pushed') {
   }
   // The week that actually needs rescuing: approved most recently, and with NO mirror row.
   approvedSheets.push({ id: STRANDED, approved_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() });
-  return { approvedSheets, mirrorRows };
+  // D14 (#1510 L2): the queue asks the tier-scoped ownership question first; this org owns it on ERPNext.
+  return { approvedSheets, mirrorRows, ownsTimesheets: true };
 }
 
 Deno.test('AC-TSP-022 ⚑ HIGH-3: a stranded week is still found when 200 already-mirrored sheets sit ahead of it (the limit bounds CANDIDATES, not rows scanned)', async () => {

@@ -41,7 +41,10 @@ function fakeClient(rowsByTable: Record<string, Array<Record<string, unknown>>>)
       };
       return b;
     },
-    rpc: () => Promise.resolve({ data: [], error: null }),
+    // D14 (#1510 L2): the timesheet queue asks the TIER-SCOPED ownership question first and drives nothing
+    // unless it answers a literal `true`. This fixture's org owns `timesheets` on ERPNext.
+    rpc: (fn: string) => Promise.resolve(
+      fn === 'domain_owned_by_tier' ? { data: true, error: null } : { data: [], error: null }),
   };
   return { client: client as unknown as SupabaseClient, queries, stamps };
 }

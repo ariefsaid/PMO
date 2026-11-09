@@ -121,8 +121,10 @@ select throws_ok($$select public.admin_change_domain_ownership('a5050000-0000-00
 -- ERPNext and other tiers keep the shipped behaviour
 select lives_ok($$select public.admin_change_domain_ownership('a5050000-0000-0000-0000-000000000005','erpnext','procurement','employ','a5050000-0000-0000-0000-0000000000e5')$$,
   'ERPNext procurement employ is unchanged (no extra precondition)');
-select lives_ok($$select public.admin_change_domain_ownership('a5050000-0000-0000-0000-000000000005','odoo','timesheets','employ','a5050000-0000-0000-0000-0000000000e5')$$,
-  'an Odoo domain with no guard of its own (timesheets) is unchanged');
+-- ⚑ AMENDED BY 0861 (#1510 L2): `timesheets` is now a GUARDED domain (it has an employ blocker of its own), so the
+-- "no guard of its own" probe moves to `budget`, which stays unguarded.
+select lives_ok($$select public.admin_change_domain_ownership('a5050000-0000-0000-0000-000000000005','odoo','budget','employ','a5050000-0000-0000-0000-0000000000e5')$$,
+  'an Odoo domain with no guard of its own (budget) is unchanged');
 select lives_ok($$select public.admin_change_domain_ownership('a5050000-0000-0000-0000-000000000001','odoo','procurement','release','a5050000-0000-0000-0000-0000000000a1')$$,
   'releasing procurement is unchanged');
 select is((select count(*)::int from external_domain_ownership where org_id='a5050000-0000-0000-0000-000000000001'), 0, 'the release removed the ownership row');

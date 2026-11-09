@@ -6,7 +6,7 @@
 -- (SECURITY DEFINER bypasses RLS, so the function must re-assert internally — the ADR-0011/0012 lesson),
 -- the partial-unique collision, and the audit trail.
 begin;
-select plan(14);
+select plan(16);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -93,14 +93,25 @@ select is((select linked_by from erp_employees where id = '01550000-0000-0000-00
 select ok((select linked_at from erp_employees where id = '01550000-0000-0000-0000-0000000000e1') is not null,
   'AC-TSP-014: linked_at is server-stamped (now())');
 
--- ── D) A second confirm for the SAME profile_id collides on the partial-unique index ──────────────
+-- ── D) A second confirm for the SAME profile_id REPLACES the first ────────────────────────────────
+-- ⚑ AMENDED BY 0860 (#1510 L2, AC-OLH-012): the invariant is unchanged — at most ONE `confirmed` Employee
+-- per PMO user (the 0136 partial-unique index still enforces it) — but a second confirm now DEMOTES the
+-- first instead of raising 23505 at the confirming Admin, who has no way to act on that error.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01550000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select throws_ok(
+select lives_ok(
   $$ select confirm_erp_employee_link('01550000-0000-0000-0000-0000000000e2'::uuid, '01550000-0000-0000-0000-0000000000a4'::uuid) $$,
-  '23505', null,
-  'AC-TSP-091/OQ-TSP-10(ii): confirming a SECOND Employee for the same PMO user collides on the partial-unique index');
+  'AC-TSP-091/AC-OLH-012: confirming a SECOND Employee for the same PMO user is accepted — it replaces the first');
 reset role;
+select is(
+  (select count(*)::int from erp_employees
+     where profile_id = '01550000-0000-0000-0000-0000000000a4' and link_state = 'confirmed'),
+  1,
+  'AC-TSP-091/OQ-TSP-10(ii): the invariant holds — exactly ONE confirmed Employee per PMO user');
+select is(
+  (select link_state from erp_employees where id = '01550000-0000-0000-0000-0000000000e1'),
+  'unlinked',
+  'AC-OLH-012: the replaced Employee is demoted out of confirmed, never left stranded as a confirmed link');
 
 -- ── E) A 'proposed' row is NOT authoritative — it must never satisfy a link_state='confirmed' filter ──
 select is(

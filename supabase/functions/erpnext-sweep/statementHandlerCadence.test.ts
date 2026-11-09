@@ -188,6 +188,9 @@ async function invokeHandler(
           if (rpcName === 'claim_erp_sweep_lock') await options.beforeClaim?.();
           return jsonResponse(!(options.statementLockHeld === true && rpcName === 'claim_erp_sweep_lock'));
         }
+        // D14 (#1510 L2): the timesheet backstop asks the TIER-SCOPED ownership question before either queue half.
+        // This fixture's orgs own `timesheets` on ERPNext, which is the shipped behaviour these cadence cases assert.
+        if (rpcName === 'domain_owned_by_tier') return jsonResponse(true);
         if (rpcName === 'outbox_reconcile_candidates') return jsonResponse([]);
         if (rpcName === 'outbox_retry_pending') return jsonResponse([]);
         if (rpcName === 'mark_erp_full_sweep_done') return jsonResponse(!options.fullStampRejected);
@@ -403,6 +406,7 @@ const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/claim_connect_sends', // ECA3-T7 pass (8b): one DB lease per tick; the ERP is reached only when a send is waiting
   '/rest/v1/rpc/connect_open_purchase_statuses', // #1736: the one definition of an open purchase, read once per tick for a waiting item send; a DB read, never ERP
   '/rest/v1/rpc/service_resolved_org_features', // 0534: the per-org entitlement read the money passes need to hold a switched-off module — a DB read, never ERP/hourly work
+  '/rest/v1/rpc/domain_owned_by_tier', // D14 (#1510 L2): the timesheet backstop's tier gate, asked before either queue half — a DB read, never ERP/hourly work
 ];
 
 function assertMoneyOnlyWork(requests: RecordedRequest[], label: string): void {
