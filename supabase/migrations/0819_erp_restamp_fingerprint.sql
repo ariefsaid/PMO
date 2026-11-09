@@ -57,15 +57,20 @@ begin
         where b.org_id = p_org_id and b.external_tier = 'erpnext' and b.activated_at is not null),
       (select coalesce(string_agg(w.domain || '=' || w.watermark_cursor, ',' order by w.domain), '') from public.external_sync_watermarks w
         where w.org_id = p_org_id and w.external_tier = 'erpnext' and w.domain like 'ledger::GL Entry%'),
-      (select count(*) || '/' || coalesce(sum(hashtext(erp_name || coalesce(erp_project, '') || item_projects::text || erp_docstatus::text)), 0)
+      (select count(*) || '/' || coalesce(sum(hashtext(concat_ws('|', erp_name, erp_project, item_projects::text, erp_docstatus))), 0)
          from public.erp_purchase_documents where org_id = p_org_id),
-      (select count(*) || '/' || coalesce(sum(hashtext(external_record_id || pmo_record_id)), 0) from public.external_refs
-        where org_id = p_org_id and domain = 'procurement' and external_tier = 'erpnext'),
-      (select count(*) from public.projects where org_id = p_org_id),
-      (select count(*) from public.purchase_orders where org_id = p_org_id),
-      (select count(*) from public.procurement_receipts where org_id = p_org_id),
-      (select count(*) from public.procurement_invoices where org_id = p_org_id),
-      (select count(*) from public.payments where org_id = p_org_id))) into v_fp;
+      -- pmo_owned: the ERPNext procurement refs, and separately those whose PMO record still exists (one hash join, not a
+      -- lookup per ref), so deleting one record and creating another between ticks still changes the fingerprint.
+      -- (The Odoo branch of the stamp is stamped by the Odoo feed itself.)
+      (select count(*) || '/' || coalesce(sum(hashtext(x.external_record_id || '|' || x.pmo_record_id)), 0) from public.external_refs x
+        where x.org_id = p_org_id and x.domain = 'procurement' and x.external_tier = 'erpnext'),
+      (select count(*) || '/' || coalesce(sum(hashtext(x.pmo_record_id)), 0) from public.external_refs x
+         join (select id::text as id from public.purchase_orders where org_id = p_org_id
+               union all select id::text from public.procurement_receipts where org_id = p_org_id
+               union all select id::text from public.procurement_invoices where org_id = p_org_id
+               union all select id::text from public.payments where org_id = p_org_id) r on r.id = x.pmo_record_id
+        where x.org_id = p_org_id and x.domain = 'procurement' and x.external_tier = 'erpnext'),
+      (select count(*) || '/' || coalesce(sum(hashtext(id::text)), 0) from public.projects where org_id = p_org_id))) into v_fp;
     if v_fp is not distinct from (select w.watermark_cursor from public.external_sync_watermarks w
                                    where w.org_id = p_org_id and w.external_tier = 'erpnext' and w.domain = 'purchases::restamp-fp') then
       p_restamp := false;
