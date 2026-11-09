@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -104,6 +104,13 @@ const switchToBoard = async () => {
   await userEvent.click(await screen.findByRole('tab', { name: /^board$/i }));
 };
 
+// The board has no status dropdown: the card menu's "Move to" item is the keyboard path to the same write.
+const moveTo = async (status: string) => {
+  await userEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: `Move to ${status}` }));
+};
+const inCol = (status: string) => within(screen.getByTestId(`task-col-${status}`)).queryByText('Survey the site');
+
 describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
   it('AC-CUA-060: an externally-owned board status write shows pushing → pushed', async () => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
@@ -111,8 +118,7 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
     renderTab();
     await switchToBoard();
 
-    const statusCtl = screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement;
-    expect(statusCtl.value).toBe('To Do');
+    expect(inCol('To Do')).toBeInTheDocument();
 
     // Hold the dispatch in-flight so the `pushing` badge is observable, and mutate the read-model
     // state so the post-success refetch reflects the mirrored status (the card settles to Done).
@@ -124,7 +130,7 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
       });
     });
 
-    await userEvent.selectOptions(statusCtl, 'Done');
+    await moveTo('Done');
 
     // While the dispatch is in-flight: the `pushing` badge is rendered.
     await waitFor(() =>
@@ -136,11 +142,7 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
     await waitFor(() =>
       expect(screen.getByRole('status', { name: /pushed/i })).toBeInTheDocument(),
     );
-    await waitFor(() =>
-      expect(
-        (screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement).value,
-      ).toBe('Done'),
-    );
+    await waitFor(() => expect(inCol('Done')).toBeInTheDocument());
   });
 
   it('AC-CUA-090: a board status change on a flipped task is dispatched once, walks pushing → pushed, and still reads Done after a reload', async () => {
@@ -156,7 +158,7 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
         resolveUpdate = r;
       });
     });
-    await userEvent.selectOptions(screen.getByLabelText(/status for survey the site/i), 'Done');
+    await moveTo('Done');
     await waitFor(() => expect(screen.getByRole('status', { name: /pushing/i })).toBeInTheDocument());
     // Exactly one dispatch through the repository seam (which routes a flipped task to adapter-dispatch,
     // never to a direct tasks write: AC-CUA-001 in task.external.test.ts).
@@ -164,9 +166,7 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
     expect(taskRepo.updateStatus).toHaveBeenCalledWith('t1', 'Done', 'p1');
     resolveUpdate({ id: 't1', status: 'Done' });
     await waitFor(() => expect(screen.getByRole('status', { name: /pushed/i })).toBeInTheDocument());
-    await waitFor(() =>
-      expect((screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement).value).toBe('Done'),
-    );
+    await waitFor(() => expect(inCol('Done')).toBeInTheDocument());
     expect(taskRepo.create).not.toHaveBeenCalled();
     expect(taskRepo.update).not.toHaveBeenCalled();
     expect(taskRepo.delete).not.toHaveBeenCalled();
@@ -175,7 +175,7 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
     first.unmount();
     renderTab();
     await switchToBoard();
-    expect((await screen.findByLabelText(/status for survey the site/i) as HTMLSelectElement).value).toBe('Done');
+    await waitFor(() => expect(inCol('Done')).toBeInTheDocument());
   });
 
   it('AC-CUA-060: a rejected dispatch shows push-failed and the card reverts to the prior status', async () => {
@@ -184,22 +184,19 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
     renderTab();
     await switchToBoard();
 
-    const statusCtl = screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement;
     taskRepo.updateStatus.mockRejectedValue(
       new AppError('ClickUp did not respond', 'external-unreachable'),
     );
 
-    await userEvent.selectOptions(statusCtl, 'Done');
+    await moveTo('Done');
 
     // The dispatch rejected → `push-failed` badge with the classified headline.
     await waitFor(() =>
       expect(screen.getByRole('status', { name: /push failed/i })).toBeInTheDocument(),
     );
 
-    // No optimistic update + no invalidation on failure → the controlled select reverts to the
-    // prior read-model status (To Do), exactly as the card was before the attempted write.
-    expect(
-      (screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement).value,
-    ).toBe('To Do');
+    // No optimistic update + no invalidation on failure → the card goes back to its prior
+    // read-model column (To Do), exactly as it was before the attempted write.
+    await waitFor(() => expect(inCol('To Do')).toBeInTheDocument());
   });
 });

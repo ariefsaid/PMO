@@ -173,10 +173,12 @@ describe('Privacy page', () => {
 
   it('AC-LEG-035: deterministic render — same config → identical markup', () => {
     const a = renderPrivacy();
-    const htmlA = a.container.innerHTML;
+    // React/Base UI generated ids are per-render counters, not config.
+    const stable = (html: string) => html.replace(/base-ui-_r_[0-9a-z]+_|_r_[0-9a-z]+_/g, 'id');
+    const htmlA = stable(a.container.innerHTML);
     a.unmount();
     const b = renderPrivacy();
-    const htmlB = b.container.innerHTML;
+    const htmlB = stable(b.container.innerHTML);
     b.unmount();
     expect(htmlA).toBe(htmlB);
   });

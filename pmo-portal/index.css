@@ -195,11 +195,7 @@
   --motion-save-pulse: 450ms;
 
   /* Existing AA-safe solid avatar fills remain independently tuned. */
-  --avatar-1: 221.2 83.2% 55%;
   --avatar-2: 255 50% 57%;
-  --avatar-3: 142 60% 32%;
-  --avatar-4: 40 96% 31%;
-  --avatar-5: 240 4% 46%;
 }
 
 .dark {
@@ -318,11 +314,7 @@
   --rail-w: 224px;
   --header-h: 56px;
   --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
-  --avatar-1: 221 83% 55%;
   --avatar-2: 255 60% 57%;
-  --avatar-3: 142 55% 33%;
-  --avatar-4: 43 90% 30%;
-  --avatar-5: 240 4% 46%;
 }
 
 @media (max-width: 921px) {
@@ -405,11 +397,7 @@
   --color-chart-6: hsl(var(--chart-6));
   --color-chart-7: hsl(var(--chart-7));
   --color-chart-8: hsl(var(--chart-8));
-  --color-avatar-1: hsl(var(--avatar-1));
   --color-avatar-2: hsl(var(--avatar-2));
-  --color-avatar-3: hsl(var(--avatar-3));
-  --color-avatar-4: hsl(var(--avatar-4));
-  --color-avatar-5: hsl(var(--avatar-5));
   --radius-lg: var(--radius);
   --radius-md: var(--control-radius);
   --radius-sm: var(--control-radius-sm);
@@ -576,9 +564,11 @@
   padding-right: 2px;
   /* scroll-snap: one column snaps per scroll gesture on a phone */
   scroll-snap-type: x mandatory;
-  /* Right-edge fade affordance — same compositor-only pattern as StatTiles/Tabs/Stepper */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+/* Right-edge fade cue, only while columns run off the edge (Kanban sets data-more-right); compositor-only. */
+.kanban-scroll[data-more-right='true'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
 }
 /* Each column is a scroll-snap target */
 .kanban > * {
@@ -586,6 +576,10 @@
 }
 /* DND (#1637): mandatory snap fights dnd-kit auto-scroll while a card is held */
 [data-dragging='true'] .kanban-scroll { scroll-snap-type: none; }
+/* Empty columns narrow (they stay drop targets); only boards that opt in via narrowEmpty. */
+.kanban[data-narrow-empty='true'] { display: flex; }
+.kanban[data-narrow-empty='true'] > * { flex: 1 0 258px; }
+.kanban[data-narrow-empty='true'] > :has([data-empty-column]) { flex: 0 0 176px; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
 .kcol-head-sticky {
   position: sticky; top: 0;

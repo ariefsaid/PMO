@@ -40,7 +40,7 @@ export function DataTableWidget({ widget }: { widget: DataTableWidgetPayload }):
       {widget.caption && (
         <p
           data-testid="data-table-widget-caption"
-          className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+          className="mb-1 text-[11px] font-semibold text-muted-foreground"
         >
           {widget.caption}
         </p>

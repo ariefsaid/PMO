@@ -882,7 +882,7 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
   it('AC-PPNC-013 a live invoice disables the VAT flag with a clear reason', async () => {
     vatBox.data = { eligible: false, reason: 'vat-live-invoice', hasInvoices: true };
     await openEditor('Finance');
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/invoice that is not cancelled/i);
   });
 
@@ -906,7 +906,7 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
   it('AC-PPNC-013 loading and unavailable reader states fail closed while preserving the stored flag', async () => {
     vatBox.isPending = true;
     await openEditor('Finance');
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/checking whether PPN can be changed/i);
   });
 });

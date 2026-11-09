@@ -7,6 +7,7 @@ export { chartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
 export { buttonClasses } from './buttonClasses';
+export { Avatar, type AvatarProps, type AvatarSize } from './Avatar';
 export { Checkbox, type CheckboxProps } from './Checkbox';
 export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';

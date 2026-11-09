@@ -255,7 +255,7 @@ const LoginPage: React.FC = () => {
             {/* Divider — names the alternative rather than a bare "or" */}
             <div className="flex items-center gap-3">
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <span className="text-[11px] font-semibold text-muted-foreground">
                 or continue with email
               </span>
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
@@ -323,7 +323,7 @@ const LoginPage: React.FC = () => {
                 Lists all 5 role personas; click any to one-click fill credentials. */}
             {showDemoLogin && (
               <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5">
-                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-center text-[11px] font-semibold text-muted-foreground">
                   Demo login
                 </p>
                 <p className="text-center font-mono text-[11px] text-muted-foreground">

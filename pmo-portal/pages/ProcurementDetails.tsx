@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -489,7 +490,7 @@ const ProcurementDetails: React.FC = () => {
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
     p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
-    p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="grid size-6 place-items-center rounded-full bg-secondary text-[12px] font-semibold text-secondary-foreground">{p.requested_by.full_name.trim().slice(0, 1).toUpperCase()}</span><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
+    p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><Avatar name={p.requested_by.full_name} decorative /><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
   ].filter((part): part is React.ReactElement => part !== null)
     .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
 

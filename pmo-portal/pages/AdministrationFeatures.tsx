@@ -325,7 +325,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
               {t('console.switchesCaption', 'Effective switch state, its source, the plan default, the per-organisation override and the all-organisations switch.')}
             </caption>
             <thead>
-              <tr className="border-b border-border text-left text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+              <tr className="border-b border-border text-left text-[11px] text-muted-foreground">
                 <th scope="col" className="px-4 py-2 font-semibold">{t('console.colFeature', 'Feature')}</th>
                 <th scope="col" className="px-4 py-2 font-semibold">{t('console.colEffective', 'Effective')}</th>
                 <th scope="col" className="px-4 py-2 font-semibold">{t('console.colSource', 'Source')}</th>
@@ -338,7 +338,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
               {FEATURE_GROUPS.map((group) => (
                 <React.Fragment key={group.id}>
                   <tr className="bg-secondary/40">
-                    <th scope="colgroup" colSpan={6} className="px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    <th scope="colgroup" colSpan={6} className="px-4 py-1.5 text-left text-[11px] font-semibold text-muted-foreground">
                       {groupLabel(t, group.id)}
                     </th>
                   </tr>

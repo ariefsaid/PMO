@@ -8,11 +8,13 @@
     "start": "{{name}} diambil."
   },
   "cantMoveHere": "Tidak dapat dipindahkan ke sini",
+  "cardActions": "Tindakan untuk {{name}}",
   "dropHere": "Lepas untuk memindahkan ke sini",
-  "instructions": "Untuk mengubah status dengan keyboard, gunakan kontrol status pada kartu.",
+  "instructions": "Untuk mengubah status dengan keyboard, gunakan item \"Pindah ke\" pada menu kartu.",
   "lostChoice": {
     "legend": "Hasil yang mana?"
   },
+  "moveTo": "Pindah ke {{stage}}",
   "refused": "{{name}} tidak dapat dipindahkan dari {{from}} ke {{to}}.",
   "refusedTitle": "Pemindahan tidak diizinkan",
   "saving": "Menyimpan…"

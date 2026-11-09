@@ -1,3 +1,4 @@
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -499,7 +500,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
         width="lg"
         headerActions={selected && <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           {canEdit && <Button variant="primary" size="sm" onClick={onAdjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
-          <Link className="touch-target inline-flex min-h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent" to={`/projects/${encodeURIComponent(projectId)}/budget?${new URLSearchParams({ budgetView: 'forecast' })}`}>{t('projectDetail.budget.openFullPage', 'Open full page')}</Link>
+          <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/budget?${new URLSearchParams({ budgetView: 'forecast' })}`}>{t('projectDetail.budget.openFullPage', 'Open full page')}</Link>
         </div>}
         footer={selected && <div className="flex flex-wrap items-center justify-end gap-2">
           {selectedYearRow && selectedYearScope && <Button variant="ghost" size="sm" onClick={() => onExport({ scope: selectedYearScope, rows: [selectedYearRow] })}>{t('projectDetail.budget.export', 'Export')}</Button>}

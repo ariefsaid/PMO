@@ -207,7 +207,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {/* Target selection dropdown */}
       {open && !pendingTarget && (
         <div ref={popoverRef} className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold text-muted-foreground">
             Move to
           </p>
           {legalTargets.map(target => target === 'Won, Pending KoM' ? (
