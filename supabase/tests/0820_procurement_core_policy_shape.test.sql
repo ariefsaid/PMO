@@ -85,9 +85,10 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('08200000-0000-0000-0000-000000000002', '08200000-0000-0000-0000-0000000000a1', 'S1 Eng', 's1-eng@example.com',  'Engineer', 'active'),
   ('08200000-0000-0000-0000-000000000003', '08200000-0000-0000-0000-0000000000a1', 'S1 Off', 's1-off@example.com',  'Project Manager', 'disabled'),
   ('08200000-0000-0000-0000-000000000008', '08200000-0000-0000-0000-0000000000b1', 'S1 PM B','s1-pm-b@example.com', 'Project Manager', 'active');
+-- Draft: procurement_items_draft_only* (restrictive) admit item writes only on a Draft procurement.
 insert into procurements (id, org_id, title, status) values
-  ('08200000-0000-0000-0000-000000000010', '08200000-0000-0000-0000-0000000000a1', 'S1 Proc A', 'Requested'),
-  ('08200000-0000-0000-0000-000000000011', '08200000-0000-0000-0000-0000000000b1', 'S1 Proc B', 'Requested');
+  ('08200000-0000-0000-0000-000000000010', '08200000-0000-0000-0000-0000000000a1', 'S1 Proc A', 'Draft'),
+  ('08200000-0000-0000-0000-000000000011', '08200000-0000-0000-0000-0000000000b1', 'S1 Proc B', 'Draft');
 insert into procurement_items (org_id, procurement_id, name) values
   ('08200000-0000-0000-0000-0000000000a1', '08200000-0000-0000-0000-000000000010', 'S1 item A'),
   ('08200000-0000-0000-0000-0000000000b1', '08200000-0000-0000-0000-000000000011', 'S1 item B');
@@ -143,7 +144,7 @@ end $f$;
 
 select pg_temp.q820_snap('new');
 
--- Swap in the pre-0820 shape for rfqs + purchase_requests: ALL policy rebuilt from the split ones, per-row helper form.
+-- Swap in the pre-0820 shape for procurement_items + procurement_documents: ALL policy rebuilt from the split ones, per-row helper form.
 do $swap$
 declare t text; p record; u text; c text;
 begin
