@@ -14,7 +14,7 @@ insert into profiles(id,org_id,full_name,email,role,status) values
 insert into procurements(id,org_id,title,requested_by_id,status,total_value,currency,approved_total_value)
 select ('07930000-0000-0000-0000-000000000' || n::text)::uuid,'07930000-0000-0000-0000-000000000001','Case '||n,
        '07930000-0000-0000-0000-000000000011',
-       case when n in (201,207) then 'Paid' when n in (202,204,205,206) then 'Approved' else 'Draft' end,
+       (case when n in (201,207) then 'Paid' when n in (202,204,205,206) then 'Approved' else 'Draft' end)::procurement_status,
        1000,'IDR', case when n in (201,202,204,206,207) then 1000 when n = 205 then 0 end
   from unnest(array[101,102,103,104,105,106,107,201,202,203,204,205,206,207]) n;
 -- 201: paid in full with no vendor bills (what the Paid transition's own payment looks like)
