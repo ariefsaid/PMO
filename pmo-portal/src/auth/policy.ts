@@ -107,6 +107,9 @@ export type Entity =
   | 'fxRate'
   | 'financialStatements'
   | 'projectProfitLoss'
+  | 'odooLedgerHealth'
+  | 'odooLedgerLines'
+  | 'odooLedgerBasis'
   | 'finance'
   | 'stockItem'
   | 'stockUnit'
@@ -402,6 +405,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   finance: { view: allow(MONEY_AUTHORITY), act: allow(REVENUE_WRITE) },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
   projectProfitLoss: { view: allow(ALL) },
+  // Odoo ledger (#1507 S7, FR-ODA-061/062). UX only; the RPCs and RLS decide. Health, reconciliation and the switch controls are
+  // for Admin and Finance; source lines are for Admin, Finance and Executive (a Project Manager or Engineer reads totals only).
+  // The switch itself, and the "explained difference" confirmation within it, are Admin only and fenced while viewing as another role.
+  odooLedgerHealth: { view: allow(['Admin', 'Finance']) },
+  odooLedgerLines: { view: allow(MONEY_AUTHORITY) },
+  odooLedgerBasis: { act: allowUnlessViewOnly(ADMIN), confirm: allowUnlessViewOnly(ADMIN) },
   procurement: {
     // Index visibility (rbac-visibility §A/§E): Admin·Exec·PM·Finance browse the org-wide
     // PR index; Engineer has NO Procurement nav (○*) and reaches only their OWN requests

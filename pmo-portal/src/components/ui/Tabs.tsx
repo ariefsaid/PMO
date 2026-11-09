@@ -56,7 +56,12 @@ export function Tabs<V extends string = string>({
 
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
+  const mounted = useRef(false);
   useEffect(() => {
+    // First mount on the first tab: the strip is already at scroll 0, so skip the forced layout.
+    const first = !mounted.current;
+    mounted.current = true;
+    if (first && value === items[0]?.value) return;
     const list = listRef.current;
     if (!list) return;
     const active = list.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -70,7 +75,7 @@ export function Tabs<V extends string = string>({
     if (!offset) return;
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     list.scrollBy({ left: offset, behavior: prefersReduced ? 'instant' : 'smooth' });
-  }, [value]);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   // Roving focus (WAI-ARIA tabs pattern): DOM focus moves to the newly-activated tab
   // (synchronously, before onChange → navigate commits). #879: the AppShell route-focus

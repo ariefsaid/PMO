@@ -57,6 +57,8 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(dealRow).toHaveCount(1);
     await expect(dealRow).toBeVisible();
     await dealRow.click();
+    // The pipeline row opens the deal preview first (#1426); the user continues with "Open deal".
+    await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
     await expect(page.getByTestId('record-header')).toContainText(deal);
     // SUB-I: pre-win classification lives in the current Project details menu section, with the codes.
     const rail = page.getByTestId('project-detail-rail');
@@ -88,6 +90,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     for (const name of created) {
       await page.goto(name === deal ? '/sales?view=table' : '/projects?view=table');
       await page.getByText(name, { exact: true }).click();
+      if (name === deal) await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
       await page.getByLabel('More actions', { exact: true }).click();
       await page.getByRole('button', { name: 'Archive', exact: true }).click();
       await page.getByRole('alertdialog').getByRole('button', { name: /archive project/i }).click();
