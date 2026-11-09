@@ -712,6 +712,10 @@
         "outbox-finalize-refused": {
           "message": "ERPNext menerima anggaran ini, tetapi PMO gagal mencatat referensinya setelah beberapa kali mencoba.",
           "remedy": "Mencoba lagi akan ditolak dengan alasan yang sama. Minta administrator memeriksa koneksi ERPNext dan referensi tersimpan anggaran ini."
+        },
+        "erp-company-unset": {
+          "message": "Belum ada perusahaan ERP yang dipilih untuk organisasi ini, jadi tidak ada yang dikirim.",
+          "remedy": "Pilih perusahaan ERPNext di Administrasi → Integrasi, lalu kirim lagi."
         }
       }
     },

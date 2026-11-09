@@ -612,7 +612,12 @@ Luna SF10 lesson: `0107` returned a partial jsonb unchanged, so `{}` made a defa
   required) shall be transmitted as **naive** `'YYYY-MM-DD HH:MM:SS'` strings, **never** a UTC/`Z`-suffixed
   ISO instant, and never passed through a JS `Date` timezone conversion. *(OQ-TSP-5 — **open**.)*
 - **FR-TSP-064 (the body map is the spike's, not this spec's)** — `bodies/timesheet.ts`'s `toBody`/`fromDoc`
-  shall implement the **OQ-TSP-1 frozen map verbatim**. This spec pins the **contract** (one doc per week;
+  shall implement the **OQ-TSP-1 frozen map verbatim**, with one EXTENSION (review r8 M-2) folded into the
+  spike's §9 note: `toBody` also states `company` = the binding's configured company, and refuses
+  `erp-company-unset` (non-retryable; remedy "choose the ERPNext company in Administration → Integrations")
+  when the binding names none. ERPNext derives `company` from the EMPLOYEE, not the binding, so on a
+  multi-company site an unstated body files the hours under a company the sweep's company-scoped filter
+  never reads. This spec pins the **contract** (one doc per week;
   employee/project/activity resolved server-side and fail-closed; deterministic packing; naive datetimes;
   hours as decimal strings; **no billing fields — OQ-TSP-4 ruled them out**) — **not** the field list.
   **A builder MUST NOT invent field names.**

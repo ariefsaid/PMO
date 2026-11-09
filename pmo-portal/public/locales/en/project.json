@@ -712,6 +712,10 @@
         "outbox-finalize-refused": {
           "message": "ERPNext accepted the budget, but PMO could not record its reference after several tries.",
           "remedy": "Retrying repeats the same refusal. Ask an administrator to check the ERPNext connection and the budget's saved reference."
+        },
+        "erp-company-unset": {
+          "message": "No ERP company is chosen for this organization, so nothing was sent.",
+          "remedy": "Choose the ERPNext company in Administration → Integrations, then send again."
         }
       }
     },

@@ -3,6 +3,7 @@ import { peReceiveToBody, peReceiveFromDoc } from './incomingPayment';
 import type { ErpCtx } from '../doctypeRegistry';
 
 const ctx: ErpCtx = { refs: { customer: 'Demo Customer' }, config: {
+  company: 'PMO Smoke Co',
   default_receivable_account: 'Debtors - DEMO', default_cash_account: 'Cash - DEMO',
   tax_prepaid_account: 'Tax Prepaid - DEMO', cost_center: 'Main - DEMO',
   paid_from_account_currency: 'IDR', paid_to_account_currency: 'IDR',
@@ -71,6 +72,7 @@ describe('inbound receipt allocations (S-06, RF-030)', () => {
 describe('client withholding on a Receive Payment Entry', () => {
   it('AC-WHT-002: sends ERPNext cash in both header amounts, allocates the gross and deducts the tax (DD-RCPT-1)', () => {
     expect(peReceiveToBody(receipt, ctx)).toEqual({
+      company: 'PMO Smoke Co',
       payment_type: 'Receive', party_type: 'Customer', party: 'Demo Customer',
       paid_amount: '980.00', received_amount: '980.00',
       paid_from: 'Debtors - DEMO', paid_to: 'Cash - DEMO', references: receipt.references,

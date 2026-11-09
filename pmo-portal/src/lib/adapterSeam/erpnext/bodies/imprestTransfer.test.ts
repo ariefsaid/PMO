@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AdapterError } from '../../contract';
 import { imprestTransferToBody } from './imprestTransfer';
 
-const ctx = { refs: {}, config: {} };
+const ctx = { refs: {}, config: { company: 'PMO Smoke Co' } };
 const rec = {
   id: '15150000-0000-0000-0000-0000000000e3', erp_doc_kind: 'imprest-transfer', company: 'PMO Smoke Co',
   idempotency_key: 'impt:15150000-0000-0000-0000-0000000000e3:1791367200123', from_account: 'Bank - PSC',

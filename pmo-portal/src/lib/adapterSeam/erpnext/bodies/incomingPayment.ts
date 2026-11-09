@@ -13,6 +13,7 @@
 import { AdapterError, type PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { mirrorMoney, toDecimalString } from '../moneyShape.ts';
+import { requireCompany } from './shared.ts';
 
 const WITHHOLDING_SLIP_PREFIX = 'Withholding slip: ';
 
@@ -32,6 +33,10 @@ function centsToDecimal(cents: bigint): string {
 }
 
 export function peReceiveToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  // `Payment Entry.company` is a real field; ERPNext derives it from the two accounts, so an account pair
+  // resolved from a repointed binding could state a company the sweep never reads. State it explicitly
+  // from the binding (review r8 M-2) — the same source both accounts come from.
+  const company = requireCompany(ctx.config, 'Payment Entry');
   const withheldCents = receiptCents(rec.withheld_amount ?? 0);
   let deductions: unknown[] | undefined;
   if (withheldCents > 0n) {
@@ -62,6 +67,7 @@ export function peReceiveToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
       description: WITHHOLDING_SLIP_PREFIX + slip.trim() }];
   }
   return {
+    company,
     payment_type: 'Receive',
     party_type: 'Customer',
     party: ctx.refs.customer,

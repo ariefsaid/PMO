@@ -115,7 +115,8 @@ function fakeJournalErp() {
 function createTransferHarness(): TransferHarness {
   const erp = fakeJournalErp();
   const client = { fetchImpl: erp.fetchImpl, apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test', maxRetries: 0 };
-  const adapter = createErpAdapter({ client, doctypeBodies: DOCTYPE_BODIES, ctx: { refs: {}, config: {} } });
+  // The binding company, as the served path's `ctx.config` carries it (the imprest body states it).
+  const adapter = createErpAdapter({ client, doctypeBodies: DOCTYPE_BODIES, ctx: { refs: {}, config: { company: 'Test Co' } } });
   const record = (t: ImprestTransfer) => ({
     id: t.key.split(':')[1], erp_doc_kind: 'imprest-transfer', company: 'Test Co', idempotency_key: t.key, from_account: t.fromAccount,
     to_account: t.toAccount, amount: t.amount, posting_date: t.date, reference: t.reference,
@@ -131,7 +132,7 @@ function createTransferHarness(): TransferHarness {
       return { externalId: result.externalRecordId };
     },
     seed(t) {
-      const body = imprestTransferToBody(record(t), { refs: {}, config: {} }) as Record<string, unknown>;
+      const body = imprestTransferToBody(record(t), { refs: {}, config: { company: 'Test Co' } }) as Record<string, unknown>;
       erp.docs.push({ ...body, user_remark: t.key, name: `ACC-JV-${erp.docs.length + 1}`, docstatus: 1 });
     },
     lines(key) {

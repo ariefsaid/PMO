@@ -1,7 +1,8 @@
 /**
  * Timesheet `toBody`/`fromDoc` — FROZEN by docs/spikes/2026-07-20-erpnext-timesheet-fields.md §9
- * (P3b, FR-TSP-060..064). `toBody` sends exactly §9's field list:
- * `{employee, time_logs:[{from_time, to_time, activity_type, project}]}`.
+ * (P3b, FR-TSP-060..064), EXTENDED by review r8 M-2. `toBody` sends exactly §9's field list plus the
+ * binding's `company`:
+ * `{company, employee, time_logs:[{from_time, to_time, activity_type, project}]}`.
  *
  * Every dimension it carries (employee, per-row project, activity type) is resolved SERVER-SIDE and
  * FAIL-CLOSED by `resolveTimesheetRefs` (dispatchFactory) BEFORE the outbox claim. This builder
@@ -25,6 +26,7 @@ import { AdapterError } from '../../contract.ts';
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { packTimeLogs, type TimesheetEntryInput } from '../timeLogPacking.ts';
+import { requireCompany } from './shared.ts';
 import { mirrorMoney } from '../moneyShape.ts';
 
 const DEFAULT_DAY_START = '09:00:00';
@@ -38,6 +40,13 @@ function requireRef(ctx: ErpCtx, key: string, what: string): string {
 }
 
 export function tsToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  // `Timesheet.company` is a required field. The spike saw ERPNext derive it on a SINGLE-company bench and
+  // flagged exactly this risk: "re-verify this derivation on a genuinely multi-company org before relying
+  // on it in production". The derivation follows the EMPLOYEE's company, not the binding's, so a person
+  // employed by another company on the same site would file their hours there — and the sweep's
+  // company-scoped timesheet feed would never read them back. So the body states the binding's company
+  // (review r8 M-2), the same source every other company-scoped body uses.
+  const company = requireCompany(ctx.config, 'Timesheet');
   const employee = requireRef(ctx, 'employee', 'employee link');
   const activityType = ctx.config.default_activity_type;
   if (typeof activityType !== 'string' || activityType.length === 0) {
@@ -47,6 +56,7 @@ export function tsToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   const dayStart = typeof ctx.config.timesheet_day_start === 'string' ? ctx.config.timesheet_day_start : DEFAULT_DAY_START;
   const logs = packTimeLogs((rec.entries ?? []) as TimesheetEntryInput[], dayStart);
   return {
+    company,
     employee,
     time_logs: logs.map((log) => ({
       from_time: log.from_time, // naive site-local (FR-TSP-063) — a Z/offset suffix is a raw ERP 500

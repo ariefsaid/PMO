@@ -476,9 +476,14 @@ required to save or to be referenced by a Timesheet).
   ],
 }
 ```
-- **`company` is NOT sent** — single-company-bench-derived here, and P2/P3a precedent is to never stamp it
-  manually; **re-verify this derivation on a genuinely multi-company org before relying on it in
-  production** (this bench never exercised a second Company).
+- **`company` IS now sent, as the BINDING's company** (review r8 M-2 — this bullet previously said
+  "not sent"). The whole risk it flagged was real: on the single-company bench ERPNext derived the company
+  from the EMPLOYEE, so a person employed by another company on the same site would file their hours
+  there, and the sweep's `company`-scoped timesheet feed would then never read the document back. The body
+  now states `binding.config.company` and refuses `erp-company-unset` when the binding names none. **Still
+  unverified on a genuinely multi-company bench:** that ERPNext ACCEPTS an explicit `company` that differs
+  from the employee's — it should refuse it (a Timesheet cannot cross companies), which is the fail-closed
+  outcome we want; the live bed has never exercised a second Company.
 - **No `sales_invoice`/`is_billable`/`billing_hours`/`billing_rate` — confirmed absent from every rung in
   this spike, matching OQ-TSP-4's "costing only" scope.**
 

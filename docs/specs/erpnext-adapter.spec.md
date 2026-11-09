@@ -403,6 +403,11 @@ single-snapshot-per-scope after refresh.
   submittable doctypes, covering **submit** (`PUT {docstatus:1}`), **cancel** (`PUT {docstatus:2}`), and
   **amend** (native cancel + create-with-`amended_from`) — never an illegal update-after-submit (R9 §5:
   `UpdateAfterSubmitError` confirmed). A content change to a submitted doc routes to cancel+amend.
+  **Fail closed before the point of no return:** the amendment's REPLACEMENT BODY is built and validated
+  (every body guard: `requireCompany`, `requireItems`, the account defaults, the #915 default-tax-template
+  check) **before** the predecessor is cancelled, and that exact body is the one POSTed. A refusal after
+  the cancel would strand a cancelled ERP document with no live replacement — the HIGH-1 window (review r8
+  I-1: a binding that names no company cancelled the live PO/PI and then refused the replacement).
 - **FR-ENA-051 (chain-reverse cancel ordering)** — When cancelling a doc with submitted downstream links,
   the adapter shall cancel the chain in **reverse dependency order** (R9 §5: cancelling a PO with a
   submitted PR against it → `417 LinkExistsError`; PR-then-PO → both 200; likewise PE-before-PI); a
@@ -546,11 +551,16 @@ are **removed** — R9 is RESOLVED (`docs/spikes/2026-07-11-erpnext-pe-mandatory
   ERPNext owns the native doc once submitted. **Failure:** empty `items` is a client-guarded pre-check
   (ERP crashes `500` on empty child rows for money docs — FR-ENA-042 bucket).
 - **FR-ENA-111 (Request for Quotation)** — A PMO `rfqs` command maps to stock **`Request for Quotation`**.
-  Mirror ERP `name` → `rfqs.rfq_number`, `docstatus`/`modified`. RFQ requires supplier + item rows;
-  supplier resolved via `external_refs` (companies domain). Enhancement: `status` CHECK
-  (`Draft|Issued|Closed`) derived.
+  **Body:** `{company, suppliers, message_for_supplier, items:[{item_code, qty, schedule_date,
+  conversion_factor, warehouse?, uom?}]}` — `company` is the binding's configured company (the RFQ
+  doctype carries one; an unstated company files it under the integration user's default, which the
+  sweep's company-scoped filter never reads). Mirror ERP `name` → `rfqs.rfq_number`, `docstatus`/`modified`.
+  RFQ requires supplier + item rows; supplier resolved via `external_refs` (companies domain).
+  Enhancement: `status` CHECK (`Draft|Issued|Closed`) derived.
 - **FR-ENA-112 (Supplier Quotation)** — A PMO `procurement_quotations` command maps to stock **`Supplier
-  Quotation`**. **Mirror:** ERP `grand_total` → `procurement_quotations.total_amount` (money oracle,
+  Quotation`**. **Body:** `{company, supplier, items:[{item_code, qty, rate}]}` — `company` is the
+  binding's configured company (ERPNext would otherwise derive it from the integration user's default).
+  **Mirror:** ERP `grand_total` → `procurement_quotations.total_amount` (money oracle,
   FR-ENA-071); `valid_till` → `valid_until`; `vq_number` display; the `rfq_id` link mirrors the ERP RFQ
   linkage. **Enhancement (PMO-owned, preserved — Finding 8):** **`is_selected`** and the
   `procurement_quotations_one_selected_idx` one-selected-per-`procurement_id` invariant are **PMO

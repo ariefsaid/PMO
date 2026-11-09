@@ -30,6 +30,10 @@ const BUSINESS_REJECTION_CODES: readonly string[] = [
   'commit-rejected',
   // the erpnext binding itself is unusable (absent/never activated, version handshake mismatch)
   'config-rejected',
+  // ⚑ M-1 (review r8) — the binding names no ERP company, so a company-scoped body refuses before any
+  // ERP call. A well-formed command refused on the org's own setting: 422, never the dispatch fallback's
+  // 500 ("something broke"), which would read as retryable and hide the one action that fixes it.
+  'erp-company-unset',
   // P3b timesheet push — the fail-closed ref pre-flight (dispatchFactory.ts `resolveTimesheetRefs`)
   'cross-org-link-rejected',
   'employee-unlinked',

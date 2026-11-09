@@ -797,10 +797,15 @@ export const poToBody = (rec, ctx): object => ({ company: ctx.config.company, su
 export const grToBody = (rec, ctx): object => ({ company: ctx.config.company, supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code:i.item_code, qty:i.qty, rate:i.rate, purchase_order: ctx.refs.po, purchase_order_item: i.po_item_child_name })) });
 // materialRequest.ts (R9 §0 + spec FR-ENA-110): material_request_type='Purchase', company from binding
 export const mrToBody = (rec, ctx): object => ({ material_request_type:'Purchase', company: ctx.config.company, items: rec.items.map(i => ({ item_code:i.item_code, qty:i.qty, rate:i.rate, schedule_date:i.schedule_date })) });
-// rfq.ts / supplierQuotation.ts: supplier + item rows (FR-ENA-111/112)
+// rfq.ts / supplierQuotation.ts: company from the binding + supplier + item rows (FR-ENA-111/112)
+export const rfqToBody = (rec, ctx): object => ({ company: ctx.config.company, suppliers: [...], message_for_supplier: '…', items: [...] });
+export const supplierQuotationToBody = (rec, ctx): object => ({ company: ctx.config.company, supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code: i.item_code, qty: i.qty, rate: i.rate })) });
 ```
-Every MR / PO / PI / GR body states the binding's `company` and refuses `commit-rejected` when the binding
-names no company — never a body whose company ERPNext would default to the integration user's.
+Every company-scoped body (MR / RFQ / SQ / PO / GR / PI, plus the Timesheet, the Receive Payment Entry and
+the imprest Journal Entry) states the binding's `company` — never a body whose company ERPNext would default
+to the integration user's (or, for a Timesheet, the employee's) — and refuses the dedicated non-retryable
+`erp-company-unset` code when the binding names no company, BEFORE any ERP call. `bodies/companyBinding.test.ts`
+holds the per-body proofs and the exhaustive classification of every company-scoped kind.
 Each `fromDoc` maps ERP `name`/`docstatus`/`modified`/`grand_total`/`outstanding_amount`/`paid_amount` into
 the PMO-shaped `PmoRecord` (decimal strings). **Verify:** `cd pmo-portal && npm run typecheck && npx vitest run src/lib/adapterSeam/erpnext` green.
 

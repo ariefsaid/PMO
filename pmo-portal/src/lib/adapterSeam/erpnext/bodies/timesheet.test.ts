@@ -17,7 +17,7 @@ import { tsToBody, tsFromDoc, TS_FROM_DOC_FIELDS } from './timesheet.ts';
 
 const ctx = (over: Partial<ErpCtx> = {}): ErpCtx => ({
   refs: { employee: 'HR-EMP-00001', 'project:p-a': 'PROJ-0001', 'project:p-b': 'PROJ-0002' },
-  config: { default_activity_type: 'Execution', timesheet_day_start: '09:00:00' },
+  config: { company: 'PMO Smoke Co', default_activity_type: 'Execution', timesheet_day_start: '09:00:00' },
   ...over,
 });
 
@@ -32,6 +32,7 @@ const record = () => ({
 describe('erpnext/bodies/timesheet — tsToBody (spike §9)', () => {
   it('AC-TSP-032 sends employee + one time_logs row per entry with BOTH from_time and to_time, activity_type and project', () => {
     expect(tsToBody(record(), ctx())).toEqual({
+      company: 'PMO Smoke Co',
       employee: 'HR-EMP-00001',
       time_logs: [
         { from_time: '2026-07-20 09:00:00', to_time: '2026-07-20 11:30:00', activity_type: 'Execution', project: 'PROJ-0001' },
@@ -54,11 +55,11 @@ describe('erpnext/bodies/timesheet — tsToBody (spike §9)', () => {
   });
 
   it('AC-TSP-032 never sends the anchor itself (`note` is stamped by the adapter, not the builder)', () => {
-    expect(Object.keys(tsToBody(record(), ctx()) as Record<string, unknown>)).toEqual(['employee', 'time_logs']);
+    expect(Object.keys(tsToBody(record(), ctx()) as Record<string, unknown>)).toEqual(['company', 'employee', 'time_logs']);
   });
 
   it('AC-TSP-032 defaults the day start to 09:00:00 when the binding config omits it', () => {
-    const body = tsToBody(record(), ctx({ config: { default_activity_type: 'Execution' } })) as {
+    const body = tsToBody(record(), ctx({ config: { company: 'PMO Smoke Co', default_activity_type: 'Execution' } })) as {
       time_logs: Array<{ from_time: string }>;
     };
     expect(body.time_logs[0].from_time).toBe('2026-07-20 09:00:00');
@@ -69,7 +70,7 @@ describe('erpnext/bodies/timesheet — tsToBody (spike §9)', () => {
       { project_id: 'p-b', entry_date: '2026-07-20', hours: '0.02' },
       { project_id: 'p-a', entry_date: '2026-07-20', hours: '0.01' },
     ] };
-    expect(tsToBody(rec, ctx())).toEqual({ employee: 'HR-EMP-00001', time_logs: [
+    expect(tsToBody(rec, ctx())).toEqual({ company: 'PMO Smoke Co', employee: 'HR-EMP-00001', time_logs: [
       { from_time: '2026-07-20 09:00:00', to_time: '2026-07-20 09:00:36', activity_type: 'Execution', project: 'PROJ-0001' },
       { from_time: '2026-07-20 09:00:36', to_time: '2026-07-20 09:01:48', activity_type: 'Execution', project: 'PROJ-0002' },
     ] });
@@ -77,7 +78,7 @@ describe('erpnext/bodies/timesheet — tsToBody (spike §9)', () => {
 
   it('applies the default day boundary before building an ERP body', () => {
     const entry = { project_id: 'p-a', entry_date: '2026-07-20', hours: '15' };
-    const config = ctx({ config: { default_activity_type: 'Execution' } });
+    const config = ctx({ config: { company: 'PMO Smoke Co', default_activity_type: 'Execution' } });
     const body = tsToBody({ id: 'ts-1', entries: [entry] }, config) as { time_logs: Array<{ to_time: string }> };
     expect(body.time_logs[0].to_time).toBe('2026-07-21 00:00:00');
     expect(() => tsToBody({ id: 'ts-1', entries: [{ ...entry, hours: '15.01' }] }, config)).toThrow('daily-hours-exceed-24');
@@ -96,7 +97,7 @@ describe('erpnext/bodies/timesheet — tsToBody (spike §9)', () => {
   });
 
   it('AC-TSP-032 THROWS when default_activity_type is unconfigured (mandatory whenever employee is set — spike §1b)', () => {
-    expect(() => tsToBody(record(), ctx({ config: {} }))).toThrow(/activity/);
+    expect(() => tsToBody(record(), ctx({ config: { company: 'PMO Smoke Co' } }))).toThrow(/activity/);
   });
 
   it('AC-TSP-032 propagates daily-hours-exceed-24 from the packer (no ERP cap exists — spike §7)', () => {

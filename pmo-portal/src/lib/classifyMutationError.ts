@@ -144,6 +144,8 @@ const KNOWN_REASON_CODES = new Set([
   'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',
   'activity-type-unconfigured', 'command-held', 'commit-rejected', 'config-rejected',
   'cross-org-link-rejected', 'employee-unlinked', 'external-owned', 'external-unreachable',
+  // review r8 M-1: the org binding names no ERP company (a body guard refusal, never an ERP answer).
+  'erp-company-unset',
   'native-budget-not-adopted', 'native-timesheet-not-adopted', 'not-found',
   'procurement-inbound-adopt-no-case-link', 'project-unmapped', 'revenue-not-enabled',
   'snapshot-replaced-mid-read',

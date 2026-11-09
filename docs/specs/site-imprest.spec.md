@@ -330,7 +330,10 @@ amount, date, reference }`, and the float variants of the four existing postings
 `to_account`. Both adapters implement the same command and pass the same contract test suite (OD-ERP-ANYTIME-1):
 
 - **ERPNext:** core Journal Entry or Payment Entry of type internal transfer, anchored in `user_remark` or
-  `reference_no`; the transfer is an immutable-anchor kind (reissue-capable, ADR-0058 C-1).
+  `reference_no`; the transfer is an immutable-anchor kind (reissue-capable, ADR-0058 C-1). The Journal Entry
+  states the BINDING's configured company (not the queued record's copy), and a binding that names none
+  refuses `erp-company-unset` at the body — `resolveImprestPosting` already refuses such a binding with
+  `config-rejected` before the outbox row exists, so this is the replay-side belt (review r8 M-2).
 - **Odoo:** a cash-journal entry on stock Community JSON-2, no custom module (#1509 owns it; it is blocked by this
   issue). The exact stock mechanism and its anchor field are verified on the dev bed by #1509, not assumed here.
 

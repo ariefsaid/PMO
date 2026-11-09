@@ -6,11 +6,16 @@
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { mirrorMoney } from '../moneyShape.ts';
-import { requireItems } from './shared.ts';
+import { requireCompany, requireItems } from './shared.ts';
 
 export function supplierQuotationToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  // `Supplier Quotation.company` is a real field (ERPNext derives it server-side from the RFQ/user
+  // default, which is the integration user's company on a multi-company site) — so the body STATES the
+  // binding's company, like every other company-scoped outbound document (review r8 M-2).
+  const company = requireCompany(ctx.config, 'Supplier Quotation');
   const items = requireItems(rec, 'Supplier Quotation');
   return {
+    company,
     supplier: ctx.refs.supplier,
     items: items.map((i) => ({ item_code: i.item_code, qty: i.qty, rate: i.rate })),
   };

@@ -200,8 +200,8 @@ findings (the answers this spec was waiting on):
    observed. **Confirms OQ-SAR-4**: SI anchors `remarks`, `anchorMutable = false`, reissue-capable recovery
    (the PI twin, NOT the PE-pay twin).
 3. **PE-receive minimal body — the adapter supplies BOTH accounts + `received_amount` is mandatory.**
-   `{payment_type:"Receive", party_type:"Customer", party, paid_amount, received_amount, paid_from, paid_to,
-   references:[{reference_doctype:"Sales Invoice", reference_name, allocated_amount}]}` → `200` → submit `200`
+   `{company, payment_type:"Receive", party_type:"Customer", party, paid_amount, received_amount, paid_from,
+   paid_to, references:[{reference_doctype:"Sales Invoice", reference_name, allocated_amount}]}` → `200` → submit `200`
    → the cited SI flips `Paid`/`outstanding_amount 0`. The REST API **defaults NONE of the account fields** —
    the adapter supplies `paid_from` = `default_receivable_account` (Debtors) and `paid_to` =
    `default_cash_account` (Cash; `default_bank_account` may be NULL → fall back to cash) from binding config.
@@ -397,10 +397,13 @@ sweep scheduling) and the Customer `payment_terms` due-date display (FR-SAR-150.
   existing registry entry is edited (merge-coordination discipline, P2 `doctypeBodies.ts` pattern).
 - **FR-SAR-012** — `DOCTYPE_BODIES` shall gain the two new kinds' `toBody`/`fromDoc` pairs from the
   OQ-SAR-1 spike (`bodies/salesInvoice.ts` + `bodies/incomingPayment.ts`), wired additively. The
-  `incoming-payment` body sets `payment_type:'Receive'`, `party_type:'Customer'`, `party` from the resolved
-  Customer `external_refs`, and the receivable-side accounts from binding config (the **mirror** of PE-pay's
-  payable-side accounts); the `references[]` row cites the SI. The exact body fields are the spike's frozen
-  output — this FR pins the *shape* (payment_type/party_type/party/accounts/references), not the field map.
+  `incoming-payment` body sets `company` (the binding's configured company — stated explicitly rather than
+  left to ERPNext's derivation from the two accounts, so a repointed binding cannot file the receipt under a
+  company the sweep never reads), `payment_type:'Receive'`, `party_type:'Customer'`, `party` from the
+  resolved Customer `external_refs`, and the receivable-side accounts from binding config (the **mirror** of
+  PE-pay's payable-side accounts); the `references[]` row cites the SI. The exact body fields are the spike's
+  frozen output — this FR pins the *shape* (company/payment_type/party_type/party/accounts/references), not
+  the field map. A binding that names no company refuses `erp-company-unset` before any ERP call.
 - **FR-SAR-013** — The `readModelWriters` registry (P2 task 1.6) shall gain a **`revenue`** writer that
   upserts the canonical SI / PE-receive record into `sales_invoices` / `incoming_payments` (resolving
   `customer_id` + `project_id` for SI, `customer_id` + `sales_invoice_id` for PE-receive from the command's

@@ -26,8 +26,16 @@ export interface CommandResult {
   canonical: PmoRecord;
 }
 
-/** Classified adapter errors (FR-EAS-023). */
-export type AdapterErrorCode = 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted';
+/**
+ * Classified adapter errors (FR-EAS-023).
+ *
+ * `erp-company-unset` is a refusal of the ORGANISATION'S OWN SETTING, not an ERPNext answer: the binding
+ * names no ERP company, so no company-scoped document can state where it belongs. It is deliberately its
+ * own code rather than `commit-rejected` (review r8 M-1) because `commit-rejected` reads as "ERPNext
+ * understood the request and refused it" and is RETRYABLE — both false here: ERPNext is never called, and
+ * no retry creates the setting. The push surfaces key their copy and their (withheld) Retry on the code.
+ */
+export type AdapterErrorCode = 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted' | 'erp-company-unset';
 export class AdapterError extends Error {
   readonly code: AdapterErrorCode;
   constructor(code: AdapterErrorCode, message: string) {

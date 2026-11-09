@@ -23,7 +23,7 @@ describe('buildImprestPostingCommand (AC-IMP-072)', () => {
 
   it('AC-IMP-072 the frozen record builds a valid transfer body', () => {
     const cmd = buildImprestPostingCommand(gate, refs);
-    expect(() => imprestTransferToBody(cmd.record, { refs: {}, config: {} })).not.toThrow();
+    expect(() => imprestTransferToBody(cmd.record, { refs: {}, config: { company: 'PMO Smoke Co' } })).not.toThrow();
   });
 
   it('AC-IMP-072 refuses a malformed gate answer, building nothing', () => {

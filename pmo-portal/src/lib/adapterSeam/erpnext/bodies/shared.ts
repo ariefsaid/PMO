@@ -34,8 +34,8 @@ export function requireItems(rec: PmoRecord, doctypeLabel: string): PmoLineItem[
 }
 
 /**
- * The org binding's configured ERP company (`external_org_bindings.config.company`), or a
- * `commit-rejected` refusal naming the setting.
+ * The org binding's configured ERP company (`external_org_bindings.config.company`), or the dedicated
+ * `erp-company-unset` refusal naming the setting.
  *
  * Every company-scoped ERP document must STATE its company: ERPNext otherwise files the document under
  * the integration user's default company, which on a multi-company ERP is the wrong company — and the
@@ -43,10 +43,14 @@ export function requireItems(rec: PmoRecord, doctypeLabel: string): PmoLineItem[
  * is passed through EXACTLY (an ERPNext Company's name IS its primary key; trimming or casefolding would
  * name a different, non-existent company). Same fail-closed discipline as `paymentEntry`'s account
  * defaults: never send a body that cannot state its company.
+ *
+ * ⚑ The code is `erp-company-unset`, NOT `commit-rejected` (review r8 M-1): nothing is sent, and a retry
+ * cannot succeed — so the push surfaces must name the remedy (choose the ERPNext company in
+ * Administration → Integrations) instead of offering a Retry that can only fail.
  */
 export function requireCompany(config: Record<string, unknown>, doctypeLabel: string): string {
   const value = config.company;
   if (typeof value === 'string' && value !== '') return value;
-  throw new AdapterError('commit-rejected',
+  throw new AdapterError('erp-company-unset',
     `${doctypeLabel}: set the ERP company in Administration → Integrations before sending this document`);
 }

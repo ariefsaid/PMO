@@ -11,6 +11,7 @@ import type { ErpCtx } from './doctypeRegistry.ts';
 const CTX: ErpCtx = {
   refs: { customer: 'Spike Customer', project: 'PROJ-0001' },
   config: {
+    company: 'PMO Smoke Co',
     default_receivable_account: 'Debtors - PSC',
     default_income_account: 'Sales - PSC',
     default_cash_account: 'Cash - PSC',
@@ -21,6 +22,7 @@ const CTX: ErpCtx = {
 const CTX_NO_PROJECT: ErpCtx = {
   refs: { customer: 'Spike Customer', project: null },
   config: {
+    company: 'PMO Smoke Co',
     default_receivable_account: 'Debtors - PSC',
     default_income_account: 'Sales - PSC',
     default_cash_account: 'Cash - PSC',
@@ -170,6 +172,7 @@ describe('erpnext/bodies — Incoming Payment / PE-receive (AC-SAR-031: PE-recei
       CTX,
     );
     expect(body).toEqual({
+      company: 'PMO Smoke Co',
       payment_type: 'Receive',
       party_type: 'Customer',
       party: 'Spike Customer',
@@ -189,6 +192,7 @@ describe('erpnext/bodies — Incoming Payment / PE-receive (AC-SAR-031: PE-recei
     const ctxNoCash: ErpCtx = {
       refs: { customer: 'Spike Customer' },
       config: {
+        company: 'PMO Smoke Co',
         default_receivable_account: 'Debtors - PSC',
         default_income_account: 'Sales - PSC',
         default_cash_account: null,

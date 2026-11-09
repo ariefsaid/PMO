@@ -20,6 +20,12 @@ import { AppError } from '../../appError.ts';
 export class ErpError extends AdapterError {
   readonly status: number;
   readonly retryable: boolean;
+  /**
+   * Narrowed deliberately: an ERP/transport answer is always one of these three. `erp-company-unset` is a
+   * refusal of the ORG'S OWN SETTING raised by a body guard, never by a request (`contract.ts`), so an
+   * `ErpError` re-wrapping another ErpError's code (`binding.ts`) must not have to consider it.
+   */
+  declare readonly code: 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted';
   constructor(status: number, code: 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted', message: string, retryable = true) {
     super(code, message);
     this.name = 'ErpError';

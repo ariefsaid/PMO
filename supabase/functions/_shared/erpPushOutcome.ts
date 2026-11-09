@@ -7,6 +7,7 @@ import { emitServerEvent } from './posthogServer.ts';
  */
 const KNOWN_CODES = new Set([
   'commit-rejected', 'external-unreachable', 'destination_not_permitted', // AdapterErrorCode (contract.ts)
+  'erp-company-unset', // AdapterErrorCode — the binding names no ERP company (review r8 M-1)
   'recovery-probe-failed', 'recovery-inconclusive-absence', 'recovery-reissue-unauthorized', 'revision-superseded', // held reasons (dispatch.ts)
   'committing-lease-expired', // quarantined
 ]);

@@ -6,8 +6,10 @@
  * push surfaces, and Retry offered for failures retry can never fix. Both are properties of the CODE,
  * so both belong in one tested function rather than two hand-written ladders in two components.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { describePushError, describePushMutationError } from './pushErrorCopy';
+import { describePushError, describePushMutationError, TRANSLATED_PUSH_ERRORS } from './pushErrorCopy';
 import { AppError } from '../appError';
 import { RAW_ADAPTER_TOKEN } from '../testing/rawAdapterToken';
 
@@ -288,3 +290,41 @@ describe('describePushError — PO revise push refusal reason codes (#1998)', ()
   });
 });
 
+
+/**
+ * ⚑ M-1 (review r8) — a binding that names no ERP company. The refusal used to ride on the generic
+ * `commit-rejected` code, whose copy says "ERPNext understood the request and refused it" and which is
+ * RETRYABLE. Both halves were false: ERPNext was never called (the body refuses before any request), and
+ * no number of retries creates the missing setting. It now has its own code, its own non-retryable copy
+ * and a remedy that names the exact screen.
+ */
+describe('describePushError — a binding with no ERP company (M-1)', () => {
+  it('is its own code: not retryable, and the remedy names the setting', () => {
+    const copy = describePushError('erp-company-unset: Purchase Order: set the ERP company in Administration → Integrations before sending this document');
+    expect(copy.code).toBe('erp-company-unset');
+    expect(copy.retryable, 'a retry cannot create the missing setting').toBe(false);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+    expect(copy.message).not.toMatch(/could not be classified/i);
+    expect(copy.message).toMatch(/[.!]$/);
+    expect(copy.remedy, 'a withheld Retry must name its route out (C-3)').toMatch(/Administration → Integrations/);
+    expect(copy.remedy).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('says nothing was sent, rather than claiming ERPNext refused it', () => {
+    const copy = describePushError('erp-company-unset');
+    expect(copy.message).toMatch(/nothing was sent/i);
+    expect(copy.message).not.toMatch(/ERPNext understood/i);
+    expect(copy.transport, 'nothing reached ERPNext, but nothing on screen is an ERP fault either').toBe(false);
+  });
+
+  // The remedy is an operator SETTING, so the copy ships in BOTH catalogues (M-1: "en + id").
+  it.each(['en', 'id'])('ships a translated message + remedy in the %s catalogue', (locale) => {
+    const catalogue = JSON.parse(
+      readFileSync(resolve(__dirname, `../../../public/locales/${locale}/project.json`), 'utf8'),
+    ) as { projectDetail: { budget: { pushError: Record<string, { message: string; remedy: string }> } } };
+    const entry = catalogue.projectDetail.budget.pushError['erp-company-unset'];
+    expect(entry?.message).toBeTruthy();
+    expect(entry?.remedy).toMatch(/Administr/);
+    expect(TRANSLATED_PUSH_ERRORS.has('erp-company-unset')).toBe(true);
+  });
+});

@@ -28,13 +28,17 @@
  */
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
-import { requireItems } from './shared.ts';
+import { requireCompany, requireItems } from './shared.ts';
 
 export function rfqToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  // `Request for Quotation.company` is a real field and the sweep's company filter reads it, so the body
+  // states the binding's company — never ERPNext's default (review r8 M-2).
+  const company = requireCompany(ctx.config, 'Request for Quotation');
   const items = requireItems(rec, 'Request for Quotation');
   const warehouse = ctx.config.default_warehouse as string | undefined;
   const uom = ctx.config.default_uom as string | undefined;
   return {
+    company,
     suppliers: ctx.refs.supplier ? [{ supplier: ctx.refs.supplier }] : [],
     message_for_supplier: 'Please submit your quotation.',
     items: items.map((i) => ({

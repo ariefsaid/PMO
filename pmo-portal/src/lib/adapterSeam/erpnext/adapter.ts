@@ -1049,10 +1049,18 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
   const bodyFns = requireBodyFns(deps, kind);
-  // #915 fix round — the replacement is settled BEFORE the cancel (the point of no return): when the
-  // replacement body would POST with no tax fields, the company's CURRENT default template is validated
-  // first, so a malformed default refuses with nothing cancelled and nothing POSTed.
-  await assertAmendReplacementTaxesValid(command, deps, kind, bodyFns);
+  // ⚑ I-1 (review r8) — THE REPLACEMENT IS BUILT BEFORE THE CANCEL, for EVERY kind. `toBody` is the
+  // last fail-closed gate a body owns (`requireCompany`, `requireItems`, the account defaults, …), and
+  // the cancel is this function's point of no return: a body built after it can refuse onto an already
+  // cancelled ERP document, leaving a tombstone with no replacement — the exact HIGH-1 window the cancel
+  // ordering exists to keep closed. Building it once, here, is also what `amendFrom` POSTs (never a
+  // second, possibly differing, build).
+  const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
+  const replacementBody = bodyFns.toBody(record, deps.ctx) as Record<string, unknown>;
+  // #915 fix round — the same body is what the PI tax gate inspects: when it carries no tax fields the
+  // company's CURRENT default template is validated first, so a malformed default refuses with nothing
+  // cancelled and nothing POSTed.
+  await assertAmendReplacementTaxesValid(replacementBody, deps, kind);
   // 1. cancel the old doc (an amend always cancels-then-recreates; the old name becomes a tombstone).
   await cancelDoc(deps.client, entry.doctype, oldExternalRecordId);
   // ⚑ HIGH-1 (audit round 5) — FROM HERE ON THE PREDECESSOR IS ALREADY A TOMBSTONE. The cancel and the
@@ -1063,7 +1071,7 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   // OFF, which "budget push failed" does not say. The classified code is preserved verbatim so a
   // transient failure stays RETRYABLE and the outbox's ordinary recovery re-drives it (a fresh grain read
   // then finds a tombstone, which is inert to the duplicate guard, and plainly re-creates).
-  return await amendFrom(command, deps, oldExternalRecordId, entry, bodyFns).catch((error: unknown) => {
+  return await amendFrom(command, deps, oldExternalRecordId, entry, bodyFns, replacementBody).catch((error: unknown) => {
     throw describeAbandonedAmend(error, oldExternalRecordId, entry);
   });
 }
@@ -1073,42 +1081,41 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
  * the company's CURRENT default Purchase Taxes and Charges Template when the body carries neither
  * `taxes_and_charges` nor `taxes` (an edit/amend carries none — `piToBody` only sends tax fields for a
  * chosen template or entered amounts). So BEFORE the predecessor is cancelled (⚑ HIGH-1: a refusal
- * after the cancel strands a tombstone), the replacement body is built exactly as `amendFrom` will
- * build it and, when it carries no taxes, the current default is validated through the SAME resolver a
+ * after the cancel strands a tombstone), the replacement body — already built by `commitAmend` — is
+ * inspected and, when it carries no taxes, the current default is validated through the SAME resolver a
  * chosen template gets (`resolvePurchaseTaxRows` — a malformed default refuses `config-rejected` with
  * the chosen path's exact wording, naming the template, never the company). A valid default — or none —
  * leaves the replacement untouched: PMO never inlines the default here, ERPNext applies it at POST time.
  */
 async function assertAmendReplacementTaxesValid(
-  command: AdapterCommand, deps: ErpAdapterDeps, kind: ErpDocKind, bodyFns: DoctypeBodyFns,
+  replacementBody: Record<string, unknown>, deps: ErpAdapterDeps, kind: ErpDocKind,
 ): Promise<void> {
   if (kind !== 'purchase-invoice') return;
   const company = deps.ctx.config.company;
   if (typeof company !== 'string' || !company) return;
-  const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
-  const body = bodyFns.toBody(record, deps.ctx) as Record<string, unknown>;
-  if (body.taxes_and_charges !== undefined || body.taxes !== undefined) return;
+  if (replacementBody.taxes_and_charges !== undefined || replacementBody.taxes !== undefined) return;
   const template = await findDefaultPurchaseTaxTemplate(deps.client, company);
   if (!template) return;
   await resolvePurchaseTaxRows(deps.client, company, template);
 }
 
 /** The post-cancel half of `commitAmend` (create → submit → re-fetch), split out ONLY so the window
- *  after the cancel has a single catch boundary — no behavior of its own. */
+ *  after the cancel has a single catch boundary — no behavior of its own. The replacement body is the
+ *  one `commitAmend` already built+validated BEFORE the cancel. */
 async function amendFrom(
   command: AdapterCommand,
   deps: ErpAdapterDeps,
   oldExternalRecordId: string,
   entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
   bodyFns: DoctypeBodyFns,
+  replacementBody: Record<string, unknown>,
 ): Promise<CommandResult> {
   // The FR-ENA-003 seam for the window this function IS — deliberately INSIDE the catch boundary
   // `commitAmend` wraps around it, so an injected failure here is described exactly like a real one.
   await deps.afterCancelHook?.();
   // 2. create the new doc with amended_from + the anchor stamp (the recovery-probe key, ADR-0058 §3).
-  const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
   const newBody = stampAnchor(
-    { ...(bodyFns.toBody(record, deps.ctx) as Record<string, unknown>), amended_from: oldExternalRecordId },
+    { ...replacementBody, amended_from: oldExternalRecordId },
     command.idempotencyKey,
     entry.anchorField,
   );

@@ -55,6 +55,9 @@ export const TRANSLATED_PUSH_ERRORS: ReadonlySet<string> = new Set([
   'budget-fiscal-year-ambiguous',
   'budget-multi-fiscal-year-unphased',
   'outbox-finalize-refused',
+  // ⚑ M-1 (review r8) — the no-company refusal is an operator SETTING, the kind most likely to be read by
+  // a non-English site admin, so it ships translated in both catalogues (`en` + `id`).
+  'erp-company-unset',
 ]);
 
 const CODES: Record<string, Entry> = {
@@ -178,6 +181,15 @@ const CODES: Record<string, Entry> = {
   'commit-rejected': {
     message: 'ERPNext understood the request and refused it.',
     retryable: true,
+  },
+  // ⚑ M-1 (review r8) — the org binding names no ERP company, so no company-scoped document can state
+  // where it belongs. Its OWN code, deliberately: `commit-rejected` says "ERPNext understood the request
+  // and refused it" and is RETRYABLE, both false here — ERPNext was never called (the body refuses before
+  // the request) and no retry creates the setting. NOT retryable, with the exact screen in the remedy.
+  'erp-company-unset': {
+    message: 'No ERP company is chosen for this organization, so nothing was sent.',
+    retryable: false,
+    remedy: 'Choose the ERPNext company in Administration → Integrations, then send again.',
   },
   // ── ERP master sends (#1504 S8): the reasons an Odoo create or lookup is refused, as the adapter raises them ──
   validation: {
