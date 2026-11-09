@@ -14,10 +14,10 @@ export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 
 export const purchaseWmDomain = (doctype: PurchaseDoctype) => `purchases::${doctype}`;
 const CURSOR_VERSION = 2;
 // Orders and invoices moved to a v3 cursor namespace so rows mirrored before net_total / purchase_orders existed
-// are re-read once (the 0374 upsert fills those fields on the unchanged ERP version). A v3 namespace never falls
-// back to the legacy timestamp (that would skip the re-read).
-const REREAD_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Invoice'];
-const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::${REREAD_DOCTYPES.includes(doctype) ? 'v3' : 'v2'}::${doctype}`;
+// are re-read once (the 0374 upsert fills those fields on the unchanged ERP version). Orders moved to v4 for
+// item_projects (0815, #1276). A versioned namespace never falls back to the legacy timestamp (that would skip the re-read).
+const REREAD_NAMESPACE: Partial<Record<PurchaseDoctype, string>> = { 'Purchase Order': 'v4', 'Purchase Invoice': 'v3' };
+const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::${REREAD_NAMESPACE[doctype] ?? 'v2'}::${doctype}`;
 
 const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
   'Purchase Order': ['name', 'supplier', 'supplier_name', 'transaction_date', 'schedule_date', 'currency',
@@ -62,6 +62,8 @@ export interface PurchaseMirrorRow {
   erp_modified: string;
   /** Purchase Invoices only: distinct ERP Purchase Order names billed by the item lines (0361 link check). */
   purchase_orders?: string[];
+  /** Purchase Orders only: distinct ERP project names the item lines carry (0815); attribution unions them with erp_project. */
+  item_projects?: string[];
 }
 
 export interface FeedPurchaseMirrorResult { fed: number; caughtUp: boolean }
@@ -147,38 +149,42 @@ const MAX_ITEM_PAGES_PER_BATCH = 50;
 // 50 names keep the item URL near 1.5 KB (500 names was ~14 KB and risked rejection, wedging the pass).
 const ITEM_BATCH_SIZE = 50;
 
-/** Distinct, non-empty Purchase Order names per invoice, read from the Purchase Invoice Item child rows.
- * A failed or malformed read throws: sending an empty list would silently skip the link check.
- * Request cost: ceil(invoices / 50) item reads (more only for very long invoices) per Purchase Invoice page. */
-async function readInvoiceOrders(client: ErpClientDeps, invoiceNames: string[], deadline: number): Promise<Map<string, string[]>> {
-  const orders = new Map<string, Set<string>>(invoiceNames.map((n) => [n, new Set<string>()]));
-  for (let at = 0; at < invoiceNames.length; at += ITEM_BATCH_SIZE) {
-    const batch = invoiceNames.slice(at, at + ITEM_BATCH_SIZE);
+/** Distinct, non-empty `field` values per parent, read from the item child rows (`parentDoctype` + " Item").
+ * A failed or malformed read throws: sending an empty list would silently skip the link check / attribution.
+ * Request cost: ceil(parents / 50) item reads (more only for very long documents) per list page. */
+async function readItemRefs(client: ErpClientDeps, parentDoctype: 'Purchase Invoice' | 'Purchase Order', field: 'purchase_order' | 'project',
+  names: string[], deadline: number): Promise<Map<string, string[]>> {
+  const itemDoctype = `${parentDoctype} Item`;
+  const out = new Map<string, Set<string>>(names.map((n) => [n, new Set<string>()]));
+  for (let at = 0; at < names.length; at += ITEM_BATCH_SIZE) {
+    const batch = names.slice(at, at + ITEM_BATCH_SIZE);
+    // Only item lines that name a project can attribute; skipping the rest keeps the read small.
+    const filters: unknown[] = [['parent', 'in', batch], ...(field === 'project' ? [['project', 'is', 'set']] : [])];
     let complete = false;
     for (let page = 0; page < MAX_ITEM_PAGES_PER_BATCH && !complete; page += 1) {
       const remainingMs = deadline - Date.now();
       if (remainingMs <= 0) throw new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable');
-      const qs = `parent=${encodeURIComponent('Purchase Invoice')}&filters=${encodeURIComponent(JSON.stringify([['parent', 'in', batch]]))}`
-        + `&fields=${encodeURIComponent(JSON.stringify(['parent', 'purchase_order']))}`
+      const qs = `parent=${encodeURIComponent(parentDoctype)}&filters=${encodeURIComponent(JSON.stringify(filters))}`
+        + `&fields=${encodeURIComponent(JSON.stringify(['parent', field]))}`
         + `&limit_page_length=${ITEM_PAGE_SIZE}&limit_start=${page * ITEM_PAGE_SIZE}&order_by=${encodeURIComponent('parent asc, idx asc')}`;
       const body = await erpnextRequest({ ...client, timeoutMs: Math.min(REQUEST_TIMEOUT_MS, remainingMs) },
-        { method: 'GET', path: `/api/resource/${encodeURIComponent('Purchase Invoice Item')}?${qs}` });
+        { method: 'GET', path: `/api/resource/${encodeURIComponent(itemDoctype)}?${qs}` });
       const rows = (body as { data?: unknown } | null)?.data;
       if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).parent === 'string')) {
-        throw new AppError('ERPNext Purchase Invoice Item list response was malformed', 'external-unreachable');
+        throw new AppError(`ERPNext ${itemDoctype} list response was malformed`, 'external-unreachable');
       }
-      for (const r of rows as Array<{ parent: string; purchase_order?: unknown }>) {
-        const po = str(r.purchase_order);
-        if (po !== null) orders.get(r.parent)?.add(po);
+      for (const r of rows as Array<Record<string, unknown> & { parent: string }>) {
+        const v = str(r[field]);
+        if (v !== null) out.get(r.parent)?.add(v);
       }
       complete = rows.length < ITEM_PAGE_SIZE;
     }
     if (!complete) {
-      throw new AppError(`Purchase Invoice item lines for ${batch.length} invoices exceeded ${MAX_ITEM_PAGES_PER_BATCH * ITEM_PAGE_SIZE} rows; `
-        + 'the invoice list was not mirrored (no partial purchase-order list is sent)', 'external-unreachable');
+      throw new AppError(`${parentDoctype} item lines for ${batch.length} documents exceeded ${MAX_ITEM_PAGES_PER_BATCH * ITEM_PAGE_SIZE} rows; `
+        + `the ${parentDoctype} list was not mirrored (no partial list is sent)`, 'external-unreachable');
     }
   }
-  return new Map([...orders].map(([k, v]) => [k, [...v]]));
+  return new Map([...out].map(([k, v]) => [k, [...v]]));
 }
 
 async function withinBudget<T>(deadline: number, operation: () => PromiseLike<T>): Promise<T> {
@@ -219,6 +225,8 @@ async function saveCursor(sc: PurchaseFeedServiceClient, orgId: string, domain: 
 // Invoices are written in item-read-sized units so a slow ERP still makes durable progress each pass, and
 // each turn handles at most this many units before the other doctypes get theirs (the rest of the page is kept).
 const INVOICE_UNITS_PER_TURN = 2;
+// Orders are enriched in the same 50-row units but a turn still drains a whole 500-row page.
+const ORDER_UNITS_PER_TURN = PAGE_SIZE / ITEM_BATCH_SIZE;
 
 type Phase = 'all' | 'equal' | 'after';
 interface FeedState {
@@ -243,7 +251,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
     const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
-    const legacy = stored === null && !REREAD_DOCTYPES.includes(doctype) ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
+    const legacy = stored === null && !REREAD_NAMESPACE[doctype] ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
     const cursor = parseCursor(stored ?? legacy);
     // Every cursor resumes inclusively: name-bearing cursors replay their boundary row, while legacy
     // and name-less cursors replay the whole timestamp boundary before advancing strictly past it.
@@ -277,12 +285,15 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
 
     const page = state.page;
     const isInvoice = doctype === 'Purchase Invoice';
-    const unitSize = isInvoice ? ITEM_BATCH_SIZE : PAGE_SIZE;
+    const isOrder = doctype === 'Purchase Order';
+    const enriched = isInvoice || isOrder;  // item child rows are read before the unit is written
+    const unitSize = enriched ? ITEM_BATCH_SIZE : PAGE_SIZE;
+    const unitsPerTurn = isInvoice ? INVOICE_UNITS_PER_TURN : isOrder ? ORDER_UNITS_PER_TURN : Infinity;
     let units = 0;
     try {
-      while (page.rows.length > 0 && (!isInvoice || units < INVOICE_UNITS_PER_TURN)) {
-        // Start an invoice unit only when its item read can finish within the pass; the rest waits for the next sweep.
-        if (isInvoice && deadline - Date.now() <= REQUEST_TIMEOUT_MS) { outOfTime = true; break; }
+      while (page.rows.length > 0 && units < unitsPerTurn) {
+        // Start an enriched unit only when its item read can finish within the pass; the rest waits for the next sweep.
+        if (enriched && deadline - Date.now() <= REQUEST_TIMEOUT_MS) { outOfTime = true; break; }
         const unit = page.rows.slice(0, unitSize);
         const latest = new Map<string, PurchaseMirrorRow>();
         for (const source of unit) {
@@ -292,8 +303,11 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
           if (!existing || row.erp_modified > existing.erp_modified) latest.set(row.erp_name, row);
         }
         if (isInvoice && latest.size > 0) {
-          const orders = await readInvoiceOrders(transport, [...latest.keys()], deadline);
+          const orders = await readItemRefs(transport, 'Purchase Invoice', 'purchase_order', [...latest.keys()], deadline);
           for (const [name, row] of latest) row.purchase_orders = orders.get(name) ?? [];
+        } else if (isOrder && latest.size > 0) {
+          const projects = await readItemRefs(transport, 'Purchase Order', 'project', [...latest.keys()], deadline);
+          for (const [name, row] of latest) row.item_projects = projects.get(name) ?? [];
         }
         if (latest.size > 0) {
           const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...latest.values()], p_restamp: false }));
@@ -311,9 +325,9 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
         units += 1;
       }
     } catch (error) {
-      // Invoice enrichment failures leave the invoice cursor at its last written unit and let the other doctypes
+      // Invoice and order enrichment failures leave that cursor at its last written unit and let the other doctypes
       // run; the pass still fails once they have had their turn. Other failures stop the pass immediately.
-      if (!isInvoice || deadline - Date.now() <= 0) throw error;
+      if (!enriched || deadline - Date.now() <= 0) throw error;
       deferred ??= error;
       continue;
     }
