@@ -1,7 +1,6 @@
 # Feature comparison — PMO v0.28 vs KANNA, RIS-portal-2, ERPNext, Odoo 20 CE
 
 **Date:** 2026-10-31 · **PMO state:** `origin/dev` (v0.28 work in flight; latest cut v0.25.1, #1493) · **Comparators:** KANNA (Aldagram), RIS-portal-2 (our prior product), ERPNext v15/v16, Odoo 20 Community Edition.
-**Extended 2026-11-08** with HashMicro and Rework: `2026-11-08-hashmicro-rework-comparison.md`.
 **Supersedes as the current comparison:** `2026-06-11-kanna-gap-analysis.md` and `2026-07-22-competitive-refresh-ris-cicle.md` (both re-checked; every PMO claim below was verified against today's code, not carried over).
 
 ## Evidence tiers per comparator
