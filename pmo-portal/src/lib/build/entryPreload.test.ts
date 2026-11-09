@@ -7,11 +7,26 @@ import { resolve } from 'node:path';
 const dist = resolve(__dirname, '../../../dist');
 const html = resolve(dist, 'index.html');
 describe.skipIf(!existsSync(html))('entry modulepreload list', () => {
-  const readPreloads = () =>
-    [...readFileSync(html, 'utf8').matchAll(/<link rel="modulepreload"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
+  /**
+   * Every file the browser fetches to BOOT the app: the `<link rel="modulepreload">` set PLUS the
+   * entry `<script type="module" src>` itself (#2096 review — scanning only the preload links let
+   * the entry chunk go unchecked, so a data layer returning inside `index-*.js` would still pass).
+   */
+  const readFirstLoadFiles = () => {
+    const source = readFileSync(html, 'utf8');
+    return [
+      ...[...source.matchAll(/<link rel="modulepreload"[^>]*href="([^"]+)"/g)].map((m) => m[1]),
+      ...[...source.matchAll(/<script type="module"[^>]*src="([^"]+)"/g)].map((m) => m[1]),
+    ];
+  };
+
+  it('scans the entry module script as well as the modulepreload links (#2096)', () => {
+    const scanned = readFirstLoadFiles();
+    expect(scanned.filter((p) => /^\/assets\/index-[\w-]+\.js$/.test(p))).toHaveLength(1);
+  });
 
   it('does not preload recharts, markdown or the viewspec compiler', () => {
-    const preloads = readPreloads();
+    const preloads = readFirstLoadFiles();
     expect(preloads.length).toBeGreaterThan(0);
     for (const bad of [/vendor-recharts/, /markdown/i, /compiler/, /\/AssistantPanel-/]) {
       expect(preloads.filter((p) => bad.test(p)), String(bad)).toEqual([]);
@@ -33,7 +48,7 @@ describe.skipIf(!existsSync(html))('entry modulepreload list', () => {
   ];
 
   it('does not preload a chunk containing the aggregated data layer (#2096)', () => {
-    for (const preload of readPreloads()) {
+    for (const preload of readFirstLoadFiles()) {
       const chunk = readFileSync(resolve(dist, preload.slice(1)), 'utf8');
       const carried = DATA_LAYER_MARKERS.filter(([, re]) => re.test(chunk)).map(([name]) => name);
       expect(carried, `${preload} carries domains: ${carried.join(', ')}`).not.toHaveLength(
@@ -54,14 +69,14 @@ describe.skipIf(!existsSync(html))('entry modulepreload list', () => {
       .filter((f) => f.endsWith('.js'))
       .filter((f) => BRIDGE_MARKER.test(readFileSync(resolve(assets, f), 'utf8')));
     expect(carriers.length, 'the ⌘K live index must ship in some chunk').toBeGreaterThan(0);
-    const preloaded = new Set(readPreloads().map((p) => p.replace('/assets/', '')));
+    const preloaded = new Set(readFirstLoadFiles().map((p) => p.replace('/assets/', '')));
     expect(carriers.filter((c) => preloaded.has(c)), `preloaded: ${[...preloaded].join(', ')}`).toEqual([]);
   });
 
   // #2096 sub-item: the fx DAL was the only non-assistant zod user; after the typeof/Number.isInteger
   // guard, zod must not ride any first-load chunk (it stays with the lazy assistant panel).
   it('does not preload zod (#2096)', () => {
-    for (const preload of readPreloads()) {
+    for (const preload of readFirstLoadFiles()) {
       const chunk = readFileSync(resolve(dist, preload.slice(1)), 'utf8');
       expect(chunk, preload).not.toMatch(/__zod_globalRegistry|ZodError/);
     }
