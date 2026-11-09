@@ -83,11 +83,15 @@ import { commandForBudgetUnit } from './commandUnit.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import { odooCompanyAnchorKey } from './odooCompanies.ts';
+import { equipmentKey, resolveOdooEquipmentAdapter } from './odooEquipment.ts';
+import { EQUIPMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { odooOwnsCompaniesTier, odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 
 export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
+// #1511 F4 — re-exported so the served suite binds to the SHIPPED module (scripts/check-edge-fn-test-binding.mjs).
+export { resolveOdooEquipmentAdapter } from './odooEquipment.ts';
 export type { AdapterSelectContext } from './dispatchAdapters.ts';
 export { buildPaymentCompositePayload, readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 
@@ -273,8 +277,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     delete (command.record as Record<string, unknown>).pmo_gr_snapshot;
   }
 
-  // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
-  const isErpDomain = isErpDispatchDomain(command.domain);
+  // Compute isErpDomain early so it's available for both the auth guard and idempotency check. #1511: the equipment register is
+  // an externally-owned domain too — it is served by the Odoo tier only, and every gate below that does not concern it is
+  // self-gating on the domain (the cutover gate, the revenue/procurement target guards, the project gates).
+  const isErpDomain = isErpDispatchDomain(command.domain) || command.domain === EQUIPMENT_DOMAIN;
 
   // ── #784 — a revenue command names its record by the canonical uuid every PMO revenue table keys it on;
   // the whole money path compares that id as TEXT (the outbox fence, the one-in-flight index, external_refs,
@@ -398,7 +404,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     try { command.idempotencyKey = odooCompanyAnchorKey(command.record as Record<string, unknown>); }
     catch { return new Response(JSON.stringify({ error: 'commit-rejected', message: 'company-record-id-invalid' }), { status: 422, headers }); }
   }
-  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+  // #1511 F4: one PMO register or maintenance record is one Odoo record, so a CREATE's key follows the record (the client's
+  // per-click key is replaced); an update keeps the caller's fresh key so it can be sent again after a lost answer.
+  const odooEquipmentKeyDerivedByServer = command.domain === EQUIPMENT_DOMAIN && command.operation === 'create';
+  if (odooEquipmentKeyDerivedByServer) {
+    try { command.idempotencyKey = equipmentKey(command.record as Record<string, unknown>); }
+    catch { return new Response(JSON.stringify({ error: 'commit-rejected', message: 'record-id-invalid' }), { status: 422, headers }); }
+  }
+  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && !odooEquipmentKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
     return new Response(
       JSON.stringify({
         error: 'commit-rejected',

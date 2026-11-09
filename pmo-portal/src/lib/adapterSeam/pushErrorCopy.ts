@@ -166,6 +166,23 @@ const CODES: Record<string, Entry> = {
     retryable: true,
     remedy: 'Retry the push to queue a fresh command.',
   },
+  // ── the register and its maintenance (#1511 F4) ──────────────────────────────────────────────
+  // Refused BEFORE any outbox row: the asset page is where each is fixed, so no retry can help.
+  'equipment-not-linked': {
+    message: 'This asset is not linked to the Odoo register yet.',
+    retryable: false,
+    remedy: 'An Admin matches it to its Odoo asset on the match screen, then record this again.',
+  },
+  'equipment-kind-mismatch': {
+    message: 'A vehicle takes a service log; equipment takes a maintenance request.',
+    retryable: false,
+    remedy: 'Record the right kind of maintenance for this asset: a service log for a vehicle, a maintenance request for equipment.',
+  },
+  'register-role': {
+    message: 'Only an Admin or Project Manager can change the register.',
+    retryable: false,
+    remedy: 'Ask an Admin or a Project Manager to save this change; anyone can record maintenance.',
+  },
   // ── cut-over (FR-ECA-030, OQ-ECA-1) ──────────────────────────────────────────────────────────
   // Not a failure: a purchase ordered before the ERP connection is finished in PMO, on purpose.
   'pre-cutover': {
