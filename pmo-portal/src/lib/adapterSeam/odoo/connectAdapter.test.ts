@@ -53,13 +53,35 @@ describe('odoo ConnectAdapter — listMasters / countDomain', () => {
     expect((await adapter.listMasters('project', null)).rows.map((r) => r.code)).toEqual(['A', 'B']);
   });
 
-  it('counts with search_count over the same domain as listMasters (census is read-only)', async () => {
+  it('counts with search_count (census is read-only), leaving out the partners the database holds for itself', async () => {
     const { fake, adapter, bodies } = setup();
-    fake.seed('res.partner', [partner(1), partner(2, { active: false }), { id: 3, name: 'c', parent_id: [1, 'P1'] }]);
-    expect(await adapter.countDomain('party')).toBe(2);
+    fake.seed('res.partner', [partner(1), partner(2, { active: false }), { id: 3, name: 'c', parent_id: [1, 'P1'] }, partner(4), partner(5, { supplier_rank: 0 }), partner(6, { active: false }), partner(7, { customer_rank: 1, supplier_rank: 0 })]);
+    fake.seed('res.company', [{ id: 1, name: 'Own', partner_id: [4, 'P4'] }]);
+    fake.seed('res.users', [{ id: 2, active: true, partner_id: [5, 'P5'] }, { id: 3, active: false, partner_id: [6, 'P6'] }]);
+    // 1, 2 (archived, still a vendor) and 7 are the client's; 4 is the company, 5 a login, 6 an archived login
+    expect(await adapter.countDomain('party')).toBe(3);
     const count = bodies.find((b) => b.method === 'search_count')!;
-    expect(count.body).toEqual({ domain: [['parent_id', '=', false]], context: { active_test: false } });
+    expect(count.body).toEqual({ domain: [['parent_id', '=', false], ['id', 'not in', [4, 5, 6]]], context: { active_test: false } });
     expect(bodies.some((b) => ['create', 'write', 'unlink'].includes(b.method))).toBe(false);
+  });
+
+  it('a fresh database counts no partners: the built-in company, system and login partners are not the client\'s', async () => {
+    const { fake, adapter } = setup();
+    fake.seed('res.partner', [partner(1, { supplier_rank: 0 }), partner(2, { supplier_rank: 0 }), partner(3, { supplier_rank: 0 }), partner(4, { supplier_rank: 0 })]);
+    fake.seed('res.company', [{ id: 1, name: 'My Company', partner_id: [1, 'My Company'] }]);
+    // administrator, the OdooBot / public / portal-template system users (archived) and the adapter's own login
+    fake.seed('res.users', [{ id: 1, active: false, partner_id: [2, 'OdooBot'] }, { id: 2, active: true, partner_id: [3, 'Administrator'] }, { id: 3, active: true, partner_id: [4, 'Adapter'] }]);
+    expect(await adapter.countDomain('party')).toBe(0);
+  });
+
+  it('reads the database\'s own partners once per adapter, not once per page', async () => {
+    const { fake, adapter, bodies } = setup();
+    fake.seed('res.partner', Array.from({ length: LIST_PAGE + 1 }, (_, i) => partner(i + 1)));
+    const first = await adapter.listMasters('party', null);
+    await adapter.listMasters('party', first.nextCursor);
+    await adapter.countDomain('party');
+    expect(bodies.filter((b) => b.model === 'res.users').length).toBe(1);
+    expect(bodies.filter((b) => b.model === 'res.company').length).toBe(1);
   });
 
   it('refuses a kind it does not model, and a project listing with no plan chosen, before any call', async () => {

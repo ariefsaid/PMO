@@ -25,13 +25,16 @@ const partner = (id: number, over: Partial<DirectoryRow> & { attrs?: Record<stri
 const company = (id: string, name: string, tax: string | null = null) => ({ id, name, erp_tax_id: tax });
 
 interface Opts {
-  accepted?: boolean; companies?: Array<{ id: string; name: string; erp_tax_id: string | null }>; refs?: string[]; ownPartners?: number[];
+  accepted?: boolean; companies?: Array<{ id: string; name: string; erp_tax_id: string | null }>; refs?: string[]; ownPartners?: number[]; userPartners?: number[];
   apply?: (c: FetchCall) => Response; review?: (c: FetchCall) => Response;
 }
-/** The one Odoo read the feed makes: the partner ids of the database's companies (PMO's own organisation), as the setup pass reads them. */
-const odoo = (ownPartners: number[]): OdooCall => (model, method) => {
+/** The Odoo reads the feed makes: the partner ids of the database's companies (PMO's own organisation) and of its login users, as the setup pass reads them. */
+const odoo = (ownPartners: number[], userPartners: number[]): OdooCall => (model, method) => {
   if (model === 'res.company' && method === 'search_read') {
     return Promise.resolve(ownPartners.map((id) => ({ id: 1, partner_id: [id, 'Own Co'] })) as never);
+  }
+  if (model === 'res.users' && method === 'search_read') {
+    return Promise.resolve(userPartners.map((id) => ({ id: 1, partner_id: [id, 'Login'] })) as never);
   }
   return Promise.reject(new Error(`unexpected odoo call: ${model}.${method}`));
 };
@@ -47,7 +50,7 @@ function routes(o: Opts): MockRoute[] {
 async function feed(rows: DirectoryRow[], o: Opts = {}, deadlineAt?: number) {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   return await withFetchMock(routes(o), async ({ calls }) => {
-    await matchNewPartners(sc, ORG, rows, deadlineAt, odoo(o.ownPartners ?? []));
+    await matchNewPartners(sc, ORG, rows, deadlineAt, odoo(o.ownPartners ?? [], o.userPartners ?? []));
     return { calls, applied: rpcCall(calls, 'apply_connect_outcome').map((c) => c.bodyJson as Record<string, unknown>), reviews: rpcCall(calls, 'record_connect_review').map((c) => c.bodyJson as Record<string, unknown>) };
   });
 }
