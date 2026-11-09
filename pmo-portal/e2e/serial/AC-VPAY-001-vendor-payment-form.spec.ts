@@ -123,8 +123,11 @@ async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
   const { data: org, error: orgReadErr } = await admin.from('organizations').select('default_currency').eq('id', ORG_ID).single();
   if (orgReadErr || !org) throw new Error(`seed org currency read failed: ${orgReadErr?.message}`);
   s.priorCurrency = (org as { default_currency: string }).default_currency;
-  const { error: orgCurErr } = await admin.from('organizations').update({ default_currency: SAR_CURRENCY }).eq('id', ORG_ID);
-  if (orgCurErr) throw new Error(`seed org currency failed: ${orgCurErr.message}`);
+  // Already aligned → no write (and cleanup then skips the same-value restore).
+  if (s.priorCurrency !== SAR_CURRENCY) {
+    const { error: orgCurErr } = await admin.from('organizations').update({ default_currency: SAR_CURRENCY }).eq('id', ORG_ID);
+    if (orgCurErr) throw new Error(`seed org currency failed: ${orgCurErr.message}`);
+  }
   const { error: companyErr } = await admin.from('companies').insert({ id: s.companyId, org_id: ORG_ID, name: `Spike Supplier ${suffix}`, type: 'Vendor' });
   if (companyErr) throw new Error(`seed companies failed: ${companyErr.message}`);
   const { error: refErr } = await admin.from('external_refs').insert({
@@ -157,7 +160,7 @@ async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
 }
 
 async function cleanup(admin: SupabaseClient, s: Seed): Promise<void> {
-  if (s.priorCurrency) await admin.from('organizations').update({ default_currency: s.priorCurrency }).eq('id', ORG_ID);
+  if (s.priorCurrency && s.priorCurrency !== SAR_CURRENCY) await admin.from('organizations').update({ default_currency: s.priorCurrency }).eq('id', ORG_ID);
   await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'procurement');
   await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
   await admin.from('payments').delete().eq('procurement_id', s.procurementId);
