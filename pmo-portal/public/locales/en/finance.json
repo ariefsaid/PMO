@@ -538,6 +538,7 @@
       "notes": "Notes",
       "categoryNotesUnavailable": "No category notes are recorded.",
       "actualsSource": "Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.",
+      "actualsSourceOdoo": "Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.",
       "projectTeam": "Project team",
       "openCategory": "Open {{category}} budget details",
       "versionAuthorSource": "Version author and creation date. Category-level ownership and line update time are not recorded.",

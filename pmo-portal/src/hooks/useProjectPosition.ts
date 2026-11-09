@@ -23,7 +23,7 @@ export interface CategoryPosition { category: string; budget: number; actual: nu
  * Budget vs actual per Active-budget or spent category, shared by the cost block and "Needs attention" so the
  * two can never disagree. `spent`/`over` are project-level only when every category is known.
  */
-export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
+export function useBudgetPosition(project: ProjectWithRefs, enabled = true, ledgerBasis = false) {
   const may = usePermission();
   const canSeeActual = enabled && may('view', 'salesInvoice');
   const versions = useBudgetVersions(enabled ? project.id : '');
@@ -38,7 +38,8 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
         budgets.set(category.category, 0);
       }
     }
-    const same = actuals?.currency === project.currency;
+    // Ledger-basis figures are in the ledger's company currency, which the caller labels; the finances read can only name the org's.
+    const same = ledgerBasis || actuals?.currency === project.currency;
     const rows: CategoryPosition[] = [...budgets.entries()].map(([category, budget]) => {
       const a = actuals?.categories.find((c) => c.category === category);
       return { category, budget, actual: same && a?.mapped && a.amount !== null ? Number(a.amount) : null };
@@ -58,7 +59,7 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
       overRows,
       unknown: rows.filter((r) => r.actual === null).length,
     };
-  }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, finances.isPending, finances.isError, finances.refetch, project.currency, canSeeActual]);
+  }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, finances.isPending, finances.isError, finances.refetch, project.currency, canSeeActual, ledgerBasis]);
 }
 
 /** Overdue customer invoices: count, oldest age, and the unpaid balance only when every balance is known. */

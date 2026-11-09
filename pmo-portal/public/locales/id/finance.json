@@ -538,6 +538,7 @@
       "notes": "Catatan",
       "categoryNotesUnavailable": "Tidak ada catatan kategori.",
       "actualsSource": "Sumber: keuangan proyek per kategori; ini adalah total hingga tanggal pencatatan dan tidak menampilkan tren transaksi.",
+      "actualsSourceOdoo": "Sumber: buku besar Odoo per kategori anggaran. Akun tanpa kategori anggaran dicantumkan di atas tabel dan tidak dihitung.",
       "projectTeam": "Tim proyek",
       "openCategory": "Buka detail anggaran {{category}}",
       "versionAuthorSource": "Penulis versi dan tanggal pembuatannya. Pemilik kategori dan waktu pembaruan baris tidak dicatat.",

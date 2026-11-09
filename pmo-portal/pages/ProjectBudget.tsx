@@ -54,7 +54,7 @@ import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
-import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
+import { useOdooLedgerCurrency, useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
 import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
@@ -149,6 +149,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const erpBindingQuery = useErpnextBinding();
   // #1507 S7 (FR-ODA-052): an Odoo-ledger project with no linked cost account shows no actual cost rather than a zero.
   const odooActuals = useOdooProjectActuals(projectId);
+  const ledgerCurrency = useOdooLedgerCurrency();
   const currentUserId = currentUser?.id ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedForecast = searchParams.get('budgetView') === 'forecast';
@@ -173,7 +174,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const budgetQuery = useProjectBudget(projectId);
   const versionsQuery = useBudgetVersions(projectId);
   const mutations = useBudgetMutations(projectId);
-  const position = useBudgetPosition(project);
+  const position = useBudgetPosition(project, true, odooActuals.onLedger);
   const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
   const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: ['budget-push-status', projectId],
@@ -487,7 +488,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     currency: project.currency,
   }) : [];
   const selectedCurrency = selectedVersion?.currency || project.currency;
-  const compatibleBasis = selectedCurrency === project.currency;
+  // #2066: one currency rule for the tab. The Odoo ledger is single-currency (OQ-ODA-5), so on it every figure here is in the Odoo company's currency.
+  const spendCurrency = odooActuals.onLedger ? ledgerCurrency : project.currency;
+  const compatibleBasis = odooActuals.onLedger || selectedCurrency === project.currency;
   const enrichedRows = summaryRows.map((row) => {
     const actualKnown = canSeeActuals && row.spent !== null;
     const committedKnown = canSeeCommitments && row.committed !== null;
@@ -504,8 +507,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   // When the active version has no recorded currency, use the project currency for display.
   const activeBudgetCurrency = activeVersion?.currency || project.currency;
   const tableBudgetTotal = selectedVersion?.total ?? null;
-  const totalSpent = enrichedRows.length > 0 && enrichedRows.every((row) => row.spent !== null && canSeeActuals)
-    ? enrichedRows.reduce((sum, row) => sum + (row.spent ?? 0), 0)
+  // On the Odoo ledger a category with no mapped account reads "—" and is listed beside the table as not counted, so the total is the sum of the figures the table shows.
+  const spentRows = enrichedRows.filter((row) => row.spent !== null);
+  const totalSpent = canSeeActuals && spentRows.length > 0 && (odooActuals.onLedger || spentRows.length === enrichedRows.length)
+    ? spentRows.reduce((sum, row) => sum + (row.spent ?? 0), 0)
     : null;
   // L12: one committed calculation for the whole project — the Overview reads the same shared total.
   const totalCommitted = canSeeCommitments ? committedTotal(enrichedRows) : null;
@@ -537,16 +542,18 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const formatAmount = (value: number | null) => value === null ? '—' : formatNumberMax2(value);
   const formatBudget = (value: number | null) => value === null ? '—' : compatibleBasis ? formatAmount(value) : `${selectedCurrency} ${formatAmount(value)}`;
   // F11: KPI tiles carry the short amount; the full amount stays on hover and for screen readers.
-  const tileAmount = (value: number | null, currency = project.currency) => {
+  const tileAmount = (value: number | null, currency = spendCurrency) => {
     if (value === null) return { value: '—' };
     const short = formatShortMoney(value, currency);
     const exact = formatCurrency(value, currency);
     return short === exact ? { value: short } : { value: short, exactValue: exact };
   };
-  const budgetUnit = <span className="text-xs text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></>}</span>;
-  const actualSource = t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
+  const budgetUnit = <span className="text-xs text-muted-foreground">{spendCurrency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></>}</span>;
+  const actualSource = odooActuals.onLedger
+    ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
+    : t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
-    const header = ['Category', `Budget (${selectedCurrency})`, `Spent (${project.currency})`, `Committed (${project.currency})`, `Left (${project.currency})`];
+    const header = ['Category', `Budget (${odooActuals.onLedger ? spendCurrency : selectedCurrency})`, `Spent (${spendCurrency})`, `Committed (${spendCurrency})`, `Left (${spendCurrency})`];
     const csv = [header, ...rows.map((row) => {
       const left = compatibleBasis && canSeeActuals && row.spent !== null && canSeeCommitments && row.committed !== null
         ? row.budget - row.spent - row.committed
@@ -821,7 +828,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => { dismissActivationNotice(); setShowNewVersionForm(true); } } : undefined} />}
 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-2 lg:grid-cols-4">
-        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
+        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} {...tileAmount(totalBudget, odooActuals.onLedger ? spendCurrency : activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent)} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? (compatibleBasis ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : t('projectDetail.budget.currencyComparisonUnavailable', 'Comparison unavailable because budget and spending use different currencies.')) : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
