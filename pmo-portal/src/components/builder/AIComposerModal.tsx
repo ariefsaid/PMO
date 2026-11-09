@@ -1,18 +1,21 @@
 /**
  * AIComposerModal — accessible dialog for AI-powered view composition.
  *
- * Mirrors ConfirmDialog's a11y contract (NFR-AS-A11Y-001..003):
- *   - createPortal, role="dialog", aria-modal, aria-labelledby (heading), aria-describedby (error/status)
- *   - Escape → onClose; focus trap on Tab/Shift+Tab; focus restore on close
- *   - aria-live="polite" for loading/error region
+ * Base UI Dialog (same engine as ConfirmDialog/EntityFormModal) owns portal, focus trap,
+ * initial focus (the prompt textarea), focus return, Escape + scrim dismissal (blocked while
+ * generating). NFR-AS-A11Y-001..003: labelled by the heading, aria-live="polite" status region.
  *
  * On compose success: calls onComposed(spec) + onClose.
  * On compose failure (null): shows the hook's error in the live region.
  */
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { Dialog } from '@base-ui/react/dialog';
 import { useTranslation } from 'react-i18next';
-import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
+import {
+  overlayBackdropClassName,
+  overlayBackdropStyle,
+} from '@/src/components/ui/OverlaySurface';
 import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { useAIComposer } from '@/src/hooks/useAIComposer';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
@@ -33,8 +36,6 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
   const { t } = useTranslation();
   const titleId = useId();
   const errorId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [prompt, setPrompt] = useState('');
@@ -43,56 +44,11 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
 
   const isLoading = status === 'loading';
 
-  // Escape key handler
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, isLoading, onClose]);
-
-  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open.
   useEffect(() => {
     if (!open) return;
     return acquireBackgroundInert();
   }, [open]);
-
-  // Focus management: move focus in on open; restore on close
-  useEffect(() => {
-    if (open) {
-      triggerRef.current = document.activeElement as HTMLElement | null;
-      // Focus textarea (the primary interactive element) synchronously so jsdom tests see it
-      textareaRef.current?.focus();
-    } else if (triggerRef.current) {
-      triggerRef.current.focus();
-      triggerRef.current = null;
-    }
-  }, [open]);
-
-  // Focus trap: cycle Tab/Shift+Tab within the dialog
-  const onTrapKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const root = dialogRef.current;
-    if (!root) return;
-    const focusables = root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
 
   const handleGenerate = async () => {
     // compose() clears the hook's own error at start and sets it on failure — the
@@ -115,42 +71,36 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
     }
   }, [open]);
 
-  if (!open) return null;
-
   const displayError = hookError;
 
   const textareaLabelId = `${titleId}-label`;
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[800] flex items-center justify-center p-4"
+  return (
+    <Dialog.Root
+      open={open}
+      modal="trap-focus"
+      onOpenChange={(next, details) => {
+        if (next) return;
+        details.cancel();
+        if (!isLoading) onClose();
+      }}
     >
-      {/* Scrim */}
-      <div
-        aria-hidden
-        onClick={() => {
-          if (!isLoading) onClose();
-        }}
-        className="absolute inset-0 bg-foreground/40"
-      />
-
-      {/* Dialog */}
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={displayError ? errorId : undefined}
-        onKeyDown={onTrapKeyDown}
-        className="relative z-[810] w-full max-w-[520px] rounded-lg border border-border bg-popover p-5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
-      >
+      <Dialog.Portal>
+        <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
+          <Dialog.Backdrop className={overlayBackdropClassName} style={overlayBackdropStyle} />
+          <Dialog.Popup
+            initialFocus={textareaRef}
+            aria-modal="true"
+            aria-describedby={displayError ? errorId : undefined}
+            className="relative z-[810] w-full max-w-[520px] rounded-lg border border-border bg-popover p-5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
+          >
         {/* Heading */}
-        <h2
+        <Dialog.Title
           id={titleId}
           className="mb-4 text-[18px] font-semibold leading-[1.3] text-popover-foreground"
         >
           {t('viewBuilder.composeAiTitle', 'Compose with AI')}
-        </h2>
+        </Dialog.Title>
 
         {/* Textarea */}
         <div className="mb-1 flex flex-col gap-1">
@@ -212,9 +162,10 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
             {isLoading ? t('viewBuilder.generating', 'Generating…') : t('viewBuilder.generate', 'Generate')}
           </Button>
         </div>
-      </div>
-    </div>,
-    document.body,
+          </Dialog.Popup>
+        </div>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 
