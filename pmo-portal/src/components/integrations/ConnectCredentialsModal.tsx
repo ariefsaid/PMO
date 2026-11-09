@@ -98,6 +98,7 @@ export const ConnectCredentialsModal: React.FC<ConnectCredentialsModalProps> = (
                 {...connectForm.fieldProps('siteUrl')}
                 label={t('integrations.organization.readiness.connect.urlLabel', 'Instance URL')}
                 required
+                type="url"
                 placeholder="https://your-instance.erpnext.com"
                 autoComplete="url"
                 fullWidth

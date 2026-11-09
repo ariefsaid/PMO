@@ -274,6 +274,7 @@ const AccountForm: React.FC<AccountFormProps> = ({ title, initial, submitError, 
             onBlur={field.onBlur}
             error={field.error}
             placeholder={t('admin.expenseMap.form.placeholder', 'e.g. Employee Payable - ABC')}
+            spellCheck={false}
             fullWidth
           />
         </FormGrid>

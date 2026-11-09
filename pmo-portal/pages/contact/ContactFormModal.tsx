@@ -267,6 +267,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             onChange={titleField.onChange}
             onBlur={titleField.onBlur}
             placeholder={t('contacts.form.jobTitle.placeholder', 'e.g. Procurement Lead')}
+            autoComplete="organization-title"
           />
         </FormGrid>
       </FormSection>
@@ -281,12 +282,13 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             onChange={emailField.onChange}
             onBlur={emailField.onBlur}
             placeholder="name@example.com"
-            autoComplete="email"
+            autoComplete="off"
           />
           <TextField
             disabled={mirrorReadOnly}
             id={phoneField.id}
             label={t('contacts.form.phone.label', 'Phone')}
+            type="tel"
             value={phoneField.value}
             onChange={phoneField.onChange}
             onBlur={phoneField.onBlur}

@@ -134,6 +134,26 @@ const inputBase =
   'disabled:cursor-not-allowed';
 const inputInvalid = 'border-destructive hover:enabled:border-destructive';
 
+// ---- Shared input attributes (#2092) --------------------------------------
+//
+// WIG (Forms): "inputs need autocomplete and a meaningful name" · "disable spellcheck on emails,
+// codes, usernames" · "autocomplete=off on non-auth fields to avoid password-manager triggers".
+//
+// Every field here is a record/form field, never a sign-in form, so the browser's saved-value
+// prompts are noise: the one exception is `type="password"`, where the browser's own credential
+// handling IS the point (nothing here is a login, but a pasted secret must not be fought).
+// A `mono` field is a code/reference: no spellcheck squiggle, and no iOS autocorrect or
+// autocapitalisation rewriting `cpo-2026-0042`. An `email` field is somebody's address, never
+// prose, so it drops spellcheck too.
+//
+// Call sites keep the escape hatch: an explicit `autoComplete`/`spellCheck`/`name` always wins.
+const isAuthType = (type: string) => type === 'password';
+const defaultAutoComplete = (type: string, explicit: string | undefined) =>
+  explicit ?? (isAuthType(type) ? undefined : 'off');
+const defaultSpellCheck = (
+  { mono, type, explicit }: { mono?: boolean; type: string; explicit: boolean | 'true' | 'false' | undefined },
+) => explicit ?? (mono || type === 'email' ? false : undefined);
+
 // ---- TextField ------------------------------------------------------------
 
 export interface TextFieldProps
@@ -193,7 +213,12 @@ export const TextField: React.FC<TextFieldProps> = ({
           <input
             {...rest}
             {...ctl}
+            name={rest.name ?? ctl.id}
             type={effectiveType}
+            autoComplete={defaultAutoComplete(type, rest.autoComplete)}
+            spellCheck={defaultSpellCheck({ mono, type, explicit: rest.spellCheck })}
+            autoCorrect={rest.autoCorrect ?? (mono ? 'off' : undefined)}
+            autoCapitalize={rest.autoCapitalize ?? (mono ? 'off' : undefined)}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             className={cn(
@@ -275,8 +300,11 @@ export const NumberField: React.FC<NumberFieldProps> = ({
             {...rest}
             {...ctl}
             ref={mask.ref}
+            name={rest.name ?? ctl.id}
             type="text"
             inputMode="decimal"
+            autoComplete={rest.autoComplete ?? 'off'}
+            spellCheck={rest.spellCheck ?? false}
             value={value}
             onChange={mask.onChange}
             className={cn(
@@ -333,6 +361,8 @@ export const TextArea: React.FC<TextAreaProps> = ({
       <textarea
         {...rest}
         {...ctl}
+        name={rest.name ?? ctl.id}
+        autoComplete={rest.autoComplete ?? 'off'}
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -407,6 +437,8 @@ export const SelectField: React.FC<SelectFieldProps> = ({
       <select
         {...rest}
         {...ctl}
+        name={rest.name ?? ctl.id}
+        autoComplete={rest.autoComplete ?? 'off'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(

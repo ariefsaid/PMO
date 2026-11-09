@@ -535,6 +535,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
           label={t('viewBuilder.limit', 'Limit (1–500)')}
           value={form.limit}
           onChange={(v) => setForm((p) => ({ ...p, limit: v }))}
+          inputMode="numeric"
         />
 
         {/* Panel label */}
@@ -549,6 +550,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
           label={t('viewBuilder.columnSpan', 'Column span (1–4)')}
           value={form.colSpan}
           onChange={(v) => setForm((p) => ({ ...p, colSpan: v }))}
+          inputMode="numeric"
         />
       </FormGrid>
     </EntityFormModal>
