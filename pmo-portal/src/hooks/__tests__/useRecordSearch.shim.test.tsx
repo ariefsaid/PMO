@@ -32,7 +32,14 @@ describe('useRecordSearch shim (#2096)', () => {
     const { result } = renderHook(() => useRecordSearch());
     act(() => {
       publishRecordSearch({
-        records: [{ id: 'projects:1', group: 'Records', title: 'Bridge No. 7', sub: 'Project' }],
+        records: [{
+          id: 'projects:1',
+          group: 'Records',
+          title: 'Bridge No. 7',
+          sub: 'Project',
+          icon: 'projects',
+          run: () => {},
+        }],
         isPending: true,
         isError: false,
       });

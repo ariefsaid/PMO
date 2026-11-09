@@ -8,7 +8,12 @@ import { ToastProvider } from '@/src/components/ui';
 
 expect.extend(toHaveNoViolations);
 const h = vi.hoisted(() => ({ proposeNumber: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { proposeNumber: h.proposeNumber } } }));
+// #2096: production code reads the domain module directly (the barrel is back-compat only), so the
+// stub has to sit on `@/src/lib/repositories/projects`.
+vi.mock('@/src/lib/repositories/projects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/projects')>();
+  return { ...actual, projectRepository: { ...actual.projectRepository, proposeNumber: h.proposeNumber } };
+});
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [{ id: 'client-1', name: 'Acme Client', type: 'Client' }], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),
