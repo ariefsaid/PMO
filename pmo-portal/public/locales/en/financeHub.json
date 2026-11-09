@@ -235,6 +235,7 @@
     "confirmBody": "This makes {{count}} drafts (total {{total}}) the live active budgets of their projects and supersedes each project’s current active version. Each is activated and recorded on its own; one refusal does not stop the others.",
     "soleOperator": "You're the only person in this organisation, so you can activate budgets you prepared yourself. Once a colleague joins, a second person will need to activate them.",
     "confirmLabel": "Activate {{count}} drafts",
+    "erpNotUpdated": "{{count}} activated but ERPNext was not updated; ask Finance or an administrator to review it.",
     "checkFailed": "Couldn't check readiness"
   }
 }

@@ -126,6 +126,18 @@ it('AC-BAD-007 a refused draft shows its own failure; the others still activate,
   expect(screen.getByText('only a Draft version can be activated')).toBeInTheDocument();
 });
 
+it('AC-BAD-007 an activation whose ERP push failed is counted and flagged, not reported as plain success', async () => {
+  h.listOrgDrafts.mockResolvedValue([draft('a'), draft('e')]);
+  h.activateVersion.mockImplementation(async (id: string) => ({ pushState: id === 'a' ? 'failed' : 'pushed' }));
+  mount();
+  await waitFor(() => expect(box(/Project e/)).not.toHaveAttribute('aria-disabled'));
+  for (const n of [/Project a/, /Project e/]) fireEvent.click(box(n));
+  fireEvent.click(screen.getByRole('button', { name: /Activate selected \(2\)/ }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Activate 2 drafts/ }));
+  expect(await screen.findByText('2 activated, 0 failed')).toBeInTheDocument();
+  expect(screen.getByText('1 activated but ERPNext was not updated; ask Finance or an administrator to review it.')).toBeInTheDocument();
+});
+
 it('AC-BAD-002 a failed readiness check is shown, never left as Checking, and cannot be ticked', async () => {
   h.precheckActivation.mockRejectedValue(new Error('edge down'));
   mount();

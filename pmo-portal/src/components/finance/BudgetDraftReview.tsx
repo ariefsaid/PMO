@@ -12,7 +12,7 @@ import type { OrgDraftBudget } from '@/src/lib/db/budgets';
 import { draftTickState } from './draftTickState';
 import { Button, Checkbox, ConfirmDialog } from '@/src/components/ui';
 
-type RowResult = { ok: true } | { ok: false; message: string };
+type RowResult = { ok: true; erpNotUpdated: boolean } | { ok: false; message: string };
 
 /**
  * Review and activate imported draft budgets in one confirmed step. Every ticked draft goes through the SAME
@@ -76,8 +76,9 @@ export function BudgetDraftReview() {
     // Sequential on purpose: each activation locks its project and pushes to the ERP; one refusal must not stop the rest.
     for (const { row } of selected) {
       try {
-        await repositories.budget.activateVersion(row.id);
-        next[row.id] = { ok: true };
+        const { pushState } = await repositories.budget.activateVersion(row.id);
+        // The activation stands; a failed ERP push is a consequence the operator must still hear about (as on the Budget tab).
+        next[row.id] = { ok: true, erpNotUpdated: pushState === 'failed' };
         safeTrack(() => trackBudgetActivated(realRole ?? 'unknown'));
       } catch (error) {
         next[row.id] = { ok: false, message: error instanceof Error ? error.message : t('draftReview.failed', 'Could not activate') };
@@ -96,6 +97,7 @@ export function BudgetDraftReview() {
   const done = Object.values(results);
   const okCount = done.filter((r) => r.ok).length;
   const failCount = done.length - okCount;
+  const erpCount = done.filter((r) => r.ok && r.erpNotUpdated).length;
 
   return (
     <section aria-labelledby="budget-draft-review" className="mb-4 rounded-lg border border-border bg-card p-4">
@@ -111,6 +113,7 @@ export function BudgetDraftReview() {
       {done.length > 0 && (
         <p role="status" className="mt-2 text-sm">
           {t('draftReview.summary', { ok: okCount, failed: failCount, defaultValue: '{{ok}} activated, {{failed}} failed' })}
+          {erpCount > 0 && <span className="block font-medium">{t('draftReview.erpNotUpdated', { count: erpCount, defaultValue: '{{count}} activated but ERPNext was not updated; ask Finance or an administrator to review it.' })}</span>}
         </p>
       )}
       <div className="mt-3 overflow-x-auto">

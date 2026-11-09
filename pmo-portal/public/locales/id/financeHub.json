@@ -235,6 +235,7 @@
     "confirmBody": "Ini menjadikan {{count}} draf (total {{total}}) sebagai anggaran aktif proyeknya masing-masing dan menggantikan versi aktif saat ini. Setiap draf diaktifkan dan dicatat sendiri-sendiri; satu penolakan tidak menghentikan yang lain.",
     "soleOperator": "Anda satu-satunya orang di organisasi ini, jadi Anda dapat mengaktifkan anggaran yang Anda siapkan sendiri. Setelah rekan bergabung, orang kedua perlu mengaktifkannya.",
     "confirmLabel": "Aktifkan {{count}} draf",
+    "erpNotUpdated": "{{count}} diaktifkan tetapi ERPNext belum diperbarui; minta Finance atau administrator untuk memeriksanya.",
     "checkFailed": "Tidak dapat memeriksa kesiapan"
   }
 }
