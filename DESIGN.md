@@ -429,8 +429,8 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   success toast keeps the one `save-pulse` ring. Bottom-right (20px offsets), clearing the mobile
   action bar.
   **Toast timing (DD-TOAST-1):** warning and error messages persist until dismissed (duration
-  ∞) because they carry remedies; info and success auto-dismiss on the library's 4s lifetime,
-  paused by hover (keyboard users reach the close control within the lifetime; alt+T lifts
+  ∞) because they carry remedies; info and success auto-dismiss after `max(4s, 60ms × characters)`,
+  capped at 10s, paused by hover (keyboard users reach the close control within the lifetime; alt+T lifts
   the stack). Every toast carries a visible, keyboard-reachable close control
   (`toast.dismiss` label). The provider mounts its polite `role="status"` and assertive
   `role="alert"` live regions once, empty, then mirrors the newest routine and newest urgent

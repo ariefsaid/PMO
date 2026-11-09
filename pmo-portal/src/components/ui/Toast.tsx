@@ -128,11 +128,11 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const resolvedKind = kind ?? (isKind(subOrKind) ? subOrKind : 'info');
       const sub = kind || !isKind(subOrKind) ? subOrKind : undefined;
       const message = [title, sub].filter(Boolean).join(' ');
-      // Warnings and errors carry remedies, so they persist until dismissed (DD-TOAST-1);
-      // routine notices ride the library's default lifetime.
+      // Warnings and errors carry remedies, so they persist until dismissed; routine notices
+      // stay max(4s, 60ms per character), capped at 10s (DD-TOAST-1).
       const id = sonnerToast[resolvedKind](title, {
         description: sub,
-        duration: isUrgentKind(resolvedKind) ? Infinity : undefined,
+        duration: isUrgentKind(resolvedKind) ? Infinity : Math.min(10_000, Math.max(4_000, 60 * message.length)),
         onDismiss: () => forget(id),
         onAutoClose: () => forget(id),
       }) as number;
@@ -216,6 +216,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         {...(overlay.drawerInset !== null ? { style: { '--toast-top-inset': `${overlay.drawerInset}px` } as React.CSSProperties } : {})}
       />
       <Toaster
+        // The two regions above own announcements; the library's own polite region would
+        // read every toast a second time.
+        ref={(section) => section?.removeAttribute('aria-live')}
         position={atTop ? 'top-right' : 'bottom-right'}
         offset={{ top: topOffset, right: '1.25rem', bottom: bottomOffset }}
         mobileOffset={{ top: topOffset, right: '1.25rem', bottom: bottomOffset }}

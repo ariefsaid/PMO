@@ -67,7 +67,13 @@ describe('Toast accessibility and timing', () => {
     expect(screen.queryByText('Saved')).not.toBeInTheDocument();
   });
 
-  it('auto-dismisses info and success on the library lifetime (4s)', () => {
+  it('announces each toast once: the library container is not a second live region', () => {
+    renderToast();
+    show('Saved', undefined, 'success');
+    expect(sonnerToasts()[0]!.closest('section')).not.toHaveAttribute('aria-live');
+  });
+
+  it('auto-dismisses info and success after max(4s, 60ms per character), capped at 10s', () => {
     renderToast();
     show('Saved', undefined, 'success');
     // show() already spent 1ms of the lifetime; 3998 more keeps it just inside 4s.
@@ -78,8 +84,18 @@ describe('Toast accessibility and timing', () => {
     act(() => vi.advanceTimersByTime(300));
     expect(sonnerToasts()).toHaveLength(0);
 
+    // 100 characters read for 6s, not the 4s floor.
+    show('a'.repeat(100), undefined, 'info');
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(sonnerToasts()).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(1_000));
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(sonnerToasts()).toHaveLength(0);
+
+    // 200 characters would be 12s: capped at 10s.
     show('a'.repeat(200), undefined, 'info');
-    act(() => vi.advanceTimersByTime(4_000));
+    act(() => vi.advanceTimersByTime(10_000));
     act(() => vi.advanceTimersByTime(300));
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
     expect(sonnerToasts()).toHaveLength(0);
