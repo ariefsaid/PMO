@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { Row as TableRow } from '@tanstack/react-table';
 import { cn } from './cn';
 import { Checkbox } from './Checkbox';
 import { RowMenu, type RowMenuItem } from './RowMenu';
@@ -30,6 +31,163 @@ function stripHiddenClasses(colClassName?: string): string {
     })
     .join(' ');
 }
+
+interface DataTableMobileCardProps<Row> {
+  row: Row;
+  rowId: string;
+  modelRow: TableRow<Row>;
+  columns: Column<Row>[];
+  targetId?: string;
+  selected: boolean;
+  isSelected: boolean;
+  accessibleRowLabel: (row: Row) => string | undefined;
+  onActivate?: (row: Row) => void;
+  canActivate: boolean;
+  rowMenu?: (row: Row) => RowMenuItem[] | undefined;
+  selection?: DataTableSelection<Row>;
+  selectionLabel: (row: Row, primaryColumn?: Column<Row>) => string;
+  mobileCardTitle?: (row: Row) => React.ReactNode;
+  mobileCardDetails?: (row: Row) => React.ReactNode;
+  fingerprint: string;
+}
+
+/** Card memo (#2102): keyed on the row DATA plus the flags that change what a card paints —
+ *  same contract as the desktop row memo. `columns` is compared by IDENTITY (closures capture
+ *  page state; only a new array can mean new semantics), callbacks are not compared. A locale
+ *  switch changes `fingerprint` (the list's own t()-built labels). */
+function mobileCardPropsEqual<Row>(a: Readonly<DataTableMobileCardProps<Row>>, b: Readonly<DataTableMobileCardProps<Row>>): boolean {
+  return a.row === b.row
+    && a.rowId === b.rowId
+    && a.targetId === b.targetId
+    && a.selected === b.selected
+    && a.isSelected === b.isSelected
+    && a.columns === b.columns
+    && a.fingerprint === b.fingerprint;
+}
+
+function DataTableMobileCardInner<Row>({
+  row,
+  rowId,
+  modelRow,
+  columns,
+  targetId,
+  selected,
+  isSelected,
+  accessibleRowLabel,
+  onActivate,
+  canActivate,
+  rowMenu,
+  selection,
+  selectionLabel,
+  mobileCardTitle,
+  mobileCardDetails,
+}: DataTableMobileCardProps<Row>) {
+  const [titleCol, ...cardCols] = columns;
+  // N10: an actions column (its own ⋯ menu) sits top-right like rowMenu, never as a trailing card line.
+  const actionCols = mobileCardDetails ? [] : cardCols.filter((col) => col.kind === 'actions');
+  const restCols = cardCols.filter((col) => !actionCols.includes(col));
+  const hasMenu = !!rowMenu;
+  const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
+  return (
+    <li
+      key={rowId}
+      id={targetId}
+      tabIndex={targetId ? -1 : undefined}
+      className={cn(
+        'relative flex min-h-[var(--table-row-min-height)] flex-col gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
+        onActivate && 'cursor-pointer',
+        selected && 'bg-surface-selected'
+      )}
+    >
+      {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+      <div className="flex items-start justify-between gap-3">
+        {/* Card title — activation button if rowLabel+onActivate supplied.
+            [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
+            overflow:hidden is a no-op on inline boxes — so a long title bleeds past
+            the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
+            descendants to block lets them clip with an ellipsis within this min-w-0
+            column, independent of text width (no font-metric-dependent 1–6px bleed). */}
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          {selection && <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
+            <Checkbox
+              checked={isSelected}
+              onChange={(checked) => modelRow.toggleSelected(checked)}
+              label={selectionLabel(row, titleCol)}
+            />
+          </span>}
+          <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+            {canActivate && onActivate ? (
+              <button
+                type="button"
+                aria-label={accessibleRowLabel(row)}
+                onClick={() => onActivate(row)}
+                className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+              >
+                {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
+              </button>
+            ) : (
+              mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
+            )}
+          </div>
+        </div>
+        {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
+        {hasMenu && menuItems.length > 0 && (
+          <div className="shrink-0">
+            <RowMenu items={menuItems} />
+          </div>
+        )}
+        {actionCols.map((col) => {
+          const content = col.cell(row);
+          return content == null || content === false ? null : <div key={col.key} data-card-actions={col.key} className="shrink-0">{content}</div>;
+        })}
+      </div>
+
+      {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
+          (null/undefined/false — e.g. a fact that only one record type carries) is left out of
+          the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
+      {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
+        <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+          {restCols.map((col) => {
+            const content = col.cell(row);
+            if (content == null || content === false) return null;
+            return (
+              <React.Fragment key={col.key}>
+                <dt
+                  className={cn(
+                    'text-[12px] font-semibold text-muted-foreground self-start',
+                    stripHiddenClasses(col.colClassName)
+                  )}
+                >
+                  {col.header}
+                </dt>
+                <dd
+                  className={cn(
+                    // [&_.truncate]:block — see the title note above: inline truncate
+                    // cells (e.g. a contact email) don't clip and bleed at 360px.
+                    'min-w-0 break-words text-control text-foreground [&_.truncate]:block',
+                    // ONE value alignment in cards: every value starts at the label
+                    // column's x — money keeps its tabular figures but loses the
+                    // desktop column's right alignment here (director fix).
+                    col.align === 'num' && 'tabular',
+                    col.align === 'center' && 'text-center',
+                    stripHiddenClasses(col.colClassName),
+                    // A cell whose desktop column stacks right-aligned (money cells
+                    // render `flex-col items-end`) left-aligns its block on cards.
+                    '[&>div]:items-start',
+                  )}
+                >
+                  {content}
+                </dd>
+              </React.Fragment>
+            );
+          })}
+        </dl>
+      )}
+    </li>
+  );
+}
+
+const DataTableMobileCard = memo(DataTableMobileCardInner, mobileCardPropsEqual) as typeof DataTableMobileCardInner;
 
 export interface DataTableMobileProps<Row> {
   columns: Column<Row>[];
@@ -82,7 +240,10 @@ export function DataTableMobile<Row>({
   mobileCardTitle,
   mobileCardDetails,
 }: DataTableMobileProps<Row>) {
-  const { t } = useTranslation('projects');
+  const { t, i18n } = useTranslation('projects');
+  // Locale stamp for the list's own t()-built labels (select-all, activation aria-labels);
+  // semantic column changes propagate through the `columns` identity comparison instead.
+  const cardFingerprint = i18n.language;
 
   return (
     /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
@@ -121,113 +282,26 @@ export function DataTableMobile<Row>({
           if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="flex min-h-[var(--table-row-min-height)] flex-wrap items-center justify-between gap-x-4 bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold text-foreground">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</li>;
           if (entry.group && collapsedGroups.has(entry.group)) return null;
           const modelRow = entry.modelRow;
-          const row = modelRow.original;
-          const key = modelRow.id;
-          const targetId = rowTarget?.(row);
-          const selected = key === selectedKey;
-          const [titleCol, ...cardCols] = columns;
-          // N10: an actions column (its own ⋯ menu) sits top-right like rowMenu, never as a trailing card line.
-          const actionCols = mobileCardDetails ? [] : cardCols.filter((col) => col.kind === 'actions');
-          const restCols = cardCols.filter((col) => !actionCols.includes(col));
-          const hasMenu = !!rowMenu;
-          const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
-
           return (
-            <li
-              key={key}
-              id={targetId}
-              tabIndex={targetId ? -1 : undefined}
-              className={cn(
-                'relative flex min-h-[var(--table-row-min-height)] flex-col gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
-                onActivate && 'cursor-pointer',
-                selected && 'bg-surface-selected'
-              )}
-            >
-              {/* Title row: first column + rowMenu ⋯ pinned top-right */}
-              <div className="flex items-start justify-between gap-3">
-                {/* Card title — activation button if rowLabel+onActivate supplied.
-                    [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
-                    overflow:hidden is a no-op on inline boxes — so a long title bleeds past
-                    the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
-                    descendants to block lets them clip with an ellipsis within this min-w-0
-                    column, independent of text width (no font-metric-dependent 1–6px bleed). */}
-                <div className="flex min-w-0 flex-1 items-start gap-2">
-                  {selection && <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
-                    <Checkbox
-                      checked={modelRow.getIsSelected()}
-                      onChange={(checked) => modelRow.toggleSelected(checked)}
-                      label={selectionLabel(row, titleCol)}
-                    />
-                  </span>}
-                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
-                    {onActivate && rowLabel ? (
-                      <button
-                        type="button"
-                        aria-label={accessibleRowLabel(row)}
-                        onClick={() => onActivate(row)}
-                        className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
-                      >
-                        {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
-                      </button>
-                    ) : (
-                      mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
-                    )}
-                  </div>
-                </div>
-                {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
-                {hasMenu && menuItems.length > 0 && (
-                  <div className="shrink-0">
-                    <RowMenu items={menuItems} />
-                  </div>
-                )}
-                {actionCols.map((col) => {
-                  const content = col.cell(row);
-                  return content == null || content === false ? null : <div key={col.key} data-card-actions={col.key} className="shrink-0">{content}</div>;
-                })}
-              </div>
-
-              {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
-                  (null/undefined/false — e.g. a fact that only one record type carries) is left out of
-                  the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-              {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
-                <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-                  {restCols.map((col) => {
-                    const content = col.cell(row);
-                    if (content == null || content === false) return null;
-                    return (
-                      <React.Fragment key={col.key}>
-                        <dt
-                          className={cn(
-                            'text-[12px] font-semibold text-muted-foreground self-start',
-                            stripHiddenClasses(col.colClassName)
-                          )}
-                        >
-                          {col.header}
-                        </dt>
-                        <dd
-                          className={cn(
-                            // [&_.truncate]:block — see the title note above: inline truncate
-                            // cells (e.g. a contact email) don't clip and bleed at 360px.
-                            'min-w-0 break-words text-control text-foreground [&_.truncate]:block',
-                            // ONE value alignment in cards: every value starts at the label
-                            // column's x — money keeps its tabular figures but loses the
-                            // desktop column's right alignment here (director fix).
-                            col.align === 'num' && 'tabular',
-                            col.align === 'center' && 'text-center',
-                            stripHiddenClasses(col.colClassName),
-                            // A cell whose desktop column stacks right-aligned (money cells
-                            // render `flex-col items-end`) left-aligns its block on cards.
-                            '[&>div]:items-start',
-                          )}
-                        >
-                          {content}
-                        </dd>
-                      </React.Fragment>
-                    );
-                  })}
-                </dl>
-              )}
-            </li>
+            <DataTableMobileCard
+              key={modelRow.id}
+              row={modelRow.original}
+              rowId={modelRow.id}
+              modelRow={modelRow}
+              columns={columns}
+              targetId={rowTarget?.(modelRow.original)}
+              selected={modelRow.id === selectedKey}
+              isSelected={modelRow.getIsSelected()}
+              accessibleRowLabel={accessibleRowLabel}
+              onActivate={onActivate}
+              canActivate={Boolean(onActivate && rowLabel)}
+              rowMenu={rowMenu}
+              selection={selection}
+              selectionLabel={selectionLabel}
+              mobileCardTitle={mobileCardTitle}
+              mobileCardDetails={mobileCardDetails}
+              fingerprint={cardFingerprint}
+            />
           );
         })
       )}

@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import type { Table } from '@tanstack/react-table';
+import React, { memo, useMemo, useRef } from 'react';
+import type { Table, Row as TableRow } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
@@ -42,6 +42,19 @@ function alignClass(align?: ColAlign) {
   if (align === 'num') return 'text-right';
   if (align === 'center') return 'text-center';
   return 'text-left';
+}
+
+/** Column keys become CSS custom-property suffixes on `<table>`; only name-safe characters survive. */
+function cssVarKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+/** A body cell's width reads a custom property set once on `<table>` (#2102): a column resize
+ *  updates one variable instead of N×M inline styles, so the memoised body never re-renders
+ *  while the user drags. A variable that is absent (never-sized column) resolves to `auto` —
+ *  exactly the rendering of the absent inline width it replaces. */
+function columnWidthVar(key: string): string {
+  return `var(--dt-w-${cssVarKey(key)})`;
 }
 
 /** Whether content is hidden to the right of the scrollport. Held OUTSIDE React state on purpose: the first
@@ -124,6 +137,306 @@ function useStickyRowMenuSeam(
   return store;
 }
 
+interface DataTableRowProps<Row> {
+  row: Row;
+  rowId: string;
+  modelRow: TableRow<Row>;
+  columns: Column<Row>[];
+  targetId?: string;
+  selected: boolean;
+  isSelected: boolean;
+  accessibleRowLabel: (row: Row) => string | undefined;
+  onActivate?: (row: Row) => void;
+  canActivate: boolean;
+  rowMenu?: (row: Row) => RowMenuItem[] | undefined;
+  selection?: DataTableSelection<Row>;
+  selectionLabel: (row: Row, primaryColumn?: Column<Row>) => string;
+  seamStore: SeamStore;
+  fingerprint: string;
+}
+
+/** Row memo (#2102): keyed on the row DATA plus the flags that change what a row paints.
+ *  `columns` is compared by IDENTITY, never content: closures capture page state (query
+ *  status, permissions, currency), and only a new array can mean new closure semantics —
+ *  a content fingerprint cannot see inside a function, and freezing one froze a money
+ *  "Unavailable" past its recovery. Pages that memoise their columns (the heavy tables)
+ *  get the full skip; a parent re-render with unchanged rows and unchanged columns re-renders
+ *  no row. A locale switch changes `fingerprint` (the table's own t()-built labels). */
+function dataTableRowPropsEqual<Row>(a: Readonly<DataTableRowProps<Row>>, b: Readonly<DataTableRowProps<Row>>): boolean {
+  return a.row === b.row
+    && a.rowId === b.rowId
+    && a.targetId === b.targetId
+    && a.selected === b.selected
+    && a.isSelected === b.isSelected
+    && a.seamStore === b.seamStore
+    && a.columns === b.columns
+    && a.fingerprint === b.fingerprint;
+}
+
+function DataTableRowInner<Row>({
+  row,
+  rowId,
+  modelRow,
+  columns,
+  targetId,
+  selected,
+  isSelected,
+  accessibleRowLabel,
+  onActivate,
+  canActivate,
+  rowMenu,
+  selection,
+  selectionLabel,
+  seamStore,
+}: DataTableRowProps<Row>) {
+  const stickyRowSurface = selected
+    ? 'bg-surface-selected'
+    : onActivate
+      ? 'bg-card group-hover:bg-surface-hover'
+      : 'bg-card';
+  return (
+    // The <tr> keeps its IMPLICIT role="row" (never role="link",
+    // which breaks table-row semantics and hides body rows from
+    // getByRole('row')). Whole-row onClick stays as a pointer
+    // convenience; the keyboard/screen-reader affordance is the
+    // real <button> rendered into the first cell when `rowLabel`
+    // is supplied (see below).
+    <tr
+      key={rowId}
+      id={targetId}
+      tabIndex={targetId ? -1 : undefined}
+      onClick={
+        onActivate
+          ? (e) => {
+            // Guard: ignore clicks that originate from interactive
+            // elements rendered INSIDE the row (inline selects,
+            // inputs, buttons, links, labels, etc.). This prevents
+            // an in-row <select> change from opening the edit modal.
+            // The first-cell activation <button> and the RowMenu
+            // wrapper already call e.stopPropagation() so they never
+            // reach here; this guard is defence-in-depth for any
+            // other interactive control added to a cell in the future.
+            if (
+              (e.target as HTMLElement).closest(
+                'button, a, select, input, textarea, label, [role="checkbox"], [role="menuitem"], [contenteditable]'
+              )
+            )
+              return;
+            onActivate(row);
+          }
+          : undefined
+      }
+      className={cn(
+        'group border-b border-border/70 last:border-b-0 transition-colors',
+        onActivate && 'cursor-pointer',
+        onActivate && !selected && 'hover:bg-surface-hover',
+        selected && 'bg-surface-selected'
+      )}
+    >
+      {selection && <td className="h-[var(--table-row-min-height)] w-10 px-2 py-2 align-middle">
+        <span onClick={(event) => event.stopPropagation()}>
+          <Checkbox
+            checked={isSelected}
+            onChange={(checked) => modelRow.toggleSelected(checked)}
+            label={selectionLabel(row, columns[0])}
+          />
+        </span>
+      </td>}
+      {columns.map((col, colIndex) => {
+        const CellTag = col.rowHeader ? 'th' : 'td';
+        return (
+          <CellTag
+            key={col.key}
+            {...(col.rowHeader ? { scope: 'row' as const } : {})}
+            style={{
+              width: columnWidthVar(col.key),
+              ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}),
+              ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}),
+            }}
+            className={cn(
+              'h-[var(--table-row-min-height)] px-[var(--table-cell-inset)] py-2 align-middle',
+              col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
+              (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
+              alignClass(col.align),
+              col.align === 'num' && 'tabular',
+              col.colClassName
+            )}
+          >
+            {colIndex === 0 && canActivate && onActivate ? (
+              <button
+                type="button"
+                aria-label={accessibleRowLabel(row)}
+                onClick={(e) => {
+                  // The <tr> onClick already activates; stop it so
+                  // the row doesn't fire onActivate twice.
+                  e.stopPropagation();
+                  onActivate(row);
+                }}
+                className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+              >
+                {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
+              </button>
+            ) : (
+              col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
+            )}
+          </CellTag>
+        );
+      })}
+      {rowMenu && (
+        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
+          <RowMenuSeam store={seamStore} />
+          {(() => {
+            const items = rowMenu(row) ?? [];
+            return items.length > 0 ? <RowMenu items={items} /> : null;
+          })()}
+        </td>
+      )}
+    </tr>
+  );
+}
+
+const DataTableRow = memo(DataTableRowInner, dataTableRowPropsEqual) as typeof DataTableRowInner;
+
+interface DataTableTableBodyProps<Row> {
+  columns: Column<Row>[];
+  groupedRows: GroupedRowEntry<Row>[];
+  collapsedGroups: Set<string>;
+  groupToggle: (key: string, count: number) => React.ReactNode;
+  groupHeader?: (label: string, rows: Row[]) => React.ReactNode;
+  groupHeaderSpan: boolean;
+  rowTarget?: (row: Row) => string | undefined;
+  selectedKey?: string;
+  accessibleRowLabel: (row: Row) => string | undefined;
+  onActivate?: (row: Row) => void;
+  rowMenu?: (row: Row) => RowMenuItem[] | undefined;
+  selection?: DataTableSelection<Row>;
+  selectionLabel: (row: Row, primaryColumn?: Column<Row>) => string;
+  state?: 'loading' | 'empty' | 'error';
+  listStateNode: React.ReactNode;
+  colSpan: number;
+  canActivate: boolean;
+  seamStore: SeamStore;
+  fingerprint: string;
+  isResizingColumn: boolean;
+  selectedVisibleSignature: string;
+}
+
+/** Entry-wise equivalence of the row list: a group heading's identity (label/count/its rows'
+ *  data) or a data row's id + row data. Ignores the per-render row-model identity — two
+ *  table-state updates that yield the same rows must not re-render the body. */
+function groupEntriesShallowEqual<Row>(a: GroupedRowEntry<Row>[], b: GroupedRowEntry<Row>[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i]!;
+    const y = b[i]!;
+    if (x.type !== y.type) return false;
+    if (x.type === 'heading' && y.type === 'heading') {
+      if (x.label !== y.label || x.count !== y.count || x.rows.length !== y.rows.length) return false;
+      for (let j = 0; j < x.rows.length; j += 1) {
+        if (x.rows[j]!.original !== y.rows[j]!.original) return false;
+      }
+    } else if (x.type === 'data' && y.type === 'data') {
+      if (x.group !== y.group || x.modelRow.id !== y.modelRow.id || x.modelRow.original !== y.modelRow.original) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** The memoised tbody (#2102, TanStack's documented resize pattern): while
+ *  `columnSizingInfo.isResizingColumn` is set, the body ALWAYS skips — widths reach it via
+ *  CSS variables on `<table>`, and freezing it is what turns a per-move render of N×M cells
+ *  into a per-move render of ~M header cells. Outside a drag it skips whenever the row list
+ *  (ids + row data), the selected row, the visible selection, the collapsed groups and the
+ *  columns identity are all unchanged — a parent re-render that changes none of them
+ *  re-renders nothing below the head. */
+function tableBodyPropsEqual<Row>(a: Readonly<DataTableTableBodyProps<Row>>, b: Readonly<DataTableTableBodyProps<Row>>): boolean {
+  if (b.isResizingColumn) return true;
+  return a.state === b.state
+    && a.selectedKey === b.selectedKey
+    && a.selectedVisibleSignature === b.selectedVisibleSignature
+    && a.collapsedGroups === b.collapsedGroups
+    && a.colSpan === b.colSpan
+    && a.groupHeaderSpan === b.groupHeaderSpan
+    && a.canActivate === b.canActivate
+    && a.listStateNode === b.listStateNode
+    && a.seamStore === b.seamStore
+    && a.columns === b.columns
+    && a.fingerprint === b.fingerprint
+    && groupEntriesShallowEqual(a.groupedRows, b.groupedRows);
+}
+
+function DataTableTableBodyInner<Row>({
+  columns,
+  groupedRows,
+  collapsedGroups,
+  groupToggle,
+  groupHeader,
+  groupHeaderSpan,
+  rowTarget,
+  selectedKey,
+  accessibleRowLabel,
+  onActivate,
+  rowMenu,
+  selection,
+  selectionLabel,
+  state,
+  listStateNode,
+  colSpan,
+  canActivate,
+  seamStore,
+  fingerprint,
+}: DataTableTableBodyProps<Row>) {
+  return (
+    <tbody>
+      {state ? (
+        <tr>
+          <td colSpan={colSpan} className="p-0">
+            {listStateNode}
+          </td>
+        </tr>
+      ) : (
+        groupedRows.map((entry, entryIndex) => {
+          if (entry.type === 'heading') return (
+            <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary">
+              {selection && <td className="px-2" />}
+              <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-[var(--table-cell-inset)] text-left text-control font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
+              {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', alignClass(column.align))} />)}
+              {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
+            </tr>
+          );
+          if (entry.group && collapsedGroups.has(entry.group)) return null;
+          const modelRow = entry.modelRow;
+          return (
+            <DataTableRow
+              key={modelRow.id}
+              row={modelRow.original}
+              rowId={modelRow.id}
+              modelRow={modelRow}
+              columns={columns}
+              targetId={rowTarget?.(modelRow.original)}
+              selected={modelRow.id === selectedKey}
+              isSelected={modelRow.getIsSelected()}
+              accessibleRowLabel={accessibleRowLabel}
+              onActivate={onActivate}
+              canActivate={canActivate}
+              rowMenu={rowMenu}
+              selection={selection}
+              selectionLabel={selectionLabel}
+              seamStore={seamStore}
+              fingerprint={fingerprint}
+            />
+          );
+        })
+      )}
+    </tbody>
+  );
+}
+
+const DataTableTableBody = memo(DataTableTableBodyInner, tableBodyPropsEqual) as typeof DataTableTableBodyInner;
+
 export interface DataTableDesktopProps<Row> {
   columns: Column<Row>[];
   table: Table<Row>;
@@ -151,6 +464,13 @@ export interface DataTableDesktopProps<Row> {
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   onSort?: (key: string) => void;
   columnSizing: Record<string, number>;
+  /** Defers the widths persistence to the gesture end (#2102): called once on mouseup/touchend
+   *  (and at each discrete keyboard step) instead of per move. */
+  persistColumnSizing: () => void;
+  /** True between a pointer resize's down and up — freezes the memoised body. */
+  isResizingColumn: boolean;
+  /** Sorted visible selected ids — lets the frozen-comparison body see selection toggles. */
+  selectedVisibleSignature: string;
   onOverflowChange?: (overflowing: boolean) => void;
 }
 
@@ -181,14 +501,31 @@ export function DataTableDesktop<Row>({
   totals,
   onSort,
   columnSizing,
+  persistColumnSizing,
+  isResizingColumn,
+  selectedVisibleSignature,
   onOverflowChange,
 }: DataTableDesktopProps<Row>) {
-  const { t } = useTranslation('projects');
+  const { t, i18n } = useTranslation('projects');
   const tableBranchRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const keyboardResizeStart = useRef<Record<string, number>>({});
 
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
+  // Width variables live once on <table> (#2102): body cells reference them, so a live resize
+  // paints through CSS without touching the memoised body. Sized = user-resized or kind default.
+  const columnSizeVars = useMemo(() => {
+    const style: Record<string, string> = {};
+    for (const column of columns) {
+      const width = columnSizing[column.key] ?? columnDefaultSize(column);
+      if (width !== undefined) style[`--dt-w-${cssVarKey(column.key)}`] = `${width}px`;
+    }
+    return style;
+  }, [columns, columnSizing]);
+  // Locale stamp for the table's own t()-built row labels (aria-labels); semantic column
+  // changes propagate through the `columns` identity comparison instead.
+  const canActivate = Boolean(onActivate && rowLabel);
+  const rowFingerprint = i18n.language;
   const seamStore = useStickyRowMenuSeam(
     tableBranchRef,
     tableRef,
@@ -219,6 +556,7 @@ export function DataTableDesktop<Row>({
         ref={tableRef}
         aria-label={accessibleName}
         style={{
+          ...columnSizeVars,
           ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
         }}
         className="w-full border-collapse text-control"
@@ -244,7 +582,7 @@ export function DataTableDesktop<Row>({
                   aria-labelledby={`datatable-header-label-${tableInstanceId}-${col.key}`}
                   aria-describedby={col.caveat ? caveatId : undefined}
                   style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
-                    ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
+                    ? { width: columnWidthVar(col.key), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                     : undefined}
                   className={cn(
                     'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground whitespace-nowrap select-none',
@@ -285,11 +623,17 @@ export function DataTableDesktop<Row>({
                         onMouseDown={(event) => {
                           const startX = event.clientX;
                           const startWidth = header.getSize();
+                          // TanStack resize pattern (#2102): flag the drag so the memoised body
+                          // freezes; widths still paint live through the <table> CSS variables.
+                          table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: header.column.id }));
                           const resize = (clientX: number) => table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
                           const move = (moveEvent: MouseEvent) => resize(moveEvent.clientX);
                           const stop = () => {
                             window.removeEventListener('mousemove', move);
                             window.removeEventListener('mouseup', stop);
+                            table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: false }));
+                            // One persisted write per gesture, here on release — never per move.
+                            persistColumnSizing();
                           };
                           window.addEventListener('mousemove', move);
                           window.addEventListener('mouseup', stop, { once: true });
@@ -298,6 +642,7 @@ export function DataTableDesktop<Row>({
                           const startX = event.touches[0]?.clientX;
                           if (startX === undefined) return;
                           const startWidth = header.getSize();
+                          table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: header.column.id }));
                           const move = (moveEvent: TouchEvent) => {
                             const clientX = moveEvent.touches[0]?.clientX;
                             if (clientX !== undefined) table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
@@ -305,11 +650,18 @@ export function DataTableDesktop<Row>({
                           const stop = () => {
                             window.removeEventListener('touchmove', move);
                             window.removeEventListener('touchend', stop);
+                            table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: false }));
+                            // One persisted write per gesture, here on release — never per move.
+                            persistColumnSizing();
                           };
                           window.addEventListener('touchmove', move, { passive: true });
                           window.addEventListener('touchend', stop, { once: true });
                         }}
-                        onDoubleClick={() => header.column.resetSize()}
+                        onDoubleClick={() => {
+                          header.column.resetSize();
+                          // Double-click reset is a discrete step like a keypress: persist now.
+                          persistColumnSizing();
+                        }}
                         onKeyDown={(event) => {
                           const current = header.getSize();
                           let next: number | undefined;
@@ -320,16 +672,20 @@ export function DataTableDesktop<Row>({
                           if (next !== undefined) {
                             event.preventDefault();
                             table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
+                            // A keypress is a complete, discrete resize step — persist it now.
+                            persistColumnSizing();
                           } else if (event.key === 'Enter') {
                             event.preventDefault();
                             header.column.resetSize();
                             keyboardResizeStart.current[col.key] = columnDefaultSize(col) ?? header.column.getSize();
+                            persistColumnSizing();
                           } else if (event.key === 'Escape') {
                             const start = keyboardResizeStart.current[col.key];
                             if (start !== undefined) {
                               event.preventDefault();
                               table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: start }));
                               keyboardResizeStart.current[col.key] = start;
+                              persistColumnSizing();
                             }
                           }
                         }}
@@ -352,136 +708,29 @@ export function DataTableDesktop<Row>({
             )}
           </tr>
         </thead>
-        <tbody>
-          {state ? (
-            <tr>
-              <td colSpan={colSpan} className="p-0">
-                {listStateNode}
-              </td>
-            </tr>
-          ) : (
-            groupedRows.map((entry, entryIndex) => {
-              if (entry.type === 'heading') return (
-                <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary">
-                  {selection && <td className="px-2" />}
-                  <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-[var(--table-cell-inset)] text-left text-control font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
-                  {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', alignClass(column.align))} />)}
-                  {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
-                </tr>
-              );
-              if (entry.group && collapsedGroups.has(entry.group)) return null;
-              const modelRow = entry.modelRow;
-              const row = modelRow.original;
-              const key = modelRow.id;
-              const targetId = rowTarget?.(row);
-              const selected = key === selectedKey;
-              const stickyRowSurface = selected
-                ? 'bg-surface-selected'
-                : onActivate
-                  ? 'bg-card group-hover:bg-surface-hover'
-                  : 'bg-card';
-              // The <tr> keeps its IMPLICIT role="row" (never role="link",
-              // which breaks table-row semantics and hides body rows from
-              // getByRole('row')). Whole-row onClick stays as a pointer
-              // convenience; the keyboard/screen-reader affordance is the
-              // real <button> rendered into the first cell when `rowLabel`
-              // is supplied (see below).
-              return (
-                <tr
-                  key={key}
-                  id={targetId}
-                  tabIndex={targetId ? -1 : undefined}
-                  onClick={
-                    onActivate
-                      ? (e) => {
-                          // Guard: ignore clicks that originate from interactive
-                          // elements rendered INSIDE the row (inline selects,
-                          // inputs, buttons, links, labels, etc.). This prevents
-                          // an in-row <select> change from opening the edit modal.
-                          // The first-cell activation <button> and the RowMenu
-                          // wrapper already call e.stopPropagation() so they never
-                          // reach here; this guard is defence-in-depth for any
-                          // other interactive control added to a cell in the future.
-                          if (
-                            (e.target as HTMLElement).closest(
-                              'button, a, select, input, textarea, label, [role="checkbox"], [role="menuitem"], [contenteditable]'
-                            )
-                          )
-                            return;
-                          onActivate(row);
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    'group border-b border-border/70 last:border-b-0 transition-colors',
-                    onActivate && 'cursor-pointer',
-                    onActivate && !selected && 'hover:bg-surface-hover',
-                    selected && 'bg-surface-selected'
-                  )}
-                >
-                  {selection && <td className="h-[var(--table-row-min-height)] w-10 px-2 py-2 align-middle">
-                    <span onClick={(event) => event.stopPropagation()}>
-                      <Checkbox
-                        checked={modelRow.getIsSelected()}
-                        onChange={(checked) => modelRow.toggleSelected(checked)}
-                        label={selectionLabel(row, columns[0])}
-                      />
-                    </span>
-                  </td>}
-                  {modelRow.getVisibleCells().map((cell, colIndex) => {
-                    const col = columns.find((column) => column.key === cell.column.id)!;
-                    const activatable = onActivate && rowLabel && colIndex === 0;
-                    const CellTag = col.rowHeader ? 'th' : 'td';
-                    return (
-                      <CellTag
-                        key={col.key}
-                        {...(col.rowHeader ? { scope: 'row' as const } : {})}
-                        style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
-                          ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
-                          : undefined}
-                        className={cn(
-                          'h-[var(--table-row-min-height)] px-[var(--table-cell-inset)] py-2 align-middle',
-                          col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
-                          (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
-                          alignClass(col.align),
-                          col.align === 'num' && 'tabular',
-                          col.colClassName
-                        )}
-                      >
-                        {activatable ? (
-                          <button
-                            type="button"
-                            aria-label={accessibleRowLabel(row)}
-                            onClick={(e) => {
-                              // The <tr> onClick already activates; stop it so
-                              // the row doesn't fire onActivate twice.
-                              e.stopPropagation();
-                              onActivate(row);
-                            }}
-                            className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
-                          >
-                            {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
-                          </button>
-                        ) : (
-                          col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
-                        )}
-                      </CellTag>
-                    );
-                  })}
-                  {rowMenu && (
-                    <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
-                      <RowMenuSeam store={seamStore} />
-                      {(() => {
-                        const items = rowMenu(row) ?? [];
-                        return items.length > 0 ? <RowMenu items={items} /> : null;
-                      })()}
-                    </td>
-                  )}
-                </tr>
-              );
-            })
-          )}
-        </tbody>
+        <DataTableTableBody
+          columns={columns}
+          groupedRows={groupedRows}
+          collapsedGroups={collapsedGroups}
+          groupToggle={groupToggle}
+          groupHeader={groupHeader}
+          groupHeaderSpan={groupHeaderSpan}
+          rowTarget={rowTarget}
+          selectedKey={selectedKey}
+          accessibleRowLabel={accessibleRowLabel}
+          onActivate={onActivate}
+          rowMenu={rowMenu}
+          selection={selection}
+          selectionLabel={selectionLabel}
+          state={state}
+          listStateNode={listStateNode}
+          colSpan={colSpan}
+          canActivate={canActivate}
+          seamStore={seamStore}
+          fingerprint={rowFingerprint}
+          isResizingColumn={isResizingColumn}
+          selectedVisibleSignature={selectedVisibleSignature}
+        />
         {totals && totals.length > 0 && <tfoot>
           {totals.map((total) => <tr key={total.key} className="h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary font-semibold tabular">
             {selection && <td />}

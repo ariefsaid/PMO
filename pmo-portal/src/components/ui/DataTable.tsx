@@ -226,7 +226,7 @@ export function DataTable<Row>({
   const { t } = useTranslation('projects');
   const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
   const userId = useContext(AuthContext)?.currentUser?.id;
-  const { columnSizing, onColumnSizingChange } = useTableColumnSizing(
+  const { columnSizing, onColumnSizingChange, persistColumnSizing } = useTableColumnSizing(
     tableId,
     userId,
     columns as Column<unknown>[],
@@ -300,6 +300,10 @@ export function DataTable<Row>({
     onColumnSizingChange,
   });
   const modelRows = table.getRowModel().rows;
+  // True only between a pointer resize's down and up (#2102): the body freezes while the
+  // drag moves (widths travel via CSS variables on <table>), so per-move renders touch the
+  // ~10 header cells and never the 200×N body cells.
+  const isResizingColumn = Boolean(table.getState().columnSizingInfo.isResizingColumn);
   const toggleGroup = (group: string) => setCollapsedGroups((current) => {
     const next = new Set(current);
     if (next.has(group)) next.delete(group);
@@ -327,6 +331,12 @@ export function DataTable<Row>({
   // Select-all acts on the rows the user can see: a collapsed group's rows, and rows outside `rows`, keep their state.
   const visibleSelectionIds = groupedRows.flatMap((entry) =>
     entry.type !== 'data' || (entry.group && collapsedGroups.has(entry.group)) ? [] : [entry.modelRow.id]);
+  // Cheap primitive for the memoised body (#2102): which visible rows are selected. The body
+  // paints checkboxes from `modelRow.getIsSelected()` inside its own render, so without this
+  // signature a frozen body would never repaint a selection toggle.
+  const selectedVisibleSignature = selection
+    ? visibleSelectionIds.filter((id) => selection.selectedIds.has(id)).sort().join(',')
+    : '';
   const visibleSelectionCount = visibleSelectionIds.filter((id) => selection?.selectedIds.has(id)).length;
   const selectAllChecked: boolean | 'mixed' = visibleSelectionCount === 0
     ? false
@@ -398,6 +408,9 @@ export function DataTable<Row>({
           totals={totals}
           onSort={onSort}
           columnSizing={columnSizing}
+          persistColumnSizing={persistColumnSizing}
+          isResizingColumn={isResizingColumn}
+          selectedVisibleSignature={selectedVisibleSignature}
           onOverflowChange={onOverflowChange}
         />
       ) : (
