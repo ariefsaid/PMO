@@ -65,4 +65,21 @@ describe('Management pack money display (#1260, #1437)', () => {
     expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
+
+  it.each([
+    ['earned', 'Earned value'],
+    ['progress', 'Percent complete'],
+  ] as const)('AC-1279: a contract row recognised on the %s basis says so in the Earned cell', (basis, label) => {
+    state.pack = report();
+    state.pack.rows[0].months[0].basis = basis;
+    renderPage();
+    expect(within(screen.getByTestId('pack-cell-recognisedToDate')).getByText(label)).toBeInTheDocument();
+  });
+
+  it('AC-1279: an invoiced-basis row shows no basis marker', () => {
+    renderPage();
+    const cell = screen.getByTestId('pack-cell-recognisedToDate');
+    expect(within(cell).queryByText('Earned value')).not.toBeInTheDocument();
+    expect(within(cell).queryByText('Percent complete')).not.toBeInTheDocument();
+  });
 });
