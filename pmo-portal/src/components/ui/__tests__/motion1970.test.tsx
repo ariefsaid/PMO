@@ -23,7 +23,8 @@ describe('#1970 motion', () => {
 
   it('exit tokens are about 20% shorter than their entrances', () => {
     const ms = (n: string) => Number(new RegExp(`--motion-${n}:\\s*(\\d+)ms`).exec(css)?.[1]);
-    for (const k of ['dialog', 'sheet', 'drawer', 'toast']) {
+    // Toast motion moved to the library (Sonner owns entrance/exit and reduced-motion).
+    for (const k of ['dialog', 'sheet', 'drawer']) {
       const ratio = ms(`${k}-out`) / ms(`${k}-in`);
       expect(ratio).toBeGreaterThan(0.75);
       expect(ratio).toBeLessThan(0.85);

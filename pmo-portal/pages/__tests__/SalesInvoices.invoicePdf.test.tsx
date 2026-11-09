@@ -1,6 +1,7 @@
 /** #912 — "Download PDF" on the Sales Invoices list (AC-PDF-003 offering, AC-PDF-011 behaviour). */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -78,15 +79,18 @@ async function rowFor(siNumber: string): Promise<HTMLElement> {
   return row;
 }
 
-/** The live announcement and its visible variant, preserving the message and classification oracles. */
+/** The live announcement and its visible variant, preserving the message and classification oracles.
+ *  The visible variant is the library's stacked toast element; its data-type carries the kind. */
 async function toastWith(text: RegExp | string, role: 'status' | 'alert' = 'status'): Promise<{ el: HTMLElement; kind: 'info' | 'success' | 'warning' | undefined }> {
   const el = await findToastAnnouncement(role, text);
-  const visuals = document.querySelectorAll<HTMLElement>('.toast-anim');
-  if (visuals.length !== 1) throw new Error(`expected one visible toast, found ${visuals.length}`);
-  const visual = visuals[0];
-  const kind = (['info', 'success', 'warning'] as const).find((k) =>
-    visual.className.includes({ info: '[&_svg]:text-muted-foreground', success: '[&_svg]:text-success', warning: '[&_svg]:text-warning-foreground' }[k]),
-  );
+  const visual = await waitFor(() => {
+    const toasts = Array.from(document.querySelectorAll<HTMLElement>('[data-sonner-toast]'));
+    const match = toasts.find((li) =>
+      typeof text === 'string' ? (li.textContent ?? '').includes(text) : text.test(li.textContent ?? ''));
+    expect(match, `expected a visible toast matching ${String(text)}`).toBeDefined();
+    return match!;
+  });
+  const kind = visual.getAttribute('data-type') as 'info' | 'success' | 'warning' | undefined;
   return { el, kind };
 }
 
@@ -103,6 +107,11 @@ async function offersDownload(user: ReturnType<typeof userEvent.setup>, siNumber
   await user.keyboard('{Escape}');
   return offered;
 }
+
+afterEach(() => {
+  // The library's store replays still-active toasts into the next provider — clear them.
+  act(() => { sonnerToast.dismiss(); });
+});
 
 beforeEach(() => {
   revenue.listInvoices.mockResolvedValue(ROWS);

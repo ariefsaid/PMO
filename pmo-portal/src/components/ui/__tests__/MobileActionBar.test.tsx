@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MobileActionBar } from '../MobileActionBar';
 import { ToastProvider, useToast } from '../Toast';
@@ -84,7 +84,7 @@ describe('MobileActionBar #953', () => {
     expect(document.documentElement.style.getPropertyValue('--mobile-action-bar-height')).toBe('64px');
   });
 
-  it('#953 publishes the tallest active bar, offsets persistent toasts, tracks resizing, and clears on unmount', () => {
+  it('#953 publishes the tallest active bar, offsets persistent toasts, tracks resizing, and clears on unmount', async () => {
     const view = render(
       <ToastProvider>
         <MobileActionBar data-testid="first-bar">First action</MobileActionBar>
@@ -105,12 +105,11 @@ describe('MobileActionBar #953', () => {
     expect(document.documentElement.style.getPropertyValue('--mobile-action-bar-height')).toBe('88px');
 
     act(() => screen.getByRole('button', { name: 'Show warning' }).click());
-    const toast = document.querySelector('[data-toast="visible"]') as HTMLElement;
-    expect(toast).toHaveTextContent('Needs attention');
-    expect(toast.parentElement).toHaveClass('max-w-[min(360px,calc(100vw-40px))]');
-    expect(toast.parentElement?.parentElement?.parentElement).toHaveStyle({
-      transform: 'translateY(calc(0px - var(--mobile-action-bar-height, 0px)))',
-    });
+    // The stack clears the mobile action bar: its bottom offsets consume the bar-height var.
+    await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).not.toBeNull());
+    const toaster = document.querySelector<HTMLElement>('[data-sonner-toaster]')!;
+    expect(toaster.style.getPropertyValue('--offset-bottom')).toContain('var(--mobile-action-bar-height, 0px)');
+    expect(toaster.style.getPropertyValue('--mobile-offset-bottom')).toContain('var(--mobile-action-bar-height, 0px)');
 
     secondHeight = 112;
     act(() => TestResizeObserver.instances[1].trigger(second));

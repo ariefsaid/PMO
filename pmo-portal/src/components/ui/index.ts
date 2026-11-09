@@ -32,7 +32,7 @@ export { ProgressBar, type ProgressBarProps, type ProgressTone } from './Progres
 export { ListState, type ListStateProps } from './ListState';
 export { WhenNearViewport, type WhenNearViewportProps } from './WhenNearViewport';
 export { Tooltip, type TooltipProps } from './Tooltip';
-export { ToastProvider, ToastView, useToast, type ToastKind } from './Toast';
+export { ToastProvider, useToast, type ToastKind } from './Toast';
 export {
   ConfirmDialog,
   type ConfirmDialogProps,

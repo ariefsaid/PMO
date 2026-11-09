@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -65,6 +66,12 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 }));
 
 import ContactDetail from '../ContactDetail';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const baseContact = {
   id: 'ct-1',

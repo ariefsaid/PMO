@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -11,6 +12,12 @@ import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
 import { BahasaProvider } from '@/test/bahasa';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 vi.mock('@/src/components/fx/FxEquivalent', () => ({
   default: () => (
