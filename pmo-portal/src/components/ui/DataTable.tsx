@@ -82,6 +82,18 @@ export interface DataTableSelection<Row> {
 
 export interface DataTableProps<Row> {
   rows: Row[];
+  /**
+   * The table's column list. ⚑ **Memoised pages contract (#2102).** A row/card re-renders only
+   * when its data, its selection/target flags, a locale switch, or this ARRAY's IDENTITY
+   * changes; `rowMenu`, `onActivate`, `rowLabel`, `mobileCardTitle`, `mobileCardDetails` and
+   * the `rowKey`/`selectionLabel` closures are compared by PRESENCE only, never by identity.
+   * So a cell may read page state (query status, permissions, currency, a "Unavailable" money
+   * state) only through the closures it captures while this array is built: if that state can
+   * change between renders, rebuild the array (`useMemo` over those values) — an unchanged
+   * array with changed semantics will NOT repaint the rows, which is exactly the stale-closure
+   * bug the memo trades against the per-render cost. Pages that build columns inline in the
+   * render body opt out of the skip: every parent re-render then repaints every row.
+   */
   columns: Column<Row>[];
   rowKey: (row: Row) => string;
   /** Click/Enter on a row (drill-down). */
@@ -333,9 +345,10 @@ export function DataTable<Row>({
     entry.type !== 'data' || (entry.group && collapsedGroups.has(entry.group)) ? [] : [entry.modelRow.id]);
   // Cheap primitive for the memoised body (#2102): which visible rows are selected. The body
   // paints checkboxes from `modelRow.getIsSelected()` inside its own render, so without this
-  // signature a frozen body would never repaint a selection toggle.
+  // signature a frozen body would never repaint a selection toggle. `\u0000` cannot appear in a
+  // row id, so it is a safe joiner (a comma would collide `{'a,b'}` with `{'a','b'}`).
   const selectedVisibleSignature = selection
-    ? visibleSelectionIds.filter((id) => selection.selectedIds.has(id)).sort().join(',')
+    ? visibleSelectionIds.filter((id) => selection.selectedIds.has(id)).sort().join('\u0000')
     : '';
   const visibleSelectionCount = visibleSelectionIds.filter((id) => selection?.selectedIds.has(id)).length;
   const selectAllChecked: boolean | 'mixed' = visibleSelectionCount === 0

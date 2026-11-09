@@ -48,6 +48,14 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloatChoices: () => ({ data: [] }) }));
 
+/** AC2 at PAGE level (#2102): the real `DataTable` with every cell wrapped in a render tally. */
+const dataTableCells = vi.hoisted(() => ({ cells: [] as string[] }));
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const { countingDataTable } = await import('@/src/components/ui/__tests__/helpers/countingDataTable');
+  return { ...actual, DataTable: countingDataTable(actual.DataTable, dataTableCells.cells) };
+});
+
 import ExpenseClaims from './ExpenseClaims';
 
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: 'ready', retry: vi.fn() }) }));
@@ -127,5 +135,25 @@ describe('ExpenseClaims page', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
     expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
     expect(h.capture.capture).not.toHaveBeenCalled();
+  });
+
+  it('AC-PERF-2102: a 200-row page re-rendering for a filter change repaints no cell (its columns are memoised)', async () => {
+    h.list.data = {
+      rows: Array.from({ length: 200 }, (_, index) => ({
+        ...ROW,
+        id: `c${index}`,
+        claim_number: `EXP-261006${String(index).padStart(4, '0')}`,
+        title: `Site visit ${index}`,
+      })),
+      truncated: false,
+    };
+    renderPage();
+    expect(screen.getAllByRole('row').length).toBeGreaterThan(200);
+
+    dataTableCells.cells.length = 0;
+    // The status filter is page state (it re-renders the page and the URL); the rows the mocked
+    // hook returns do not change, so not one cell may run again.
+    await userEvent.selectOptions(screen.getAllByRole('combobox', { name: 'Status' })[0]!, 'Approved');
+    expect(dataTableCells.cells).toEqual([]);
   });
 });

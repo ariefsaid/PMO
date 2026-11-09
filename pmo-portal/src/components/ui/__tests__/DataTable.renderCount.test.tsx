@@ -103,7 +103,7 @@ describe('DataTable render count (desktop sticky seam)', () => {
     expect(cell).toHaveBeenCalledTimes(rows.length);
   });
 
-  it('AC-TBL-STICKY-001 tracks a data change: seam appears when rows widen the table past the scrollport, disappears when a smaller page fits, and the flips add no body render', () => {
+  it('AC-TBL-STICKY-001 tracks the rows: the seam appears when they widen the table past the scrollport and disappears when a smaller page fits; the shrink repaints nothing and the flips add no body render', () => {
     TestResizeObserver.instances = [];
     vi.stubGlobal('ResizeObserver', TestResizeObserver);
     const metrics = stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
@@ -123,16 +123,32 @@ describe('DataTable render count (desktop sticky seam)', () => {
     expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(rows.length + 1);
     expect(cell).toHaveBeenCalledTimes(rows.length); // a measurement flip alone re-renders no body row
 
-    metrics.scrollWidth = 300; // next page is one changed row that fits (#2102 row memo:
-    // the row's DATA changes, so its cell re-runs — an unchanged row would correctly skip)
-    rerender(<DataTable rows={[{ ...rows[0], name: 'Renamed' }]} columns={columns} rowKey={(r) => r.id} rowMenu={rowMenu} />);
-    // The data change itself re-renders the body exactly once (the surviving row's cell)...
-    expect(screen.getByText('Renamed')).toBeInTheDocument();
-    expect(cell).toHaveBeenCalledTimes(rows.length + 1);
+    metrics.scrollWidth = 300; // next page shrinks to one UNCHANGED row (the same object) that fits
+    rerender(<DataTable rows={[rows[0]!]} columns={columns} rowKey={(r) => r.id} rowMenu={rowMenu} />);
+    // The shrink removes two rows and repaints NONE of them (#2102 row memo: untouched data)…
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+    expect(cell).toHaveBeenCalledTimes(rows.length);
     act(() => { TestResizeObserver.instances[0].trigger(); });
     expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
     expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(0);
     // ...and the seam flip adds nothing.
-    expect(cell).toHaveBeenCalledTimes(rows.length + 1);
+    expect(cell).toHaveBeenCalledTimes(rows.length);
+  });
+
+  it('#2102 row memo: a list shrink paints the surviving row without re-running its cell', () => {
+    stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+    const cell = vi.fn((r: Row) => r.name);
+    const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell }];
+    const { rerender } = render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
+    expect(screen.getAllByRole('row')).toHaveLength(rows.length + 1); // header + 3
+    expect(cell).toHaveBeenCalledTimes(rows.length);
+
+    // The surviving row is the SAME object, so the shrink removes two rows and repaints none.
+    rerender(<DataTable rows={[rows[0]!]} columns={columns} rowKey={(r) => r.id} />);
+    expect(screen.getAllByRole('row')).toHaveLength(2); // header + the survivor
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+    expect(cell).toHaveBeenCalledTimes(rows.length);
   });
 });

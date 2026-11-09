@@ -193,7 +193,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
-  const receiptAwaitingOdooForInvoice = (inv: SalesInvoiceRow) => paymentRows.some((payment) =>
+  // Both callbacks are memoised so the columns built below can depend on them (#2102 AC2): the
+  // row memo keys on the columns array's identity, and an unstable callback would rebuild it on
+  // every render. Only their real inputs may change their identity.
+  const receiptAwaitingOdooForInvoice = useCallback((inv: SalesInvoiceRow) => paymentRows.some((payment) =>
     (payment.sales_invoice_id === inv.id || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === inv.id)))
     && invoiceReceiptAwaitingOdoo({
       invoiceStatus: inv.status,
@@ -207,8 +210,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       receiptCommandExternalRef: payment.push_command_external_record_id,
       receiptCommandRecordedReadBack: (payment.push_command_matched_payment_refs?.length ?? 0) > 0,
     }),
-  );
-  const invoiceStatus = (inv: SalesInvoiceRow) => {
+  ), [paymentRows]);
+  const invoiceStatus = useCallback((inv: SalesInvoiceRow) => {
     const command = (odooCommands.data ?? []).find((row) => row.kind === 'sales-invoice' && row.recordId === inv.id);
     const externalOutcome = odoo ? deriveOdooOutcome({
       erpState: inv.odoo_state,
@@ -261,7 +264,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     });
     if (inv.status === 'Submitted') return result({ label: t('finance:receivables.statusSubmitted', 'Submitted'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
     return result({ label: t('finance:receivables.statusUnpaid', 'Unpaid · not yet due'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
-  };
+  }, [canApproveDraft, odooCommands.data, odoo, odooOffline, organizationToday, receiptAwaitingOdooForInvoice, t]);
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -499,6 +502,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     return majority && isTaxTreatment(majority[0]) ? majority[0] : null;
   }, [embedded, sortedInvoices]);
 
+  // Memoised as ONE unit (#2102 AC2): the table's row memo keys on this array's identity, so a
+  // toast, a menu open or a search keystroke must not rebuild it. Every input that can change what
+  // a cell paints is a dependency — a new array is what tells the rows their closures are new.
+  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = useMemo(
+    () => salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }),
+    [t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus],
+  );
+
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
     : isError || !data
@@ -526,7 +537,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending || unlisted.isFetching} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
-  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
     : groupMode === 'project'

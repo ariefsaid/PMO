@@ -116,8 +116,36 @@ const Companies: React.FC = () => {
   const canDelete = ownership.mode === 'pmo' && may('delete', 'company');
   const canRowWrite = canEdit || canArchive || canDelete;
 
-  const typeLabel = typeLabels(t);
+  // `typeLabels(t)` builds the enum→label map; memoised so the columns below can depend on it
+  // without being rebuilt on every render (#2102 AC2). Only a language change rebuilds it.
+  const typeLabel = useMemo(() => typeLabels(t), [t]);
   const filterLabel = (f: TypeFilter) => (f === 'All' ? t('companies.filters.all', 'All') : typeLabel[f]);
+
+  // Memoised columns (#2102 AC2): the row memo keys on this array's identity — a toast, a menu
+  // open or typing in search must not rebuild it, or every row repaints.
+  const columns = useMemo<Column<CompanyListRow>[]>(() => [
+    {
+      key: 'name',
+      header: t('companies.columns.name', 'Company'),
+      cell: (c) => (
+        <div className="min-w-0" title={c.name}>
+          <span className="block truncate font-semibold">{companyDisplayName(c)}</span>
+          {c.short_name?.trim() && c.short_name.trim() !== c.name && (
+            <span className="block truncate text-xs text-muted-foreground">{c.name}</span>
+          )}
+        </div>
+      ),
+      exportValue: (c) => c.name,
+    },
+    {
+      key: 'type',
+      // The pill reads the localised LABEL; `exportValue` keeps the raw enum so a spreadsheet
+      // round-trips back into the same filter/import values regardless of the viewer's language.
+      header: t('companies.columns.type', 'Type'),
+      cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{typeLabel[c.type]}</StatusPill>,
+      exportValue: (c) => c.type,
+    },
+  ], [t, typeLabel]);
 
   // AC-LRC-012 (server-page form): the DataTable's `empty` branch below (with `clearFilters`)
   // only ever renders when the DIRECTORY holds rows (`unfiltered` false ⇒ the zero-match is a
@@ -147,30 +175,6 @@ const Companies: React.FC = () => {
       />
     );
   }
-
-  const columns: Column<CompanyListRow>[] = [
-    {
-      key: 'name',
-      header: t('companies.columns.name', 'Company'),
-      cell: (c) => (
-        <div className="min-w-0" title={c.name}>
-          <span className="block truncate font-semibold">{companyDisplayName(c)}</span>
-          {c.short_name?.trim() && c.short_name.trim() !== c.name && (
-            <span className="block truncate text-xs text-muted-foreground">{c.name}</span>
-          )}
-        </div>
-      ),
-      exportValue: (c) => c.name,
-    },
-    {
-      key: 'type',
-      // The pill reads the localised LABEL; `exportValue` keeps the raw enum so a spreadsheet
-      // round-trips back into the same filter/import values regardless of the viewer's language.
-      header: t('companies.columns.type', 'Type'),
-      cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{typeLabel[c.type]}</StatusPill>,
-      exportValue: (c) => c.type,
-    },
-  ];
 
   const rowMenu = (c: CompanyListRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];

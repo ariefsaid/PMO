@@ -146,6 +146,65 @@ describe('DataTable column resizing', () => {
     expect(separator).toHaveAttribute('aria-valuenow', '180');
   });
 
+  it('AC-TBL-RESIZE-001: widths travel as --dt-w-<key> custom properties on the table, and a keyboard step updates the variable rather than repainting a body cell', () => {
+    desktop();
+    const cell = vi.fn((row: Row) => row.name);
+    const countingColumns: Column<Row>[] = [
+      { key: 'name', header: 'Project', cell, size: 180, minSize: 120, maxSize: 240 },
+      { key: 'amount', header: 'Amount', cell: (row) => row.amount, align: 'num', size: 100, minSize: 80, maxSize: 140 },
+    ];
+    renderTable({ rows, columns: countingColumns, rowKey: (row) => row.id, tableId: 'resize-vars' });
+    const table = screen.getByRole('table');
+    const firstBodyCell = () => screen.getAllByRole('row')[1]!.querySelector('td')!;
+    // Mount: the sized width is a variable on <table>, and the body cell only references it.
+    expect(table.style.getPropertyValue('--dt-w-name')).toBe('180px');
+    expect(firstBodyCell().style.width).toBe('var(--dt-w-name)');
+    expect(cell).toHaveBeenCalledTimes(rows.length);
+
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize Project column' }), { key: 'ArrowRight' });
+    expect(table.style.getPropertyValue('--dt-w-name')).toBe('196px');
+    // The body cell didn't need to re-render: the same DOM node now paints 196px through CSS.
+    expect(cell).toHaveBeenCalledTimes(rows.length);
+  });
+
+  it('AC-TBL-RESIZE-001: an unsized column defines its width variable as auto (never absent) and still renders as before', () => {
+    desktop();
+    renderTable({
+      rows,
+      columns: columns.map(({ size: _size, minSize: _min, maxSize: _max, ...column }) => column),
+      rowKey: (row) => row.id,
+      tableId: 'resize-vars-unsized',
+    });
+    // Custom properties inherit: an absent variable could be picked up from an enclosing table,
+    // so an unsized column is defined explicitly as `auto`.
+    expect(screen.getByRole('table').style.getPropertyValue('--dt-w-name')).toBe('auto');
+    expect(screen.getAllByRole('cell').map((td) => (td as HTMLElement).style.width)).toEqual(['var(--dt-w-name)', 'var(--dt-w-amount)']);
+  });
+
+  it('AC-TBL-RESIZE-001: the widths change leaves the totals row and a CSS-hidden column exactly as they were', () => {
+    desktop();
+    const tableColumns: Column<Row>[] = [
+      { key: 'name', header: 'Project', cell: (row) => row.name, size: 180 },
+      { key: 'amount', header: 'Amount', cell: (row) => row.amount, align: 'num', size: 100 },
+      { key: 'age', header: 'Age', cell: () => '3d', colClassName: 'hidden' },
+    ];
+    renderTable({
+      rows,
+      columns: tableColumns,
+      rowKey: (row) => row.id,
+      tableId: 'resize-totals',
+      totals: [{ key: 'total', label: 'Total', values: { amount: '420' } }],
+    });
+    const totalRow = screen.getAllByRole('row').at(-1)!;
+    expect(within(totalRow).getByText('Total')).toBeInTheDocument();
+    expect(within(totalRow).getByText('420')).toBeInTheDocument();
+    const ageHeader = screen.getByRole('columnheader', { name: 'Age' });
+    expect(ageHeader).toHaveClass('hidden');
+    const ageCell = screen.getAllByRole('row')[1]!.querySelectorAll('td')[2] as HTMLElement;
+    expect(ageCell).toHaveClass('hidden');
+    expect(ageCell.style.width).toBe('var(--dt-w-age)');
+  });
+
   it('does not impose heuristic widths on columns without caller sizing', () => {
     desktop();
     renderTable({ rows, columns: columns.map(({ size: _size, minSize: _min, maxSize: _max, ...column }) => column), rowKey: (row) => row.id });

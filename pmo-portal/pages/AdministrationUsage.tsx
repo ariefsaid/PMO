@@ -31,6 +31,46 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   isError,
   onRetry,
 }) => {
+  // AC-USE-003: the margin column renders ONLY when at least one row has a computed margin
+  // (CREDITS_PER_USD set server-side); otherwise it is hidden entirely (not shown as all-dashes).
+  const hasMargin = rows.some((r) => r.margin_usd !== null);
+  // AC-USE-007: Provider cost is Operator-only — org_usage_summary() rows never carry
+  // provider_cost_usd at all, so its presence on the FIRST row is the structural signal (every row
+  // in a given render comes from the same RPC/persona; a mixed shape can't occur in practice).
+  const hasProviderCost = rows.length > 0 && 'provider_cost_usd' in rows[0];
+  // Memoised columns (#2102 AC2): the row memo keys on this array's identity, and these two
+  // derivations are the only inputs that change what a row can paint. Kept above the early
+  // returns below so the hook order is stable across loading/error/empty.
+  const columns = React.useMemo<Column<UsageRow>[]>(() => [
+    { key: 'month', header: 'Month', cell: (r) => r.month },
+    { key: 'action', header: 'Action', cell: (r) => r.action },
+    { key: 'runs', header: 'Runs', cell: (r) => formatNumber(r.run_count) },
+    {
+      key: 'tokens',
+      header: 'Tokens',
+      cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
+    },
+    ...(hasProviderCost
+      ? [
+          {
+            key: 'providerCost',
+            header: 'Provider cost',
+            // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
+            // The RPC returns null when provider pricing is unconfigured, and formatting null
+            // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
+            cell: (r: UsageRow) =>
+              'provider_cost_usd' in r && r.provider_cost_usd !== null
+                ? formatCurrencyFine(r.provider_cost_usd, PLATFORM_CURRENCY)
+                : '—',
+          } as Column<UsageRow>,
+        ]
+      : []),
+    { key: 'cost', header: 'Cost (USD)', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    ...(hasMargin
+      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      : []),
+  ], [hasMargin, hasProviderCost]);
+
   if (isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
@@ -60,44 +100,6 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       />
     );
   }
-
-  // AC-USE-003: the margin column renders ONLY when at least one row has a computed margin
-  // (CREDITS_PER_USD set server-side); otherwise it is hidden entirely (not shown as all-dashes).
-  const hasMargin = rows.some((r) => r.margin_usd !== null);
-  // AC-USE-007: Provider cost is Operator-only — org_usage_summary() rows never carry
-  // provider_cost_usd at all, so its presence on the FIRST row is the structural signal (every row
-  // in a given render comes from the same RPC/persona; a mixed shape can't occur in practice).
-  const hasProviderCost = rows.length > 0 && 'provider_cost_usd' in rows[0];
-
-  const columns: Column<UsageRow>[] = [
-    { key: 'month', header: 'Month', cell: (r) => r.month },
-    { key: 'action', header: 'Action', cell: (r) => r.action },
-    { key: 'runs', header: 'Runs', cell: (r) => formatNumber(r.run_count) },
-    {
-      key: 'tokens',
-      header: 'Tokens',
-      cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
-    },
-    ...(hasProviderCost
-      ? [
-          {
-            key: 'providerCost',
-            header: 'Provider cost',
-            // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
-            // The RPC returns null when provider pricing is unconfigured, and formatting null
-            // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
-            cell: (r: UsageRow) =>
-              'provider_cost_usd' in r && r.provider_cost_usd !== null
-                ? formatCurrencyFine(r.provider_cost_usd, PLATFORM_CURRENCY)
-                : '—',
-          } as Column<UsageRow>,
-        ]
-      : []),
-    { key: 'cost', header: 'Cost (USD)', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
-    ...(hasMargin
-      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
-      : []),
-  ];
 
   return (
     <div>

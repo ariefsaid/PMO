@@ -4,7 +4,7 @@
  * Follows Companies.tsx CRUD/RBAC pattern (ADR-0016/0017/0018).
  * I5: "Compose with AI" entry point (FR-AS-014, AC-AS-011/012).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatRelativeTime } from '@/src/lib/format';
 import { useNavigate, Link } from 'react-router';
@@ -45,7 +45,9 @@ const MyViewsPage: React.FC = () => {
   const canChange = (row: UserViewListRow, action: 'edit' | 'archive') =>
     may(action, 'userView', { currentUserId: currentUser?.id, record: { user_id: row.user_id } });
 
-  const columns: Column<UserViewListRow>[] = [
+  // Memoised columns (#2102 AC2): the row memo keys on this array's identity, so opening the
+  // archive confirm (or any unrelated re-render) must not rebuild it. Depends on `t` only.
+  const columns = useMemo<Column<UserViewListRow>[]>(() => [
     {
       key: 'name',
       header: t('financeCopy.name', "Name"),
@@ -69,7 +71,7 @@ const MyViewsPage: React.FC = () => {
           <span className="text-muted-foreground">{formatRelativeTime(row.updated_at)}</span>
       ),
     },
-  ];
+  ], [t]);
 
   const rowMenu = (row: UserViewListRow): RowMenuItem[] => [
     ...(canChange(row, 'edit') ? [{

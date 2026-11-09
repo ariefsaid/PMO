@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useCallback, useMemo, useState } from 'react';
 import i18nextTest from 'i18next';
@@ -108,7 +108,91 @@ describe('DataTable body render cost while resizing (issue #2102)', () => {
     expect(screen.getByRole('separator', { name: 'Resize Amount column' })).toHaveAttribute('aria-valuenow', '115');
   });
 
-  it('AC-PERF-2102: keyboard resize stays a discrete persisted step and re-renders no body row', () => {
+  it('AC-PERF-2102 (C1): a lost mouseup does not freeze the body — a window blur ends the gesture, persists once, and later data still paints', () => {
+    desktopViewport();
+    const record: string[] = [];
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const columns = countingColumns(record);
+    const view = renderTable(
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} tableId="memo-lostup" />,
+    );
+    record.length = 0;
+    setItem.mockClear();
+
+    const handle = screen.getByRole('separator', { name: 'Resize Name column' });
+    fireEvent.mouseDown(handle, { clientX: 100 });
+    fireEvent.mouseMove(window, { clientX: 130 });
+    expect(record).toEqual([]); // the drag freezes the body (the perf win this issue ships)
+
+    // The pointer-up never arrives (released outside the browser, app deactivated mid-drag):
+    // the blur IS the gesture end — the width is persisted once and the body is unfrozen.
+    act(() => { window.dispatchEvent(new Event('blur')); });
+    const writes = () => setItem.mock.calls.filter(([key]) => key === widthsKey('memo-lostup'));
+    expect(writes()).toHaveLength(1);
+    expect(handle).toHaveAttribute('aria-valuenow', '210');
+
+    const renamed: Row[] = [{ ...rows[0], name: 'Alpha II' }, rows[1], rows[2]];
+    view.rerender(<DataTable rows={renamed} columns={columns} rowKey={(r) => r.id} tableId="memo-lostup" />);
+    expect(screen.getByText('Alpha II')).toBeInTheDocument();
+    expect(writes()).toHaveLength(1); // a gesture end is one write, never one per ended signal
+  });
+
+  it('AC-PERF-2102 (C1): a pointercancel ends a drag and unfreezes the body too', () => {
+    desktopViewport();
+    const record: string[] = [];
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const columns = countingColumns(record);
+    const view = renderTable(
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} tableId="memo-cancel" />,
+    );
+    record.length = 0;
+    setItem.mockClear();
+
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize Name column' }), { clientX: 100 });
+    fireEvent.mouseMove(window, { clientX: 110 });
+    expect(record).toEqual([]);
+    act(() => { window.dispatchEvent(new Event('pointercancel')); });
+    expect(setItem.mock.calls.filter(([key]) => key === widthsKey('memo-cancel'))).toHaveLength(1);
+
+    view.rerender(
+      <DataTable rows={[{ ...rows[0], name: 'Alpha II' }, rows[1], rows[2]]} columns={columns} rowKey={(r) => r.id} tableId="memo-cancel" />,
+    );
+    expect(screen.getByText('Alpha II')).toBeInTheDocument();
+  });
+
+  it('AC-PERF-2102 (I1): a rowMenu/selection flip beside a stable columns array grows every row to the header count', () => {
+    desktopViewport();
+    const record: string[] = [];
+    const columns = countingColumns(record);
+    const rowMenu = () => [{ label: 'Edit', onClick: vi.fn() }];
+    const view = renderTable(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
+    const bodyRow = () => screen.getAllByRole('row')[1]!;
+    expect(screen.getAllByRole('columnheader')).toHaveLength(2);
+    expect(within(bodyRow()).getAllByRole('cell')).toHaveLength(2);
+
+    // A permission-gated menu appears while `columns` keeps its identity: the header gains the
+    // actions column, and every memoised row must gain its cell too — otherwise the menu header
+    // sits over the data and the row has no ⋯ trigger at all.
+    view.rerender(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} rowMenu={rowMenu} />);
+    expect(screen.getAllByRole('columnheader')).toHaveLength(3);
+    expect(within(screen.getAllByRole('row')[1]!).getAllByRole('cell')).toHaveLength(3);
+    expect(within(screen.getAllByRole('row')[1]!).getByRole('button', { name: /row actions|more|⋯/i })).toBeInTheDocument();
+
+    // Same hole on the selection column.
+    view.rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={rowMenu}
+        selection={{ selectedIds: new Set<string>(), onChange: vi.fn(), rowLabel: (r) => `Select ${r.name}` }}
+      />,
+    );
+    expect(screen.getAllByRole('columnheader')).toHaveLength(4);
+    expect(within(screen.getAllByRole('row')[1]!).getAllByRole('cell')).toHaveLength(4);
+  });
+
+  it('AC-PERF-2102: a keyboard resize stays a discrete persisted step and re-renders no body row', () => {
     desktopViewport();
     const record: string[] = [];
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
@@ -200,23 +284,16 @@ describe('DataTable body render cost while resizing (issue #2102)', () => {
     expect(record).toEqual(['A', 'A$']);
   });
 
-  it('AC-PERF-2102: a locale switch re-renders body rows (cell closures must not go stale)', async () => {
+  it('AC-PERF-2102: a locale switch alone re-renders body rows (cell closures must not go stale)', async () => {
     desktopViewport();
     const record: string[] = [];
     const columns = countingColumns(record);
-    const view = renderTable(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} rowMenu={() => []} onActivate={vi.fn()} />,
-    );
+    const rowMenu = () => [];
+    const onActivate = vi.fn();
+    // ONE render with a STABLE columns array, then only the language changes: a new columns
+    // identity would re-render the rows by itself and prove nothing about `fingerprint`.
+    renderTable(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} rowMenu={rowMenu} onActivate={onActivate} />);
     record.length = 0;
-    view.rerender(
-      <DataTable
-        rows={rows}
-        columns={countingColumns(record)}
-        rowKey={(r) => r.id}
-        rowMenu={() => []}
-        onActivate={vi.fn()}
-      />,
-    );
     await act(async () => { await i18nextTest.changeLanguage('id'); });
     expect(record.length).toBeGreaterThan(0);
   });
@@ -246,6 +323,9 @@ describe('DataTable body render cost while resizing (issue #2102)', () => {
 });
 
 describe('DataTable mobile card render cost (issue #2102)', () => {
+  // Every test here renders with a STABLE columns array (useMemo / a module-level const), the
+  // heavy-table pattern: the card memo is keyed on that identity too, so a harness that rebuilt
+  // columns inline would repaint every card and prove nothing. Do not "simplify" that away.
   it('AC-PERF-2102: a memoised-columns page re-rendering for a toast re-renders no card', () => {
     mobileViewport();
     const record: string[] = [];
@@ -268,6 +348,30 @@ describe('DataTable mobile card render cost (issue #2102)', () => {
     record.length = 0;
     view.rerender(<Harness tick={1} />);
     expect(record).toEqual([]);
+  });
+
+  it('AC-PERF-2102 (I1, mobile): a selection/menu flip beside a stable columns array repaints the card', () => {
+    mobileViewport();
+    const record: string[] = [];
+    const columns = countingColumns(record);
+    const rowMenu = () => [{ label: 'Edit', onClick: vi.fn() }];
+    const view = renderTable(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} rowLabel={(r) => `Open ${r.name}`} />);
+    expect(screen.queryByRole('checkbox', { name: /Select / })).not.toBeInTheDocument();
+
+    view.rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowLabel={(r) => `Open ${r.name}`}
+        rowMenu={rowMenu}
+        selection={{ selectedIds: new Set<string>(), onChange: vi.fn(), rowLabel: (r) => `Select ${r.name}` }}
+      />,
+    );
+    // The cards keep their identity, so the checkbox and ⋯ menu only appear if the presence
+    // keys are part of the card memo.
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(rows.length);
   });
 
   it('AC-PERF-2102: a selection toggle re-renders only the toggled card', async () => {

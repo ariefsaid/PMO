@@ -10,6 +10,16 @@ const state = vi.hoisted(() => ({
   position: null as FinancePosition | null,
   exportXlsx: vi.fn(),
   erpDocuments: [] as unknown[],
+  // Stable identity, like react-query's cached data: a hook that returned a NEW array each
+  // render would (correctly) invalidate a page's memoised column array on every render.
+  projects: [{
+    id: 'project-1',
+    name: 'North project',
+    short_name: 'North',
+    code: 'PRJ-10',
+    pmo_project_number: null,
+    pm: { full_name: 'Dana Wibowo' },
+  }],
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -22,16 +32,7 @@ vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: state.erpDocuments, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({
-    data: [{
-      id: 'project-1',
-      name: 'North project',
-      short_name: 'North',
-      code: 'PRJ-10',
-      pmo_project_number: null,
-      pm: { full_name: 'Dana Wibowo' },
-    }],
-  }),
+  useProjects: () => ({ data: state.projects }),
 }));
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportXlsx: state.exportXlsx, busy: false }),
@@ -39,6 +40,18 @@ vi.mock('@/src/components/export/useExport', () => ({
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
 }));
+
+/**
+ * AC2 at PAGE level (#2102): the real `DataTable`, with every column's `cell` wrapped in a tally.
+ * The wrapper keys its own memo on the columns array it is handed, so a page that rebuilds its
+ * columns inline repaints every cell on any parent re-render and the tally fills.
+ */
+const dataTableCells = vi.hoisted(() => ({ cells: [] as string[] }));
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const { countingDataTable } = await import('@/src/components/ui/__tests__/helpers/countingDataTable');
+  return { ...actual, DataTable: countingDataTable(actual.DataTable, dataTableCells.cells) };
+});
 
 import PayablesPage from './PayablesPage';
 
@@ -224,5 +237,34 @@ describe('Payables page', () => {
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).not.toHaveTextContent(/IDR\s?0\b/);
     expect(within(ageing).getByTestId('ageing-bucket-IDR-d0_30')).not.toHaveTextContent(/unknown/);
     expect(screen.getByRole('region', { name: 'Payables figures' })).toHaveTextContent('101 days');
+  });
+
+  it('AC-PERF-2102: a 200-row page re-rendering for a search keystroke repaints no cell (its columns are memoised)', async () => {
+    const user = userEvent.setup();
+    const base = payablesFixture();
+    const row = base.payables[0];
+    // 200 supplier invoices: the row count the issue measures.
+    const big: FinancePosition = {
+      ...base,
+      payables: Array.from({ length: 200 }, (_, index) => ({
+        ...row,
+        procurement: {
+          ...row.procurement,
+          id: `procurement-${index}`,
+          code: `PR-${1000 + index}`,
+          title: `Inspection ${index}`,
+          vendor: { name: `Supplier ${index}` },
+        },
+      })),
+    };
+    renderPage('Finance', big);
+    expect(screen.getAllByRole('row').length).toBeGreaterThan(200);
+
+    dataTableCells.cells.length = 0;
+    // A keystroke in the local search re-renders the page; the trimmed query is still empty, so
+    // the row set is unchanged and NOT ONE cell may run again.
+    await user.type(screen.getByRole('searchbox', { name: 'Search payables' }), ' ');
+    expect(screen.getAllByRole('row').length).toBeGreaterThan(200);
+    expect(dataTableCells.cells).toEqual([]);
   });
 });
