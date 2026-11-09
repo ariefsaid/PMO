@@ -33,7 +33,7 @@ export const ScheduleCard: React.FC<{ project: ProjectWithRefs }> = ({ project }
     </BlockAction>
   );
   const head = (
-    <CardHead id="pd-delivery" subline={t('projectDetail.schedule.sub', 'Plan vs actual by phase')}
+    <CardHead id="pd-delivery" className="py-3" subline={t('projectDetail.schedule.sub', 'Plan vs actual by phase')}
       actions={<>
         {!managing && <BlockAction to={`/projects/${project.id}/tasks?view=timeline`}>{t('projectDetail.delivery.openTimeline', 'Open timeline')}</BlockAction>}
         {manage}
@@ -132,7 +132,7 @@ export const BudgetBarsCard: React.FC<{ project: ProjectWithRefs; onOpenBudget: 
   const { pos } = usage;
   const cur = project.currency;
   const head = (
-    <CardHead id="pd-cost" actions={<BlockAction onClick={onOpenBudget}>{t('projectDetail.cost.openBudgetArea', 'Open budget')}</BlockAction>}>
+    <CardHead id="pd-cost" className="py-3" actions={<BlockAction onClick={onOpenBudget}>{t('projectDetail.cost.openBudgetArea', 'Open budget')}</BlockAction>}>
       {t('projectDetail.cost.title', 'Budget vs actual')}
       <HelpPopover subject={t('projectDetail.cost.helpLabel', 'the budget view')}>
         {t('projectDetail.cost.summaryTooltip', 'Compares mapped actual spending with the active project budget. Source: active budget categories and project finance records.')}
@@ -194,7 +194,7 @@ export const OpenPurchasesCard: React.FC<{ project: ProjectWithRefs }> = ({ proj
   const open = (query.data ?? []).filter((row) => !CLOSED.has(row.status))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const head = (
-    <CardHead id="pd-purchases" subline={query.data ? t('projectDetail.purchases.total', '{{n}} open', { n: open.length }) : undefined}
+    <CardHead id="pd-purchases" className="py-3" subline={query.data ? t('projectDetail.purchases.total', '{{n}} open', { n: open.length }) : undefined}
       actions={<BlockAction to={`/projects/${project.id}/procurement`}>{t('projectDetail.purchases.all', 'All')}</BlockAction>}>
       {t('projectDetail.purchases.title', 'Open purchases')}
     </CardHead>
@@ -246,7 +246,7 @@ export const ProgressCurveCard: React.FC<{ project: ProjectWithRefs; children: R
   return (
     <section aria-labelledby="pd-curve" className="min-w-0">
       <Card>
-        <CardHead id="pd-curve"
+        <CardHead id="pd-curve" className="py-3"
           subline={schedule.planned !== null && schedule.progress !== null
             ? t('projectDetail.curve.sub', 'Planned {{planned}}% · actual {{actual}}%', { planned: schedule.planned, actual: schedule.progress })
             : undefined}

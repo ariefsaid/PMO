@@ -588,7 +588,8 @@
       "noBudget": "No active budget",
       "invoicedPaid": "Invoiced · paid",
       "nothingBilled": "Nothing billed yet",
-      "billingUnknown": "Not known yet"
+      "billingUnknown": "Not known yet",
+      "budgetOnly": "{{budget}} budget"
     },
     "header": {
       "toast": {

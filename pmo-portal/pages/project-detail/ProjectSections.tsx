@@ -105,17 +105,18 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
       <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
         {/* Target composition: work on the left, what needs you and the record's activity on the right.
             DOM order is the phone order (attention first); xl places the cells into the two columns. */}
-        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,1fr)_21rem]">
+        {/* Denser panel rhythm for this composition only: 14px inset, 12px gap. */}
+        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] [--panel-inset:14px] [--space-panel-gap:12px] xl:grid-cols-[minmax(0,1fr)_21rem]">
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-2 xl:row-start-1" />
           <div className="min-w-0 xl:col-start-1 xl:row-start-1"><ScheduleCard project={project} /></div>
           <div className="grid min-w-0 gap-[var(--space-panel-gap)] lg:grid-cols-2 xl:col-start-1 xl:row-start-2">
             <BudgetBarsCard project={project} onOpenBudget={openBudget} />
             <OpenPurchasesCard project={project} />
           </div>
-          <div className={`min-w-0 xl:col-start-1 xl:row-start-3 ${BELOW_FOLD}`}><ProgressCurveCard project={project}>{curve}</ProgressCurveCard></div>
-          <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-2"><ProjectActivity projectId={project.id} compact /></div>
+          <div className={`min-w-0 xl:col-start-1 xl:row-start-3`}><ProgressCurveCard project={project}>{curve}</ProgressCurveCard></div>
+          <div className="max-h-[36rem] min-w-0 overflow-y-auto xl:col-start-2 xl:row-span-2 xl:row-start-2 xl:max-h-[44rem]"><ProjectActivity projectId={project.id} compact /></div>
         </div>
-        {canSeeMoney && <div className={BELOW_FOLD}><MoneyBlock project={project} /></div>}
+        {canSeeMoney && <MoneyBlock project={project} />}
         <WhenNearViewport>
           <BillingMilestonesBlock projectId={project.id} />
         </WhenNearViewport>

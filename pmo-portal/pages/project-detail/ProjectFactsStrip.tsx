@@ -65,11 +65,14 @@ export const ProjectFactsStrip: React.FC<{ project: ProjectWithRefs }> = ({ proj
       )}
       {canViewMoney && (
         <Fact label={t('projectDetail.facts.budgetUsed', 'Budget used')} tip={t('projectDetail.facts.budgetTooltip', 'Recorded spending against the active budget; the line below adds purchase orders already committed. Same totals as the Budget tab.')}>
-          {pos.hasBudget && pos.spent !== null ? (
+          {pos.hasBudget ? (
             <>
-              <Value>{formatCompactCurrency(pos.spent, cur)} <span className="text-xs font-medium text-muted-foreground">{t('projectDetail.facts.ofBudget', 'of {{budget}}', { budget: formatCompactCurrency(pos.budget, cur) })}</span></Value>
-              {usage.usedPercent !== null && <Sub tone={usage.usedPercent >= 90 ? 'warn' : undefined}>
-                {usage.committed ? <>{t('projectDetail.facts.committed', '+ {{amount}} committed', { amount: formatCompactCurrency(usage.committed, cur) })} · </> : null}{usage.usedPercent}%
+              <Value>{pos.spent !== null
+                ? <>{formatCompactCurrency(pos.spent, cur)} <span className="text-xs font-medium text-muted-foreground">{t('projectDetail.facts.ofBudget', 'of {{budget}}', { budget: formatCompactCurrency(pos.budget, cur) })}</span></>
+                : t('projectDetail.facts.budgetOnly', '{{budget}} budget', { budget: formatCompactCurrency(pos.budget, cur) })}</Value>
+              {(usage.committed || usage.usedPercent !== null) && <Sub tone={usage.usedPercent !== null && usage.usedPercent >= 90 ? 'warn' : undefined}>
+                {usage.committed ? t('projectDetail.facts.committed', '+ {{amount}} committed', { amount: formatCompactCurrency(usage.committed, cur) }) : null}
+                {usage.committed && usage.usedPercent !== null ? ' · ' : null}{usage.usedPercent !== null ? `${usage.usedPercent}%` : null}
               </Sub>}
             </>
           ) : <Value><span aria-label={t('projectDetail.facts.noBudget', 'No active budget')}>—</span></Value>}

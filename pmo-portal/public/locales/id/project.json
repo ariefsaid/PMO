@@ -588,7 +588,8 @@
       "noBudget": "Belum ada anggaran aktif",
       "invoicedPaid": "Ditagih · dibayar",
       "nothingBilled": "Belum ada tagihan",
-      "billingUnknown": "Belum diketahui"
+      "billingUnknown": "Belum diketahui",
+      "budgetOnly": "anggaran {{budget}}"
     },
     "header": {
       "toast": {
