@@ -9,13 +9,33 @@ import '@/test/stubGetAnimations';
  * in search. These tests pin the AC:
  *   - an unrelated TasksTab re-render runs ZERO column builds and ZERO grouped-table renders
  *     (stable props keep the memoised table bailed out);
- *   - while typing in task search, the column builder runs ZERO times on the urgent render
- *     (the recompute moves to the deferred commit, `useDeferredValue(searchText)`);
+ *   - while typing in task search, the column builder runs ZERO times on the keystroke's URGENT
+ *     commit; the rebuild happens once per committed filter value in the interruptible deferred
+ *     commit (`useDeferredValue(searchText)`);
  *   - in the timeline, the Gantt model is not rebuilt on unrelated re-renders.
  *
- * Render counts come from module probes: `buildTaskRenderOrder` (the per-group walk the columns
- * memo runs), the grouped table's own renders, and `buildReuiGanttModel`. Profiler commit
- * durations are recorded for the 300-task typing interaction (before/after evidence).
+ * AC-1 restated (review finding 1, option b — what these tests actually prove). The original AC
+ * read "the column builder runs zero times per keystroke". Measured here: per-keystroke column
+ * builds are UNCHANGED from pre-fix (one per typed value, in the deferred commit); what changed is
+ * that the input-blocking urgent commit now does ZERO of them and is ~3.5× cheaper. The deferral
+ * does not coalesce bursts in jsdom (five keys → five deferred commits), so a total "zero per
+ * keystroke" is not achievable without making the depth map filter-independent — which changes the
+ * filtered-list indentation (a filtered-out parent's child would stay indented with no visible
+ * parent), a deliberate product call this lane does not make.
+ *
+ * Measurement conditions (also review finding 1): timings below are jsdom, UNTHROTTLED. The AC's
+ * "≥3× shorter under 4× CPU" condition is not measured here — jsdom cannot be CPU-throttled; the
+ * equivalent harness is Playwright + CDP `Emulation.setCPUThrottlingRate: 4` on a seeded 300-task
+ * project. The work on the urgent path is pure CPU (no I/O), so the recorded ratio carries over,
+ * but that is an inference, not the AC's measurement protocol.
+ *
+ * Probes are module counters:
+ *   - `columnBuilds` — invocations of the column factory `buildColumns(depths)` itself (attributable
+ *     to the column builder, unlike `treeWalks`, which also counts the grouping memo's hierarchy
+ *     walks; both are reported so the numbers are honest about what they count);
+ *   - `mglRenders` — MilestoneGroupedList function renders (bail-out = no increment);
+ *   - `ganttModels` — buildReuiGanttModel invocations.
+ * Profiler commit durations are recorded for the 300-task typing interaction (before/after evidence).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
@@ -28,16 +48,35 @@ import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 // ── Probes (module-level counters, read by the tests) ────────────────────────
 const probes = vi.hoisted(() => ({
-  treeWalks: 0, // buildTaskRenderOrder invocations (the columns memo's per-group walk)
+  columnBuilds: 0, // buildColumns(depths) invocations — the column builder itself
+  treeWalks: 0, // buildTaskRenderOrder invocations (grouping memo AND the column depth walk)
   ganttModels: 0, // buildReuiGanttModel invocations (ProjectGantt's model memo)
   mglRenders: 0, // MilestoneGroupedList function renders (bail-out = no increment)
   commits: [] as {
     phase: string;
     actualDuration: number;
+    columnBuilds: number;
     treeWalks: number;
     mglRenders: number;
   }[],
 }));
+
+// Count the column factory itself. Wrapping the SHIPPED hook (rather than replacing it) keeps the
+// real columns — and the real memo contract — under test; only the call count is new.
+vi.mock('../tabs/TaskList', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../tabs/TaskList')>();
+  const { useCallback } = await import('react');
+  return {
+    ...actual,
+    useProjectTaskColumns: (deps: Parameters<typeof actual.useProjectTaskColumns>[0]) => {
+      const build = actual.useProjectTaskColumns(deps);
+      return useCallback((depths: Parameters<typeof build>[0]) => {
+        probes.columnBuilds += 1;
+        return build(depths);
+      }, [build]);
+    },
+  };
+});
 
 vi.mock('@/src/lib/tasks/taskTree', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/tasks/taskTree')>();
@@ -177,6 +216,7 @@ function render$(initialEntry = '/projects/p1/tasks') {
               probes.commits.push({
                 phase,
                 actualDuration,
+                columnBuilds: probes.columnBuilds,
                 treeWalks: probes.treeWalks,
                 mglRenders: probes.mglRenders,
               });
@@ -208,6 +248,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   tasksState.isPending = false;
   tasksState.isError = false;
+  probes.columnBuilds = 0;
   probes.treeWalks = 0;
   probes.ganttModels = 0;
   probes.mglRenders = 0;
@@ -220,14 +261,16 @@ describe('#2104 tasks lane — stable props keep the memoised table quiet', () =
     tasksState.data = makeTasks();
     milestoneState.data = [M1];
     render$();
-    const treeBefore = probes.treeWalks;
+    const colsBefore = probes.columnBuilds;
     const mglBefore = probes.mglRenders;
 
     await toggleToolbarMenu(user);
 
-    expect(probes.treeWalks - treeBefore).toBe(0);
+    expect(probes.columnBuilds - colsBefore).toBe(0);
     expect(probes.mglRenders - mglBefore).toBe(0);
-  });
+    // 300-task fixture + two userEvent clicks: the assertion is instant, the fixture renders are not.
+    // A loaded shared machine can exceed the global 15s without any behaviour change.
+  }, 40_000);
 
   it('typing in search: the urgent (keystroke) render runs zero column builds; the deferred commit applies the filter', async () => {
     tasksState.data = makeTasks();
@@ -236,6 +279,7 @@ describe('#2104 tasks lane — stable props keep the memoised table quiet', () =
     const input = screen.getByPlaceholderText('Search tasks…');
     await settle();
 
+    const colsBefore = probes.columnBuilds;
     const treeBefore = probes.treeWalks;
     const mglBefore = probes.mglRenders;
     const commitsBefore = probes.commits.length;
@@ -247,18 +291,18 @@ describe('#2104 tasks lane — stable props keep the memoised table quiet', () =
 
     const typingCommits = probes.commits.slice(commitsBefore);
     const urgent = typingCommits[0];
-    const deferredTreeWalks = probes.treeWalks - (urgent?.treeWalks ?? treeBefore);
+    const deferredColumnBuilds = probes.columnBuilds - (urgent?.columnBuilds ?? colsBefore);
     const totalCommitMs = typingCommits.reduce((sum, c) => sum + c.actualDuration, 0);
     console.info(
-      `[perf #2104] keystroke=1 urgentCommit: phase=${urgent?.phase} columnBuilds=+${(urgent?.treeWalks ?? treeBefore) - treeBefore} tableRenders=+${(urgent?.mglRenders ?? mglBefore) - mglBefore} urgentCommitMs=${(urgent?.actualDuration ?? 0).toFixed(2)} | deferred columnBuilds=+${deferredTreeWalks} | commits=${typingCommits.length} typingMs=${totalCommitMs.toFixed(2)}`,
+      `[perf #2104] keystroke=1 urgentCommit: phase=${urgent?.phase} columnBuilds=+${(urgent?.columnBuilds ?? colsBefore) - colsBefore} tableRenders=+${(urgent?.mglRenders ?? mglBefore) - mglBefore} hierarchyWalks=+${(urgent?.treeWalks ?? treeBefore) - treeBefore} urgentCommitMs=${(urgent?.actualDuration ?? 0).toFixed(2)} | deferred columnBuilds=+${deferredColumnBuilds} | commits=${typingCommits.length} typingMs=${totalCommitMs.toFixed(2)}`,
     );
 
-    // AC: the column builder runs ZERO times on the keystroke's urgent commit.
+    // AC-1 (restated): the column builder runs ZERO times on the keystroke's urgent commit.
     expect(urgent).toBeDefined();
-    expect(urgent.treeWalks).toBe(treeBefore);
+    expect(urgent.columnBuilds).toBe(colsBefore);
     expect(urgent.mglRenders).toBe(mglBefore);
-    // The deferred commit does the real work once.
-    expect(deferredTreeWalks).toBeGreaterThanOrEqual(1);
+    // The deferred (interruptible) commit does the real work.
+    expect(deferredColumnBuilds).toBeGreaterThanOrEqual(1);
     // Correctness: the filter applied — every task whose name/id contains "25" is listed, and a
     // non-matching neighbour is not.
     for (const name of ['Task 25', 'Task 125', 'Task 225', 'Subtask 25']) {
@@ -267,36 +311,65 @@ describe('#2104 tasks lane — stable props keep the memoised table quiet', () =
     expect(screen.queryByText('Task 26')).not.toBeInTheDocument();
     expect(screen.queryByText('Subtask 26')).not.toBeInTheDocument();
     expect(input).toHaveValue('25');
-  });
+  }, 40_000); // 300-task fixture: fixture cost, not assertion relief (see the first test).
 
-  it('a five-keystroke burst: the table commits at most once per keystroke, and records its evidence (300-task project)', async () => {
+  it('a five-keystroke burst (300-task project): no keystroke\'s urgent commit builds columns or renders the table', async () => {
     const user = userEvent.setup();
     tasksState.data = makeTasks();
     milestoneState.data = [M1];
     render$();
     const input = screen.getByPlaceholderText('Search tasks…');
     await settle();
+    // Focus first, so every keystroke's window below starts at a change commit rather than at the
+    // focus interaction (which would mislabel the first key's urgent commit).
+    await user.click(input);
+    await act(async () => {});
+
+    const colsBefore = probes.columnBuilds;
     const treeBefore = probes.treeWalks;
     const mglBefore = probes.mglRenders;
     const commitsBefore = probes.commits.length;
 
+    // Typed one key at a time so each keystroke's commits can be attributed: the FIRST commit after
+    // a key is its urgent one, the rest are the deferred flush. Pre-fix every urgent commit rebuilt
+    // the columns (and re-rendered the table), so this is the property the fix creates.
     const keys = 'Subta';
-    await user.type(input, keys);
+    const perKeystroke: { columnBuilds: number; tableRenders: number; commits: number }[] = [];
+    for (const key of keys) {
+      const before = {
+        columnBuilds: probes.columnBuilds,
+        mglRenders: probes.mglRenders,
+        commits: probes.commits.length,
+      };
+      await user.type(input, key);
+      const typingCommits = probes.commits.slice(before.commits);
+      const urgent = typingCommits[0];
+      perKeystroke.push({
+        columnBuilds: (urgent?.columnBuilds ?? before.columnBuilds) - before.columnBuilds,
+        tableRenders: (urgent?.mglRenders ?? before.mglRenders) - before.mglRenders,
+        commits: typingCommits.length,
+      });
+    }
 
     const typingCommits = probes.commits.slice(commitsBefore);
     const totalCommitMs = typingCommits.reduce((sum, c) => sum + c.actualDuration, 0);
-    const mglRenders = probes.mglRenders - mglBefore;
     console.info(
-      `[perf #2104] keystrokes=${keys.length} tableRenders=${mglRenders} columnBuilds=${probes.treeWalks - treeBefore} commits=${typingCommits.length} sumCommitMs=${totalCommitMs.toFixed(2)}`,
+      `[perf #2104] keystrokes=${keys.length} urgentColumnBuilds=[${perKeystroke.map((k) => k.columnBuilds).join(',')}] urgentTableRenders=[${perKeystroke.map((k) => k.tableRenders).join(',')}] commitsPerKeystroke=[${perKeystroke.map((k) => k.commits).join(',')}] totalColumnBuilds=${probes.columnBuilds - colsBefore} totalTableRenders=${probes.mglRenders - mglBefore} hierarchyWalks=${probes.treeWalks - treeBefore} commits=${typingCommits.length} sumCommitMs=${totalCommitMs.toFixed(2)}`,
     );
-    // No keystroke may cost the table more than ONE commit (its deferred one) — a double render
-    // per keystroke (urgent + deferred) is the regression this guards.
-    expect(mglRenders).toBeLessThanOrEqual(keys.length);
+
+    // AC-1 (restated): the column builder and the table run ZERO times on ANY keystroke's urgent
+    // commit — the input stays responsive; their recompute lands in the deferred commit.
+    for (const keystroke of perKeystroke) {
+      expect(keystroke.columnBuilds).toBe(0);
+      expect(keystroke.tableRenders).toBe(0);
+    }
+    // The columns are still rebuilt for each committed filter value, in the deferred commit.
+    expect(probes.columnBuilds - colsBefore).toBe(keys.length);
     expect(input).toHaveValue(keys);
     // The burst filtered to the subtasks only.
     expect(screen.getByText('Subtask 3')).toBeInTheDocument();
     expect(screen.queryByText('Task 3')).not.toBeInTheDocument();
-  });
+  }, 40_000); // 300-task fixture: fixture cost, not assertion relief (see the first test).
 
   it('in the timeline view, an unrelated TasksTab re-render does not rebuild the Gantt model', async () => {
     const user = userEvent.setup();
