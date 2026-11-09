@@ -67,6 +67,8 @@ export interface KPITileProps<L extends string = string> {
   testId?: string;
   /** Optional visible CTA text rendered inside the link variant (still one focus target). */
   ctaLabel?: string;
+  /** A framed tile with a coloured left rule (a CSS colour value) in place of the icon tile. */
+  accent?: string;
   className?: string;
 }
 
@@ -122,6 +124,7 @@ export function KPITile<L extends string = string>({
   linkLabel,
   testId,
   ctaLabel,
+  accent,
   className,
 }: KPITileProps<L>) {
   const { t } = useTranslation();
@@ -130,6 +133,7 @@ export function KPITile<L extends string = string>({
   const rootClass = cn(
     'relative flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4',
     !inRow && 'rounded-lg border border-border',
+    accent && 'before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-[3px] before:bg-[var(--kpi-accent)]',
     // Hover-lift is an interaction affordance — only a drillable (link) tile gets it,
     // so a plain tile reads as a static surface and never promises a click it can't honor
     // (design-review I1: shared hover lift was a false affordance on plain tiles).
@@ -137,9 +141,10 @@ export function KPITile<L extends string = string>({
     className
   );
 
+  const accentStyle = accent ? ({ '--kpi-accent': accent } as React.CSSProperties) : undefined;
   const head = (
     <div className="flex items-center gap-2">
-      {!inRow && <span
+      {!inRow && !accent && <span
         className={cn(
           'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',
           TONE_CLASS[tone]
@@ -166,7 +171,7 @@ export function KPITile<L extends string = string>({
   // outside the link so the help button is an independent, accessible control.
   if (isLink) {
     return (
-      <div data-testid={testId} className={rootClass}>
+      <div data-testid={testId} className={rootClass} style={accentStyle}>
         <Link
           to={to}
           aria-label={linkLabel ?? label}
@@ -206,7 +211,7 @@ export function KPITile<L extends string = string>({
   }
 
   return (
-    <div data-testid={testId} className={rootClass}>
+    <div data-testid={testId} className={rootClass} style={accentStyle}>
       {head}
 
       {loading ? (

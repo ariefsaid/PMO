@@ -510,14 +510,30 @@
         "incomplete_one": "{{count}} proyek memiliki pengeluaran yang belum lengkap",
         "incomplete_other": "{{count}} proyek memiliki pengeluaran yang belum lengkap",
         "otherCurrency_one": "{{count}} proyek dalam mata uang lain tidak disertakan",
-        "otherCurrency_other": "{{count}} proyek dalam mata uang lain tidak disertakan"
+        "otherCurrency_other": "{{count}} proyek dalam mata uang lain tidak disertakan",
+        "noBudget_one": "{{count}} proyek belum punya anggaran aktif",
+        "noBudget_other": "{{count}} proyek belum punya anggaran aktif",
+        "setBudgets": "Atur anggaran"
       },
       "needsAttention": "Perlu perhatian",
       "attentionClear": "Tidak ada yang perlu perhatian saat ini",
       "attentionListName": "Proyek yang perlu perhatian, paling mendesak dahulu",
       "attentionRule": "Diurutkan menurut jumlah jenis sinyal proyek (pekerjaan terlambat, melebihi anggaran, menunggu persetujuan), lalu menurut item terlambat.",
       "salesFunnel": "Corong penjualan",
-      "funnelWeighted": "{{amount}} tertimbang"
+      "funnelWeighted": "{{amount}} tertimbang",
+      "attentionReview": "Tinjau",
+      "viewAll": "Lihat semua",
+      "lostDeals": "Penawaran kalah",
+      "activeProjects": {
+        "title": "Proyek aktif",
+        "pm": "PM",
+        "budgetUsed": "Anggaran terpakai",
+        "showing": "Menampilkan {{shown}} dari {{total}}",
+        "scope": "Proyek yang ditampilkan",
+        "atRiskFirst": "Berisiko dulu",
+        "all": "Semua",
+        "empty": "Tidak ada proyek aktif"
+      }
     }
   },
   "restructure": {

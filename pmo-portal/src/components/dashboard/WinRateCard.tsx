@@ -232,7 +232,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
             sub={t('dashboard.winRate.emptySub', 'Try a wider time frame to see your win rate.')}
           />
           {declinedNote}
-          <LossBreakdown range={activeRange} />
+          {!embedded && <LossBreakdown range={activeRange} />}
         </>
       ) : (
         <>
@@ -282,12 +282,12 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
               {t('dashboard:winRate.staleCount', '{{n}} stale ({{days}}+ days)', { n: staleCount, days: STALE_BID_THRESHOLD_DAYS })}
             </span>
           </div>
-          <p data-testid="win-rate-period-rule" className="mt-2 max-w-[60ch] text-xs text-muted-foreground">
+          {!embedded && <p data-testid="win-rate-period-rule" className="mt-2 max-w-[60ch] text-xs text-muted-foreground">
             {t(
               'dashboard:winRate.periodRule',
               'Decided bids use their decision date; open bids use their creation date for this period; the stale count is current and age starts at the last stage change, falling back to project creation if none was recorded.',
             )}
-          </p>
+          </p>}
           <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-1.5 rounded-full bg-success" />
@@ -299,7 +299,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
             </span>
           </div>
           {declinedNote}
-          <LossBreakdown range={activeRange} />
+          {!embedded && <LossBreakdown range={activeRange} />}
         </>
       )}
     </section>

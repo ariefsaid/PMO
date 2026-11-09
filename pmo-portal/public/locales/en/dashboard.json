@@ -510,14 +510,30 @@
         "incomplete_one": "{{count}} project has incomplete spending",
         "incomplete_other": "{{count}} projects have incomplete spending",
         "otherCurrency_one": "{{count}} project in another currency is left out",
-        "otherCurrency_other": "{{count}} projects in another currency are left out"
+        "otherCurrency_other": "{{count}} projects in another currency are left out",
+        "noBudget_one": "{{count}} project has no active budget yet",
+        "noBudget_other": "{{count}} projects have no active budget yet",
+        "setBudgets": "Set budgets"
       },
       "needsAttention": "Needs attention",
       "attentionClear": "Nothing needs attention right now",
       "attentionListName": "Projects that need attention, most urgent first",
       "attentionRule": "Ranked by how many kinds of signal a project has (overdue work, over budget, waiting approvals), then by overdue items.",
       "salesFunnel": "Sales funnel",
-      "funnelWeighted": "{{amount}} weighted"
+      "funnelWeighted": "{{amount}} weighted",
+      "attentionReview": "Review",
+      "viewAll": "View all",
+      "lostDeals": "Lost deals",
+      "activeProjects": {
+        "title": "Active projects",
+        "pm": "PM",
+        "budgetUsed": "Budget used",
+        "showing": "Showing {{shown}} of {{total}}",
+        "scope": "Which projects to list",
+        "atRiskFirst": "At risk first",
+        "all": "All",
+        "empty": "No active projects"
+      }
     }
   },
   "restructure": {

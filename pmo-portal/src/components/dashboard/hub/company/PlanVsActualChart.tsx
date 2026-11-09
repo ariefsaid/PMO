@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Link } from 'react-router';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
 import { axisTickStyle, tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
@@ -11,48 +12,58 @@ import type { TopProject } from '@/src/lib/db/dashboard';
 
 export interface PlanVsActualChartProps { projects: TopProject[]; currency: string }
 
-/** Project names wrap onto two lines (a third is cut with an ellipsis) so they never truncate to a stub. */
+/** Project names sit centred under their bars on two lines (a third is cut with an ellipsis). */
 const wrapName = (name: string): string[] => {
   const lines: string[] = [];
   let line = '';
   for (const word of name.split(/\s+/)) {
-    if (line && `${line} ${word}`.length > 22) { lines.push(line); line = word; } else line = line ? `${line} ${word}` : word;
+    if (line && `${line} ${word}`.length > 16) { lines.push(line); line = word; } else line = line ? `${line} ${word}` : word;
   }
   lines.push(line);
-  return lines.length > 2 ? [lines[0], `${lines[1].slice(0, 20)}…`] : lines;
+  return lines.length > 2 ? [lines[0], `${lines[1].slice(0, 14)}…`] : lines;
 };
 const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string } }> = ({ x = 0, y = 0, payload }) => {
   const lines = wrapName(payload?.value ?? '');
-  return <text x={x - 6} y={y - ((lines.length - 1) * 6.5)} textAnchor="end" dominantBaseline="central" style={axisTickStyle}>{lines.map((line, index) => <tspan key={index} x={x - 6} dy={index === 0 ? 0 : 13}>{line}</tspan>)}</text>;
+  return <text x={x} y={y + 10} textAnchor="middle" style={axisTickStyle}>{lines.map((line, index) => <tspan key={index} x={x} dy={index === 0 ? 0 : 13}>{line}</tspan>)}</text>;
 };
 
 export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, currency }) => {
   const { t } = useTranslation('dashboard');
   const reduced = usePrefersReducedMotion();
-  const rows = React.useMemo(() => planVsActualRows(projects, currency), [projects, currency]);
+  const rows = React.useMemo(() => planVsActualRows(projects, currency).map((row) => ({ ...row, used: row.actual != null && row.budget ? Math.round((row.actual / row.budget) * 100) : null })), [projects, currency]);
   const name = t('hub.company.planVsActual.name', 'Plan vs actual by project');
   if (rows.length === 0) return <ListState variant="empty" icon="grid" title={t('hub.company.planVsActual.empty', 'No projects to compare yet')} />;
   const planLabel = t('hub.company.planVsActual.plan', 'Contract');
   const actualLabel = t('hub.company.planVsActual.actual', 'Spent');
   const budgetLabel = t('hub.company.planVsActual.budget', 'Active budget');
   const incomplete = rows.filter((row) => row.actual == null).length;
+  const noBudget = rows.filter((row) => row.budget == null).length;
   const otherCurrency = projects.filter((project) => project.currency !== currency).length;
   return (
     <div>
-      <div role="img" aria-label={name} style={{ height: 40 + rows.length * 64 }}>
+      <div role="img" aria-label={name} className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }} barGap={2} barCategoryGap="28%">
-            <CartesianGrid horizontal={false} stroke={chartTheme.grid} />
-            <XAxis type="number" tick={axisTickStyle} stroke={chartTheme.grid} tickFormatter={(value: number) => formatCompactCurrency(value, currency)} />
-            <YAxis type="category" dataKey="name" width={150} tick={<NameTick />} stroke={chartTheme.grid} interval={0} />
+          <BarChart data={rows} margin={{ top: 18, right: 8, bottom: 8, left: 0 }} barGap={3} barCategoryGap="22%">
+            <CartesianGrid vertical={false} stroke={chartTheme.grid} />
+            <XAxis dataKey="name" tick={<NameTick />} stroke={chartTheme.grid} interval={0} height={44} tickLine={false} />
+            <YAxis type="number" tick={axisTickStyle} stroke={chartTheme.grid} width={48} tickLine={false} axisLine={false} tickFormatter={(value: number) => formatCompactCurrency(value, currency)} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.percent != null ? ` (${t('hub.company.planVsActual.percentOfContract', '{{percent}}% of contract', { percent: item.payload.percent })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} />
-            <Bar dataKey="budget" name={budgetLabel} fill={chartTheme.series.violet} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} />
-            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} />
+            <Legend iconType="square" iconSize={9} verticalAlign="top" align="right" height={24} wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
+            <Bar dataKey="budget" name={budgetLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
+            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced}>
+              {rows.map((row) => <Cell key={row.id} fill={row.used != null && row.used > 100 ? chartTheme.series.destructive : chartTheme.series.primary} />)}
+              <LabelList dataKey="used" position="top" formatter={(value: unknown) => (value == null ? '' : `${value}%`)} style={{ fontSize: 10.5, fontWeight: 600, fill: 'hsl(var(--foreground))' }} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
+      {noBudget > 0 && (
+        <p data-testid="plan-actual-no-budget" className="mt-1 text-xs text-muted-foreground">
+          {t('hub.company.planVsActual.noBudget', { count: noBudget, defaultValue: '{{count}} projects have no active budget yet', defaultValue_one: '{{count}} project has no active budget yet' })}
+          {' '}<Link to="/projects" className="font-medium text-primary-text hover:underline">{t('hub.company.planVsActual.setBudgets', 'Set budgets')}</Link>
+        </p>
+      )}
       {(incomplete > 0 || otherCurrency > 0) && (
         <p data-testid="plan-actual-caption" className="mt-2 text-xs text-muted-foreground">
           {[

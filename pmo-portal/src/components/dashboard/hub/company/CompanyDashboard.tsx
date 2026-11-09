@@ -5,7 +5,7 @@ import { Button } from '@/src/components/ui/Button';
 import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { Icon } from '@/src/components/ui/icons';
-import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { KPITile } from '@/src/components/ui/KPITile';
 import { ListState } from '@/src/components/ui/ListState';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
@@ -28,8 +28,10 @@ import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
+import { LossBreakdown } from '@/src/components/dashboard/LossBreakdown';
 import { PlanVsActualChart } from './PlanVsActualChart';
-import { AttentionProjects } from './AttentionProjects';
+import { AttentionProjects, type AttentionExtra } from './AttentionProjects';
+import { ActiveProjectsTable } from './ActiveProjectsTable';
 import { SalesFunnel } from './SalesFunnel';
 import { HelpPopover } from '@/src/components/ui/HelpPopover';
 import { FigureGroup, type DashboardFigure } from '@/src/components/dashboard/restructure/FigureGroup';
@@ -46,11 +48,16 @@ import { ACTIVE_PROJECT_STATUSES } from '@/src/lib/db/projects';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { Role } from '@/src/auth/AuthContext';
-import { ApprovalStrip, AttentionList } from '../index';
+import { ApprovalStrip } from '../index';
 
 const ICONS: Record<string, 'grid' | 'dollar' | 'pipe' | 'cart' | 'clock' | 'file'> = {
   'contract-on-hand': 'grid', 'billed-margin': 'dollar', pipeline: 'pipe',
   'client-overdue': 'clock', 'supplier-payables': 'cart', 'still-to-invoice': 'file',
+};
+const KPI_ORDER = ['contract-on-hand', 'pipeline', 'invoiced', 'billed-margin', 'client-overdue', 'supplier-payables'];
+const ACCENTS: Record<string, string> = {
+  'contract-on-hand': 'hsl(var(--primary))', pipeline: 'hsl(var(--violet))', invoiced: 'hsl(var(--chart-2))',
+  'billed-margin': 'hsl(var(--success))', 'client-overdue': 'hsl(var(--destructive))', 'supplier-payables': 'hsl(var(--warning))',
 };
 const TONES: Record<string, 'blue' | 'green' | 'violet' | 'amber' | 'red'> = {
   'contract-on-hand': 'blue', 'billed-margin': 'green', pipeline: 'violet',
@@ -240,7 +247,6 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   };
   const todayError = figures.todayError;
   const pipelineStages = pipeline.data?.stages ?? [];
-  const commonTodayFigures = ['contract-on-hand', 'billed-margin', 'pipeline', 'client-overdue', 'supplier-payables', 'still-to-invoice'].map((id) => todayFigure(id)).filter((figure): figure is DashboardFigure => Boolean(figure));
   const periodMini = (id: string) => periodFigure(id) ?? { id, label: id, value: null };
   const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
     || Boolean(procurements.data?.length || figures.pipeline?.projects?.length);
@@ -289,16 +295,21 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const cardLink = (to: string, label: string) => <Link to={to} className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"><span>{label}</span><Icon name="chev" className="size-4" /></Link>;
   const projectsState = figures.dashboardPending || projects.isPending ? 'loading' : figures.dashboardError || projects.isError ? 'error' : 'ready';
 
+  const approvalChip = needs.isPending ? <ListState variant="loading" rows={1} className="h-11 w-56 overflow-hidden" /> : needs.isError ? <ListState variant="error" title={t('dashboard:hub.company.approvalsError', "Couldn't load approvals and attention items")} onRetry={needs.refetch} /> : <section aria-label={t('dashboard:hub.company.approvals', 'Approvals waiting for you')}><ApprovalStrip items={needs.items.filter((item) => item.id === 'approvals').map((item) => ({ id: item.id, tone: item.tone, icon: 'check', count: item.count, label: item.label, href: item.href }))} /></section>;
+  // The strip reads left to right: what we hold, what is coming, what we billed, what it earned, what we are owed, what we owe.
+  const kpiFigures = KPI_ORDER.map((id) => todayFigure(id) ?? periodFigure(id)).filter((figure): figure is DashboardFigure => Boolean(figure));
+  const attentionExtras: AttentionExtra[] = attentionNeeds.map((item) => ({ id: item.id, title: `${item.count} ${item.label}`, meta: item.amount, pill: t('dashboard:hub.company.attentionReview', 'Review'), href: item.href, tone: item.tone }));
+
   return <div className="space-y-[var(--space-panel-gap)]" data-company-role={role}>
-    <header className="flex flex-wrap items-center justify-between gap-3">
+    <header className="flex flex-wrap items-center gap-3">
       <div className="flex min-w-0 items-center gap-1"><h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{t('dashboard:hub.company.title', 'Dashboard')}</h1><HelpPopover subject={t('dashboard:hub.company.title', 'Dashboard')}>{t('dashboard:hub.company.basis', 'Position today in each record currency; sales and billing results cover {{period}}.', { period: periodState.period.label })}</HelpPopover></div>
-      <div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>
+      {approvalChip}
+      <div className="ml-auto flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>
     </header>
-    {needs.isPending ? <ListState variant="loading" rows={1} className="h-11 overflow-hidden" /> : needs.isError ? <ListState variant="error" title={t('dashboard:hub.company.approvalsError', "Couldn't load approvals and attention items")} onRetry={needs.refetch} /> : <section aria-label={t('dashboard:hub.company.approvals', 'Approvals waiting for you')}><ApprovalStrip items={needs.items.filter((item) => item.id === 'approvals').map((item) => ({ id: item.id, tone: item.tone, icon: 'check', count: item.count, label: item.label, href: item.href }))} /></section>}
-    <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className="grid-cols-2 min-[1280px]:grid-cols-3">
-      {figures.todayPending ? Array.from({ length: 6 }, (_, i) => <KPITile key={i} loading tone="blue" icon="grid" label="" value="" className={i < 3 ? "min-h-[148px]" : "min-h-[108px]"} />) : todayError ? <div className="col-span-full"><ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} /></div> : commonTodayFigures.map((figure) => <div key={figure.id} className="min-w-0"><KPITile icon={ICONS[figure.id] ?? 'grid'} tone={TONES[figure.id] ?? 'blue'} label={figure.label} value={figure.value ?? '—'} exactValue={figure.exactValue} unavailableReason={figure.value == null ? figure.unavailableReason : undefined} help={help(figure.id)} to={figure.href} linkLabel={figure.href ? t('dashboard:hub.company.openFigure', 'Open related records for {{metric}}.', { metric: figure.label }) : undefined} loading={false} vs={figure.subline ? String(figure.subline) : undefined} />{figure.id === 'billed-margin' && canOpenAccountingMap && data && (data.on_hand_actual_coverage_total ?? 0) > (data.on_hand_actual_coverage_count ?? 0) && <Link className="-mt-2 mb-1 mx-4 inline-flex min-h-11 max-w-[calc(100%-2rem)] items-center whitespace-normal text-xs font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('dashboard:hub.company.reviewAccountingMappings', 'Review accounting mappings')}</Link>}</div>)}
-    </KPIRow>
-    <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <section aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className="grid grid-cols-2 gap-2.5 min-[1100px]:grid-cols-3 min-[1280px]:grid-cols-6">
+      {figures.todayPending || figures.periodPending ? Array.from({ length: 6 }, (_, i) => <KPITile key={i} loading accent={ACCENTS[KPI_ORDER[i]]} tone="blue" icon="grid" label="" value="" className="min-h-[96px]" />) : todayError ? <div className="col-span-full"><ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} /></div> : kpiFigures.map((figure) => <div key={figure.id} className="min-w-0"><KPITile accent={ACCENTS[figure.id]} icon={ICONS[figure.id] ?? 'grid'} tone={TONES[figure.id] ?? 'blue'} label={figure.label} value={figure.value ?? '—'} exactValue={figure.exactValue} unavailableReason={figure.value == null ? figure.unavailableReason : undefined} help={help(figure.id)} to={figure.href} linkLabel={figure.href ? t('dashboard:hub.company.openFigure', 'Open related records for {{metric}}.', { metric: figure.label }) : undefined} loading={false} vs={figure.subline ? String(figure.subline) : undefined} className="h-full" />{figure.id === 'billed-margin' && canOpenAccountingMap && data && (data.on_hand_actual_coverage_total ?? 0) > (data.on_hand_actual_coverage_count ?? 0) && <Link className="-mt-2 mb-1 mx-4 inline-flex min-h-11 max-w-[calc(100%-2rem)] items-center whitespace-normal text-xs font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('dashboard:hub.company.reviewAccountingMappings', 'Review accounting mappings')}</Link>}</div>)}
+    </section>
+    <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <Card className="min-w-0">
         <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))}>
           <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.planVsActual.title', 'Plan vs actual')}<HelpPopover subject={t('dashboard:hub.company.planVsActual.title', 'Plan vs actual')}>{t('dashboard:hub.company.planVsActual.help', 'Contract value against recorded spending for the largest projects in {{currency}}. Spending is shown only when it is complete and in the contract currency.', { currency: orgCurrency })}</HelpPopover></span>
@@ -306,16 +317,19 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         <CardPad>{projectsState === 'loading' ? <ListState variant="loading" shape="chart" rows={4} /> : projectsState === 'error' ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <PlanVsActualChart projects={planProjects} currency={orgCurrency} />}</CardPad>
       </Card>
       <Card className="min-w-0">
-        <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.viewAllProjects', 'View all {{count}} projects', { count: projects.data?.length ?? 0 }))}>
+        <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.viewAll', 'View all'))}>
           <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.needsAttention', 'Needs attention')}<HelpPopover subject={t('dashboard:hub.company.needsAttention', 'Needs attention')}>{t('dashboard:hub.company.topAttentionProjects', 'The 5 projects that most need attention')}{'. '}{t('dashboard:hub.company.attentionRule', 'Ranked by how many kinds of signal a project has (overdue work, over budget, waiting approvals), then by overdue items.')}{showDeliveryAllClear && ' ' + t('dashboard:hub.company.checkedRiskClear', '0 projects at risk. All {{count}} active delivery projects are currently on track.', { count: activeDeliveryProjects })}{activeDeliveryProjects > 0 && data?.active_delivery_actual_project_count != null && ' ' + t('dashboard:hub.company.actualsCoverage', 'Actuals available for {{available}} of {{total}} active delivery projects.', { available: data.active_delivery_actual_project_count, total: activeDeliveryProjects })}</HelpPopover></span>
         </CardHead>
-        <CardPad className="grid gap-3">
-          {projectsState === 'loading' ? <ListState variant="loading" rows={3} /> : projectsState === 'error' ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <AttentionProjects projects={attentionProjects} />}
-          <AttentionList compact items={attentionNeeds} />
+        <CardPad>
+          {projectsState === 'loading' ? <ListState variant="loading" rows={3} /> : projectsState === 'error' ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <AttentionProjects projects={attentionProjects} extras={attentionExtras} />}
         </CardPad>
       </Card>
     </div>
-    <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
+    <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+      <Card className="min-w-0">
+        <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))}>{t('dashboard:hub.company.activeProjects.title', 'Active projects')}</CardHead>
+        <CardPad>{projectsState === 'loading' ? <ListState variant="loading" rows={4} /> : projectsState === 'error' ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <ActiveProjectsTable projects={projects.data ?? []} budgets={budgetReview.data ?? []} attentionIds={attentionProjects.map((row) => row.id)} statusVariant={statusVariant} />}</CardPad>
+      </Card>
       <Card className="min-w-0">
         <CardHead level={2} actions={cardLink('/sales', t('dashboard:hub.company.openSales', 'Open sales'))}>
           <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.salesFunnel', 'Sales funnel')}<HelpPopover subject={t('dashboard:hub.company.salesFunnel', 'Sales funnel')}>{t('dashboard:hub.company.help.pipelineStages', 'Each open stage shows its gross project value and the value weighted by its win probability. Won and lost projects are excluded.')}</HelpPopover></span>
@@ -326,6 +340,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded />
         </CardPad>
       </Card>
+    </div>
+    <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-3">
       <Card className="min-w-0">
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('dashboard:hub.company.billing', 'Billing and collections')}</CardHead>
         <CardPad className="grid gap-3">
@@ -334,15 +350,19 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           {finance && <ClientAgingBlock />}
         </CardPad>
       </Card>
+      <Card className="min-w-0">
+        <CardHead level={2} actions={cardLink('/procurement', t('dashboard:hub.company.openProcurements', 'Open procurements'))}>
+          <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}<HelpPopover subject={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}>{t('dashboard:hub.company.accountingPurchasesExcluded', 'Purchases made directly in the accounting system are not counted.')}</HelpPopover></span>
+        </CardHead>
+        <CardPad>
+          {figures.dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={figures.dashboardRetry} /> : figures.dashboardPending ? <ListState variant="loading" shape="chart" rows={2} /> : stageCounts.every((row) => row.count === 0) ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={stageCounts} toneFor={(stage) => chartTheme.categorical[PROCUREMENT_STAGES.indexOf(stage)] ?? chartTheme.categorical[0]} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={(stage) => `/procurement?stage=${stage.toLowerCase()}`} labelFor={stageName} compactSegments />}
+        </CardPad>
+      </Card>
+      <Card className="min-w-0">
+        <CardHead level={2} actions={cardLink('/sales', t('dashboard:hub.company.lostDeals', 'Lost deals'))}>{t('lostReason:breakdown.reasonsTitle', 'Why deals were lost')}</CardHead>
+        <CardPad><LossBreakdown range={figures.winRateRange} bare /></CardPad>
+      </Card>
     </div>
-    <Card className="min-w-0">
-      <CardHead level={2} actions={cardLink('/procurement', t('dashboard:hub.company.openProcurements', 'Open procurements'))}>
-        <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}<HelpPopover subject={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}>{t('dashboard:hub.company.accountingPurchasesExcluded', 'Purchases made directly in the accounting system are not counted.')}</HelpPopover></span>
-      </CardHead>
-      <CardPad>
-        {figures.dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={figures.dashboardRetry} /> : figures.dashboardPending ? <ListState variant="loading" shape="chart" rows={2} /> : stageCounts.every((row) => row.count === 0) ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={stageCounts} toneFor={(stage) => chartTheme.categorical[PROCUREMENT_STAGES.indexOf(stage)] ?? chartTheme.categorical[0]} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={(stage) => `/procurement?stage=${stage.toLowerCase()}`} labelFor={stageName} compactSegments />}
-      </CardPad>
-    </Card>
     {finance && <section aria-label={t('dashboard:hub.company.financeReview', 'Finance review tables')} className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
       <FinanceTableCard title={t('dashboard:hub.company.readyToPay', 'Ready to pay')} rows={readyToPayRows} columns={invoiceColumns} help={t('dashboard:hub.company.readyToPayHelp', 'Days since invoiced uses the recorded supplier invoice date; legacy rows use their last update. The procurement record has no supplier invoice due date, so due state is unknown.')}>{unpaidUnknown > 0 && <p className="px-4 pt-2 text-xs text-muted-foreground">{t('dashboard:hub.company.unpaidUnknownNote', { count: unpaidUnknown, defaultValue: '{{count}} supplier invoices have no recorded amount yet', defaultValue_one: '{{count}} supplier invoice has no recorded amount yet' })}</p>}<div className="overflow-x-auto"><ReadyToPayTable rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} /></div></FinanceTableCard>
       <FinanceTableCard title={t('dashboard:hub.company.budgetReview', 'Budget review')} rows={budgetRows} columns={budgetColumns} help={t('dashboard:hub.company.budgetReviewHelp', 'Percent used is recorded spending divided by the active budget when actuals are complete and currencies match. Variance is spending minus budget; positive means over budget.')}><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"><p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topBudgetsByVariance', 'Top 5 active budgets by variance')}{budgetIncomplete > 0 && ` · ${t('dashboard:hub.company.budgetSpendIncomplete', { count: budgetIncomplete, defaultValue: '{{count}} have incomplete spending', defaultValue_one: '{{count}} has incomplete spending' })}`}</p><Link to="/projects" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('dashboard:hub.company.viewAllBudgets', 'View all')}</Link></div><div className="overflow-x-auto"><BudgetReviewTable rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} /></div></FinanceTableCard>

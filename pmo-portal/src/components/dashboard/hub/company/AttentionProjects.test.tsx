@@ -20,9 +20,9 @@ describe('AttentionProjects ranking rule', () => {
     ]} /></MemoryRouter>);
     const items = within(screen.getByRole('list', { name: /need attention/i })).getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual([
-      expect.stringMatching(/1.*Alpha.*2 overdue.*20% over budget.*1 awaiting approval/),
-      expect.stringMatching(/2.*Bravo.*2 awaiting approval/),
-      expect.stringMatching(/3.*Charlie.*1 overdue/),
+      expect.stringMatching(/Alpha.*2 overdue.*1 awaiting approval.*20% over budget/),
+      expect.stringMatching(/Bravo.*2 awaiting approval/),
+      expect.stringMatching(/Charlie.*1 overdue/),
     ]);
     expect(screen.getByRole('link', { name: /Alpha/ })).toHaveAttribute('href', '/projects/a');
   });
