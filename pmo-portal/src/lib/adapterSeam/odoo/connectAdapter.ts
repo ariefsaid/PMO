@@ -88,6 +88,8 @@ async function findSent(call: OdooCall, ctx: OdooConnectCtx, kind: MasterKind, r
     return id === null ? null : partyExternalId(record.role === 'client' ? 'client' : 'vendor', id);
   }
   if (kind === 'project') {
+    // a blank number must never reach the lookup (`code = false` adopts any code-less account) nor the create (`null <name>`)
+    if (!record.code?.trim()) throw new AdapterError('commit-rejected', 'project-number-missing');
     const id = await one('account.analytic.account', [['code', '=', record.code], ...SPECS.project!.domain(ctx)]);
     return id === null ? null : String(id);
   }
