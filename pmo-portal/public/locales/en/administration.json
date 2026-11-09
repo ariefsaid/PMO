@@ -226,7 +226,8 @@
       "planProposed": "Proposed: {{name}}",
       "planUseNamed": "Use {{name}}",
       "planNone": "Odoo has no analytic plan yet. Add one in Odoo, then check again.",
-      "planLoadFailed": "The analytic plans could not be loaded"
+      "planLoadFailed": "The analytic plans could not be loaded",
+      "censusFailed": "Projects could not be checked yet. Press Check again."
     },
     "send": {
       "title": "Records going to Odoo",

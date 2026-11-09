@@ -123,13 +123,14 @@ export function useOdooProjectLinks(enabled = true) {
   });
 }
 
-/** The shared setup run for Odoo (census, waiting sends, proposal counts). Same key as the review panel and the send states, so they share one read. */
+/** The shared setup run for Odoo (census, waiting sends, proposal counts). Same key as the review panel and the send states, so they share one read; polls while sends wait. */
 export function useOdooConnectStatus(enabled = true) {
   return useQuery({
     queryKey: ['integrations', 'connect-status', 'odoo'],
     queryFn: () => repositories.integrations.getConnectStatus('odoo'),
     enabled,
     retry: false,
+    refetchInterval: (q) => (q.state.data?.waitingForSend ? 10_000 : false),
   });
 }
 

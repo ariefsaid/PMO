@@ -23,13 +23,15 @@ function OdooPlanChoice() {
   const [picked, setPicked] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [censusFailed, setCensusFailed] = useState(false);
 
   if (links.isPending) return <ListState variant="loading" rows={1} />;
   if (links.isError || !links.data) {
     return <ListState variant="error" title={t('administration:odoo.records.planLoadFailed', 'The analytic plans could not be loaded')} onRetry={() => void links.refetch()} retryLabel={t('administration:odoo.projectLink.retry', 'Retry')} />;
   }
   const { planId, plans = [] } = links.data;
-  if (planId !== null) return null;
+  // Once the plan is saved the choice disappears; a failed census start stays visible so the Admin knows to press Check again.
+  if (planId !== null) return censusFailed ? <p role="alert" className="text-sm text-destructive-text">{t('administration:odoo.records.censusFailed', 'Projects could not be checked yet. Press Check again.')}</p> : null;
 
   const choose = async (id: string) => {
     setError(null);
@@ -41,8 +43,8 @@ function OdooPlanChoice() {
       setBusy(false);
       return;
     }
-    // With a plan chosen, PMO's projects can be proposed as sends: read both sides again. A failed start shows in the review, which has its own "Check again".
-    try { await repositories.integrations.startConnectCensus('odoo'); } catch { /* the review panel reports it */ }
+    // With a plan chosen, PMO's projects can be proposed as sends: read both sides again. The review only shows the previous run, so a failed start is said here.
+    try { await repositories.integrations.startConnectCensus('odoo'); } catch { setCensusFailed(true); }
     void qc.invalidateQueries({ queryKey: ['integrations', 'connect-status', 'odoo'] });
     void qc.invalidateQueries({ queryKey: ['integrations', 'connect-proposals', 'odoo'] });
     setBusy(false);

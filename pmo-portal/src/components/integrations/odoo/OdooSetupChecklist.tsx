@@ -1,7 +1,7 @@
 /** The Odoo setup steps (FR-ODC-110, plan S5-T6). A tier-keyed list: ERPNext's activity-type and budget-category steps never appear here. */
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, Icon, SelectField } from '@/src/components/ui';
-import { SENDS_FINISHED_KEY } from '@/src/lib/adapterSeam/odoo/connectionState';
+import { sendsFinished } from '@/src/lib/adapterSeam/odoo/sendsFinished';
 import React, { useState } from 'react';
 import { useOdooConnection, useOdooConnectStatus, useOdooEmploy, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
 import { useOdooCan } from './useOdooCan';
@@ -124,12 +124,15 @@ export function OdooSetupChecklist() {
   const canSet = may.setValue;
   const active = Boolean(read && read.status === 'active');
   const proposal = useOdooJournalProposal(active && read!.activated).data;
-  const waitingForSend = useOdooConnectStatus(active && read!.activated && may.manage).data?.waitingForSend ?? 0;
+  const status = useOdooConnectStatus(active && read!.activated && may.manage);
+  // Unread send state (loading or failed) holds the employ off: only a read that shows nothing waiting enables it.
+  const sendsPending = !status.isSuccess || status.data.waitingForSend > 0;
+  const sendsDone = status.isSuccess && sendsFinished(status.data);
   if (!read || read.status !== 'active') return null;
   const cfg = read.config;
   const employed = (domain: string) => owned.some((o) => o.externalTier === 'odoo' && o.domain === domain);
   const missing = read.capabilities?.missing ?? [];
-  const steps: Array<{ name: string; done: boolean; hint: string; extra?: React.ReactNode }> = [
+  const allSteps: Array<{ name: string; done: boolean; hint: string; extra?: React.ReactNode; adminOnly?: boolean }> = [
     { name: t('administration:odoo.checklist.connected', 'Odoo connected'), done: true, hint: t('administration:odoo.checklist.connectedHint', 'PMO can read your Odoo with the stored key.') },
     { name: t('administration:odoo.checklist.activated', 'Company chosen'), done: read.activated, hint: t('administration:odoo.checklist.activatedHint', 'Pick the Odoo company PMO works with.') },
     { name: t('administration:odoo.checklist.capability', 'Odoo apps available'), done: read.activated && read.capabilities !== null && missing.length === 0,
@@ -139,12 +142,14 @@ export function OdooSetupChecklist() {
       extra: <JournalDefault proposal={proposal} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.customerAdvance', 'Customer-advance account'), done: Boolean(cfg.customer_advance_account_ref), hint: t('administration:odoo.checklist.customerAdvanceHint', 'Choose the account that holds customer advances.'), extra: <AccountDefault kind="advance" value={String(cfg.customer_advance_account_ref ?? '')} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.taxPrepaid', 'Tax-prepaid account'), done: Boolean(cfg.tax_prepaid_account_id), hint: t('administration:odoo.checklist.taxPrepaidHint', 'Choose the asset account used for client tax withheld.'), extra: <AccountDefault kind="prepaid" value={String(cfg.tax_prepaid_account_id ?? '')} canSet={canSet} /> },
-    { name: t('administration:odoo.checklist.sends', 'Sends finished'), done: Boolean(cfg[SENDS_FINISHED_KEY]), hint: t('administration:odoo.checklist.sendsHint', 'Records PMO holds that Odoo should also have are sent once.') },
+    { name: t('administration:odoo.checklist.sends', 'Sends finished'), done: sendsDone, adminOnly: true, hint: t('administration:odoo.checklist.sendsHint', 'Records PMO holds that Odoo should also have are sent once.') },
     { name: t('administration:odoo.checklist.employ', 'Vendors and clients managed in Odoo'), done: employed('companies'), hint: t('administration:odoo.checklist.employHint', 'After this, Odoo owns vendor and client records.'),
-      extra: may.manage && !employed('companies') ? <EmployAction domain="companies" waiting={waitingForSend > 0} /> : undefined },
+      extra: may.manage && !employed('companies') ? <EmployAction domain="companies" waiting={sendsPending} /> : undefined },
     { name: t('administration:odoo.checklist.procurement', 'Purchases go to Odoo'), done: employed('procurement'), hint: t('administration:odoo.checklist.procurementHint', 'After this, approved purchase orders, goods receipts and supplier bills are also created in Odoo.'),
       extra: may.manage && !employed('procurement') ? <EmployAction domain="procurement" waiting={false} /> : undefined },
   ];
+  // The send state is read for Admin only (Finance's counts cover accounts alone), so Finance is not shown a step it can never see done.
+  const steps = allSteps.filter((s) => !s.adminOnly || may.manage);
   return (
     <section aria-labelledby="odoo-checklist-title" className="mt-3" data-testid="odoo-checklist">
       <h4 id="odoo-checklist-title" className="mb-1.5 text-sm font-semibold text-foreground">{t('administration:odoo.checklist.title', 'Odoo setup')}</h4>

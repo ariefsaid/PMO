@@ -226,7 +226,8 @@
       "planProposed": "Diusulkan: {{name}}",
       "planUseNamed": "Pakai {{name}}",
       "planNone": "Odoo belum punya rencana analitik. Tambahkan di Odoo, lalu periksa lagi.",
-      "planLoadFailed": "Rencana analitik tidak dapat dimuat"
+      "planLoadFailed": "Rencana analitik tidak dapat dimuat",
+      "censusFailed": "Proyek belum dapat diperiksa. Tekan Periksa lagi."
     },
     "send": {
       "title": "Data yang sedang dikirim ke Odoo",

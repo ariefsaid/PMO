@@ -112,6 +112,18 @@ describe('AC-ODS-004 the analytic plan is chosen once, inside setup', () => {
     expect(h.census).not.toHaveBeenCalled();
   });
 
+  it('AC-ODS-004 a census that fails to start after the plan is saved tells the Admin to press Check again', async () => {
+    h.links.data = { planId: null, plans: [{ id: '3', name: 'Projects' }], accounts: [], linked: [] };
+    h.census.mockRejectedValue(new Error('down'));
+    const { rerender } = renderIt();
+    await userEvent.click(screen.getByRole('button', { name: 'Use Projects' }));
+    await waitFor(() => expect(h.census).toHaveBeenCalledWith('odoo'));
+    // The plan read now shows the plan chosen, as it does after the invalidation.
+    h.links.data = { planId: '3', plans: [], accounts: [], linked: [] };
+    rerender(<QueryClientProvider client={new QueryClient()}><OdooRecordsSetup /></QueryClientProvider>);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Projects could not be checked yet. Press Check again.');
+  });
+
   it('AC-ODS-004 plans that cannot be loaded say so and Retry reads them again', async () => {
     h.links.data = undefined;
     h.links.isError = true;

@@ -6,7 +6,7 @@ import { AppError } from '@/src/lib/appError';
 const h = vi.hoisted(() => ({
   conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> },
   proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true, manage: true },
-  status: { data: { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} } as unknown },
+  status: { isSuccess: true, data: { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} } as unknown },
   employ: vi.fn(),
   accounts: { data: { rows: [{ external_id: '210', name: 'Advance Liability', code: '210', attrs: {} }, { external_id: '88', name: 'Tax Prepayments', code: '1350', attrs: {} }], total: 2 }, isError: false },
   accountSummary: { data: { inactive: 0, tombstoned: 0, asOf: new Date().toISOString() } },
@@ -43,16 +43,44 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
 });
 
 it('FR-ODC-110 each step is done only when its own fact holds', () => {
-  h.conn.data = read({ account_defaults: { payable: 1 }, unit_map: { m: 2 }, default_warehouse_id: 3, sends_finished_at: '2026-11-01' }, { capabilities: { missing: [WH] } });
+  h.conn.data = read({ account_defaults: { payable: 1 }, unit_map: { m: 2 }, default_warehouse_id: 3 }, { capabilities: { missing: [WH] } });
   h.owned.data = [];
   render(<OdooSetupChecklist />);
-  expect(['Odoo connected', 'Company chosen', 'Map once', 'Sends finished'].map(doneOf)).toEqual([true, true, true, true]);
+  expect(['Odoo connected', 'Company chosen', 'Map once'].map(doneOf)).toEqual([true, true, true]);
   expect(doneOf('Odoo apps available')).toBe(false);
   expect(doneOf('Vendors and clients managed in Odoo')).toBe(false);
   cleanup();
   h.owned.data = [{ externalTier: 'odoo', domain: 'companies' }];
   render(<OdooSetupChecklist />);
   expect(doneOf('Vendors and clients managed in Odoo')).toBe(true);
+});
+
+it('FR-ODC-110 the sends step follows the send state, so a stored marker alone does not make it Done', () => {
+  h.owned.data = [];
+  h.conn.data = read({ sends_finished_at: '2026-11-01' });
+  h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Sends finished')).toBe(false);
+  cleanup();
+  h.conn.data = read({});
+  h.status.data = { run: { id: 'r', state: 'ready', finished_at: '2026-11-01T00:00:00Z', error_class: null }, census: [], waitingForSend: 1, proposalCounts: {} };
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Sends finished')).toBe(false);
+  cleanup();
+  h.status.data = { run: { id: 'r', state: 'ready', finished_at: '2026-11-01T00:00:00Z', error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Sends finished')).toBe(true);
+});
+
+it('FR-ODC-113 Finance (may set values, may not manage) is not shown the Admin-only sends step', () => {
+  h.conn.data = read({});
+  h.owned.data = [];
+  h.can.manage = false;
+  try {
+    render(<OdooSetupChecklist />);
+    expect(screen.queryByRole('listitem', { name: 'Sends finished' })).not.toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: 'Payment journal' })).toBeInTheDocument();
+  } finally { h.can.manage = true; }
 });
 
 it('FR-ODC-110 an org that is connected but not activated has only the first step done', () => {
@@ -165,6 +193,7 @@ describe('AC-ODS-005 let Odoo manage vendors and clients', () => {
     h.owned.data = [];
     h.conn.data = read({});
     h.proposal.data = undefined;
+    h.status.isSuccess = true;
     h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
   });
 
@@ -182,6 +211,13 @@ describe('AC-ODS-005 let Odoo manage vendors and clients', () => {
     render(<OdooSetupChecklist />);
     expect(within(item(STEP)).getByRole('button', { name: EMPLOY })).toBeDisabled();
     expect(within(item(STEP)).getByText('Wait until every record has reached Odoo.')).toBeInTheDocument();
+  });
+
+  it('AC-ODS-005 while the send state is not yet read the action is off', () => {
+    h.status.isSuccess = false;
+    h.status.data = undefined;
+    render(<OdooSetupChecklist />);
+    expect(within(item(STEP)).getByRole('button', { name: EMPLOY })).toBeDisabled();
   });
 
   it('AC-ODS-005 a refusal because sends are pending shows plain words, never the server text', async () => {
@@ -219,6 +255,7 @@ describe('AC-ODS-006 send purchases to Odoo', () => {
     h.owned.data = [];
     h.conn.data = read({});
     h.proposal.data = undefined;
+    h.status.isSuccess = true;
     h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
   });
 
