@@ -23,8 +23,8 @@ vi.mock('@/src/lib/import/fxRateParser', async () => {
   );
   return { ...actual, parseFxFile: h.parseFile };
 });
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { fxRates: { existing: h.existing, upsert: h.upsert } },
+vi.mock('@/src/lib/repositories/fxRates', () => ({
+  fxRatesRepository: { existing: h.existing, upsert: h.upsert },
 }));
 vi.mock('@/src/hooks/useFxRates', () => ({
   useFxRateMutations: () => ({ upsert: { mutateAsync: h.upsert, isPending: false } }),

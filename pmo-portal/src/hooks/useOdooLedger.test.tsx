@@ -7,7 +7,9 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 const h = vi.hoisted(() => ({ health: vi.fn(), user: { id: 'u1', org_id: 'org-1' } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: h.user }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { odooLedger: { health: h.health } } }));
+vi.mock('@/src/lib/repositories/odooLedger', () => ({
+  odooLedgerRepository: { health: h.health },
+}));
 
 import { useOdooLedgerHealth } from './useOdooLedger';
 

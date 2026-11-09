@@ -6,12 +6,12 @@ import { useLinkedErpDocuments, useLinkErpDocuments, useUnlinkErpDocument } from
 
 const mock = vi.hoisted(() => ({ listLinked: vi.fn(), link: vi.fn(), unlink: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u', org_id: 'org-a' } }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { erpPurchases: {
+vi.mock('@/src/lib/repositories/erpPurchases', () => ({
+  erpPurchasesRepository: {
     listLinked: (id: string) => mock.listLinked(id),
     link: (rows: unknown, dryRun?: boolean) => mock.link(rows, dryRun),
     unlink: (id: string) => mock.unlink(id),
-  } },
+  },
 }));
 
 const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { create, importHistory } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }), importHistory: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { create }, projectStage: { importHistory } } }));
+vi.mock('@/src/lib/repositories/projectStages', () => ({
+  projectStageRepository: { importHistory },
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: { create },
+}));
 
 import { makeProjectImportDescriptor } from '../projectDescriptor';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';

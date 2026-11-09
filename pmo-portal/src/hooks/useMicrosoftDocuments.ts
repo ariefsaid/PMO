@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { getM365ConnectionStatus } from '@/src/lib/m365/connectClient';
-import { repositories } from '@/src/lib/repositories';
+import { m365DocumentSettingsRepository } from '@/src/lib/repositories/documents';
 import type { MicrosoftLibraryDefault } from '@/src/lib/m365/reference';
 
 /**
@@ -33,7 +33,7 @@ export function useMicrosoftDocuments() {
   });
   const defaultQuery = useQuery({
     queryKey: m365DocumentQueryKeys.defaultLibrary(orgId),
-    queryFn: () => repositories.m365DocumentSettings.getDefaultLibrary(),
+    queryFn: () => m365DocumentSettingsRepository.getDefaultLibrary(),
     enabled,
     retry: false,
   });
@@ -59,7 +59,7 @@ export function useSetDefaultLibrary() {
   const { realRole, effectiveRole } = useEffectiveRole();
   const orgId = currentUser?.org_id ?? null;
   const mutation = useMutation({
-    mutationFn: (value: MicrosoftLibraryDefault | null) => repositories.m365DocumentSettings.setDefaultLibrary(value),
+    mutationFn: (value: MicrosoftLibraryDefault | null) => m365DocumentSettingsRepository.setDefaultLibrary(value),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: m365DocumentQueryKeys.defaultLibrary(orgId) }),
   });
   return realRole !== null && realRole === effectiveRole ? mutation : null;

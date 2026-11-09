@@ -15,7 +15,9 @@ const { master, reorder } = vi.hoisted(() => ({
   master: { listWarehouses: vi.fn(), listItems: vi.fn(), listUnits: vi.fn() },
   reorder: { suggestion: vi.fn(), worklist: vi.fn(), setLevel: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reorder } } }));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { master, reorder },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 let realRole: Role = 'Project Manager';
 let effectiveRole: Role | null = null;

@@ -4,9 +4,11 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const h = vi.hoisted(() => ({ withdrawClaim: vi.fn(), raiseInvoice: vi.fn(), recordAssessment: vi.fn(), createClaim: vi.fn(), createBoq: vi.fn(), deleteBoq: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: {
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  progressBillingRepository: {
   withdrawClaim: h.withdrawClaim, createClaim: h.createClaim, raiseInvoice: h.raiseInvoice, recordAssessment: h.recordAssessment, createBoq: h.createBoq, deleteBoq: h.deleteBoq,
-} } }));
+},
+}));
 import { useProgressBillingMutations } from './useProgressBilling';
 
 function setup() {

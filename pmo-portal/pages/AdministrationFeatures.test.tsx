@@ -39,9 +39,8 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgFeature: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: {
       listForOrg: (...a: unknown[]) => api.listForOrg(...a),
       getPlanCatalogue: () => api.getPlanCatalogue(),
       getOrgPlan: (...a: unknown[]) => api.getOrgPlan(...a),
@@ -53,10 +52,9 @@ vi.mock('@/src/lib/repositories', () => ({
       setPlanFeature: (...a: unknown[]) => api.setPlanFeature(...a),
       setPlanLimits: (...a: unknown[]) => api.setPlanLimits(...a),
     },
-    usage: {
+  usageRepository: {
       listOperatorOrgs: () => api.listOperatorOrgs(),
     },
-  },
 }));
 
 import AdministrationFeatures from './AdministrationFeatures';

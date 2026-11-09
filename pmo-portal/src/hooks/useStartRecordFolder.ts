@@ -6,7 +6,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFeature } from '@/src/auth/useFeature';
 import { can } from '@/src/auth/policy';
 import { useOptionalToast } from '@/src/components/ui/Toast';
-import { repositories } from '@/src/lib/repositories';
+import { m365RecordFoldersRepository } from '@/src/lib/repositories/documents';
 import type { RecordFolderOutcome, RecordFolderTarget } from '@/src/lib/m365/recordFolders';
 import {
   recordFolderErrorCopy,
@@ -105,7 +105,7 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
 
       let pending: Promise<RecordFolderOutcome>;
       try {
-        pending = Promise.resolve(repositories.m365RecordFolders.ensure(target));
+        pending = Promise.resolve(m365RecordFoldersRepository.ensure(target));
       } catch (error) {
         pending = Promise.reject(error);
       }

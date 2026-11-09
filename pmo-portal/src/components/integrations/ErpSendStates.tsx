@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import { Button, StatusPill } from '@/src/components/ui';
 
 const TIER = 'erpnext';
@@ -16,25 +16,25 @@ export function ErpSendStates({ enabled }: { enabled: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const retry = useMutation({
-    mutationFn: (id: string) => repositories.integrations.retryConnectSend(TIER, id),
+    mutationFn: (id: string) => integrationsRepository.retryConnectSend(TIER, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
   });
   const status = useQuery({
     queryKey: ['integrations', 'connect-status', TIER],
-    queryFn: () => repositories.integrations.getConnectStatus(TIER),
+    queryFn: () => integrationsRepository.getConnectStatus(TIER),
     enabled,
     retry: false,
     refetchInterval: (q) => (q.state.data?.waitingForSend ? POLL_MS : false),
   });
   const reviews = useQuery({
     queryKey: ['integrations', 'send-reviews', TIER, status.data?.waitingForSend ?? 0],
-    queryFn: () => repositories.integrations.listConnectProposals(TIER, null, 'review', null),
+    queryFn: () => integrationsRepository.listConnectProposals(TIER, null, 'review', null),
     enabled: enabled && status.isSuccess,
     retry: false,
   });
   const people = useQuery({
     queryKey: ['integrations', 'send-people', TIER],
-    queryFn: () => repositories.integrations.listConnectProposals(TIER, 'employee', 'send', null),
+    queryFn: () => integrationsRepository.listConnectProposals(TIER, 'employee', 'send', null),
     enabled: enabled && status.isSuccess,
     retry: false,
   });

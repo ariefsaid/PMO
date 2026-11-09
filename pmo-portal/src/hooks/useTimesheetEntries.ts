@@ -6,7 +6,7 @@ import {
   type TimesheetEntryWithProject,
   type TimesheetWithEntries,
 } from '@/src/lib/db/timesheets';
-import { repositories } from '@/src/lib/repositories';
+import { timesheetRepository } from '@/src/lib/repositories/timesheets';
 import type { EntryDiff } from '@/src/lib/timesheet-edit';
 
 /** Cache key for the signed-in user's own timesheet list (same key as useTimesheets). */
@@ -54,7 +54,7 @@ export function useTimesheetEntryMutations(): {
     try {
       await queryClient.cancelQueries({ queryKey: ownTimesheetsKey(orgId, userId) });
       // Bounded read from the origin week: the sheet may sit outside the page's default window.
-      const sheets = await repositories.timesheet.list(userId, { fromWeek: origin.week });
+      const sheets = await timesheetRepository.list(userId, { fromWeek: origin.week });
       const sheet = sheets.find((item) => item.id === origin.id && item.week_start_date === origin.week);
       if (!sheet) throw new Error('Timesheet unavailable');
       if (origin.failed) {
@@ -85,7 +85,7 @@ export function useTimesheetEntryMutations(): {
       // in a single transaction (harden #1). The RPC re-targets the upserts at the resolved sheet
       // id server-side and returns that id so chained callers (auto-save-then-submit, AC-W3-O1)
       // can submit immediately without waiting for the invalidation refetch to settle.
-      repositories.timesheet.saveWeek(currentTimesheetId, weekStartDate, diff.upserts, diff.deletes),
+      timesheetRepository.saveWeek(currentTimesheetId, weekStartDate, diff.upserts, diff.deletes),
     onSuccess: invalidateOwn,
   });
 
@@ -94,7 +94,7 @@ export function useTimesheetEntryMutations(): {
       pendingSheet.current = { id: timesheetId, week: weekStartDate, entryIds, failed: false };
       setReconciledDelete(null);
       setIsReconciling(true);
-      await repositories.timesheet.saveWeek(timesheetId, weekStartDate, [], entryIds);
+      await timesheetRepository.saveWeek(timesheetId, weekStartDate, [], entryIds);
     },
     onSettled: async (_data, error) => {
       if (pendingSheet.current) pendingSheet.current.failed = Boolean(error);

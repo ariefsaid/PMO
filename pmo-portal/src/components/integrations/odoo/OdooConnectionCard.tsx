@@ -8,7 +8,7 @@ import { displayedConnection } from '@/src/lib/adapterSeam/odoo/connectionState'
 import { formatDateOnly, formatRelativeTime } from '@/src/lib/format';
 import { useOdooConnect, useOdooConnection, useOdooDisconnect, useOdooSetup } from '@/src/hooks/useOdoo';
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { odooRepository } from '@/src/lib/repositories/odoo';
 import { useAuth } from '@/src/auth/useAuth';
 import { AppError } from '@/src/lib/appError';
 import { OdooConnectionBanner } from './OdooConnectionBanner';
@@ -45,7 +45,7 @@ export function OdooConnectionCard() {
   const notActivated = active && !read?.activated;
   const companies = useQuery({
     queryKey: ['odoo', 'companies', orgId],
-    queryFn: () => repositories.odoo.setup<{ companies: Array<{ id: number; name: string }> }>('list-companies'),
+    queryFn: () => odooRepository.setup<{ companies: Array<{ id: number; name: string }> }>('list-companies'),
     enabled: Boolean(orgId) && notActivated && may.manage,
     retry: false,
   });

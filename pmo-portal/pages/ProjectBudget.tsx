@@ -65,7 +65,7 @@ import BudgetModeSwitchDialog, { type BudgetModeSwitchRequest } from './project-
 import { useBudgetReadiness } from './project-budget/BudgetReadiness';
 import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
-import { repositories } from '@/src/lib/repositories';
+import { budgetRepository } from '@/src/lib/repositories/budget';
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -297,7 +297,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       activationPrecheckQuery.refetch(),
       queryClient.fetchQuery({
         queryKey: ['budget-distribution', currentUser?.org_id, projectId, versionId],
-        queryFn: () => repositories.budget.getDistribution(versionId),
+        queryFn: () => budgetRepository.getDistribution(versionId),
         staleTime: 0,
       }),
     ]);

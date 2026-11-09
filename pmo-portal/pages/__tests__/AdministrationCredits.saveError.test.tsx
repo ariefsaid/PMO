@@ -24,10 +24,8 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 
 const { grant } = vi.hoisted(() => ({ grant: vi.fn() }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    credits: { getOrgBalance: vi.fn().mockResolvedValue(100), grant },
-  },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  creditsRepository: { getOrgBalance: vi.fn().mockResolvedValue(100), grant },
 }));
 
 import AdministrationCredits from '../AdministrationCredits';

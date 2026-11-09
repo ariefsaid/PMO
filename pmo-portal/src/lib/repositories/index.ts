@@ -14,6 +14,12 @@
  * the composition root and public re-export seam only: implementations live in the domain
  * modules, shared dispatch/error helpers in `./repositoryDispatch` / `./repositoryErrors`,
  * and the per-domain contracts in `./contracts/*` (re-exported through `./types`).
+ *
+ * #2096 (perf): production code imports the DOMAIN modules directly
+ * (`@/src/lib/repositories/procurement`, …) so each lazy route chunk carries only its own DAL;
+ * this aggregate is no longer in any first-load chunk. It remains the back-compat seam for
+ * tests and consumers that genuinely want the whole aggregate — importing it still pulls every
+ * domain module, so new production code should NOT import it.
  */
 import { companyCollectionsRepository } from './companyCollections';
 import { recordHistoryRepository } from './recordHistory';

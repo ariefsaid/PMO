@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusPill, Switch, useToast } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { orgFeatureRepository } from '@/src/lib/repositories/admin';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeedbackSurveysEnabled } from '@/src/hooks/useFeedbackSurveys';
@@ -20,7 +20,7 @@ export const FeedbackSurveysSetting: React.FC = () => {
   const canAct = usePermission();
   const on = useFeedbackSurveysEnabled();
   const mutation = useMutation({
-    mutationFn: (enabled: boolean) => repositories.orgFeature.setFeedbackSurveys(enabled),
+    mutationFn: (enabled: boolean) => orgFeatureRepository.setFeedbackSurveys(enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['orgFeatures'] }),
     onError: (err: unknown) => {
       const { headline, detail } = classifyMutationError(err, {});

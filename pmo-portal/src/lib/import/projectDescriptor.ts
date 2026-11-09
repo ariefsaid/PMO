@@ -1,4 +1,5 @@
-import { repositories } from '@/src/lib/repositories';
+import { projectStageRepository } from '@/src/lib/repositories/projectStages';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import {
   PROJECT_ORIGINATION_STATUSES,
   type CreateProjectInput,
@@ -74,7 +75,7 @@ function stageDateErrors(cells: Record<string, string>): Partial<Record<StageDat
  * origination statuses (Leads / Internal Project) — the same gate the New-project form uses
  * (ADR-0020); a won/on-hand status is reachable only via the transition RPC, never an import.
  * `contract_value` is the origination value (optional, default 0; SoD only gates the won
- * transition per ADR-0019). `create` delegates to `repositories.project.create` (RLS authority).
+ * transition per ADR-0019). `create` delegates to `projectRepository.create` (RLS authority).
  *
  * #513 — A ROW THAT STATES A VALUE MUST STATE ITS BASIS. `tax_treatment`/`tax_amount` are per-cell
  * optional (a row at 0 states nothing and is asked nothing) and made conditionally REQUIRED by
@@ -197,8 +198,8 @@ export function makeProjectImportDescriptor(
     create: async (input) => {
       const dated = stageDatesOf(input);
       const { lead_on: _l, pq_submitted_on: _p, quoted_on: _q, tender_sent_on: _t, negotiation_on: _n, ...project } = input;
-      const row = await repositories.project.create(project as CreateProjectInput);
-      if (dated.length > 0) await repositories.projectStage.importHistory(row.id, dated);
+      const row = await projectRepository.create(project as CreateProjectInput);
+      if (dated.length > 0) await projectStageRepository.importHistory(row.id, dated);
       return row;
     },
   };

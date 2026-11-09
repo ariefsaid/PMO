@@ -17,7 +17,9 @@ const { document } = vi.hoisted(() => ({
     createRevision: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { document } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: document,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'author-1', org_id: 'org-1' }, role: 'Admin' }),
 }));

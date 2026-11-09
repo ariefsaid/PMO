@@ -1,5 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
+import { odooRepository } from '@/src/lib/repositories/odoo';
 import type { MirrorKind, ListMasterInput, OdooConfigProposalRead, OdooProjectLinksRead } from '@/src/lib/repositories/types';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
@@ -8,7 +9,7 @@ export function useOdooConnection(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'connection', orgId],
-    queryFn: () => repositories.odoo.getConnection(),
+    queryFn: () => odooRepository.getConnection(),
     enabled: Boolean(orgId) && enabled,
     refetchInterval: 60_000,
   });
@@ -18,7 +19,7 @@ export function useMasterRecords(input: ListMasterInput, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'master', orgId, input],
-    queryFn: () => repositories.odoo.listMasterRecords(input),
+    queryFn: () => odooRepository.listMasterRecords(input),
     enabled: Boolean(orgId) && enabled,
     placeholderData: keepPreviousData,
   });
@@ -29,7 +30,7 @@ export function useMasterRecordsInfinite(input: Omit<ListMasterInput, 'page'>, e
   const orgId = useAuth().currentUser?.org_id;
   return useInfiniteQuery({
     queryKey: ['odoo', 'master-infinite', orgId, input],
-    queryFn: ({ pageParam }) => repositories.odoo.listMasterRecords({ ...input, page: pageParam }),
+    queryFn: ({ pageParam }) => odooRepository.listMasterRecords({ ...input, page: pageParam }),
     initialPageParam: 1,
     getNextPageParam: (last, all) => (last.rows.length > 0 && all.reduce((n, p) => n + p.rows.length, 0) < last.total ? all.length + 1 : undefined),
     enabled: Boolean(orgId) && enabled,
@@ -41,7 +42,7 @@ export function useOdooSetup(verb: string) {
   const orgId = useAuth().currentUser?.org_id;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Record<string, unknown> = {}) => repositories.odoo.setup(verb, input),
+    mutationFn: (input: Record<string, unknown> = {}) => odooRepository.setup(verb, input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['odoo'] });
       void qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
@@ -54,7 +55,7 @@ export function useOdooConnect() {
   const orgId = useAuth().currentUser?.org_id;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (credential: ConnectCredential['credential']) => repositories.integrations.connectIntegration(orgId!, { tier: 'odoo', credential }),
+    mutationFn: (credential: ConnectCredential['credential']) => integrationsRepository.connectIntegration(orgId!, { tier: 'odoo', credential }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['odoo'] });
       void qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
@@ -67,7 +68,7 @@ export function useOdooDisconnect() {
   const orgId = useAuth().currentUser?.org_id;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => repositories.integrations.disconnectIntegration(orgId!, 'odoo'),
+    mutationFn: () => integrationsRepository.disconnectIntegration(orgId!, 'odoo'),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['odoo'] });
       void qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
@@ -80,7 +81,7 @@ export function useMasterSummary(kind: MirrorKind, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'master-summary', orgId, kind],
-    queryFn: () => repositories.odoo.masterSummary(kind),
+    queryFn: () => odooRepository.masterSummary(kind),
     enabled: Boolean(orgId) && enabled,
   });
 }
@@ -95,7 +96,7 @@ export function useOdooJournalProposal(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'journal-proposal', orgId],
-    queryFn: () => repositories.odoo.setup<JournalProposal>('propose-config'),
+    queryFn: () => odooRepository.setup<JournalProposal>('propose-config'),
     enabled: Boolean(orgId) && enabled,
   });
 }
@@ -105,7 +106,7 @@ export function useOdooConfigProposal(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'config-proposal', orgId],
-    queryFn: () => repositories.odoo.setup<OdooConfigProposalRead>('propose-config', { map: true }),
+    queryFn: () => odooRepository.setup<OdooConfigProposalRead>('propose-config', { map: true }),
     enabled: Boolean(orgId) && enabled,
     retry: false,
   });
@@ -116,7 +117,7 @@ export function useOdooProjectLinks(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'project-links', orgId],
-    queryFn: () => repositories.odoo.setup<OdooProjectLinksRead>('list-projects'),
+    queryFn: () => odooRepository.setup<OdooProjectLinksRead>('list-projects'),
     enabled: Boolean(orgId) && enabled,
     retry: false,
   });

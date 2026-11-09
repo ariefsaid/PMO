@@ -15,8 +15,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => () => ['Admin', 'Finance', 'Executive', 'Project Manager'].includes(h.role),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { revenue: { getProjectFinances: h.getProjectFinances } },
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { getProjectFinances: h.getProjectFinances },
 }));
 
 import { useProjectFinances } from './useProjectFinances';

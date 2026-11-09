@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { create } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: { create } } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: { create },
+}));
 
 import { makeProcurementImportDescriptor } from '../procurementDescriptor';
 

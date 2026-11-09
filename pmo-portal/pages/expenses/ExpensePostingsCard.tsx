@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
 import { Card, CardHead, CardPad, ListState, StatusPill, type StatusVariant } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { expensePostingsRepository } from '@/src/lib/repositories/expensePostings';
 import type { ExpensePostingKind, ExpensePostingRow, ExpensePushState } from '@/src/lib/repositories/expensePostings';
 
 const STATE_VARIANT: Readonly<Record<ExpensePushState, StatusVariant>> = {
@@ -61,7 +61,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
   const { t } = useTranslation(['common', 'expenseClaims']);
   const { data, isPending, isError, refetch } = useQuery<ExpensePostingRow[]>({
     queryKey: ['expense-postings', claimId],
-    queryFn: () => repositories.expensePostings.listForClaim(claimId),
+    queryFn: () => expensePostingsRepository.listForClaim(claimId),
   });
   const readiness = useExpensePostingReadiness().state;
   const postingLabel: Record<ExpensePostingKind, string> = {

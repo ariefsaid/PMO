@@ -20,7 +20,15 @@ const { master, profile, project } = vi.hoisted(() => ({
   profile: { listOrgProfiles: vi.fn() },
   project: { listIdentity: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master }, profile, project } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  profileRepository: profile,
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: project,
+}));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { master },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 
 let realRole: Role = 'Admin';

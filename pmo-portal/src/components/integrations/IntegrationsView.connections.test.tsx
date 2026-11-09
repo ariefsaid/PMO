@@ -25,7 +25,9 @@ const erpSetup = vi.hoisted(() => ({
   employErpDomain: vi.fn(async () => ({ ok: true })),
   onboardErpParties: vi.fn(async () => ({ ok: true })),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: erpSetup } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: erpSetup,
+}));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/hooks/useIntegrations', () => ({
   useIntegrations: vi.fn(),

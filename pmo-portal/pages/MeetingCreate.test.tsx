@@ -24,7 +24,9 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permissi
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) } } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  profileRepository: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) },
+}));
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   const liveDocument: never[] = [];

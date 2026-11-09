@@ -23,10 +23,8 @@ const mockIntegrationsRepo = vi.hoisted(() => ({
   startConnectCensus: vi.fn<IntegrationsRepository['startConnectCensus']>(),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    integrations: mockIntegrationsRepo,
-  },
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: mockIntegrationsRepo,
 }));
 
 function renderWithRole(role: string | null, ui: React.ReactElement) {

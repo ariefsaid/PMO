@@ -12,7 +12,9 @@ const { erpSnapshots } = vi.hoisted(() => ({
     arAging: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { erpSnapshots } }));
+vi.mock('@/src/lib/repositories/reporting', () => ({
+  erpSnapshotsRepository: erpSnapshots,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));

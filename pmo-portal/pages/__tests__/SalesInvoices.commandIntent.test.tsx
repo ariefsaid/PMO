@@ -40,10 +40,9 @@ const { revenue } = vi.hoisted(() => ({
     })),
   },
 }));
-vi.mock('@/src/lib/repositories', async (orig) => {
-  const actual = await orig<typeof import('@/src/lib/repositories')>();
-  return { ...actual, repositories: { revenue } };
-});
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: revenue,
+}));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }),

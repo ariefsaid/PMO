@@ -6,11 +6,11 @@ const mocks = vi.hoisted(() => ({
   salesSetEfaktur: vi.fn().mockResolvedValue(undefined),
   procurementSetEfaktur: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    revenue: { setEfaktur: mocks.salesSetEfaktur },
-    procurement: { setEfaktur: mocks.procurementSetEfaktur },
-  },
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: { setEfaktur: mocks.procurementSetEfaktur },
+}));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { setEfaktur: mocks.salesSetEfaktur },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 

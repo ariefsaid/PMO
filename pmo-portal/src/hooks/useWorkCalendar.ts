@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { taskRepository } from '@/src/lib/repositories/tasks';
 import type { CalendarTask, TaskPatch } from '@/src/lib/db/tasks';
 import { useAuth } from '@/src/auth/useAuth';
 import { invalidateTaskProjections } from './taskQueryKeys';
@@ -13,7 +13,7 @@ export function useCalendarTasks(window: { from: string; to: string } | null, pr
   const orgId = currentUser?.org_id;
   return useQuery<CalendarTask[]>({
     queryKey: ['calendar-tasks', orgId, projectId ?? 'all', window?.from, window?.to],
-    queryFn: () => repositories.task.listCalendar({ ...window!, projectId }),
+    queryFn: () => taskRepository.listCalendar({ ...window!, projectId }),
     enabled: Boolean(orgId) && window !== null,
     placeholderData: (previous) => previous, // keep the grid painted while the next window loads
   });
@@ -26,7 +26,7 @@ export function useMoveCalendarTask() {
   const orgId = currentUser?.org_id;
   return useMutation({
     mutationFn: ({ task, patch }: { task: CalendarTask; patch: Pick<TaskPatch, 'start_date' | 'end_date'> }) =>
-      repositories.task.update(task.id, patch, task.project_id ?? undefined),
+      taskRepository.update(task.id, patch, task.project_id ?? undefined),
     onSuccess: (_data, { task }) => invalidateTaskProjections(qc, orgId, task.project_id),
   });
 }

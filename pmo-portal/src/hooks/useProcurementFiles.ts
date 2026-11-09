@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { procurementFilesRepository } from '@/src/lib/repositories/procurement';
 import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTransport';
 import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_MB } from '@/src/lib/fileConstants';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
@@ -57,7 +57,7 @@ export function useProcurementFiles(
 
   const list = useQuery<ProcurementFileRow[]>({
     queryKey,
-    queryFn: () => repositories.procurementFiles.list(phase, parentId),
+    queryFn: () => procurementFilesRepository.list(phase, parentId),
     enabled: opts?.list !== false,
   });
 
@@ -73,13 +73,13 @@ export function useProcurementFiles(
         const reference = await uploadRecordFile({ kind: 'procurement_file', phase, parent_id: parentId }, file, controller.signal);
         setProgress(100);
         try {
-          return await repositories.procurementFiles.confirmMicrosoftUpload(phase, parentId, reference, title ?? null, uploadedById);
+          return await procurementFilesRepository.confirmMicrosoftUpload(phase, parentId, reference, title ?? null, uploadedById);
         } catch {
           throw new UploadFailure('attach');
         }
       }
       if (destination.kind === 'unknown') throw new UploadFailure('unavailable');
-      const { signedUrl, path } = await repositories.procurementFiles.prepareUpload(
+      const { signedUrl, path } = await procurementFilesRepository.prepareUpload(
         phase,
         procurementId,
         file.name,
@@ -96,7 +96,7 @@ export function useProcurementFiles(
       // (e.g. RLS reject), the object would orphan, so clean it up best-effort before
       // re-throwing (matches the shipped useFileUpload pattern, #78).
       try {
-        const row = await repositories.procurementFiles.confirmUpload(
+        const row = await procurementFilesRepository.confirmUpload(
           phase,
           parentId,
           path,
@@ -105,7 +105,7 @@ export function useProcurementFiles(
         );
         return row;
       } catch (confirmError) {
-        repositories.procurementFiles.cleanupObject(path).catch(() => {});
+        procurementFilesRepository.cleanupObject(path).catch(() => {});
         throw confirmError;
       }
     } finally {
@@ -132,13 +132,13 @@ export function useProcurementFiles(
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => repositories.procurementFiles.archive(phase, id),
+    mutationFn: (id: string) => procurementFilesRepository.archive(phase, id),
     onSuccess: () => invalidate(),
   });
 
   const download = useCallback(
     (filePath: string, opts?: { download?: boolean; expiresIn?: number }) =>
-      repositories.procurementFiles.getSignedUrl(filePath, opts),
+      procurementFilesRepository.getSignedUrl(filePath, opts),
     [],
   );
 

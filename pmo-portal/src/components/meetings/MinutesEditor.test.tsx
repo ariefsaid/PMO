@@ -8,7 +8,9 @@ import type { NoteBlock } from '@/src/lib/meetingNotes';
 import { notesToText } from '@/test/meetingNotes';
 
 const { getTask } = vi.hoisted(() => ({ getTask: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { task: { get: getTask } } }));
+vi.mock('@/src/lib/repositories/tasks', () => ({
+  taskRepository: { get: getTask },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
 import MinutesEditor, { type MinutesEditorHandle, type MinutesEditorProps } from './MinutesEditor';

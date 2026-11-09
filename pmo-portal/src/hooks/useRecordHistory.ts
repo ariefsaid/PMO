@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { recordHistoryRepository } from '@/src/lib/repositories/recordHistory';
 import type { HistoryCursor, HistoryPage } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -25,7 +25,7 @@ export function useRecordHistory({
     queryKey: ['record-history', orgId, entityType, entityId, includeChildren, entityTypes],
     initialPageParam: null,
     queryFn: ({ pageParam }) =>
-      repositories.recordHistory.list({
+      recordHistoryRepository.list({
         entityType, entityId, includeChildren, entityTypes, cursor: pageParam,
       }),
     getNextPageParam: (last) => last.nextCursor,

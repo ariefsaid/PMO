@@ -77,8 +77,8 @@ vi.mock('@/src/hooks/useTasks', () => ({
   useAssignableProfiles: () => profilesState,
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: repositoryState,
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: repositoryState.document,
 }));
 vi.mock('@/src/components/m365/DocumentLinkPermissions', () => ({
   useDocumentLinkPermissions: () => ({

@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Card, CardHead, CardPad, FieldError, SelectField, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { companyRepository } from '@/src/lib/repositories/companies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import { queryClient } from '@/src/lib/queryClient';
@@ -34,7 +34,7 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
   // The app's singleton client (App.tsx provides the same one), as `useVendorTaxDefault` reads it: saving here
   // refreshes an open bill form's pre-fill, and the card renders wherever CompanyDetail does.
   const mutation = useMutation({
-    mutationFn: (input: VendorTaxDefaultsInput) => repositories.company.setTaxDefaults(company.id, input),
+    mutationFn: (input: VendorTaxDefaultsInput) => companyRepository.setTaxDefaults(company.id, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['company'] });
       toast(t('companyDetail.vendorTax.saved', 'Supplier tax defaults saved'), undefined, 'success');

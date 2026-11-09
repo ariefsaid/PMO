@@ -8,7 +8,10 @@ import {
 } from '@/src/lib/db/projects';
 import type { CompanyRow } from '@/src/lib/db/companies';
 import type { ProfileRow } from '@/src/lib/db/profiles';
-import { repositories } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
+import { companyRepository } from '@/src/lib/repositories/companies';
+import { projectRepository } from '@/src/lib/repositories/projects';
+import { milestoneRepository } from '@/src/lib/repositories/workOrders';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
@@ -19,7 +22,7 @@ export function useProjectIdentity() {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['project-identity', orgId],
-    queryFn: () => repositories.project.listIdentity(),
+    queryFn: () => projectRepository.listIdentity(),
     enabled: Boolean(orgId),
   });
 }
@@ -33,7 +36,7 @@ export function useProjectPickerOptions() {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: [...projectKeys.all(orgId), 'picker'],
-    queryFn: () => repositories.project.listPickerOptions(),
+    queryFn: () => projectRepository.listPickerOptions(),
     enabled: Boolean(orgId),
   });
 }
@@ -46,7 +49,7 @@ export function useProjectNumbers(ids: string[]) {
   return useQuery({
     queryKey: ['project-numbers', orgId, stableIds],
     queryFn: async () => Object.fromEntries(
-      (await repositories.project.listNumbers(stableIds)).map((row) => [row.id, row.pmo_project_number]),
+      (await projectRepository.listNumbers(stableIds)).map((row) => [row.id, row.pmo_project_number]),
     ) as Record<string, string | null>,
     enabled: Boolean(orgId) && stableIds.length > 0,
   });
@@ -57,7 +60,7 @@ export function useProjects(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs[]>({
     queryKey: projectKeys.all(orgId),
-    queryFn: () => repositories.project.list(),
+    queryFn: () => projectRepository.list(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -68,7 +71,7 @@ export function useProject(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs | null>({
     queryKey: projectKeys.detail(orgId, id),
-    queryFn: () => repositories.project.getWithRefs(id!),
+    queryFn: () => projectRepository.getWithRefs(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -91,7 +94,7 @@ export function useProjectsMilestoneDates(ids: string[], active = true) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: projectKeys.milestoneDates(orgId, ids),
-    queryFn: () => repositories.milestone.milestoneDatesForProjects(ids),
+    queryFn: () => milestoneRepository.milestoneDatesForProjects(ids),
     enabled: active && Boolean(orgId) && ids.length > 0,
   });
 }
@@ -101,7 +104,7 @@ export function useClientCompanies() {
   const orgId = currentUser?.org_id;
   return useQuery<CompanyRow[]>({
     queryKey: ['companies', 'client', orgId],
-    queryFn: () => repositories.company.listClients(),
+    queryFn: () => companyRepository.listClients(),
     enabled: Boolean(orgId),
   });
 }
@@ -111,7 +114,7 @@ export function useProjectManagers() {
   const orgId = currentUser?.org_id;
   return useQuery<ProfileRow[]>({
     queryKey: ['profiles', 'pm', orgId],
-    queryFn: () => repositories.profile.listProjectManagers(),
+    queryFn: () => profileRepository.listProjectManagers(),
     enabled: Boolean(orgId),
   });
 }
@@ -160,7 +163,7 @@ export function useProjectMutations() {
   const startRecordFolder = useStartRecordFolder();
   const create = useMutation({
     mutationFn: async (input: CreateProjectInput) => {
-      const row = await repositories.project.create(input);
+      const row = await projectRepository.create(input);
       // #1020: link/create the project's SharePoint folder. Fire-and-forget (void, never awaited,
       // failures caught inside): a folder problem can neither delay nor fail the saved project.
       // No usable identifier (code and project number both empty) = nothing to name the folder by: skip silently.
@@ -176,24 +179,24 @@ export function useProjectMutations() {
 
   const updateHeader = useMutation({
     mutationFn: ({ id, input }: UpdateProjectHeaderArgs) =>
-      repositories.project.updateHeader(id, input),
+      projectRepository.updateHeader(id, input),
     onSuccess: invalidate,
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => repositories.project.archive(id),
+    mutationFn: (id: string) => projectRepository.archive(id),
     onSuccess: invalidate,
   });
 
   // Hard delete (Admin-only in the FE gate). Irreversible; rejects 23503 when the
   // project is referenced (procurement / timesheet). Archive is the safe default.
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.project.delete(id),
+    mutationFn: (id: string) => projectRepository.delete(id),
     onSuccess: invalidate,
   });
 
   const setContractValue = useMutation({
-    mutationFn: (args: SetContractValueArgs) => repositories.project.setContractValue(args),
+    mutationFn: (args: SetContractValueArgs) => projectRepository.setContractValue(args),
     onSuccess: invalidate,
   });
 

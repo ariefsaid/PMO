@@ -6,7 +6,7 @@ import { SalesInvoiceFormModal } from './sales-invoices/SalesInvoiceFormModal';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
 import {
   ListPage,
   SearchMini,
@@ -292,7 +292,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const listedTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) : undefined;
   const unlisted = useQuery({
     queryKey: ['salesInvoice', currentUser?.org_id, invoiceId],
-    queryFn: () => repositories.revenue.getInvoice(invoiceId!),
+    queryFn: () => revenueRepository.getInvoice(invoiceId!),
     enabled: Boolean(invoiceId && currentUser?.org_id && !isPending && !isError && !listedTarget),
     retry: false,
   });

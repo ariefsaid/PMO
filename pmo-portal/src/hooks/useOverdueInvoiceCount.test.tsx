@@ -22,9 +22,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-11-05', isPending: false, isError: false, retry: vi.fn() }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    revenue: {
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: {
       countOverdueInvoices: h.countOverdueInvoices,
       submitInvoice: h.submitInvoice,
       createPayment: h.createPayment,
@@ -36,7 +35,6 @@ vi.mock('@/src/lib/repositories', () => ({
       setProject: h.setProject,
       setBillingKind: h.setBillingKind,
     },
-  },
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useOptionalRealRole: () => 'Finance',

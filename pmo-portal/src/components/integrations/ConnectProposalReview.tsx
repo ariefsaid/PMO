@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import type {
   ConnectCensusRow,
   ConnectKind,
@@ -149,7 +149,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
 
   const statusQuery = useQuery({
     queryKey: ['integrations', 'connect-status', tier],
-    queryFn: () => repositories.integrations.getConnectStatus(tier),
+    queryFn: () => integrationsRepository.getConnectStatus(tier),
     refetchInterval: (query) => {
       const state = query.state.data?.run?.state;
       return state === 'staging' || state === 'proposing' ? 5000 : false;
@@ -159,7 +159,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
   const proposalsQuery = useQuery({
     queryKey: ['integrations', 'connect-proposals', tier],
     queryFn: async () => {
-      const r = await repositories.integrations.listConnectProposals(tier, null, null, null);
+      const r = await integrationsRepository.listConnectProposals(tier, null, null, null);
       return r.proposals ?? [];
     },
   });
@@ -168,14 +168,14 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
     queryKey: ['integrations', 'connect-review-list', tier, reviewListKind, 'open'],
     enabled: reviewListKind !== null,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => repositories.integrations.listConnectProposals(tier, reviewListKind!, null, pageParam, 'open'),
+    queryFn: ({ pageParam }) => integrationsRepository.listConnectProposals(tier, reviewListKind!, null, pageParam, 'open'),
     getNextPageParam: (lastPage) => lastPage.nextAfterId ?? undefined,
   });
   const appliedReviewListQuery = useInfiniteQuery({
     queryKey: ['integrations', 'connect-review-list', tier, reviewListKind, 'applied-link'],
     enabled: reviewListKind !== null,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => repositories.integrations.listConnectProposals(tier, reviewListKind!, 'link', pageParam, 'applied'),
+    queryFn: ({ pageParam }) => integrationsRepository.listConnectProposals(tier, reviewListKind!, 'link', pageParam, 'applied'),
     getNextPageParam: (lastPage) => lastPage.nextAfterId ?? undefined,
   });
 
@@ -268,7 +268,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
     setSearchStatus('loading');
     searchTimer.current = setTimeout(async () => {
       try {
-        const records = await repositories.integrations.searchConnectStaged(tier, reviewListKind ?? 'party', query.trim());
+        const records = await integrationsRepository.searchConnectStaged(tier, reviewListKind ?? 'party', query.trim());
         if (token === searchToken.current) {
           setSearchRecords(records.slice(0, 20));
           setSearchStatus('ready');
@@ -287,8 +287,8 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
     try {
       // The repository loops the batched accept until nothing remains (FR-ECA-012/013).
       const excludeIds = acceptingSelected && kind ? [...(excludedByKind[kind] ?? [])] : null;
-      if (excludeIds) await repositories.integrations.acceptConnectProposals(tier, kind, null, excludeIds);
-      else await repositories.integrations.acceptConnectProposals(tier, kind, null);
+      if (excludeIds) await integrationsRepository.acceptConnectProposals(tier, kind, null, excludeIds);
+      else await integrationsRepository.acceptConnectProposals(tier, kind, null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['integrations', 'connect-status', tier] }),
         queryClient.invalidateQueries({ queryKey: ['integrations', 'connect-proposals', tier] }),
@@ -307,7 +307,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
   const handleDecision = async (id: string, choice: ConnectReviewChoice) => {
     setErrorMessage(null);
     try {
-      await repositories.integrations.decideConnectReview(tier, id, choice);
+      await integrationsRepository.decideConnectReview(tier, id, choice);
       setChoosingRowId(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['integrations', 'connect-status', tier] }),
@@ -331,7 +331,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
   const handleUnlink = async (id: string) => {
     setErrorMessage(null);
     try {
-      await repositories.integrations.unlinkConnectMatch(tier, id);
+      await integrationsRepository.unlinkConnectMatch(tier, id);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['integrations', 'connect-status', tier] }),
         queryClient.invalidateQueries({ queryKey: ['integrations', 'connect-review-list', tier] }),
@@ -348,7 +348,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
     setStartFailed(false);
     setStarting(true);
     try {
-      await repositories.integrations.startConnectCensus(tier);
+      await integrationsRepository.startConnectCensus(tier);
       await statusQuery.refetch();
     } catch (err) {
       setStartFailed(true);

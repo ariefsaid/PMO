@@ -18,7 +18,12 @@ const { task, profile } = vi.hoisted(() => ({
   },
   profile: { listOrgProfiles: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { task, profile } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  profileRepository: profile,
+}));
+vi.mock('@/src/lib/repositories/tasks', () => ({
+  taskRepository: task,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

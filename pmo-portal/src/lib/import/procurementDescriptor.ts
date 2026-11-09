@@ -1,4 +1,4 @@
-import { repositories } from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
 import type { NewProcurementInput } from '@/src/lib/db/procurementCrud';
 import type { ImportDescriptor } from './types';
 import { makeRefLookup, refValidate, refId } from './refLookup';
@@ -8,7 +8,7 @@ import { makeRefLookup, refValidate, refId } from './refLookup';
  * (→ `projectId`), vendor companies (→ `vendorId`), and the CURRENT USER — `createProcurement`
  * takes `requestedById` as a second arg the spreadsheet cannot supply, so the factory injects it
  * (a crafted xlsx can carry neither org_id nor a foreign requester). Status is forced to `Draft`
- * by `createProcurement`, never imported. `create` delegates to `repositories.procurement.create`
+ * by `createProcurement`, never imported. `create` delegates to `procurementRepository.create`
  * (RLS `procurements_write` is the sole write authority).
  */
 export function makeProcurementImportDescriptor(
@@ -35,6 +35,6 @@ export function makeProcurementImportDescriptor(
       projectId: refId(project, cells.projectId ?? ''),
       vendorId: refId(vendor, cells.vendorId ?? ''),
     }),
-    create: (input) => repositories.procurement.create(input, requestedById),
+    create: (input) => procurementRepository.create(input, requestedById),
   };
 }

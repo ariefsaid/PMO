@@ -32,15 +32,13 @@ vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: 
 vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, selectSupplierInvoices: () => undefined }));
 vi.mock('@/src/lib/procurement/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
 // Only the repository seam is stubbed; the real useRevenue query hooks run (issue 1973 probes).
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    revenue: {
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: {
       listOverdueInvoiceFacts: h.listOverdueInvoiceFacts,
       listPaidPaymentFacts: h.listPaidPaymentFacts,
       hasAnySalesInvoice: h.hasAnySalesInvoice,
       hasAnyIncomingPayment: h.hasAnyIncomingPayment,
     },
-  },
 }));
 
 import { useCompanyFigures } from './useCompanyFigures';

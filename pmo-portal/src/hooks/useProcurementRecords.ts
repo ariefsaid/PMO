@@ -3,7 +3,7 @@
  * (purchase_requests / rfqs / purchase_orders / payments) + their file uploads.
  *
  * Mirrors the shape of `useProcurementMutations` (useProcurementDetail.ts):
- *   - each mutation calls the `repositories.procurement.*` seam (task FIX-1, Discover CRITICAL 1 —
+ *   - each mutation calls the `procurementRepository.*` seam (task FIX-1, Discover CRITICAL 1 —
  *     was calling the DAL directly, which bypassed Slice 1's `routeDomainWrite('procurement')`
  *     guard and local-wrote with a false success on a flipped org)
  *   - each invalidates ['procurement', orgId, id] on success so the detail page refetches
@@ -22,14 +22,8 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import {
-  repositories,
-  type ProcurementError,
-  type PurchaseRequestRow,
-  type RfqRow,
-  type PurchaseOrderRow,
-  type PaymentRow,
-} from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
+import type { PaymentRow, ProcurementError, PurchaseOrderRow, PurchaseRequestRow, RfqRow } from '@/src/lib/repositories/types';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -147,14 +141,14 @@ export function useProcurementRecordMutations(procurementId: string) {
   >({
     mutationFn: ({ referenceNumber, status, date, amount, intent, externalRef }) =>
       externalRef
-        ? repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent, externalRef)
-        : repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent),
+        ? procurementRepository.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent, externalRef)
+        : procurementRepository.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent),
     ...handlers(false),
   });
 
   const createRfqMut = useMutation<RfqRow, ProcurementError, CreateRfqInput>({
     mutationFn: ({ referenceNumber, status, date, amount, intent }) =>
-      repositories.procurement.createRfq(procurementId, referenceNumber, status, date, amount, intent),
+      procurementRepository.createRfq(procurementId, referenceNumber, status, date, amount, intent),
     ...handlers(false),
   });
 
@@ -165,16 +159,16 @@ export function useProcurementRecordMutations(procurementId: string) {
   >({
     mutationFn: ({ referenceNumber, status, date, amount, intent, externalRef }) =>
       externalRef
-        ? repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent, externalRef)
-        : repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent),
+        ? procurementRepository.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent, externalRef)
+        : procurementRepository.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent),
     ...handlers(false),
   });
 
   const createPaymentMut = useMutation<PaymentRow, ProcurementError, CreatePaymentInput>({
     mutationFn: ({ invoiceId, referenceNumber, status, date, amount, intent, journalId }) =>
       journalId
-        ? repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent, journalId)
-        : repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent),
+        ? procurementRepository.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent, journalId)
+        : procurementRepository.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent),
     ...handlers(true),
   });
 

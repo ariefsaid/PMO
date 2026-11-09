@@ -1,17 +1,8 @@
 import { invalidateTaskProjections } from './taskQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  repositories,
-  type MeetingWithRefs,
-  type MeetingListItem,
-  type MeetingInput,
-  type MeetingPatch,
-  type MeetingListParams,
-  type MeetingAttendeeWithRefs,
-  type MeetingAttendeeInput,
-  type MeetingGrantWithRefs,
-  type TaskWithRefs,
-} from '@/src/lib/repositories';
+import { meetingRepository } from '@/src/lib/repositories/meetings';
+import { taskRepository } from '@/src/lib/repositories/tasks';
+import type { MeetingAttendeeInput, MeetingAttendeeWithRefs, MeetingGrantWithRefs, MeetingInput, MeetingListItem, MeetingListParams, MeetingPatch, MeetingWithRefs, TaskWithRefs } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -25,7 +16,7 @@ export function useMeetings(params?: MeetingListParams) {
   const orgId = currentUser?.org_id;
   return useQuery<MeetingListItem[]>({
     queryKey: ['meetings', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
-    queryFn: () => repositories.meeting.list(params),
+    queryFn: () => meetingRepository.list(params),
     enabled: Boolean(orgId),
     // Keep the previous rows on screen while a search/filter keystroke refetches — the list
     // must not flash its loading skeleton (and unmount the search box) on every character.
@@ -39,7 +30,7 @@ export function useMeeting(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<MeetingWithRefs | null>({
     queryKey: ['meeting', orgId, id],
-    queryFn: () => repositories.meeting.get(id!),
+    queryFn: () => meetingRepository.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -50,7 +41,7 @@ export function useMeetingAttendees(meetingId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<MeetingAttendeeWithRefs[]>({
     queryKey: ['meeting-attendees', orgId, meetingId],
-    queryFn: () => repositories.meeting.listAttendees(meetingId!),
+    queryFn: () => meetingRepository.listAttendees(meetingId!),
     enabled: Boolean(orgId && meetingId),
   });
 }
@@ -61,7 +52,7 @@ export function useMeetingGrants(meetingId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<MeetingGrantWithRefs[]>({
     queryKey: ['meeting-grants', orgId, meetingId],
-    queryFn: () => repositories.meeting.listGrants(meetingId!),
+    queryFn: () => meetingRepository.listGrants(meetingId!),
     enabled: Boolean(orgId && meetingId),
   });
 }
@@ -72,7 +63,7 @@ export function useMeetingActionItems(meetingId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<TaskWithRefs[]>({
     queryKey: ['meeting-action-items', orgId, meetingId],
-    queryFn: () => repositories.task.listByMeeting(meetingId!),
+    queryFn: () => taskRepository.listByMeeting(meetingId!),
     enabled: Boolean(orgId && meetingId),
   });
 }
@@ -117,49 +108,49 @@ export function useMeetingMutations() {
   };
 
   const create = useMutation({
-    mutationFn: (input: MeetingInput) => repositories.meeting.create(input),
+    mutationFn: (input: MeetingInput) => meetingRepository.create(input),
     onSuccess: invalidateMeetings,
   });
 
   const update = useMutation({
-    mutationFn: ({ id, patch }: UpdateMeetingArgs) => repositories.meeting.update(id, patch),
+    mutationFn: ({ id, patch }: UpdateMeetingArgs) => meetingRepository.update(id, patch),
     onSuccess: invalidateMeetings,
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => repositories.meeting.archive(id),
+    mutationFn: (id: string) => meetingRepository.archive(id),
     onSuccess: invalidateMeetings,
   });
 
   const restore = useMutation({
-    mutationFn: (id: string) => repositories.meeting.restore(id),
+    mutationFn: (id: string) => meetingRepository.restore(id),
     onSuccess: invalidateMeetings,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.meeting.delete(id),
+    mutationFn: (id: string) => meetingRepository.delete(id),
     onSuccess: invalidateMeetings,
   });
 
   const addAttendee = useMutation({
     mutationFn: ({ meetingId, identity }: AddAttendeeArgs) =>
-      repositories.meeting.addAttendee(meetingId, identity),
+      meetingRepository.addAttendee(meetingId, identity),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-attendees'] }),
   });
 
   const removeAttendee = useMutation({
-    mutationFn: (id: string) => repositories.meeting.removeAttendee(id),
+    mutationFn: (id: string) => meetingRepository.removeAttendee(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-attendees'] }),
   });
 
   const addGrant = useMutation({
     mutationFn: ({ meetingId, userId }: AddGrantArgs) =>
-      repositories.meeting.addGrant(meetingId, userId),
+      meetingRepository.addGrant(meetingId, userId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-grants'] }),
   });
 
   const revokeGrant = useMutation({
-    mutationFn: (id: string) => repositories.meeting.revokeGrant(id),
+    mutationFn: (id: string) => meetingRepository.revokeGrant(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-grants'] }),
   });
 
@@ -171,7 +162,7 @@ export function useMeetingMutations() {
    */
   const createActionItem = useMutation({
     mutationFn: ({ meetingId, projectId, name, assigneeId, endDate }: CreateActionItemArgs) =>
-      repositories.task.create({
+      taskRepository.create({
         project_id: projectId,
         name,
         status: 'To Do',

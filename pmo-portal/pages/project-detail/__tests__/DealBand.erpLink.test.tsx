@@ -22,10 +22,10 @@ vi.mock('@/src/hooks/useProjectStageEntries', () => ({
   useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/lib/repositories', async (orig) => {
-  const actual = await orig() as typeof import('@/src/lib/repositories');
-  return { ...actual, repositories: { ...actual.repositories, project: { ...actual.repositories.project, transition: transitionProject } } };
-});
+vi.mock('@/src/lib/repositories/projects', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  projectRepository: { ...(await importOriginal()).projectRepository, transition: transitionProject },
+}));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };

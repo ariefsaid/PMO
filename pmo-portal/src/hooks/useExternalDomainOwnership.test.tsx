@@ -7,8 +7,8 @@ const state = vi.hoisted(() => ({ orgId: 'org-a', listOwn: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: state.orgId ? { org_id: state.orgId } : null }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { externalDomainOwnership: { listOwn: state.listOwn } },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  externalDomainOwnershipRepository: { listOwn: state.listOwn },
 }));
 
 import { externalDomainOwnershipKey, useExternalDomainOwnership } from './useExternalDomainOwnership';

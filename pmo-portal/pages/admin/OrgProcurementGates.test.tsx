@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), canManage: true }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { getProcurementGates: h.get, setProcurementGates: h.set } } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { getProcurementGates: h.get, setProcurementGates: h.set },
+}));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o' } }) }));
 

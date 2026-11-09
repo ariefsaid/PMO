@@ -18,7 +18,8 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { repositories } from '@/src/lib/repositories';
+import { expensePostingsRepository } from '@/src/lib/repositories/expensePostings';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import type { ExpenseAccountMapRow } from '@/src/lib/repositories/expensePostings';
 import { EXPENSE_ACCOUNT_KEYS, type ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
@@ -50,7 +51,7 @@ const ExpenseAccountMap: React.FC = () => {
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const { data, isPending, isError, refetch } = useQuery<ExpenseAccountMapRow[]>({
     queryKey: QUERY_KEY,
-    queryFn: () => repositories.expensePostings.listAccountMap(),
+    queryFn: () => expensePostingsRepository.listAccountMap(),
   });
   const byKey = useMemo(() => new Map((data ?? []).map((r) => [r.accountKey, r.erpAccount])), [data]);
   const unmappedCount = useMemo(
@@ -69,11 +70,11 @@ const ExpenseAccountMap: React.FC = () => {
   })[key];
   const invalidate = () => qc.invalidateQueries({ queryKey: QUERY_KEY });
   const save = useMutation({
-    mutationFn: (v: { accountKey: ExpenseAccountKey; erpAccount: string }) => repositories.integrations.saveExpenseAccount(v),
+    mutationFn: (v: { accountKey: ExpenseAccountKey; erpAccount: string }) => integrationsRepository.saveExpenseAccount(v),
     onSuccess: invalidate,
   });
   const clear = useMutation({
-    mutationFn: (key: ExpenseAccountKey) => repositories.integrations.clearExpenseAccount(key),
+    mutationFn: (key: ExpenseAccountKey) => integrationsRepository.clearExpenseAccount(key),
     onSuccess: invalidate,
   });
 

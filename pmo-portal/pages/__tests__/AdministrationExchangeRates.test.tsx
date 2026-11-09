@@ -25,10 +25,8 @@ vi.mock('@/src/auth/usePermission', () => ({
     return h.role === 'Admin';
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    fxRates: { list: h.list, context: h.context, upsert: h.upsert, existing: h.existing },
-  },
+vi.mock('@/src/lib/repositories/fxRates', () => ({
+  fxRatesRepository: { list: h.list, context: h.context, upsert: h.upsert, existing: h.existing },
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => h.orgDay() }));
 

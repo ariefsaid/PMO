@@ -31,12 +31,10 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: 'Finance' }),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgFeature: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: {
       listOwn: () => (h.pending ? new Promise(() => {}) : Promise.resolve(h.resolved)),
     },
-  },
 }));
 
 vi.mock('@/src/hooks/useUserViews', () => ({

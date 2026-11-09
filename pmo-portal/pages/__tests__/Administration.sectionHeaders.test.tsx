@@ -89,10 +89,9 @@ vi.mock('@/src/hooks/useOrgFeatures', async (importOriginal) => ({
     },
   }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    credits: { getOrgBalance: () => Promise.resolve(100), grant: () => Promise.resolve(undefined) },
-    orgFeature: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  creditsRepository: { getOrgBalance: () => Promise.resolve(100), grant: () => Promise.resolve(undefined) },
+  orgFeatureRepository: {
       listOwn: vi.fn().mockResolvedValue({ display: {}, states: {} }),
       listForOrg: vi.fn().mockResolvedValue({
         display: { incidents: true, crm: false, procurement: true },
@@ -123,7 +122,6 @@ vi.mock('@/src/lib/repositories', () => ({
       setPlanFeature: vi.fn().mockResolvedValue(undefined),
       setPlanLimits: vi.fn().mockResolvedValue(undefined),
     },
-  },
 }));
 
 import Administration from '../Administration';

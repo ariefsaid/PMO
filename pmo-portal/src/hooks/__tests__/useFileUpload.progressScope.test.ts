@@ -26,9 +26,8 @@ vi.mock('@/src/lib/uploadTransport', () => ({
   })),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    document: {
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: {
       prepareUpload: vi.fn().mockResolvedValue({
         signedUrl: 'https://example.com/signed',
         path: 'org/proj/doc/file.pdf',
@@ -37,7 +36,6 @@ vi.mock('@/src/lib/repositories', () => ({
       confirmUpload: vi.fn().mockResolvedValue(undefined),
       cleanupObject: vi.fn().mockResolvedValue(undefined),
     },
-  },
 }));
 
 import { useFileUpload } from '../useFileUpload';

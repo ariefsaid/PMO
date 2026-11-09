@@ -13,7 +13,9 @@ vi.mock('@/src/lib/db/timesheets', () => ({
   saveTimesheetWeek: mocks.save,
   TimesheetWriteError: class extends Error {},
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: { list: mocks.list, saveWeek: mocks.save } } }));
+vi.mock('@/src/lib/repositories/timesheets', () => ({
+  timesheetRepository: { list: mocks.list, saveWeek: mocks.save },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' }, role: 'Project Manager' }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({

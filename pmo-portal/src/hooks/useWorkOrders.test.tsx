@@ -26,7 +26,9 @@ const { workOrder } = vi.hoisted(() => ({
     drawdown: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrder } }));
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  workOrderRepository: workOrder,
+}));
 const actor = vi.hoisted(() => ({ id: 'u1', role: 'Finance', manager_id: 'manager-1' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: actor.id, org_id: 'org-1', role: actor.role, manager_id: actor.manager_id }, role: actor.role }),

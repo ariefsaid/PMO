@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { reportsRepository } from '@/src/lib/repositories/reporting';
 import { useAuth } from '@/src/auth/useAuth';
 import type { FinanceHubFigures } from '@/src/lib/db/financeHub';
 
@@ -13,7 +13,7 @@ export function useFinanceHubFigures(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<FinanceHubFigures, Error>({
     queryKey: ['financeHubFigures', orgId],
-    queryFn: () => repositories.reports.figures(),
+    queryFn: () => reportsRepository.figures(),
     enabled: Boolean(orgId) && enabled,
   });
 }

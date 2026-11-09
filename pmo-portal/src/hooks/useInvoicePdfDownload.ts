@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
 import { triggerBlobDownload } from '@/src/lib/download';
 import { safePdfFilename } from '@/src/lib/invoicePdfFilename';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -57,7 +57,7 @@ export function useInvoicePdfDownload() {
       // item is the in-flight signal, and the outcome toast below replaces this one when it lands.
       toast(t('financeCopy.invoicePdf.preparing', 'Preparing PDF…'), undefined, 'info');
       try {
-        const pdf = await repositories.revenue.downloadInvoicePdf(invoice.id);
+        const pdf = await revenueRepository.downloadInvoicePdf(invoice.id);
         const name = safePdfFilename(invoice.si_number ?? '');
         triggerBlobDownload(pdf, name);
         toast(t('financeCopy.invoicePdf.downloaded', 'PDF downloaded: {{name}}', { name }), undefined, 'success');

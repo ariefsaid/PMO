@@ -11,10 +11,9 @@ const h = vi.hoisted(() => ({
   triggerBlobDownload: vi.fn(),
   toast: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', async (orig) => {
-  const actual = await orig<typeof import('@/src/lib/repositories')>();
-  return { ...actual, repositories: { revenue: { downloadInvoicePdf: h.downloadInvoicePdf } } };
-});
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { downloadInvoicePdf: h.downloadInvoicePdf },
+}));
 vi.mock('@/src/lib/download', () => ({ triggerBlobDownload: h.triggerBlobDownload }));
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await orig<typeof import('@/src/components/ui')>();

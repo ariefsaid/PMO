@@ -18,11 +18,9 @@ const { listSpendApprovers, addSpendApprover, removeSpendApprover, listOrgProfil
   listOrgProfiles: vi.fn(),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgSettings: { listSpendApprovers, addSpendApprover, removeSpendApprover },
-    profile: { listOrgProfiles },
-  },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { listSpendApprovers, addSpendApprover, removeSpendApprover },
+  profileRepository: { listOrgProfiles },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-admin', org_id: 'org-1' } }),

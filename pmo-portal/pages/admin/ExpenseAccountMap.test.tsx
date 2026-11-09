@@ -28,10 +28,12 @@ vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwne
   data: h.ownership, isPending: h.ownershipPending, isError: h.ownershipError, refetch: h.ownershipRefetch,
 }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: {
-  expensePostings: { listAccountMap: h.list },
-  integrations: { saveExpenseAccount: h.save, clearExpenseAccount: vi.fn() },
-} }));
+vi.mock('@/src/lib/repositories/expensePostings', () => ({
+  expensePostingsRepository: { listAccountMap: h.list },
+}));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { saveExpenseAccount: h.save, clearExpenseAccount: vi.fn() },
+}));
 vi.mock('@/src/components/ui', async (original) => {
   const actual = await original<typeof import('@/src/components/ui')>();
   return { ...actual, useToast: () => ({ toast: h.toast }) };

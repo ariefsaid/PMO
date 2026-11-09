@@ -8,10 +8,12 @@ vi.mock('@/src/lib/db/timesheets', () => ({
     constructor(message: string, public code?: string) { super(message); this.name = 'TimesheetWriteError'; }
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: {
+vi.mock('@/src/lib/repositories/timesheets', () => ({
+  timesheetRepository: {
   list: vi.fn().mockResolvedValue([{ id: 'ts1', user_id: 'u1', week_start_date: '2026-06-01', status: 'Draft', entries: [] }]),
   saveWeek: vi.fn(), createDraft: vi.fn(), upsertEntries: vi.fn(), deleteEntry: vi.fn(),
-} } }));
+},
+}));
 const auth = vi.hoisted(() => ({ currentUser: { id: 'u1', org_id: 'org-1' } }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: auth.currentUser, role: 'Engineer' }),
@@ -19,11 +21,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import { useTimesheets } from './useTimesheets';
 import { useTimesheetEntryMutations } from './useTimesheetEntries';
-import { repositories } from '@/src/lib/repositories';
+import { timesheetRepository } from '@/src/lib/repositories/timesheets';
 import { TimesheetWriteError } from '@/src/lib/db/timesheets';
 import type { EntryDiff } from '@/src/lib/timesheet-edit';
 
-const { list: listTimesheets, saveWeek: saveTimesheetWeek, createDraft: createDraftTimesheet, upsertEntries: upsertTimesheetEntries, deleteEntry: deleteTimesheetEntry } = repositories.timesheet;
+const { list: listTimesheets, saveWeek: saveTimesheetWeek, createDraft: createDraftTimesheet, upsertEntries: upsertTimesheetEntries, deleteEntry: deleteTimesheetEntry } = timesheetRepository;
 
 const wrap = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>

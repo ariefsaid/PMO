@@ -12,13 +12,11 @@ import { ToastProvider } from '@/src/components/ui';
 
 const { getOrgBalance } = vi.hoisted(() => ({ getOrgBalance: vi.fn() }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    credits: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  creditsRepository: {
       getOrgBalance,
       grant: vi.fn().mockResolvedValue(undefined),
     },
-  },
 }));
 
 import AdministrationCredits from '../AdministrationCredits';

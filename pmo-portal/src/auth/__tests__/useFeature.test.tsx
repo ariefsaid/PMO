@@ -22,12 +22,10 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgFeature: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: {
       listOwn: () => listOwnMock.fn(),
     },
-  },
 }));
 
 import { useFeature } from '../useFeature';

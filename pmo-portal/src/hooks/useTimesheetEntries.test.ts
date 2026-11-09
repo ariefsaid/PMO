@@ -16,7 +16,9 @@ const dal = vi.hoisted(() => ({
   deleteTimesheetEntry: vi.fn(),
   TimesheetWriteError: class extends Error {},
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: { saveWeek: dal.saveTimesheetWeek } } }));
+vi.mock('@/src/lib/repositories/timesheets', () => ({
+  timesheetRepository: { saveWeek: dal.saveTimesheetWeek },
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }),
 }));

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { externalDomainOwnershipRepository } from '@/src/lib/repositories/admin';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import type { AcceptedInvoicePair, InvoicePairProposal, UnpairedReason } from '@/src/lib/db/revenue';
 import { Button, ConfirmDialog } from '@/src/components/ui';
@@ -30,7 +31,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   // ownership read reads them anyway, as before. Accepted pairs stay undoable after a release (0498 §10), so they always read.
   const ownership = useQuery({
     queryKey: externalDomainOwnershipKey(orgId),
-    queryFn: () => repositories.externalDomainOwnership.listOwn(),
+    queryFn: () => externalDomainOwnershipRepository.listOwn(),
     enabled: Boolean(orgId && canPair),
   });
   const pairingOpen = Boolean(orgId && canPair && !ownership.isPending
@@ -38,17 +39,17 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   const enabled = Boolean(orgId && canPair);
   const proposals = useQuery({
     queryKey: ['invoicePairs', 'propose', orgId],
-    queryFn: () => repositories.revenue.proposeInvoicePairs(),
+    queryFn: () => revenueRepository.proposeInvoicePairs(),
     enabled: pairingOpen, retry: false,
   });
   const unpaired = useQuery({
     queryKey: ['invoicePairs', 'unpaired', orgId],
-    queryFn: () => repositories.revenue.listUnpairedNativeInvoices(),
+    queryFn: () => revenueRepository.listUnpairedNativeInvoices(),
     enabled: pairingOpen, retry: false,
   });
   const accepted = useQuery({
     queryKey: ['invoicePairs', 'accepted', orgId],
-    queryFn: () => repositories.revenue.listAcceptedInvoicePairs(),
+    queryFn: () => revenueRepository.listAcceptedInvoicePairs(),
     enabled, retry: false,
   });
 
@@ -89,7 +90,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
     setSaving(true);
     setError(null);
     try {
-      const applied = await repositories.revenue.acceptInvoicePairs(
+      const applied = await revenueRepository.acceptInvoicePairs(
         clear.map((r) => ({ pmoInvoiceId: r.pmoInvoiceId, erpInvoiceId: r.erpInvoiceId })),
       );
       setNotice(applied === 1
@@ -113,7 +114,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
     setError(null);
     setNotice(null);
     try {
-      await repositories.revenue.unpairInvoice(undoing.pmoInvoiceId);
+      await revenueRepository.unpairInvoice(undoing.pmoInvoiceId);
       setNotice(t('invoicePairs.undoDone', '{{number}} counts on its own again.', { number: undoing.pmoNumber ?? '-' }));
     } catch {
       setError(t('invoicePairs.undoFailed', 'Nothing was changed. The pair may already be undone; the list has been reloaded.'));

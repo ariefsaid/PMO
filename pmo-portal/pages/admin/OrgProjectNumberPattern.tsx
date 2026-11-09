@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import {
   useOrgProjectNumberPatternQuery,
   useOrgProjectNumberTimezoneQuery,
@@ -38,7 +38,7 @@ const OrgProjectNumberPattern: React.FC = () => {
   }, [data, isSuccess]);
 
   const mutation = useMutation({
-    mutationFn: (value: string | null) => repositories.orgSettings.setProjectNumberPattern(value),
+    mutationFn: (value: string | null) => orgSettingsRepository.setProjectNumberPattern(value),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [ORG_PROJECT_NUMBER_PATTERN_KEY] }),
   });
 

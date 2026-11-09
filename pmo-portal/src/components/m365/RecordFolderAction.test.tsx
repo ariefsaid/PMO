@@ -17,7 +17,9 @@ import { axeViolations } from '@/src/components/__tests__/axe';
 const m365Feature = vi.hoisted(() => ({ on: true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 const ensure = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/repositories', () => ({ repositories: { m365RecordFolders: { ensure: (...a: unknown[]) => ensure(...a) } } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365RecordFoldersRepository: { ensure: (...a: unknown[]) => ensure(...a) },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 const initiate = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/m365/connectClient', () => ({ initiateM365Connect: (...a: unknown[]) => initiate(...a) }));

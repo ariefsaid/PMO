@@ -33,8 +33,8 @@ vi.mock('@/src/auth/impersonation', () => ({
     viewAs: vi.fn(),
   }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { revenue: { getProjectFinances: h.getProjectFinances } },
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { getProjectFinances: h.getProjectFinances },
 }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));

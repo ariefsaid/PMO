@@ -17,7 +17,9 @@ const budget = vi.hoisted(() => ({
   getDistribution: vi.fn(),
   saveDistribution: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
+vi.mock('@/src/lib/repositories/budget', () => ({
+  budgetRepository: budget,
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user', org_id: 'org', role: 'Finance' } }) }));
 import { useProjectBudget, useBudgetActivationMode, useBudgetActivationPrecheck, useBudgetArchiveTargets, useBudgetVersions, useBudgetMutations, useBudgetDistribution, invalidateBudgetQueries } from './useBudget';
 

@@ -1,7 +1,7 @@
 import { useContext, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
-import { repositories } from '@/src/lib/repositories';
+import { companyRepository } from '@/src/lib/repositories/companies';
 import { queryClient } from '@/src/lib/queryClient';
 import { vendorTaxDefaultOf, type VendorTaxDefault } from '@/src/lib/vendorWithholding';
 
@@ -16,7 +16,7 @@ export function useVendorTaxDefault(vendorId: string | null | undefined): Vendor
   const query = useQuery(
     {
       queryKey: ['company', orgId, vendorId],
-      queryFn: () => repositories.company.get(vendorId as string),
+      queryFn: () => companyRepository.get(vendorId as string),
       enabled: Boolean(vendorId),
       staleTime: 30_000,
       retry: false,

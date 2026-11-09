@@ -12,7 +12,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const { listMock } = vi.hoisted(() => ({ listMock: vi.fn() }));
 // ADR-0017: the card reads through the repository seam, never the DAL module directly.
-vi.mock('@/src/lib/repositories', () => ({ repositories: { expensePostings: { listForClaim: listMock } } }));
+vi.mock('@/src/lib/repositories/expensePostings', () => ({
+  expensePostingsRepository: { listForClaim: listMock },
+}));
 
 const readinessMock = vi.hoisted(() => ({ state: 'ready' as string }));
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({

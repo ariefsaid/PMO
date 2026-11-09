@@ -43,8 +43,8 @@ vi.mock('@/src/hooks/useFileUpload', () => ({
 vi.mock('@/src/hooks/useRevision', () => ({
   useRevision: () => revisionState,
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: repositoryState,
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: repositoryState.document,
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }),

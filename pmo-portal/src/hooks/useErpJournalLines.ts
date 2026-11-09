@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { erpJournalLinesRepository } from '@/src/lib/repositories/erpJournalLines';
 import type { ErpJournalAttachRow } from '@/src/lib/repositories/erpJournalLines';
 import { procurementKeys } from './procurementQueryKeys';
 
@@ -9,7 +9,7 @@ export function useProjectJournalLines(projectId: string | null | undefined, opt
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['erp-journal-lines', orgId, projectId],
-    queryFn: () => repositories.erpJournalLines.listProject(projectId as string),
+    queryFn: () => erpJournalLinesRepository.listProject(projectId as string),
     enabled: Boolean(orgId && projectId) && opts?.enabled !== false,
   });
 }
@@ -19,7 +19,7 @@ export function usePurchaseJournalLines(procurementId: string | null | undefined
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['erp-journal-lines', orgId, projectId, 'purchase', procurementId],
-    queryFn: () => repositories.erpJournalLines.listForPurchase(procurementId as string, projectId as string),
+    queryFn: () => erpJournalLinesRepository.listForPurchase(procurementId as string, projectId as string),
     enabled: Boolean(orgId && procurementId && projectId) && opts?.enabled !== false,
   });
 }
@@ -39,7 +39,7 @@ function useInvalidateJournal() {
 export function useAttachJournalLines() {
   const invalidate = useInvalidateJournal();
   return useMutation({
-    mutationFn: (args: { rows: ErpJournalAttachRow[]; dryRun?: boolean }) => repositories.erpJournalLines.attach(args.rows, args.dryRun),
+    mutationFn: (args: { rows: ErpJournalAttachRow[]; dryRun?: boolean }) => erpJournalLinesRepository.attach(args.rows, args.dryRun),
     onSuccess: (res) => { if (!res.dry_run) void invalidate(); },
   });
 }
@@ -48,7 +48,7 @@ export function useAttachJournalLines() {
 export function useDetachJournalLine() {
   const invalidate = useInvalidateJournal();
   return useMutation({
-    mutationFn: (linkId: string) => repositories.erpJournalLines.detach(linkId),
+    mutationFn: (linkId: string) => erpJournalLinesRepository.detach(linkId),
     onSuccess: () => { void invalidate(); },
   });
 }

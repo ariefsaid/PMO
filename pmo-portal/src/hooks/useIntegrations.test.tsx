@@ -19,7 +19,9 @@ const { integrations } = vi.hoisted(() => ({
     setCompany: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: integrations,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));

@@ -10,7 +10,9 @@ const { expenseClaim } = vi.hoisted(() => ({
     routes: vi.fn(), aging: vi.fn(), agingTotals: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { expenseClaim } }));
+vi.mock('@/src/lib/repositories/expenses', () => ({
+  expenseClaimRepository: expenseClaim,
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
 import { expenseClaimsAwaitingKey, useExpenseClaims, useExpenseClaimMutations, useExpenseClaimsAwaitingDecision, useOwnExpenseAdvances, useExpenseAdvanceAgingTotals, EXPENSE_QUERY_ROOTS } from './useExpenseClaims';

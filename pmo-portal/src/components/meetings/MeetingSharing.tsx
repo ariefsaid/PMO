@@ -13,7 +13,8 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
-import { repositories, type MeetingAttendeeWithRefs, type MeetingGrantWithRefs } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
+import type { MeetingAttendeeWithRefs, MeetingGrantWithRefs } from '@/src/lib/repositories/types';
 
 interface MeetingSharingProps {
   meetingId: string;
@@ -53,7 +54,7 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
   const pmSuggestion = accessReady && projectManager && !hasAccess(projectManager.id) ? projectManager : null;
 
   const shareOptionsLoader = async (): Promise<ComboboxOption[]> => {
-    const profiles = await repositories.profile.listOrgProfiles();
+    const profiles = await profileRepository.listOrgProfiles();
     return profiles
       .filter((profile) => !hasAccess(profile.id))
       .map((profile) => ({ value: profile.id, label: profile.full_name }));

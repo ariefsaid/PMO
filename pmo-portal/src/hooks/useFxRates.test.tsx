@@ -22,14 +22,12 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
     retry: vi.fn(),
   }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    fxRates: {
+vi.mock('@/src/lib/repositories/fxRates', () => ({
+  fxRatesRepository: {
       list: harness.list,
       onDate: harness.onDate,
       upsert: harness.upsert,
     },
-  },
 }));
 import { fxKeys, useFxRate, useFxRates, useFxRateMutations } from './useFxRates';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';

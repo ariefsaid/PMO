@@ -12,7 +12,8 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
-import { repositories, type MeetingAttendeeWithRefs } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
+import type { MeetingAttendeeWithRefs } from '@/src/lib/repositories/types';
 
 interface MeetingAttendeesProps {
   meetingId: string;
@@ -33,7 +34,7 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
   const attendeeProfileIds = new Set(attendees.map((attendee) => attendee.profile_id).filter(Boolean) as string[]);
 
   const memberOptionsLoader = async (): Promise<ComboboxOption[]> => {
-    const profiles = await repositories.profile.listOrgProfiles();
+    const profiles = await profileRepository.listOrgProfiles();
     return profiles
       .filter((profile) => !attendeeProfileIds.has(profile.id))
       .map((profile) => ({ value: profile.id, label: profile.full_name }));

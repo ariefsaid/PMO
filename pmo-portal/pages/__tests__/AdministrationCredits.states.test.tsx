@@ -17,8 +17,8 @@ const { getOrgBalance, grant } = vi.hoisted(() => ({
   grant: vi.fn(),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { credits: { getOrgBalance, grant } },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  creditsRepository: { getOrgBalance, grant },
 }));
 
 import AdministrationCredits from '../AdministrationCredits';

@@ -17,15 +17,13 @@ const h = vi.hoisted(() => ({
   orgId: 'org-1' as string | undefined,
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    company: {
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: {
       listPage: (...args: unknown[]) => h.listPage(...args),
       count: (...args: unknown[]) => h.count(...args),
       listOptions: (...args: unknown[]) => h.listOptions(...args),
       listAll: (...args: unknown[]) => h.listAll(...args),
     },
-  },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: h.orgId ? { id: 'u-me', org_id: h.orgId } : null }),

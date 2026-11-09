@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppError } from '@/src/lib/appError';
 
 const ensure = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/repositories', () => ({ repositories: { m365RecordFolders: { ensure: (...a: unknown[]) => ensure(...a) } } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365RecordFoldersRepository: { ensure: (...a: unknown[]) => ensure(...a) },
+}));
 const auth = vi.hoisted(() => ({ current: { id: 'u1', org_id: 'org-1' } as { id: string; org_id: string } | null }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.current }) }));
 

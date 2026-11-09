@@ -70,10 +70,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 // Only the repository seam is stubbed: the real useProcurements / useFinancePosition run, so the cache-key sharing is what is under test.
-vi.mock('@/src/lib/repositories', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return { ...actual, repositories: { ...actual.repositories, procurement: { ...actual.repositories.procurement, list: h.procurementList } } };
-});
+vi.mock('@/src/lib/repositories/procurement', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  procurementRepository: { ...(await importOriginal()).procurementRepository, list: h.procurementList },
+}));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

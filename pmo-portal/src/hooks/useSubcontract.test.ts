@@ -28,10 +28,8 @@ const h = vi.hoisted(() => ({
   attributeSubcontractBillLines: vi.fn(),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    subcontracts: h,
-  },
+vi.mock('@/src/lib/repositories/subcontracts', () => ({
+  subcontractRepository: h,
 }));
 
 import {

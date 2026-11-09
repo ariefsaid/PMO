@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({ canManage: true, bindingStatus: 'active', bindingError: false, connected: false, get: vi.fn(), set: vi.fn(), loadItems: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { getDownPaymentItem: h.get, setDownPaymentItem: h.set } } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { getDownPaymentItem: h.get, setDownPaymentItem: h.set },
+}));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({
   useErpnextBinding: () => ({ data: { status: h.bindingStatus }, isPending: false, isError: h.bindingError, refetch: vi.fn() }),
 }));

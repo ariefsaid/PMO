@@ -9,7 +9,9 @@ const { budget } = vi.hoisted(() => ({
     importLine: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
+vi.mock('@/src/lib/repositories/budget', () => ({
+  budgetRepository: budget,
+}));
 
 import { makeBudgetImportDescriptor, computeBudgetLineImportKey, BUDGET_CATEGORIES } from '../budgetDescriptor';
 import { IMPORT_SKIPPED } from '../types';

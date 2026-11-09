@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 const { document } = vi.hoisted(() => ({ document: { createRevision: vi.fn() } }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { document } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: document,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'author-1', org_id: 'org-1' } }),
 }));

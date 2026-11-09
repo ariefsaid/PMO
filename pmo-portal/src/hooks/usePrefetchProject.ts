@@ -4,7 +4,7 @@ import { queryClient as fallbackQueryClient } from '@/src/lib/queryClient';
 import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import type { Role } from '@/src/auth/AuthContext';
-import { repositories } from '@/src/lib/repositories';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import { projectKeys } from './projectQueryKeys';
 
 /**
@@ -31,7 +31,7 @@ export function usePrefetchProject() {
 
       void qc.prefetchQuery({
         queryKey: projectKeys.detail(orgId, id),
-        queryFn: () => repositories.project.getWithRefs(id),
+        queryFn: () => projectRepository.getWithRefs(id),
         staleTime: 30_000,
       });
     },

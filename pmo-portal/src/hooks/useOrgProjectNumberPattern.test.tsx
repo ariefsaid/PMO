@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 const h = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { getProjectNumberPattern: h.get } } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { getProjectNumberPattern: h.get },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-771' } }) }));
 
 import { useOrgProjectNumberPatternQuery, ORG_PROJECT_NUMBER_PATTERN_KEY } from './useOrgProjectNumberPattern';

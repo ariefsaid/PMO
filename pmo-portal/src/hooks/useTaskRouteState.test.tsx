@@ -6,7 +6,9 @@ import type { ReactNode } from 'react';
 const state = vi.hoisted(() => ({ ownership: { data: [] as { domain: string; externalTier: string }[], isError: false }, bindings: vi.fn() }));
 vi.mock('./useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => state.ownership }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listProjectBindings: state.bindings } } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { listProjectBindings: state.bindings },
+}));
 import { clearOwnershipCache, setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
 import { useOwnershipCacheSync, useTaskRouteState } from './useOwnershipCacheSync';
 

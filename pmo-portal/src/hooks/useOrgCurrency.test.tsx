@@ -8,11 +8,11 @@ const h = vi.hoisted(() => ({
   getFxContext: vi.fn(),
   currentUser: undefined as { id: string; org_id: string } | null | undefined,
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgSettings: { getDefaultCurrency: h.getOrgDefaultCurrency },
-    fxRates: { context: h.getFxContext },
-  },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { getDefaultCurrency: h.getOrgDefaultCurrency },
+}));
+vi.mock('@/src/lib/repositories/fxRates', () => ({
+  fxRatesRepository: { context: h.getFxContext },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: h.currentUser }),

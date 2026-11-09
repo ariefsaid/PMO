@@ -25,7 +25,8 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { orderByCurrency } from './currencyOrder';
 import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
-import { repositories } from '@/src/lib/repositories';
+import { expenseClaimRepository } from '@/src/lib/repositories/expenses';
+import { taskRepository } from '@/src/lib/repositories/tasks';
 import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
@@ -301,7 +302,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   // One batched read for every project's tasks (was one list per project).
   const projectTasks = useQuery({
     queryKey: ['pm-overdue-tasks', orgId, pmProjectIds],
-    queryFn: () => repositories.task.listDueRows(pmProjectIds),
+    queryFn: () => taskRepository.listDueRows(pmProjectIds),
     enabled: Boolean(orgId && role === 'Project Manager' && pmProjectsQuery.data),
   });
   // PERF-DASH-1: own timesheets and tasks feed the Engineer view only.
@@ -309,7 +310,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const myTasksQuery = useMyTasks(role === 'Engineer');
   const expenseClaimsQuery = useQuery({
     queryKey: ['expense-claims', orgId, { status: 'Rejected' }],
-    queryFn: () => repositories.expenseClaim.list({ status: 'Rejected' }),
+    queryFn: () => expenseClaimRepository.list({ status: 'Rejected' }),
     enabled: Boolean(orgId && userId && role === 'Engineer'),
   });
   const timesheetsAwaitingQuery = useQuery({
@@ -320,8 +321,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const expenseApprovalsQuery = useQuery({
     queryKey: expenseClaimsAwaitingKey(orgId),
     queryFn: async () => {
-      const { rows } = await repositories.expenseClaim.list({ status: 'Submitted' });
-      const routes = await repositories.expenseClaim.routes(rows.map((row) => row.id)).catch(() => []);
+      const { rows } = await expenseClaimRepository.list({ status: 'Submitted' });
+      const routes = await expenseClaimRepository.routes(rows.map((row) => row.id)).catch(() => []);
       const byId = new Map(routes.map((route) => [route.claimId, route]));
       return rows.map((claim) => ({ claim, route: byId.get(claim.id) ?? null }));
     },

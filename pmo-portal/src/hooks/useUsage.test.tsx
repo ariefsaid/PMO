@@ -14,7 +14,9 @@ const { usage, authState, isOperatorState } = vi.hoisted(() => ({
   isOperatorState: { value: false },
 }));
 
-vi.mock('@/src/lib/repositories', () => ({ repositories: { usage } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  usageRepository: usage,
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => authState }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
 

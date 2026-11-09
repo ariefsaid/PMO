@@ -27,7 +27,9 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 const { company } = vi.hoisted(() => ({ company: { list: vi.fn(), create: vi.fn(), listPage: vi.fn(), count: vi.fn(), listOptions: vi.fn(), listAll: vi.fn() } }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { company } }));
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: company,
+}));
 
 import Companies from './Companies';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';

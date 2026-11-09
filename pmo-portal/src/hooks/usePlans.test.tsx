@@ -16,13 +16,11 @@ const h = vi.hoisted(() => ({
   auth: { currentUser: { id: 'u1', org_id: 'org-1' } as { id: string; org_id: string } | null },
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgFeature: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: {
       getOwnPlan: h.getOwnPlan,
       listOwn: h.listOwn,
     },
-  },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: h.auth.currentUser, role: 'Admin' }),

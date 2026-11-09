@@ -63,6 +63,9 @@ import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
+// #2096 (perf): the live ⌘K search data (six entity hooks → domain repositories) is NOT in the
+// entry graph — this bridge loads with the first palette open (see useRecordSearchData).
+const RecordSearchDataBridge = React.lazy(() => import('@/src/hooks/useRecordSearchData'));
 import { preloadMinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
 import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
@@ -520,7 +523,14 @@ export const ShellChrome: React.FC = () => {
   // ⌘K record search: indexes the record lists into Records rows that open the matching detail
   // route. The lists load only while the palette is open (#840) — never on a cold page load.
   // (AC-CMDK-001/003/004/005)
-  const recordSearch = useRecordSearch(navigate, { enabled: paletteOpen });
+  // #2096 (perf): the LIVE search implementation (six entity hooks → their domain repositories)
+  // is mounted lazily from the FIRST palette open; until then this reads the published empty
+  // snapshot, which is byte-identical behaviour to the old enabled=false gating while closed.
+  const recordSearch = useRecordSearch();
+  const [recordSearchMounted, setRecordSearchMounted] = useState(false);
+  useEffect(() => {
+    if (paletteOpen) setRecordSearchMounted(true);
+  }, [paletteOpen]);
 
   // Global ⌘K / Ctrl-K → open the command palette.
   useEffect(() => {
@@ -719,6 +729,12 @@ export const ShellChrome: React.FC = () => {
         <AppRoutes />
       </AppShell>
       <SurveyHost />
+      {/* #2096: the live ⌘K search data loads with the first palette open, not with the shell. */}
+      {recordSearchMounted && (
+        <Suspense fallback={null}>
+          <RecordSearchDataBridge open={paletteOpen} navigate={navigate} />
+        </Suspense>
+      )}
       <CommandPalette
         open={paletteOpen}
         items={paletteItems}

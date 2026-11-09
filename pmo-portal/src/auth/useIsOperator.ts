@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { operatorRepository } from '@/src/lib/repositories/admin';
 import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
@@ -33,7 +33,7 @@ export function useOperatorMembership(): OperatorMembershipState {
   const qc = useQueryClient();
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['operator', 'isOperator'],
-    queryFn: () => repositories.operator.isOperator(),
+    queryFn: () => operatorRepository.isOperator(),
     // One shared membership read for the shell and route gates — but bounded (5 min + focus +
     // interval), because a membership change made in another session must reach this tab without a
     // reload. Server RPCs remain the authority; explicit retries and invalidation stay immediate.

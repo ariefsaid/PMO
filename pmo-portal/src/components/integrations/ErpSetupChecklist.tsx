@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import {
   Button,
   EntityFormModal,
@@ -32,7 +32,7 @@ export function ErpSetupChecklist(
   const qc = useQueryClient();
   const setup = useQuery({
     queryKey: ['integrations', 'setup', orgId],
-    queryFn: () => repositories.integrations.getErpSetup(),
+    queryFn: () => integrationsRepository.getErpSetup(),
     enabled: Boolean(orgId),
     retry: false,
   });
@@ -85,11 +85,11 @@ export function ErpSetupChecklist(
       setBusy(true);
       try {
         if (editing === 'defaults') {
-          await repositories.integrations.saveErpDefaults({
+          await integrationsRepository.saveErpDefaults({
             activityType: defaults.values.activityType.trim(),
             receivableAccount: defaults.values.receivableAccount.trim(),
           });
-        } else {await repositories.integrations.employErpDomain(
+        } else {await integrationsRepository.employErpDomain(
             domain.values.domain,
           );}
         setEditing(null);

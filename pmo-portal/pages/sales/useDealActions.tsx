@@ -9,7 +9,7 @@ import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
-import { repositories } from '@/src/lib/repositories';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import {
@@ -128,8 +128,8 @@ export function useDealActions(project: ProjectWithRefs) {
     setErr(null);
     setSaving(kind);
     try {
-      if (kind === 'go') await repositories.project.updateGoProbability(project.id, percent / 100);
-      else await repositories.project.updateGetProbability(project.id, percent / 100);
+      if (kind === 'go') await projectRepository.updateGoProbability(project.id, percent / 100);
+      else await projectRepository.updateGetProbability(project.id, percent / 100);
       await queryClient.invalidateQueries({ queryKey: ['sales-pipeline', currentUser?.org_id] });
       await refetchPipeline();
       toast(
@@ -148,8 +148,8 @@ export function useDealActions(project: ProjectWithRefs) {
     setError(null);
     setPending(true);
     try {
-      if (opts) await repositories.project.transition(project.id, to as never, opts);
-      else await repositories.project.transition(project.id, to as never);
+      if (opts) await projectRepository.transition(project.id, to as never, opts);
+      else await projectRepository.transition(project.id, to as never);
       const erpPending = to === 'Won, Pending KoM' && (await synchronizeErpProject(project.id, currentUser?.org_id)) === 'pending';
       const org = currentUser?.org_id;
       await queryClient.invalidateQueries({ queryKey: ['integrations', 'project-erp', org] });

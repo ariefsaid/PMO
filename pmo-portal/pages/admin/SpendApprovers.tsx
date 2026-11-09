@@ -19,7 +19,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository, profileRepository } from '@/src/lib/repositories/admin';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
@@ -45,17 +45,17 @@ const SpendApprovers: React.FC = () => {
   const listKey = ['spend-approvers', orgId] as const;
   const { data, isPending, isError, refetch } = useQuery<SpendApproverRow[]>({
     queryKey: listKey,
-    queryFn: () => repositories.orgSettings.listSpendApprovers(),
+    queryFn: () => orgSettingsRepository.listSpendApprovers(),
     enabled: Boolean(orgId),
   });
   const invalidate = () => qc.invalidateQueries({ queryKey: listKey });
   const addMutation = useMutation({
     mutationFn: (v: { profileId: string; projectId: string | null }) =>
-      repositories.orgSettings.addSpendApprover(v.profileId, v.projectId),
+      orgSettingsRepository.addSpendApprover(v.profileId, v.projectId),
     onSuccess: invalidate,
   });
   const removeMutation = useMutation({
-    mutationFn: (id: string) => repositories.orgSettings.removeSpendApprover(id),
+    mutationFn: (id: string) => orgSettingsRepository.removeSpendApprover(id),
     onSuccess: invalidate,
   });
 
@@ -63,7 +63,7 @@ const SpendApprovers: React.FC = () => {
   // Shares the Add modal's query key, so opening the modal does not refetch.
   const { data: people, isError: peopleError } = useQuery({
     queryKey: ['spend-approver-people', orgId],
-    queryFn: () => repositories.profile.listOrgProfiles(),
+    queryFn: () => profileRepository.listOrgProfiles(),
     enabled: Boolean(orgId),
   });
   const eligible = useMemo(

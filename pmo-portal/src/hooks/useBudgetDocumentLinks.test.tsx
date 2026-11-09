@@ -8,12 +8,12 @@ const mock = vi.hoisted(() => ({
   list: vi.fn(), add: vi.fn(), remove: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: mock.user }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { budget: {
+vi.mock('@/src/lib/repositories/budget', () => ({
+  budgetRepository: {
     listDocumentLinks: (id: string) => mock.list(id),
     addDocumentLink: (id: string, ref: unknown) => mock.add(id, ref),
     removeDocumentLink: (id: string) => mock.remove(id),
-  } },
+  },
 }));
 
 const row = (id: string, versionId: string) => ({ id, budget_version_id: versionId });

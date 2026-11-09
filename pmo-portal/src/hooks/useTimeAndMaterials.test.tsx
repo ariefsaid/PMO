@@ -18,7 +18,9 @@ const { tm } = vi.hoisted(() => ({
     previewTmClaim: vi.fn(), listTmClaimSources: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { timeAndMaterials: tm } }));
+vi.mock('@/src/lib/repositories/timeAndMaterials', () => ({
+  timeAndMaterialsRepository: tm,
+}));
 let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 

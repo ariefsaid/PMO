@@ -10,16 +10,16 @@ const h = vi.hoisted(() => ({
   linkErpProject: vi.fn(),
   getProject: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    integrations: {
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: {
       getErpSetup: h.getErpSetup,
       getBinding: h.getBinding,
       listErpProjects: h.listErpProjects,
       linkErpProject: h.linkErpProject,
     },
-    project: { get: h.getProject },
-  },
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: { get: h.getProject },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { org_id: 'org-1' } }),

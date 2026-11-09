@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { listBudgetPostingAccountCatalogue } from '@/src/lib/repositories/budgetProjection';
 import { accountOption } from '@/src/lib/accounting/accountOption';
 import { taxSetupChoices, type TaxSetupPurpose } from '@/src/lib/accounting/taxSetupChoices';
@@ -50,7 +50,7 @@ export default function OrgVendorTaxAccounts() {
   const draft = useCallback((): Accounts => ({ inputVatAccount: inputVat || null, pph23PayableAccount: pph23 || null, pph42PayableAccount: pph42 || null }), [inputVat, pph23, pph42]);
   const orgId = currentUser?.org_id;
   const queryKey = [QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getVendorTaxAccounts(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
+  const query = useQuery({ queryKey, queryFn: () => orgSettingsRepository.getVendorTaxAccounts(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const catalogue = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],
@@ -104,7 +104,7 @@ export default function OrgVendorTaxAccounts() {
   }, [draft, query.data, query.isSuccess]);
 
   const mutation = useMutation({
-    mutationFn: (value: Accounts) => repositories.orgSettings.setVendorTaxAccounts(value),
+    mutationFn: (value: Accounts) => orgSettingsRepository.setVendorTaxAccounts(value),
     onSuccess: (_result, value) => {
       savedBaseline.current = value;
       setRemoteChanged(false);

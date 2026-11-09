@@ -31,11 +31,21 @@ vi.mock('@/src/lib/db/dashboard', async (orig) => ({
   ...((await orig()) as object),
   getSalesPipeline: dal.getSalesPipeline,
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    company: dal, contact: dal, incident: dal, meeting: dal, project: dal,
-    notification: { unreadCount: async () => 0, listPage: async () => ({ rows: [], nextCursor: null }), markRead: async () => {} },
-  },
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: dal,
+  contactRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/incidents', () => ({
+  incidentRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/meetings', () => ({
+  meetingRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/notifications', () => ({
+  notificationRepository: { unreadCount: async () => 0, listPage: async () => ({ rows: [], nextCursor: null }), markRead: async () => {} },
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: dal,
 }));
 
 import { ShellChrome } from '@/App';

@@ -51,7 +51,9 @@ vi.mock('@/src/lib/m365/uploadClient', async (orig) => ({
   ...(await orig<typeof import('@/src/lib/m365/uploadClient')>()),
   uploadRecordFile: msUpload,
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurementFiles: repo } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementFilesRepository: repo,
+}));
 vi.mock('@/src/lib/uploadTransport', () => ({
   uploadWithProgress:
     vi.fn<(url: string, file: File | Blob, options: UploadTransportOptions) => Promise<void>>(),

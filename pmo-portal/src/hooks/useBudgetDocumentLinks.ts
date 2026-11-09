@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { budgetRepository } from '@/src/lib/repositories/budget';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
@@ -22,18 +22,18 @@ export function useBudgetDocumentLinks(versionId: string | null | undefined) {
 
   const query = useQuery({
     queryKey: key,
-    queryFn: () => repositories.budget.listDocumentLinks(versionId as string),
+    queryFn: () => budgetRepository.listDocumentLinks(versionId as string),
     enabled: Boolean(orgId && versionId),
     retry: false,
   });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: key });
 
   const add = useMutation({
-    mutationFn: (ref: MicrosoftReferenceInput) => repositories.budget.addDocumentLink(versionId as string, ref),
+    mutationFn: (ref: MicrosoftReferenceInput) => budgetRepository.addDocumentLink(versionId as string, ref),
     onSuccess: invalidate,
   });
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.budget.removeDocumentLink(id),
+    mutationFn: (id: string) => budgetRepository.removeDocumentLink(id),
     onSuccess: invalidate,
   });
   return { query, add, remove };

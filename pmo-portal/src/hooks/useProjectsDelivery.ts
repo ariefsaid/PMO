@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { milestoneRepository } from '@/src/lib/repositories/workOrders';
 import { useAuth } from '@/src/auth/useAuth';
 import type { ProjectDeliverySummary } from '@/src/lib/db/milestones';
 
@@ -31,7 +31,7 @@ export function useProjectsDelivery(ids: string[]) {
   return useProjectsDeliveryQuery<Record<string, number>>(
     'pct',
     ids,
-    () => repositories.milestone.deliveryForProjects(ids),
+    () => milestoneRepository.deliveryForProjects(ids),
   );
 }
 
@@ -39,6 +39,6 @@ export function useProjectsDeliverySummary(ids: string[]) {
   return useProjectsDeliveryQuery<Record<string, ProjectDeliverySummary>>(
     'summary',
     ids,
-    () => repositories.milestone.deliverySummaryForProjects(ids),
+    () => milestoneRepository.deliverySummaryForProjects(ids),
   );
 }

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { imprestRepository } from '@/src/lib/repositories/imprest';
 import { useAuth } from '@/src/auth/useAuth';
 import type { BudgetCategory } from '@/src/lib/db/imprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
@@ -13,14 +13,14 @@ const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
 export function useImprestFloats() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: ['imprest-floats', orgId], queryFn: () => repositories.imprest.listFloats(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['imprest-floats', orgId], queryFn: () => imprestRepository.listFloats(), enabled: Boolean(orgId) });
 }
 /** One float by id (a record page must not search the capped list). Its own root (`imprest-float`, listed in IMPREST_QUERY_ROOTS) so every write refreshes it; the shell crumb reads the same key. */
 export function useImprestFloat(floatId: string | null | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-float', orgId, floatId],
-    queryFn: () => repositories.imprest.getFloat(floatId as string),
+    queryFn: () => imprestRepository.getFloat(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -28,7 +28,7 @@ export function useImprestPosition(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-position', orgId, floatId],
-    queryFn: () => repositories.imprest.getPosition(floatId as string),
+    queryFn: () => imprestRepository.getPosition(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -36,7 +36,7 @@ export function useImprestPostingStates(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-posting-states', orgId, floatId],
-    queryFn: () => repositories.imprest.listPostingStates(floatId as string),
+    queryFn: () => imprestRepository.listPostingStates(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -44,7 +44,7 @@ export function useImprestPlanUsage(floatId: string | undefined, month: string |
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-plan-usage', orgId, floatId, month],
-    queryFn: () => repositories.imprest.getPlanUsage(floatId as string, month as string),
+    queryFn: () => imprestRepository.getPlanUsage(floatId as string, month as string),
     enabled: Boolean(orgId) && Boolean(floatId) && Boolean(month),
   });
 }
@@ -52,7 +52,7 @@ export function useImprestPlans(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-plans', orgId, floatId],
-    queryFn: () => repositories.imprest.listPlans(floatId as string),
+    queryFn: () => imprestRepository.listPlans(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -60,7 +60,7 @@ export function useImprestPlanLines(planId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-plans', orgId, 'lines', planId],
-    queryFn: () => repositories.imprest.listPlanLines(planId as string),
+    queryFn: () => imprestRepository.listPlanLines(planId as string),
     enabled: Boolean(orgId) && Boolean(planId),
   });
 }
@@ -68,7 +68,7 @@ export function useImprestReplenishments(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-replenishments', orgId, floatId],
-    queryFn: () => repositories.imprest.listReplenishments(floatId as string),
+    queryFn: () => imprestRepository.listReplenishments(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -76,7 +76,7 @@ export function useImprestFloatChanges(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-float-changes', orgId, floatId],
-    queryFn: () => repositories.imprest.listFloatChanges(floatId as string),
+    queryFn: () => imprestRepository.listFloatChanges(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -84,7 +84,7 @@ export function useImprestCounts(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-counts', orgId, floatId],
-    queryFn: () => repositories.imprest.listCounts(floatId as string),
+    queryFn: () => imprestRepository.listCounts(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -92,23 +92,23 @@ export function useImprestFloatClaims(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-float-claims', orgId, floatId],
-    queryFn: () => repositories.imprest.listFloatClaims(floatId as string),
+    queryFn: () => imprestRepository.listFloatClaims(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
 export function useImprestAwaiting() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: ['imprest-awaiting', orgId], queryFn: () => repositories.imprest.listAwaitingImprest(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['imprest-awaiting', orgId], queryFn: () => imprestRepository.listAwaitingImprest(), enabled: Boolean(orgId) });
 }
 export function useImprestProcurementLimit() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: ['imprest-limit', orgId], queryFn: () => repositories.imprest.getProcurementLimit(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['imprest-limit', orgId], queryFn: () => imprestRepository.getProcurementLimit(), enabled: Boolean(orgId) });
 }
 export function useImprestFloatChoices(projectId: string | undefined, category: BudgetCategory | null) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['imprest-float-choices', orgId, projectId, category],
-    queryFn: () => repositories.imprest.floatChoices(projectId as string, category),
+    queryFn: () => imprestRepository.floatChoices(projectId as string, category),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -127,26 +127,26 @@ function useImprestMutation<A, R>(fn: (a: A) => Promise<R>) {
   });
 }
 
-type Repo = typeof repositories.imprest;
+type Repo = typeof imprestRepository;
 type Transition = Parameters<Repo['transitionReplenishment']>;
-export const useCreatePlan = () => useImprestMutation((a: { floatId: string; month: string }) => repositories.imprest.createPlan(a.floatId, a.month));
+export const useCreatePlan = () => useImprestMutation((a: { floatId: string; month: string }) => imprestRepository.createPlan(a.floatId, a.month));
 export const useSavePlanLine = () => useImprestMutation((a: { planId: string; category: BudgetCategory; amount: number }) =>
-  repositories.imprest.savePlanLine(a.planId, a.category, a.amount));
-export const useDeletePlanLine = () => useImprestMutation((lineId: string) => repositories.imprest.deletePlanLine(lineId));
-export const useSetProcurementLimit = () => useImprestMutation((amount: number) => repositories.imprest.setProcurementLimit(amount));
+  imprestRepository.savePlanLine(a.planId, a.category, a.amount));
+export const useDeletePlanLine = () => useImprestMutation((lineId: string) => imprestRepository.deletePlanLine(lineId));
+export const useSetProcurementLimit = () => useImprestMutation((amount: number) => imprestRepository.setProcurementLimit(amount));
 export const useEstablishFloat = () => useImprestMutation((a: { projectId: string; custodianId: string; amount: number }) =>
-  repositories.imprest.establishFloat(a.projectId, a.custodianId, a.amount));
+  imprestRepository.establishFloat(a.projectId, a.custodianId, a.amount));
 export const useProposeFloatAmount = () => useImprestMutation((a: { floatId: string; amount: number }) =>
-  repositories.imprest.proposeFloatAmount(a.floatId, a.amount));
+  imprestRepository.proposeFloatAmount(a.floatId, a.amount));
 export const useDecideFloatChange = () => useImprestMutation((a: { changeId: string; approve: boolean; notes?: string }) =>
-  repositories.imprest.decideFloatChange(a.changeId, a.approve, a.notes));
+  imprestRepository.decideFloatChange(a.changeId, a.approve, a.notes));
 export const useTransitionPlan = () => useImprestMutation((a: { id: string; to: Parameters<Repo['transitionPlan']>[1]; notes?: string }) =>
-  repositories.imprest.transitionPlan(a.id, a.to, a.notes));
+  imprestRepository.transitionPlan(a.id, a.to, a.notes));
 export const useRequestReplenishment = () => useImprestMutation((a: { floatId: string; kind?: 'replenishment' | 'funding' }) =>
-  repositories.imprest.requestReplenishment(a.floatId, a.kind));
+  imprestRepository.requestReplenishment(a.floatId, a.kind));
 export const useTransitionReplenishment = () => useImprestMutation((a: { id: string; to: Transition[1]; notes?: string; paymentReference?: string }) =>
-  repositories.imprest.transitionReplenishment(a.id, a.to, { notes: a.notes, paymentReference: a.paymentReference }));
-export const useSetCashAccount = () => useImprestMutation((a: { floatId: string; account: string }) => repositories.imprest.setCashAccount(a.floatId, a.account));
+  imprestRepository.transitionReplenishment(a.id, a.to, { notes: a.notes, paymentReference: a.paymentReference }));
+export const useSetCashAccount = () => useImprestMutation((a: { floatId: string; account: string }) => imprestRepository.setCashAccount(a.floatId, a.account));
 export const useRecordCount = () => useImprestMutation((a: { floatId: string; counted: number; note?: string }) =>
-  repositories.imprest.recordCount(a.floatId, a.counted, a.note));
-export const useSetClaimFloat = () => useImprestMutation((a: { claimId: string; floatId: string | null }) => repositories.imprest.setClaimFloat(a.claimId, a.floatId));
+  imprestRepository.recordCount(a.floatId, a.counted, a.note));
+export const useSetClaimFloat = () => useImprestMutation((a: { claimId: string; floatId: string | null }) => imprestRepository.setClaimFloat(a.claimId, a.floatId));

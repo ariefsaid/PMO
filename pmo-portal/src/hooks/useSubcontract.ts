@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { subcontractRepository } from '@/src/lib/repositories/subcontracts';
 import type {
   SetPoLinesInput,
   PrepareSubcontractAcceptanceInput,
@@ -37,7 +37,7 @@ export function usePoPosition(poId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.poPosition(orgId, poId),
-    queryFn: () => repositories.subcontracts.getPoPosition(poId!),
+    queryFn: () => subcontractRepository.getPoPosition(poId!),
     enabled: Boolean(orgId && poId),
   });
 }
@@ -48,7 +48,7 @@ export function usePoDraftLines(poId: string | undefined, enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.draftLines(orgId, poId),
-    queryFn: () => repositories.subcontracts.listPoLines(poId!, 1),
+    queryFn: () => subcontractRepository.listPoLines(poId!, 1),
     enabled: Boolean(orgId && poId && enabled),
   });
 }
@@ -58,7 +58,7 @@ export function useSubcontractAcceptances(poId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.acceptances(orgId, poId),
-    queryFn: () => repositories.subcontracts.listSubcontractAcceptances(poId!),
+    queryFn: () => subcontractRepository.listSubcontractAcceptances(poId!),
     enabled: Boolean(orgId && poId),
   });
 }
@@ -68,7 +68,7 @@ export function usePoVariations(poId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.variations(orgId, poId),
-    queryFn: () => repositories.subcontracts.listPoVariations(poId!),
+    queryFn: () => subcontractRepository.listPoVariations(poId!),
     enabled: Boolean(orgId && poId),
   });
 }
@@ -78,7 +78,7 @@ export function useVariationRoute(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.variationRoute(orgId, id),
-    queryFn: () => repositories.subcontracts.getVariationRoute(id!),
+    queryFn: () => subcontractRepository.getVariationRoute(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -88,7 +88,7 @@ export function useProjectSubcontractExposure(projectId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.projectExposure(orgId, projectId),
-    queryFn: () => repositories.subcontracts.getProjectSubcontractExposure(projectId!),
+    queryFn: () => subcontractRepository.getProjectSubcontractExposure(projectId!),
     enabled: Boolean(orgId && projectId),
   });
 }
@@ -98,7 +98,7 @@ export function useWorkOrderCostVariations(workOrderId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.workOrderVariations(orgId, workOrderId),
-    queryFn: () => repositories.subcontracts.listWorkOrderCostVariations(workOrderId!),
+    queryFn: () => subcontractRepository.listWorkOrderCostVariations(workOrderId!),
     enabled: Boolean(orgId && workOrderId),
   });
 }
@@ -108,7 +108,7 @@ export function useSubcontractCapExceptions(procurementId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: subcontractKeys.capExceptions(orgId, procurementId),
-    queryFn: () => repositories.subcontracts.listSubcontractCapExceptions(procurementId!),
+    queryFn: () => subcontractRepository.listSubcontractCapExceptions(procurementId!),
     enabled: Boolean(orgId && procurementId),
   });
 }
@@ -128,45 +128,45 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
   };
 
   const setPoLines = useMutation({
-    mutationFn: (lines: SetPoLinesInput[]) => repositories.subcontracts.setPoLines(poId, lines),
+    mutationFn: (lines: SetPoLinesInput[]) => subcontractRepository.setPoLines(poId, lines),
     onSuccess: invalidate,
   });
 
   const issuePoLines = useMutation({
-    mutationFn: () => repositories.subcontracts.issuePoLines(poId),
+    mutationFn: () => subcontractRepository.issuePoLines(poId),
     onSuccess: invalidate,
   });
 
   const prepareAcceptance = useMutation({
     mutationFn: (input: Omit<PrepareSubcontractAcceptanceInput, 'poId'>) =>
-      repositories.subcontracts.prepareSubcontractAcceptance({ ...input, poId }),
+      subcontractRepository.prepareSubcontractAcceptance({ ...input, poId }),
     onSuccess: invalidate,
   });
 
   const confirmAcceptance = useMutation({
-    mutationFn: (id: string) => repositories.subcontracts.confirmSubcontractAcceptance(id),
+    mutationFn: (id: string) => subcontractRepository.confirmSubcontractAcceptance(id),
     onSuccess: invalidate,
   });
 
   const withdrawAcceptance = useMutation({
-    mutationFn: (id: string) => repositories.subcontracts.withdrawSubcontractAcceptance(id),
+    mutationFn: (id: string) => subcontractRepository.withdrawSubcontractAcceptance(id),
     onSuccess: invalidate,
   });
 
   const requestVariation = useMutation({
     mutationFn: (input: Omit<RequestPoVariationInput, 'poId'>) =>
-      repositories.subcontracts.requestPoVariation({ ...input, poId }),
+      subcontractRepository.requestPoVariation({ ...input, poId }),
     onSuccess: invalidate,
   });
 
   const decideVariation = useMutation({
     mutationFn: ({ id, approve, notes }: { id: string; approve: boolean; notes?: string | null }) =>
-      repositories.subcontracts.decidePoVariation(id, approve, notes),
+      subcontractRepository.decidePoVariation(id, approve, notes),
     onSuccess: invalidate,
   });
 
   const issueRevision = useMutation({
-    mutationFn: (variationId: string) => repositories.subcontracts.issuePoRevision(variationId),
+    mutationFn: (variationId: string) => subcontractRepository.issuePoRevision(variationId),
     onSuccess: invalidate,
   });
 
@@ -179,7 +179,7 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
       variationId: string;
       workOrderId: string | null;
       reason: string | null;
-    }) => repositories.subcontracts.linkPoVariation(variationId, workOrderId, reason),
+    }) => subcontractRepository.linkPoVariation(variationId, workOrderId, reason),
     onSuccess: () => {
       invalidate();
       // A relink removes the variation from its old work order as well as adding it to the new one.
@@ -189,7 +189,7 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
 
   const attributeBillLines = useMutation({
     mutationFn: ({ invoiceId, lines }: { invoiceId: string; lines: AttributeSubcontractBillLineInput[] }) =>
-      repositories.subcontracts.attributeSubcontractBillLines(invoiceId, lines),
+      subcontractRepository.attributeSubcontractBillLines(invoiceId, lines),
     onSuccess: invalidate,
   });
 

@@ -14,8 +14,8 @@ import React, { useState } from 'react';
  */
 const h = vi.hoisted(() => ({ getTaxDefault: vi.fn() }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { orgSettings: { getTaxDefault: h.getTaxDefault } },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { getTaxDefault: h.getTaxDefault },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),

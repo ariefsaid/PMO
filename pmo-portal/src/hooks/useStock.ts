@@ -1,5 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
+import { projectRepository } from '@/src/lib/repositories/projects';
+import { stockRepository } from '@/src/lib/repositories/stock';
 import { useAuth } from '@/src/auth/useAuth';
 import type { StockItemInput, StockUnitInput, StockWarehouseInput } from '@/src/lib/db/stockMaster';
 import type { StockDocumentFilters, StockDocumentInput } from '@/src/lib/db/stockDocuments';
@@ -9,19 +11,19 @@ import type { MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
 /** Stock master data reads (#1512 S1). Every key carries the org id so the cache is tenant-scoped. */
 export function useStockUnits(includeArchived = false) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-units', orgId, includeArchived], queryFn: () => repositories.stock.master.listUnits(includeArchived), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-units', orgId, includeArchived], queryFn: () => stockRepository.master.listUnits(includeArchived), enabled: Boolean(orgId) });
 }
 export function useStockItems(includeArchived = false) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-items', orgId, includeArchived], queryFn: () => repositories.stock.master.listItems(includeArchived), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-items', orgId, includeArchived], queryFn: () => stockRepository.master.listItems(includeArchived), enabled: Boolean(orgId) });
 }
 export function useStockWarehouses(includeArchived = false) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-warehouses', orgId, includeArchived], queryFn: () => repositories.stock.master.listWarehouses(includeArchived), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-warehouses', orgId, includeArchived], queryFn: () => stockRepository.master.listWarehouses(includeArchived), enabled: Boolean(orgId) });
 }
 export function useStockKeepers() {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-keepers', orgId], queryFn: () => repositories.stock.master.listKeepers(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-keepers', orgId], queryFn: () => stockRepository.master.listKeepers(), enabled: Boolean(orgId) });
 }
 
 type MasterTable = 'stock_units' | 'stock_items' | 'stock_warehouses';
@@ -31,7 +33,7 @@ const KEY: Record<MasterTable, string> = { stock_units: 'stock-units', stock_ite
 export function useStockMasterMutations() {
   const qc = useQueryClient();
   const orgId = useAuth().currentUser?.org_id;
-  const m = repositories.stock.master;
+  const m = stockRepository.master;
   const refresh = (...keys: string[]) => () => { for (const k of keys) void qc.invalidateQueries({ queryKey: [k, orgId] }); };
   return {
     createUnit: useMutation({ mutationFn: (i: StockUnitInput) => m.createUnit(i), onSuccess: refresh('stock-units') }),
@@ -53,7 +55,7 @@ export function useStockKeeperCandidates() {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['stock-keeper-candidates', orgId],
-    queryFn: async () => (await repositories.profile.listOrgProfiles()).filter((p) => p.status === 'active'),
+    queryFn: async () => (await profileRepository.listOrgProfiles()).filter((p) => p.status === 'active'),
     enabled: Boolean(orgId),
   });
 }
@@ -63,13 +65,13 @@ const DOC_PAGE = 50;
 /** Stock reads and document writes (#1512 S3). Quantities and money are decimal strings. */
 export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f), enabled: Boolean(orgId) && enabled });
+  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => stockRepository.reports.onHand(f), enabled: Boolean(orgId) && enabled });
 }
 export function useStockLedger(f: StockLedgerFilters) {
   const orgId = useAuth().currentUser?.org_id;
   return useInfiniteQuery({
     queryKey: ['stock-ledger', orgId, f],
-    queryFn: ({ pageParam }) => repositories.stock.reports.ledgerPage({ ...f, beforeSeq: pageParam, limit: 100 }),
+    queryFn: ({ pageParam }) => stockRepository.reports.ledgerPage({ ...f, beforeSeq: pageParam, limit: 100 }),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.nextBeforeSeq ?? undefined,
     enabled: Boolean(orgId),
@@ -79,7 +81,7 @@ export function useStockDocuments(f: Omit<StockDocumentFilters, 'before' | 'limi
   const orgId = useAuth().currentUser?.org_id;
   return useInfiniteQuery({
     queryKey: ['stock-documents', orgId, f],
-    queryFn: ({ pageParam }) => repositories.stock.documents.list({ ...f, limit: DOC_PAGE, before: pageParam }),
+    queryFn: ({ pageParam }) => stockRepository.documents.list({ ...f, limit: DOC_PAGE, before: pageParam }),
     initialPageParam: undefined as { createdAt: string; id: string } | undefined,
     getNextPageParam: (last) => (last.length < DOC_PAGE ? undefined : { createdAt: last[last.length - 1].created_at, id: last[last.length - 1].id }),
     enabled: Boolean(orgId),
@@ -87,36 +89,36 @@ export function useStockDocuments(f: Omit<StockDocumentFilters, 'before' | 'limi
 }
 export function useStockDocumentEntries(documentId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-ledger', orgId, 'document', documentId], queryFn: () => repositories.stock.reports.ledgerAll({ documentId }), enabled: Boolean(orgId && documentId) });
+  return useQuery({ queryKey: ['stock-ledger', orgId, 'document', documentId], queryFn: () => stockRepository.reports.ledgerAll({ documentId }), enabled: Boolean(orgId && documentId) });
 }
 export function useStockDocument(id: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-document', orgId, id], queryFn: () => repositories.stock.documents.get(id as string), enabled: Boolean(orgId && id) });
+  return useQuery({ queryKey: ['stock-document', orgId, id], queryFn: () => stockRepository.documents.get(id as string), enabled: Boolean(orgId && id) });
 }
 export function useStockDocumentCosts(id: string | undefined, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-document', orgId, id, 'costs'], queryFn: () => repositories.stock.documents.costs(id as string), enabled: Boolean(orgId && id) && enabled });
+  return useQuery({ queryKey: ['stock-document', orgId, id, 'costs'], queryFn: () => stockRepository.documents.costs(id as string), enabled: Boolean(orgId && id) && enabled });
 }
 export function useIssuableWorkItems(projectId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-work-items', orgId, projectId], queryFn: () => repositories.stock.documents.issuableWorkItems(projectId as string), enabled: Boolean(orgId && projectId) });
+  return useQuery({ queryKey: ['stock-work-items', orgId, projectId], queryFn: () => stockRepository.documents.issuableWorkItems(projectId as string), enabled: Boolean(orgId && projectId) });
 }
 
 export function useProjectIssueLines(projectId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-issue-lines', orgId, projectId], queryFn: () => repositories.stock.documents.issueLines(projectId as string), enabled: Boolean(orgId && projectId) });
+  return useQuery({ queryKey: ['stock-issue-lines', orgId, projectId], queryFn: () => stockRepository.documents.issueLines(projectId as string), enabled: Boolean(orgId && projectId) });
 }
 /** Ongoing projects: the only ones stock can be issued to (FR-STK-020). */
 export function useIssuableProjects() {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-issuable-projects', orgId], queryFn: () => repositories.project.list({ status: 'Ongoing Project' }), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-issuable-projects', orgId], queryFn: () => projectRepository.list({ status: 'Ongoing Project' }), enabled: Boolean(orgId) });
 }
 
 /** Every mutation refreshes what a posting moves: balances, the trace, the lists, and the project's consumption (S5 key). */
 export function useStockDocumentMutations() {
   const qc = useQueryClient();
   const orgId = useAuth().currentUser?.org_id;
-  const d = repositories.stock.documents;
+  const d = stockRepository.documents;
   const refresh = () => {
     for (const k of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-document', 'stock-consumption']) void qc.invalidateQueries({ queryKey: [k, orgId] });
   };
@@ -133,13 +135,13 @@ export function useProjectConsumption(projectId: string | undefined, from: strin
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['stock-consumption', orgId, projectId, from, to],
-    queryFn: () => repositories.stock.consumption.report(projectId as string, from, to),
+    queryFn: () => stockRepository.consumption.report(projectId as string, from, to),
     enabled: Boolean(orgId && projectId),
   });
 }
 export function useAllowances(projectId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-allowances', orgId, projectId], queryFn: () => repositories.stock.allowances.list(projectId as string), enabled: Boolean(orgId && projectId) });
+  return useQuery({ queryKey: ['stock-allowances', orgId, projectId], queryFn: () => stockRepository.allowances.list(projectId as string), enabled: Boolean(orgId && projectId) });
 }
 /** An allowance change moves the report's variance too, so both keys refresh. */
 export function useAllowanceMutations() {
@@ -147,8 +149,8 @@ export function useAllowanceMutations() {
   const orgId = useAuth().currentUser?.org_id;
   const refresh = () => { for (const k of ['stock-allowances', 'stock-consumption']) void qc.invalidateQueries({ queryKey: [k, orgId] }); };
   return {
-    set: useMutation({ mutationFn: (i: MaterialAllowanceInput) => repositories.stock.allowances.set(i), onSuccess: refresh }),
-    clear: useMutation({ mutationFn: (id: string) => repositories.stock.allowances.clear(id), onSuccess: refresh }),
+    set: useMutation({ mutationFn: (i: MaterialAllowanceInput) => stockRepository.allowances.set(i), onSuccess: refresh }),
+    clear: useMutation({ mutationFn: (id: string) => stockRepository.allowances.clear(id), onSuccess: refresh }),
   };
 }
 
@@ -157,19 +159,19 @@ export function useReorderSuggestion(warehouseId: string | undefined, itemId: st
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['stock-reorder-suggestion', orgId, warehouseId, itemId],
-    queryFn: () => repositories.stock.reorder.suggestion(warehouseId as string, itemId as string),
+    queryFn: () => stockRepository.reorder.suggestion(warehouseId as string, itemId as string),
     enabled: Boolean(orgId && warehouseId && itemId),
   });
 }
 export function useBelowReorder(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-below-reorder', orgId], queryFn: () => repositories.stock.reorder.worklist(), enabled: enabled && Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-below-reorder', orgId], queryFn: () => stockRepository.reorder.worklist(), enabled: enabled && Boolean(orgId) });
 }
 export function useSetReorderLevel() {
   const qc = useQueryClient();
   const orgId = useAuth().currentUser?.org_id;
   return useMutation({
-    mutationFn: (a: { warehouseId: string; itemId: string; level: string | null; quantity?: string | null }) => repositories.stock.reorder.setLevel(a),
+    mutationFn: (a: { warehouseId: string; itemId: string; level: string | null; quantity?: string | null }) => stockRepository.reorder.setLevel(a),
     onSuccess: () => { for (const k of ['stock-below-reorder', 'stock-reorder-suggestion']) void qc.invalidateQueries({ queryKey: [k, orgId] }); },
   });
 }

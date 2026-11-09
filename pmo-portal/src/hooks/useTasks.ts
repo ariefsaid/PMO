@@ -1,7 +1,8 @@
 import { invalidateTaskProjections } from './taskQueryKeys';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
+import { taskRepository } from '@/src/lib/repositories/tasks';
 import type { TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { useAuth } from '@/src/auth/useAuth';
@@ -22,7 +23,7 @@ export function useTasks(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery<TaskWithRefs[]>({
     queryKey: ['tasks', orgId, projectId],
-    queryFn: () => repositories.task.list(projectId),
+    queryFn: () => taskRepository.list(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -36,7 +37,7 @@ export function useAssignableProfiles() {
   const orgId = currentUser?.org_id;
   return useQuery<ProfileRow[]>({
     queryKey: ['org-profiles', orgId],
-    queryFn: () => repositories.profile.listOrgProfiles(),
+    queryFn: () => profileRepository.listOrgProfiles(),
     enabled: Boolean(orgId),
     staleTime: 5 * 60_000,
   });
@@ -91,12 +92,12 @@ export function useTaskMutations(projectId: string) {
     });
 
   const create = useMutation({
-    mutationFn: (input: TaskInput) => repositories.task.create(input),
+    mutationFn: (input: TaskInput) => taskRepository.create(input),
     onSuccess: invalidate,
   });
 
   const update = useMutation({
-    mutationFn: ({ id, patch }: UpdateTaskArgs) => repositories.task.update(id, patch, projectId),
+    mutationFn: ({ id, patch }: UpdateTaskArgs) => taskRepository.update(id, patch, projectId),
     onMutate: ({ id }) => {
       // FR-CUA-070 breadth (review fix #4): the edit-modal save is ALSO an external write origin —
       // surface its push state on the row + the edit modal, not just status writes.
@@ -125,7 +126,7 @@ export function useTaskMutations(projectId: string) {
   });
 
   const updateStatus = useMutation({
-    mutationFn: ({ id, status }: UpdateTaskStatusArgs) => repositories.task.updateStatus(id, status, projectId),
+    mutationFn: ({ id, status }: UpdateTaskStatusArgs) => taskRepository.updateStatus(id, status, projectId),
     onMutate: ({ id }) => {
       if (routeTaskWrite(projectId) === 'external') {
         clearPushTimer(id);
@@ -153,27 +154,27 @@ export function useTaskMutations(projectId: string) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.task.delete(id, projectId),
+    mutationFn: (id: string) => taskRepository.delete(id, projectId),
     onSuccess: invalidate,
   });
 
   const archive = useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       archived
-        ? repositories.task.archive(id, projectId)
-        : repositories.task.unarchive(id, projectId),
+        ? taskRepository.archive(id, projectId)
+        : taskRepository.unarchive(id, projectId),
     onSuccess: invalidate,
   });
 
   const addDependency = useMutation({
     mutationFn: ({ taskId, dependsOnId }: DependencyArgs) =>
-      repositories.task.addDependency(taskId, dependsOnId),
+      taskRepository.addDependency(taskId, dependsOnId),
     onSuccess: invalidate,
   });
 
   const removeDependency = useMutation({
     mutationFn: ({ taskId, dependsOnId }: DependencyArgs) =>
-      repositories.task.removeDependency(taskId, dependsOnId),
+      taskRepository.removeDependency(taskId, dependsOnId),
     onSuccess: invalidate,
   });
 

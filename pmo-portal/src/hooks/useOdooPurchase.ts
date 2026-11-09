@@ -1,6 +1,6 @@
 /** Hooks behind the Odoo purchase screens (#1505 P8): which tier runs procurement, the case's unsettled commands, the connection's health. */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { odooRepository } from '@/src/lib/repositories/odoo';
 import { useAuth } from '@/src/auth/useAuth';
 import { displayedConnection } from '@/src/lib/adapterSeam/odoo/connectionState';
 import { useOdooConnection } from './useOdoo';
@@ -12,7 +12,7 @@ export function useOdooPurchaseCommands(procurementId: string) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: odooPurchaseCommandsKey(orgId, procurementId),
-    queryFn: () => repositories.odoo.listPurchaseCommands(procurementId),
+    queryFn: () => odooRepository.listPurchaseCommands(procurementId),
     enabled: Boolean(orgId),
     refetchInterval: 30_000,
   });
@@ -30,7 +30,7 @@ export function useResolveHeldPayment(procurementId: string) {
   const orgId = useAuth().currentUser?.org_id;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Parameters<typeof repositories.odoo.resolveHeldPayment>[0]) => repositories.odoo.resolveHeldPayment(input),
+    mutationFn: (input: Parameters<typeof odooRepository.resolveHeldPayment>[0]) => odooRepository.resolveHeldPayment(input),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: odooPurchaseCommandsKey(orgId, procurementId) }); },
   });
 }

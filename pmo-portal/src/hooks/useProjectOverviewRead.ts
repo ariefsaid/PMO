@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { projectOverviewRepository } from '@/src/lib/repositories/projectOverview';
 import { externalDomainOwnershipKey } from './approvalsQueryKeys';
 
 /**
@@ -26,7 +26,7 @@ export function useProjectOverviewRead(projectId: string, enabled: boolean) {
   return useQuery({
     queryKey: ['project-overview-read', orgId, projectId, flags],
     queryFn: async () => {
-      const read = await repositories.projectOverview.read(projectId, flags);
+      const read = await projectOverviewRepository.read(projectId, flags);
       const seed = (key: readonly unknown[], value: unknown) => {
         if (value !== undefined) qc.setQueryData(key, value);
       };

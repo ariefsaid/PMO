@@ -26,9 +26,8 @@ const { listAwaitingApproval, approveRepository, pushApproved } = vi.hoisted(() 
   pushApproved: vi.fn(),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    timesheet: {
+vi.mock('@/src/lib/repositories/timesheets', () => ({
+  timesheetRepository: {
       listAwaitingApproval,
       listReopenableApproved: vi.fn(),
       submit: vi.fn(),
@@ -38,7 +37,6 @@ vi.mock('@/src/lib/repositories', () => ({
       attestNoErpDocument: vi.fn(),
       pushApproved,
     },
-  },
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({

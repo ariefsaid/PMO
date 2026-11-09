@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { repositories } from '@/src/lib/repositories';
+import { projectRepository } from '@/src/lib/repositories/projects';
 
 export type ProjectNumberProposalState =
   | { status: 'idle' | 'loading'; number: null; error: null }
@@ -22,7 +22,7 @@ export function useProjectNumberProposal(clientId: string | null, enabled: boole
 
     let current = true;
     setState({ status: 'loading', number: null, error: null });
-    void repositories.project.proposeNumber(clientId).then(
+    void projectRepository.proposeNumber(clientId).then(
       (number) => {
         if (current) setState({ status: 'success', number, error: null });
       },

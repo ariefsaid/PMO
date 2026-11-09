@@ -1,10 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  repositories,
-  type ProjectDocumentRow,
-  type ProjectDocumentInput,
-  type DocStatus,
-} from '@/src/lib/repositories';
+import { documentRepository } from '@/src/lib/repositories/documents';
+import type { DocStatus, ProjectDocumentInput, ProjectDocumentRow } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
@@ -19,7 +15,7 @@ export function useDocuments(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery<ProjectDocumentRow[]>({
     queryKey: ['project-documents', orgId, projectId],
-    queryFn: () => repositories.document.list(projectId),
+    queryFn: () => documentRepository.list(projectId),
     enabled: Boolean(orgId && projectId),
   });
 }
@@ -34,7 +30,7 @@ export function useChildDocument(parentId: string | null) {
   const orgId = currentUser?.org_id;
   return useQuery<ProjectDocumentRow | null>({
     queryKey: ['project-document-child', orgId, parentId],
-    queryFn: () => parentId ? repositories.document.getChild(parentId) : Promise.resolve(null),
+    queryFn: () => parentId ? documentRepository.getChild(parentId) : Promise.resolve(null),
     enabled: Boolean(orgId && parentId),
   });
 }
@@ -71,35 +67,35 @@ export function useDocumentMutations(projectId: string) {
 
   const create = useMutation({
     mutationFn: (input: ProjectDocumentInput) =>
-      repositories.document.create(projectId, input, currentUser?.id ?? null),
+      documentRepository.create(projectId, input, currentUser?.id ?? null),
     onSuccess: invalidate,
   });
 
   const update = useMutation({
-    mutationFn: ({ id, input }: UpdateDocumentArgs) => repositories.document.update(id, input),
+    mutationFn: ({ id, input }: UpdateDocumentArgs) => documentRepository.update(id, input),
     onSuccess: invalidate,
   });
 
   const transition = useMutation({
     mutationFn: ({ id, status }: TransitionDocumentArgs) =>
-      repositories.document.transition(id, status),
+      documentRepository.transition(id, status),
     onSuccess: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.document.delete(id),
+    mutationFn: (id: string) => documentRepository.delete(id),
     onSuccess: invalidate,
   });
 
   // Reference link/unlink over the repository seam: one ordinary UPDATE each, no optimistic
   // overwrite — the register refetches, so a failed collision keeps the row's current source.
   const link = useMutation({
-    mutationFn: ({ id, reference }: LinkArgs) => repositories.document.linkMicrosoftDocument(id, reference),
+    mutationFn: ({ id, reference }: LinkArgs) => documentRepository.linkMicrosoftDocument(id, reference),
     onSuccess: invalidate,
   });
 
   const unlink = useMutation({
-    mutationFn: (id: string) => repositories.document.unlinkMicrosoftDocument(id),
+    mutationFn: (id: string) => documentRepository.unlinkMicrosoftDocument(id),
     onSuccess: invalidate,
   });
 

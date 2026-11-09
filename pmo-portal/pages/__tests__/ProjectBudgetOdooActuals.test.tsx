@@ -12,12 +12,14 @@ import { AppError } from '@/src/lib/appError';
 const h = vi.hoisted(() => ({ getConnection: vi.fn(), reads: vi.fn(), health: vi.fn(), lines: vi.fn(), linked: vi.fn(), currency: vi.fn() }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    odoo: { getConnection: h.getConnection },
-    revenue: { getOrgReadsErpLedger: h.reads },
-    odooLedger: { health: h.health, lines: h.lines, projectLinked: h.linked, companyCurrency: h.currency },
-  },
+vi.mock('@/src/lib/repositories/odoo', () => ({
+  odooRepository: { getConnection: h.getConnection },
+}));
+vi.mock('@/src/lib/repositories/odooLedger', () => ({
+  odooLedgerRepository: { health: h.health, lines: h.lines, projectLinked: h.linked, companyCurrency: h.currency },
+}));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { getOrgReadsErpLedger: h.reads },
 }));
 
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from '../project-detail/budget/BudgetOdooActuals';

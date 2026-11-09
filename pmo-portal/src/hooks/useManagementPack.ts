@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { reportsRepository } from '@/src/lib/repositories/reporting';
 import { useAuth } from '@/src/auth/useAuth';
 import { buildManagementPack, type ManagementPack } from '@/src/lib/reports/managementPack';
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
@@ -10,7 +10,7 @@ export function useManagementPack(range: ManagementPackRange, enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<ManagementPackFacts, Error, ManagementPack>({
     queryKey: ['managementPack', orgId, range.from ?? 'default', range.to ?? 'default'],
-    queryFn: () => repositories.reports.managementPack(range),
+    queryFn: () => reportsRepository.managementPack(range),
     select: buildManagementPack,
     enabled: Boolean(orgId) && enabled,
   });
@@ -21,7 +21,7 @@ export function useManagementPack(range: ManagementPackRange, enabled = true) {
 export function useRecordProjectProgress() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: ProjectProgressInput) => repositories.reports.recordProgress(input),
+    mutationFn: (input: ProjectProgressInput) => reportsRepository.recordProgress(input),
     onSuccess: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['managementPack'] }),
       qc.invalidateQueries({ queryKey: ['project-billing'] }),

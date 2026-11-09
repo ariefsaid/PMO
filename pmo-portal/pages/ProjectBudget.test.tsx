@@ -116,13 +116,11 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   retryActiveBudgetPush: vi.fn(),
   releaseActiveBudgetPushHold: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    budget: {
+vi.mock('@/src/lib/repositories/budget', () => ({
+  budgetRepository: {
       ...mockBudgetRepository,
       listArchiveTargets: (...args: unknown[]) => mockListArchiveTargets(...args),
     },
-  },
 }));
 vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
   BudgetDocumentLinks: ({ versionId }: { versionId: string }) => <div data-testid={`evidence-${versionId}`}>Evidence documents</div>,

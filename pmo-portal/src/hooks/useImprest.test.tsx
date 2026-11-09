@@ -13,7 +13,12 @@ const { imprest, orgSettings } = vi.hoisted(() => ({
     recordCount: vi.fn(), listPostingStates: vi.fn(), setCashAccount: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { imprest, orgSettings } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: orgSettings,
+}));
+vi.mock('@/src/lib/repositories/imprest', () => ({
+  imprestRepository: imprest,
+}));
 let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 

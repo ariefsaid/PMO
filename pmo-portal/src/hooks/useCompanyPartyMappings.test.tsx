@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 const listPartyIds = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/repositories', () => ({ repositories: { companyCollections: { listPartyIds } } }));
+vi.mock('@/src/lib/repositories/companyCollections', () => ({
+  companyCollectionsRepository: { listPartyIds },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 import { useCompanyPartyMappings } from './useCompanyPartyMappings';
 

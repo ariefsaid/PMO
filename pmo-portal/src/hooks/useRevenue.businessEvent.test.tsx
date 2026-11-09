@@ -4,8 +4,8 @@ import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const h = vi.hoisted(() => ({ submitInvoice: vi.fn(), createPayment: vi.fn(), createInvoice: vi.fn(), invoice: vi.fn(), payment: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { revenue: { submitInvoice: h.submitInvoice, createPayment: h.createPayment, createInvoice: h.createInvoice } },
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { submitInvoice: h.submitInvoice, createPayment: h.createPayment, createInvoice: h.createInvoice },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user', org_id: 'org', role: 'Finance' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useOptionalRealRole: () => 'Finance' }));

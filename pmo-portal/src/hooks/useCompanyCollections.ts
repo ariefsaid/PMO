@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { companyCollectionsRepository } from '@/src/lib/repositories/companyCollections';
 import type { CompanyCustomerRef } from '@/src/lib/db/companyCollections';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import {
@@ -58,7 +58,7 @@ export function useCompanyCollections(
 
   const refsBySnapshotCustomerQuery = useQuery({
     queryKey: ['uxs36', 'company-customer-ref-parties', orgId, erpCustomerIds],
-    queryFn: () => repositories.companyCollections.listForErpCustomerIds(erpCustomerIds),
+    queryFn: () => companyCollectionsRepository.listForErpCustomerIds(erpCustomerIds),
     enabled: isEnabled && !arAging.isPending && !arAging.isError && erpCustomerIds.length > 0,
   });
 

@@ -9,7 +9,9 @@ const h = vi.hoisted(() => ({
   setup: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-a' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { odoo: h } }));
+vi.mock('@/src/lib/repositories/odoo', () => ({
+  odooRepository: h,
+}));
 
 import { useOdooConnection, useMasterRecords, useOdooSetup } from './useOdoo';
 import { useOdooUnreachable } from './useOdooPurchase';

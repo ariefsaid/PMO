@@ -1,7 +1,7 @@
 import { procurementKeys } from './procurementQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { erpPurchasesRepository } from '@/src/lib/repositories/erpPurchases';
 import type { ErpLinkRow } from '@/src/lib/repositories/erpPurchases';
 
 /** FR-PFE-032 — the ERPNext documents linked to one purchase. */
@@ -9,7 +9,7 @@ export function useLinkedErpDocuments(procurementId: string | null | undefined) 
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['linked-erp-documents', orgId, procurementId],
-    queryFn: () => repositories.erpPurchases.listLinked(procurementId as string),
+    queryFn: () => erpPurchasesRepository.listLinked(procurementId as string),
     enabled: Boolean(orgId && procurementId),
   });
 }
@@ -29,7 +29,7 @@ function useInvalidateLinks() {
 export function useLinkErpDocuments() {
   const invalidate = useInvalidateLinks();
   return useMutation({
-    mutationFn: (args: { rows: ErpLinkRow[]; dryRun?: boolean }) => repositories.erpPurchases.link(args.rows, args.dryRun),
+    mutationFn: (args: { rows: ErpLinkRow[]; dryRun?: boolean }) => erpPurchasesRepository.link(args.rows, args.dryRun),
     onSuccess: (res) => { if (!res.dry_run) void invalidate(); },
   });
 }
@@ -38,7 +38,7 @@ export function useLinkErpDocuments() {
 export function useUnlinkErpDocument() {
   const invalidate = useInvalidateLinks();
   return useMutation({
-    mutationFn: (linkId: string) => repositories.erpPurchases.unlink(linkId),
+    mutationFn: (linkId: string) => erpPurchasesRepository.unlink(linkId),
     onSuccess: () => { void invalidate(); },
   });
 }

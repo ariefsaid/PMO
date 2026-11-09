@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { timeAndMaterialsRepository } from '@/src/lib/repositories/timeAndMaterials';
 import { useAuth } from '@/src/auth/useAuth';
 import type {
   AssembleTmClaimInput, ContractRateLineInput, EndRateAssigneeInput, EndRateLineInput, PrepareTmSignoffInput,
@@ -29,7 +29,7 @@ export function useTmRateLines(projectId: string, includeHistory = false) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['tm-rate-lines', orgId, projectId, includeHistory],
-    queryFn: () => repositories.timeAndMaterials.listRateLines(projectId, { includeHistory }),
+    queryFn: () => timeAndMaterialsRepository.listRateLines(projectId, { includeHistory }),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -38,7 +38,7 @@ export function useTmRateAssignees(projectId: string) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['tm-rate-assignees', orgId, projectId],
-    queryFn: () => repositories.timeAndMaterials.listRateAssignees(projectId),
+    queryFn: () => timeAndMaterialsRepository.listRateAssignees(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -47,7 +47,7 @@ export function useTmClaims(projectId: string) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['tm-claims', orgId, projectId],
-    queryFn: () => repositories.timeAndMaterials.listTmClaims(projectId),
+    queryFn: () => timeAndMaterialsRepository.listTmClaims(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -57,7 +57,7 @@ export function useTmClaimPreview(range: TmClaimPreviewInput) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['tm-claim-preview', orgId, range.projectId, range.from, range.to],
-    queryFn: () => repositories.timeAndMaterials.previewTmClaim(range),
+    queryFn: () => timeAndMaterialsRepository.previewTmClaim(range),
     enabled: Boolean(orgId) && Boolean(range.projectId) && rangeIsValid(range.from, range.to),
   });
 }
@@ -67,7 +67,7 @@ export function useTmClaimSources(claimId: string) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['tm-claim-sources', orgId, claimId],
-    queryFn: () => repositories.timeAndMaterials.listTmClaimSources(claimId),
+    queryFn: () => timeAndMaterialsRepository.listTmClaimSources(claimId),
     enabled: Boolean(orgId) && Boolean(claimId),
   });
 }
@@ -82,22 +82,22 @@ function useTmMutation<A, R>(fn: (arg: A) => Promise<R>, extraRoots: readonly st
   });
 }
 
-export const useSaveTmRateLine = () => useTmMutation((input: ContractRateLineInput | ContractRateLineInput[]) => repositories.timeAndMaterials.saveContractRateLine(input));
-export const useEndTmRateLine = () => useTmMutation((input: EndRateLineInput) => repositories.timeAndMaterials.endContractRateLine(input));
-export const useSetTmRateAssignee = () => useTmMutation((input: RateAssigneeInput) => repositories.timeAndMaterials.setContractRateAssignee(input));
-export const useEndTmRateAssignee = () => useTmMutation((input: EndRateAssigneeInput) => repositories.timeAndMaterials.endContractRateAssignee(input));
-export const useAssembleTmClaim = () => useTmMutation((input: AssembleTmClaimInput) => repositories.timeAndMaterials.assembleTmClaim(input));
+export const useSaveTmRateLine = () => useTmMutation((input: ContractRateLineInput | ContractRateLineInput[]) => timeAndMaterialsRepository.saveContractRateLine(input));
+export const useEndTmRateLine = () => useTmMutation((input: EndRateLineInput) => timeAndMaterialsRepository.endContractRateLine(input));
+export const useSetTmRateAssignee = () => useTmMutation((input: RateAssigneeInput) => timeAndMaterialsRepository.setContractRateAssignee(input));
+export const useEndTmRateAssignee = () => useTmMutation((input: EndRateAssigneeInput) => timeAndMaterialsRepository.endContractRateAssignee(input));
+export const useAssembleTmClaim = () => useTmMutation((input: AssembleTmClaimInput) => timeAndMaterialsRepository.assembleTmClaim(input));
 /** `claimSourceId` is the `tm_claim_sources` row id (0516 matches `s.id`), not the timesheet entry's `source_id`. */
 export const useDeselectTmSource = () =>
   useTmMutation((arg: { claimId: string; claimSourceId: string }) =>
-    repositories.timeAndMaterials.deselectTmSource(arg.claimId, arg.claimSourceId));
-export const usePrepareTmSignoff = () => useTmMutation((input: PrepareTmSignoffInput) => repositories.timeAndMaterials.prepareTmSignoff(input));
-export const useWithdrawTmSignoff = () => useTmMutation((claimId: string) => repositories.timeAndMaterials.withdrawTmSignoff(claimId));
+    timeAndMaterialsRepository.deselectTmSource(arg.claimId, arg.claimSourceId));
+export const usePrepareTmSignoff = () => useTmMutation((input: PrepareTmSignoffInput) => timeAndMaterialsRepository.prepareTmSignoff(input));
+export const useWithdrawTmSignoff = () => useTmMutation((claimId: string) => timeAndMaterialsRepository.withdrawTmSignoff(claimId));
 export const useConfirmTmSignoff = () => useTmMutation(
-  (claimId: string) => repositories.timeAndMaterials.confirmTmSignoff(claimId), ['progress-claims'],
+  (claimId: string) => timeAndMaterialsRepository.confirmTmSignoff(claimId), ['progress-claims'],
 );
 /** #1817: invoice a confirmed claim in PMO (no ERP). The invoice lists, the work order's billing and finances move with it. */
 export const useInvoiceTmClaimNative = () => useTmMutation(
-  (claimId: string) => repositories.timeAndMaterials.invoiceNativeTmClaim(claimId),
+  (claimId: string) => timeAndMaterialsRepository.invoiceNativeTmClaim(claimId),
   ['progress-claims', 'salesInvoices', 'salesInvoice', 'revenueByProject', 'work-order-billing', 'unbilled-work-orders'],
 );

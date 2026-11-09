@@ -16,10 +16,9 @@ const { revenue, triggerBlobDownload } = vi.hoisted(() => ({
   revenue: { listInvoices: vi.fn(), downloadInvoicePdf: vi.fn() },
   triggerBlobDownload: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', async (orig) => {
-  const actual = await orig<typeof import('@/src/lib/repositories')>();
-  return { ...actual, repositories: { revenue } };
-});
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: revenue,
+}));
 vi.mock('@/src/lib/download', () => ({ triggerBlobDownload }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),

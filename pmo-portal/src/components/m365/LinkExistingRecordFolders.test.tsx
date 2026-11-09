@@ -17,8 +17,8 @@ import type { RecordFolderBackfillPage } from '@/src/lib/m365/recordFolders';
 
 const linkExisting = vi.hoisted(() => vi.fn());
 const ensure = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { m365RecordFolders: { linkExisting: (...a: unknown[]) => linkExisting(...a), ensure: (...a: unknown[]) => ensure(...a) } },
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365RecordFoldersRepository: { linkExisting: (...a: unknown[]) => linkExisting(...a), ensure: (...a: unknown[]) => ensure(...a) },
 }));
 const auth = vi.hoisted(() => ({ current: { id: 'u1', org_id: 'org-1' } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.current }) }));

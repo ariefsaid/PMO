@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ProjectMatchReview } from '@/src/components/integrations/ProjectMatchReview';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import { odooOwnsProjectsTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { ProjectOdooLink } from './ProjectOdooLink';
 
@@ -15,7 +15,7 @@ export function ProjectErpLink({ projectId, managerId = null }: { projectId: str
   const orgId = currentUser?.org_id;
   const bindings = useQuery({
     queryKey: ['integrations', 'bindings', orgId],
-    queryFn: () => repositories.integrations.listBindings(orgId!),
+    queryFn: () => integrationsRepository.listBindings(orgId!),
     enabled: Boolean(orgId),
     staleTime: 5 * 60_000,
     retry: false,

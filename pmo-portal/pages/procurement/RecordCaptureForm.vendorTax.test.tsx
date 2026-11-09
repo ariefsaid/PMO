@@ -10,17 +10,12 @@ const repo = vi.hoisted(() => ({
   getCompany: vi.fn(async () => ({ id: 'vendor-1', default_vat_rate: 11 as number | null, default_pph_type: 'pph23' as string | null, default_pph_rate: 2 as number | null })),
   listTemplates: vi.fn(async () => [{ name: 'Input VAT 11' }]),
 }));
-vi.mock('@/src/lib/repositories', async (orig) => {
-  const actual = (await orig()) as { repositories: Record<string, unknown> };
-  return {
-    ...actual,
-    repositories: {
-      ...actual.repositories,
-      company: { get: repo.getCompany },
-      integrations: { listPurchaseTaxTemplates: repo.listTemplates },
-    },
-  };
-});
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: { get: repo.getCompany },
+}));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { listPurchaseTaxTemplates: repo.listTemplates },
+}));
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => undefined };

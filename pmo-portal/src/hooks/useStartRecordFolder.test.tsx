@@ -27,8 +27,8 @@ vi.mock('@/src/components/ui/Toast', async (importOriginal) => ({
 }));
 
 const ensure = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { m365RecordFolders: { ensure: (...a: unknown[]) => ensure(...a) } },
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365RecordFoldersRepository: { ensure: (...a: unknown[]) => ensure(...a) },
 }));
 
 import { useStartRecordFolder } from './useStartRecordFolder';

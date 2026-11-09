@@ -23,9 +23,8 @@ const db = vi.hoisted(() => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'admin-1', org_id: 'org-1' }, role: 'Admin' }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    integrations: {
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: {
       listBindings: vi.fn(async () => [...db.bindings]),
       connectIntegration: vi.fn(async (_org: string, credential: unknown) => {
         db.connect(credential);
@@ -59,7 +58,6 @@ vi.mock('@/src/lib/repositories', () => ({
         domains: [], unmappedProjects: [], budgetMappedCategories: [], unlinkedEmployeeCount: 0,
       })),
     },
-  },
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({
   useExternalDomainOwnership: () => ({ data: [], isPending: false, isError: false, isSuccess: true, refetch: vi.fn() }),

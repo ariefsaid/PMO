@@ -7,16 +7,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const templates = vi.hoisted(() => ({ list: vi.fn(async () => [{ name: 'Input VAT 11' }, { name: 'Input VAT 0' }]) }));
-vi.mock('@/src/lib/repositories', async (orig) => {
-  const actual = (await orig()) as { repositories: Record<string, unknown> };
-  return {
-    ...actual,
-    repositories: {
-      ...actual.repositories,
-      integrations: { listPurchaseTaxTemplates: templates.list },
-    },
-  };
-});
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { listPurchaseTaxTemplates: templates.list },
+}));
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => undefined };

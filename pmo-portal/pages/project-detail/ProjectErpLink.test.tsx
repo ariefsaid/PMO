@@ -3,7 +3,9 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const h = vi.hoisted(() => ({ listBindings: vi.fn(), matchProps: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listBindings: h.listBindings } } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { listBindings: h.listBindings },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/components/integrations/ProjectMatchReview', () => ({
   ProjectMatchReview: (p: unknown) => { h.matchProps(p); return <div>erpnext link</div>; },

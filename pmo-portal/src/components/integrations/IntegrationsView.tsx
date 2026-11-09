@@ -10,7 +10,7 @@ import { tierLabel } from './integrationLabels';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatList } from '@/src/lib/format';
 import type { ExternalTier } from '@/src/lib/repositories/types';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { M365DefaultLibraryCard } from './M365DefaultLibraryCard';
 import { OdooIntegrationSection } from './odoo/OdooIntegrationSection';
@@ -77,7 +77,7 @@ export const IntegrationsView: React.FC = () => {
   const healthQueries = useIntegrationsHealth(orgId, connectedTiers, getHealth);
   const erpSetupQuery = useQuery({
     queryKey: ['integrations', 'setup', orgId],
-    queryFn: () => repositories.integrations.getErpSetup(),
+    queryFn: () => integrationsRepository.getErpSetup(),
     enabled: Boolean(orgId) && canManageIntegrations && connectedTiers.includes('erpnext'),
     retry: false,
   });

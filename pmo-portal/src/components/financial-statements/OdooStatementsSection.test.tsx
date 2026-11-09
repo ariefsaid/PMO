@@ -11,7 +11,9 @@ import { AppError } from '@/src/lib/appError';
 const h = vi.hoisted(() => ({ catalogue: vi.fn(), statement: vi.fn(), currency: vi.fn() }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { odooLedger: { statementCatalogue: h.catalogue, statement: h.statement, companyCurrency: h.currency } } }));
+vi.mock('@/src/lib/repositories/odooLedger', () => ({
+  odooLedgerRepository: { statementCatalogue: h.catalogue, statement: h.statement, companyCurrency: h.currency },
+}));
 
 import { OdooStatementsSection } from './OdooStatementsSection';
 import { statementLedgerState } from '@/src/components/odoo-ledger/ledgerState';

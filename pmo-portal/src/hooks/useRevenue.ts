@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackInvoiceIssued, trackPaymentRecorded } from '@/src/lib/analytics';
@@ -34,7 +34,7 @@ export function useSalesInvoices(projectId?: string, { enabled = true }: { enabl
   const orgId = currentUser?.org_id;
   return useQuery<SalesInvoiceRow[]>({
     queryKey: ['salesInvoices', orgId, projectId ?? 'all'],
-    queryFn: () => repositories.revenue.listInvoices(projectId ? { projectId } : undefined),
+    queryFn: () => revenueRepository.listInvoices(projectId ? { projectId } : undefined),
     enabled: enabled && Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -46,7 +46,7 @@ export function useOverdueInvoiceFacts(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<OverdueInvoiceFact[]>({
     queryKey: ['salesInvoices', orgId, 'overdue-facts'],
-    queryFn: () => repositories.revenue.listOverdueInvoiceFacts(),
+    queryFn: () => revenueRepository.listOverdueInvoiceFacts(),
     enabled: enabled && Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -58,7 +58,7 @@ export function usePaidPaymentFacts(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<PaidPaymentFact[]>({
     queryKey: ['incomingPayments', orgId, 'paid-facts'],
-    queryFn: () => repositories.revenue.listPaidPaymentFacts(),
+    queryFn: () => revenueRepository.listPaidPaymentFacts(),
     enabled: enabled && Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -72,7 +72,7 @@ export function useHasAnySalesInvoice(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<boolean>({
     queryKey: ['salesInvoices', orgId, 'exists'],
-    queryFn: () => repositories.revenue.hasAnySalesInvoice(),
+    queryFn: () => revenueRepository.hasAnySalesInvoice(),
     enabled: enabled && Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -85,7 +85,7 @@ export function useHasAnyIncomingPayment(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<boolean>({
     queryKey: ['incomingPayments', orgId, 'exists'],
-    queryFn: () => repositories.revenue.hasAnyIncomingPayment(),
+    queryFn: () => revenueRepository.hasAnyIncomingPayment(),
     enabled: enabled && Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -113,7 +113,7 @@ export function useNativeDraftInvoices(enabled: boolean) {
   const orgId = currentUser?.org_id;
   return useQuery<SalesInvoiceRow[]>({
     queryKey: nativeDraftInvoicesKey(orgId),
-    queryFn: () => repositories.revenue.listInvoices({ status: 'Draft', nativeOnly: true }),
+    queryFn: () => revenueRepository.listInvoices({ status: 'Draft', nativeOnly: true }),
     enabled: Boolean(orgId) && enabled,
   });
 }
@@ -124,7 +124,7 @@ export function useDraftInvoices(enabled: boolean) {
   const orgId = currentUser?.org_id;
   return useQuery<SalesInvoiceRow[]>({
     queryKey: ['salesInvoices', orgId, 'odoo-drafts'],
-    queryFn: () => repositories.revenue.listInvoices({ status: 'Draft' }),
+    queryFn: () => revenueRepository.listInvoices({ status: 'Draft' }),
     enabled: Boolean(orgId) && enabled,
   });
 }
@@ -138,7 +138,7 @@ export function useIncomingPayments(customerId?: string, enabled = true, salesIn
   const orgId = currentUser?.org_id;
   return useQuery<IncomingPaymentRow[]>({
     queryKey: ['incomingPayments', orgId, customerId ?? 'all', salesInvoiceId ?? 'all-invoices'],
-    queryFn: () => repositories.revenue.listPayments({
+    queryFn: () => revenueRepository.listPayments({
       ...(customerId ? { customerId } : {}),
       ...(salesInvoiceId ? { salesInvoiceId } : {}),
     }),
@@ -157,7 +157,7 @@ export function useRevenuePerProject() {
   const orgId = currentUser?.org_id;
   return useQuery<RevenueByProjectRow[]>({
     queryKey: ['revenueByProject', orgId],
-    queryFn: () => repositories.revenue.getRevenueByProject?.() ?? Promise.resolve([]),
+    queryFn: () => revenueRepository.getRevenueByProject?.() ?? Promise.resolve([]),
     enabled: Boolean(orgId),
   });
 }
@@ -201,7 +201,7 @@ export function useRevenueMutations() {
 
   const create = useMutation({
     mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; workOrderId?: string | null; billingKind?: BillingKind; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
-      repositories.revenue.createInvoice(input, intent),
+      revenueRepository.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -217,7 +217,7 @@ export function useRevenueMutations() {
 
   const submitInvoice = useMutation({
     mutationFn: ({ siId, intent }: { siId: string; intent?: CommandIntent }) =>
-      repositories.revenue.submitInvoice(siId, intent),
+      revenueRepository.submitInvoice(siId, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -234,7 +234,7 @@ export function useRevenueMutations() {
 
   const cancelInvoice = useMutation({
     mutationFn: ({ siId, intent }: { siId: string; intent?: CommandIntent }) =>
-      repositories.revenue.cancelInvoice(siId, intent),
+      revenueRepository.cancelInvoice(siId, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -250,7 +250,7 @@ export function useRevenueMutations() {
 
   const setReceivedDate = useMutation({
     mutationFn: ({ siId, receivedDate }: { siId: string; receivedDate: string | null }) =>
-      repositories.revenue.setReceivedDate(siId, receivedDate),
+      revenueRepository.setReceivedDate(siId, receivedDate),
     onSuccess: invalidate,
   });
 
@@ -258,7 +258,7 @@ export function useRevenueMutations() {
   const setEfaktur = useMutation({
     mutationFn: ({ siId, efakturNumber, efakturDate }: {
       siId: string; efakturNumber: string | null; efakturDate: string | null;
-    }) => repositories.revenue.setEfaktur(siId, { efakturNumber, efakturDate }),
+    }) => revenueRepository.setEfaktur(siId, { efakturNumber, efakturDate }),
     onSuccess: invalidate,
     // A known refusal (e.g. the invoice was cancelled meanwhile) means this row is stale: refetch it.
     onError: (err) => {
@@ -269,7 +269,7 @@ export function useRevenueMutations() {
 
   const createPayment = useMutation({
     mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; journalId?: string; date: string; intent?: CommandIntent }) =>
-      repositories.revenue.createPayment(input, intent),
+      revenueRepository.createPayment(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -285,7 +285,7 @@ export function useRevenueMutations() {
 
   const cancelPayment = useMutation({
     mutationFn: ({ ipId, intent }: { ipId: string; intent?: CommandIntent }) =>
-      repositories.revenue.cancelPayment(ipId, intent),
+      revenueRepository.cancelPayment(ipId, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -302,12 +302,12 @@ export function useRevenueMutations() {
   // exactly what a receipt cancel does.
   const applyReceipt = useMutation({
     mutationFn: (input: { receiptId: string; allocations: Array<{ invoiceId: string; amount: number }>; requestId: string }) =>
-      repositories.revenue.applyReceipt(input),
+      revenueRepository.applyReceipt(input),
     onSuccess: invalidate,
   });
 
   const unapplyAllocation = useMutation({
-    mutationFn: ({ allocationId }: { allocationId: string }) => repositories.revenue.unapplyAllocation(allocationId),
+    mutationFn: ({ allocationId }: { allocationId: string }) => revenueRepository.unapplyAllocation(allocationId),
     onSuccess: invalidate,
   });
 
@@ -321,10 +321,10 @@ export function useAssignInvoiceProject() {
   return useMutation({
     mutationFn: ({ siId, projectId, oldProjectId, billingKind }: AssignInvoiceProjectInput) => {
       // Same project + a kind: the narrow correction (works for native, authored and paid invoices too, FR-004).
-      if (billingKind !== undefined && oldProjectId === projectId) return repositories.revenue.setBillingKind(siId, billingKind);
+      if (billingKind !== undefined && oldProjectId === projectId) return revenueRepository.setBillingKind(siId, billingKind);
       return billingKind === undefined
-        ? repositories.revenue.setProject(siId, projectId)
-        : repositories.revenue.setProject(siId, projectId, billingKind);
+        ? revenueRepository.setProject(siId, projectId)
+        : revenueRepository.setProject(siId, projectId, billingKind);
     },
     onSuccess: (_data, { siId, projectId, oldProjectId }) => {
       const projectIds = [...new Set([oldProjectId, projectId].filter((id): id is string => Boolean(id)))];

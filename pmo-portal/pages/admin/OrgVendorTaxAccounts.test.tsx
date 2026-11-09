@@ -5,9 +5,11 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({ canManage: true, bindingStatus: 'active', bindingError: false, retryBinding: vi.fn(), get: vi.fn(), set: vi.fn(), listAccounts: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: {
   getVendorTaxAccounts: h.get, setVendorTaxAccounts: h.set,
-} } }));
+},
+}));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({ listBudgetPostingAccountCatalogue: h.listAccounts }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({
   useErpnextBinding: () => ({ data: { status: h.bindingStatus }, isPending: false, isError: h.bindingError, refetch: h.retryBinding }),

@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { FinancialStatementCatalogue, FinancialStatementRead } from '@/src/lib/financialStatements';
-import { repositories } from '@/src/lib/repositories';
+import { companyRepository } from '@/src/lib/repositories/companies';
+import { financialStatementsRepository } from '@/src/lib/repositories/financialStatements';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import ProjectProfitLossSection from '../ProjectProfitLossSection';
 
 const projectId = '33333333-3333-4333-8333-333333333333';
@@ -83,10 +85,10 @@ function renderSection() {
   return { ...view, client };
 }
 
-const catalogueSpy = vi.spyOn(repositories.financialStatements, 'catalogue').mockResolvedValue(catalogue);
-const readSpy = vi.spyOn(repositories.financialStatements, 'get').mockResolvedValue(totalsRead());
-const projectGetSpy = vi.spyOn(repositories.project, 'get');
-const companyListSpy = vi.spyOn(repositories.company, 'list');
+const catalogueSpy = vi.spyOn(financialStatementsRepository, 'catalogue').mockResolvedValue(catalogue);
+const readSpy = vi.spyOn(financialStatementsRepository, 'get').mockResolvedValue(totalsRead());
+const projectGetSpy = vi.spyOn(projectRepository, 'get');
+const companyListSpy = vi.spyOn(companyRepository, 'list');
 
 afterEach(() => vi.clearAllMocks());
 

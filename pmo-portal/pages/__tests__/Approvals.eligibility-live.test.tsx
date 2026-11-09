@@ -9,16 +9,16 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
 const state = vi.hoisted(() => ({ approved: false, assigned: true }));
+const row = vi.hoisted(() => ({ id: 'week', user_id: 'report', org_id: 'org', week_start_date: '2026-06-01', owner: { full_name: 'Report', manager_id: 'me' }, entries: [] }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org' }, role: 'Engineer' }) }));
-vi.mock('@/src/lib/repositories', async (original) => {
-  const actual = await original<typeof import('@/src/lib/repositories')>();
-  const row = { id: 'week', user_id: 'report', org_id: 'org', week_start_date: '2026-06-01', owner: { full_name: 'Report', manager_id: 'me' }, entries: [] };
-  return { ...actual, repositories: { ...actual.repositories, timesheet: { ...actual.repositories.timesheet,
+vi.mock('@/src/lib/repositories/timesheets', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  timesheetRepository: { ...(await importOriginal()).timesheetRepository,
     listAwaitingApproval: async () => state.assigned && !state.approved ? [{ ...row, status: 'Submitted' }] : [],
     listReopenableApproved: async () => state.assigned && state.approved ? [{ ...row, status: 'Approved', mirror: null, pushCommandState: null }] : [],
     approve: async () => { state.approved = true; }, pushApproved: async () => {},
-  } } };
-});
+  },
+}));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: vi.fn() } }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => ({ data: [], isPending: false, isError: false }) }));

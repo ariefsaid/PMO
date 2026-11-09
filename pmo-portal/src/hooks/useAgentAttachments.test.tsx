@@ -13,9 +13,8 @@ vi.mock('@/src/lib/uploadTransport', () => ({
   }),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    agentAttachment: {
+vi.mock('@/src/lib/repositories/documents', () => ({
+  agentAttachmentRepository: {
       prepareUpload: vi.fn().mockResolvedValue({
         attachmentId: 'att-1',
         signedUrl: 'https://signed/upload',
@@ -27,11 +26,10 @@ vi.mock('@/src/lib/repositories', () => ({
       // (ADR-0017), never importing the DAL directly.
       createThread: vi.fn().mockResolvedValue({ id: 'prepared-thread' }),
     },
-  },
 }));
 
 import { useAgentAttachments } from './useAgentAttachments';
-import { repositories } from '@/src/lib/repositories';
+import { agentAttachmentRepository } from '@/src/lib/repositories/documents';
 import { uploadWithProgress } from '@/src/lib/uploadTransport';
 
 function wrapper() {
@@ -60,12 +58,12 @@ describe('useAgentAttachments upload flow', () => {
       attachmentId = await result.current.uploadAttachment(file);
     });
 
-    expect(repositories.agentAttachment.prepareUpload).toHaveBeenCalledWith('thread-1', file);
+    expect(agentAttachmentRepository.prepareUpload).toHaveBeenCalledWith('thread-1', file);
     expect(uploadWithProgress).toHaveBeenCalledWith('https://signed/upload', file, expect.objectContaining({
       contentType: 'application/pdf',
       upsert: false,
     }));
-    expect(repositories.agentAttachment.confirmUpload).toHaveBeenCalledWith('att-1');
+    expect(agentAttachmentRepository.confirmUpload).toHaveBeenCalledWith('att-1');
     expect(attachmentId).toBe('att-1');
     await waitFor(() => expect(result.current.progress['att-1']).toBeUndefined());
   });
@@ -84,7 +82,7 @@ describe('useAgentAttachments upload flow', () => {
     });
 
     expect(thrown).toMatchObject({ message: 'bad network' });
-    expect(repositories.agentAttachment.cleanupObject).toHaveBeenCalledWith('org/org-1/agent-attachments/att-1');
+    expect(agentAttachmentRepository.cleanupObject).toHaveBeenCalledWith('org/org-1/agent-attachments/att-1');
     expect(result.current.error).toEqual({ type: 'server', message: 'Upload failed — try again' });
   });
 
@@ -95,8 +93,8 @@ describe('useAgentAttachments upload flow', () => {
       await result.current.uploadAttachment(new File(['pdf'], 'quote.pdf', { type: 'application/pdf' }));
     });
 
-    expect(repositories.agentAttachment.createThread).toHaveBeenCalledWith();
-    expect(repositories.agentAttachment.prepareUpload).toHaveBeenCalledWith(
+    expect(agentAttachmentRepository.createThread).toHaveBeenCalledWith();
+    expect(agentAttachmentRepository.prepareUpload).toHaveBeenCalledWith(
       'prepared-thread',
       expect.any(File),
     );
@@ -107,7 +105,7 @@ describe('useAgentAttachments upload flow', () => {
     // Two successive uploads must bind to two DIFFERENT threads once a New Conversation
     // reset has fired — proving the preparedThreadId does NOT leak across conversations
     // (review finding CRITICAL-1).
-    vi.mocked(repositories.agentAttachment.createThread)
+    vi.mocked(agentAttachmentRepository.createThread)
       .mockResolvedValueOnce({ id: 'thread-T1' })
       .mockResolvedValueOnce({ id: 'thread-T2' });
 
@@ -118,7 +116,7 @@ describe('useAgentAttachments upload flow', () => {
       await result.current.uploadAttachment(file);
     });
     expect(result.current.threadId).toBe('thread-T1');
-    expect(repositories.agentAttachment.prepareUpload).toHaveBeenLastCalledWith(
+    expect(agentAttachmentRepository.prepareUpload).toHaveBeenLastCalledWith(
       'thread-T1',
       expect.any(File),
     );
@@ -135,7 +133,7 @@ describe('useAgentAttachments upload flow', () => {
     // The next upload mints a fresh thread — NOT the stale T1.
     expect(result.current.threadId).toBe('thread-T2');
     expect(result.current.threadId).not.toBe('thread-T1');
-    expect(repositories.agentAttachment.prepareUpload).toHaveBeenLastCalledWith(
+    expect(agentAttachmentRepository.prepareUpload).toHaveBeenLastCalledWith(
       'thread-T2',
       expect.any(File),
     );
@@ -145,7 +143,7 @@ describe('useAgentAttachments upload flow', () => {
 describe('useAgentAttachments thread races (T-10)', () => {
   it('concurrent first uploads share ONE created thread', async () => {
     let resolveThread!: (v: { id: string }) => void;
-    vi.mocked(repositories.agentAttachment.createThread).mockReturnValue(
+    vi.mocked(agentAttachmentRepository.createThread).mockReturnValue(
       new Promise((r) => { resolveThread = r; }) as never,
     );
     const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
@@ -159,8 +157,8 @@ describe('useAgentAttachments thread races (T-10)', () => {
       resolveThread({ id: 'only-thread' });
       await Promise.all(ps);
     });
-    expect(repositories.agentAttachment.createThread).toHaveBeenCalledTimes(1);
-    const threadsUsed = vi.mocked(repositories.agentAttachment.prepareUpload).mock.calls.map((c) => c[0]);
+    expect(agentAttachmentRepository.createThread).toHaveBeenCalledTimes(1);
+    const threadsUsed = vi.mocked(agentAttachmentRepository.prepareUpload).mock.calls.map((c) => c[0]);
     expect(threadsUsed).toEqual(['only-thread', 'only-thread']);
   });
 
@@ -189,7 +187,7 @@ describe('useAgentAttachments thread races (T-10)', () => {
 
   it('a thread creation still in flight when the conversation is reset does not become the next conversation\'s thread', async () => {
     let resolveOld!: (v: { id: string }) => void;
-    vi.mocked(repositories.agentAttachment.createThread)
+    vi.mocked(agentAttachmentRepository.createThread)
       .mockReturnValueOnce(new Promise((r) => { resolveOld = r; }) as never)
       .mockResolvedValueOnce({ id: 't-new' } as never);
     const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
@@ -199,12 +197,12 @@ describe('useAgentAttachments thread races (T-10)', () => {
     act(() => result.current.resetThread());
     await act(async () => { resolveOld({ id: 't-old' }); await first; });
     await act(async () => { await result.current.uploadAttachment(file); });
-    expect(repositories.agentAttachment.createThread).toHaveBeenCalledTimes(2);
+    expect(agentAttachmentRepository.createThread).toHaveBeenCalledTimes(2);
     expect(result.current.threadId).toBe('t-new');
   });
 
   it('a fresh upload after reset creates a new thread, not the retired one', async () => {
-    vi.mocked(repositories.agentAttachment.createThread)
+    vi.mocked(agentAttachmentRepository.createThread)
       .mockResolvedValueOnce({ id: 't-old' } as never)
       .mockResolvedValueOnce({ id: 't-new' } as never);
     const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
@@ -212,7 +210,7 @@ describe('useAgentAttachments thread races (T-10)', () => {
     await act(async () => { await result.current.uploadAttachment(file); });
     act(() => result.current.resetThread());
     await act(async () => { await result.current.uploadAttachment(file); });
-    const used = vi.mocked(repositories.agentAttachment.prepareUpload).mock.calls.map((c) => c[0]);
+    const used = vi.mocked(agentAttachmentRepository.prepareUpload).mock.calls.map((c) => c[0]);
     expect(used).toEqual(['t-old', 't-new']);
   });
 });

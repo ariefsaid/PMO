@@ -5,7 +5,7 @@ import { Button, Icon } from '@/src/components/ui';
 import { procurementDocumentsKey } from '@/src/hooks/recordFolderState';
 import { useAuth } from '@/src/auth/useAuth';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
-import { repositories } from '@/src/lib/repositories';
+import { m365RecordFoldersRepository } from '@/src/lib/repositories/documents';
 import type { RecordFolderBackfillPage, RecordFolderCursor } from '@/src/lib/m365/recordFolders';
 import { recordFolderErrorCopy, recordFolderText, type RecordFolderCopyKey } from '@/src/lib/m365/recordFolderCopy';
 
@@ -96,7 +96,7 @@ export function LinkExistingRecordFolders({ defaultAvailable, readFailed = false
     const finish = (next: Phase) => { running.current = false; setPhase(next); };
     for (;;) {
       try {
-        const page = await repositories.m365RecordFolders.linkExisting(cursor ?? undefined);
+        const page = await m365RecordFoldersRepository.linkExisting(cursor ?? undefined);
         if (generation.current !== mine) return; // orphaned: ignore the response, schedule nothing
         acc = addPage(acc, page);
         setCounts(acc);

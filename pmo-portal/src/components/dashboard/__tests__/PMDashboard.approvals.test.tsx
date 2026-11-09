@@ -38,6 +38,11 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/lib/db/timesheetTransition', () => ({
   listTimesheetsAwaitingApproval: () => Promise.resolve(h.timesheetsAwaiting),
 }));
+// The domain split exposes REAL repository modules where the old barrel mock had undefined
+// members; keep those queries settled-error instead of hanging on the real client (#2096).
+vi.mock('@/src/lib/supabase/client', () => ({
+  supabase: { from: () => { throw new TypeError('no supabase in this test'); }, rpc: () => { throw new TypeError('no supabase in this test'); } },
+}));
 vi.mock('@/src/lib/db/dashboard', () => ({
   getExecutiveDashboard: () => Promise.resolve({ projects_at_risk: 0 }),
   getFinanceBudgetReview: () => Promise.resolve([]),
@@ -61,22 +66,32 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectNumbers: () => ({ data: { p1: 'PRJ-26-0001' }, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/lib/repositories', async () => {
+vi.mock('@/src/lib/repositories/dashboard', async () => {
   const dash = await import('@/src/lib/db/dashboard');
   return {
-  repositories: {
-    // The dashboard repository delegates to the mocked DAL above.
-    dashboard: {
+    dashboardRepository: {
       executive: () => dash.getExecutiveDashboard(),
       financeBudgetReview: () => dash.getFinanceBudgetReview(),
       pmProjects: () => dash.getPMDashboardProjects(),
     },
-    revenue: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
-    expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
-    task: { list: () => Promise.resolve([]), listDueRows: () => Promise.resolve([]) },
-  },
-};
+  };
 });
+vi.mock('@/src/lib/repositories/expenses', () => ({
+  expenseClaimRepository: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
+}));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
+}));
+vi.mock('@/src/lib/repositories/tasks', () => ({
+  taskRepository: { list: () => Promise.resolve([]), listDueRows: () => Promise.resolve([]) },
+}));
+// At the old barrel mock the members below were simply absent (undefined) and the needs-you
+// queries errored to a settled zero; the per-domain split made them real, which would hang the
+// doorway on the real client. Keep them settled-zero with inert repositories (#2096).
+vi.mock('@/src/lib/repositories/procurement', () => ({ procurementRepository: {} }));
+vi.mock('@/src/lib/repositories/workOrders', () => ({ workOrderRepository: {}, milestoneRepository: {}, progressBillingRepository: {}, workOrderAcceptanceRepository: {} }));
+vi.mock('@/src/lib/repositories/timesheets', () => ({ timesheetRepository: {} }));
+vi.mock('@/src/lib/repositories/projects', () => ({ projectRepository: {} }));
 
 import { PMDashboard } from '../PMDashboard';
 

@@ -16,7 +16,12 @@ const { master, documents, project } = vi.hoisted(() => ({
   documents: { create: vi.fn(), issuableWorkItems: vi.fn(), issueLines: vi.fn() },
   project: { list: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, documents }, project } }));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: project,
+}));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { master, documents },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 let realRole: Role = 'Engineer';
 let effectiveRole: Role = 'Engineer';

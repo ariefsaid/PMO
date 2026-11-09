@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { documentRepository } from '@/src/lib/repositories/documents';
 import { useAuth } from '@/src/auth/useAuth';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
@@ -27,8 +27,8 @@ export function useRevision(projectId: string) {
   const createRevision = useMutation({
     mutationFn: (args: CreateRevisionArgs) =>
       args.microsoft
-        ? repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null, args.microsoft)
-        : repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null),
+        ? documentRepository.createRevision(args.parentId, args, currentUser?.id ?? null, args.microsoft)
+        : documentRepository.createRevision(args.parentId, args, currentUser?.id ?? null),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
     },

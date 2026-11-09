@@ -3,7 +3,9 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 const task = vi.hoisted(() => ({ listByAssignee: vi.fn(), updateStatus: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { task } }));
+vi.mock('@/src/lib/repositories/tasks', () => ({
+  taskRepository: task,
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 import { useMyTasks, useMyTaskMutations } from './useMyTasks';
 const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider>;

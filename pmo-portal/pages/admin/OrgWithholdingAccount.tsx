@@ -4,7 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { listBudgetPostingAccountCatalogue } from '@/src/lib/repositories/budgetProjection';
 import { accountOption } from '@/src/lib/accounting/accountOption';
@@ -27,7 +27,7 @@ export default function OrgWithholdingAccount() {
   const [error, setError] = useState<string>();
   const orgId = currentUser?.org_id;
   const queryKey = [ACCOUNT_QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getWithholdingAccount(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
+  const query = useQuery({ queryKey, queryFn: () => orgSettingsRepository.getWithholdingAccount(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const { draft, setDraft, dirty, remoteChanged, acceptSaved, reload } = useRemoteStringDraft({ remote: query.data, isSuccess: query.isSuccess });
   const catalogue = useQuery({
@@ -55,7 +55,7 @@ export default function OrgWithholdingAccount() {
         };
 
   const mutation = useMutation({
-    mutationFn: (value: string | null) => repositories.orgSettings.setWithholdingAccount(value),
+    mutationFn: (value: string | null) => orgSettingsRepository.setWithholdingAccount(value),
     onSuccess: (_result, value) => {
       acceptSaved(value);
       void qc.invalidateQueries({ queryKey });

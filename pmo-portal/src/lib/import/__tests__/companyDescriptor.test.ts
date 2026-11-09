@@ -2,8 +2,8 @@ import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/own
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { create } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { company: { create } },
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: { create },
 }));
 
 import { companyImportDescriptor } from '../companyDescriptor';

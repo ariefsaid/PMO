@@ -24,10 +24,9 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 }));
 
 const templates = vi.hoisted(() => ({ list: vi.fn(async () => []) }));
-vi.mock('@/src/lib/repositories', async (orig) => {
-  const actual = (await orig()) as { repositories: Record<string, unknown> };
-  return { ...actual, repositories: { ...actual.repositories, integrations: { listPurchaseTaxTemplates: templates.list } } };
-});
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { listPurchaseTaxTemplates: templates.list },
+}));
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => ({ ...((await orig()) as Record<string, unknown>), useOrgTaxDefault: () => undefined }));
 const dir = vi.hoisted(() => ({
   tax: [{ external_id: '7', name: 'PPN 11%', code: null, attrs: {} }, { external_id: '12', name: 'PPh 23', code: null, attrs: {} }],

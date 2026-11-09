@@ -21,12 +21,14 @@ const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoL
   repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
   repoUpdateHeader: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    milestone: { milestoneDatesForProjects },
-    company: { listClients: listClientCompanies },
-    profile: { listProjectManagers },
-    project: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  profileRepository: { listProjectManagers },
+}));
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: { listClients: listClientCompanies },
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: {
       list: repoList,
       listPickerOptions: repoListPicker,
       listNumbers: repoListNumbers,
@@ -37,7 +39,9 @@ vi.mock('@/src/lib/repositories', () => ({
       delete: vi.fn(),
       setContractValue: vi.fn(),
     },
-  },
+}));
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  milestoneRepository: { milestoneDatesForProjects },
 }));
 
 import {

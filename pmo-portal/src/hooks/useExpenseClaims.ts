@@ -1,9 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  repositories,
-  type ExpenseClaimFilters, type ExpenseClaimInput, type ExpenseClaimPatch, type ExpenseClaimRoute,
-  type ExpenseClaimStatus, type ExpenseClaimWithRefs, type ExpenseKind, type ExpenseLineInput,
-} from '@/src/lib/repositories';
+import { expenseClaimRepository } from '@/src/lib/repositories/expenses';
+import type { ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch, ExpenseClaimRoute, ExpenseClaimStatus, ExpenseClaimWithRefs, ExpenseKind, ExpenseLineInput } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 export { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -27,7 +24,7 @@ export function useExpenseClaims(filters: ExpenseClaimFilters = {}) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['expense-claims', orgId, filters],
-    queryFn: () => repositories.expenseClaim.list(filters),
+    queryFn: () => expenseClaimRepository.list(filters),
     enabled: Boolean(orgId),
   });
 }
@@ -36,7 +33,7 @@ export function useExpenseClaim(id: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['expense-claim', orgId, id],
-    queryFn: () => repositories.expenseClaim.get(id as string),
+    queryFn: () => expenseClaimRepository.get(id as string),
     enabled: Boolean(orgId) && Boolean(id),
   });
 }
@@ -45,7 +42,7 @@ export function useExpenseClaimLines(id: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['expense-claim-lines', orgId, id],
-    queryFn: () => repositories.expenseClaim.lines(id as string),
+    queryFn: () => expenseClaimRepository.lines(id as string),
     enabled: Boolean(orgId) && Boolean(id),
   });
 }
@@ -55,7 +52,7 @@ export function useExpenseClaimRoute(id: string | undefined, status: ExpenseClai
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['expense-claim-route', orgId, id],
-    queryFn: async () => (await repositories.expenseClaim.routes([id as string]))[0] ?? null,
+    queryFn: async () => (await expenseClaimRepository.routes([id as string]))[0] ?? null,
     enabled: Boolean(orgId) && Boolean(id) && status === 'Submitted',
   });
 }
@@ -64,7 +61,7 @@ export function useExpenseAdvanceOutstanding(advanceId: string | null | undefine
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['expense-advance-outstanding', orgId, advanceId],
-    queryFn: () => repositories.expenseClaim.outstanding(advanceId as string),
+    queryFn: () => expenseClaimRepository.outstanding(advanceId as string),
     enabled: Boolean(orgId) && Boolean(advanceId),
   });
 }
@@ -73,7 +70,7 @@ export function useExpenseAdvanceAging() {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['expense-advance-aging', orgId],
-    queryFn: () => repositories.expenseClaim.aging(),
+    queryFn: () => expenseClaimRepository.aging(),
     enabled: Boolean(orgId),
   });
 }
@@ -83,7 +80,7 @@ export function useExpenseAdvanceAgingTotals() {
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['expense-advance-aging', orgId, 'totals'],
-    queryFn: () => repositories.expenseClaim.agingTotals(),
+    queryFn: () => expenseClaimRepository.agingTotals(),
     enabled: Boolean(orgId),
   });
 }
@@ -95,7 +92,7 @@ export function useOwnExpenseAdvances() {
   const userId = currentUser?.id;
   return useQuery({
     queryKey: ['expense-advance-aging', orgId, 'own', userId],
-    queryFn: () => repositories.expenseClaim.aging({ claimantId: userId as string }),
+    queryFn: () => expenseClaimRepository.aging({ claimantId: userId as string }),
     enabled: Boolean(orgId) && Boolean(userId),
   });
 }
@@ -110,8 +107,8 @@ export function useExpenseClaimsAwaitingDecision() {
   return useQuery({
     queryKey: expenseClaimsAwaitingKey(orgId),
     queryFn: async (): Promise<ExpenseClaimAwaiting[]> => {
-      const { rows } = await repositories.expenseClaim.list({ status: 'Submitted' });
-      const routes = await repositories.expenseClaim.routes(rows.map((r) => r.id)).catch(() => [] as ExpenseClaimRoute[]);
+      const { rows } = await expenseClaimRepository.list({ status: 'Submitted' });
+      const routes = await expenseClaimRepository.routes(rows.map((r) => r.id)).catch(() => [] as ExpenseClaimRoute[]);
       const byId = new Map(routes.map((r) => [r.claimId, r]));
       return rows.map((claim) => ({ claim, route: byId.get(claim.id) ?? null }));
     },
@@ -132,18 +129,18 @@ export function useExpenseClaimMutations() {
   const invalidate = () => {
     for (const root of EXPENSE_QUERY_ROOTS) void qc.invalidateQueries({ queryKey: [root] });
   };
-  const create = useMutation({ mutationFn: (input: ExpenseClaimInput) => repositories.expenseClaim.create(input), onSuccess: invalidate });
-  const update = useMutation({ mutationFn: ({ id, kind, patch }: UpdateArgs) => repositories.expenseClaim.update(id, kind, patch), onSuccess: invalidate });
-  const addLine = useMutation({ mutationFn: ({ claimId, input }: AddLineArgs) => repositories.expenseClaim.addLine(claimId, input), onSuccess: invalidate });
-  const updateLine = useMutation({ mutationFn: ({ id, input }: UpdateLineArgs) => repositories.expenseClaim.updateLine(id, input), onSuccess: invalidate });
-  const removeLine = useMutation({ mutationFn: (id: string) => repositories.expenseClaim.removeLine(id), onSuccess: invalidate });
+  const create = useMutation({ mutationFn: (input: ExpenseClaimInput) => expenseClaimRepository.create(input), onSuccess: invalidate });
+  const update = useMutation({ mutationFn: ({ id, kind, patch }: UpdateArgs) => expenseClaimRepository.update(id, kind, patch), onSuccess: invalidate });
+  const addLine = useMutation({ mutationFn: ({ claimId, input }: AddLineArgs) => expenseClaimRepository.addLine(claimId, input), onSuccess: invalidate });
+  const updateLine = useMutation({ mutationFn: ({ id, input }: UpdateLineArgs) => expenseClaimRepository.updateLine(id, input), onSuccess: invalidate });
+  const removeLine = useMutation({ mutationFn: (id: string) => expenseClaimRepository.removeLine(id), onSuccess: invalidate });
   const transition = useMutation({
     mutationFn: ({ id, to, notes, paymentReference }: TransitionArgs) =>
-      repositories.expenseClaim.transition(id, to, { notes: notes ?? null, paymentReference: paymentReference ?? null }),
+      expenseClaimRepository.transition(id, to, { notes: notes ?? null, paymentReference: paymentReference ?? null }),
     onSuccess: invalidate,
   });
   const recordReturn = useMutation({
-    mutationFn: ({ id, amount, reference }: ReturnArgs) => repositories.expenseClaim.recordReturn(id, amount, reference),
+    mutationFn: ({ id, amount, reference }: ReturnArgs) => expenseClaimRepository.recordReturn(id, amount, reference),
     onSuccess: invalidate,
   });
   return { create, update, addLine, updateLine, removeLine, transition, recordReturn };

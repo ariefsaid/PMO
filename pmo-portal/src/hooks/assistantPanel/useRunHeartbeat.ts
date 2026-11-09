@@ -13,7 +13,7 @@
  * keeps the current stamp (fail-open) and retries on the next tick.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { repositories } from '../../lib/repositories';
+import { agentRunRepository } from '@/src/lib/repositories/agentRuns';
 import { STUCK_RUN_STALE_MS } from '../../components/panel/stuckRun.constants';
 
 /** FR-AGP-022 poll cadence — the SAME 5s tick that re-evaluates staleness (no second timer). */
@@ -56,7 +56,7 @@ export function useRunHeartbeat({ phase, runId, hasPendingQuestion }: UseRunHear
     let cancelled = false;
     const poll = async () => {
       try {
-        const heartbeat = await repositories.agentRun.getHeartbeat(runId);
+        const heartbeat = await agentRunRepository.getHeartbeat(runId);
         if (cancelled) return;
         if (heartbeat?.last_progress_at) {
           setLastProgressAt(heartbeat.last_progress_at);

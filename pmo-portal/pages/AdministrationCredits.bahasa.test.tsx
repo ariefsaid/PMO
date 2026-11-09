@@ -12,8 +12,8 @@ import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
 
 const { getOrgBalance, grant } = vi.hoisted(() => ({ getOrgBalance: vi.fn(), grant: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { credits: { getOrgBalance, grant } },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  creditsRepository: { getOrgBalance, grant },
 }));
 
 import AdministrationCredits from './AdministrationCredits';

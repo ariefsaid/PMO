@@ -8,7 +8,9 @@ const { currentUser, getVatEditability } = vi.hoisted(() => ({
   getVatEditability: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { getVatEditability } } }));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: { getVatEditability },
+}));
 import { useProjectVatEditability } from './useProjectVatEditability';
 
 describe('useProjectVatEditability', () => {

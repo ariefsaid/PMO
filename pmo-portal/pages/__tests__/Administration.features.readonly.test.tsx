@@ -57,9 +57,8 @@ vi.mock('@/src/auth/useIsOperator', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgFeature: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: {
       listOwn: () => api.listOwn(),
       listForOrg: (...a: unknown[]) => api.listForOrg(...a),
       getPlanCatalogue: () => api.getPlanCatalogue(),
@@ -72,8 +71,7 @@ vi.mock('@/src/lib/repositories', () => ({
       setPlanFeature: (...a: unknown[]) => api.setPlanFeature(...a),
       setPlanLimits: (...a: unknown[]) => api.setPlanLimits(...a),
     },
-    usage: { listOperatorOrgs: () => api.listOperatorOrgs() },
-  },
+  usageRepository: { listOperatorOrgs: () => api.listOperatorOrgs() },
 }));
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/src/components/ui')>();

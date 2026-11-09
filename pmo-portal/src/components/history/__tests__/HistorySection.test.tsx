@@ -11,7 +11,9 @@ const { repo } = vi.hoisted(() => ({
     company: { list: vi.fn(), getMany: vi.fn() },
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
+vi.mock('@/src/lib/repositories/admin', () => ({ profileRepository: repo.profile }));
+vi.mock('@/src/lib/repositories/companies', () => ({ companyRepository: repo.company }));
+vi.mock('@/src/lib/repositories/recordHistory', () => ({ recordHistoryRepository: repo.recordHistory }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
 import { HistorySection } from '../HistorySection';

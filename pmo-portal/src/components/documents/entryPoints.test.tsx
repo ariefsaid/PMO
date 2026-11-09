@@ -27,7 +27,9 @@ vi.mock('@/src/hooks/useFileUpload', () => ({
     cancelUpload: vi.fn(), clearUploadError: vi.fn(),
   }),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { document: { getSignedUrl: vi.fn() } } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: { getSignedUrl: vi.fn() },
+}));
 vi.mock('@/src/hooks/useProcurementFiles', () => ({
   useProcurementFiles: () => ({
     list: { data: [], isPending: false, isError: false }, upload: { mutate: vi.fn(), isPending: false },

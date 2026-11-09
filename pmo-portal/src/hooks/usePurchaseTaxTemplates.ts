@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import { queryClient } from '@/src/lib/queryClient';
 
 /**
@@ -14,7 +14,7 @@ export function usePurchaseTaxTemplates(enabled: boolean) {
   return useQuery(
     {
       queryKey: ['integrations', 'purchase-tax-templates', orgId],
-      queryFn: () => repositories.integrations.listPurchaseTaxTemplates(),
+      queryFn: () => integrationsRepository.listPurchaseTaxTemplates(),
       enabled,
       staleTime: 30_000,
       retry: false,

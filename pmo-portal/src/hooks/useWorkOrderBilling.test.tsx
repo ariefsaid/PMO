@@ -8,7 +8,9 @@ const h = vi.hoisted(() => ({
   acceptanceAge: vi.fn(async () => []),
   unbilled: vi.fn(async () => ({ totals: [], incompleteCount: 0, rows: [] })),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrder: { billing: h.billing, unbilled: h.unbilled, acceptanceAge: h.acceptanceAge } } }));
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  workOrderRepository: { billing: h.billing, unbilled: h.unbilled, acceptanceAge: h.acceptanceAge },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' } }) }));
 
 import { useUnbilledWorkOrders, useWorkOrderAcceptanceAge, useWorkOrderBilling } from './useWorkOrderBilling';

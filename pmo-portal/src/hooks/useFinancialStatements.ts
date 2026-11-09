@@ -10,7 +10,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { FinancialStatementCatalogue, FinancialStatementRead } from '@/src/lib/financialStatements';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
-import { repositories } from '@/src/lib/repositories';
+import { financialStatementsRepository } from '@/src/lib/repositories/financialStatements';
 
 const FEATURE_KEY = ['financial-statements'] as const;
 const ACCESS_LOSS_CODES = new Set(['42501', 'PGRST301', 'PGRST302', '28000', '28P01']);
@@ -320,7 +320,7 @@ export function useFinancialStatementCatalogue(
     eligible,
     enabled,
     request,
-    fetch: repositories.financialStatements.catalogue,
+    fetch: financialStatementsRepository.catalogue,
   });
 }
 
@@ -395,7 +395,7 @@ export function useFinancialStatement(
     eligible,
     enabled,
     request,
-    fetch: repositories.financialStatements.get,
+    fetch: financialStatementsRepository.get,
     refetchInterval,
   });
 }

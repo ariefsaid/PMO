@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 const h = vi.hoisted(() => ({ proposeNumber: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { proposeNumber: h.proposeNumber } } }));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: { proposeNumber: h.proposeNumber },
+}));
 
 import { useProjectNumberProposal } from './useProjectNumberProposal';
 

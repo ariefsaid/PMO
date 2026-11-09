@@ -1,5 +1,5 @@
 import { encodeBudgetImportIdentity } from '../../../../scripts/lib/budget-import-identity.mjs';
-import { repositories } from '@/src/lib/repositories';
+import { budgetRepository } from '@/src/lib/repositories/budget';
 import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import { Constants } from '@/src/lib/supabase/database.types';
 import type { BudgetLineItemRow } from '@/src/lib/db/budgets';
@@ -75,14 +75,14 @@ export function makeBudgetImportDescriptor(
     const memo = versionByProject.get(projectId);
     if (memo) return memo;
     // FR-BIMP-002/003 + DD-BIMP-7: attach to the project's highest Draft, else create one.
-    const existing = await repositories.budget.findImportTargetDraft(projectId);
+    const existing = await budgetRepository.findImportTargetDraft(projectId);
     const id =
       existing?.id ??
       (
         // ⚠ #1472 FR-014: an imported version is a HISTORIC annual record — it names its per_year
         // mode explicitly rather than relying on the column default, so a UI default change can
         // never silently reinterpret an import (the import/CLI contract keeps its annual meaning).
-        await repositories.budget.createVersion(projectId, 'Imported', {
+        await budgetRepository.createVersion(projectId, 'Imported', {
           importBatchId,
           importedAt,
           // DD-BIMP-5: stamps but NO key — see budgets.ts `ImportProvenance`.
@@ -136,7 +136,7 @@ export function makeBudgetImportDescriptor(
     },
     create: async (input) => {
       const versionId = await resolveVersionId(input.projectId);
-      const result = await repositories.budget.importLine({
+      const result = await budgetRepository.importLine({
         versionId, item: { category: input.category, description: input.description,
           budgeted_amount: input.budgetedAmount, fiscal_year: input.fiscalYear },
         batchId: importBatchId, importedAt, v2Key: input.v2Key,

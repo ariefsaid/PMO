@@ -13,7 +13,7 @@ import {
   TextField,
   useToast,
 } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { orgFeatureRepository } from '@/src/lib/repositories/admin';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgFeatures, invalidateFeatureState } from '@/src/hooks/useOrgFeatures';
 import { useOperatorOrgs, useOperatorOrgOverrides, useOperatorResolvedFeatures, useOrgPlan, usePlanCatalogue } from '@/src/hooks/usePlans';
@@ -159,7 +159,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   };
 
   const planMutation = useMutation({
-    mutationFn: (args: { orgId: string; planId: string }) => repositories.orgFeature.setOrgPlan(args),
+    mutationFn: (args: { orgId: string; planId: string }) => orgFeatureRepository.setOrgPlan(args),
     onSuccess: () => {
       void refresh();
       toast(t('console.planSaved', 'Plan assigned'), t('console.planSavedBody', 'The organisation now resolves that plan’s switches.'), 'success');
@@ -169,13 +169,13 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
 
   const overrideMutation = useMutation({
     mutationFn: (args: { orgId: string; key: OrgFeatureKey; enabled: boolean }) =>
-      repositories.orgFeature.toggle(args),
+      orgFeatureRepository.toggle(args),
     onSuccess: () => void refresh(),
     onError: (err) => onError(err),
   });
 
   const clearMutation = useMutation({
-    mutationFn: (args: { orgId: string; key: OrgFeatureKey }) => repositories.orgFeature.clearOverride(args),
+    mutationFn: (args: { orgId: string; key: OrgFeatureKey }) => orgFeatureRepository.clearOverride(args),
     onSuccess: () => {
       void refresh();
       toast(t('console.cleared', 'Override cleared'), t('console.clearedBody', 'The switch follows the plan again.'), 'success');
@@ -184,7 +184,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   });
 
   const globalMutation = useMutation({
-    mutationFn: (args: { key: OrgFeatureKey; enabled: boolean }) => repositories.orgFeature.setGlobal(args),
+    mutationFn: (args: { key: OrgFeatureKey; enabled: boolean }) => orgFeatureRepository.setGlobal(args),
     onSuccess: (_data, args) => {
       setPendingGlobalOff(null);
       void refresh();
@@ -204,7 +204,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
 
   const planFeatureMutation = useMutation({
     mutationFn: (args: { planId: string; key: OrgFeatureKey; enabled: boolean }) =>
-      repositories.orgFeature.setPlanFeature(args),
+      orgFeatureRepository.setPlanFeature(args),
     onSuccess: () => void refresh(),
     onError: (err) => onError(err),
   });
@@ -215,7 +215,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
       seatLimit: number | null;
       projectLimit: number | null;
       aiMonthlyMessages: number | null;
-    }) => repositories.orgFeature.setPlanLimits(args),
+    }) => orgFeatureRepository.setPlanLimits(args),
     onSuccess: () => {
       setLimitDraft(null);
       void refresh();

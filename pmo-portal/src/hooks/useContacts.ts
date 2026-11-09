@@ -6,7 +6,8 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { contactRepository } from '@/src/lib/repositories/companies';
+import { meetingRepository } from '@/src/lib/repositories/meetings';
 import type { ContactDirectoryPage, ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type {
   CrmActivityRow,
@@ -27,7 +28,7 @@ export function useContacts(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<ContactRow[]>({
     queryKey: ['contacts', orgId],
-    queryFn: () => repositories.contact.list(),
+    queryFn: () => contactRepository.list(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -53,7 +54,7 @@ export function useContactsPage(input: {
   return useQuery<ContactDirectoryPage>({
     queryKey: ['contacts', orgId, 'page', input.companyId, input.search, input.page, input.pageSize],
     queryFn: () =>
-      repositories.contact.listPage({
+      contactRepository.listPage({
         page: input.page,
         pageSize: input.pageSize,
         companyId: input.companyId === 'All' ? undefined : input.companyId,
@@ -74,7 +75,7 @@ export function useContactsTotal(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<number>({
     queryKey: ['contacts', orgId, 'total'],
-    queryFn: () => repositories.contact.count(),
+    queryFn: () => contactRepository.count(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
     staleTime: 30_000,
   });
@@ -87,7 +88,7 @@ export function useContactsTotal(opts?: { enabled?: boolean }) {
 export function useContactsExportAll() {
   return useMutation({
     mutationFn: (params?: { companyId?: string; search?: string }) =>
-      repositories.contact.listAll(params),
+      contactRepository.listAll(params),
   });
 }
 
@@ -102,7 +103,7 @@ export function useContact(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ContactRow | null>({
     queryKey: ['contact', orgId, id],
-    queryFn: () => repositories.contact.get(id!),
+    queryFn: () => contactRepository.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -113,7 +114,7 @@ export function useContactsByCompany(companyId: string | null | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ContactRow[]>({
     queryKey: ['contacts', 'by-company', orgId, companyId],
-    queryFn: () => repositories.contact.listByCompany(companyId as string),
+    queryFn: () => contactRepository.listByCompany(companyId as string),
     enabled: Boolean(orgId && companyId),
   });
 }
@@ -146,7 +147,7 @@ export function useContactActivities(contactId: string | null | undefined) {
   return useActivityPages(
     ['crm-activities', orgId, contactId],
     Boolean(orgId && contactId),
-    (cursor) => repositories.contact.listActivitiesPage(contactId as string, cursor),
+    (cursor) => contactRepository.listActivitiesPage(contactId as string, cursor),
   );
 }
 
@@ -162,7 +163,7 @@ export function useContactMeetings(contactId: string | null | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ContactMeetingRef[]>({
     queryKey: ['contact-meetings', orgId, contactId],
-    queryFn: () => repositories.meeting.listForContact(contactId as string),
+    queryFn: () => meetingRepository.listForContact(contactId as string),
     enabled: Boolean(orgId && contactId),
   });
 }
@@ -183,7 +184,7 @@ export function useCompanyActivities(contactIds: string[]) {
   return useActivityPages(
     ['crm-activities', 'by-company', orgId, key],
     Boolean(orgId && contactIds.length > 0),
-    (cursor) => repositories.contact.listActivitiesForContactsPage(contactIds, cursor),
+    (cursor) => contactRepository.listActivitiesForContactsPage(contactIds, cursor),
   );
 }
 
@@ -217,28 +218,28 @@ export function useContactMutations() {
   };
 
   const create = useMutation({
-    mutationFn: (input: ContactInput) => repositories.contact.create(input),
+    mutationFn: (input: ContactInput) => contactRepository.create(input),
     onSuccess: invalidateContacts,
   });
 
   const update = useMutation({
-    mutationFn: ({ id, input }: UpdateContactArgs) => repositories.contact.update(id, input),
+    mutationFn: ({ id, input }: UpdateContactArgs) => contactRepository.update(id, input),
     onSuccess: invalidateContacts,
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => repositories.contact.archive(id),
+    mutationFn: (id: string) => contactRepository.archive(id),
     onSuccess: invalidateContacts,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.contact.delete(id),
+    mutationFn: (id: string) => contactRepository.delete(id),
     onSuccess: invalidateContacts,
   });
 
   const logActivity = useMutation({
     mutationFn: (input: CrmActivityInput) =>
-      repositories.contact.createActivity(input, currentUser?.id ?? null),
+      contactRepository.createActivity(input, currentUser?.id ?? null),
     onSuccess: () => {
       refreshActivities();
       qc.invalidateQueries({ queryKey: ['contacts'] });
@@ -247,14 +248,14 @@ export function useContactMutations() {
 
   const updateActivity = useMutation({
     mutationFn: ({ id, ...patch }: { id: string } & CrmActivityPatch) =>
-      repositories.contact.updateActivity(id, patch),
+      contactRepository.updateActivity(id, patch),
     onSuccess: () => {
       refreshActivities();
     },
   });
 
   const deleteActivity = useMutation({
-    mutationFn: (id: string) => repositories.contact.deleteActivity(id),
+    mutationFn: (id: string) => contactRepository.deleteActivity(id),
     onSuccess: () => {
       refreshActivities();
     },

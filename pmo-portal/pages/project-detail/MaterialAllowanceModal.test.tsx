@@ -12,7 +12,9 @@ const { master, allowances } = vi.hoisted(() => ({
   master: { listItems: vi.fn() },
   allowances: { list: vi.fn(), set: vi.fn(), clear: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, allowances } } }));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { master, allowances },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 
 import MaterialAllowanceModal from './MaterialAllowanceModal';

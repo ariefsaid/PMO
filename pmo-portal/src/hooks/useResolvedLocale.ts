@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories, type OrgLocaleDefaultsRow } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
+import type { OrgLocaleDefaultsRow } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 import { resolveLocale, resolveOrgBusinessTimezone, type ResolvedLocale } from '@/src/lib/locale/resolveLocale';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
@@ -21,7 +22,7 @@ export function useOrgLocaleDefaults(): OrgLocaleDefaultsRow {
   const { currentUser } = useAuth();
   const { data } = useQuery<OrgLocaleDefaultsRow>({
     queryKey: ['org-locale-defaults', currentUser?.org_id],
-    queryFn: () => repositories.orgSettings.getLocaleDefaults(),
+    queryFn: () => orgSettingsRepository.getLocaleDefaults(),
     enabled: Boolean(currentUser),
     ...SESSION_QUERY_OPTIONS,
     placeholderData: NO_ORG_DEFAULTS,

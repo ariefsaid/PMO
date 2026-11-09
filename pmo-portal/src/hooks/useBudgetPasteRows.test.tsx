@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const budget = vi.hoisted(() => ({ createLineItem: vi.fn() }));
 
-vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
+vi.mock('@/src/lib/repositories/budget', () => ({
+  budgetRepository: budget,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1', role: 'Project Manager' } }),
 }));

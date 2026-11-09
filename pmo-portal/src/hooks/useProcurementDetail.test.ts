@@ -6,7 +6,7 @@ import React from 'react';
 // ---------------------------------------------------------------------------
 // Mock the read DAL (the read hook still calls it directly — reads never route
 // externally, FR-ENA-172) + the write repository seam (task FIX-1, Discover
-// CRITICAL 1: the mutation hook now calls `repositories.procurement.*` instead
+// CRITICAL 1: the mutation hook now calls `procurementRepository.*` instead
 // of the DAL directly, so `routeDomainWrite('procurement')` genuinely governs
 // where a write lands instead of always local-writing with a false success).
 // ---------------------------------------------------------------------------
@@ -43,19 +43,19 @@ const { procurement, subcontractsRepo } = vi.hoisted(() => ({
   },
 }));
 // `get` and `captureVendorInvoice` delegate to the mocked DAL so the read/capture assertions below stay on the DAL calls.
-vi.mock('@/src/lib/repositories', async () => {
+vi.mock('@/src/lib/repositories/procurement', async () => {
   const dal = await import('@/src/lib/db/procurementLifecycle');
   return {
-    repositories: {
-      procurement: {
-        ...procurement,
-        get: (id: string) => dal.getProcurementDetail(id),
-        captureVendorInvoice: (input: Parameters<typeof dal.captureVendorInvoice>[0]) => dal.captureVendorInvoice(input),
-      },
-      subcontracts: subcontractsRepo,
+    procurementRepository: {
+      ...procurement,
+      get: (id: string) => dal.getProcurementDetail(id),
+      captureVendorInvoice: (input: Parameters<typeof dal.captureVendorInvoice>[0]) => dal.captureVendorInvoice(input),
     },
   };
 });
+vi.mock('@/src/lib/repositories/subcontracts', () => ({
+  subcontractRepository: subcontractsRepo,
+}));
 
 const actor = vi.hoisted(() => ({ id: 'u1', role: 'Finance' }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -64,7 +64,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import { useProcurementBulkTransition, useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
 import { getProcurementDetail, captureVendorInvoice } from '@/src/lib/db/procurementLifecycle';
-import { repositories } from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
+import { subcontractRepository } from '@/src/lib/repositories/subcontracts';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 // ---------------------------------------------------------------------------
@@ -166,7 +167,7 @@ describe('useProcurementMutations', () => {
     expect(invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0])).some((c) => c.includes('"proc-1"'))).toBe(true);
   });
 
-  it('AC-816 (hook): useProcurementMutations.transition calls repositories.procurement.transition and invalidates the detail key on success', async () => {
+  it('AC-816 (hook): useProcurementMutations.transition calls procurementRepository.transition and invalidates the detail key on success', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -196,8 +197,8 @@ describe('useProcurementMutations', () => {
       await result.current.mutateAsync({ id: 'pr-2', to: 'Approved' });
     });
 
-    expect(repositories.procurement.transition).toHaveBeenNthCalledWith(1, 'pr-1', 'Approved', undefined);
-    expect(repositories.procurement.transition).toHaveBeenNthCalledWith(2, 'pr-2', 'Approved', undefined);
+    expect(procurementRepository.transition).toHaveBeenNthCalledWith(1, 'pr-1', 'Approved', undefined);
+    expect(procurementRepository.transition).toHaveBeenNthCalledWith(2, 'pr-2', 'Approved', undefined);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['procurements', 'org-1'] });
   });
 
@@ -215,7 +216,7 @@ describe('useProcurementMutations', () => {
     expect(keys).toContainEqual(['project-reserved-spend', 'org-1', 'proj-9']);
   });
 
-  it('AC-816 (hook): createReceipt mutation calls repositories.procurement.createReceipt and invalidates the detail key on success', async () => {
+  it('AC-816 (hook): createReceipt mutation calls procurementRepository.createReceipt and invalidates the detail key on success', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -247,7 +248,7 @@ describe('useProcurementMutations', () => {
     expect(procurement.createReceipt).toHaveBeenLastCalledWith('proc-1', 'Partial', '2026-06-04', undefined, undefined, [{ itemRef: 'Pump', quantity: 6 }]);
   });
 
-  it('AC-816 (hook): createInvoice mutation calls repositories.procurement.createInvoice and invalidates the detail key on success', async () => {
+  it('AC-816 (hook): createInvoice mutation calls procurementRepository.createInvoice and invalidates the detail key on success', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -280,7 +281,7 @@ describe('useProcurementMutations', () => {
     ).toBe(true);
   });
 
-  it('AC-816 (hook): createQuotation mutation calls repositories.procurement.createQuotation and invalidates the detail key on success', async () => {
+  it('AC-816 (hook): createQuotation mutation calls procurementRepository.createQuotation and invalidates the detail key on success', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -358,7 +359,7 @@ describe('useProcurementMutations', () => {
       });
     });
 
-    expect(vi.mocked(repositories.subcontracts.captureSubcontractVendorInvoice)).toHaveBeenCalledWith({
+    expect(vi.mocked(subcontractRepository.captureSubcontractVendorInvoice)).toHaveBeenCalledWith({
       procurementId: 'proc-1',
       status: 'Received',
       invoiceDate: '2026-06-04',
@@ -389,7 +390,7 @@ describe('useProcurementMutations', () => {
 
 // ---------------------------------------------------------------------------
 // task FIX-1 graduation (Discover CRITICAL 1) — a flipped ownership map routes
-// createReceipt through `repositories.procurement.createReceipt` and the hook's
+// createReceipt through `procurementRepository.createReceipt` and the hook's
 // `pendingPush` state cycles idle -> pushing -> pushed / push-failed. `transition`
 // stays byte-for-byte on the direct write path (task 4.9's ruling) and never
 // touches `pendingPush`, even when `procurement` is flipped.
@@ -401,7 +402,7 @@ describe('task FIX-1 — flipped ownership map routes createReceipt externally +
   });
   afterEach(() => clearOwnershipCache());
 
-  it('createReceipt calls repositories.procurement.createReceipt and cycles pendingPush idle -> pushing -> pushed', async () => {
+  it('createReceipt calls procurementRepository.createReceipt and cycles pendingPush idle -> pushing -> pushed', async () => {
     let resolveCreate!: (v: unknown) => void;
     procurement.createReceipt.mockReturnValue(new Promise((res) => (resolveCreate = res)));
 

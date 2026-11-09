@@ -4,7 +4,9 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const h = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { getProjectClassificationOptions: h.get } } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { getProjectClassificationOptions: h.get },
+}));
 import { useProjectClassificationOptions } from './useProjectClassificationOptions';
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -28,9 +28,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke: h.invoke } } }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    document: {
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: {
       list: h.list,
       getChild: h.getChild,
       create: h.create,
@@ -41,7 +40,6 @@ vi.mock('@/src/lib/repositories', () => ({
       unlinkMicrosoftDocument: h.unlink,
       getSignedUrl: h.getSignedUrl,
     },
-  },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: h.currentUser }) }));
 vi.mock('@/src/hooks/useFileUpload', () => ({

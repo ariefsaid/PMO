@@ -10,7 +10,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 // P3b (FR-TSP-006, ADR-0059 §3.2): the push is a CONSEQUENCE of approval, dispatched via the
 // repository seam (ADR-0017) — never the DAL directly.
 const pushApprovedMock = vi.fn().mockResolvedValue(undefined);
-vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: {
+vi.mock('@/src/lib/repositories/timesheets', () => ({
+  timesheetRepository: {
   pushApproved: (...args: unknown[]) => pushApprovedMock(...args),
   listAwaitingApproval: vi.fn().mockResolvedValue([{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Submitted', entries: [], owner: { full_name: 'Dave Engineer' } }]),
   listReopenableApproved: vi.fn().mockResolvedValue([]),
@@ -20,7 +21,8 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: {
   listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
   confirmEmployeeLink: vi.fn().mockResolvedValue(undefined),
   getPushState: vi.fn().mockResolvedValue({ push_state: 'failed', push_error: 'external-unreachable', ts_number: null }),
-} } }));
+},
+}));
 
 vi.mock('@/src/lib/repositories/employeeMatchReview', () => ({
   listEmployeeMatchReview: vi.fn().mockResolvedValue({ links: [], profiles: [] }),
@@ -35,11 +37,11 @@ import {
   useEmployeeLinkConfirm,
   useOwnTimesheetPushState,
 } from './useTimesheetApproval';
-import { repositories } from '@/src/lib/repositories';
+import { timesheetRepository } from '@/src/lib/repositories/timesheets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { listEmployeeMatchReview } from '@/src/lib/repositories/employeeMatchReview';
 
-const { getPushState, listAwaitingApproval: listTimesheetsAwaitingApproval, submit: submitTimesheet, approve: approveTimesheet, reject: rejectTimesheet, reopen: reopenTimesheet, attestNoErpDocument: attestTimesheetNoErpDocument, listPushesNeedingAttention, confirmEmployeeLink } = repositories.timesheet;
+const { getPushState, listAwaitingApproval: listTimesheetsAwaitingApproval, submit: submitTimesheet, approve: approveTimesheet, reject: rejectTimesheet, reopen: reopenTimesheet, attestNoErpDocument: attestTimesheetNoErpDocument, listPushesNeedingAttention, confirmEmployeeLink } = timesheetRepository;
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient (mirrors useProcurementDetail.test.ts)
 // ---------------------------------------------------------------------------
@@ -91,7 +93,7 @@ it('loads the approved correction queue for the signed-in user', async () => {
   const { Wrapper } = makeWrapper();
   const { result } = renderHook(() => useReopenableApprovedTimesheets(), { wrapper: Wrapper });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
-  expect(repositories.timesheet.listReopenableApproved).toHaveBeenCalledWith('u1', 'Project Manager');
+  expect(timesheetRepository.listReopenableApproved).toHaveBeenCalledWith('u1', 'Project Manager');
   expect(result.current.data).toEqual([]);
 });
 
@@ -225,7 +227,7 @@ describe('useTimesheetMutations', () => {
 
 // ---------------------------------------------------------------------------
 // P3b — FR-TSP-006 (ADR-0059 §3.2): the ERP push is a CONSEQUENCE of approval, dispatched AFTER
-// `transition_timesheet` commits, via `repositories.timesheet.pushApproved` — never a step inside the
+// `transition_timesheet` commits, via `timesheetRepository.pushApproved` — never a step inside the
 // approval RPC, and its failure must never fail/block the approval (PMO's SoT never depends on ERP
 // liveness).
 // ---------------------------------------------------------------------------
@@ -235,7 +237,7 @@ describe('useTimesheetMutations — P3b push-after-approve wiring (FR-TSP-006)',
     pushApprovedMock.mockResolvedValue(undefined);
   });
 
-  it('AC-TSP-051: approve calls transition_timesheet (approveTimesheet) FIRST and repositories.timesheet.pushApproved AFTER it resolves — call ORDER, not just calls', async () => {
+  it('AC-TSP-051: approve calls transition_timesheet (approveTimesheet) FIRST and timesheetRepository.pushApproved AFTER it resolves — call ORDER, not just calls', async () => {
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
 
@@ -396,9 +398,9 @@ it('refreshes mounted correction eligibility after approval and push', async () 
   let approved = false;
   let finishPush!: () => void;
   pushApprovedMock.mockClear().mockImplementationOnce(() => new Promise<void>(resolve => { finishPush = resolve; }));
-  vi.mocked(repositories.timesheet.listAwaitingApproval).mockImplementation(async () => approved ? [] : [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Submitted', entries: [], owner: { full_name: 'Report', manager_id: 'u1' } }] as unknown as Awaited<ReturnType<typeof repositories.timesheet.listAwaitingApproval>>);
-  vi.mocked(repositories.timesheet.listReopenableApproved).mockImplementation(async () => approved ? [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Approved', entries: [], owner: { full_name: 'Report', manager_id: 'u1' }, mirror: null, pushCommandState: null }] as unknown as Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>> : []);
-  vi.mocked(repositories.timesheet.approve).mockImplementation(async () => { approved = true; });
+  vi.mocked(timesheetRepository.listAwaitingApproval).mockImplementation(async () => approved ? [] : [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Submitted', entries: [], owner: { full_name: 'Report', manager_id: 'u1' } }] as unknown as Awaited<ReturnType<typeof timesheetRepository.listAwaitingApproval>>);
+  vi.mocked(timesheetRepository.listReopenableApproved).mockImplementation(async () => approved ? [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Approved', entries: [], owner: { full_name: 'Report', manager_id: 'u1' }, mirror: null, pushCommandState: null }] as unknown as Awaited<ReturnType<typeof timesheetRepository.listReopenableApproved>> : []);
+  vi.mocked(timesheetRepository.approve).mockImplementation(async () => { approved = true; });
   const { Wrapper, qc } = makeWrapper();
   const invalidate = vi.spyOn(qc, 'invalidateQueries');
   const { result } = renderHook(() => ({ pending: useTimesheetsAwaitingApproval(), correction: useReopenableApprovedTimesheets(), mutation: useTimesheetMutations() }), { wrapper: Wrapper });
@@ -449,11 +451,11 @@ it.each(['approve', 'approve-push-failure', 'approve-refusal', 'retry', 'retry-f
 it('keeps the pending row until the settled correction history refresh finishes', async () => {
   pushApprovedMock.mockReset().mockResolvedValue(undefined);
   vi.mocked(approveTimesheet).mockReset().mockResolvedValue(undefined);
-  let finishHistory!: (value: Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>>) => void;
-  const history = vi.mocked(repositories.timesheet.listReopenableApproved);
+  let finishHistory!: (value: Awaited<ReturnType<typeof timesheetRepository.listReopenableApproved>>) => void;
+  const history = vi.mocked(timesheetRepository.listReopenableApproved);
   history.mockReset().mockResolvedValueOnce([]).mockImplementationOnce(() => new Promise(resolve => { finishHistory = resolve; }));
-  const pending = vi.mocked(repositories.timesheet.listAwaitingApproval);
-  pending.mockReset().mockResolvedValue([{ id: 'ts-1' }] as Awaited<ReturnType<typeof repositories.timesheet.listAwaitingApproval>>);
+  const pending = vi.mocked(timesheetRepository.listAwaitingApproval);
+  pending.mockReset().mockResolvedValue([{ id: 'ts-1' }] as Awaited<ReturnType<typeof timesheetRepository.listAwaitingApproval>>);
   const { Wrapper } = makeWrapper();
   const { result } = renderHook(() => ({ pending: useTimesheetsAwaitingApproval(), history: useReopenableApprovedTimesheets(), mutation: useTimesheetMutations() }), { wrapper: Wrapper });
   await waitFor(() => expect(result.current.history.isSuccess && result.current.pending.isSuccess).toBe(true));
@@ -474,10 +476,10 @@ it.each(['resolve', 'reject'] as const)(
     pushApprovedMock.mockReset().mockImplementationOnce(() => new Promise<void>((resolve, reject) => { settle = resolve; fail = reject; }));
     let state = 'before';
     const attention = vi.mocked(listPushesNeedingAttention);
-    const history = vi.mocked(repositories.timesheet.listReopenableApproved);
+    const history = vi.mocked(timesheetRepository.listReopenableApproved);
     const sheet = vi.mocked(getPushState);
     attention.mockReset().mockImplementation(async () => [{ timesheet_id: state }] as Awaited<ReturnType<typeof listPushesNeedingAttention>>);
-    history.mockReset().mockImplementation(async () => [{ id: state }] as Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>>);
+    history.mockReset().mockImplementation(async () => [{ id: state }] as Awaited<ReturnType<typeof timesheetRepository.listReopenableApproved>>);
     sheet.mockReset().mockImplementation(async (id) => ({ push_state: id === 'ts-1' ? state : 'other-sheet', push_error: null, ts_number: null }) as Awaited<ReturnType<typeof getPushState>>);
     const otherOrg = vi.fn(async () => 'other-org');
     const { Wrapper } = makeWrapper();

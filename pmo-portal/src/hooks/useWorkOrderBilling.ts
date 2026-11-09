@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { workOrderRepository } from '@/src/lib/repositories/workOrders';
 import { useAuth } from '@/src/auth/useAuth';
 
 /** OD-BILL-1: work-order billing reads over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
@@ -11,7 +11,7 @@ export function useWorkOrderBilling(projectId: string, enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['work-order-billing', orgId, projectId],
-    queryFn: () => repositories.workOrder.billing(projectId),
+    queryFn: () => workOrderRepository.billing(projectId),
     enabled: enabled && Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -22,7 +22,7 @@ export function useUnbilledWorkOrders(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['unbilled-work-orders', orgId],
-    queryFn: () => repositories.workOrder.unbilled(UNBILLED_WORK_ORDERS_LIMIT),
+    queryFn: () => workOrderRepository.unbilled(UNBILLED_WORK_ORDERS_LIMIT),
     enabled: enabled && Boolean(orgId),
   });
 }
@@ -33,7 +33,7 @@ export function useWorkOrderAcceptanceAge(projectId: string, enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['work-order-billing', orgId, projectId, 'acceptance-age'],
-    queryFn: () => repositories.workOrder.acceptanceAge(projectId),
+    queryFn: () => workOrderRepository.acceptanceAge(projectId),
     enabled: enabled && Boolean(orgId) && Boolean(projectId),
   });
 }

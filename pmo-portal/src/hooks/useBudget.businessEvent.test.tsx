@@ -4,7 +4,9 @@ import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const h = vi.hoisted(() => ({ activateVersion: vi.fn(), track: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { budget: { activateVersion: h.activateVersion } } }));
+vi.mock('@/src/lib/repositories/budget', () => ({
+  budgetRepository: { activateVersion: h.activateVersion },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user', org_id: 'org', role: 'Finance' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useOptionalRealRole: () => 'Finance' }));
 vi.mock('@/src/lib/analytics', async (importOriginal) => ({

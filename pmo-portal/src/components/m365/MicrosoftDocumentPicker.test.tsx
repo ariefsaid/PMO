@@ -32,7 +32,9 @@ vi.mock('@/src/lib/m365/graphClient', () => ({
   searchDrive: vi.fn(),
 }));
 vi.mock('@/src/hooks/useMicrosoftDocuments', () => ({ useMicrosoftDocuments: () => h.hook }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { m365DocumentSettings: { setDefaultLibrary: h.setDefaultLibrary } } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365DocumentSettingsRepository: { setDefaultLibrary: h.setDefaultLibrary },
+}));
 
 const mk = (id: string, kind: 'file' | 'folder', name: string, extra: Partial<GraphItem> = {}): GraphItem => ({
   drive_id: 'drive-1', item_id: id, web_url: `https://example.invalid/${id}`, name, item_kind: kind,

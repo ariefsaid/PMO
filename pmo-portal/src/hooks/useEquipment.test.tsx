@@ -10,7 +10,9 @@ const { equipment } = vi.hoisted(() => ({
     saveCosting: vi.fn(), endCosting: vi.fn(), previewCosting: vi.fn(), listAllocations: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { equipment } }));
+vi.mock('@/src/lib/repositories/equipment', () => ({
+  equipmentRepository: equipment,
+}));
 let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 

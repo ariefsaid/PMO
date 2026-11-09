@@ -7,7 +7,9 @@ const { repo, auth } = vi.hoisted(() => ({
   repo: { coverage: vi.fn(), get: vi.fn(), listBills: vi.fn(), listSlips: vi.fn(), record: vi.fn(), correct: vi.fn(), void: vi.fn() },
   auth: { orgId: 'org-a' as string | undefined },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { vendorWithholdingSlips: repo } }));
+vi.mock('@/src/lib/repositories/vendorWithholdingSlips', () => ({
+  vendorWithholdingSlipsRepository: repo,
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { org_id: auth.orgId } : null }) }));
 
 import { useVendorWithholdingCandidates, useVendorWithholdingCoverage, useVendorWithholdingRegister, useVendorWithholdingSlip, useVendorWithholdingSlipMutations, vendorWithholdingSlipKeys } from './useVendorWithholdingSlips';

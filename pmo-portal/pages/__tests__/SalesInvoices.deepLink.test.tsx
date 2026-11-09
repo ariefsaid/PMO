@@ -143,10 +143,10 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-vi.mock('@/src/lib/repositories', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return { ...actual, repositories: { ...actual.repositories, revenue: { ...actual.repositories.revenue, getInvoice: hoisted.getInvoice } } };
-});
+vi.mock('@/src/lib/repositories/revenue', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  revenueRepository: { ...(await importOriginal()).revenueRepository, getInvoice: hoisted.getInvoice },
+}));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
 }));

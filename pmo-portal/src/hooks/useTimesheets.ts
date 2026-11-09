@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns/format';
 import { startOfWeek } from 'date-fns/startOfWeek';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
-import { repositories } from '@/src/lib/repositories';
+import { timesheetRepository } from '@/src/lib/repositories/timesheets';
 import { addDays } from '@/src/lib/reports/months';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -37,8 +37,8 @@ export function useTimesheets(enabled = true, windowWeek?: string) {
   return useQuery<TimesheetWithEntries[]>({
     queryKey: fromWeek ? ['timesheets', orgId, userId, 'from', fromWeek] : ['timesheets', orgId, userId],
     queryFn: () => (fromWeek
-      ? repositories.timesheet.list(userId as string, { fromWeek })
-      : repositories.timesheet.list(userId as string)),
+      ? timesheetRepository.list(userId as string, { fromWeek })
+      : timesheetRepository.list(userId as string)),
     enabled: enabled && Boolean(orgId && userId),
   });
 }

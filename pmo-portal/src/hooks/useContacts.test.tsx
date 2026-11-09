@@ -19,7 +19,9 @@ const { contact } = vi.hoisted(() => ({
     deleteActivity: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { contact } }));
+vi.mock('@/src/lib/repositories/companies', () => ({
+  contactRepository: contact,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));

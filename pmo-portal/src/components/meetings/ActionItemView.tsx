@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { taskRepository } from '@/src/lib/repositories/tasks';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatDateOnly } from '@/src/lib/format';
 
@@ -23,7 +23,7 @@ export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
   const orgId = currentUser?.org_id;
   const query = useQuery({
     queryKey: ['tasks', orgId, 'one', taskId],
-    queryFn: () => repositories.task.get(taskId),
+    queryFn: () => taskRepository.get(taskId),
     enabled: Boolean(orgId && taskId),
   });
 

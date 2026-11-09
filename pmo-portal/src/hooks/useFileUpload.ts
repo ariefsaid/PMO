@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { documentRepository } from '@/src/lib/repositories/documents';
 import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTransport';
 import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_MB } from '@/src/lib/fileConstants';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
@@ -72,11 +72,11 @@ export function useFileUpload(projectId: string) {
     const reference = await uploadRecordFile({ kind: 'project_document', id: docId }, file, signal);
     setProgress((prev) => ({ ...prev, [docId]: 100 }));
     try {
-      await repositories.document.attachMicrosoftUpload(docId, reference);
+      await documentRepository.attachMicrosoftUpload(docId, reference);
     } catch {
       throw new UploadFailure('attach');
     }
-    if (oldPath) repositories.document.cleanupObject(oldPath).catch(() => {});
+    if (oldPath) documentRepository.cleanupObject(oldPath).catch(() => {});
     return reference.item_id;
   };
 
@@ -89,7 +89,7 @@ export function useFileUpload(projectId: string) {
 
     try {
       if (destination === 'microsoft') return await uploadToMicrosoft(docId, file, knownOldPath, controller.signal);
-      const { signedUrl, path, oldPath } = await repositories.document.prepareUpload(docId, file.name);
+      const { signedUrl, path, oldPath } = await documentRepository.prepareUpload(docId, file.name);
       const ext = getExtension(file.name);
       const contentType = FILE_MIME_BY_EXT[ext] || file.type || 'application/octet-stream';
       await uploadWithProgress(signedUrl, file, {
@@ -102,13 +102,13 @@ export function useFileUpload(projectId: string) {
       // (e.g. RLS reject), the freshly uploaded object would orphan in storage, so clean it
       // up best-effort before re-throwing (mirrors useProcurementFiles, harden #5).
       try {
-        await repositories.document.confirmUpload(docId, path);
+        await documentRepository.confirmUpload(docId, path);
       } catch (confirmError) {
-        repositories.document.cleanupObject(path).catch(() => {});
+        documentRepository.cleanupObject(path).catch(() => {});
         throw confirmError;
       }
       if (oldPath) {
-        repositories.document.cleanupObject(oldPath).catch(() => {});
+        documentRepository.cleanupObject(oldPath).catch(() => {});
       }
       return path;
     } finally {

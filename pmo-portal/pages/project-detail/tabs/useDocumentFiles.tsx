@@ -5,7 +5,7 @@ import { FileCell } from '@/src/components/FileCell';
 import { useFileUpload } from '@/src/hooks/useFileUpload';
 import { useUploadDestination } from '@/src/hooks/useUploadDestination';
 import { validateFile } from '@/src/lib/validateFile';
-import { repositories } from '@/src/lib/repositories';
+import { documentRepository } from '@/src/lib/repositories/documents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectOwner, projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
@@ -94,7 +94,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
   const handleDownload = async (doc: ProjectDocumentRow) => {
     if (!doc.file_path) return;
     try {
-      const url = await repositories.document.getSignedUrl(doc.file_path, { download: true });
+      const url = await documentRepository.getSignedUrl(doc.file_path, { download: true });
       const a = document.createElement('a');
       a.href = url;
       a.download = doc.file_path.split('/').pop() || 'file';
@@ -121,7 +121,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
       key: `project-document:${doc.id}`,
       name: doc.title,
       filePath: doc.file_path,
-      getSignedUrl: (path, opts) => repositories.document.getSignedUrl(path, opts),
+      getSignedUrl: (path, opts) => documentRepository.getSignedUrl(path, opts),
     }));
   };
 

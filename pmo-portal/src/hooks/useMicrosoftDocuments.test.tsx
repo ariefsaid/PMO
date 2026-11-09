@@ -13,11 +13,11 @@ const mock = vi.hoisted(() => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: mock.user }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => mock.roles }));
 vi.mock('@/src/lib/m365/connectClient', () => ({ getM365ConnectionStatus: () => mock.status() }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { m365DocumentSettings: {
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365DocumentSettingsRepository: {
     getDefaultLibrary: () => mock.defaultLibrary(),
     setDefaultLibrary: (v: unknown) => mock.setDefault(v),
-  } },
+  },
 }));
 
 const library = { site_id: 's', site_name: 'Synthetic site', drive_id: 'd', drive_name: 'Documents' };

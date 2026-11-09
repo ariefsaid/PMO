@@ -1,10 +1,8 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
-import {
-  repositories,
-  type ExecutiveDashboard, type PMDashboardProject, type WinRate, type LossBreakdown, type SalesPipeline,
-  type PipelineProject, type BudgetReviewRow, type ProjectWithRefs, type ProjectStatus,
-} from '@/src/lib/repositories';
+import { dashboardRepository } from '@/src/lib/repositories/dashboard';
+import { projectRepository } from '@/src/lib/repositories/projects';
+import type { BudgetReviewRow, ExecutiveDashboard, LossBreakdown, PMDashboardProject, PipelineProject, ProjectStatus, ProjectWithRefs, SalesPipeline, WinRate } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
@@ -16,7 +14,7 @@ export function usePMDashboardProjects() {
   const orgId = currentUser?.org_id;
   return useQuery<PMDashboardProject[]>({
     queryKey: ['pm-dashboard-projects', orgId, currentUser?.id],
-    queryFn: () => repositories.dashboard.pmProjects(),
+    queryFn: () => dashboardRepository.pmProjects(),
     enabled: Boolean(orgId && currentUser?.id),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -27,7 +25,7 @@ export function useDashboard() {
   const orgId = currentUser?.org_id;
   return useQuery<ExecutiveDashboard>({
     queryKey: ['dashboard', orgId],
-    queryFn: () => repositories.dashboard.executive(),
+    queryFn: () => dashboardRepository.executive(),
     enabled: Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -54,7 +52,7 @@ export function useWinRate(range: WinRateRange) {
   const orgId = currentUser?.org_id;
   return useQuery<WinRate>({
     queryKey: ['win-rate', orgId, range.key],
-    queryFn: () => repositories.dashboard.winRate(range.from, range.to),
+    queryFn: () => dashboardRepository.winRate(range.from, range.to),
     enabled: Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -66,7 +64,7 @@ export function useLossBreakdown(range: WinRateRange) {
   const orgId = currentUser?.org_id;
   return useQuery<LossBreakdown>({
     queryKey: ['loss-breakdown', orgId, range.key],
-    queryFn: () => repositories.dashboard.lossBreakdown(range.from, range.to),
+    queryFn: () => dashboardRepository.lossBreakdown(range.from, range.to),
     enabled: Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -81,7 +79,7 @@ export function useSalesPipeline(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<SalesPipeline>({
     queryKey: ['sales-pipeline', orgId],
-    queryFn: () => repositories.dashboard.salesPipeline(),
+    queryFn: () => dashboardRepository.salesPipeline(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
     ...MONEY_QUERY_OPTIONS,
   });
@@ -140,7 +138,7 @@ export function useFinanceBudgetReview() {
   const orgId = currentUser?.org_id;
   return useQuery<BudgetReviewRow[]>({
     queryKey: ['finance-budget-review', orgId],
-    queryFn: () => repositories.dashboard.financeBudgetReview(),
+    queryFn: () => dashboardRepository.financeBudgetReview(),
     enabled: Boolean(orgId),
     ...MONEY_QUERY_OPTIONS,
   });
@@ -160,7 +158,7 @@ export function useLostDeals() {
     queryKey: ['lost-deals', orgId],
     queryFn: async () => {
       // 'Declined' is a terminal pre-award outcome that lives in the same Lost column/scope (#774).
-      const rows = [...(await repositories.project.list({ statuses: ['Loss Tender', 'Declined'] }))];
+      const rows = [...(await projectRepository.list({ statuses: ['Loss Tender', 'Declined'] }))];
       rows.sort((a, b) => (b.last_update ?? '').localeCompare(a.last_update ?? '')); // most recent first
       return rows.map((row) => toPipelineProject(row, 0));
     },
@@ -181,7 +179,7 @@ export function useWonDeals() {
     queryKey: ['won-deals', orgId],
     queryFn: async () => {
       const rows = [
-        ...(await repositories.project.list({
+        ...(await projectRepository.list({
           statuses: [...ON_HAND_STATUSES] as ProjectStatus[],
         })),
       ];

@@ -24,7 +24,15 @@ const { project, integrations, m365RecordFolders, order } = vi.hoisted(() => ({
 }));
 const m365Feature = vi.hoisted(() => ({ on: true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project, integrations, m365RecordFolders } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365RecordFoldersRepository: m365RecordFolders,
+}));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: integrations,
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: project,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

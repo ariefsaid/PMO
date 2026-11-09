@@ -16,13 +16,24 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 
 vi.mock('@/src/lib/db/projects', () => ({ listProjects: dal.listProjects }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: dal.listProcurements }));
 vi.mock('@/src/lib/db/dashboard', () => ({ getSalesPipeline: dal.getSalesPipeline }));
-vi.mock('@/src/lib/repositories', () => ({
-  // The projects list moved to the repository seam (ADR-0017); company/contact/incident reads stay
-  // on the same mock object. `project.list` is the projects list the palette indexes.
-  repositories: { project: { list: dal.listProjects }, procurement: { list: dal.listProcurements }, dashboard: { salesPipeline: dal.getSalesPipeline }, company: dal, contact: dal, incident: dal },
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: dal,
+  contactRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/dashboard', () => ({
+  dashboardRepository: { salesPipeline: dal.getSalesPipeline },
+}));
+vi.mock('@/src/lib/repositories/incidents', () => ({
+  incidentRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: { list: dal.listProcurements },
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: { list: dal.listProjects },
 }));
 
-import { useRecordSearch } from '../useRecordSearch';
+import { useRecordSearch } from '../useRecordSearchData';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

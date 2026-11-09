@@ -2,7 +2,9 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { repositories } from '@/src/lib/repositories';
+import { odooRepository } from '@/src/lib/repositories/odoo';
+import { odooLedgerRepository } from '@/src/lib/repositories/odooLedger';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
 import type { GetOdooStatementInput, SwitchOdooLedgerBasisInput } from '@/src/lib/db/odooLedger';
 
 const ROOT = 'odoo-ledger';
@@ -21,9 +23,9 @@ function useScope() {
  */
 export function useOdooLedgerMode(enabled = true) {
   const s = useScope();
-  const conn = useQuery({ queryKey: [...s.key, 'tier'], queryFn: () => repositories.odoo.getConnection(), enabled: s.ready && enabled });
+  const conn = useQuery({ queryKey: [...s.key, 'tier'], queryFn: () => odooRepository.getConnection(), enabled: s.ready && enabled });
   const odoo = conn.data ? conn.data.status === 'active' && conn.data.activated : false;
-  const basis = useQuery({ queryKey: [...s.key, 'basis'], queryFn: () => repositories.revenue.getOrgReadsErpLedger(), enabled: s.ready && enabled && odoo });
+  const basis = useQuery({ queryKey: [...s.key, 'basis'], queryFn: () => revenueRepository.getOrgReadsErpLedger(), enabled: s.ready && enabled && odoo });
   return {
     odoo,
     onLedger: odoo && basis.data === true,
@@ -36,7 +38,7 @@ export function useOdooLedgerHealth(projectId: string | undefined, enabled = tru
   const s = useScope();
   return useQuery({
     queryKey: [...s.key, 'health', projectId ?? 'org'],
-    queryFn: () => repositories.odooLedger.health(projectId),
+    queryFn: () => odooLedgerRepository.health(projectId),
     enabled: s.ready && enabled,
     refetchInterval: 60_000,
   });
@@ -47,7 +49,7 @@ export function useOdooLedgerLines(projectId: string, category: string | null, e
   const s = useScope();
   return useInfiniteQuery({
     queryKey: [...s.key, 'lines', projectId, category],
-    queryFn: ({ pageParam }) => repositories.odooLedger.lines({ projectId, category: category as string, after: pageParam, limit: 50 }),
+    queryFn: ({ pageParam }) => odooLedgerRepository.lines({ projectId, category: category as string, after: pageParam, limit: 50 }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next,
     enabled: s.ready && enabled && category !== null,
@@ -58,7 +60,7 @@ export function useOdooStatementCatalogue(projectId: string | undefined, enabled
   const s = useScope();
   return useQuery({
     queryKey: [...s.key, 'catalogue', projectId ?? 'company'],
-    queryFn: () => repositories.odooLedger.statementCatalogue(projectId),
+    queryFn: () => odooLedgerRepository.statementCatalogue(projectId),
     enabled: s.ready && enabled,
   });
 }
@@ -67,7 +69,7 @@ export function useOdooStatement(input: GetOdooStatementInput | null, enabled = 
   const s = useScope();
   return useQuery({
     queryKey: [...s.key, 'statement', input?.statement ?? null, input?.periodKind ?? null, input?.periodStart ?? null, input?.projectId ?? 'company'],
-    queryFn: () => repositories.odooLedger.statement(input as GetOdooStatementInput),
+    queryFn: () => odooLedgerRepository.statement(input as GetOdooStatementInput),
     enabled: s.ready && enabled && input !== null,
     placeholderData: keepPreviousData,
   });
@@ -77,7 +79,7 @@ export function useOdooStatement(input: GetOdooStatementInput | null, enabled = 
 export function useSwitchOdooLedgerBasis() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input?: SwitchOdooLedgerBasisInput) => repositories.odooLedger.switchBasis(input),
+    mutationFn: (input?: SwitchOdooLedgerBasisInput) => odooLedgerRepository.switchBasis(input),
     onSuccess: () => qc.invalidateQueries(),
   });
 }
@@ -88,7 +90,7 @@ export function useOdooProjectActuals(projectId: string | undefined) {
   const mode = useOdooLedgerMode();
   const link = useQuery({
     queryKey: [...s.key, 'project-link', projectId ?? null],
-    queryFn: () => repositories.odooLedger.projectLinked(projectId as string),
+    queryFn: () => odooLedgerRepository.projectLinked(projectId as string),
     enabled: s.ready && mode.onLedger && Boolean(projectId),
   });
   return { onLedger: mode.onLedger, linked: link.data, linkError: link.isError, unlinked: mode.onLedger && link.data === false };
@@ -98,6 +100,6 @@ export function useOdooProjectActuals(projectId: string | undefined) {
 export function useOdooLedgerCurrency(): string {
   const s = useScope();
   const orgCurrency = useOrgCurrency();
-  const company = useQuery({ queryKey: [...s.key, 'company-currency'], queryFn: () => repositories.odooLedger.companyCurrency(), enabled: s.ready, staleTime: Infinity });
+  const company = useQuery({ queryKey: [...s.key, 'company-currency'], queryFn: () => odooLedgerRepository.companyCurrency(), enabled: s.ready, staleTime: Infinity });
   return company.data ?? orgCurrency;
 }

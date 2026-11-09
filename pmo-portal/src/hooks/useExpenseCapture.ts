@@ -6,7 +6,7 @@ import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_BYTES } from '@/src/lib/fileConstants';
 import { RECEIPT_EXTENSIONS, receiptExtension } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseClaimInput, ExpenseLineInput } from '@/src/lib/db/expenseClaims';
 import { uploadWithProgress } from '@/src/lib/uploadTransport';
-import { repositories } from '@/src/lib/repositories';
+import { expenseClaimRepository } from '@/src/lib/repositories/expenses';
 import {
   cleanupUnlinkedExpenseCaptureReceipt, confirmExpenseCaptureReceipt, expenseCaptureRepository,
 } from '@/src/lib/repositories/expenseCapture';
@@ -119,7 +119,7 @@ export function useExpenseCapture() {
 
       while (intent.nextAdditionalLineIndex < intent.additionalLines.length) {
         const line = intent.additionalLines[intent.nextAdditionalLineIndex];
-        await repositories.expenseClaim.addLine(intent.claimId, line);
+        await expenseClaimRepository.addLine(intent.claimId, line);
         intent.nextAdditionalLineIndex += 1;
         invalidateDraftReads(intent.claimId);
       }

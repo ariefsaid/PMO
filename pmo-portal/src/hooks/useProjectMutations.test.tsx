@@ -14,7 +14,12 @@ const { project, integrations } = vi.hoisted(() => ({
     setContractValue: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project, integrations } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: integrations,
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: project,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));

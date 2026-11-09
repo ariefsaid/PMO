@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-vi.mock('@/src/lib/repositories', () => ({ repositories: {} }));
 
 import { BUDGET_CATEGORIES, computeBudgetLineImportKey as appKey } from '../budgetDescriptor';
 // The Node-side mirror used by `pmo load` (#796). Byte-identical output is the contract: a line loaded by

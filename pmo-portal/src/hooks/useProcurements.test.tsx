@@ -18,20 +18,20 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 // The procurement repository methods delegate to the mocked DAL, so every assertion below stays on the DAL calls.
-vi.mock('@/src/lib/repositories', async () => {
+vi.mock('@/src/lib/repositories/procurement', async () => {
   const dal = await import('@/src/lib/db/procurements');
   return {
-    repositories: {
-      revenue: { getOrgReadsErpLedger: () => ledgerSignal() },
-      procurement: {
-        list: (opts?: Parameters<typeof dal.listProcurements>[0]) => dal.listProcurements(opts),
-        listByProject: (id: string) => dal.listProcurementsByProject(id),
-        getProjectCommittedSpend: (id: string) => dal.getProjectCommittedSpend(id),
-        getProjectReservedSpend: (id: string) => dal.getProjectReservedSpend(id),
-      },
+    procurementRepository: {
+      list: (opts?: Parameters<typeof dal.listProcurements>[0]) => dal.listProcurements(opts),
+      listByProject: (id: string) => dal.listProcurementsByProject(id),
+      getProjectCommittedSpend: (id: string) => dal.getProjectCommittedSpend(id),
+      getProjectReservedSpend: (id: string) => dal.getProjectReservedSpend(id),
     },
   };
 });
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { getOrgReadsErpLedger: () => ledgerSignal() },
+}));
 
 import { procurementsKey, useProcurements, useProjectProcurements, useProjectCommittedSpend, useProjectReservedSpend } from './useProcurements';
 import { listProcurements, listProcurementsByProject, getProjectCommittedSpend, getProjectReservedSpend } from '@/src/lib/db/procurements';

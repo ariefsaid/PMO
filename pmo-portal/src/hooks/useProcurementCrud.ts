@@ -2,15 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { useAuth } from '@/src/auth/useAuth';
 import type { AppError } from '@/src/lib/appError';
-import {
-  repositories,
-  type NewProcurementInput,
-  type AtomicProcurementInput,
-  type ProcurementHeaderPatch,
-  type ProcurementItemInput,
-  type ProcurementItemPatch,
-  type ProcurementItemRow,
-} from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
+import type { AtomicProcurementInput, NewProcurementInput, ProcurementHeaderPatch, ProcurementItemInput, ProcurementItemPatch, ProcurementItemRow } from '@/src/lib/repositories/types';
 import {
   procurementDetailKey,
   cachedProcurementProjectId,
@@ -41,7 +34,7 @@ export function useCreateProcurement() {
   const startRecordFolder = useStartRecordFolder();
   return useMutation<Tables<'procurements'>, AppError, NewProcurementInput>({
     mutationFn: async (input) => {
-      const row = await repositories.procurement.create(input, currentUser?.id ?? '');
+      const row = await procurementRepository.create(input, currentUser?.id ?? '');
       // #1020: link/create the case's SharePoint folder. The folder name needs the case's request
       // number (`pr_number`, else the imported `code`), so a number-less Draft starts nothing here —
       // it gets its folder when it is submitted to Requested (useProcurementMutations.transition).
@@ -59,7 +52,7 @@ export function useCreateProcurementWithItems() {
   const startRecordFolder = useStartRecordFolder();
   return useMutation<Tables<'procurements'>, AppError, AtomicProcurementInput>({
     mutationFn: async (input) => {
-      const row = await repositories.procurement.createWithItems(input);
+      const row = await procurementRepository.createWithItems(input);
       if (row.pr_number || row.code) startRecordFolder({ kind: 'procurement', id: row.id });
       return row;
     },
@@ -72,7 +65,7 @@ export function useCreateProcurementItem() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   return useMutation<ProcurementItemRow, AppError, { procurementId: string; input: ProcurementItemInput }>({
-    mutationFn: ({ procurementId, input }) => repositories.procurement.createItem(procurementId, input),
+    mutationFn: ({ procurementId, input }) => procurementRepository.createItem(procurementId, input),
     onSuccess: (_row, { procurementId }) =>
       qc.invalidateQueries({ queryKey: procurementDetailKey(currentUser?.org_id, procurementId) }),
   });
@@ -95,38 +88,38 @@ export function useProcurementCrudMutations(id: string) {
     invalidateProcurementCase(qc, orgId, id, [cachedProcurementProjectId(qc, orgId, id), ...extraProjectIds]);
 
   const updateHeader = useMutation<void, AppError, ProcurementHeaderPatch>({
-    mutationFn: (patch) => repositories.procurement.updateHeader(id, patch),
+    mutationFn: (patch) => procurementRepository.updateHeader(id, patch),
     // the cached detail still holds the OLD project here; the patch carries the new one.
     onSuccess: (_d, patch) => invalidate([patch.projectId]),
   });
 
   const updateVendor = useMutation<void, AppError, string>({
-    mutationFn: (vendorId) => repositories.procurement.updateVendor(id, vendorId),
+    mutationFn: (vendorId) => procurementRepository.updateVendor(id, vendorId),
     onSuccess: () => invalidate(),
   });
 
   const createItem = useMutation<ProcurementItemRow, AppError, ProcurementItemInput>({
-    mutationFn: (input) => repositories.procurement.createItem(id, input),
+    mutationFn: (input) => procurementRepository.createItem(id, input),
     onSuccess: () => invalidate(),
   });
 
   const updateItem = useMutation<void, AppError, UpdateItemArgs>({
-    mutationFn: ({ id: itemId, patch }) => repositories.procurement.updateItem(itemId, patch),
+    mutationFn: ({ id: itemId, patch }) => procurementRepository.updateItem(itemId, patch),
     onSuccess: () => invalidate(),
   });
 
   const deleteItem = useMutation<void, AppError, string>({
-    mutationFn: (itemId) => repositories.procurement.deleteItem(itemId),
+    mutationFn: (itemId) => procurementRepository.deleteItem(itemId),
     onSuccess: () => invalidate(),
   });
 
   const selectQuote = useMutation<void, AppError, string>({
-    mutationFn: (quotationId) => repositories.procurement.selectQuote(quotationId),
+    mutationFn: (quotationId) => procurementRepository.selectQuote(quotationId),
     onSuccess: () => invalidate(),
   });
 
   // OE13R02-002: the former createDocument/deleteDocument mutations had no production consumer
-  // (document metadata CRUD stays reachable at repositories.procurement + the DAL, AC-PROC-005);
+  // (document metadata CRUD stays reachable at procurementRepository + the DAL, AC-PROC-005);
   // they only dressed uncalled paths as live hook operations.
 
   return { updateHeader, updateVendor, createItem, updateItem, deleteItem, selectQuote };

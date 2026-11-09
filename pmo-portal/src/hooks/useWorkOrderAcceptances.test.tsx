@@ -13,7 +13,9 @@ const h = vi.hoisted(() => ({
   withdraw: vi.fn(async () => undefined),
   confirm: vi.fn(async () => ({ closingValue: 1, dpHeld: 0 })),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrderAcceptance: h } }));
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  workOrderAcceptanceRepository: h,
+}));
 const auth = vi.hoisted(() => ({ orgId: 'org-1' as string | undefined }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { id: 'u-1', org_id: auth.orgId } : null }) }));
 

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import type { IntegrationBinding, ConnectCredential, IntegrationHealth, ExternalTier, ClickUpListItem, LinkInput, UnlinkInput, ProjectBinding } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 import { setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
@@ -30,7 +30,7 @@ export function useIntegrations() {
   // Query: list all bindings for the org
   const { data: bindings = [], isPending, isError, isSuccess, error, refetch } = useQuery<IntegrationBinding[]>({
     queryKey: ['integrations', 'bindings', orgId],
-    queryFn: () => repositories.integrations.listBindings(orgId!),
+    queryFn: () => integrationsRepository.listBindings(orgId!),
     enabled: Boolean(orgId),
   });
 
@@ -43,7 +43,7 @@ export function useIntegrations() {
 
   // Mutation: connect
   const connect = useMutation({
-    mutationFn: (credential: ConnectCredential) => repositories.integrations.connectIntegration(orgId!, credential),
+    mutationFn: (credential: ConnectCredential) => integrationsRepository.connectIntegration(orgId!, credential),
     onSuccess: (_data, _vars) => {
       invalidateBindingCaches();
     },
@@ -51,7 +51,7 @@ export function useIntegrations() {
 
   // Mutation: disconnect
   const disconnect = useMutation({
-    mutationFn: (tier: ExternalTier) => repositories.integrations.disconnectIntegration(orgId!, tier),
+    mutationFn: (tier: ExternalTier) => integrationsRepository.disconnectIntegration(orgId!, tier),
     onSuccess: (_data, _tier) => {
       invalidateBindingCaches();
     },
@@ -64,7 +64,7 @@ export function useIntegrations() {
   // Helper: fetch health for a specific tier (direct call, not a hook)
   const getHealth = async (tier: ExternalTier): Promise<IntegrationHealth> => {
     if (!orgId) throw new Error('No orgId available');
-    return repositories.integrations.getIntegrationHealth(orgId, tier);
+    return integrationsRepository.getIntegrationHealth(orgId, tier);
   };
 
   // Query: list ClickUp lists for the org
@@ -74,7 +74,7 @@ export function useIntegrations() {
   // still loading the gate is closed; it opens the moment the binding resolves 'active'.
   const { data: clickupLists = [], isPending: isListsPending, isError: isListsError, error: listsError, refetch: refetchLists } = useQuery<ClickUpListItem[]>({
     queryKey: ['integrations', 'clickup-lists', orgId],
-    queryFn: () => repositories.integrations.listProjectLists(orgId!),
+    queryFn: () => integrationsRepository.listProjectLists(orgId!),
     enabled: Boolean(orgId) && isSuccess && !isError && getBinding('clickup')?.status === 'active',
   });
 
@@ -85,13 +85,13 @@ export function useIntegrations() {
   // (Nothing consumes isCompaniesError, so the failure never rendered — it was pure wasted calls.)
   const { data: erpnextCompanies = [], isPending: isCompaniesPending, isError: isCompaniesError, error: companiesError, refetch: refetchCompanies } = useQuery<Array<{ name: string }>>({
     queryKey: ['integrations', 'erpnext-companies', orgId],
-    queryFn: () => repositories.integrations.listCompanies(orgId!, 'erpnext'),
+    queryFn: () => integrationsRepository.listCompanies(orgId!, 'erpnext'),
     enabled: Boolean(orgId) && isSuccess && !isError && getBinding('erpnext')?.status === 'active',
   });
 
   // Mutation: link project
   const linkProject = useMutation({
-    mutationFn: (input: LinkInput) => repositories.integrations.linkProject(orgId!, input),
+    mutationFn: (input: LinkInput) => integrationsRepository.linkProject(orgId!, input),
     onSuccess: (_data, input) => {
       if (input.tier === 'clickup') setProjectBinding(input.projectId, true);
       qc.invalidateQueries({ queryKey: ['integrations', 'project-bindings', orgId] });
@@ -100,7 +100,7 @@ export function useIntegrations() {
 
   // Mutation: unlink project
   const unlinkProject = useMutation({
-    mutationFn: (input: UnlinkInput) => repositories.integrations.unlinkProject(orgId!, input),
+    mutationFn: (input: UnlinkInput) => integrationsRepository.unlinkProject(orgId!, input),
     onSuccess: (_data, input) => {
       if (input.projectId) setProjectBinding(input.projectId, false);
       qc.invalidateQueries({ queryKey: ['integrations', 'project-bindings', orgId] });
@@ -109,7 +109,7 @@ export function useIntegrations() {
 
   // Mutation: set ERPNext company (OD-INT-6)
   const setCompany = useMutation({
-    mutationFn: (companyId: string) => repositories.integrations.setCompany(orgId!, 'erpnext', companyId),
+    mutationFn: (companyId: string) => integrationsRepository.setCompany(orgId!, 'erpnext', companyId),
     onSuccess: () => {
       invalidateBindingCaches();
     },
@@ -118,7 +118,7 @@ export function useIntegrations() {
   // Query: list project bindings for the org
   const { data: projectBindings = [], isPending: isBindingsPending, isError: isBindingsError, error: bindingsError, refetch: refetchBindings } = useQuery<ProjectBinding[]>({
     queryKey: ['integrations', 'project-bindings', orgId],
-    queryFn: () => repositories.integrations.listProjectBindings(orgId!),
+    queryFn: () => integrationsRepository.listProjectBindings(orgId!),
     enabled: Boolean(orgId),
   });
 

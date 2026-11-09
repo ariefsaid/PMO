@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({ canManage: true, setTaxDefaults: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { company: { setTaxDefaults: h.setTaxDefaults } } }));
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: { setTaxDefaults: h.setTaxDefaults },
+}));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 import { VendorTaxDefaultsCard } from './VendorTaxDefaultsCard';
 import type { CompanyRow } from '@/src/lib/db/companies';

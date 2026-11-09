@@ -5,9 +5,11 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({ canManage: true, bindingStatus: 'active', bindingError: false, retryBinding: vi.fn(), get: vi.fn(), set: vi.fn(), listAccounts: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: {
   getWithholdingAccount: h.get, setWithholdingAccount: h.set,
-} } }));
+},
+}));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   listBudgetPostingAccountCatalogue: h.listAccounts,
 }));

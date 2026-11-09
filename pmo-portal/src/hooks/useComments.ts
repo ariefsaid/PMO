@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { commentRepository } from '@/src/lib/repositories/comments';
 import type {
   CommentEntityType,
   CommentInput,
@@ -13,7 +13,7 @@ export function useComments(entityType: CommentEntityType, entityId: string, opt
   const orgId = currentUser?.org_id;
   return useQuery<CommentWithAuthor[]>({
     queryKey: ['comments', orgId, entityType, entityId],
-    queryFn: () => repositories.comment.list(entityType, entityId),
+    queryFn: () => commentRepository.list(entityType, entityId),
     enabled: Boolean(orgId) && Boolean(entityId) && options?.enabled !== false,
   });
 }
@@ -23,9 +23,9 @@ export function useCommentMutations(entityType: CommentEntityType, entityId: str
   const invalidate = () => qc.invalidateQueries({ queryKey: ['comments'] });
   const post = useMutation({
     mutationFn: (input: Pick<CommentInput, 'body' | 'mentions'>) =>
-      repositories.comment.create({ entityType, entityId, ...input }),
+      commentRepository.create({ entityType, entityId, ...input }),
     onSuccess: invalidate,
   });
-  const remove = useMutation({ mutationFn: (id: string) => repositories.comment.archive(id), onSuccess: invalidate });
+  const remove = useMutation({ mutationFn: (id: string) => commentRepository.archive(id), onSuccess: invalidate });
   return { post, remove };
 }

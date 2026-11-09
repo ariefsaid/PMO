@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput, UserManagerChoice } from '@/src/lib/db/adminUsers';
 import type { UserDirectoryPage } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
@@ -18,7 +18,7 @@ export function useUsers(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<UserRow[]>({
     queryKey: ['users', orgId],
-    queryFn: () => repositories.profile.listUsers(),
+    queryFn: () => profileRepository.listUsers(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -35,7 +35,7 @@ export function useUsersPage(input: { page: number; pageSize: number; search?: s
   const orgId = currentUser?.org_id;
   return useQuery<UserDirectoryPage>({
     queryKey: ['users', orgId, 'page', input.page, input.pageSize, input.search ?? ''],
-    queryFn: () => repositories.profile.listUsersPage(input),
+    queryFn: () => profileRepository.listUsersPage(input),
     enabled: Boolean(orgId),
     placeholderData: keepPreviousData,
   });
@@ -52,7 +52,7 @@ export function useManagerChoices(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<UserManagerChoice[]>({
     queryKey: ['users', orgId, 'manager-choices'],
-    queryFn: () => repositories.profile.listManagerChoices(),
+    queryFn: () => profileRepository.listManagerChoices(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -68,7 +68,7 @@ export function useActiveAdminCounts(orgIds: readonly string[]) {
   const key = [...new Set(orgIds.filter(Boolean))].sort();
   return useQuery<Record<string, number | null>>({
     queryKey: ['users', orgId, 'active-admin-counts', key],
-    queryFn: () => repositories.profile.countActiveAdminsByOrg(key),
+    queryFn: () => profileRepository.countActiveAdminsByOrg(key),
     enabled: Boolean(orgId) && key.length > 0,
   });
 }
@@ -82,7 +82,7 @@ export function useUserFocusPage(userId: string | null, pageSize: number) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['users', orgId, 'focus-location', userId, pageSize],
-    queryFn: () => repositories.profile.findUserPage({ userId: userId as string, pageSize }),
+    queryFn: () => profileRepository.findUserPage({ userId: userId as string, pageSize }),
     enabled: Boolean(orgId && userId),
   });
 }
@@ -118,23 +118,23 @@ export function useUserMutations() {
   };
 
   const updateRole = useMutation({
-    mutationFn: ({ id, role }: UpdateRoleArgs) => repositories.profile.updateUserRole(id, role),
+    mutationFn: ({ id, role }: UpdateRoleArgs) => profileRepository.updateUserRole(id, role),
     onSuccess: invalidate,
   });
 
   const assignManager = useMutation({
     mutationFn: ({ id, managerId }: AssignManagerArgs) =>
-      repositories.profile.assignUserManager(id, managerId),
+      profileRepository.assignUserManager(id, managerId),
     onSuccess: invalidate,
   });
 
   const invite = useMutation({
-    mutationFn: (input: InviteUserInput) => repositories.profile.inviteUser(input),
+    mutationFn: (input: InviteUserInput) => profileRepository.inviteUser(input),
     onSuccess: invalidate,
   });
 
   const setStatus = useMutation({
-    mutationFn: (input: SetUserStatusInput) => repositories.profile.setUserStatus(input),
+    mutationFn: (input: SetUserStatusInput) => profileRepository.setUserStatus(input),
     onSuccess: invalidate,
   });
 

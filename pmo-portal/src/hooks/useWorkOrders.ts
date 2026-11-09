@@ -1,11 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  repositories,
-  type WorkOrderInput,
-  type WorkOrderPatch,
-  type WorkOrderStatus,
-  type SetWorkOrderValueInput,
-} from '@/src/lib/repositories';
+import { workOrderRepository } from '@/src/lib/repositories/workOrders';
+import type { SetWorkOrderValueInput, WorkOrderInput, WorkOrderPatch, WorkOrderStatus } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -19,7 +14,7 @@ export function useProjectWorkOrders(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['work-orders', orgId, projectId, currentUser?.id, currentUser?.role, currentUser?.manager_id],
-    queryFn: () => repositories.workOrder.list(projectId),
+    queryFn: () => workOrderRepository.list(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -33,7 +28,7 @@ export function useProjectDrawdown(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['project-drawdown', orgId, projectId],
-    queryFn: () => repositories.workOrder.drawdown(projectId),
+    queryFn: () => workOrderRepository.drawdown(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -79,23 +74,23 @@ export function useWorkOrderMutations(projectId: string) {
   };
 
   const create = useMutation({
-    mutationFn: ({ input }: CreateArgs) => repositories.workOrder.create(projectId, input),
+    mutationFn: ({ input }: CreateArgs) => workOrderRepository.create(projectId, input),
     onSuccess: invalidate,
   });
 
   const update = useMutation({
-    mutationFn: ({ id, patch }: UpdateArgs) => repositories.workOrder.update(id, patch),
+    mutationFn: ({ id, patch }: UpdateArgs) => workOrderRepository.update(id, patch),
     onSuccess: invalidate,
   });
 
   const setValue = useMutation({
-    mutationFn: (input: SetWorkOrderValueInput) => repositories.workOrder.setValue(input),
+    mutationFn: (input: SetWorkOrderValueInput) => workOrderRepository.setValue(input),
     onSuccess: invalidate,
   });
 
   const transition = useMutation({
     mutationFn: ({ id, to, overCommitAck }: TransitionArgs) =>
-      repositories.workOrder.transition(
+      workOrderRepository.transition(
         id,
         to,
         // Omitted unless the caller actually has an acknowledgement to make: the RPC refuses one

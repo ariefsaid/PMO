@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { erpSnapshotsRepository } from '@/src/lib/repositories/reporting';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -15,7 +15,7 @@ export function useActualsSnapshot() {
   const orgId = currentUser?.org_id;
   return useQuery<ErpActualsSnapshotRow[]>({
     queryKey: ['erp-actuals-snapshot', orgId],
-    queryFn: () => repositories.erpSnapshots.actuals(),
+    queryFn: () => erpSnapshotsRepository.actuals(),
     enabled: Boolean(orgId),
   });
 }
@@ -25,7 +25,7 @@ export function useApAgingSnapshot() {
   const orgId = currentUser?.org_id;
   return useQuery<ErpAgingSnapshotRow[]>({
     queryKey: ['erp-ap-aging-snapshot', orgId],
-    queryFn: () => repositories.erpSnapshots.apAging(),
+    queryFn: () => erpSnapshotsRepository.apAging(),
     enabled: Boolean(orgId),
   });
 }
@@ -35,7 +35,7 @@ export function useArAgingSnapshot(options?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<ErpAgingSnapshotRow[]>({
     queryKey: ['erp-ar-aging-snapshot', orgId],
-    queryFn: () => repositories.erpSnapshots.arAging(),
+    queryFn: () => erpSnapshotsRepository.arAging(),
     enabled: Boolean(orgId) && options?.enabled !== false,
   });
 }

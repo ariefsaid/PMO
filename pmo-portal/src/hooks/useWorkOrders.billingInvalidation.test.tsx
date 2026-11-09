@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 const h = vi.hoisted(() => ({ transition: vi.fn(async () => undefined) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrder: { transition: h.transition } } }));
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  workOrderRepository: { transition: h.transition },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' } }) }));
 
 import { useWorkOrderMutations } from './useWorkOrders';

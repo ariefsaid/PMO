@@ -4,7 +4,9 @@ import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const h = vi.hoisted(() => ({ transition: vi.fn(), track: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: { transition: h.transition } } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: { transition: h.transition },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user', org_id: 'org', role: 'Finance' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useOptionalRealRole: () => 'Finance' }));
 vi.mock('@/src/hooks/useStartRecordFolder', () => ({ useStartRecordFolder: () => vi.fn() }));

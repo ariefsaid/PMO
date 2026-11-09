@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { useExternalDomainOwnership } from './useExternalDomainOwnership';
 
@@ -10,7 +10,7 @@ export function useDomainOwnershipMode(domain: string) {
   const ownership = useExternalDomainOwnership();
   const bindings = useQuery({
     queryKey: ['integrations', 'project-bindings', orgId],
-    queryFn: () => repositories.integrations.listProjectBindings(orgId!),
+    queryFn: () => integrationsRepository.listProjectBindings(orgId!),
     enabled: Boolean(orgId),
   });
   const route = useSyncExternalStore(subscribeOwnershipCache,

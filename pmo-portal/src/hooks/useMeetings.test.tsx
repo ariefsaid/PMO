@@ -27,7 +27,8 @@ const { repoMock } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/src/lib/repositories', () => ({ repositories: repoMock }));
+vi.mock('@/src/lib/repositories/meetings', () => ({ meetingRepository: repoMock.meeting }));
+vi.mock('@/src/lib/repositories/tasks', () => ({ taskRepository: repoMock.task }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));

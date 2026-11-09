@@ -26,7 +26,9 @@ const h = vi.hoisted(() => ({
   committed: { data: 0, commitmentSource: 'not-tracked' as string },
 }));
 
-vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: { getProjectFinances: h.getProjectFinances } } }));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { getProjectFinances: h.getProjectFinances },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-A' }, role: 'Finance' }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
 vi.mock('@/src/auth/usePermission', () => ({

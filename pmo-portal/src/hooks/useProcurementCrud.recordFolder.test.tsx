@@ -22,7 +22,12 @@ vi.mock('@/src/components/ui/Toast', async (importOriginal) => ({
 }));
 const m365Feature = vi.hoisted(() => ({ on: true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement, m365RecordFolders } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  m365RecordFoldersRepository: m365RecordFolders,
+}));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: procurement,
+}));
 vi.mock('@/src/lib/db/procurementLifecycle', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/db/procurementLifecycle')>()),
   getProcurementDetail: vi.fn().mockResolvedValue(null),

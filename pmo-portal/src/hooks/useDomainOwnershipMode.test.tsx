@@ -8,7 +8,9 @@ const state = vi.hoisted(() => ({ data: undefined as { domain: string }[] | unde
 const listBindings = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => state }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listProjectBindings: listBindings } } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { listProjectBindings: listBindings },
+}));
 import { useDomainOwnershipMode } from './useDomainOwnershipMode';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {

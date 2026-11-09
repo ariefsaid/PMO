@@ -38,13 +38,17 @@ vi.mock('@/src/lib/db/dashboard', () => ({
   ]),
 }));
 vi.mock('@/src/lib/db/timesheetTransition', () => ({ listTimesheetsAwaitingApproval: () => Promise.resolve([]) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    fxRates: { context: () => Promise.resolve({ currency: 'USD', timezone: 'UTC' }) },
-    revenue: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
-    expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
-    task: { list: h.list, listDueRows: h.listDueRows },
-  },
+vi.mock('@/src/lib/repositories/expenses', () => ({
+  expenseClaimRepository: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
+}));
+vi.mock('@/src/lib/repositories/fxRates', () => ({
+  fxRatesRepository: { context: () => Promise.resolve({ currency: 'USD', timezone: 'UTC' }) },
+}));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
+}));
+vi.mock('@/src/lib/repositories/tasks', () => ({
+  taskRepository: { list: h.list, listDueRows: h.listDueRows },
 }));
 
 import { useNeedsYou } from './useNeedsYou';

@@ -12,9 +12,9 @@ const h = vi.hoisted(() => ({
     profileError: null,
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: {
-  reports: { managementPack: h.managementPack, recordProgress: h.recordProgress },
-} }));
+vi.mock('@/src/lib/repositories/reporting', () => ({
+  reportsRepository: { managementPack: h.managementPack, recordProgress: h.recordProgress },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => h.auth }));
 
 import { useManagementPack, useRecordProjectProgress } from './useManagementPack';

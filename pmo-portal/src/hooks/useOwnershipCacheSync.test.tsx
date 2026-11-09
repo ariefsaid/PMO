@@ -21,7 +21,9 @@ vi.mock('./useExternalDomainOwnership', () => ({
   useExternalDomainOwnership: h.useExternalDomainOwnership,
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listProjectBindings: h.listProjectBindings } } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { listProjectBindings: h.listProjectBindings },
+}));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   setTaskOwnership: h.setTaskOwnership,
   clearOwnershipCache: h.clearOwnershipCache,

@@ -8,7 +8,9 @@ import stockEn from '@/public/locales/en/stock.json';
 import type { ProjectConsumption } from '@/src/lib/db/stockReports';
 
 const { consumption } = vi.hoisted(() => ({ consumption: { report: vi.fn() } }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { consumption } } }));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { consumption },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));

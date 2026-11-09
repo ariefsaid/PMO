@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { workOrderAcceptanceRepository } from '@/src/lib/repositories/workOrders';
 import { useAuth } from '@/src/auth/useAuth';
 import type { PrepareWorkOrderAcceptanceInput, WorkOrderLineInput } from '@/src/lib/db/workOrderAcceptances';
 
@@ -8,7 +8,7 @@ export function useWorkOrderAcceptances(projectId: string) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['work-order-acceptances', orgId, projectId],
-    queryFn: () => repositories.workOrderAcceptance.listByProject(projectId),
+    queryFn: () => workOrderAcceptanceRepository.listByProject(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -18,7 +18,7 @@ export function useProjectWorkOrderLines(projectId: string) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['work-order-lines', orgId, 'project', projectId],
-    queryFn: () => repositories.workOrderAcceptance.listProjectLines(projectId),
+    queryFn: () => workOrderAcceptanceRepository.listProjectLines(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -46,17 +46,17 @@ export function useWorkOrderAcceptanceMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
   };
-  const createLine = useMutation({ mutationFn: (input: WorkOrderLineInput) => repositories.workOrderAcceptance.createLine(input), onSuccess: refreshAllocations });
+  const createLine = useMutation({ mutationFn: (input: WorkOrderLineInput) => workOrderAcceptanceRepository.createLine(input), onSuccess: refreshAllocations });
   const updateLine = useMutation({
-    mutationFn: ({ id, quantity }: { id: string; quantity: number }) => repositories.workOrderAcceptance.updateLine(id, quantity),
+    mutationFn: ({ id, quantity }: { id: string; quantity: number }) => workOrderAcceptanceRepository.updateLine(id, quantity),
     onSuccess: refreshAllocations,
   });
-  const deleteLine = useMutation({ mutationFn: (id: string) => repositories.workOrderAcceptance.deleteLine(id), onSuccess: refreshAllocations });
+  const deleteLine = useMutation({ mutationFn: (id: string) => workOrderAcceptanceRepository.deleteLine(id), onSuccess: refreshAllocations });
   const prepare = useMutation({
-    mutationFn: (input: PrepareWorkOrderAcceptanceInput) => repositories.workOrderAcceptance.prepare(input),
+    mutationFn: (input: PrepareWorkOrderAcceptanceInput) => workOrderAcceptanceRepository.prepare(input),
     onSuccess: () => void refreshAcceptances(),
   });
-  const withdraw = useMutation({ mutationFn: (id: string) => repositories.workOrderAcceptance.withdraw(id), onSuccess: () => void refreshAcceptances() });
-  const confirm = useMutation({ mutationFn: (id: string) => repositories.workOrderAcceptance.confirm(id), onSuccess: refreshClose });
+  const withdraw = useMutation({ mutationFn: (id: string) => workOrderAcceptanceRepository.withdraw(id), onSuccess: () => void refreshAcceptances() });
+  const confirm = useMutation({ mutationFn: (id: string) => workOrderAcceptanceRepository.confirm(id), onSuccess: refreshClose });
   return { createLine, updateLine, deleteLine, prepare, withdraw, confirm };
 }

@@ -31,6 +31,8 @@ vi.mock('@/src/lib/db/agentRuns', () => ({ getRunHeartbeat: vi.fn().mockResolved
 
 vi.mock('@/src/hooks/useCachedRecordLists', () => ({ useCachedRecordLists: () => ({ lists: { projects: [], opportunities: [], procurements: [], companies: [], contacts: [], userViews: [] }, resolved: true }) }));
 vi.mock('@/src/hooks/useRecordSearch', async (importOriginal) => ({ ...await importOriginal<typeof import('@/src/hooks/useRecordSearch')>(), useRecordSearch: () => ({ records: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+// #2096: the live search data loads via a lazily-mounted bridge; these journeys don't exercise it.
+vi.mock('@/src/hooks/useRecordSearchData', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, agent_assistant: true } }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useOperatorMembership: () => ({ isOperator: false, isError: false }), useIsOperator: () => false }));

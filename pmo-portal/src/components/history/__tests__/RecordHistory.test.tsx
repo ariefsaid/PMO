@@ -29,7 +29,13 @@ const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authSta
     authState: { orgId: 'org-1' },
   };
 });
-vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
+vi.mock('@/src/lib/repositories/admin', () => ({ profileRepository: repo.profile }));
+vi.mock('@/src/lib/repositories/budget', () => ({ budgetRepository: repo.budget }));
+vi.mock('@/src/lib/repositories/companies', () => ({ companyRepository: repo.company }));
+vi.mock('@/src/lib/repositories/procurement', () => ({ procurementRepository: repo.procurement }));
+vi.mock('@/src/lib/repositories/recordHistory', () => ({ recordHistoryRepository: repo.recordHistory }));
+vi.mock('@/src/lib/repositories/tasks', () => ({ taskRepository: repo.task }));
+vi.mock('@/src/lib/repositories/workOrders', () => ({ milestoneRepository: repo.milestone, workOrderRepository: repo.workOrder }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurementsByProject }));
 // #878: the procurement History names its document children (PR / RFQ / PO / payment) from the SAME
 // cached detail query the page itself uses — the hook stays disabled off a procurement History.

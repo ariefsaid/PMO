@@ -16,7 +16,8 @@ import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
-import { repositories } from '@/src/lib/repositories';
+import { projectRepository } from '@/src/lib/repositories/projects';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
 
 // ── shared mutable state ─────────────────────────────────────────────────────
 const projectsState = {
@@ -198,7 +199,7 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     session.role = 'Project Manager';
     // The lens composes the server's win-eligibility preflight (3700397d9) before offering
     // Mark won; this suite runs the real hooks, so the repository seam answers 'allowed'.
-    vi.spyOn(repositories.project, 'winEligibility').mockResolvedValue('allowed');
+    vi.spyOn(projectRepository, 'winEligibility').mockResolvedValue('allowed');
   });
 
   it('AC-IFW-RECORD-01: pre-win record renders DealBand (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
@@ -292,7 +293,7 @@ describe('AC-PMP-006: pipeline Overview keeps Project finances for finance reade
 
   it('AC-PMP-006: a Finance reader sees Project finances on a Tender deal, fetched once for it, without the contract money strip', async () => {
     session.role = 'Finance';
-    const getProjectFinances = vi.spyOn(repositories.revenue, 'getProjectFinances')
+    const getProjectFinances = vi.spyOn(revenueRepository, 'getProjectFinances')
       .mockImplementation(async (projectId: string) => pipelineFinances(projectId));
     await renderAt('/projects/opp1');
 
@@ -308,7 +309,7 @@ describe('AC-PMP-006: pipeline Overview keeps Project finances for finance reade
 
   it('AC-PMP-006: an Engineer sees no Project finances on the deal and nothing is fetched', async () => {
     session.role = 'Engineer';
-    const getProjectFinances = vi.spyOn(repositories.revenue, 'getProjectFinances')
+    const getProjectFinances = vi.spyOn(revenueRepository, 'getProjectFinances')
       .mockImplementation(async (projectId: string) => pipelineFinances(projectId));
     await renderAt('/projects/opp1');
 

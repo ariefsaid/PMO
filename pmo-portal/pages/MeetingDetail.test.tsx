@@ -83,16 +83,14 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeTaskWrite: routeTaskWriteMock,
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    profile: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  profileRepository: {
       listOrgProfiles: vi.fn().mockResolvedValue([
         { id: 'author-1', full_name: 'Ari Author' },
         { id: 'peer-1', full_name: 'Putri Peer' },
         { id: 'pm-1', full_name: 'Paula PM' },
       ]),
     },
-  },
 }));
 
 

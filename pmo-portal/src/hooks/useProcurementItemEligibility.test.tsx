@@ -3,7 +3,9 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 const itemValuesEditable = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: { itemValuesEditable } } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: { itemValuesEditable },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 import { useProcurementItemEligibility } from './useProcurementItemEligibility';
 const Wrapper = ({ children }: { children: React.ReactNode }) => {

@@ -5,9 +5,8 @@ import React from 'react';
 
 const { listFiles } = vi.hoisted(() => ({ listFiles: vi.fn(async () => []) }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    procurementFiles: {
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementFilesRepository: {
       list: listFiles,
       prepareUpload: vi.fn(),
       confirmUpload: vi.fn(),
@@ -15,7 +14,6 @@ vi.mock('@/src/lib/repositories', () => ({
       archive: vi.fn(),
       getSignedUrl: vi.fn(),
     },
-  },
 }));
 vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),

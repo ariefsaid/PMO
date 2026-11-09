@@ -1,7 +1,7 @@
 import { invalidateTaskProjections } from './taskQueryKeys';
 import { projectKeys } from './projectQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { milestoneRepository } from '@/src/lib/repositories/workOrders';
 import type { MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -15,7 +15,7 @@ export function useMilestones(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['milestones', orgId, projectId],
-    queryFn: () => repositories.milestone.list(projectId),
+    queryFn: () => milestoneRepository.list(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -52,24 +52,24 @@ export function useMilestoneMutations(projectId: string) {
 
   const create = useMutation({
     mutationFn: ({ input }: CreateMilestoneArgs) =>
-      repositories.milestone.create(input, projectId),
+      milestoneRepository.create(input, projectId),
     onSuccess: invalidate,
   });
 
   const update = useMutation({
     mutationFn: ({ id, patch }: UpdateMilestoneArgs) =>
-      repositories.milestone.update(id, patch),
+      milestoneRepository.update(id, patch),
     onSuccess: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.milestone.delete(id),
+    mutationFn: (id: string) => milestoneRepository.delete(id),
     onSuccess: invalidate,
   });
 
   const setTaskMilestone = useMutation({
     mutationFn: ({ taskId, milestoneId }: SetTaskMilestoneArgs) =>
-      repositories.milestone.setTaskMilestone(taskId, milestoneId),
+      milestoneRepository.setTaskMilestone(taskId, milestoneId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: projectKeys.milestoneDates(orgId) });
       invalidateTaskProjections(qc, orgId, projectId);

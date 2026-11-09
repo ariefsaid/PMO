@@ -48,7 +48,7 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
   return { ...real };
 });
 
-import { useRecordSearch } from '../useRecordSearch';
+import { useRecordSearch } from '../useRecordSearchData';
 import * as features from '@/src/lib/features';
 
 const navigate = vi.fn();

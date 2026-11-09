@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
+import { companyRepository } from '@/src/lib/repositories/companies';
+import { recordHistoryRepository } from '@/src/lib/repositories/recordHistory';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
@@ -44,7 +46,7 @@ export function useHistoryRefs(args: {
 
   const profiles = useQuery({
     queryKey: ['org-profiles', orgId],
-    queryFn: () => repositories.profile.listOrgProfiles(),
+    queryFn: () => profileRepository.listOrgProfiles(),
     enabled: Boolean(orgId) && enabled,
     staleTime: 5 * 60_000,
   });
@@ -65,7 +67,7 @@ export function useHistoryRefs(args: {
   const eventNamesScope = JSON.stringify([orgId, entityType, entityId]);
   const eventNames = useQuery({
     queryKey: eventNamesKey,
-    queryFn: () => repositories.recordHistory.lookupNames(recordIdsByType),
+    queryFn: () => recordHistoryRepository.lookupNames(recordIdsByType),
     enabled: Boolean(orgId) && enabled && Boolean(nameIdsKey),
     staleTime: 5 * 60_000,
     // Appending a history page changes the ID key. Keep the known names for this same
@@ -94,7 +96,7 @@ export function useHistoryRefs(args: {
   // One batched read for every id missing from the active list; ids the caller cannot read stay absent.
   const archivedQuery = useQuery({
     queryKey: ['company-by-ids', orgId, [...missingCompanyIds].sort()],
-    queryFn: () => repositories.company.getMany(missingCompanyIds),
+    queryFn: () => companyRepository.getMany(missingCompanyIds),
     enabled: Boolean(orgId) && enabled && missingCompanyIds.length > 0,
     staleTime: 5 * 60_000,
   });

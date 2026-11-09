@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, ConfirmDialog, Toolbar, useToast } from '@/src/components/ui';
 import { useBudgetArchiveTargets, useBudgetMutations, useBudgetActivationPrecheck } from '@/src/hooks/useBudget';
-import { repositories } from '@/src/lib/repositories';
+import { budgetRepository } from '@/src/lib/repositories/budget';
 import type { BudgetArchiveTarget, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 
 /** A staged, not-yet-committed budget mutation awaiting the ConfirmDialog
@@ -98,7 +98,7 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
     try {
       // #1462 — the server owns the inventory AND the eligibility verdict. A failed read aborts the
       // dialog: "could not read" must never render as "nothing is live".
-      const targets = await repositories.budget.listArchiveTargets(id);
+      const targets = await budgetRepository.listArchiveTargets(id);
       setPendingConfirm(budgetArchiveConfirmFromTargets(id, versionLabel(id), targets));
     } catch (error) {
       toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');

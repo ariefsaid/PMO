@@ -7,7 +7,9 @@ import React from 'react';
 const { integrations } = vi.hoisted(() => ({
   integrations: { getBinding: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: integrations,
+}));
 
 const { authMock } = vi.hoisted(() => ({ authMock: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: authMock }));

@@ -15,7 +15,9 @@ const { master, reports, reorder } = vi.hoisted(() => ({
   reports: { onHand: vi.fn() },
   reorder: { worklist: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports, reorder } } }));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { master, reports, reorder },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 let realRole: Role = 'Project Manager';

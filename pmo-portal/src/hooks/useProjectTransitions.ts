@@ -3,7 +3,7 @@ import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useState } from 'react';
 import { invalidateProjectProjections } from './projectQueryKeys';
-import { repositories } from '@/src/lib/repositories';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 import {
   type PipelineStageConfig,
@@ -26,7 +26,7 @@ export function usePipelineStageConfig(): UseQueryResult<PipelineStageConfig[]> 
 
   return useQuery<PipelineStageConfig[]>({
     queryKey: ['pipeline-stage-config', orgId],
-    queryFn: () => repositories.project.listPipelineStageConfig(),
+    queryFn: () => projectRepository.listPipelineStageConfig(),
     enabled: Boolean(orgId),
   });
 }
@@ -55,7 +55,7 @@ export function useProjectTransition(): UseMutationResult<{ erpSetupPending: boo
 
   const mutation = useMutation<{ erpSetupPending: boolean }, Error, TransitionVars>({
     mutationFn: async ({ id, to, opts }) => {
-      await repositories.project.transition(id, to, opts);
+      await projectRepository.transition(id, to, opts);
       // Also the awaited result, so a caller (the board drop) never reads a stale flag after a second win.
       return { erpSetupPending: to === 'Won, Pending KoM' && await synchronizeErpProject(id, orgId) === 'pending' };
     },
@@ -77,7 +77,7 @@ export const winEligibilityQueryOptions = (
   revision?: string | null,
 ) => ({
   queryKey: ['project-win-eligibility', user?.org_id, user?.id, user?.role, user?.manager_id, projectId, revision] as const,
-  queryFn: () => repositories.project.winEligibility(projectId),
+  queryFn: () => projectRepository.winEligibility(projectId),
   staleTime: 0,
 });
 

@@ -10,7 +10,9 @@ import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
 const { documents } = vi.hoisted(() => ({ documents: { list: vi.fn() } }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents } } }));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { documents },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 

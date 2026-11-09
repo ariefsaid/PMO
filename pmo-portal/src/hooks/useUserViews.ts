@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { userViewRepository } from '@/src/lib/repositories/admin';
 import type { UserViewRow, UserViewListRow, UserViewInput } from '@/src/lib/db/userViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { withTimeout } from '@/src/lib/withTimeout';
@@ -14,7 +14,7 @@ export function useUserViews(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<UserViewListRow[]>({
     queryKey: ['user_views', orgId],
-    queryFn: () => repositories.userView.list(),
+    queryFn: () => userViewRepository.list(),
     enabled: Boolean(orgId) && enabled,
   });
 }
@@ -29,7 +29,7 @@ export function useUserView(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<UserViewRow | null>({
     queryKey: ['user_view', orgId, id],
-    queryFn: () => repositories.userView.get(id!),
+    queryFn: () => userViewRepository.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -59,7 +59,7 @@ export function useUserViewMutations() {
 
   const create = useMutation({
     mutationFn: (input: UserViewInput) =>
-      withTimeout(repositories.userView.create(input)),
+      withTimeout(userViewRepository.create(input)),
     // ⚑ onSettled, NOT onSuccess: on a TIMEOUT the outcome is UNKNOWN, not unchanged — the
     // server may have committed while the response was lost. Refetching the truth either way
     // keeps the surface self-correcting; it still never reports the write as succeeded.
@@ -68,19 +68,19 @@ export function useUserViewMutations() {
 
   const update = useMutation({
     mutationFn: ({ id, input }: UpdateUserViewArgs) =>
-      withTimeout(repositories.userView.update(id, input)),
+      withTimeout(userViewRepository.update(id, input)),
     onSettled: invalidate,
   });
 
   const archive = useMutation({
     mutationFn: (id: string) =>
-      withTimeout(repositories.userView.archive(id)),
+      withTimeout(userViewRepository.archive(id)),
     onSettled: invalidate,
   });
 
   const remove = useMutation({
     mutationFn: (id: string) =>
-      withTimeout(repositories.userView.delete(id)),
+      withTimeout(userViewRepository.delete(id)),
     onSettled: invalidate,
   });
 

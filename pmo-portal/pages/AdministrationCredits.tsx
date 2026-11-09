@@ -15,7 +15,7 @@ import {
   useToast,
   useEntityForm,
 } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { creditsRepository } from '@/src/lib/repositories/admin';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatNumberExact, parseMoneyInput } from '@/src/lib/format';
 
@@ -81,13 +81,13 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
 
   const balanceQuery = useQuery({
     queryKey: ['orgCreditBalance', orgId],
-    queryFn: () => repositories.credits.getOrgBalance(orgId),
+    queryFn: () => creditsRepository.getOrgBalance(orgId),
     enabled: Boolean(orgId),
   });
 
   const grantMutation = useMutation({
     mutationFn: (args: { orgId: string; amount: number; note: string }) =>
-      repositories.credits.grant(args),
+      creditsRepository.grant(args),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['orgCreditBalance', orgId] });
       toast(

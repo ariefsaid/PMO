@@ -15,7 +15,7 @@ import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { repositories } from '@/src/lib/repositories';
+import { profileRepository } from '@/src/lib/repositories/admin';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import { useEntityForm } from '@/src/components/ui';
@@ -70,7 +70,7 @@ const MeetingCreate: React.FC = () => {
     toast(headline, `${part}: ${detail}`, 'warning');
   };
   const loadMembers = async (): Promise<ComboboxOption[]> => {
-    const profiles = await repositories.profile.listOrgProfiles();
+    const profiles = await profileRepository.listOrgProfiles();
     return profiles.filter((profile) => profile.id !== currentUser?.id && !members.some((member) => member.value === profile.id))
       .map((profile) => ({ value: profile.id, label: profile.full_name }));
   };

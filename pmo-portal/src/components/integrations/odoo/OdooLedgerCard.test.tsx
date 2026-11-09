@@ -10,8 +10,14 @@ import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({ getConnection: vi.fn(), reads: vi.fn(), health: vi.fn(), switchBasis: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { odoo: { getConnection: h.getConnection }, revenue: { getOrgReadsErpLedger: h.reads }, odooLedger: { health: h.health, switchBasis: h.switchBasis } },
+vi.mock('@/src/lib/repositories/odoo', () => ({
+  odooRepository: { getConnection: h.getConnection },
+}));
+vi.mock('@/src/lib/repositories/odooLedger', () => ({
+  odooLedgerRepository: { health: h.health, switchBasis: h.switchBasis },
+}));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { getOrgReadsErpLedger: h.reads },
 }));
 
 import { OdooLedgerCard } from './OdooLedgerCard';

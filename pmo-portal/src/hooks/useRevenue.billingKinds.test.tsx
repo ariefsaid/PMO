@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 const h = vi.hoisted(() => ({ setProject: vi.fn(), setBillingKind: vi.fn(), createInvoice: vi.fn(), submitInvoice: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { revenue: { setProject: h.setProject, setBillingKind: h.setBillingKind, createInvoice: h.createInvoice, submitInvoice: h.submitInvoice } },
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { setProject: h.setProject, setBillingKind: h.setBillingKind, createInvoice: h.createInvoice, submitInvoice: h.submitInvoice },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-A', org_id: 'org-A' } }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));

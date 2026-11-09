@@ -10,15 +10,21 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.can }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    projectOverview: { read: h.read },
-    revenue: { getProjectFinances: h.finances, getOrgReadsErpLedger: h.ledger },
-    milestone: { list: h.milestones },
-    procurement: { getProjectCommittedSpend: h.committed },
-    progressBilling: { listBoq: h.boq, summary: h.billing },
-    externalDomainOwnership: { listOwn: vi.fn().mockResolvedValue([]) },
-  },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  externalDomainOwnershipRepository: { listOwn: vi.fn().mockResolvedValue([]) },
+}));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: { getProjectCommittedSpend: h.committed },
+}));
+vi.mock('@/src/lib/repositories/projectOverview', () => ({
+  projectOverviewRepository: { read: h.read },
+}));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: { getProjectFinances: h.finances, getOrgReadsErpLedger: h.ledger },
+}));
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  milestoneRepository: { list: h.milestones },
+  progressBillingRepository: { listBoq: h.boq, summary: h.billing },
 }));
 import { LIST_STALE_TIME } from '@/src/lib/queryPolicies';
 import { useProjectOverviewRead } from './useProjectOverviewRead';

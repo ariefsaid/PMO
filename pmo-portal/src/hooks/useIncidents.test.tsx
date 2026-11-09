@@ -16,7 +16,9 @@ const { incident } = vi.hoisted(() => ({
     delete: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { incident } }));
+vi.mock('@/src/lib/repositories/incidents', () => ({
+  incidentRepository: incident,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));

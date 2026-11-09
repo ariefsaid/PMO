@@ -10,7 +10,8 @@ const { repo } = vi.hoisted(() => ({
     project: { list: vi.fn() },
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
+vi.mock('@/src/lib/repositories/companies', () => ({ companyRepository: repo.company }));
+vi.mock('@/src/lib/repositories/projects', () => ({ projectRepository: repo.project }));
 
 let orgId: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({

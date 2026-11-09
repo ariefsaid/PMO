@@ -27,7 +27,7 @@ vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => state.companies
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => state.contacts }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => state.incidents }));
 
-import { useRecordSearch } from '../useRecordSearch';
+import { useRecordSearch } from '../useRecordSearchData';
 
 const navigate = vi.fn();
 

@@ -12,7 +12,9 @@ const { procurement } = vi.hoisted(() => ({
     clearDocumentLink: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: procurement,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }),
 }));

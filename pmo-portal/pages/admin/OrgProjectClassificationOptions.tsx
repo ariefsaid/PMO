@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, FormGrid, ListState, TextArea, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { CLASSIFICATION_MAX_LENGTH, parseClassificationOptions } from '@/src/lib/projectClassification';
 import { useProjectClassificationOptions, PROJECT_CLASSIFICATION_OPTIONS_KEY } from '@/src/hooks/useProjectClassificationOptions';
@@ -17,7 +17,7 @@ export default function OrgProjectClassificationOptions() {
   const query = useProjectClassificationOptions();
   const [draft, setDraft] = useState<{ serviceLines: string; sectors: string }>();
   const mutation = useMutation({
-    mutationFn: (value: ProjectClassificationOptions) => repositories.orgSettings.setProjectClassificationOptions(value),
+    mutationFn: (value: ProjectClassificationOptions) => orgSettingsRepository.setProjectClassificationOptions(value),
     onSuccess: () => qc.invalidateQueries({ queryKey: [PROJECT_CLASSIFICATION_OPTIONS_KEY] }),
   });
   if (!query.data) return query.isError

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { create } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { contact: { create } } }));
+vi.mock('@/src/lib/repositories/companies', () => ({
+  contactRepository: { create },
+}));
 
 import { makeContactImportDescriptor } from '../contactDescriptor';
 

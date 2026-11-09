@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
 
 export function useProjectFinances(projectId: string, options?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
@@ -9,7 +9,7 @@ export function useProjectFinances(projectId: string, options?: { enabled?: bool
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['project-finances', orgId, projectId],
-    queryFn: () => repositories.revenue.getProjectFinances(projectId),
+    queryFn: () => revenueRepository.getProjectFinances(projectId),
     enabled: Boolean(orgId && projectId) && may('view', 'salesInvoice') && options?.enabled !== false,
   });
 }

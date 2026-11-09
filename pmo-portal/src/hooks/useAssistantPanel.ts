@@ -9,7 +9,8 @@ import type { AgentEvent, RunStatusPayload, QuestionPayload } from '../lib/agent
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import { useAgentContext } from '../lib/agent/context/useAgentContext';
 import { isFeatureEnabled } from '../lib/features';
-import { repositories, type AgentEventRow } from '../lib/repositories';
+import { agentRunRepository } from '@/src/lib/repositories/agentRuns';
+import type { AgentEventRow } from '@/src/lib/repositories/types';
 import {
   trackAgentRunStarted,
   trackAgentRunCompleted,
@@ -653,7 +654,7 @@ export function useAssistantPanel(): UseAssistantPanel {
   const openThread = useCallback(
     async (targetRunId: string, threadId?: string) => {
       if (!runtime) return;
-      const rows: AgentEventRow[] = await repositories.agentRun.listEvents(targetRunId);
+      const rows: AgentEventRow[] = await agentRunRepository.listEvents(targetRunId);
       const history = buildThreadHistory(rows);
       const { transcript: nextTranscript, priorMessages } = history;
 

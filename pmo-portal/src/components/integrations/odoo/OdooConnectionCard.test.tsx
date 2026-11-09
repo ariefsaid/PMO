@@ -14,8 +14,11 @@ const h = vi.hoisted(() => ({
   disconnectIntegration: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { odoo: { getConnection: h.getConnection, setup: h.setup }, integrations: { connectIntegration: h.connectIntegration, disconnectIntegration: h.disconnectIntegration } },
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: { connectIntegration: h.connectIntegration, disconnectIntegration: h.disconnectIntegration },
+}));
+vi.mock('@/src/lib/repositories/odoo', () => ({
+  odooRepository: { getConnection: h.getConnection, setup: h.setup },
 }));
 
 import { OdooConnectionCard } from './OdooConnectionCard';

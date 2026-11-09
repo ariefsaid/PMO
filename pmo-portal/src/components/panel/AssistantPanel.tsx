@@ -21,7 +21,7 @@ import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import { useAgentAttachments } from '@/src/hooks/useAgentAttachments';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
-import { repositories } from '@/src/lib/repositories';
+import { agentRunRepository } from '@/src/lib/repositories/agentRuns';
 import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
 import { Transcript } from './Transcript';
 import { Composer } from './Composer';
@@ -236,7 +236,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
       if (next) {
         setThreadsLoading(true);
         setThreadsError(false);
-        void repositories.agentRun.listThreads()
+        void agentRunRepository.listThreads()
           .then((rows) => setThreads(rows))
           .catch(() => setThreadsError(true))
           .finally(() => setThreadsLoading(false));
@@ -290,7 +290,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
       // Fire-and-forget, same as before #534: a denied/not-found rating is not worth a toast
       // over a thumbs-up/down click, but the rejection must be caught explicitly now that
       // rateEvent throws on a silent RLS no-op instead of resolving.
-      repositories.agentRun.rateEvent(eventId, rating, reason).catch(() => {});
+      agentRunRepository.rateEvent(eventId, rating, reason).catch(() => {});
     },
     [],
   );

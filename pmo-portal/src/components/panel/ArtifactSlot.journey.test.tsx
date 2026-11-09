@@ -12,11 +12,13 @@ import type { CompositionSpec } from '@/src/lib/viewspec/types';
 const store = vi.hoisted(() => ({ rows: [] as Record<string, unknown>[], create: vi.fn(), currentUser: { id: 'test-user', org_id: 'test-org' } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: store.currentUser }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { userView: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  userViewRepository: {
   list: () => Promise.resolve(store.rows),
   get: (id: string) => Promise.resolve(store.rows.find((row) => row.id === id) ?? null),
   create: store.create, update: vi.fn(), archive: vi.fn(), delete: vi.fn(),
-} } }));
+},
+}));
 vi.mock('@/src/lib/viewspec/executor', () => ({ executeCompiledQuery: vi.fn().mockResolvedValue([{ status: 'active', count: 5 }, { status: 'on_hold', count: 2 }]) }));
 vi.mock('@/src/lib/features', async (importOriginal) => ({ ...await importOriginal<typeof import('@/src/lib/features')>(), isFeatureEnabled: () => true }));
 vi.mock('@/src/lib/db/agentThreads', () => ({ listAgentThreads: vi.fn().mockResolvedValue([]) }));

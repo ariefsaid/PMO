@@ -30,7 +30,7 @@ import { useProject } from '@/src/hooks/useProjects';
 import { useProcurements, useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
-import { repositories } from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -377,7 +377,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   }, [setSearchParams]);
   const transition = useMutation({
     mutationFn: ({ id, to, notes }: { id: string; to: ProcurementStatus; notes?: string }) => (
-      notes === undefined ? repositories.procurement.transition(id, to) : repositories.procurement.transition(id, to, notes)
+      notes === undefined ? procurementRepository.transition(id, to) : procurementRepository.transition(id, to, notes)
     ),
     onSuccess: (_data, { to }) => {
       if (to === 'Approved') safeTrack(() => trackPurchaseApproved(realRole ?? 'unknown'));

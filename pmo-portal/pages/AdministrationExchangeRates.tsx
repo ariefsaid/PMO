@@ -17,7 +17,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
 import { missingFxRateDates } from '@/src/lib/import/fxRatePreview';
-import { repositories } from '@/src/lib/repositories';
+import { fxRatesRepository } from '@/src/lib/repositories/fxRates';
 import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
 import FxRateForm from '@/src/components/fx/FxRateForm';
 import FxRateUpload from '@/src/components/fx/FxRateUpload';
@@ -102,7 +102,7 @@ const AdministrationExchangeRates: React.FC = () => {
     setManualChecking(true);
     setManualError(null);
     try {
-      const existing = await repositories.fxRates.existing([input.rate_date]);
+      const existing = await fxRatesRepository.existing([input.rate_date]);
       const current = existing.find((rate) => rate.rate_date === input.rate_date);
       if (current && current.rate !== input.rate) {
         setPendingManual(input);

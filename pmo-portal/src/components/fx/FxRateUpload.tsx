@@ -9,7 +9,7 @@ import {
   type SubmitError,
 } from '@/src/components/ui';
 import type { FxRateInput } from '@/src/lib/repositories/types';
-import { repositories } from '@/src/lib/repositories';
+import { fxRatesRepository } from '@/src/lib/repositories/fxRates';
 import { useFxRateMutations } from '@/src/hooks/useFxRates';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { buildFxPreview, type FxPreview } from '@/src/lib/import/fxRatePreview';
@@ -108,7 +108,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
     setState('parsing');
     setError(null);
     try {
-      const existing = await repositories.fxRates.existing(data.rows.map((row) => row.rate_date));
+      const existing = await fxRatesRepository.existing(data.rows.map((row) => row.rate_date));
       if (generation.current !== request) return;
       setPreview(buildFxPreview(data, existing));
       setState('preview');

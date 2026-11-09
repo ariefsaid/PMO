@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({ save: vi.fn(), may: true, failed: false }));
 vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ PROJECT_CLASSIFICATION_OPTIONS_KEY: 'project-classification-options', useProjectClassificationOptions: () => ({ data: h.failed ? undefined : { serviceLines: ['Engineering'], sectors: ['Energy'] }, isError: h.failed, refetch: vi.fn() }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { setProjectClassificationOptions: h.save } } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { setProjectClassificationOptions: h.save },
+}));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.may }));
 import OrgProjectClassificationOptions from './OrgProjectClassificationOptions';
 const setup = () => render(<QueryClientProvider client={new QueryClient()}><ToastProvider><OrgProjectClassificationOptions /></ToastProvider></QueryClientProvider>);

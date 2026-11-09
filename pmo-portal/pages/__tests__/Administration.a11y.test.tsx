@@ -120,18 +120,16 @@ vi.mock('@/src/hooks/useOrgFeatures', async (importOriginal) => ({
     },
   }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    credits: { getOrgBalance: vi.fn().mockResolvedValue(1250), grant: vi.fn().mockResolvedValue(undefined) },
-    // The Operator console's org picker (S3).
-    usage: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  creditsRepository: { getOrgBalance: vi.fn().mockResolvedValue(1250), grant: vi.fn().mockResolvedValue(undefined) },
+  usageRepository: {
       listOperatorOrgs: vi.fn().mockResolvedValue([{ id: 'org-1', name: 'Acme' }]),
       getOrgUsageSummary: vi.fn().mockResolvedValue([]),
       getOperatorUsageSummary: vi.fn().mockResolvedValue([]),
       getOrgAgentRunStats: vi.fn().mockResolvedValue([]),
       getOperatorAgentRunStats: vi.fn().mockResolvedValue([]),
     },
-    orgFeature: {
+  orgFeatureRepository: {
       listOwn: vi.fn().mockResolvedValue({ display: {}, states: {} }),
       listForOrg: vi.fn().mockResolvedValue({
         display: { incidents: true, crm: false, procurement: true },
@@ -162,14 +160,15 @@ vi.mock('@/src/lib/repositories', () => ({
       setPlanFeature: vi.fn().mockResolvedValue(undefined),
       setPlanLimits: vi.fn().mockResolvedValue(undefined),
     },
-    orgSettings: { getTaxDefault: vi.fn().mockResolvedValue('exclusive') },
-    fxRates: {
+  orgSettingsRepository: { getTaxDefault: vi.fn().mockResolvedValue('exclusive') },
+}));
+vi.mock('@/src/lib/repositories/fxRates', () => ({
+  fxRatesRepository: {
       list: fxState.list,
       context: fxState.context,
       existing: fxState.existing,
       upsert: fxState.upsert,
     },
-  },
 }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   listBudgetCategoryAccountMap: vi.fn().mockResolvedValue([]),

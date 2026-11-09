@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { supabase } from '@/src/lib/supabase/client';
 import type {
   FxCommitCounts,
@@ -8,11 +7,22 @@ import type {
   FxRateRow,
 } from '@/src/lib/repositories/types';
 
-const commitCountsSchema: z.ZodType<FxCommitCounts> = z.strictObject({
-  new: z.number().int().nonnegative(),
-  changed: z.number().int().nonnegative(),
-  unchanged: z.number().int().nonnegative(),
-});
+/**
+ * #2096: validates the three-integer upsert reply without zod — this was the only non-assistant
+ * zod import, so dropping it keeps zod out of the first-load chunk entirely. Same contract the
+ * previous z.strictObject enforced: exactly `new`/`changed`/`unchanged`, each an integer >= 0.
+ */
+function assertCommitCounts(data: unknown): asserts data is FxCommitCounts {
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Unexpected upsert_fx_rates reply: expected an object.');
+  }
+  const counts = data as Record<string, unknown>;
+  const extra = Object.keys(counts).filter((k) => k !== 'new' && k !== 'changed' && k !== 'unchanged');
+  const isCount = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+  if (extra.length > 0 || !isCount(counts.new) || !isCount(counts.changed) || !isCount(counts.unchanged)) {
+    throw new Error('Unexpected upsert_fx_rates reply: expected { new, changed, unchanged } integer counts.');
+  }
+}
 
 export async function listFxRates(before?: string): Promise<FxRatePage> {
   let query = supabase
@@ -54,7 +64,8 @@ export async function upsertFxRates(rows: FxRateInput[]): Promise<FxCommitCounts
     p_rows: rows.map(({ rate_date, rate }) => ({ rate_date, rate })),
   });
   if (error) throw error;
-  return commitCountsSchema.parse(data);
+  assertCommitCounts(data);
+  return data;
 }
 
 export async function fxContext(): Promise<{ currency: string; timezone: string }> {

@@ -15,7 +15,12 @@ const { company, project } = vi.hoisted(() => ({
     delete: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { company, project } }));
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: company,
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: project,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));

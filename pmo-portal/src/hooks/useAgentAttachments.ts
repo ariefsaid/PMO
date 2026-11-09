@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { repositories } from '@/src/lib/repositories';
+import { agentAttachmentRepository } from '@/src/lib/repositories/documents';
 import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTransport';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
 import { AGENT_ATTACHMENT_MAX_MB, getAgentAttachmentContentType } from '@/src/lib/agent/attachmentMime';
@@ -20,7 +20,7 @@ export function useAgentAttachments(threadId: string | null) {
     if (threadRef.current) return Promise.resolve(threadRef.current);
     if (!creatingRef.current) {
       const gen = generationRef.current;
-      const creating = repositories.agentAttachment
+      const creating = agentAttachmentRepository
         .createThread()
         .then((t) => {
           if (gen === generationRef.current) {
@@ -57,9 +57,9 @@ export function useAgentAttachments(threadId: string | null) {
         if (retired()) throw resetAbort();
 
         setError(null);
-        const prepared = await repositories.agentAttachment.prepareUpload(activeThreadId, file);
+        const prepared = await agentAttachmentRepository.prepareUpload(activeThreadId, file);
         if (retired()) {
-          repositories.agentAttachment.cleanupObject(prepared.path).catch(() => {});
+          agentAttachmentRepository.cleanupObject(prepared.path).catch(() => {});
           throw resetAbort();
         }
         setProgress((prev) => ({ ...prev, [prepared.attachmentId]: 0 }));
@@ -71,10 +71,10 @@ export function useAgentAttachments(threadId: string | null) {
             onProgress: (pct) =>
               setProgress((prev) => ({ ...prev, [prepared.attachmentId]: pct })),
           });
-          await repositories.agentAttachment.confirmUpload(prepared.attachmentId);
+          await agentAttachmentRepository.confirmUpload(prepared.attachmentId);
           clearProgress(prepared.attachmentId);
         } catch (uploadError) {
-          repositories.agentAttachment.cleanupObject(prepared.path).catch(() => {});
+          agentAttachmentRepository.cleanupObject(prepared.path).catch(() => {});
           clearProgress(prepared.attachmentId);
           const classified = classifyUploadError(uploadError, AGENT_ATTACHMENT_MAX_MB);
           if (classified.type !== 'cancel' && !retired()) setError(classified);

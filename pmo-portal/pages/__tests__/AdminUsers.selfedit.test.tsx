@@ -65,11 +65,9 @@ vi.mock('@/src/hooks/useUsage', () => ({
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: {} }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    credits: { getOrgBalance: vi.fn().mockResolvedValue(0), grant: vi.fn().mockResolvedValue(undefined) },
-    orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
-  },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  creditsRepository: { getOrgBalance: vi.fn().mockResolvedValue(0), grant: vi.fn().mockResolvedValue(undefined) },
+  orgFeatureRepository: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
 }));
 
 import AdminUsers from '../AdminUsers';

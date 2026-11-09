@@ -16,7 +16,9 @@ const { procurement } = vi.hoisted(() => ({
     createPayment: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: procurement,
+}));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }),

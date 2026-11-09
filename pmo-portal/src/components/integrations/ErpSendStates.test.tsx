@@ -8,7 +8,9 @@ const repo = vi.hoisted(() => ({
   retryConnectSend: vi.fn<(tier: string, id: string) => Promise<void>>(),
   listConnectProposals: vi.fn<(tier: string, kind: string | null, outcome: string | null) => Promise<{ proposals: ConnectProposal[]; nextAfterId: string | null }>>(),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: repo } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: repo,
+}));
 
 import { ErpSendStates } from './ErpSendStates';
 

@@ -5,7 +5,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, Combobox, FieldError, ListState, useToast } from '@/src/components/ui';
@@ -29,7 +29,7 @@ export default function OrgDownPaymentItem() {
   const [itemLoadError, setItemLoadError] = useState(false);
   const orgId = currentUser?.org_id;
   const queryKey = [ITEM_QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getDownPaymentItem(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
+  const query = useQuery({ queryKey, queryFn: () => orgSettingsRepository.getDownPaymentItem(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const canBrowse = Boolean(canManage && orgId && hasActiveBinding);
   const { draft, setDraft, dirty, remoteChanged, acceptSaved, reload } = useRemoteStringDraft({ remote: query.data, isSuccess: query.isSuccess });
@@ -47,7 +47,7 @@ export default function OrgDownPaymentItem() {
   }, [loadErpItems]);
 
   const mutation = useMutation({
-    mutationFn: (value: string | null) => repositories.orgSettings.setDownPaymentItem(value),
+    mutationFn: (value: string | null) => orgSettingsRepository.setDownPaymentItem(value),
     onSuccess: (_result, value) => {
       acceptSaved(value);
       void qc.invalidateQueries({ queryKey });

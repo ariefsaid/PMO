@@ -56,17 +56,14 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 // Only the repository seam is stubbed: the real hooks run, so the narrow read and its absent
 // alternatives are what is under test.
-vi.mock('@/src/lib/repositories', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return {
-    ...actual,
-    repositories: {
-      ...actual.repositories,
-      reports: { ...actual.repositories.reports, figures: h.figures, managementPack: h.managementPack },
-      financialStatements: { ...actual.repositories.financialStatements, get: h.statementGet, catalogue: h.statementCatalogue },
-    },
-  };
-});
+vi.mock('@/src/lib/repositories/financialStatements', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  financialStatementsRepository: { ...(await importOriginal()).financialStatementsRepository, get: h.statementGet, catalogue: h.statementCatalogue },
+}));
+vi.mock('@/src/lib/repositories/reporting', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  reportsRepository: { ...(await importOriginal()).reportsRepository, figures: h.figures, managementPack: h.managementPack },
+}));
 
 import { buildManagementPack } from '@/src/lib/reports/managementPack';
 import type { ManagementPackFacts } from '@/src/lib/db/managementPack';

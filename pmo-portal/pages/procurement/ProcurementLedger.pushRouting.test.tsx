@@ -42,7 +42,9 @@ vi.mock('@/src/lib/db/procurementFiles', () => ({
 const { procurement } = vi.hoisted(() => ({
   procurement: { createPurchaseRequest: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: procurement,
+}));
 
 import { ProcurementLedger } from './ProcurementLedger';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';

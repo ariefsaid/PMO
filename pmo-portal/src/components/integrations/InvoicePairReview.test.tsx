@@ -12,7 +12,12 @@ const h = vi.hoisted(() => ({
   listAcceptedInvoicePairs: vi.fn(),
   listOwn: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: h, externalDomainOwnership: { listOwn: h.listOwn } } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  externalDomainOwnershipRepository: { listOwn: h.listOwn },
+}));
+vi.mock('@/src/lib/repositories/revenue', () => ({
+  revenueRepository: h,
+}));
 
 import { InvoicePairReview } from './InvoicePairReview';
 

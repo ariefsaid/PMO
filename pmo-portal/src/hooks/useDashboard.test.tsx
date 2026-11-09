@@ -41,19 +41,20 @@ vi.mock('@/src/auth/useAuth', () => ({
 // useLostDeals reads the projects repository directly (not the dashboard RPC) and hand-maps the
 // row into the PipelineProject shape — a mapping no other test exercises, because every page-level
 // test mocks this whole module and supplies the mapped result ready-made.
-vi.mock('@/src/lib/repositories', async () => {
+vi.mock('@/src/lib/repositories/dashboard', async () => {
   const dash = await import('@/src/lib/db/dashboard');
   return {
-  repositories: {
-    // The dashboard repository delegates to the mocked DAL above, so the assertions stay on the DAL calls.
-    dashboard: {
+    dashboardRepository: {
       executive: () => dash.getExecutiveDashboard(),
       pmProjects: () => dash.getPMDashboardProjects(),
       winRate: (from?: Date, to?: Date) => dash.getWinRate(from, to),
       lossBreakdown: (from?: Date, to?: Date) => dash.getLossBreakdown(from, to),
       salesPipeline: () => dash.getSalesPipeline(),
     },
-    project: {
+  };
+});
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: {
       list: vi.fn().mockResolvedValue([
         {
           id: 'lost-1', name: 'Lost Deal Delta', short_name: 'Delta Recovery', status: 'Loss Tender',
@@ -69,13 +70,11 @@ vi.mock('@/src/lib/repositories', async () => {
         },
       ]),
     },
-  },
-};
-});
+}));
 
 import { useDashboard, useWinRate, useLossBreakdown, useSalesPipeline, useLostDeals, useWonDeals, usePMDashboardProjects } from './useDashboard';
 import { getExecutiveDashboard, getWinRate, getLossBreakdown, getSalesPipeline, getPMDashboardProjects } from '@/src/lib/db/dashboard';
-import { repositories } from '@/src/lib/repositories';
+import { projectRepository } from '@/src/lib/repositories/projects';
 
 // Fresh QueryClient per test to avoid cross-test cache bleed.
 const makeWrapper = () => {
@@ -208,7 +207,7 @@ describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
   it('AC-DEC-001: useLostDeals asks for Loss Tender AND Declined in one query and returns both, newest first', async () => {
     const { result } = renderHook(() => useLostDeals(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(vi.mocked(repositories.project.list)).toHaveBeenCalledWith({ statuses: ['Loss Tender', 'Declined'] });
+    expect(vi.mocked(projectRepository.list)).toHaveBeenCalledWith({ statuses: ['Loss Tender', 'Declined'] });
     expect(result.current.data?.map((d) => [d.id, d.status])).toEqual([
       ['declined-1', 'Declined'],
       ['lost-1', 'Loss Tender'],
@@ -229,7 +228,7 @@ describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
 
 describe('useWonDeals (#1441)', () => {
   it('AC-1441: reads all on-hand statuses through the RLS project repository and maps actionable rows', async () => {
-    vi.mocked(repositories.project.list).mockResolvedValueOnce([{
+    vi.mocked(projectRepository.list).mockResolvedValueOnce([{
       id: 'won-1', name: 'Won Deal Zeta', short_name: 'Zeta Fit-Out', status: 'Close Out',
       pmo_project_number: 'PMO-2601', code: 'ZETA', contract_value: 900000, currency: 'USD',
       tax_treatment: 'exclusive', tax_rate: 0, tax_base_numerator: null, tax_base_denominator: null,
@@ -242,7 +241,7 @@ describe('useWonDeals (#1441)', () => {
     const { result } = renderHook(() => useWonDeals(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(repositories.project.list).toHaveBeenCalledWith({
+    expect(projectRepository.list).toHaveBeenCalledWith({
       statuses: ['Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out'],
     });
     expect(result.current.data?.[0]).toMatchObject({

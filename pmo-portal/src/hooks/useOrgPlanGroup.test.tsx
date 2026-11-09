@@ -14,8 +14,8 @@ vi.mock('@/src/lib/analytics/client', () => ({ analyticsClient: analytics }));
 
 const currentPlan = vi.hoisted(() => vi.fn());
 const getOrgPlan = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { orgFeature: { currentPlan, getOrgPlan } },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: { currentPlan, getOrgPlan },
 }));
 
 const authState = vi.hoisted(() => ({ currentUser: null as { id: string; org_id: string } | null }));

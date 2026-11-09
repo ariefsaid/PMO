@@ -34,10 +34,10 @@ vi.mock('@/src/lib/analytics', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/analytics')>()),
   trackPurchaseApproved: trackSpy,
 }));
-vi.mock('@/src/lib/repositories', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return { ...actual, repositories: { ...actual.repositories, procurement: { ...actual.repositories.procurement, transition: transitionSpy } } };
-});
+vi.mock('@/src/lib/repositories/procurement', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  procurementRepository: { ...(await importOriginal()).procurementRepository, transition: transitionSpy },
+}));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isError: false, refetch: vi.fn() }),

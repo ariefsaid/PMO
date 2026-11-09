@@ -9,7 +9,9 @@ import { ToastProvider } from '@/src/components/ui';
 import stockEn from '@/public/locales/en/stock.json';
 
 const { master, reports, consumption } = vi.hoisted(() => ({ master: { listKeepers: vi.fn(), listItems: vi.fn(), listWarehouses: vi.fn() }, reports: { ledgerPage: vi.fn() }, consumption: { report: vi.fn() } }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports, consumption } } }));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { master, reports, consumption },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 let role: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: role, effectiveRole: role }) }));

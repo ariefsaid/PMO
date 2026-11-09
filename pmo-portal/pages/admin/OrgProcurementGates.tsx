@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { FieldError, ListState, Switch } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
@@ -45,9 +45,9 @@ export default function OrgProcurementGates() {
   const canManage = usePermission()('manage', 'orgAccounting');
   const qc = useQueryClient();
   const queryKey = [PROCUREMENT_GATES_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getProcurementGates(), enabled: Boolean(orgId), ...SESSION_QUERY_OPTIONS });
+  const query = useQuery({ queryKey, queryFn: () => orgSettingsRepository.getProcurementGates(), enabled: Boolean(orgId), ...SESSION_QUERY_OPTIONS });
   const mutation = useMutation({
-    mutationFn: (patch: Partial<ProcurementGates>) => repositories.orgSettings.setProcurementGates(patch),
+    mutationFn: (patch: Partial<ProcurementGates>) => orgSettingsRepository.setProcurementGates(patch),
     onSuccess: (gates) => qc.setQueryData(queryKey, gates),
   });
   const saveError = mutation.isError ? classifyMutationError(mutation.error) : null;

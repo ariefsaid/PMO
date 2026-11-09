@@ -6,8 +6,8 @@ const harness = vi.hoisted(() => ({ org: 'org-a', context: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: harness.org ? { org_id: harness.org } : null }),
 }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { fxRates: { context: harness.context } },
+vi.mock('@/src/lib/repositories/fxRates', () => ({
+  fxRatesRepository: { context: harness.context },
 }));
 import { useFxOrgDay } from './useFxOrgDay';
 

@@ -21,8 +21,8 @@ vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { timesheet: { pushApproved: pushApprovedSpy } },
+vi.mock('@/src/lib/repositories/timesheets', () => ({
+  timesheetRepository: { pushApproved: pushApprovedSpy },
 }));
 
 import { reopenTimesheet } from './timesheetTransition';

@@ -39,7 +39,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidents: () => ({ data: [], isPending: false, isError: false }),
 }));
 
-import { useRecordSearch } from '../useRecordSearch';
+import { useRecordSearch } from '../useRecordSearchData';
 
 const navigate = vi.fn();
 

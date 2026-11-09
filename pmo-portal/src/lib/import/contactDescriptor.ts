@@ -1,4 +1,4 @@
-import { repositories } from '@/src/lib/repositories';
+import { contactRepository } from '@/src/lib/repositories/companies';
 import type { ContactInput } from '@/src/lib/db/contacts';
 import type { ImportDescriptor } from './types';
 import { makeRefLookup, refValidate, refId } from './refLookup';
@@ -6,7 +6,7 @@ import { makeRefLookup, refValidate, refId } from './refLookup';
 /**
  * Contacts import descriptor (ADR-0027 fast-follow). Factory: closes over the org's companies
  * so the required "Company" cell resolves name→`company_id`. `toInput` emits ONLY the contact
- * columns (never `org_id`); `create` delegates to the EXISTING `repositories.contact.create` →
+ * columns (never `org_id`); `create` delegates to the EXISTING `contactRepository.create` →
  * `createContact`, so RLS `contacts_write` stamps org_id + gates the role (sole write authority).
  */
 export function makeContactImportDescriptor(
@@ -36,6 +36,6 @@ export function makeContactImportDescriptor(
       phone: cells.phone?.trim() || null,
       notes: cells.notes?.trim() || null,
     }),
-    create: (input) => repositories.contact.create(input),
+    create: (input) => contactRepository.create(input),
   };
 }

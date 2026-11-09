@@ -29,11 +29,11 @@ const { taskRepo, taskState } = vi.hoisted(() => ({
   taskState: { current: [] as Array<Record<string, unknown>> },
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    task: taskRepo,
-    profile: { listOrgProfiles: vi.fn(async () => []) },
-  },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  profileRepository: { listOrgProfiles: vi.fn(async () => []) },
+}));
+vi.mock('@/src/lib/repositories/tasks', () => ({
+  taskRepository: taskRepo,
 }));
 
 let realRole: Role = 'Project Manager';

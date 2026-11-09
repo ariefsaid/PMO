@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { orgFeatureRepository, usageRepository } from '@/src/lib/repositories/admin';
 import { useAuth } from '@/src/auth/useAuth';
 import type { PlanCatalogue, PlanRow } from '@/src/lib/db/orgFeatures';
 import type { ResolvedFeatureSet } from '@/src/lib/features';
@@ -35,7 +35,7 @@ export function useOwnPlan() {
   return useQuery<PlanRow | null>({
     // Scoped by org: a same-user profile refresh can move the caller to another org (see AuthProvider).
     queryKey: ownPlanQueryKey(orgId),
-    queryFn: () => repositories.orgFeature.getOwnPlan(),
+    queryFn: () => orgFeatureRepository.getOwnPlan(),
     ...SERVER_SESSION_QUERY_OPTIONS,
   });
 }
@@ -43,7 +43,7 @@ export function useOwnPlan() {
 export function usePlanCatalogue() {
   return useQuery<PlanCatalogue>({
     queryKey: PLAN_CATALOGUE_QUERY_KEY,
-    queryFn: () => repositories.orgFeature.getPlanCatalogue(),
+    queryFn: () => orgFeatureRepository.getPlanCatalogue(),
     ...SERVER_SESSION_QUERY_OPTIONS,
   });
 }
@@ -51,7 +51,7 @@ export function usePlanCatalogue() {
 export function useOrgPlan(orgId: string | null | undefined) {
   return useQuery<string | null>({
     queryKey: orgPlanQueryKey(orgId ?? 'none'),
-    queryFn: () => repositories.orgFeature.getOrgPlan(orgId as string),
+    queryFn: () => orgFeatureRepository.getOrgPlan(orgId as string),
     enabled: Boolean(orgId),
     ...SERVER_SESSION_QUERY_OPTIONS,
   });
@@ -60,14 +60,14 @@ export function useOrgPlan(orgId: string | null | undefined) {
 export function useOperatorOrgs() {
   return useQuery<OperatorOrgRow[]>({
     queryKey: OPERATOR_ORGS_QUERY_KEY,
-    queryFn: () => repositories.usage.listOperatorOrgs(),
+    queryFn: () => usageRepository.listOperatorOrgs(),
   });
 }
 
 export function useOperatorResolvedFeatures(orgId: string | null | undefined) {
   return useQuery<ResolvedFeatureSet>({
     queryKey: operatorFeatureQueryKey(orgId ?? 'none'),
-    queryFn: () => repositories.orgFeature.listForOrg(orgId as string),
+    queryFn: () => orgFeatureRepository.listForOrg(orgId as string),
     enabled: Boolean(orgId),
     ...SERVER_SESSION_QUERY_OPTIONS,
   });
@@ -81,7 +81,7 @@ export function useOperatorResolvedFeatures(orgId: string | null | undefined) {
 export function useOperatorOrgOverrides(orgId: string | null | undefined) {
   return useQuery<OrgFeatureKey[]>({
     queryKey: orgOverridesQueryKey(orgId ?? 'none'),
-    queryFn: () => repositories.orgFeature.listOverrides(orgId as string),
+    queryFn: () => orgFeatureRepository.listOverrides(orgId as string),
     enabled: Boolean(orgId),
     ...SERVER_SESSION_QUERY_OPTIONS,
   });

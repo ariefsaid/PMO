@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { incidentRepository } from '@/src/lib/repositories/incidents';
 import type { IncidentRow, IncidentStatus, IncidentInput } from '@/src/lib/db/incidents';
 import { useAuth } from '@/src/auth/useAuth';
 import { withTimeout } from '@/src/lib/withTimeout';
@@ -14,7 +14,7 @@ export function useIncidents(status?: IncidentStatus, opts?: { enabled?: boolean
   const orgId = currentUser?.org_id;
   return useQuery<IncidentRow[]>({
     queryKey: ['incidents', orgId, status ?? 'all'],
-    queryFn: () => repositories.incident.list(status ? { status } : undefined),
+    queryFn: () => incidentRepository.list(status ? { status } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -31,13 +31,13 @@ export function useIncidentsPage(args: { page: number; pageSize: number; status?
   const filtered = Boolean(args.status || args.search);
   const list = useQuery({
     queryKey: ['incidents', orgId, 'page', args.status ?? 'all', args.search ?? '', args.page, args.pageSize],
-    queryFn: () => repositories.incident.listPage(args),
+    queryFn: () => incidentRepository.listPage(args),
     enabled: Boolean(orgId),
     placeholderData: keepPreviousData,
   });
   const all = useQuery({
     queryKey: ['incidents', orgId, 'count'],
-    queryFn: () => repositories.incident.count(),
+    queryFn: () => incidentRepository.count(),
     enabled: Boolean(orgId) && filtered,
   });
   return { list, allTotal: filtered ? all.data : list.data?.total };
@@ -46,7 +46,7 @@ export function useIncidentsPage(args: { page: number; pageSize: number; status?
 /** Every incident matching the current status/search, read only when the user exports (the page holds one server page). */
 export function useIncidentsExportAll() {
   return useMutation({
-    mutationFn: (params?: { status?: IncidentStatus; search?: string }) => repositories.incident.list(params),
+    mutationFn: (params?: { status?: IncidentStatus; search?: string }) => incidentRepository.list(params),
   });
 }
 
@@ -62,7 +62,7 @@ export function useIncident(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<IncidentRow | null>({
     queryKey: ['incident', orgId, id],
-    queryFn: () => repositories.incident.get(id!),
+    queryFn: () => incidentRepository.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -98,7 +98,7 @@ export function useIncidentMutations() {
 
   const create = useMutation({
     mutationFn: (input: IncidentInput) =>
-      withTimeout(repositories.incident.create(input)),
+      withTimeout(incidentRepository.create(input)),
     // ⚑ onSettled, NOT onSuccess: on a TIMEOUT the outcome is UNKNOWN, not unchanged — the
     // server may have committed while the response was lost. Refetching the truth either way
     // keeps the surface self-correcting; it still never reports the write as succeeded.
@@ -107,19 +107,19 @@ export function useIncidentMutations() {
 
   const update = useMutation({
     mutationFn: ({ id, input }: UpdateIncidentArgs) =>
-      withTimeout(repositories.incident.update(id, input)),
+      withTimeout(incidentRepository.update(id, input)),
     onSettled: invalidate,
   });
 
   const transition = useMutation({
     mutationFn: ({ id, status }: TransitionIncidentArgs) =>
-      withTimeout(repositories.incident.transition(id, status)),
+      withTimeout(incidentRepository.transition(id, status)),
     onSettled: invalidate,
   });
 
   const remove = useMutation({
     mutationFn: (id: string) =>
-      withTimeout(repositories.incident.delete(id)),
+      withTimeout(incidentRepository.delete(id)),
     onSettled: invalidate,
   });
 

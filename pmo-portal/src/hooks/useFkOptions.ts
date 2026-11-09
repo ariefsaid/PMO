@@ -3,7 +3,8 @@ import { projectDisplayName, projectOptionSub } from '@/src/lib/projectDisplayNa
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { repositories } from '@/src/lib/repositories';
+import { companyRepository } from '@/src/lib/repositories/companies';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import { useAuth } from '@/src/auth/useAuth';
 import type { ComboboxOption } from '@/src/components/ui';
 
@@ -44,7 +45,7 @@ export function useVendorOptions() {
   return useQuery<ComboboxOption[], Error, ComboboxOption[]>({
     queryKey: ['fk-options', 'vendor', orgId],
     queryFn: async () => {
-      const rows = await repositories.company.list({ type: 'Vendor' });
+      const rows = await companyRepository.list({ type: 'Vendor' });
       return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
     select,
@@ -60,7 +61,7 @@ export function useProjectOptions() {
   return useQuery<ComboboxOption[]>({
     queryKey: ['fk-options', 'project', orgId],
     queryFn: async () => {
-      const rows = await repositories.project.list();
+      const rows = await projectRepository.list();
       return rows
         .filter((p) => p.archived_at == null)
         .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p) }));
@@ -97,7 +98,7 @@ export function useInvoiceProjectOptions() {
   return useQuery<InvoiceProjectOption[]>({
     queryKey: ['fk-options', 'invoice-project', orgId],
     queryFn: async () => {
-      const rows = await repositories.project.list();
+      const rows = await projectRepository.list();
       return rows.map((p) => ({
         value: p.id,
         label: projectDisplayName(p),
@@ -132,7 +133,7 @@ export function useClientCompanyOptions() {
   return useQuery<ComboboxOption[], Error, ComboboxOption[]>({
     queryKey: ['fk-options', 'client', orgId],
     queryFn: async () => {
-      const rows = await repositories.company.listClients();
+      const rows = await companyRepository.listClients();
       return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
     select,

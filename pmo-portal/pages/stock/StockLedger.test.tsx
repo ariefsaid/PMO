@@ -14,7 +14,9 @@ const { master, reports } = vi.hoisted(() => ({
   master: { listItems: vi.fn(), listWarehouses: vi.fn() },
   reports: { ledgerPage: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports } } }));
+vi.mock('@/src/lib/repositories/stock', () => ({
+  stockRepository: { master, reports },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));

@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { externalDomainOwnershipRepository } from '@/src/lib/repositories/admin';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import { queryClient } from '@/src/lib/queryClient';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
@@ -21,7 +22,7 @@ export function useErpItemOptions(purpose: 'sales' | 'purchase') {
   const ownership = useQuery(
     {
       queryKey: externalDomainOwnershipKey(orgId),
-      queryFn: () => repositories.externalDomainOwnership.listOwn(),
+      queryFn: () => externalDomainOwnershipRepository.listOwn(),
       enabled: Boolean(orgId),
     },
     queryClient,
@@ -34,7 +35,7 @@ export function useErpItemOptions(purpose: 'sales' | 'purchase') {
     if (!orgId) throw new Error('Sign in to select an ERP item');
     const items = await queryClient.fetchQuery({
       queryKey: ['integrations', 'items', orgId, purpose],
-      queryFn: () => repositories.integrations.listItems(purpose),
+      queryFn: () => integrationsRepository.listItems(purpose),
       staleTime: 30_000,
     });
     return items.map((item) => ({ value: item.code, label: item.code, sub: item.name }));

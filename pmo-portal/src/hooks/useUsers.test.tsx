@@ -15,7 +15,9 @@ const { profile } = vi.hoisted(() => ({
     listProjectManagers: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { profile } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  profileRepository: profile,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));

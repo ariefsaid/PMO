@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import type {
   ErpProjectOption,
   IntegrationBinding,
@@ -95,20 +96,20 @@ export function ProjectMatchReview({
     : ['integrations', 'project-match-binding', orgId] as const;
   const binding = useQuery({
     queryKey: bindingKey,
-    queryFn: () => repositories.integrations.getBinding(orgId!, 'erpnext'),
+    queryFn: () => integrationsRepository.getBinding(orgId!, 'erpnext'),
     enabled: Boolean(orgId),
     retry: false,
     ...(knownBinding !== undefined && { initialData: knownBinding, staleTime: Infinity }),
   });
   const setup = useQuery({
     queryKey: ['integrations', 'setup', orgId],
-    queryFn: () => repositories.integrations.getErpSetup(),
+    queryFn: () => integrationsRepository.getErpSetup(),
     enabled: Boolean(orgId && !projectId && queueProjects === undefined),
     retry: false,
   });
   const project = useQuery({
     queryKey: ['opportunity', orgId, projectId],
-    queryFn: () => repositories.project.get(projectId!),
+    queryFn: () => projectRepository.get(projectId!),
     enabled: Boolean(orgId && projectId),
     retry: false,
   });
@@ -116,7 +117,7 @@ export function ProjectMatchReview({
     Boolean(binding.data.config.company);
   const candidates = useQuery({
     queryKey: ['integrations', 'project-match-candidates', orgId, candidateSearch],
-    queryFn: () => repositories.integrations.listErpProjects(candidateSearch),
+    queryFn: () => integrationsRepository.listErpProjects(candidateSearch),
     // On a project page the list loads only once the review is opened (the ERP bench is small).
     enabled: Boolean(orgId && canManage && connected && (!projectId || reviewOpen)),
     retry: false,
@@ -221,7 +222,7 @@ export function ProjectMatchReview({
       const target = selectedTargets[row.id];
       if (!target) continue;
       try {
-        await repositories.integrations.linkErpProject(
+        await integrationsRepository.linkErpProject(
           row.id,
           target,
           projectTarget(currentMappings[row.id]),

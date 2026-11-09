@@ -14,7 +14,9 @@ const { userView } = vi.hoisted(() => ({
     delete: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { userView } }));
+vi.mock('@/src/lib/repositories/admin', () => ({
+  userViewRepository: userView,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));

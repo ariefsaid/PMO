@@ -19,10 +19,8 @@ const state = vi.hoisted(() => ({ features: {} as Record<string, boolean | undef
 
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: state.features }) }));
 vi.mock('@/src/lib/analytics/config', () => ({ getAnalyticsConfig: () => ({ demoMode: false }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgFeature: { listOwn: vi.fn(), toggle: vi.fn(), setFeedbackSurveys: (v: boolean) => state.setMock(v) },
-  },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: { listOwn: vi.fn(), toggle: vi.fn(), setFeedbackSurveys: (v: boolean) => state.setMock(v) },
 }));
 
 import { FeedbackSurveysSetting } from './FeedbackSurveysSetting';

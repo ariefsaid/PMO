@@ -16,8 +16,18 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 
 vi.mock('@/src/lib/db/projects', () => ({ listProjects: dal.listProjects }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: dal.listProcurements }));
 vi.mock('@/src/lib/db/dashboard', () => ({ getSalesPipeline: dal.getSalesPipeline }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { company: dal, contact: dal, incident: dal, meeting: dal, project: dal },
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: dal,
+  contactRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/incidents', () => ({
+  incidentRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/meetings', () => ({
+  meetingRepository: dal,
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: dal,
 }));
 
 import { useCachedRecordLists } from './useCachedRecordLists';

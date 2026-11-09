@@ -1,5 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { orgFeatureRepository } from '@/src/lib/repositories/admin';
 import { useAuth } from '@/src/auth/useAuth';
 import type { EntitleableKey, FeatureResolution, ResolvedFeatureSet } from '@/src/lib/features';
 import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
@@ -7,7 +7,7 @@ import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 /**
  * useOrgFeatures — the caller's own-org RESOLVED entitlement set (FR-PLN-005).
  *
- * ONE read: `repositories.orgFeature.listOwn()` → the `resolved_org_features()` projection. The
+ * ONE read: `orgFeatureRepository.listOwn()` → the `resolved_org_features()` projection. The
  * database owns the order (global → override → plan, core keys, and the revenue display rule of
  * FR-PLN-005a), so this hook no longer re-implements any of it: the old `useRevenueMode()` merge
  * (OD-NAR-2) is gone, because `display_enabled` already carries that answer.
@@ -104,7 +104,7 @@ export function useOrgFeatures(): OrgFeaturesState {
   const { currentUser } = useAuth();
   const query = useQuery<ResolvedFeatureSet>({
     queryKey: orgFeatureQueryKey(currentUser?.org_id),
-    queryFn: () => repositories.orgFeature.listOwn(),
+    queryFn: () => orgFeatureRepository.listOwn(),
     enabled: Boolean(currentUser),
     ...SERVER_SESSION_QUERY_OPTIONS,
   });

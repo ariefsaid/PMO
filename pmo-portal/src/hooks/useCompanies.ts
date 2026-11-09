@@ -2,7 +2,9 @@ import { procurementKeys } from './procurementQueryKeys';
 import { projectKeys, invalidateProjectProjections } from './projectQueryKeys';
 import { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { companyRepository } from '@/src/lib/repositories/companies';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import type { CompanyDirectoryPage, CompanyOptionRow, CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -26,7 +28,7 @@ export function useCompanies(type?: CompanyType, opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<CompanyRow[]>({
     queryKey: ['companies', orgId, type ?? 'all'],
-    queryFn: () => repositories.company.list(type ? { type } : undefined),
+    queryFn: () => companyRepository.list(type ? { type } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -52,7 +54,7 @@ export function useCompaniesPage(input: {
   return useQuery<CompanyDirectoryPage>({
     queryKey: ['companies', orgId, 'page', input.type, input.search, input.page, input.pageSize],
     queryFn: () =>
-      repositories.company.listPage({
+      companyRepository.listPage({
         page: input.page,
         pageSize: input.pageSize,
         type: input.type === 'All' ? undefined : input.type,
@@ -73,7 +75,7 @@ export function useCompaniesTotal(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<number>({
     queryKey: ['companies', orgId, 'total'],
-    queryFn: () => repositories.company.count(),
+    queryFn: () => companyRepository.count(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
     staleTime: 30_000,
   });
@@ -89,7 +91,7 @@ export function useCompanyOptions(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<CompanyOptionRow[]>({
     queryKey: ['companies', orgId, 'options'],
-    queryFn: () => repositories.company.listOptions(),
+    queryFn: () => companyRepository.listOptions(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -101,7 +103,7 @@ export function useCompanyOptions(opts?: { enabled?: boolean }) {
 export function useCompaniesExportAll() {
   return useMutation({
     mutationFn: (params?: { type?: CompanyType; search?: string }) =>
-      repositories.company.listAll(params),
+      companyRepository.listAll(params),
   });
 }
 
@@ -116,7 +118,7 @@ export function useCompany(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<CompanyRow | null>({
     queryKey: ['company', orgId, id],
-    queryFn: () => repositories.company.get(id!),
+    queryFn: () => companyRepository.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -131,7 +133,7 @@ export function useProjectsByClient(companyId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs[]>({
     queryKey: projectKeys.byClient(orgId, companyId),
-    queryFn: () => repositories.project.listByClient(companyId!),
+    queryFn: () => projectRepository.listByClient(companyId!),
     enabled: Boolean(orgId && companyId),
   });
 }
@@ -146,7 +148,7 @@ export function useProcurementsByVendor(companyId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ProcurementWithRefs[]>({
     queryKey: procurementKeys.byVendor(orgId, companyId),
-    queryFn: () => repositories.procurement.listByVendor(companyId!),
+    queryFn: () => procurementRepository.listByVendor(companyId!),
     enabled: Boolean(orgId && companyId),
   });
 }
@@ -187,7 +189,7 @@ export function useCompanyMutations() {
     routeDomainWrite('companies') === 'external' && type !== 'Internal';
 
   const create = useMutation({
-    mutationFn: (input: CompanyInput) => repositories.company.create(input),
+    mutationFn: (input: CompanyInput) => companyRepository.create(input),
     onMutate: (input: CompanyInput) => {
       if (isExternal(input.type)) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -201,7 +203,7 @@ export function useCompanyMutations() {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, input }: UpdateCompanyArgs) => repositories.company.update(id, input),
+    mutationFn: ({ id, input }: UpdateCompanyArgs) => companyRepository.update(id, input),
     onMutate: ({ input }: UpdateCompanyArgs) => {
       if (input.short_name === undefined && isExternal(input.type)) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -215,18 +217,18 @@ export function useCompanyMutations() {
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => repositories.company.archive(id),
+    mutationFn: (id: string) => companyRepository.archive(id),
     onSuccess: invalidate,
   });
 
   const setProjectNumberSegment = useMutation({
     mutationFn: ({ id, segment }: { id: string; segment: string | null }) =>
-      repositories.company.setProjectNumberSegment(id, segment),
+      companyRepository.setProjectNumberSegment(id, segment),
     onSuccess: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.company.delete(id),
+    mutationFn: (id: string) => companyRepository.delete(id),
     onSuccess: invalidate,
   });
 

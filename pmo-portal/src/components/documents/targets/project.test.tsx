@@ -11,7 +11,9 @@ const previewMicrosoftDocument = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/m365/previewClient', () => ({ previewMicrosoftDocument }));
 vi.mock('@/src/lib/m365/graphClient', () => ({ getItem: vi.fn(), listChildren: vi.fn(), listVersions: vi.fn() }));
 const writes = vi.hoisted(() => ({ transition: vi.fn(), update: vi.fn(), confirm: vi.fn(), setDrift: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { document: writes } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: writes,
+}));
 
 const SP = 'https://tenant.sharepoint.com/sites/x/Plan.docx';
 const reference: MicrosoftReference = { drive_id: 'd', item_id: 'i', web_url: SP, name: 'Plan.docx', item_kind: 'file', linked_by: 'u', linked_at: '2026-10-01T00:00:00Z', last_verified_at: null };

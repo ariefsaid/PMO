@@ -20,7 +20,9 @@ vi.mock('@/src/hooks/useOdooPurchase', () => ({
   useResolveHeldPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/lib/format', async (orig) => ({ ...(await orig<typeof import('@/src/lib/format')>()), formatRelativeTime: (iso: string | null) => (iso ? '4 minutes ago' : '—') }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: {} } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: {},
+}));
 
 import { ProcurementLedger } from './ProcurementLedger';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';

@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { vendorWithholdingSlipsRepository } from '@/src/lib/repositories/vendorWithholdingSlips';
 import type { BillCursor } from '@/src/lib/db/vendorWithholdingSlips';
 import type { BillContextLabels, BillRow } from '@/src/lib/db/vendorWithholdingSlips';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
@@ -21,7 +21,7 @@ export function useVendorWithholdingCoverage(invoiceIds: string[]) {
   const ids = [...new Set(invoiceIds)].sort();
   return useQuery({
     queryKey: vendorWithholdingSlipKeys.coverage(orgId, ids),
-    queryFn: () => repositories.vendorWithholdingSlips.coverage(ids),
+    queryFn: () => vendorWithholdingSlipsRepository.coverage(ids),
     enabled: Boolean(orgId && ids.length),
   });
 }
@@ -31,7 +31,7 @@ export function useVendorWithholdingSlip(slipId?: string) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: vendorWithholdingSlipKeys.detail(orgId, slipId),
-    queryFn: () => repositories.vendorWithholdingSlips.get(slipId!),
+    queryFn: () => vendorWithholdingSlipsRepository.get(slipId!),
     enabled: Boolean(orgId && slipId),
   });
 }
@@ -51,7 +51,7 @@ export function useVendorWithholdingBillContexts(pages: readonly (readonly Vendo
       const projectIds = [...new Set(page.map((bill) => bill.project_id).filter((id): id is string => Boolean(id)))].sort();
       return {
         queryKey: [...prefix(orgId), 'bill-context', procurementIds, projectIds] as const,
-        queryFn: () => repositories.vendorWithholdingSlips.readBillContexts({ procurementIds, projectIds }),
+        queryFn: () => vendorWithholdingSlipsRepository.readBillContexts({ procurementIds, projectIds }),
         enabled: Boolean(orgId && (procurementIds.length || projectIds.length)),
         staleTime: 5 * 60_000,
       };
@@ -82,7 +82,7 @@ export function useVendorWithholdingCandidates(params: { vendorId: string; pphTy
   return useInfiniteQuery({
     queryKey: vendorWithholdingSlipKeys.candidates(orgId, params),
     initialPageParam: undefined as BillCursor | undefined,
-    queryFn: ({ pageParam }) => repositories.vendorWithholdingSlips.listBills({
+    queryFn: ({ pageParam }) => vendorWithholdingSlipsRepository.listBills({
       vendorId: params.vendorId, pphType: params.pphType, currency: params.currency,
       candidatesOnly: true, cursor: pageParam, limit: 50,
     }),
@@ -97,7 +97,7 @@ export function useVendorWithholdingRegister(params: { vendorId?: string; taxPer
   return useInfiniteQuery({
     queryKey: vendorWithholdingSlipKeys.register(orgId, params),
     initialPageParam: undefined as { period: string; id: string } | undefined,
-    queryFn: ({ pageParam }) => repositories.vendorWithholdingSlips.listSlips({ ...params, cursor: pageParam, limit: 50 }),
+    queryFn: ({ pageParam }) => vendorWithholdingSlipsRepository.listSlips({ ...params, cursor: pageParam, limit: 50 }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: Boolean(orgId && params.enabled !== false),
   });
@@ -114,9 +114,9 @@ export function useVendorWithholdingSlipMutations() {
       client.invalidateQueries({ queryKey: ['record-history', orgId] }),
     ]);
   };
-  const record = useMutation({ mutationFn: (input: RecordSlipInput) => repositories.vendorWithholdingSlips.record(input), onSettled: invalidate });
-  const correct = useMutation({ mutationFn: (input: CorrectSlipInput) => repositories.vendorWithholdingSlips.correct(input), onSettled: invalidate });
-  const voidSlip = useMutation({ mutationFn: (input: VoidSlipInput) => repositories.vendorWithholdingSlips.void(input), onSettled: invalidate });
+  const record = useMutation({ mutationFn: (input: RecordSlipInput) => vendorWithholdingSlipsRepository.record(input), onSettled: invalidate });
+  const correct = useMutation({ mutationFn: (input: CorrectSlipInput) => vendorWithholdingSlipsRepository.correct(input), onSettled: invalidate });
+  const voidSlip = useMutation({ mutationFn: (input: VoidSlipInput) => vendorWithholdingSlipsRepository.void(input), onSettled: invalidate });
   return { record, correct, void: voidSlip };
 }
 

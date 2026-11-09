@@ -5,7 +5,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { refreshBudgetQueries } from './useBudget';
 import { parsePasteAmount, type PasteBudgetCategory } from '@/src/lib/budget/pasteRows';
 import { Constants } from '@/src/lib/supabase/database.types';
-import { repositories } from '@/src/lib/repositories';
+import { budgetRepository } from '@/src/lib/repositories/budget';
 
 export type BudgetPasteRowInput = Readonly<{
   rowNumber: number;
@@ -269,7 +269,7 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
 
         attemptedRows += 1;
         try {
-          const saved = await repositories.budget.createLineItem(capture.targetId, {
+          const saved = await budgetRepository.createLineItem(capture.targetId, {
             category: row.category,
             description: row.description,
             budgeted_amount: row.budgetedAmount,

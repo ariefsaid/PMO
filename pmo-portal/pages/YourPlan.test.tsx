@@ -32,13 +32,11 @@ vi.mock('@/src/auth/useIsOperator', () => ({
   useIsOperator: () => permissionState.isOperator,
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    orgFeature: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgFeatureRepository: {
       getOwnPlan: () => api.getOwnPlan(),
       listOwn: () => api.listOwn(),
     },
-  },
 }));
 
 import YourPlan from './YourPlan';

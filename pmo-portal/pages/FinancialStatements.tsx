@@ -19,7 +19,8 @@ import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
 import { formatDateOnly } from '@/src/lib/format';
-import { repositories } from '@/src/lib/repositories';
+import { financialStatementsRepository } from '@/src/lib/repositories/financialStatements';
+import { projectRepository } from '@/src/lib/repositories/projects';
 
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
 type Statement = typeof STATEMENTS[number];
@@ -89,7 +90,7 @@ const FinancialStatements: React.FC = () => {
   );
   const projectNames = useQuery({
     queryKey: ['financial-statements', 'mapped-project-name', currentUser?.org_id, currentUser?.id, realRole, [...admittedProjectIds].sort()],
-    queryFn: () => repositories.project.getMany(admittedProjectIds),
+    queryFn: () => projectRepository.getMany(admittedProjectIds),
     enabled: Boolean(catalogueQuery.eligible && catalogue?.state === 'complete' && currentUser?.org_id && admittedProjectIds.length > 0),
   });
   const namedProjectOptions = useMemo(() => {
@@ -183,7 +184,7 @@ const FinancialStatements: React.FC = () => {
   ];
 
   const refreshNowMutation = useMutation({
-    mutationFn: () => repositories.financialStatements.refreshNow(),
+    mutationFn: () => financialStatementsRepository.refreshNow(),
     // #1930: once the refresh intent is accepted, the sweep republishes the statement; refetch
     // immediately, then poll on an interval until the new figures reach the screen (or the cap
     // closes the window) so no manual reload is needed. Coalesced/unavailable poll nothing.

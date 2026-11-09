@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { m365RecordFoldersRepository } from '@/src/lib/repositories/documents';
 import type { RecordFolderOutcome, RecordFolderTarget } from '@/src/lib/m365/recordFolders';
 import { recordFolderErrorCopy, recordFolderOutcomeCopy } from '@/src/lib/m365/recordFolderCopy';
 import { invalidateRecordFolderRegister, recordFolderKey, writeRecordFolderState, type RecordFolderState } from './recordFolderState';
@@ -30,7 +30,7 @@ export function useRecordFolder(target: RecordFolderTarget) {
 
   const mutation = useMutation<RecordFolderOutcome, unknown, void>({
     retry: false,
-    mutationFn: () => repositories.m365RecordFolders.ensure(target),
+    mutationFn: () => m365RecordFoldersRepository.ensure(target),
     onSuccess: (outcome) => {
       const copy = recordFolderOutcomeCopy(outcome);
       writeRecordFolderState(qc, key, { status: 'settled', copy });

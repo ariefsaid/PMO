@@ -2,7 +2,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: {} } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: {},
+}));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/hooks/useIntegrations', () => ({
   useIntegrations: vi.fn(),

@@ -7,7 +7,12 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 const h = vi.hoisted(() => ({ getConnection: vi.fn(), setup: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { odoo: h, integrations: {} } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: {},
+}));
+vi.mock('@/src/lib/repositories/odoo', () => ({
+  odooRepository: h,
+}));
 import { OdooConnectionCard } from './OdooConnectionCard';
 
 afterEach(cleanup);

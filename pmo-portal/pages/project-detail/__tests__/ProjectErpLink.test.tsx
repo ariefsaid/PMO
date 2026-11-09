@@ -30,8 +30,12 @@ const h = vi.hoisted(() => ({
   })),
 }));
 vi.mock(
-  '@/src/lib/repositories',
-  () => ({ repositories: { integrations: h, project: { get: h.getProject } } }),
+  '@/src/lib/repositories/integrations',
+  () => ({ integrationsRepository: h }),
+);
+vi.mock(
+  '@/src/lib/repositories/projects',
+  () => ({ projectRepository: { get: h.getProject } }),
 );
 vi.mock(
   '@/src/auth/useAuth',

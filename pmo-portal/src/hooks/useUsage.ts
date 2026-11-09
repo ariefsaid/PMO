@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { usageRepository } from '@/src/lib/repositories/admin';
 import { useAuth } from '@/src/auth/useAuth';
 import { useIsOperator } from '@/src/auth/useIsOperator';
 
@@ -17,7 +17,7 @@ export function useUsage(operatorOrgId?: string | null) {
   return useQuery({
     queryKey: ['usage', orgId, isOperator, operatorOrgId ?? null],
     queryFn: () =>
-      isOperator ? repositories.usage.getOperatorUsageSummary(operatorOrgId) : repositories.usage.getOrgUsageSummary(),
+      isOperator ? usageRepository.getOperatorUsageSummary(operatorOrgId) : usageRepository.getOrgUsageSummary(),
     // Operator-only (owner 2026-07-24): assistant cost/usage is a PLATFORM surface — an org-Admin
     // must not see it at all, not even their own org's rows. Gating the FETCH (not just the
     // markup) keeps the numbers out of the network tab entirely. NOTE: this is UX only —
@@ -41,8 +41,8 @@ export function useAgentRunStats(operatorOrgId?: string | null) {
     queryKey: ['agent-run-stats', orgId, isOperator, operatorOrgId ?? null],
     queryFn: () =>
       isOperator
-        ? repositories.usage.getOperatorAgentRunStats(operatorOrgId)
-        : repositories.usage.getOrgAgentRunStats(),
+        ? usageRepository.getOperatorAgentRunStats(operatorOrgId)
+        : usageRepository.getOrgAgentRunStats(),
     // Operator-only, same reasoning as useUsage above.
     enabled: Boolean(orgId) && isOperator,
   });

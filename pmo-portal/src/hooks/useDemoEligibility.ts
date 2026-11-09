@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { useAuth } from '@/src/auth/useAuth';
 import type { DemoEligibility } from '@/src/auth/impersonation';
 import { SERVER_SESSION_STALE_TIME } from '@/src/lib/queryPolicies';
@@ -32,7 +32,7 @@ export function useDemoEligibility(): DemoEligibility {
   }
   const { data, isPending, isError, isFetching } = useQuery({
     queryKey: ['org-lifecycle-state', orgId],
-    queryFn: () => repositories.orgSettings.getLifecycleState(),
+    queryFn: () => orgSettingsRepository.getLifecycleState(),
     enabled,
     // A GATE, not a display cache: AC-AUTH-015 requires the view-as control to re-verify on mount
     // and whenever the org/role context changes, so nothing is trusted while it re-reads. Still

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { externalDomainOwnershipRepository } from '@/src/lib/repositories/admin';
 import { useAuth } from '@/src/auth/useAuth';
 import { externalDomainOwnershipKey } from './approvalsQueryKeys';
 
@@ -11,7 +11,7 @@ export function useExternalDomainOwnership(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: externalDomainOwnershipKey(orgId),
-    queryFn: () => repositories.externalDomainOwnership.listOwn(),
+    queryFn: () => externalDomainOwnershipRepository.listOwn(),
     enabled: Boolean(orgId && enabled),
   });
 }

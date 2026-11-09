@@ -11,7 +11,9 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { FinancialStatementCatalogue, FinancialStatementPair, FinancialStatementRead } from '@/src/lib/financialStatements';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { NativeReportColumn } from '@/src/lib/adapterSeam/erpnext/statementReports';
-import { repositories } from '@/src/lib/repositories';
+import { companyRepository } from '@/src/lib/repositories/companies';
+import { financialStatementsRepository } from '@/src/lib/repositories/financialStatements';
+import { projectRepository } from '@/src/lib/repositories/projects';
 import FinancialStatements from '../FinancialStatements';
 
 const projectId = '11111111-1111-4111-8111-111111111111';
@@ -151,15 +153,15 @@ let projectGetSpy: ReturnType<typeof vi.spyOn>;
 let companyListSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  catalogueSpy = vi.spyOn(repositories.financialStatements, 'catalogue').mockResolvedValue(catalogue());
-  readSpy = vi.spyOn(repositories.financialStatements, 'get').mockImplementation(async (input) => read(input));
-  projectGetSpy = vi.spyOn(repositories.project, 'getMany').mockImplementation(async (ids) => ids.map((id) => ({
+  catalogueSpy = vi.spyOn(financialStatementsRepository, 'catalogue').mockResolvedValue(catalogue());
+  readSpy = vi.spyOn(financialStatementsRepository, 'get').mockImplementation(async (input) => read(input));
+  projectGetSpy = vi.spyOn(projectRepository, 'getMany').mockImplementation(async (ids) => ids.map((id) => ({
     id,
     name: id === projectId ? 'Named delivery project' : 'Other admitted project',
     short_name: id === projectId ? 'North Terminal' : null,
     code: id === projectId ? 'PRJ-42' : 'PRJ-84',
   } as never)));
-  companyListSpy = vi.spyOn(repositories.company, 'list').mockResolvedValue([]);
+  companyListSpy = vi.spyOn(companyRepository, 'list').mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -228,7 +230,7 @@ describe('Financial statements company scope (AC-007)', () => {
   // #1930: an accepted "Refresh now" must refetch the statement read so republished figures
   // replace the stale ones without a manual reload; non-accepted responses must not refetch.
   it('#1930: an accepted Refresh now refetches the statement read and renders the republished figure', async () => {
-    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+    vi.spyOn(financialStatementsRepository, 'refreshNow').mockResolvedValue('accepted');
     renderPage();
     expect(await screen.findByText('Current native row')).toBeInTheDocument();
     const callsBeforeRefresh = readSpy.mock.calls.length;
@@ -252,7 +254,7 @@ describe('Financial statements company scope (AC-007)', () => {
   });
 
   it('#1930: a coalesced Refresh now leaves the statement read untouched', async () => {
-    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('coalesced');
+    vi.spyOn(financialStatementsRepository, 'refreshNow').mockResolvedValue('coalesced');
     renderPage();
     expect(await screen.findByText('Current native row')).toBeInTheDocument();
     const callsBeforeRefresh = readSpy.mock.calls.length;
@@ -280,7 +282,7 @@ describe('Financial statements company scope (AC-007)', () => {
   it('#1930: an accepted Refresh now polls the read and stops once the republished figure renders', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+      vi.spyOn(financialStatementsRepository, 'refreshNow').mockResolvedValue('accepted');
       renderPage();
       expect(await screen.findByText('Current native row')).toBeInTheDocument();
       const callsAfterLoad = readSpy.mock.calls.length;
@@ -313,7 +315,7 @@ describe('Financial statements company scope (AC-007)', () => {
   it('#1930: statement polling after an accepted Refresh now stops at the cap even when nothing changed', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+      vi.spyOn(financialStatementsRepository, 'refreshNow').mockResolvedValue('accepted');
       renderPage();
       expect(await screen.findByText('Current native row')).toBeInTheDocument();
       const callsAfterLoad = readSpy.mock.calls.length;
@@ -337,7 +339,7 @@ describe('Financial statements company scope (AC-007)', () => {
   it('#1930: coalesced and unavailable Refresh now responses never poll the statement read', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      const refreshNowSpy = vi.spyOn(repositories.financialStatements, 'refreshNow');
+      const refreshNowSpy = vi.spyOn(financialStatementsRepository, 'refreshNow');
       refreshNowSpy.mockResolvedValue('coalesced');
       renderPage();
       expect(await screen.findByText('Current native row')).toBeInTheDocument();

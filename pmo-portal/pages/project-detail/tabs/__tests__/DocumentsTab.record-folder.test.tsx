@@ -34,7 +34,10 @@ vi.mock('@/src/hooks/useFileUpload', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useRevision', () => ({ useRevision: () => ({ createRevision: { mutate: vi.fn(), isPending: false } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { document: {}, m365RecordFolders: { ensure: (...a: unknown[]) => ensure(...a) } } }));
+vi.mock('@/src/lib/repositories/documents', () => ({
+  documentRepository: {},
+  m365RecordFoldersRepository: { ensure: (...a: unknown[]) => ensure(...a) },
+}));
 const m365Feature = vi.hoisted(() => ({ on: true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));

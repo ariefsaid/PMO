@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
-import { repositories, type ProcurementWithRefs, type ProjectCommittedSpend } from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
+import { revenueRepository } from '@/src/lib/repositories/revenue';
+import type { ProcurementWithRefs, ProjectCommittedSpend } from '@/src/lib/repositories/types';
 import { procurementsKey, requestedProcurementsKey } from './approvalsQueryKeys';
 
 export { procurementsKey } from './approvalsQueryKeys';
@@ -24,7 +26,7 @@ export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?:
   const requested = opts?.status === 'Requested';
   return useQuery<ProcurementWithRefs[]>({
     queryKey: requested ? requestedProcurementsKey(orgId) : procurementsKey(orgId, withRefs, withSharedDetails, lean, withoutRoutes),
-    queryFn: () => repositories.procurement.list(requested ? { status: 'Requested' } : lean ? (withoutRoutes ? { lean: true, withoutRoutes: true } : { lean: true }) : withSharedDetails
+    queryFn: () => procurementRepository.list(requested ? { status: 'Requested' } : lean ? (withoutRoutes ? { lean: true, withoutRoutes: true } : { lean: true }) : withSharedDetails
       ? { withRefs: true, withSharedDetails: true }
       : withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
@@ -40,7 +42,7 @@ export function useProjectProcurements(projectId: string | null | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ProcurementWithRefs[]>({
     queryKey: ['procurements', orgId, 'by-project', projectId],
-    queryFn: () => repositories.procurement.listByProject(projectId as string),
+    queryFn: () => procurementRepository.listByProject(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
 }
@@ -58,13 +60,13 @@ export function useProjectCommittedSpend(projectId: string | null | undefined, i
   const orgId = currentUser?.org_id;
   const query = useQuery<ProjectCommittedSpend>({
     queryKey: ['project-committed-spend', orgId, projectId],
-    queryFn: () => repositories.procurement.getProjectCommittedSpend(projectId as string),
+    queryFn: () => procurementRepository.getProjectCommittedSpend(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
   const ownership = useExternalDomainOwnership(includeOwnership);
   const ledger = useQuery<boolean>({
     queryKey: ['org-reads-erp-ledger', orgId],
-    queryFn: () => repositories.revenue.getOrgReadsErpLedger(),
+    queryFn: () => revenueRepository.getOrgReadsErpLedger(),
     enabled: Boolean(orgId && includeOwnership),
   });
   const commitmentSource: CommitmentSource | undefined = !includeOwnership
@@ -93,7 +95,7 @@ export function useProjectReservedSpend(projectId: string | null | undefined) {
   const orgId = currentUser?.org_id;
   const query = useQuery({
     queryKey: ['project-reserved-spend', orgId, projectId],
-    queryFn: () => repositories.procurement.getProjectReservedSpend(projectId as string),
+    queryFn: () => procurementRepository.getProjectReservedSpend(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
   return { ...query, data: query.data?.amount, projectCurrency: query.data?.projectCurrency,

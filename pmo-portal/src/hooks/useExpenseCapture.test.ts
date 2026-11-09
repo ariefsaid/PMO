@@ -12,7 +12,9 @@ const h = vi.hoisted(() => ({
   cleanup: vi.fn(),
   upload: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { expenseClaim: { addLine: h.addLine } } }));
+vi.mock('@/src/lib/repositories/expenses', () => ({
+  expenseClaimRepository: { addLine: h.addLine },
+}));
 vi.mock('@/src/lib/repositories/expenseCapture', () => ({
   expenseCaptureRepository: { create: h.create, prepareReceipt: h.prepare, objectExists: h.objectExists },
   confirmExpenseCaptureReceipt: h.confirm,

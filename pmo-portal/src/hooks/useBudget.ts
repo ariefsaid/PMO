@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
-import { repositories } from '@/src/lib/repositories';
+import { budgetRepository } from '@/src/lib/repositories/budget';
 import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode, BudgetDistributionPlan, BudgetVersionMode } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ export function useProjectBudget(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery<number>({
     queryKey: budgetKey(orgId, projectId),
-    queryFn: () => repositories.budget.deriveProjectBudget(projectId),
+    queryFn: () => budgetRepository.deriveProjectBudget(projectId),
     enabled: Boolean(orgId && projectId),
   });
 }
@@ -99,7 +99,7 @@ export function useBudgetActivationMode(versionId: string | undefined) {
   const { currentUser } = useAuth();
   return useQuery<BudgetActivationMode>({
     queryKey: ['budget-activation-mode', versionId, currentUser?.org_id, currentUser?.id, currentUser?.role],
-    queryFn: () => repositories.budget.getActivationMode(versionId!),
+    queryFn: () => budgetRepository.getActivationMode(versionId!),
     enabled: Boolean(versionId && currentUser?.id),
   });
 }
@@ -108,7 +108,7 @@ export function useBudgetActivationMode(versionId: string | undefined) {
 export function useBudgetActivationPrecheck(versionId: string | undefined) {
   return useQuery({
     queryKey: ['budget-activation-precheck', versionId],
-    queryFn: () => repositories.budget.precheckActivation(versionId!),
+    queryFn: () => budgetRepository.precheckActivation(versionId!),
     enabled: Boolean(versionId),
     staleTime: 0,
   });
@@ -119,7 +119,7 @@ export function useBudgetVersions(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery<BudgetVersionWithItems[]>({
     queryKey: budgetVersionsKey(orgId, projectId),
-    queryFn: () => repositories.budget.listVersions(projectId),
+    queryFn: () => budgetRepository.listVersions(projectId),
     enabled: Boolean(orgId && projectId),
   });
 }
@@ -131,7 +131,7 @@ export function useBudgetDistribution(projectId: string, versionId: string | und
   const orgId = currentUser?.org_id;
   return useQuery<BudgetDistributionPlan | null>({
     queryKey: budgetDistributionKey(orgId, projectId, versionId),
-    queryFn: () => repositories.budget.getDistribution(versionId!),
+    queryFn: () => budgetRepository.getDistribution(versionId!),
     enabled: Boolean(orgId && projectId && versionId),
   });
 }
@@ -146,8 +146,8 @@ export function useBudgetArchiveTargets(versionIds: readonly string[], pollWhile
     // surface says it could not check, rather than rendering a partial list as the whole truth.
     queryFn: async () => {
       const [account, legacy] = await Promise.all([
-        repositories.budget.listArchiveLiveTargets(stableIds),
-        repositories.budget.listLegacyArchiveLiveTargets(stableIds),
+        budgetRepository.listArchiveLiveTargets(stableIds),
+        budgetRepository.listLegacyArchiveLiveTargets(stableIds),
       ]);
       return [...account, ...legacy];
     },
@@ -175,17 +175,17 @@ export function useBudgetMutations(projectId: string) {
   };
 
   const createVersion = useMutation<BudgetVersionRow, Error, { projectId: string; name: string; budgetMode?: BudgetVersionMode }>({
-    mutationFn: ({ projectId: pid, name, budgetMode }) => repositories.budget.createVersion(pid, name, undefined, budgetMode),
+    mutationFn: ({ projectId: pid, name, budgetMode }) => budgetRepository.createVersion(pid, name, undefined, budgetMode),
     onSuccess: invalidateBoth,
   });
 
   const cloneVersion = useMutation<string, Error, string>({
-    mutationFn: (versionId) => repositories.budget.cloneVersion(versionId),
+    mutationFn: (versionId) => budgetRepository.cloneVersion(versionId),
     onSuccess: invalidateBoth,
   });
 
   const activate = useMutation<ActivateVersionResult, Error, string>({
-    mutationFn: (versionId) => repositories.budget.activateVersion(versionId),
+    mutationFn: (versionId) => budgetRepository.activateVersion(versionId),
     onSuccess: () => {
       invalidateBoth();
       invalidateMoneyCollections();
@@ -194,7 +194,7 @@ export function useBudgetMutations(projectId: string) {
   });
 
   const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
-    mutationFn: ({ versionId, cancelErp }) => repositories.budget.archiveVersion(versionId, cancelErp),
+    mutationFn: ({ versionId, cancelErp }) => budgetRepository.archiveVersion(versionId, cancelErp),
     onSuccess: () => {
       invalidateBoth();
       invalidateMoneyCollections();
@@ -203,7 +203,7 @@ export function useBudgetMutations(projectId: string) {
   });
 
   const deleteDraft = useMutation<void, Error, string>({
-    mutationFn: (versionId) => repositories.budget.deleteDraftVersion(versionId),
+    mutationFn: (versionId) => budgetRepository.deleteDraftVersion(versionId),
     onSuccess: invalidateBoth,
   });
 
@@ -212,21 +212,21 @@ export function useBudgetMutations(projectId: string) {
     Error,
     { versionId: string; item: NewLineItem }
   >({
-    mutationFn: ({ versionId, item }) => repositories.budget.createLineItem(versionId, item),
+    mutationFn: ({ versionId, item }) => budgetRepository.createLineItem(versionId, item),
     onSuccess: invalidateBoth,
   });
 
   const updateLineItemMutation = useMutation<
     void,
     Error,
-    { id: string; patch: Parameters<typeof repositories.budget.updateLineItem>[1] }
+    { id: string; patch: Parameters<typeof budgetRepository.updateLineItem>[1] }
   >({
-    mutationFn: ({ id, patch }) => repositories.budget.updateLineItem(id, patch),
+    mutationFn: ({ id, patch }) => budgetRepository.updateLineItem(id, patch),
     onSuccess: invalidateBoth,
   });
 
   const deleteLineItemMutation = useMutation<void, Error, string>({
-    mutationFn: (id) => repositories.budget.deleteLineItem(id),
+    mutationFn: (id) => budgetRepository.deleteLineItem(id),
     onSuccess: invalidateBoth,
   });
 
@@ -234,18 +234,18 @@ export function useBudgetMutations(projectId: string) {
    *  plan, the version list, the precheck and project finances. No optimistic save — a rejection
    *  leaves the prior cached plan untouched for re-review. */
   const saveDistribution = useMutation<void, Error, { versionId: string; plan: BudgetDistributionPlan }>({
-    mutationFn: ({ versionId, plan }) => repositories.budget.saveDistribution(versionId, plan),
+    mutationFn: ({ versionId, plan }) => budgetRepository.saveDistribution(versionId, plan),
     onSuccess: invalidateBoth,
   });
 
   const switchDraftMode = useMutation<void, Error, {
     versionId: string;
     targetMode: BudgetVersionMode;
-    expectedLines: Parameters<typeof repositories.budget.switchDraftMode>[2];
-    assignments: Parameters<typeof repositories.budget.switchDraftMode>[3];
+    expectedLines: Parameters<typeof budgetRepository.switchDraftMode>[2];
+    assignments: Parameters<typeof budgetRepository.switchDraftMode>[3];
   }>({
     mutationFn: ({ versionId, targetMode, expectedLines, assignments }) =>
-      repositories.budget.switchDraftMode(versionId, targetMode, expectedLines, assignments),
+      budgetRepository.switchDraftMode(versionId, targetMode, expectedLines, assignments),
     onSuccess: invalidateBoth,
   });
 

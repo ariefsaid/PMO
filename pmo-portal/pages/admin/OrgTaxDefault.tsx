@@ -5,7 +5,7 @@ import { ListState, SelectField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { useOrgTaxDefaultQuery, ORG_TAX_DEFAULT_KEY } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
@@ -43,7 +43,7 @@ const OrgTaxDefault: React.FC = () => {
   const taxOptions = useTaxTreatmentOptions();
 
   const mutation = useMutation({
-    mutationFn: (value: TaxTreatment) => repositories.orgSettings.setTaxDefault(value),
+    mutationFn: (value: TaxTreatment) => orgSettingsRepository.setTaxDefault(value),
     onSuccess: () => qc.invalidateQueries({ queryKey: [ORG_TAX_DEFAULT_KEY, currentUser?.org_id] }),
   });
 

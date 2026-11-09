@@ -13,7 +13,9 @@ const repo = vi.hoisted(() => ({
   deleteItem: vi.fn(),
   selectQuote: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: repo } }));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: repo,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));

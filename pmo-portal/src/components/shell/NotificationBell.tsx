@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
-import { repositories } from '@/src/lib/repositories';
+import { notificationRepository } from '@/src/lib/repositories/notifications';
 import type { NotificationCursor, NotificationListItem as NotificationRow } from '@/src/lib/db/notifications';
 import { formatRelativeTime } from '@/src/lib/format';
 
@@ -108,7 +108,7 @@ export const NotificationBell: React.FC = () => {
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const refreshUnreadCount = useCallback(() => {
-    repositories.notification.unreadCount()
+    notificationRepository.unreadCount()
       .then(setUnread)
       .catch(() => {
         // Fail-quiet on the count query — the badge simply doesn't update; opening
@@ -132,7 +132,7 @@ export const NotificationBell: React.FC = () => {
     setLoadMoreError(false);
     const gen = generation.current;
     setInbox({ status: 'loading' });
-    repositories.notification.listPage()
+    notificationRepository.listPage()
       .then(({ rows, nextCursor }) => {
         if (gen !== generation.current) return;
         setInbox({ status: 'ready', rows, nextCursor });
@@ -149,7 +149,7 @@ export const NotificationBell: React.FC = () => {
     const gen = generation.current;
     setLoadingMore(true);
     setLoadMoreError(false);
-    repositories.notification.listPage({ cursor: inbox.nextCursor })
+    notificationRepository.listPage({ cursor: inbox.nextCursor })
       .then(({ rows, nextCursor }) => {
         if (gen !== generation.current) return;
         setInbox((prev) =>
@@ -208,7 +208,7 @@ export const NotificationBell: React.FC = () => {
 
       try {
         if (wasUnread) {
-          await repositories.notification.markRead(row.id);
+          await notificationRepository.markRead(row.id);
           // item 9: reconcile the badge against the server's actual count after a successful
           // mark-read — the optimistic decrement above is immediate-feel; this is the source of
           // truth (guards drift from a concurrent notification elsewhere).

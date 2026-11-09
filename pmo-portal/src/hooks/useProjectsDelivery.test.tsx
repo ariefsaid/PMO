@@ -9,7 +9,9 @@ const { milestone } = vi.hoisted(() => ({
     deliverySummaryForProjects: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { milestone } }));
+vi.mock('@/src/lib/repositories/workOrders', () => ({
+  milestoneRepository: milestone,
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));

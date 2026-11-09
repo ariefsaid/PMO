@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { integrationsRepository } from '@/src/lib/repositories/integrations';
 import type { IntegrationBinding } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -16,7 +16,7 @@ export function useErpnextBinding() {
   const orgId = currentUser?.org_id;
   return useQuery<IntegrationBinding | null>({
     queryKey: ['integrations', 'binding', orgId, 'erpnext'],
-    queryFn: () => repositories.integrations.getBinding(orgId!, 'erpnext'),
+    queryFn: () => integrationsRepository.getBinding(orgId!, 'erpnext'),
     enabled: Boolean(orgId),
   });
 }

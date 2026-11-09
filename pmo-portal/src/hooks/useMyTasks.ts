@@ -2,7 +2,7 @@ import { invalidateTaskProjections } from './taskQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import type { MyTask, TaskStatus } from '@/src/lib/db/tasks';
-import { repositories } from '@/src/lib/repositories';
+import { taskRepository } from '@/src/lib/repositories/tasks';
 import { toAppError } from '@/src/lib/appError';
 export type { MyTask } from '@/src/lib/db/tasks';
 
@@ -17,7 +17,7 @@ export function useMyTasks(enabled = true) {
   const orgId = currentUser?.org_id;
   return useQuery<MyTask[]>({
     queryKey: ['my-tasks', orgId, userId],
-    queryFn: () => repositories.task.listByAssignee(userId!),
+    queryFn: () => taskRepository.listByAssignee(userId!),
     enabled: enabled && Boolean(userId) && Boolean(orgId),
   });
 }
@@ -38,7 +38,7 @@ export function useMyTaskMutations() {
   const updateStatus = useMutation({
     mutationFn: async ({ id, status, projectId }: { id: string; status: TaskStatus; projectId?: string | null }) => {
       try {
-        await repositories.task.updateStatus(id, status, projectId);
+        await taskRepository.updateStatus(id, status, projectId);
       } catch (err) {
         throw toAppError(err);
       }

@@ -3,16 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackPurchaseApproved } from '@/src/lib/analytics';
-import {
-  repositories,
-  type ProcurementError,
-  type ProcurementDetail,
-  type ProcurementStatus,
-  type ProcurementReceiptRow,
-  type ProcurementInvoiceRow,
-  type CreateInvoiceInput,
-  type CaptureVendorInvoiceInput,
-} from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
+import { subcontractRepository } from '@/src/lib/repositories/subcontracts';
+import type { CaptureVendorInvoiceInput, CreateInvoiceInput, ProcurementDetail, ProcurementError, ProcurementInvoiceRow, ProcurementReceiptRow, ProcurementStatus } from '@/src/lib/repositories/types';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -48,7 +41,7 @@ export function useProcurementDetail(id: string | undefined) {
 
   return useQuery<ProcurementDetail>({
     queryKey: [...procurementDetailKey(orgId, id), currentUser?.id, currentUser?.role],
-    queryFn: () => repositories.procurement.get(id!),
+    queryFn: () => procurementRepository.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -62,10 +55,10 @@ export function useProcurementDetail(id: string | undefined) {
  * Each mutation invalidates ['procurement', orgId, id] on success (AC-816).
  *
  * task FIX-1 (Discover CRITICAL 1): createQuotation/createReceipt/createInvoice now call the
- * `repositories.procurement.*` seam (not the DAL directly) — Slice 1 already wired that seam's
+ * `procurementRepository.*` seam (not the DAL directly) — Slice 1 already wired that seam's
  * `routeDomainWrite('procurement')` guard, so a flipped org's write now genuinely dispatches
  * externally instead of silently local-writing with a false success. `transition` also moves onto
- * the same seam for architectural consistency (ADR-0017) — `repositories.procurement.transition`
+ * the same seam for architectural consistency (ADR-0017) — `procurementRepository.transition`
  * carries NO routing guard and always stays on the direct DAL (task 4.9's ruling, FR-ENA-101/073).
  */
 export function useProcurementMutations(id: string) {
@@ -93,7 +86,7 @@ export function useProcurementMutations(id: string) {
   // 42501) type-safely and classify the toast (no code-dropping).
   const startRecordFolder = useStartRecordFolder();
   const transition = useMutation<void, ProcurementError, { to: ProcurementStatus; notes?: string }>({
-    mutationFn: ({ to, notes }) => repositories.procurement.transition(id, to, notes),
+    mutationFn: ({ to, notes }) => procurementRepository.transition(id, to, notes),
     onSuccess: (_data, { to }) => {
       invalidateDetail();
       // #1020: `pr_number` is stamped by the transition into Requested — it is the number the case's
@@ -110,7 +103,7 @@ export function useProcurementMutations(id: string) {
     { vendorId: string; totalAmount: number; receivedDate: string; intent?: CommandIntent }
   >({
     mutationFn: ({ vendorId, totalAmount, receivedDate, intent }) =>
-      repositories.procurement.createQuotation(id, vendorId, totalAmount, receivedDate, intent),
+      procurementRepository.createQuotation(id, vendorId, totalAmount, receivedDate, intent),
     onMutate: () => {
       if (isExternal()) {
         queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
@@ -136,8 +129,8 @@ export function useProcurementMutations(id: string) {
   >({
     mutationFn: ({ status, receiptDate, referenceNumber, intent, receiptLines }) =>
       receiptLines
-        ? repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent, receiptLines)
-        : repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
+        ? procurementRepository.createReceipt(id, status, receiptDate, referenceNumber, intent, receiptLines)
+        : procurementRepository.createReceipt(id, status, receiptDate, referenceNumber, intent),
     onMutate: () => {
       if (isExternal()) {
         queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
@@ -169,7 +162,7 @@ export function useProcurementMutations(id: string) {
     }
   >({
     mutationFn: ({ intent, ...input }) =>
-      repositories.procurement.createInvoice({ ...input, procurementId: id }, intent),
+      procurementRepository.createInvoice({ ...input, procurementId: id }, intent),
     onMutate: () => {
       if (isExternal()) {
         queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
@@ -197,7 +190,7 @@ export function useProcurementMutations(id: string) {
     ProcurementError,
     Omit<CaptureVendorInvoiceInput, 'procurementId'>
   >({
-    mutationFn: (input) => repositories.procurement.captureVendorInvoice({ ...input, procurementId: id }),
+    mutationFn: (input) => procurementRepository.captureVendorInvoice({ ...input, procurementId: id }),
     onSuccess: invalidateDetail,
   });
 
@@ -206,7 +199,7 @@ export function useProcurementMutations(id: string) {
     ProcurementError,
     Omit<CaptureSubcontractVendorInvoiceInput, 'procurementId'>
   >({
-    mutationFn: (input) => repositories.subcontracts.captureSubcontractVendorInvoice({ ...input, procurementId: id }),
+    mutationFn: (input) => subcontractRepository.captureSubcontractVendorInvoice({ ...input, procurementId: id }),
     onSuccess: () => {
       invalidateDetail();
       queryClient.invalidateQueries({ queryKey: subcontractKeys.all(orgId) });
@@ -220,7 +213,7 @@ export function useProcurementMutations(id: string) {
     { invoiceId: string; efakturNumber: string | null; efakturDate: string | null }
   >({
     mutationFn: ({ invoiceId, efakturNumber, efakturDate }) =>
-      repositories.procurement.setEfaktur(invoiceId, { efakturNumber, efakturDate }),
+      procurementRepository.setEfaktur(invoiceId, { efakturNumber, efakturDate }),
     onSuccess: invalidateDetail,
     // A known refusal (e.g. the bill was cancelled in ERPNext meanwhile) means this row is stale: refetch it.
     onError: (err) => {
@@ -231,7 +224,7 @@ export function useProcurementMutations(id: string) {
   // 0349: approve the billed amount when it exceeds the approved amount. A PMO case-aggregate write
   // (like `transition`), never dispatched; the server decides eligibility and separation of duties.
   const approveAmount = useMutation<void, ProcurementError, number>({
-    mutationFn: (amount) => repositories.procurement.approveAmount(id, amount),
+    mutationFn: (amount) => procurementRepository.approveAmount(id, amount),
     onSuccess: invalidateDetail,
   });
 
@@ -254,7 +247,7 @@ export function useProcurementBulkTransition() {
     ProcurementError,
     { id: string; to: ProcurementStatus; notes?: string }
   >({
-    mutationFn: ({ id, to, notes }) => repositories.procurement.transition(id, to, notes),
+    mutationFn: ({ id, to, notes }) => procurementRepository.transition(id, to, notes),
     onSuccess: (_data, { id, to }) => {
       invalidateProcurementCase(queryClient, orgId, id, [cachedProcurementProjectId(queryClient, orgId, id)]);
       queryClient.invalidateQueries({ queryKey: ['procurements', orgId] });

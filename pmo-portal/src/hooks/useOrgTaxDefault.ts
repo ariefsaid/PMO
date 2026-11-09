@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { orgSettingsRepository } from '@/src/lib/repositories/admin';
 import { useAuth } from '@/src/auth/useAuth';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
@@ -32,7 +32,7 @@ export function useOrgTaxDefaultQuery() {
   const { currentUser } = useAuth();
   return useQuery<TaxTreatment | null>({
     queryKey: [ORG_TAX_DEFAULT_KEY, currentUser?.org_id],
-    queryFn: () => repositories.orgSettings.getTaxDefault(),
+    queryFn: () => orgSettingsRepository.getTaxDefault(),
     enabled: Boolean(currentUser),
     ...SESSION_QUERY_OPTIONS,
   });

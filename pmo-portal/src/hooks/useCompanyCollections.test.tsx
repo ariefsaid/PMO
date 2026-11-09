@@ -18,12 +18,12 @@ const h = vi.hoisted(() => ({
   listForErpCustomerIds: vi.fn(),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    companyCollections: {
-      listForCompanies: h.listForCompanies,
-      listForErpCustomerIds: h.listForErpCustomerIds,
-    },
+vi.mock('@/src/lib/repositories/companyCollections', async (importOriginal) => ({
+  // keep the module's pure helpers (composeCompanyCollections) real — only the IO seam is stubbed
+  ...(await importOriginal<object>()),
+  companyCollectionsRepository: {
+    listForCompanies: h.listForCompanies,
+    listForErpCustomerIds: h.listForErpCustomerIds,
   },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1', org_id: h.orgId } }) }));

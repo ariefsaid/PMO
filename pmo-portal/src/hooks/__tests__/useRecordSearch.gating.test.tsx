@@ -22,18 +22,24 @@ const { dal } = vi.hoisted(() => ({
   },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    project: { list: dal.listProjects },
-    procurement: { list: dal.listProcurements },
-    dashboard: { salesPipeline: dal.getSalesPipeline },
-    company: { list: dal.listCompanies },
-    contact: { list: dal.listContacts },
-    incident: { list: dal.listIncidents },
-  },
+vi.mock('@/src/lib/repositories/companies', () => ({
+  companyRepository: { list: dal.listCompanies },
+  contactRepository: { list: dal.listContacts },
+}));
+vi.mock('@/src/lib/repositories/dashboard', () => ({
+  dashboardRepository: { salesPipeline: dal.getSalesPipeline },
+}));
+vi.mock('@/src/lib/repositories/incidents', () => ({
+  incidentRepository: { list: dal.listIncidents },
+}));
+vi.mock('@/src/lib/repositories/procurement', () => ({
+  procurementRepository: { list: dal.listProcurements },
+}));
+vi.mock('@/src/lib/repositories/projects', () => ({
+  projectRepository: { list: dal.listProjects },
 }));
 
-import { useRecordSearch } from '../useRecordSearch';
+import { useRecordSearch } from '../useRecordSearchData';
 import * as features from '@/src/lib/features';
 
 const makeWrapper = (realRole: string | null) => {

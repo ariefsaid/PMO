@@ -40,7 +40,9 @@ const erpSetup = vi.hoisted(() => ({
   startConnectCensus: vi.fn(async () => ({ runId: 'r1', census: [] })),
   unlinkConnectMatch: vi.fn(async () => undefined),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: erpSetup } }));
+vi.mock('@/src/lib/repositories/integrations', () => ({
+  integrationsRepository: erpSetup,
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/hooks/useIntegrations', () => ({

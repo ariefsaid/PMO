@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { procurementDocumentsKey } from '@/src/hooks/recordFolderState';
 import { procurementReference } from '@/src/lib/m365/reference';
-import { repositories } from '@/src/lib/repositories';
+import { procurementRepository } from '@/src/lib/repositories/procurement';
 import type { DocumentTarget, ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { useAuth } from '@/src/auth/useAuth';
@@ -54,27 +54,27 @@ export function useProcurementMicrosoftReferences(procurementId: string) {
 
   const query = useQuery<ProcurementDocumentRow[]>({
     queryKey,
-    queryFn: () => repositories.procurement.listDocuments(procurementId),
+    queryFn: () => procurementRepository.listDocuments(procurementId),
     enabled: Boolean(orgId && procurementId),
   });
   const create = useMutation({
     mutationFn: ({ reference, metadata, target }: CreateProcurementReferenceArgs) =>
       target
-        ? repositories.procurement.createMicrosoftDocument(procurementId, reference, metadata, target)
-        : repositories.procurement.createMicrosoftDocument(procurementId, reference, metadata),
+        ? procurementRepository.createMicrosoftDocument(procurementId, reference, metadata, target)
+        : procurementRepository.createMicrosoftDocument(procurementId, reference, metadata),
     onSuccess: invalidate,
   });
   const link = useMutation({
     mutationFn: ({ id, reference }: { id: string; reference: MicrosoftReferenceInput }) =>
-      repositories.procurement.linkMicrosoftDocument(id, reference),
+      procurementRepository.linkMicrosoftDocument(id, reference),
     onSuccess: invalidate,
   });
   const unlink = useMutation({
-    mutationFn: (id: string) => repositories.procurement.unlinkMicrosoftDocument(id),
+    mutationFn: (id: string) => procurementRepository.unlinkMicrosoftDocument(id),
     onSuccess: invalidate,
   });
   const clearLegacy = useMutation({
-    mutationFn: (id: string) => repositories.procurement.clearDocumentLink(id),
+    mutationFn: (id: string) => procurementRepository.clearDocumentLink(id),
     onSuccess: invalidate,
   });
   return { query, create, link, unlink, clearLegacy, invalidate };

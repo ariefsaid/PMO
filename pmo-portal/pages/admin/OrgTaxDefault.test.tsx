@@ -25,8 +25,8 @@ const { getTaxDefault, setTaxDefault } = vi.hoisted(() => ({
   setTaxDefault: vi.fn(),
 }));
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { orgSettings: { getTaxDefault, setTaxDefault } },
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: { getTaxDefault, setTaxDefault },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),

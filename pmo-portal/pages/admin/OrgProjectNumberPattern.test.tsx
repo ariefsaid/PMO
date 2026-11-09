@@ -6,11 +6,13 @@ import { ToastProvider } from '@/src/components/ui';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({ get: vi.fn(), timezone: vi.fn(), save: vi.fn(), toast: vi.fn(), canManage: true }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: {
+vi.mock('@/src/lib/repositories/admin', () => ({
+  orgSettingsRepository: {
   getProjectNumberPattern: h.get,
   getProjectNumberTimezone: h.timezone,
   setProjectNumberPattern: h.save,
-} } }));
+},
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => h.canManage && action === 'manage' && entity === 'orgProjectNumbering' }));
 vi.mock('@/src/components/ui', async (original) => {
