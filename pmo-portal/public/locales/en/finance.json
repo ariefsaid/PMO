@@ -538,6 +538,8 @@
       "notes": "Notes",
       "categoryNotesUnavailable": "No category notes are recorded.",
       "actualsSource": "Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.",
+      "actualsSourceOdoo": "Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted. Budget categories with no Odoo account show no figure and are left out of Spent.",
+      "spentExcludes": "Spent excludes categories with no Odoo account ({{count}})",
       "projectTeam": "Project team",
       "openCategory": "Open {{category}} budget details",
       "versionAuthorSource": "Version author and creation date. Category-level ownership and line update time are not recorded.",
@@ -585,6 +587,7 @@
       "spendingUnavailable": "Spending is unknown or unavailable.",
       "commitmentsUnavailable": "Commitments are unknown or unavailable.",
       "currencyBasisNotice": "Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
+      "currencyBasisSplitNotice": "Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
       "currencyComparisonUnavailable": "Comparison unavailable because budget and spending use different currencies.",
       "leftUnavailable": "Left is unknown while spending or commitments are unavailable.",
       "budgetVsActual": "Budget vs actual",
@@ -836,6 +839,10 @@
       "unlinked_other": "In cost accounts no project is linked to: debits {{debit}}, credits {{credit}} ({{count}} lines)."
     },
     "amountsIn": "Amounts in {{currency}}",
+    "mode": {
+      "loadFailed": "We could not check where these figures come from",
+      "loadFailedSub": "They follow either PMO documents or the Odoo ledger. Try again before relying on them."
+    },
     "budget": {
       "title": "Actuals from Odoo",
       "unlinked": "Actual cost cannot be shown yet: no Odoo cost account is linked to this project.",
@@ -855,7 +862,6 @@
       "table": "Odoo lines behind this category",
       "empty": "No lines in this category",
       "emptySub": "Posted Odoo lines in this project’s cost account and a mapped account appear here.",
-      "showingSoFar": "Showing {{shown}} so far",
       "showing": "Showing {{shown}} of {{total}}",
       "more": "Show more",
       "all": "All"

@@ -120,6 +120,8 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
+    // #2065: a failed ledger-mode read now shows a notice, so the connection read must resolve (org not on Odoo).
+    odoo: { getConnection: () => Promise.resolve(null) },
     budget: {
       ...mockBudgetRepository,
       listArchiveTargets: (...args: unknown[]) => mockListArchiveTargets(...args),

@@ -25,13 +25,16 @@ const partner = (id: number, over: Partial<DirectoryRow> & { attrs?: Record<stri
 const company = (id: string, name: string, tax: string | null = null) => ({ id, name, erp_tax_id: tax });
 
 interface Opts {
-  accepted?: boolean; companies?: Array<{ id: string; name: string; erp_tax_id: string | null }>; refs?: string[]; ownPartners?: number[];
+  accepted?: boolean; companies?: Array<{ id: string; name: string; erp_tax_id: string | null }>; refs?: string[]; ownPartners?: number[]; userPartners?: number[];
   apply?: (c: FetchCall) => Response; review?: (c: FetchCall) => Response;
 }
-/** The one Odoo read the feed makes: the partner ids of the database's companies (PMO's own organisation), as the setup pass reads them. */
-const odoo = (ownPartners: number[]): OdooCall => (model, method) => {
+/** The Odoo reads the feed makes: the partner ids of the database's companies (PMO's own organisation) and of its login users, as the setup pass reads them. */
+const odoo = (ownPartners: number[], userPartners: number[]): OdooCall => (model, method) => {
   if (model === 'res.company' && method === 'search_read') {
     return Promise.resolve(ownPartners.map((id) => ({ id: 1, partner_id: [id, 'Own Co'] })) as never);
+  }
+  if (model === 'res.users' && method === 'search_read') {
+    return Promise.resolve(userPartners.map((id) => ({ id: 1, partner_id: [id, 'Login'] })) as never);
   }
   return Promise.reject(new Error(`unexpected odoo call: ${model}.${method}`));
 };
@@ -47,7 +50,7 @@ function routes(o: Opts): MockRoute[] {
 async function feed(rows: DirectoryRow[], o: Opts = {}, deadlineAt?: number) {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   return await withFetchMock(routes(o), async ({ calls }) => {
-    await matchNewPartners(sc, ORG, rows, deadlineAt, odoo(o.ownPartners ?? []));
+    await matchNewPartners(sc, ORG, rows, deadlineAt, odoo(o.ownPartners ?? [], o.userPartners ?? []));
     return { calls, applied: rpcCall(calls, 'apply_connect_outcome').map((c) => c.bodyJson as Record<string, unknown>), reviews: rpcCall(calls, 'record_connect_review').map((c) => c.bodyJson as Record<string, unknown>) };
   });
 }
@@ -122,6 +125,15 @@ describe('AC-ECA-005 Odoo partner feed', () => {
     // ...while the company's own partner is never brought in, whatever its name.
     const own = await feed([partner(2, { name: 'Main Co' })], { ownPartners: [2] });
     assertEquals([own.applied.length, own.reviews.length], [0, 0]);
+  });
+
+  it('#2049 a login partner that is a vendor is still brought in; one with no trade role is not touched, archived or not', async () => {
+    const r = await feed([
+      partner(6, { name: 'Site Portal User' }), partner(7, { name: 'Archived Login', active: false }),
+      partner(9, { name: 'Plain Login', attrs: { supplier_rank: 0 } }), partner(8, { name: 'PT Real Vendor' }),
+    ], { userPartners: [6, 7, 9] });
+    assertEquals(r.applied.map((a) => a.p_external_id), ['Vendor:6', 'Vendor:8']);
+    assertEquals(r.reviews.length, 0);
   });
 
   it('contacts of a partner, partners with no role and archived partners are not touched', async () => {

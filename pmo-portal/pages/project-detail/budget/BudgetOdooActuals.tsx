@@ -5,6 +5,7 @@ import { Link } from 'react-router';
 import { Button, ListState } from '@/src/components/ui';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { LedgerProvenance } from '@/src/components/odoo-ledger/LedgerProvenance';
+import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import { formatLedgerAmount, netDebit } from '@/src/components/odoo-ledger/ledgerFormat';
 import { useOdooLedgerCurrency, useOdooLedgerHealth, useOdooLedgerLines, useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
 import { usePermission } from '@/src/auth/usePermission';
@@ -21,9 +22,9 @@ export function BudgetOdooActuals({ projectId }: { projectId: string }) {
   const may = usePermission();
   const can = useOdooCan();
   const currency = useOdooLedgerCurrency();
-  const { onLedger, linked, unlinked } = useOdooProjectActuals(projectId);
+  const { onLedger, linked, unlinked, modeError, retryMode } = useOdooProjectActuals(projectId);
   const health = useOdooLedgerHealth(projectId, onLedger && linked === true);
-  if (!onLedger) return null;
+  if (!onLedger) return modeError ? <LedgerModeNotice onRetry={retryMode} /> : null;
   const canSetUp = can.manage || can.setValue;
   const detail = may('view', 'odooLedgerHealth');
   return (
@@ -78,6 +79,8 @@ function CategoryLinesTable({ projectId, category }: { projectId: string; catego
   if (lines.isError) return <ListState variant="error" title={t('odooLedger.lines.loadFailed', 'The lines could not be read')} onRetry={() => void lines.refetch()} retryLabel={tc('common.retry', 'Retry')} />;
   const rows = lines.data.pages.flatMap((p) => p.lines);
   const more = lines.hasNextPage;
+  // The newest page's count of the whole filter; never fewer than what is already on screen.
+  const total = Math.max(lines.data.pages[lines.data.pages.length - 1].total, rows.length);
   const columns: Column<OdooLedgerLine>[] = [
     { key: 'date', header: t('odooLedger.lines.date', 'Date'), kind: 'date', cell: (r) => formatDateOnly(r.date) },
     { key: 'move', header: t('odooLedger.lines.document', 'Document'), kind: 'primary', cell: (r) => r.moveName },
@@ -112,9 +115,7 @@ function CategoryLinesTable({ projectId, category }: { projectId: string; catego
       />
       {rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-          <span>{more
-            ? t('odooLedger.lines.showingSoFar', 'Showing {{shown}} so far', { shown: rows.length })
-            : t('odooLedger.lines.showing', 'Showing {{shown}} of {{total}}', { shown: rows.length, total: rows.length })}</span>
+          <span>{t('odooLedger.lines.showing', 'Showing {{shown}} of {{total}}', { shown: rows.length, total })}</span>
           {more && <Button variant="outline" size="sm" loading={lines.isFetchingNextPage && !loadingAll} onClick={() => void lines.fetchNextPage()}>{t('odooLedger.lines.more', 'Show more')}</Button>}
           {more && <Button variant="ghost" size="sm" loading={loadingAll} onClick={() => void showAll()}>{t('odooLedger.lines.all', 'All')}</Button>}
         </div>
