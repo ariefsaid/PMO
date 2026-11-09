@@ -20,7 +20,8 @@ import { ToastProvider } from '@/src/components/ui';
 import { addBuilderFilter, removeBuilderFilter } from './__tests__/projectFilterBuilder.helpers';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { formatExactMoney } from '@/src/lib/format';
+import { getNumberLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { BahasaProvider } from '@/test/bahasa';
 
 const seed = [
@@ -714,6 +715,49 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(within(body).getByLabelText(/25% of Active budget/)).toBeInTheDocument();
   });
 
+  it('#2060: the table shows the SAME Actual the cards show, on the collection read both views trust', async () => {
+    // The live shape: the server's coverage verdict (over the ACTIVE BUDGET's categories) is
+    // `complete`, while `actuals.categories` carries the whole budget_category enum — including
+    // categories this org never mapped. The card read that verdict; the table re-derived coverage
+    // from the enum and blanked every row. Same source in, same figure out.
+    projectMoneyState.data = {
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '7200000.00', asOf: '2026-10-01T00:00:00Z',
+        excludesRestrictedRows: false, complete: true,
+        categories: [
+          { category: 'Labor', mapped: true, amount: '7200000.00' },
+          { category: 'Overheads', mapped: false, amount: null },
+        ] }, activeBudgetAmount: '6900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage('Project Manager', '/projects?view=cards');
+    const expected = formatExactMoney('7200000.00', 'USD', getNumberLocale(), { wholeUnits: true });
+    expect(screen.getByTestId('project-card-actual')).toHaveTextContent(expected!);
+    const cardFigure = screen.getByTestId('project-card-actual').textContent;
+
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    const body = document.querySelector('tbody')!;
+    // `*` marks a column that carries the table-level caveat (#2060's partial/unknown note).
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
+    const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+    expect(actualCell.textContent).toBe(cardFigure);
+    expect(actualCell).toHaveTextContent('$7,200,000');
+  });
+
+  it('#2060: an unknown Actual is a grey em dash, never a blank cell', () => {
+    projectMoneyState.data = {
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '7200000.00', asOf: '2026-10-01T00:00:00Z',
+        excludesRestrictedRows: false, complete: false,
+        categories: [{ category: 'Labor', mapped: false, amount: null }] },
+      activeBudgetAmount: '6900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
+    const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+    expect(actualCell.textContent?.trim()).toBe('—');
+    // The reason stays in the one table-level note, not on the row.
+    expect(screen.getByText(/Actual is partial on 1 of 1 projects/)).toBeInTheDocument();
+  });
+
   it('AC-S02: shows a committed PMO Actual as the plain amount, with no per-row source label', () => {
     projectMoneyState.data = {
       p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
@@ -740,7 +784,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
     const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
     const row = body.querySelector('tr')!;
-    expect(row.cells[actualHeaderIndex]).toBeEmptyDOMElement();
+    // #2060: an unknown Actual is the em dash (with the table note), never a blank cell.
+    expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
     expect(row.cells[actualHeaderIndex].querySelector('[title]')).toBeNull();
     expect(row.cells[budgetHeaderIndex]).toHaveTextContent('No active budget');
     expect(row.cells[budgetHeaderIndex].textContent).not.toContain('—');
@@ -759,7 +804,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
     const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
     for (const row of body.querySelectorAll('tr')) {
-      expect(row.cells[actualHeaderIndex]).toBeEmptyDOMElement();
+      // #2060: an unreadable collection is the em dash, never a blank money cell.
+      expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
       expect(row.cells[budgetHeaderIndex]).toBeEmptyDOMElement();
     }
     expect(screen.getAllByText('Project spending could not be read.')).toHaveLength(1);
@@ -807,15 +853,16 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       const { unmount: unmountAll } = renderPage();
       const body = document.querySelector('tbody')!;
       expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
-      const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+      // `*` marks the caveat-carrying header (#2060's partial/unknown note).
+      const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
       const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
-      expect(actualCell.textContent).not.toContain('—');
+      // #2060: a withheld figure is the em dash (or, for restricted rows, the row-level tag).
       expect(actualCell.querySelector('[title]')).toBeNull();
       expect(actualCell.textContent).not.toContain('$450,000');
       if (actuals.excludesRestrictedRows) {
         expect(actualCell).toHaveTextContent('Restricted excluded');
       } else {
-        expect(actualCell).toBeEmptyDOMElement();
+        expect(actualCell).toHaveTextContent('—');
       }
       unmountAll();
     }

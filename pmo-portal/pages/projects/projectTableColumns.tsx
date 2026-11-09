@@ -4,7 +4,7 @@ import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
-import { deriveActualPosition, deriveBudgetConsumption, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
+import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
@@ -33,17 +33,22 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   moneyPending, moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch, projectStatusLabel, t }: ProjectTableColumnInputs) {
   const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
   const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
-  // ONE table-level coverage note (AC-RD-TBL-PROJ-001): the count of ERP rows with an unmapped or
-  // amount-less category, and the newest ERP update among the visible rows.
-  const partialRows = filtered.filter((project) => {
-    const money = projectMoney?.[project.id];
-    return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+  // #2060: the table renders the SAME Actual the Cards view does, from the same collection read.
+  const actualPosition = (project: ProjectWithRefs) => deriveCollectionActual({
+    projectCurrency: project.currency,
+    money: projectMoney?.[project.id],
+    moneyPending,
+    moneyError,
   });
-  const unknownActualRows = filtered.filter((project) => {
-    const money = projectMoney?.[project.id];
-    return money?.actuals.total == null || (money.ledgerBasis === 'pmo'
-      && (money.actuals.complete === false || money.actuals.currency !== project.currency));
+  // ONE table-level coverage note (AC-RD-TBL-PROJ-001), counted over exactly the rows whose figure
+  // is withheld — so the note can never contradict an amount that is on screen. `coverageAsOf` is
+  // the newest ERP update among the visible rows.
+  const withheldRows = filtered.filter((project) => {
+    const state = actualPosition(project).state;
+    return state === 'partial' || state === 'unknown';
   });
+  const partialRows = withheldRows.filter((project) => actualPosition(project).state === 'partial');
+  const unknownActualRows = withheldRows.filter((project) => actualPosition(project).state === 'unknown');
   const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
     return asOf && (!latest || asOf > latest) ? asOf : latest;
@@ -100,36 +105,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       );
     },
   } : null;
-  const actualProjection = (p: ProjectWithRefs): { text: string; exportText?: string; restricted?: boolean } => {
-    const money = projectMoney?.[p.id];
-    if (moneyPending || moneyError || !money) return { text: '' };
-    const actualPosition = deriveActualPosition({
-      ledgerBasis: money.ledgerBasis,
-      pmoSpent: money.ledgerBasis === 'pmo' && money.actuals.currency === p.currency ? money.actuals.total ?? undefined : undefined,
-      pmoSpentPending: moneyPending,
-      pmoSpentError: moneyError,
-      pmoSpentComplete: money.actuals.complete,
-      projectCurrency: p.currency,
-      actuals: {
-        currency: money.actuals.currency,
-        total: money.actuals.total,
-        as_of: money.actuals.asOf,
-        excludes_restricted_rows: money.actuals.excludesRestrictedRows,
-        categories: money.actuals.categories,
-      },
-    });
-    const actual = actualPosition.amount;
-    if (actual == null) {
-      // Incomplete coverage is explained once in the table caveat. Restricted rows have a
-      // distinct row-level cause, so keep that plain-language tag and omit the numeric slot.
-      return money.actuals.excludesRestrictedRows
-        ? { text: t('projects:actual.restrictedTag', 'Restricted excluded'), restricted: true }
-        : { text: '' };
-    }
-    const formatted = formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale(), { wholeUnits: true });
-    const currency = actualPosition.currency || p.currency;
-    const exact = formatExactMoney(actual, currency, getNumberLocale());
-    return { text: formatted || '', exportText: exact ? `${exact} ${currency}` : '' };
+  const actualProjection = (p: ProjectWithRefs) => {
+    const position = actualPosition(p);
+    if (position.amount === null) return { text: '', exportText: '' };
+    const exact = formatExactMoney(position.amount, position.currency, getNumberLocale());
+    return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
   };
   /**
    * #1739 / 0700: a "budget used" figure is budget CONSUMPTION, not spend. A PMO org consumes spent + open
@@ -185,7 +165,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
                 branch (<md) the client link is forced block (the truncate-to-block clip rule), so
                 the separator would lead its own wrapped line as a stray dot — hidden there; the
                 identifiers line reads clean (director fix). */}
-            {ids && <><span aria-hidden="true" className="hidden md:inline"> · </span>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
+            {ids && <><span aria-hidden="true" className="hidden md:inline"> · </span>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="inline-block max-w-full truncate align-bottom font-mono" title={ids}>{ids}</span></>}
             {p.end_client && <span className="block truncate text-[11px] text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
           </span>
         );
@@ -305,10 +285,16 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         return exportText ?? text;
       },
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
+      // #2060: the figure is the collection read's own verdict (deriveCollectionActual), the same
+      // one the Cards view renders; where it is withheld the cell says so — the em dash — instead
+      // of a blank that reads as broken data. The table caveat carries the reason, once.
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
-        const actual = actualProjection(p);
-        return actual.text ? <span className={actual.restricted ? 'text-muted-foreground text-[11px]' : 'text-muted-foreground'}>{actual.text}</span> : null;
+        const position = actualPosition(p);
+        if (position.text) return <span className="text-muted-foreground">{position.text}</span>;
+        // Restricted rows have a distinct row-level cause, so the tag names it and the numeric slot is omitted.
+        if (position.restricted) return <span className="text-muted-foreground text-[11px]">{t('projects:actual.restrictedTag', 'Restricted excluded')}</span>;
+        return <span className="text-[12px] text-muted-foreground">—</span>;
       },
     },
     {

@@ -625,13 +625,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       cell: (invoice) => {
         const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
         const paid = invoiceBalanceFigures(invoice).paid;
-        return notApplicable ? '—' : paid === null ? null : <Tooltip content={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.')}><span className="cursor-help tabular-nums">{formatNumberWhole(paid)}</span></Tooltip>;
+        // #2060: the em dash stands in for "no figure" (explained once by the note above the table)
+        // — never a blank cell that reads as missing data.
+        return notApplicable || paid === null ? '—' : <Tooltip content={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.')}><span className="cursor-help tabular-nums">{formatNumberWhole(paid)}</span></Tooltip>;
       } },
     { key: 'unpaid', header: t('projectDetail.cascade.unpaid', 'Unpaid'), kind: 'money', align: 'num',
       cell: (invoice) => {
         const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
         const unpaid = invoiceBalanceFigures(invoice).unpaid;
-        return notApplicable ? '—' : unpaid === null ? null : <Tooltip content={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')}><span className="cursor-help tabular-nums">{formatNumberWhole(unpaid)}</span></Tooltip>;
+        return notApplicable || unpaid === null ? '—' : <Tooltip content={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')}><span className="cursor-help tabular-nums">{formatNumberWhole(unpaid)}</span></Tooltip>;
       } },
   ];
   const lineReadsPending = boq.isPending || projectBilling.isPending || lines.isPending;

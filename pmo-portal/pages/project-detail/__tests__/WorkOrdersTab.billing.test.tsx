@@ -461,8 +461,16 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
     expect(within(section).getByText('Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')).toBeInTheDocument();
     expect(within(section).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
-    // F10: the shared DataTable; an unknown paid/unpaid cell stays empty, never a 0.
-    const row = within(within(section).getByRole('table', { name: 'Invoices without a customer order' })).getByRole('row', { name: /INV-ORPHAN/ });
+    // #2060: an unknown balance is the em dash — explained once by the note above — never a blank
+    // cell and never a 0.
+    const table = within(section).getByRole('table', { name: 'Invoices without a customer order' });
+    const row = within(table).getByRole('row', { name: /INV-ORPHAN/ });
+    // DOM order aligns `thead th` with the row's own th/td children (the invoice column is a row header).
+    const headers = [...table.querySelectorAll('thead th')];
+    const paidIndex = headers.findIndex((header) => header.textContent?.startsWith('Paid'));
+    const unpaidIndex = headers.findIndex((header) => header.textContent?.startsWith('Unpaid'));
+    expect(row.children[paidIndex]).toHaveTextContent('—');
+    expect(row.children[unpaidIndex]).toHaveTextContent('—');
     expect(row).not.toHaveTextContent(/\b0\b/);
     expect(row).toHaveTextContent('12,000');
   });
