@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, DataTable, MenuButton, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
@@ -29,21 +29,123 @@ type Outcome =
   | { kind: 'error'; headline: string; detail?: string };
 
 /**
- * #2104 — one orphan row's select checkbox, as its own memoised component. Its props are all
- * primitives plus the stable `onToggle`, so selecting ONE document re-renders that row's checkbox
- * and leaves every other row's untouched.
+ * #2104 — the row selection lives in a tiny external store so it never has to be a dependency of
+ * the table's column model. Each per-row control subscribes to the slice it reads (its own
+ * `checked`, or "is anything selected"), so a selection re-renders exactly the rows it touched and
+ * leaves the table body — and every other row's body — untouched (AC-3 at row level, not just at
+ * the checkbox subtree).
+ */
+interface SelectionStore {
+  get: () => ReadonlySet<string>;
+  set: (next: ReadonlySet<string>) => void;
+  subscribe: (listener: () => void) => () => void;
+}
+
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
+
+function createSelectionStore(): SelectionStore {
+  let value: ReadonlySet<string> = EMPTY_SELECTION;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (next) => {
+      if (next === value) return;
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
+}
+
+/** Outside the provider (never in practice) nothing is selected and nothing can change. */
+const NO_SELECTION_STORE: SelectionStore = {
+  get: () => EMPTY_SELECTION,
+  set: () => undefined,
+  subscribe: () => () => undefined,
+};
+
+const SelectionStoreContext = React.createContext<SelectionStore>(NO_SELECTION_STORE);
+
+const falseSnapshot = () => false;
+
+/** `checked` for ONE row, read straight from the store: the cell re-renders only when its own id
+ *  enters or leaves the selection, whatever the parent does. */
+function useStoreSelected(id: string): boolean {
+  const store = React.useContext(SelectionStoreContext);
+  return React.useSyncExternalStore(store.subscribe, () => store.get().has(id), falseSnapshot);
+}
+
+/** "Is any row selected" — the per-row actions collapse behind the bulk bar while true. */
+function useStoreHasSelection(): boolean {
+  const store = React.useContext(SelectionStoreContext);
+  return React.useSyncExternalStore(store.subscribe, () => store.get().size > 0, falseSnapshot);
+}
+
+/**
+ * #2104 — one orphan row's select checkbox. Its props are all primitives plus the stable
+ * `onToggle` and the store, so selecting ONE document re-renders that row's checkbox and leaves
+ * every other row's untouched.
  */
 const DocumentSelectCell = React.memo<{
   id: string;
-  checked: boolean;
   onToggle: (id: string) => void;
   label: string;
-}>(({ id, checked, onToggle, label }) => (
-  <Checkbox
-    className="max-[767px]:!size-6"
-    checked={checked}
-    onChange={() => onToggle(id)}
-    label={label}
+}>(({ id, onToggle, label }) => {
+  const checked = useStoreSelected(id);
+  return (
+    <Checkbox
+      className="max-[767px]:!size-6"
+      checked={checked}
+      onChange={() => onToggle(id)}
+      label={label}
+    />
+  );
+});
+
+/**
+ * #2104 — one orphan row's "Link…" action. Decision 5 hides it while rows are selected (the bulk
+ * bar is the action then); that readable-from-the-store state keeps `selecting` out of the column
+ * deps, so the column model is never rebuilt for a selection change.
+ */
+const RowActionsCell = React.memo<{
+  row: ErpPurchaseRow;
+  rowMenu: (row: ErpPurchaseRow) => RowMenuItem[];
+  label: string;
+  ariaLabel: string;
+}>(({ row, rowMenu, label, ariaLabel }) => {
+  const hasSelection = useStoreHasSelection();
+  if (hasSelection) return null;
+  return (
+    <div className="flex justify-end">
+      <MenuButton label={label} ariaLabel={ariaLabel} items={rowMenu(row)} />
+    </div>
+  );
+});
+
+/** Stable row identity for the memoised body below (an inline arrow would defeat its memo). */
+const orphanRowKey = (row: ErpPurchaseRow) => row.id;
+
+/**
+ * #2104 — the table as its own memoised component. Everything selection-related is carried by the
+ * per-row controls above, so a selection change re-renders those cells and this component (and its
+ * whole row body) bails out. Without this boundary the section's own re-render would still walk
+ * every row's cells.
+ */
+const OrphansTable = React.memo<{
+  rows: ErpPurchaseRow[];
+  columns: Column<ErpPurchaseRow>[];
+  tableId: string;
+  accessibleName: string;
+}>(({ rows, columns, tableId, accessibleName }) => (
+  <DataTable<ErpPurchaseRow>
+    rows={rows}
+    columns={columns}
+    rowKey={orphanRowKey}
+    tableId={tableId}
+    accessibleName={accessibleName}
   />
 ));
 
@@ -58,9 +160,15 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
   const [dialogDocs, setDialogDocs] = useState<ErpPurchaseRow[] | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // #2104 — the store the per-row controls subscribe to (one per mounted section).
+  const [selectStore] = useState(createSelectionStore);
 
   // A row that left the list (linked elsewhere, refreshed away) drops out of the selection on its own.
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
+  // Publish the selection to the store declared above. A layout effect (not the render body) so the
+  // subscribing cells re-render in the same commit, before paint.
+  const chosenIds = useMemo(() => new Set(chosen.map((r) => r.id)), [chosen]);
+  useLayoutEffect(() => { selectStore.set(chosenIds); }, [chosenIds, selectStore]);
   const allChosen = rows.length > 0 && chosen.length === rows.length;
   const selecting = chosen.length > 0;
   // #2104: stable identity — the memoised select cell takes this as a prop, so a selection change
@@ -145,9 +253,10 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     return amount === null || !r.currency ? '—' : formatCurrency(amount, r.currency);
   }, []);
 
-  // #2104 — the columns are rebuilt only when something they close over actually changes. The
-  // checkbox cell is additionally its own memoised component (below), so a selection change
-  // re-renders the ONE row whose `checked` flipped instead of every orphan row.
+  // #2104 — the columns are rebuilt only when something they close over actually changes. Neither
+  // the selection nor "is anything selected" is read here: the checkbox and the row actions are
+  // their own memoised components subscribing to the selection store, so a selection change keeps
+  // the table's column model — and every untouched row — as it was.
   const columns: Column<ErpPurchaseRow>[] = useMemo(() => [
     {
       key: 'document',
@@ -161,7 +270,6 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
           {canLink && (
             <DocumentSelectCell
               id={r.id}
-              checked={selected.has(r.id)}
               onToggle={toggle}
               label={t('erpLinks.selectOne', 'Select {{name}}', { name: r.name })}
             />
@@ -195,13 +303,16 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       size: 110,
       minSize: 110,
       // Decision 5: one labelled row action; hidden while rows are selected (the bulk bar is the action then).
-      cell: (r: ErpPurchaseRow) => (selecting ? null : (
-        <div className="flex justify-end">
-          <MenuButton label={t('erpLinks.linkMenu', 'Link…')} ariaLabel={t('erpLinks.linkMenuNamed', 'Link {{name}}', { name: r.name })} items={rowMenu(r)} />
-        </div>
-      )),
+      cell: (r: ErpPurchaseRow) => (
+        <RowActionsCell
+          row={r}
+          rowMenu={rowMenu}
+          label={t('erpLinks.linkMenu', 'Link…')}
+          ariaLabel={t('erpLinks.linkMenuNamed', 'Link {{name}}', { name: r.name })}
+        />
+      ),
     }] : []),
-  ], [amountOf, canLink, projectLabel, projectNames, rowMenu, selected, selecting, t, toggle]);
+  ], [amountOf, canLink, projectLabel, projectNames, rowMenu, t, toggle]);
 
   const exportColumns: Column<ErpPurchaseRow>[] = useMemo(() => columns.filter((column) => column.exportValue !== undefined).flatMap((column) =>
     column.key === 'amount' ? [
@@ -259,13 +370,14 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         />
       </div>}
       {outcome && <OutcomeNotice outcome={outcome} />}
-      <DataTable<ErpPurchaseRow>
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        tableId={tableId ?? 'erp-orphans-table'}
-        accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
-      />
+      <SelectionStoreContext.Provider value={selectStore}>
+        <OrphansTable
+          rows={rows}
+          columns={columns}
+          tableId={tableId ?? 'erp-orphans-table'}
+          accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
+        />
+      </SelectionStoreContext.Provider>
       {dialogDocs && (
         <LinkErpDocumentsDialog
           docs={dialogDocs}
