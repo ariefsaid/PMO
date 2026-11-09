@@ -12,10 +12,13 @@ const { transitionProject } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/lib/repositories/projects', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  projectRepository: { ...(await importOriginal()).projectRepository, transition: transitionProject },
-}));
+vi.mock('@/src/lib/repositories/projects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/projects')>();
+  return {
+    ...actual,
+    projectRepository: { ...actual.projectRepository, transition: transitionProject },
+  };
+});
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };

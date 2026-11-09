@@ -5,7 +5,7 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackPurchaseApproved } from '@/src/lib/analytics';
 import { procurementRepository } from '@/src/lib/repositories/procurement';
 import { subcontractRepository } from '@/src/lib/repositories/subcontracts';
-import type { CaptureVendorInvoiceInput, CreateInvoiceInput, ProcurementDetail, ProcurementError, ProcurementInvoiceRow, ProcurementReceiptRow, ProcurementStatus } from '@/src/lib/repositories/types';
+import type { CaptureVendorInvoiceInput, CreateInvoiceInput, ProcurementDetail, ProcurementError, ProcurementInvoiceRow, ProcurementReceiptRow, ProcurementStatus } from '@/src/lib/repositories/dataTypes';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,

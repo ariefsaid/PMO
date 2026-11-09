@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { orgSettingsRepository } from '@/src/lib/repositories/admin';
-import type { OrgLocaleDefaultsRow } from '@/src/lib/repositories/types';
+import type { OrgLocaleDefaultsRow } from '@/src/lib/repositories/dataTypes';
 import { useAuth } from '@/src/auth/useAuth';
 import { resolveLocale, resolveOrgBusinessTimezone, type ResolvedLocale } from '@/src/lib/locale/resolveLocale';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';

@@ -3,7 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { procurementRepository } from '@/src/lib/repositories/procurement';
 import { revenueRepository } from '@/src/lib/repositories/revenue';
-import type { ProcurementWithRefs, ProjectCommittedSpend } from '@/src/lib/repositories/types';
+import type { ProcurementWithRefs, ProjectCommittedSpend } from '@/src/lib/repositories/dataTypes';
 import { procurementsKey, requestedProcurementsKey } from './approvalsQueryKeys';
 
 export { procurementsKey } from './approvalsQueryKeys';

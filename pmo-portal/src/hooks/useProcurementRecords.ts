@@ -23,7 +23,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { procurementRepository } from '@/src/lib/repositories/procurement';
-import type { PaymentRow, ProcurementError, PurchaseOrderRow, PurchaseRequestRow, RfqRow } from '@/src/lib/repositories/types';
+import type { PaymentRow, ProcurementError, PurchaseOrderRow, PurchaseRequestRow, RfqRow } from '@/src/lib/repositories/dataTypes';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,

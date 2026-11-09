@@ -30,10 +30,13 @@ const authState = { userId: 'u-finance', role: 'Finance' };
 const budgetState = { rows: [] as unknown[], hasBudget: false, isPending: false, actualsPending: false };
 
 const transitionSpy = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock('@/src/lib/repositories/procurement', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  procurementRepository: { ...(await importOriginal()).procurementRepository, transition: transitionSpy },
-}));
+vi.mock('@/src/lib/repositories/procurement', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/procurement')>();
+  return {
+    ...actual,
+    procurementRepository: { ...actual.procurementRepository, transition: transitionSpy },
+  };
+});
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isError: false, refetch: vi.fn() }),

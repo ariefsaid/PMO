@@ -38,15 +38,18 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
 const winEligibility = vi.hoisted(() => ({ data: 'allowed' as string | undefined, isFetching: false, isError: false }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => winEligibility }));
 
-vi.mock('@/src/lib/repositories/projects', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  projectRepository: {
-    ...(await importOriginal()).projectRepository,
-    transition: repositoryTransition,
-    updateGetProbability: repositoryUpdateGetProbability,
-    updateGoProbability: repositoryUpdateGoProbability,
-  },
-}));
+vi.mock('@/src/lib/repositories/projects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/projects')>();
+  return {
+    ...actual,
+    projectRepository: {
+      ...actual.projectRepository,
+      transition: repositoryTransition,
+      updateGetProbability: repositoryUpdateGetProbability,
+      updateGoProbability: repositoryUpdateGoProbability,
+    },
+  };
+});
 
 const CONTRACT_VALUE = 1200000;
 

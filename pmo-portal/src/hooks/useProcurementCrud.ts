@@ -3,7 +3,7 @@ import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { useAuth } from '@/src/auth/useAuth';
 import type { AppError } from '@/src/lib/appError';
 import { procurementRepository } from '@/src/lib/repositories/procurement';
-import type { AtomicProcurementInput, NewProcurementInput, ProcurementHeaderPatch, ProcurementItemInput, ProcurementItemPatch, ProcurementItemRow } from '@/src/lib/repositories/types';
+import type { AtomicProcurementInput, NewProcurementInput, ProcurementHeaderPatch, ProcurementItemInput, ProcurementItemPatch, ProcurementItemRow } from '@/src/lib/repositories/dataTypes';
 import {
   procurementDetailKey,
   cachedProcurementProjectId,

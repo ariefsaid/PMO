@@ -2,7 +2,7 @@ import { invalidateTaskProjections } from './taskQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { meetingRepository } from '@/src/lib/repositories/meetings';
 import { taskRepository } from '@/src/lib/repositories/tasks';
-import type { MeetingAttendeeInput, MeetingAttendeeWithRefs, MeetingGrantWithRefs, MeetingInput, MeetingListItem, MeetingListParams, MeetingPatch, MeetingWithRefs, TaskWithRefs } from '@/src/lib/repositories/types';
+import type { MeetingAttendeeInput, MeetingAttendeeWithRefs, MeetingGrantWithRefs, MeetingInput, MeetingListItem, MeetingListParams, MeetingPatch, MeetingWithRefs, TaskWithRefs } from '@/src/lib/repositories/dataTypes';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**

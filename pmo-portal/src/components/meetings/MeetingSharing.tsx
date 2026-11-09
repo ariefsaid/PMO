@@ -14,7 +14,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { profileRepository } from '@/src/lib/repositories/admin';
-import type { MeetingAttendeeWithRefs, MeetingGrantWithRefs } from '@/src/lib/repositories/types';
+import type { MeetingAttendeeWithRefs, MeetingGrantWithRefs } from '@/src/lib/repositories/dataTypes';
 
 interface MeetingSharingProps {
   meetingId: string;

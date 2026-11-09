@@ -13,7 +13,7 @@ import {
 } from '@/src/components/ui';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { profileRepository } from '@/src/lib/repositories/admin';
-import type { MeetingAttendeeWithRefs } from '@/src/lib/repositories/types';
+import type { MeetingAttendeeWithRefs } from '@/src/lib/repositories/dataTypes';
 
 interface MeetingAttendeesProps {
   meetingId: string;

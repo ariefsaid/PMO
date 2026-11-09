@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardRepository } from '@/src/lib/repositories/dashboard';
 import { projectRepository } from '@/src/lib/repositories/projects';
-import type { BudgetReviewRow, ExecutiveDashboard, LossBreakdown, PMDashboardProject, PipelineProject, ProjectStatus, ProjectWithRefs, SalesPipeline, WinRate } from '@/src/lib/repositories/types';
+import type { BudgetReviewRow, ExecutiveDashboard, LossBreakdown, PMDashboardProject, PipelineProject, ProjectStatus, ProjectWithRefs, SalesPipeline, WinRate } from '@/src/lib/repositories/dataTypes';
 import { useAuth } from '@/src/auth/useAuth';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';

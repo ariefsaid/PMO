@@ -7,7 +7,7 @@
  * the returned history.
  */
 import type { AgentEvent } from '../../lib/agent/runtime/port';
-import type { AgentEventRow } from '@/src/lib/repositories/types';
+import type { AgentEventRow } from '@/src/lib/repositories/dataTypes';
 import { makeKey, mergeAssistantEvent, type TranscriptEntry } from './assistantPanelEvents';
 
 export interface ThreadHistory {

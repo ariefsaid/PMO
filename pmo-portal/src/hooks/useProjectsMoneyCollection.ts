@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { projectMoneyRepository } from '@/src/lib/repositories/projectMoney';
-import type { ProjectMoneyRead } from '@/src/lib/repositories/types';
+import type { ProjectMoneyRead } from '@/src/lib/repositories/dataTypes';
 
 /** One collection RPC per visible project set; identity and filters remain owned by useProjects. */
 export function useProjectsMoneyCollection(ids: string[]) {

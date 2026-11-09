@@ -10,7 +10,7 @@ import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext
 import { useAgentContext } from '../lib/agent/context/useAgentContext';
 import { isFeatureEnabled } from '../lib/features';
 import { agentRunRepository } from '@/src/lib/repositories/agentRuns';
-import type { AgentEventRow } from '@/src/lib/repositories/types';
+import type { AgentEventRow } from '@/src/lib/repositories/dataTypes';
 import {
   trackAgentRunStarted,
   trackAgentRunCompleted,
