@@ -105,6 +105,15 @@ describe('odoo ConnectAdapter — sendMaster (lookup-then-create)', () => {
     expect(fake.rows('account.analytic.account')).toHaveLength(1);
   });
 
+  it('AC-ODC-052 project: a blank project number is refused before any call, so the account is never named "null <name>"', async () => {
+    const { fake, adapter, bodies } = setup();
+    for (const code of [null, '', '  ']) {
+      await expect(adapter.sendMaster('project', { id: 'p-1', code, name: 'Jembatan' }, 'seed:project:p-1')).rejects.toEqual(new AdapterError('commit-rejected', 'project-number-missing'));
+    }
+    expect(bodies).toHaveLength(0);
+    expect(fake.rows('account.analytic.account')).toHaveLength(0);
+  });
+
   it('item: looks up default_code within our company; create carries the mapped unit and purchase_ok', async () => {
     const { fake, adapter, bodies } = setup();
     await adapter.sendMaster('item', { id: 'i-1', code: 'SMN-50', name: 'Semen 50 kg', unit: 'sak' }, 'seed:item:i-1');
