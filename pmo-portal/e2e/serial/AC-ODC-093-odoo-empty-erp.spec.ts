@@ -1,6 +1,7 @@
 // @e2e-isolation: serial — sends into the shared Odoo bed and counts its whole database before and after, so it must not overlap another bed journey; no reset is needed (the oracle is the delta).
 // AC-ODC-093 (scenario S-C; AC-ECA-051 Odoo parity): PMO has data, the connected Odoo has none of it. Accepting everything sends it once.
 // The Odoo section has no census/accept screen yet, so the journey calls the same setup verbs the Integrations screen calls (see s10-app-failures).
+// The account-code oracle expects fix/odoo-send-project-number (FR-ODC-072: the send codes the analytic account with the PMO project number).
 import { test, expect } from '@playwright/test';
 import { accessToken, adminClient, bedCounts, must, provisionOdooOrg, scenarioGate, setup, sweep, sweepUntil, type ScenarioOrg } from '../_connectScenario';
 
@@ -41,8 +42,10 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   const client = { id: crypto.randomUUID(), name: `${stamp} Client` };
   await must('vendors', admin.from('companies').insert(vendors.map((v) => ({ id: v.id, org_id: orgId, name: v.name, type: 'Vendor' as const }))).select('id'));
   await must('client', admin.from('companies').insert({ id: client.id, org_id: orgId, name: client.name, type: 'Client' }).select('id'));
-  const projects = [1, 2].map((n) => ({ id: crypto.randomUUID(), code: `${stamp}-P${n}`.toUpperCase(), name: `${stamp} project ${n}` }));
-  await must('projects', admin.from('projects').insert(projects.map((p) => ({ id: p.id, org_id: orgId, code: p.code, name: p.name, client_id: client.id, status: 'Ongoing Project' as const }))).select('id'));
+  const projects = [1, 2].map((n) => ({ id: crypto.randomUUID(), code: `${stamp}-P${n}`.toUpperCase(), name: `${stamp} project ${n}`, number: '' }));
+  const seededProjects = await must('projects', admin.from('projects').insert(projects.map((p) => ({ id: p.id, org_id: orgId, code: p.code, name: p.name, client_id: client.id, status: 'Ongoing Project' as const }))).select('id,pmo_project_number'));
+  // An Odoo send codes each analytic account with the PMO project number (FR-ODC-072), not the client code.
+  for (const p of projects) p.number = seededProjects.find((s) => s.id === p.id)!.pmo_project_number;
   const purchases = projects.map((p, i) => ({ id: crypto.randomUUID(), project: p, item: `${stamp} item ${i + 1}` }));
   await must('purchases', admin.from('procurements').insert(purchases.map((x, i) => ({
     id: x.id, org_id: orgId, code: `${stamp}-PO${i + 1}`, title: `${stamp} purchase ${i + 1}`, project_id: x.project.id, vendor_id: vendors[i].id,
@@ -50,7 +53,7 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   }))).select('id'));
   await must('items', admin.from('procurement_items').insert(purchases.map((x) => ({ org_id: orgId, procurement_id: x.id, name: x.item, quantity: 1, rate: 100000 }))).select('id'));
 
-  sentIds = [...vendors.map((v) => v.id), client.id]; sentCodes = projects.map((p) => p.code); sentItems = purchases.map((x) => x.item);
+  sentIds = [...vendors.map((v) => v.id), client.id]; sentCodes = projects.map((p) => p.number); sentItems = purchases.map((x) => x.item);
 
   // The cost-account plan is chosen once; the Odoo side starts without any PMO record.
   await sweep();   // mirror the directories first: the plan must be a mirrored one
@@ -74,7 +77,7 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   const read = async () => ({
     refs: await must('refs', admin.from('external_refs').select('domain,pmo_record_id,external_record_id').eq('org_id', orgId).eq('external_tier', 'odoo')),
     ...(await (async () => { const st = await setup<{ waitingForSend: number; proposalCounts: unknown }>(token, { setupAction: 'connect-status' }); return { sending: st.waitingForSend, counts: st.proposalCounts }; })()),
-    accounts: await call<number>('account.analytic.account', 'search_count', { domain: [['code', 'in', projects.map((p) => p.code)]] }),
+    accounts: await call<number>('account.analytic.account', 'search_count', { domain: [['code', 'in', projects.map((p) => p.number)]] }),
     products: await call<number>('product.product', 'search_count', { domain: [['name', 'in', purchases.map((x) => x.item)]] }),
   });
   const done = await sweepUntil(read, (s) => s.sending === 0 && s.refs.length >= 4 && s.accounts === 2 && s.products === 2, 'sends finished');
@@ -82,8 +85,8 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   const partners = await call<Array<{ id: number; name: string; ref: string | false }>>('res.partner', 'search_read', { domain: [['ref', 'like', 'pmo:']], fields: ['id', 'name', 'ref'] });
   const mine = [...vendors, client];
   expect(partners.filter((p) => mine.some((m) => p.ref === `pmo:${m.id}`))).toHaveLength(4);
-  const accounts = await call<Array<{ code: string }>>('account.analytic.account', 'search_read', { domain: [['code', 'in', projects.map((p) => p.code)]], fields: ['code'] });
-  expect(accounts.map((a) => a.code).sort()).toEqual(projects.map((p) => p.code).sort());
+  const accounts = await call<Array<{ code: string }>>('account.analytic.account', 'search_read', { domain: [['code', 'in', projects.map((p) => p.number)]], fields: ['code'] });
+  expect(accounts.map((a) => a.code).sort()).toEqual(projects.map((p) => p.number).sort());
   const products = await call<Array<{ name: string }>>('product.product', 'search_read', { domain: [['name', 'in', purchases.map((x) => x.item)]], fields: ['name'] });
   expect(products.map((p) => p.name).sort()).toEqual(purchases.map((x) => x.item).sort());
 

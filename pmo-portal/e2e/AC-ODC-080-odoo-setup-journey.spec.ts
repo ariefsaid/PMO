@@ -2,6 +2,7 @@
 // AC-ODC-080 (goal oracle): an Admin connects a new org to Odoo, maps once, links the pilot project by sending it, reviews the partner rows Odoo's own logins leave behind, employs companies;
 // the setup checklist is complete after a fresh sign-in, the brought-in partner and the saved defaults are read back, and the project's cost account equals the bed's value.
 // The Odoo section has no census/accept/send/employ screen yet, so those steps call the same setup verbs the Integrations screen calls (see s10-app-failures).
+// The account-code oracle expects fix/odoo-send-project-number (FR-ODC-072: the send codes the analytic account with the PMO project number).
 import { test, expect } from '@playwright/test';
 import { accessToken, adminClient, must, provisionOdooOrg, scenarioGate, setup, openOdooSection, signIn, sweep, sweepUntil, type ScenarioOrg } from './_connectScenario';
 
@@ -32,9 +33,11 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
 
   const vendor = crypto.randomUUID(), project = crypto.randomUUID();
   const code = `${stamp}-P1`.toUpperCase();
-  sentCodes = [code];
   await must('vendor', admin.from('companies').insert({ id: vendor, org_id: orgId, name: `${stamp} PT Sinar Baja`, type: 'Vendor' }).select('id'));
-  await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: `${stamp} pilot`, status: 'Ongoing Project' }).select('id'));
+  // The database-assigned PMO project number is what an Odoo send codes the analytic account with (FR-ODC-072); the client code is not.
+  const seeded = await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: `${stamp} pilot`, status: 'Ongoing Project' }).select('id,pmo_project_number').single());
+  const projectNumber = seeded.pmo_project_number;
+  sentCodes = [projectNumber];
   // A unit PMO uses (a BOQ line), so Map once has a unit to match.
   await must('boq', admin.from('boq_items').insert({ org_id: orgId, project_id: project, item_code: `${stamp}-1`, description: `${stamp} line`, quantity: 1, rate: 1000, unit: 'Units' }).select('id'));
   partnerIds = await call<number[]>('res.partner', 'create', { vals_list: [{ name: `${stamp} Odoo-only partner`, is_company: true, supplier_rank: 1 }] });
@@ -64,7 +67,7 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   for (const row of open.proposals.filter((r) => r.pmo_ids.length === 0)) await setup(token, { setupAction: 'decide-review', id: row.id, choice: { action: 'dismiss' } });
   await sweepUntil(async () => ({
     waiting: (await setup<{ waitingForSend: number }>(token, { setupAction: 'connect-status' })).waitingForSend,
-    accounts: await call<number>('account.analytic.account', 'search_count', { domain: [['code', '=', code]] }),
+    accounts: await call<number>('account.analytic.account', 'search_count', { domain: [['code', '=', projectNumber]] }),
   }), (s) => s.waiting === 0 && s.accounts === 1, 'sends finished');
   await setup(token, { setupAction: 'employ-domain', domain: 'companies' });
 
@@ -91,9 +94,10 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
     await expect.soft(checklist.getByRole('listitem', { name: step }), `${step}: saved config ${saved}`).toContainText('Done', { timeout: 30_000 });
   }
 
-  // Goal oracle: the project is linked to the one cost account the bed holds for its code.
-  const accounts = await call<Array<{ id: number }>>('account.analytic.account', 'search_read', { domain: [['code', '=', code]], fields: ['id'] });
+  // Goal oracle: the project is linked to the one cost account the bed holds, and its code is the PMO project number (FR-ODC-072), not the client code.
+  const accounts = await call<Array<{ id: number; code: string }>>('account.analytic.account', 'search_read', { domain: [['code', '=', projectNumber]], fields: ['id', 'code'] });
   expect(accounts).toHaveLength(1);
+  expect(accounts[0].code).toBe(projectNumber);
   const linked = await must('binding', admin.from('external_project_bindings').select('external_container_id').eq('org_id', orgId).eq('project_id', project).eq('external_tier', 'odoo'));
   expect(linked.map((b) => b.external_container_id)).toEqual([String(accounts[0].id)]);
 });
