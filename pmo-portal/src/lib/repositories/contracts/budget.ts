@@ -62,7 +62,10 @@ export interface BudgetRepository {
   cloneVersion(versionId: string): Promise<string>;
   /** Resolves on the PMO transition alone (`pushState: 'queued'`, ADR-0062); the ERP push runs in the
    *  background and `onPushSettled` fires when it ends so the caller re-reads the push status. */
-  activateVersion(versionId: string, onPushSettled?: () => void): Promise<ActivateVersionResult>;
+  activateVersion(
+    versionId: string,
+    onPushSettled?: (pushState: Exclude<ActivateVersionResult['pushState'], 'queued'>) => void,
+  ): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string, cancelErp: boolean): Promise<ArchiveVersionResult>;
   deleteDraftVersion(versionId: string): Promise<void>;
   listDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]>;

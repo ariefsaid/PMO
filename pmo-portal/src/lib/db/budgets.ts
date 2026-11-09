@@ -896,7 +896,10 @@ async function readActivatedAt(versionId: string): Promise<string | null> {
  * re-thrown here: this function still only throws for a REAL activation failure (the RPC's own
  * authorization/state-machine rejection), exactly as it did before P3c.
  */
-export async function activateVersion(versionId: string, onPushSettled?: () => void): Promise<ActivateVersionResult> {
+export async function activateVersion(
+  versionId: string,
+  onPushSettled?: (pushState: Exclude<ActivateVersionResult['pushState'], 'queued'>) => void,
+): Promise<ActivateVersionResult> {
   // ⚑ ADR-0062: resolves on the PMO write; the push runs in the background (see `activateAndPush`).
   // `onPushSettled` fires when it ends, success or failure, so the caller re-reads `get_budget_push_status`
   // — the durable per-year truth (HIGH-C: a dispatch that never reached the function leaves no mirror row,
@@ -908,7 +911,9 @@ export async function activateVersion(versionId: string, onPushSettled?: () => v
       return { error };
     },
     dispatch: (id) => pushActivatedBudget(id),
-    onPushSettled: () => onPushSettled?.(),
+    // The whole fan-out is the unit (activation names no year); an empty fan-out resolves having pushed nothing.
+    onPushSettled: (state, dispatchResult) =>
+      onPushSettled?.(state === 'pushed' ? (pushStateForYear(dispatchResult, null) as 'pushed' | 'failed' | 'nothing-to-push') : 'failed'),
   });
   if (!result.activated) throw toAppError(result.error);
   return { pushState: 'queued' };

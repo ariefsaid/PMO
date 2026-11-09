@@ -131,7 +131,7 @@ describe('useBudgetMutations', () => {
     });
     const key = ['budget-push-status', 'p-1'];
     qc.getQueryCache().find({ queryKey: key, exact: true })!.setState({ isInvalidated: false } as never);
-    const onPushSettled = activateVersion.mock.calls[0][1] as () => void;
+    const onPushSettled = vi.mocked(activateVersion).mock.calls[0][1] as () => void;
     act(() => onPushSettled());
 
     expect(qc.getQueryCache().find({ queryKey: key, exact: true })?.state.isInvalidated).toBe(true);
