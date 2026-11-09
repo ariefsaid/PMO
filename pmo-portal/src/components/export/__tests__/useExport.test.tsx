@@ -9,7 +9,7 @@
  * exportXlsx resolves (not rejects) and busy resets after an error.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, render, waitFor } from '@testing-library/react';
+import { renderHook, act, render, waitFor, screen } from '@testing-library/react';
 import React from 'react';
 import type { Column } from '@/src/components/ui';
 import { ToastProvider } from '@/src/components/ui';
@@ -113,8 +113,10 @@ describe('useExport', () => {
       getByRole('button', { name: 'Export' }).click();
     });
 
-    // The toast with "Export failed" headline must appear.
-    const toastTitle = await findByText('Export failed');
+    // The toast with "Export failed" headline must appear (real timers mount the library
+    // element on its own tick; the sr-only announcement region mirrors the same headline).
+    const toastTitle = await findByText('Export failed', { selector: '[data-title]' });
     expect(toastTitle).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Export failed'));
   });
 });

@@ -1,6 +1,7 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, act, waitFor, cleanup } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -37,6 +38,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 import DraggableSalesBoard from '../DraggableSalesBoard';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const deal = (id: string, status: PipelineProject['status']): PipelineProject => ({
   id, name: `${id} deal`, short_name: null, client_name: 'Acme', status,
@@ -291,7 +298,11 @@ describe('DraggableSalesBoard', () => {
       await user.click(screen.getByRole('button', { name: 'Confirm' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     }
-    expect(await screen.findAllByText(note)).toHaveLength(2);
+    // Each win surfaces its own stacked note toast; the newest one is what's announced.
+    await waitFor(() => expect(
+      Array.from(document.querySelectorAll('[data-sonner-toast]')).filter((el) => (el.textContent ?? '').includes(note)),
+    ).toHaveLength(2));
+    expect(screen.getByRole('status')).toHaveTextContent(note);
   });
 
   it('AC-DND-012: the home column (and Won for a won deal) is not a drop target cue', () => {

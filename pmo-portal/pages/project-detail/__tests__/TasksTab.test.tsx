@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation, useNavigationType } from 'react-router';
@@ -76,6 +77,12 @@ vi.mock('@/src/auth/useAuth', () => ({
 import TasksTab from '../tabs/TasksTab';
 import { clearOwnershipCache, setTaskOwnership, setProjectBindings, setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
 import { act } from '@testing-library/react';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const profiles = [
   { id: 'eng-1', full_name: 'Dana Engineer', role: 'Engineer' },
