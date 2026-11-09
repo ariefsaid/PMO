@@ -538,6 +538,8 @@
       "notes": "Catatan",
       "categoryNotesUnavailable": "Tidak ada catatan kategori.",
       "actualsSource": "Sumber: keuangan proyek per kategori; ini adalah total hingga tanggal pencatatan dan tidak menampilkan tren transaksi.",
+      "actualsSourceOdoo": "Sumber: buku besar Odoo per kategori anggaran. Akun tanpa kategori anggaran dicantumkan di atas tabel dan tidak dihitung. Kategori anggaran tanpa akun Odoo tidak menampilkan angka dan tidak termasuk dalam Pengeluaran.",
+      "spentExcludes": "Pengeluaran tidak termasuk kategori tanpa akun Odoo ({{count}})",
       "projectTeam": "Tim proyek",
       "openCategory": "Buka detail anggaran {{category}}",
       "versionAuthorSource": "Penulis versi dan tanggal pembuatannya. Pemilik kategori dan waktu pembaruan baris tidak dicatat.",
@@ -569,7 +571,6 @@
       "activationDateNeeded": "Tambahkan tanggal aktivasi",
       "openVersion": "Buka versi",
       "compare": "Bandingkan",
-      "erpReviewHint": "{{version}}. Anggaran sudah aktif; minta tim Keuangan atau administrator meninjau penerapannya di ERP.",
       "draftEditor": "Editor anggaran draf",
       "title": "Anggaran proyek",
       "noMoneyAccess": "Detail anggaran tersedia bagi manajemen proyek dan tim keuangan.",
@@ -586,6 +587,7 @@
       "spendingUnavailable": "Pengeluaran tidak diketahui atau tidak tersedia.",
       "commitmentsUnavailable": "Komitmen tidak diketahui atau tidak tersedia.",
       "currencyBasisNotice": "Anggaran: {{budgetCurrency}}. Pengeluaran dan komitmen: {{projectCurrency}}. Perbandingan antar mata uang tidak tersedia.",
+      "currencyBasisSplitNotice": "Anggaran: {{budgetCurrency}}. Pengeluaran: {{spendCurrency}}. Komitmen: {{projectCurrency}}. Perbandingan antar mata uang tidak tersedia.",
       "currencyComparisonUnavailable": "Perbandingan tidak tersedia karena anggaran dan pengeluaran menggunakan mata uang yang berbeda.",
       "leftUnavailable": "Sisa anggaran tidak diketahui saat pengeluaran atau komitmen tidak tersedia.",
       "budgetVsActual": "Anggaran vs aktual",
@@ -704,7 +706,12 @@
     "erpLineItemsStoredExternally": "Baris faktur disimpan di sistem akuntansi untuk faktur ini.",
     "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo.",
     "versionActivatedPushQueued": "Versi diaktifkan: anggaran ERPNext dalam antrean",
-    "cancellationPendingQueuedDetail": "{{version}}. Pembatalan anggaran ERPNext sebelumnya masih dalam proses, sehingga penggantinya diantrekan dan akan dikirim otomatis setelah pembatalan itu selesai."
+    "cancellationPendingQueuedDetail": "{{version}}. Pembatalan anggaran ERPNext sebelumnya masih dalam proses, sehingga penggantinya diantrekan dan akan dikirim otomatis setelah pembatalan itu selesai.",
+    "withholdingArticle": "Pasal pemotongan",
+    "withholdingArticleNone": "Tidak disebutkan",
+    "withholdingArticlePph23": "PPh 23",
+    "withholdingArticlePph42": "PPh 4(2)",
+    "withholdingArticleNotStated": "Tidak disebutkan"
   },
   "odooOutcome": {
     "confirmed": "Ada di Odoo",
@@ -834,6 +841,10 @@
       "unlinked_other": "Di akun biaya yang belum ditautkan ke proyek: debit {{debit}}, kredit {{credit}} ({{count}} baris)."
     },
     "amountsIn": "Jumlah dalam {{currency}}",
+    "mode": {
+      "loadFailed": "Kami tidak dapat memeriksa dari mana angka-angka ini berasal",
+      "loadFailedSub": "Angka mengikuti dokumen PMO atau buku besar Odoo. Coba lagi sebelum mengandalkannya."
+    },
     "budget": {
       "title": "Biaya aktual dari Odoo",
       "unlinked": "Biaya aktual belum dapat ditampilkan: belum ada akun biaya Odoo yang ditautkan ke proyek ini.",
@@ -853,7 +864,6 @@
       "table": "Baris Odoo di balik kategori ini",
       "empty": "Tidak ada baris pada kategori ini",
       "emptySub": "Baris Odoo yang sudah diposting pada akun biaya proyek ini dan akun yang dipetakan muncul di sini.",
-      "showingSoFar": "Menampilkan {{shown}} sejauh ini",
       "showing": "Menampilkan {{shown}} dari {{total}}",
       "more": "Tampilkan lagi",
       "all": "Semua"
@@ -917,5 +927,92 @@
       "refusedStale": "Pencocokan terakhir sudah usang. Tunggu pencocokan berikutnya.",
       "refusedUnconfirmed": "Selisih perlu alasan tertulis sebelum Anda dapat melanjutkan."
     }
+  },
+  "budgetPaste": {
+    "open": "Tempel baris",
+    "title": "Tempel baris",
+    "target": "Menambah ke {{version}} (Draf). Baris yang ada tetap dipertahankan.",
+    "save_other": "Simpan {{count}} baris valid",
+    "done": "Selesai",
+    "disabledReason": "Tempel baris dengan kolom kategori dan jumlah terpetakan, dengan minimal satu baris valid.",
+    "discardTitle": "Tutup tanpa menyelesaikan?",
+    "discardBody": "Baris tempelan yang belum disimpan dan baris yang belum terkonfirmasi akan dibuang. Periksa baris anggaran setelahnya.",
+    "discardConfirm": "Tutup",
+    "discardKeep": "Lanjut mengedit",
+    "textLabel": "Baris yang ditempel dari spreadsheet",
+    "textHelper": "Salin sel dari spreadsheet apa pun dan tempel di sini. Maksimal 500 baris. Angka memakai titik untuk desimal; koma boleh memisah ribuan.",
+    "parseError": "Teks tempelan memiliki tanda kutip yang tidak ditutup. Periksa lalu tempel ulang.",
+    "mappingLegend": "Pemetaan kolom",
+    "mapField": "Kolom {{field}}",
+    "notUsed": "Tidak dipakai",
+    "column": "Kol {{n}}",
+    "field": {
+      "category": "Kategori",
+      "description": "Deskripsi",
+      "amount": "Jumlah",
+      "quantity": "Kuantitas",
+      "rate": "Tarif",
+      "row": "Baris"
+    },
+    "header": "Baris pertama adalah judul kolom",
+    "modeLegend": "Mode jumlah",
+    "modeAmount": "Pakai Jumlah",
+    "modeProduct": "Pakai Kuantitas × Tarif",
+    "mapCategory": "Petakan \"{{raw}}\" ke",
+    "chooseCategory": "Pilih kategori",
+    "summary": "{{valid}} valid, {{invalid}} tidak valid. Total valid {{total}}. Baris tidak valid tidak disimpan.",
+    "previewLabel": "Pratinjau",
+    "col": {
+      "row": "Baris",
+      "status": "Pemeriksaan"
+    },
+    "ambiguousNote": "Dibaca {{amount}}, bukan desimal.",
+    "ambiguousConfirm_one": "{{count}} jumlah seperti 12,345 dibaca sebagai ribuan (12345), bukan desimal (12,345 = 12.345). Saya konfirmasi ini benar.",
+    "ambiguousConfirm_other": "{{count}} jumlah seperti 12,345 dibaca sebagai ribuan (12345), bukan desimal (12,345 = 12.345). Saya konfirmasi ini benar.",
+    "rowOk": "OK",
+    "rowError": {
+      "mapping-required": "Kolom {{field}} belum dipilih.",
+      "mode-required": "Pilih Jumlah atau Kuantitas × Tarif.",
+      "row-limit": "Terlalu banyak baris.",
+      "required": "{{field}} wajib diisi.",
+      "unknown-category": "Kategori tidak dikenal. Petakan di atas.",
+      "ambiguous-category": "Kategori cocok dengan lebih dari satu pilihan.",
+      "invalid-amount": "Jumlah harus angka positif dengan maksimal 2 desimal.",
+      "invalid-quantity": "Kuantitas harus angka positif.",
+      "invalid-rate": "Tarif harus angka positif.",
+      "invalid-product": "Kuantitas × Tarif harus berupa jumlah positif dalam sen utuh."
+    },
+    "blockError": {
+      "mapping-required": "Pilih kolom yang diperlukan.",
+      "mode-required": "Pilih Jumlah atau Kuantitas × Tarif.",
+      "too-many-rows": "Tempel maksimal 500 baris.",
+      "no-data": "Belum ada baris untuk dipratinjau."
+    },
+    "resultsLabel": "Hasil penyimpanan",
+    "progress": "Menyimpan {{completed}} dari {{total}}…",
+    "resultSummary": "{{created}} dari {{total}} baris tersimpan.",
+    "resultRow": "Baris {{row}} · {{category}} · {{amount}}",
+    "result": {
+      "created": "Tersimpan",
+      "failed": "Tidak tersimpan: {{reason}}",
+      "uncertain": "Belum terkonfirmasi. Periksa baris anggaran sebelum menempel baris ini lagi.",
+      "unsubmitted": "Tidak dikirim",
+      "pending": "Menyimpan…"
+    },
+    "retry_other": "Ulangi {{count}} baris gagal",
+    "hook": {
+      "noRows": "Tambahkan minimal satu baris valid sebelum menyimpan.",
+      "badRowNumbers": "Nomor baris sumber harus bilangan bulat positif yang unik.",
+      "badCategory": "Satu atau lebih baris memiliki kategori anggaran yang tidak didukung.",
+      "badDescription": "Satu atau lebih deskripsi baris tidak valid.",
+      "badAmount": "Satu atau lebih baris memiliki jumlah yang tidak valid atau tidak kanonis.",
+      "unsafeAmount": "Satu atau lebih jumlah tidak dapat disimpan dengan aman.",
+      "refreshFailed": "Penyegaran anggaran belum selesai. Muat ulang anggaran sebelum mengandalkan total.",
+      "reconcileFirst": "Selesaikan hasil saat ini atau mulai sesi tempel baru sebelum menyimpan lagi.",
+      "notDraft": "Anggaran terpilih bukan Draf yang dapat diedit. Periksa sebelum menyimpan.",
+      "originalGone": "Draf anggaran semula tidak lagi dipilih atau dapat ditulis. Periksa sebelum mencoba lagi."
+    },
+    "save_one": "Simpan {{count}} baris valid",
+    "retry_one": "Ulangi {{count}} baris gagal"
   }
 }

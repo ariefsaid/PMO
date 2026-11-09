@@ -75,6 +75,16 @@ describe('DocumentsTab — Microsoft connection gate (AC-M365DOC-014/031)', () =
     expect(h.pickerRequests).not.toHaveBeenCalled();
   });
 
+  it('AC-M365DOC-031: the not-connected notice renders above the register, not below it (#1458)', async () => {
+    h.conn.connection = { connected: false, status: null };
+    renderTab();
+    await openEntry();
+    const gate = screen.getByTestId('m365-connection-gate');
+    const register = screen.getByRole('button', { name: 'View Foundation GA' });
+    // Node.DOCUMENT_POSITION_FOLLOWING (4): the register follows the notice in the DOM.
+    expect(gate.compareDocumentPosition(register) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('AC-M365DOC-014: a pending status never guesses active — no picker', async () => {
     h.conn.isPending = true;
     renderTab();

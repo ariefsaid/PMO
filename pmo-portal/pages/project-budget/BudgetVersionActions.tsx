@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, ConfirmDialog, Toolbar, useToast } from '@/src/components/ui';
@@ -65,13 +65,8 @@ export function budgetArchiveConfirmFromTargets(
 
 export function useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView }: VersionActionsOptions) {
   const { t } = useTranslation('finance');
-  const { toast, dismiss: dismissToast } = useToast();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
-  const activationNoticeId = useRef<number | null>(null);
-  const dismissActivationNotice = () => {
-    if (activationNoticeId.current !== null) dismissToast(activationNoticeId.current);
-    activationNoticeId.current = null;
-  };
   const [newVersionName, setNewVersionName] = useState('');
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
@@ -80,21 +75,17 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
     return version ? version.name + ' (v' + version.version + ')' : id;
   };
   const requestCreate = (name: string) => {
-    dismissActivationNotice();
     setPendingConfirm({ kind: 'create', name });
   };
   const requestActivate = (id: string) => {
     if (!canActivate || hasOpenLineBuffers || draftVersion?.id !== id) return;
-    dismissActivationNotice();
     void activationPrecheckQuery.refetch();
     setPendingConfirm({ kind: 'activate', id, label: versionLabel(id) });
   };
   const requestClone = (id: string) => {
-    dismissActivationNotice();
     setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
   };
   const requestArchive = async (id: string) => {
-    dismissActivationNotice();
     try {
       // #1462 — the server owns the inventory AND the eligibility verdict. A failed read aborts the
       // dialog: "could not read" must never render as "nothing is live".
@@ -105,11 +96,9 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
     }
   };
   const requestDeleteDraft = (id: string) => {
-    dismissActivationNotice();
     setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
   };
   const requestDeleteLineItem = (id: string) => {
-    dismissActivationNotice();
     setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
   };
 
@@ -133,11 +122,12 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
         }
         case 'activate': {
           if (!canActivate || !canConfirmActivation || hasOpenLineBuffers || draftVersion?.id !== confirm.id) return;
+          // ADR-0062: resolves on the PMO write alone (`'queued'`); the push outcome shows on the push-status read.
           const { pushState } = await mutations.activate.mutateAsync(confirm.id);
           void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
           if (pushState === 'failed') {
-            activationNoticeId.current = toast(
+            toast(
               t('financeCopy.versionActivatedERPNotUpdated', 'Version activated, but ERPNext was not updated'),
               t('projectDetail.budget.erpReviewHint', "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.", { version: confirm.label }),
               'warning',
@@ -309,7 +299,7 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   );
 
   const newVersionForm = renderNewVersionForm({ onSubmit: requestCreate, onCancel: () => setShowNewVersionForm(false), value: newVersionName, onChange: setNewVersionName, t });
-  return { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem };
+  return { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem };
 }
 
 // ---------------------------------------------------------------------------

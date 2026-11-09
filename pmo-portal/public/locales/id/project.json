@@ -501,6 +501,7 @@
       "spendingChecking": "Memeriksa pengeluaran…",
       "spendingError": "Pengeluaran tidak dapat diperiksa",
       "spendingUnlinked": "Pengeluaran belum ditautkan.",
+      "currencyDiffers": "Pengeluaran dicatat dalam {{currency}}, bukan mata uang proyek, sehingga tidak dibandingkan dengan anggaran.",
       "finishSetup": "Selesaikan penyiapan pengeluaran",
       "askAdmin": "Administrator dapat menyelesaikan penyiapan.",
       "committedTooltip": "Pengadaan yang dipesan, diterima, difakturkan pemasok, dan dibayar dalam mata uang proyek, termasuk yang tanpa kategori anggaran; total yang sama dengan tab Anggaran.",

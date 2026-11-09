@@ -276,7 +276,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccount'].sort());
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccounts', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccounts'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
@@ -1033,7 +1033,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.cloneVersion).toHaveBeenCalledWith('v1');
 
     await repositories.budget.activateVersion('v1');
-    expect(budgetsDal.activateVersion).toHaveBeenCalledWith('v1');
+    expect(budgetsDal.activateVersion).toHaveBeenCalledWith('v1', undefined);
 
     await repositories.budget.archiveVersion('v1', true);
     expect(budgetsDal.archiveVersion).toHaveBeenCalledWith('v1', true);

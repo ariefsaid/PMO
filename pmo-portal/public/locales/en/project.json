@@ -501,6 +501,7 @@
       "spendingChecking": "Checking spending…",
       "spendingError": "Couldn't check spending",
       "spendingUnlinked": "Spending isn't linked yet.",
+      "currencyDiffers": "Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.",
       "finishSetup": "Finish spending setup",
       "askAdmin": "An administrator can finish the setup.",
       "committedTooltip": "Ordered, received, supplier-invoiced and paid procurements in the project currency, including those with no budget category; the same total as the Budget tab.",
