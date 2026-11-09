@@ -16,11 +16,9 @@ import { STUCK_RUN_STALE_MS } from '../../components/panel/stuckRun.constants';
 
 const getHeartbeat = vi.fn();
 
-vi.mock('../../lib/repositories', () => ({
-  repositories: {
-    agentRun: {
-      getHeartbeat: (...args: unknown[]) => getHeartbeat(...args),
-    },
+vi.mock('@/src/lib/repositories/agentRuns', () => ({
+  agentRunRepository: {
+    getHeartbeat: (...args: unknown[]) => getHeartbeat(...args),
   },
 }));
 
