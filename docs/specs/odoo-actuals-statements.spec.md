@@ -79,6 +79,7 @@ When I close a month on an Odoo-connected project, I want PMO's budget-versus-ac
 - **FR-ODA-051** When the user opens a category's actual, the system shall list its source lines (date, move name, journal, account, partner, share, amount) from the mirror, bounded and paged (no silent PostgREST truncation).
 - **FR-ODA-052** Where a project has no linked analytic account, the system shall say actuals cannot be attributed yet and link to the project's cost-account setting; it shall not show zero.
 - **FR-ODA-053** The refresh of the actuals snapshot shall run after the ledger feed in the Odoo sweep, scoped to the Odoo project map (`external_project_bindings`), whole-org and atomic (`replace_erp_snapshot`), exactly as ERPNext's.
+- **FR-ODA-054** Every figure on the project budget tab shall carry its own currency: Odoo spend in the Odoo company's currency (the finances read names it), the budget in its version's, commitments in the project's. Left and % used shall be computed only when all three are one currency, and otherwise say plainly that the currencies differ with no number. While the Odoo Spent is a partial sum (budget categories with no Odoo account), the Spent and Left tiles shall say so. The Overview cost block shall compare spend only in the project currency and say when it is in another.
 
 ### Statements
 
@@ -166,6 +167,7 @@ Each claim was run as a probe case (`node scripts/odoo-probe.mjs --actuals --cas
 | AC-ODA-021 | **Given** a stock bed with a posted bill and invoice carrying a project analytic account, a split line and an unattributed line **When** the ledger pass and the check run **Then** the mirror's per-account sums equal Odoo's grouped totals to the cent and project actuals equal the posted amounts | B `odooLedgerFeed.bed.test.ts` |
 | AC-ODA-022 | **Given** the bed and an Admin **When** a Finance user opens project budget-versus-actual and then the Trial Balance **Then** both show the ledger as-of time, "matches Odoo", and the same project total | E `e2e/AC-ODA-022-odoo-actuals-statements.spec.ts` (bed-gated like the shipped Odoo specs; skip allowlisted) |
 | AC-ODA-023 | **Given** 130,000 synthetic mirror rows **When** a statement and the actuals refresh run **Then** each completes in budget, with no truncation | P/perf script `scripts/odoo-ledger-perf.mjs` (recorded, not a CI gate) |
+| AC-ODA-024 | **Given** a project whose budget is in one currency and whose Odoo spend is in another **When** the Budget tab and the Overview cost block render **Then** each figure shows its own currency, Left shows no number and says the currencies differ, a partial Spent names the categories it leaves out, and when all currencies match the cards equal the table totals | U RTL `ProjectBudgetOdooCards.test.tsx`, `ProjectPosition.test.tsx`; P `odoo_project_actuals.test.sql` (the read names the Odoo company currency) |
 
 ## 11. Traceability to the issue acceptance
 

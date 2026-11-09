@@ -538,6 +538,8 @@
       "notes": "Notes",
       "categoryNotesUnavailable": "No category notes are recorded.",
       "actualsSource": "Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.",
+      "actualsSourceOdoo": "Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted. Budget categories with no Odoo account show no figure and are left out of Spent.",
+      "spentExcludes": "Spent excludes categories with no Odoo account ({{count}})",
       "projectTeam": "Project team",
       "openCategory": "Open {{category}} budget details",
       "versionAuthorSource": "Version author and creation date. Category-level ownership and line update time are not recorded.",
@@ -569,7 +571,6 @@
       "activationDateNeeded": "Add an activation date",
       "openVersion": "Open version",
       "compare": "Compare",
-      "erpReviewHint": "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.",
       "draftEditor": "Draft budget editor",
       "title": "Project budget",
       "noMoneyAccess": "Budget details are available to project management and finance.",
@@ -598,6 +599,7 @@
       "spendingUnavailable": "Spending is unknown or unavailable.",
       "commitmentsUnavailable": "Commitments are unknown or unavailable.",
       "currencyBasisNotice": "Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
+      "currencyBasisSplitNotice": "Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
       "currencyComparisonUnavailable": "Comparison unavailable because budget and spending use different currencies.",
       "leftUnavailable": "Left is unknown while spending or commitments are unavailable.",
       "budgetVsActual": "Budget vs actual",
@@ -714,7 +716,12 @@
     "invoiceNumber": "Invoice number",
     "odooDraftNumber": "Draft — Odoo assigns the number on approval",
     "erpLineItemsStoredExternally": "Line items are kept in the accounting system for this invoice.",
-    "paymentsReceivedFromClientsMirroredFromOdoo": "Payments received from clients, mirrored from Odoo."
+    "paymentsReceivedFromClientsMirroredFromOdoo": "Payments received from clients, mirrored from Odoo.",
+    "withholdingArticle": "Withholding article",
+    "withholdingArticleNone": "Not stated",
+    "withholdingArticlePph23": "PPh 23",
+    "withholdingArticlePph42": "PPh 4(2)",
+    "withholdingArticleNotStated": "Not stated"
   },
   "odooOutcome": {
     "confirmed": "In Odoo",
@@ -844,6 +851,10 @@
       "unlinked_other": "In cost accounts no project is linked to: debits {{debit}}, credits {{credit}} ({{count}} lines)."
     },
     "amountsIn": "Amounts in {{currency}}",
+    "mode": {
+      "loadFailed": "We could not check where these figures come from",
+      "loadFailedSub": "They follow either PMO documents or the Odoo ledger. Try again before relying on them."
+    },
     "budget": {
       "title": "Actuals from Odoo",
       "unlinked": "Actual cost cannot be shown yet: no Odoo cost account is linked to this project.",
@@ -863,7 +874,6 @@
       "table": "Odoo lines behind this category",
       "empty": "No lines in this category",
       "emptySub": "Posted Odoo lines in this project’s cost account and a mapped account appear here.",
-      "showingSoFar": "Showing {{shown}} so far",
       "showing": "Showing {{shown}} of {{total}}",
       "more": "Show more",
       "all": "All"
@@ -926,6 +936,93 @@
       "reasonLabel": "Why is the difference acceptable?",
       "reasonHelp": "Kept in the audit trail with your name.",
       "confirmAction": "Move to the Odoo ledger"
+    }
+  },
+  "budgetPaste": {
+    "open": "Paste rows",
+    "title": "Paste rows",
+    "target": "Adding to {{version}} (Draft). Existing lines are kept.",
+    "save_one": "Save {{count}} valid row",
+    "save_other": "Save {{count}} valid rows",
+    "done": "Done",
+    "disabledReason": "Paste rows with a mapped category and amount, with at least one valid row.",
+    "discardTitle": "Close without finishing?",
+    "discardBody": "Pasted rows that are not saved, and rows not confirmed, will be dropped. Check the budget lines afterwards.",
+    "discardConfirm": "Close",
+    "discardKeep": "Keep editing",
+    "textLabel": "Rows pasted from a spreadsheet",
+    "textHelper": "Copy cells from any spreadsheet and paste them here. Up to 500 rows. Numbers use a dot for decimals; commas may group thousands.",
+    "parseError": "The pasted text has an unclosed quote. Check it and paste again.",
+    "mappingLegend": "Column mapping",
+    "mapField": "{{field}} column",
+    "notUsed": "Not used",
+    "column": "Col {{n}}",
+    "field": {
+      "category": "Category",
+      "description": "Description",
+      "amount": "Amount",
+      "quantity": "Quantity",
+      "rate": "Rate",
+      "row": "Row"
+    },
+    "header": "First row is a header",
+    "modeLegend": "Amount mode",
+    "modeAmount": "Use Amount",
+    "modeProduct": "Use Quantity × Rate",
+    "mapCategory": "Map \"{{raw}}\" to",
+    "chooseCategory": "Choose a category",
+    "summary": "{{valid}} valid, {{invalid}} invalid. Valid total {{total}}. Invalid rows are not saved.",
+    "previewLabel": "Preview",
+    "col": {
+      "row": "Row",
+      "status": "Check"
+    },
+    "ambiguousNote": "Read as {{amount}}, not a decimal.",
+    "ambiguousConfirm_one": "{{count}} amount like 12,345 is read as thousands (12345), not decimals (12.345). I confirm this is right.",
+    "ambiguousConfirm_other": "{{count}} amounts like 12,345 are read as thousands (12345), not decimals (12.345). I confirm this is right.",
+    "rowOk": "OK",
+    "rowError": {
+      "mapping-required": "{{field}} column is not chosen.",
+      "mode-required": "Choose Amount or Quantity × Rate.",
+      "row-limit": "Too many rows.",
+      "required": "{{field}} is required.",
+      "unknown-category": "Unknown category. Map it above.",
+      "ambiguous-category": "Category matches more than one option.",
+      "invalid-amount": "Amount is not a valid positive number with at most 2 decimals.",
+      "invalid-quantity": "Quantity must be a positive number.",
+      "invalid-rate": "Rate must be a positive number.",
+      "invalid-product": "Quantity × Rate must be a positive amount in whole cents."
+    },
+    "blockError": {
+      "mapping-required": "Choose the required columns.",
+      "mode-required": "Choose Amount or Quantity × Rate.",
+      "too-many-rows": "Paste at most 500 rows.",
+      "no-data": "No rows to preview yet."
+    },
+    "resultsLabel": "Save results",
+    "progress": "Saving {{completed}} of {{total}}…",
+    "resultSummary": "{{created}} of {{total}} rows saved.",
+    "resultRow": "Row {{row}} · {{category}} · {{amount}}",
+    "result": {
+      "created": "Saved",
+      "failed": "Not saved: {{reason}}",
+      "uncertain": "Not confirmed. Check the budget lines before pasting this row again.",
+      "unsubmitted": "Not submitted",
+      "pending": "Saving…"
+    },
+    "retry_one": "Retry {{count}} failed row",
+    "retry_other": "Retry {{count}} failed rows",
+    "hook": {
+      "noRows": "Add at least one valid row before saving.",
+      "badRowNumbers": "Source row numbers must be unique positive integers.",
+      "badCategory": "One or more rows have an unsupported budget category.",
+      "badDescription": "One or more row descriptions are invalid.",
+      "badAmount": "One or more rows have an invalid or non-canonical amount.",
+      "unsafeAmount": "One or more amounts cannot be represented safely for saving.",
+      "refreshFailed": "The budget refresh did not finish. Reload the budget before relying on totals.",
+      "reconcileFirst": "Reconcile the current results or start a new paste session before saving again.",
+      "notDraft": "The selected budget is not an editable Draft. Review it before saving.",
+      "originalGone": "The original budget Draft is no longer selected or writable. Review it before retrying."
     }
   }
 }

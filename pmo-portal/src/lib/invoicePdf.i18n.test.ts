@@ -7,7 +7,7 @@ import id from '../../public/locales/id/common.json';
 type Tree = { [key: string]: string | Tree };
 const invoicePdf = (catalogue: unknown): Record<string, string> =>
   (((catalogue as Tree).financeCopy as Tree)?.invoicePdf ?? {}) as Record<string, string>;
-const SOURCES = ['pages/SalesInvoices.tsx', 'src/hooks/useInvoicePdfDownload.ts'];
+const SOURCES = ['pages/SalesInvoices.tsx', 'pages/sales-invoices/salesInvoiceRowMenu.ts', 'src/hooks/useInvoicePdfDownload.ts'];
 
 describe('invoice PDF strings', () => {
   it('AC-PDF-014 every financeCopy.invoicePdf key exists, non-empty, in English and Indonesian', () => {

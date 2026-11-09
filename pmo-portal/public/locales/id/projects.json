@@ -80,5 +80,9 @@
     "startDate": "Tanggal mulai",
     "endDate": "Tanggal selesai",
     "contractValue": "Nilai kontrak"
+  },
+  "receiptWithholding": {
+    "article": "Pasal pemotongan klien",
+    "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
   }
 }

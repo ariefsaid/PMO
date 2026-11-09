@@ -23,7 +23,7 @@ function assertEquals<T>(actual: T, expected: T, msg?: string): void {
   }
 }
 
-async function tick(featureEnabled: boolean) {
+async function tick(featureEnabled: boolean, bound = true) {
   const calls: Array<{ url: URL; method: string }> = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -31,9 +31,11 @@ async function tick(featureEnabled: boolean) {
     calls.push({ url, method });
     if (url.pathname === '/rest/v1/external_domain_ownership') return new Response(JSON.stringify([{ org_id: 'org-1' }]), { status: 200 });
     if (url.pathname === '/rest/v1/rpc/service_feature_enabled') return new Response(JSON.stringify(featureEnabled), { status: 200 });
-    if (url.pathname === '/rest/v1/external_org_bindings' || url.pathname === '/rest/v1/external_project_bindings') {
-      return new Response('[]', { status: 200 });
+    if (url.pathname === '/rest/v1/external_org_bindings') {
+      return new Response(JSON.stringify(bound ? [{ secret_ref: 'ref-org-1' }] : []), { status: 200 });
     }
+    if (url.pathname === '/rest/v1/rpc/read_vault_secret') return new Response(JSON.stringify('synthetic-org-token'), { status: 200 });
+    if (url.pathname === '/rest/v1/external_project_bindings') return new Response('[]', { status: 200 });
     throw new Error(`unexpected request: ${method} ${url.pathname}`);
   }) as typeof fetch;
   try {
@@ -60,6 +62,15 @@ Deno.test('FR-PLN-006 clickup_sync on proceeds to the live sweep path', async ()
   assertEquals(r.res.status, 200);
   assertEquals((r.body as { failures: unknown[] }).failures, []);
   assertEquals((r.body as { perOrg: unknown[] }).perOrg, [{ orgId: 'org-1', applied: 0, archived: 0, skippedAmbiguous: 0, perList: [] }]);
+});
+
+Deno.test('an org with no ClickUp binding fails closed: no deployment-wide token is used', async () => {
+  const r = await tick(true, false);
+  assertEquals(r.res.status, 200);
+  assertEquals((r.body as { applied: number }).applied, 0);
+  assertEquals((r.body as { failures: unknown[] }).failures.length, 1);
+  assertEquals(r.calls.filter((c) => c.url.hostname === 'api.clickup.com').length, 0);
+  assertEquals(r.calls.filter((c) => c.url.pathname === '/rest/v1/external_project_bindings').length, 0);
 });
 
 Deno.test('test environment is restored after the suite', () => {

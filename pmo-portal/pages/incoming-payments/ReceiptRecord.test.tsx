@@ -73,4 +73,20 @@ describe('ReceiptRecord', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Receipt, not numbered yet');
     expect(screen.queryByText(/c5000000/)).toBeNull();
   });
+
+  it('AC-WHA-006: a receipt with tax withheld names its withholding article, or says it was not stated', () => {
+    const base = {
+      id: 'receipt-3', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-03', reference_number: null, date: '2026-10-01',
+      amount: 1000, currency: 'IDR', status: 'Paid', erp_docstatus: 1, erp_modified: null,
+      erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z',
+      received_amount: 980, withheld_amount: 20, withholding_slip_number: 'SLIP-3',
+    } as IncomingPaymentRow;
+    const { rerender } = render(<MemoryRouter><ReceiptRecord receipt={{ ...base, withholding_article: 'pph4_2' }} allocations={[]} onBack={() => {}} /></MemoryRouter>);
+    expect(screen.getByTestId('receipt-withholding-article')).toHaveTextContent('PPh 4(2)');
+    rerender(<MemoryRouter><ReceiptRecord receipt={{ ...base, withholding_article: null }} allocations={[]} onBack={() => {}} /></MemoryRouter>);
+    expect(screen.getByTestId('receipt-withholding-article')).toHaveTextContent('Not stated');
+    rerender(<MemoryRouter><ReceiptRecord receipt={{ ...base, withheld_amount: 0 }} allocations={[]} onBack={() => {}} /></MemoryRouter>);
+    expect(screen.queryByTestId('receipt-withholding-article')).not.toBeInTheDocument();
+  });
 });

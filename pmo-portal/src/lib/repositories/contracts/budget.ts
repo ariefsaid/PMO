@@ -64,8 +64,13 @@ export interface BudgetRepository {
   findImportedLine(versionId: string, importKey: string): Promise<{ id: string } | null>;
   cloneVersion(versionId: string): Promise<string>;
   /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
-   *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
-  activateVersion(versionId: string): Promise<ActivateVersionResult>;
+   *  Never `void` — a push that failed (or never reached the edge function) must be surfaced.
+   *  Resolves on the PMO transition alone (`pushState: 'queued'`, ADR-0062); the ERP push runs in the
+   *  background and `onPushSettled` fires when it ends so the caller re-reads the push status. */
+  activateVersion(
+    versionId: string,
+    onPushSettled?: (pushState: Exclude<ActivateVersionResult['pushState'], 'queued'>) => void,
+  ): Promise<ActivateVersionResult>;
   /** #1413 — send a waiting Draft back to its drafter with a required reason. */
   returnVersion(versionId: string, reason: string): Promise<void>;
   resubmitVersion(versionId: string): Promise<void>;

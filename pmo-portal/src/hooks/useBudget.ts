@@ -196,7 +196,12 @@ export function useBudgetMutations(projectId: string) {
   });
 
   const activate = useMutation<ActivateVersionResult, Error, string>({
-    mutationFn: (versionId) => repositories.budget.activateVersion(versionId),
+    mutationFn: (versionId) =>
+      repositories.budget.activateVersion(versionId, () => {
+        // ADR-0062: the background push ended — re-read the per-year push status the badge renders.
+        void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
+        invalidateBoth();
+      }),
     onSuccess: () => {
       invalidateBoth();
       invalidateMoneyCollections();

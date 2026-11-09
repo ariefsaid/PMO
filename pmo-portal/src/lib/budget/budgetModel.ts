@@ -8,7 +8,8 @@ export interface BudgetLineLike {
 
 export interface ActualCategoryLike {
   category: string;
-  budget: number;
+  /** Unused here; the summary budgets come from the version's lines. */
+  budget?: number;
   actual: number | null;
 }
 

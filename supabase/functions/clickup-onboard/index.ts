@@ -56,6 +56,7 @@ import {
   mapsFromBindingConfig,
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
+import { resolveClickUpOrgToken } from '../_shared/clickupOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 export const testSupabaseOptions = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
@@ -159,8 +160,6 @@ serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Respons
     return json({ error: 'BAD_REQUEST', message: 'operation, orgId, and projectId are required' }, 400);
   }
 
-  const token = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-  const clientDeps = { fetchImpl: fetch, token, rateLimiter };
   // Cast: see adapter-dispatch/index.ts — the real supabase-js client structurally satisfies the
   // pure modules' service-client seams at runtime but is not nominally assignable (thenable
   // PostgrestFilterBuilder vs a plain Promise).
@@ -171,6 +170,16 @@ serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Respons
   });
   if (featureError) return json({ error: 'INTERNAL', message: 'could not resolve the plan switch' }, 500);
   if (clickupSyncOn !== true) return json({ error: 'feature_off', message: 'ClickUp sync is not enabled for this organization' }, 409);
+
+  // The org's own ClickUp credential; an org with no binding fails closed.
+  let token: string;
+  try {
+    token = await resolveClickUpOrgToken(serviceClient, orgId);
+  } catch (err) {
+    const notConnected = err instanceof AppError && err.code === 'config-rejected';
+    return json({ error: notConnected ? 'NOT_CONNECTED' : 'CREDENTIAL_UNAVAILABLE', message: err instanceof Error ? err.message : 'ClickUp credential unavailable' }, notConnected ? 409 : 503);
+  }
+  const clientDeps = { fetchImpl: fetch, token, rateLimiter };
 
   // Load the bound List + maps for a project (push-seed/pull-adopt run after provision). A closure
   // capturing serviceClient so the overloaded `createClient` generic is inferred exactly once.

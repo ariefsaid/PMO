@@ -165,6 +165,7 @@
     "paymentRecord": "Payment record"
   },
   "managementPack": {
+    "basisEarned": "Earned value",
     "search": "Search projects",
     "projectManager": "Project manager",
     "progressValue": "Progress {{percent}}%",
