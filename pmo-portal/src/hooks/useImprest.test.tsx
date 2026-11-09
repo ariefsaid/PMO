@@ -6,7 +6,7 @@ import React from 'react';
 const { imprest, orgSettings } = vi.hoisted(() => ({
   orgSettings: { listSpendApprovers: vi.fn() },
   imprest: {
-    listFloats: vi.fn(), getFloat: vi.fn(), getPosition: vi.fn(), getPlanUsage: vi.fn(), floatChoices: vi.fn(), listPlans: vi.fn(),
+    listFloats: vi.fn(), getFloat: vi.fn(), getPosition: vi.fn(), getPositions: vi.fn(), getPlanUsage: vi.fn(), floatChoices: vi.fn(), listPlans: vi.fn(),
     listPlanLines: vi.fn(), listReplenishments: vi.fn(), listCounts: vi.fn(), createPlan: vi.fn(), savePlanLine: vi.fn(),
     deletePlanLine: vi.fn(), setProcurementLimit: vi.fn(), establishFloat: vi.fn(), proposeFloatAmount: vi.fn(),
     decideFloatChange: vi.fn(), transitionPlan: vi.fn(), requestReplenishment: vi.fn(), transitionReplenishment: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 import {
   IMPREST_QUERY_ROOTS, useImprestFloats, useImprestPosition, useImprestPlanUsage, useImprestPlans, useImprestReplenishments,
   useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
-  useImprestPostingStates, useSetCashAccount,
+  useImprestPostingStates, useSetCashAccount, useImprestPositions,
 } from './useImprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -91,5 +91,37 @@ describe('AC-IMP-083 imprest hooks', () => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       for (const root of roots) expect(keys).toContain(JSON.stringify([root]));
     }
+  });
+});
+
+describe('AC-PERF-2106-1 the /imprest list reads positions in one batch', () => {
+  const position = (floatId: string) => ({ float_id: floatId, cash_book: 1, month: '2026-11-01' });
+
+  it('AC-PERF-2106-1 one request for every float, and each float\'s own position entry is seeded', async () => {
+    imprest.getPositions.mockResolvedValue([position('f1'), position('f2'), position('f3')]);
+    const client = fresh();
+    const { result } = renderHook(() => useImprestPositions(['f1', 'f2', 'f3']), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(imprest.getPositions).toHaveBeenCalledTimes(1);
+    expect(imprest.getPositions).toHaveBeenCalledWith(['f1', 'f2', 'f3']);
+    expect(imprest.getPosition).not.toHaveBeenCalled();
+    expect([...result.current.byId.keys()]).toEqual(['f1', 'f2', 'f3']);
+    // The record page's own key is warm: opening a float from the list shows its figures without a second request.
+    await waitFor(() => expect(client.getQueryData(['imprest-position', 'org-1', 'f2'])).toMatchObject({ float_id: 'f2' }));
+    expect(client.getQueryData(['imprest-positions', 'org-1', ['f1', 'f2', 'f3']])).toBeDefined();
+  });
+
+  it('AC-PERF-2106-1 no floats (or no org) means no position request', async () => {
+    const client = fresh();
+    renderHook(() => useImprestPositions([]), { wrapper: wrap(client) });
+    org = undefined;
+    renderHook(() => useImprestPositions(['f1']), { wrapper: wrap(fresh()) });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(imprest.getPositions).not.toHaveBeenCalled();
+  });
+
+  it('AC-PERF-2106-1 a batched write invalidates the batch root too', async () => {
+    expect(IMPREST_QUERY_ROOTS).toContain('imprest-positions');
   });
 });

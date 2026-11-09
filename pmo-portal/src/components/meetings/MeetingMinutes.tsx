@@ -15,6 +15,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { upgradeNotes, type NoteBlock } from '@/src/lib/meetingNotes';
 import type { MinutesEditorHandle } from '@/src/components/meetings/MinutesEditor';
 import { MinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
+import { ActionItemsProvider } from '@/src/components/meetings/ActionItemsContext';
 import type { MeetingWithRefs } from '@/src/lib/db/meetings';
 
 export interface MeetingMinutesHandle {
@@ -117,18 +118,20 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
           </p>
         ) : (
           <div data-testid={canEdit ? 'minutes-editor' : 'minutes-readonly'}>
-            <Suspense fallback={<ListState variant="loading" rows={3} />}>
-              <MinutesEditor
-                key={meeting.id}
-                ref={editorRef}
-                initialBlocks={savedBlocks}
-                editable={canEdit}
-                tasksExternal={tasksExternal}
-                onReady={onEditorReady}
-                onChange={setBlocks}
-                onRequestAction={onRequestAction}
-              />
-            </Suspense>
+            <ActionItemsProvider blocks={savedBlocks}>
+              <Suspense fallback={<ListState variant="loading" rows={3} />}>
+                <MinutesEditor
+                  key={meeting.id}
+                  ref={editorRef}
+                  initialBlocks={savedBlocks}
+                  editable={canEdit}
+                  tasksExternal={tasksExternal}
+                  onReady={onEditorReady}
+                  onChange={setBlocks}
+                  onRequestAction={onRequestAction}
+                />
+              </Suspense>
+            </ActionItemsProvider>
           </div>
         )}
       </CardPad>

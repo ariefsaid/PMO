@@ -13138,6 +13138,23 @@ export type Database = {
           replenishment_in_flight: number
         }[]
       }
+      get_imprest_positions: {
+        Args: { p_float_ids: string[] }
+        Returns: {
+          advances_out: number
+          cash_book: number
+          float_amount: number
+          float_id: string
+          funded_total: number
+          gap: number
+          last_count_at: string
+          last_count_variance: number
+          month: string
+          plan_lines: Json
+          receipts_waiting: number
+          replenishment_in_flight: number
+        }[]
+      }
       get_loss_breakdown: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json

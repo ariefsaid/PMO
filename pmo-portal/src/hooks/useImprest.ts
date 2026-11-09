@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { BudgetCategory } from '@/src/lib/db/imprest';
@@ -6,7 +7,7 @@ import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Site imprest (#1515) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
-export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
+export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-positions', 'imprest-plan-usage', 'imprest-plans',
   'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states'] as const;
 
 const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
@@ -31,6 +32,33 @@ export function useImprestPosition(floatId: string | undefined) {
     queryFn: () => repositories.imprest.getPosition(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
+}
+/**
+ * Every float's position in ONE read (#2106, AC-PERF-2106-1). The `/imprest` list shows five figures per row and all
+ * five come from the same position, so a per-row query was one ledger aggregate per float (up to LIST_LIMIT of them)
+ * and every money column read "…" until its own request landed. This hook asks for the whole page in one call and
+ * seeds each float's own `imprest-position` entry, so the record page opened from the list renders immediately from
+ * that cache entry while its own read revalidates.
+ */
+export function useImprestPositions(floatIds: readonly string[]) {
+  const orgId = useOrgId();
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['imprest-positions', orgId, floatIds],
+    queryFn: () => repositories.imprest.getPositions(floatIds),
+    enabled: Boolean(orgId) && floatIds.length > 0,
+  });
+  const positions = query.data;
+  useEffect(() => {
+    for (const position of positions ?? []) {
+      qc.setQueryData(['imprest-position', orgId, position.float_id], position);
+    }
+  }, [positions, orgId, qc]);
+  const byId = useMemo(
+    () => new Map((positions ?? []).map((position) => [position.float_id, position] as const)),
+    [positions],
+  );
+  return { ...query, byId };
 }
 export function useImprestPostingStates(floatId: string | undefined) {
   const orgId = useOrgId();

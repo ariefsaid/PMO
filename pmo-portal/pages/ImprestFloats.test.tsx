@@ -7,13 +7,16 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   floats: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
-  positions: {} as Record<string, unknown>,
+  positions: { byId: new Map(), isPending: false, isError: false } as {
+    byId: Map<string, unknown>; isPending: boolean; isError: boolean;
+  },
   establish: { mutateAsync: vi.fn(), isPending: false },
 }));
 
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloats: () => h.floats,
-  useImprestPosition: (id: string) => ({ data: h.positions[id], isPending: !(id in h.positions), isError: false }),
+  // #2106: the page reads every row's position from ONE batched request, so the mock hands back the whole map.
+  useImprestPositions: () => h.positions,
   useEstablishFloat: () => h.establish,
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: 'u-pm' }] }) }));
@@ -37,13 +40,19 @@ const float = (id: string, project: string, custodian: string) => ({
   id, project_id: 'p1', custodian_id: 'u-fin', currency: 'IDR', float_amount: 5000000, archived_at: null,
   project: { name: project }, custodian: { full_name: custodian },
 });
+/** The page's one batched position read, as the hook returns it (#2106). `undefined` = a float whose row is absent. */
+const positions = (rows: Record<string, unknown>) => ({
+  byId: new Map(Object.entries(rows).filter(([, row]) => row !== undefined) as [string, unknown][]),
+  isPending: false,
+  isError: false,
+});
 const renderPage = () => render(<MemoryRouter><ToastProvider><ImprestFloatsPage /></ToastProvider></MemoryRouter>);
 
 describe('/imprest list (AC-IMP-082)', () => {
   beforeEach(() => {
     realRole = 'Finance';
     h.floats = { data: { rows: [float('f1', 'Site Alpha', 'Finn Finance'), float('f2', 'Site Beta', 'Pia Manager')], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
-    h.positions = { f1: pos(), f2: pos({ float_id: 'f2', cash_book: 950000, gap: 250000 }) };
+    h.positions = positions({ f1: pos(), f2: pos({ float_id: 'f2', cash_book: 950000, gap: 250000 }) });
   });
 
   it('AC-IMP-082 the list shows each float\'s position', () => {
@@ -63,7 +72,7 @@ describe('/imprest list (AC-IMP-082)', () => {
   });
 
   it('AC-IMP-003 a float not yet funded reads Not yet funded, never a red Books do not balance', () => {
-    h.positions = { f1: pos({ cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0 }), f2: pos({ float_id: 'f2' }) };
+    h.positions = positions({ f1: pos({ cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0 }), f2: pos({ float_id: 'f2' }) });
     renderPage();
     const row = screen.getByRole('row', { name: /Site Alpha/ });
     expect(within(row).getByText('Not yet funded')).toBeInTheDocument();
@@ -71,7 +80,7 @@ describe('/imprest list (AC-IMP-082)', () => {
   });
 
   it('FR-IMP-070 a count variance is flagged on the row, a matched count is not', () => {
-    h.positions = { f1: pos({ last_count_at: '2026-10-30T00:00:00Z', last_count_variance: -5000 }), f2: pos({ float_id: 'f2', last_count_at: '2026-10-30T00:00:00Z', last_count_variance: 0 }) };
+    h.positions = positions({ f1: pos({ last_count_at: '2026-10-30T00:00:00Z', last_count_variance: -5000 }), f2: pos({ float_id: 'f2', last_count_at: '2026-10-30T00:00:00Z', last_count_variance: 0 }) });
     renderPage();
     expect(within(screen.getByRole('row', { name: /Site Alpha/ })).getByText('Count variance')).toBeInTheDocument();
     expect(within(screen.getByRole('row', { name: /Site Beta/ })).queryByText('Count variance')).toBeNull();
@@ -92,7 +101,7 @@ describe('/imprest list (AC-IMP-082)', () => {
   });
 
   it('AC-IMP-082 a failed position read shows no zero cell for that row', () => {
-    h.positions = { f1: undefined };
+    h.positions = positions({ f1: undefined });
     renderPage();
     expect(within(screen.getByRole('row', { name: /Site Alpha/ })).queryByText(/Rp\s?0|^0$/)).toBeNull();
   });

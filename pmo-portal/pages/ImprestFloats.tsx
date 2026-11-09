@@ -6,10 +6,10 @@ import {
   type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
-import { useImprestFloats, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
+import { useImprestFloats, useImprestPositions, useEstablishFloat } from '@/src/hooks/useImprest';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
-import { LIST_LIMIT, type ImprestFloatRow } from '@/src/lib/db/imprest';
+import { LIST_LIMIT, type ImprestFloatRow, type ImprestPosition } from '@/src/lib/db/imprest';
 import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -18,23 +18,25 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 type FloatListRow = ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null };
 type Figure = 'cash_book' | 'advances_out' | 'receipts_waiting' | 'gap' | 'count';
 
-/** One figure of one float's position. A failed or pending read shows text, never a zero (money-path primer). */
-const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figure }> = ({ floatId, currency, figure }) => {
+/** One figure of one float's position, read from the page's single batched position request (#2106). A failed or
+ *  pending read shows text, never a zero (money-path primer). */
+const PositionFigure: React.FC<{ position: ImprestPosition | undefined; isPending: boolean; isError: boolean; currency: string; figure: Figure }> = ({
+  position, isPending, isError, currency, figure,
+}) => {
   const { t } = useTranslation();
-  const { data, isPending, isError } = useImprestPosition(floatId);
   if (isPending) return <span className="text-muted-foreground">…</span>;
-  if (isError || !data) return <span className="text-muted-foreground">{t('imprest:list.positionUnavailable', 'Unavailable')}</span>;
+  if (isError || !position) return <span className="text-muted-foreground">{t('imprest:list.positionUnavailable', 'Unavailable')}</span>;
   if (figure === 'count') {
-    if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
-    return toCents(data.last_count_variance) !== 0
+    if (position.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
+    return toCents(position.last_count_variance) !== 0
       ? <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
-        {t('imprest:position.varianceFlag', 'Count variance')} <span className="tabular-nums">({formatCurrency(Number(data.last_count_variance), currency)})</span>
+        {t('imprest:position.varianceFlag', 'Count variance')} <span className="tabular-nums">({formatCurrency(Number(position.last_count_variance), currency)})</span>
       </span>
       : <span className="text-muted-foreground">{t('imprest:list.countOk', 'Matched')}</span>;
   }
   if (figure === 'gap') {
     // Measured against funded cash: an unfunded or enlarged float is waiting for funding, not out of balance.
-    const books = booksState(data);
+    const books = booksState(position);
     if (books.kind === 'broken') {
       return <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
         {t('imprest:position.gapFlag', 'Books do not balance')} <span className="tabular-nums">({formatCurrency(books.short, currency)})</span>
@@ -46,7 +48,7 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
     }
     return <span className="tabular-nums">{formatCurrency(0, currency)}</span>;
   }
-  const value = data[figure];
+  const value = position[figure];
   return <span className="tabular-nums">{formatCurrency(Number(value), currency)}</span>;
 };
 
@@ -121,7 +123,15 @@ const ImprestFloatsPage: React.FC = () => {
   const navigate = useNavigate();
   const { data, isPending, isError, refetch } = useImprestFloats();
   const [establishOpen, setEstablishOpen] = useState(false);
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => data?.rows ?? [], [data]);
+  // #2106: ONE position read for the whole page. Five money cells per row share the row's position, so a per-row
+  // query meant one ledger aggregate per float (up to LIST_LIMIT) with every column pending on its own request.
+  const floatIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const positions = useImprestPositions(floatIds);
+  const figure = (r: ImprestFloatRow, which: Figure) => (
+    <PositionFigure position={positions.byId.get(r.id)} isPending={positions.isPending} isError={positions.isError}
+      currency={r.currency} figure={which} />
+  );
   const columns: Column<FloatListRow>[] = [
     { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <span className="font-medium">{r.project?.name ?? '—'}</span>,
       exportValue: (r) => r.project?.name ?? '' },
@@ -129,11 +139,11 @@ const ImprestFloatsPage: React.FC = () => {
       exportValue: (r) => r.custodian?.full_name ?? '' },
     { key: 'float', header: t('imprest:position.float', 'Float'), align: 'num',
       cell: (r) => <span className="tabular-nums">{formatCurrency(Number(r.float_amount), r.currency)}</span>, exportValue: (r) => Number(r.float_amount) },
-    { key: 'cash', header: t('imprest:position.cash', 'Cash in hand'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="cash_book" /> },
-    { key: 'advances', header: t('imprest:position.advancesOut', 'Advances out'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="advances_out" /> },
-    { key: 'receipts', header: t('imprest:position.receiptsWaiting', 'Receipts waiting'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="receipts_waiting" /> },
-    { key: 'gap', header: t('imprest:position.gap', 'Gap'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="gap" /> },
-    { key: 'count', header: t('imprest:position.lastCountColumn', 'Last count'), cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="count" /> },
+    { key: 'cash', header: t('imprest:position.cash', 'Cash in hand'), align: 'num', cell: (r) => figure(r, 'cash_book') },
+    { key: 'advances', header: t('imprest:position.advancesOut', 'Advances out'), align: 'num', cell: (r) => figure(r, 'advances_out') },
+    { key: 'receipts', header: t('imprest:position.receiptsWaiting', 'Receipts waiting'), align: 'num', cell: (r) => figure(r, 'receipts_waiting') },
+    { key: 'gap', header: t('imprest:position.gap', 'Gap'), align: 'num', cell: (r) => figure(r, 'gap') },
+    { key: 'count', header: t('imprest:position.lastCountColumn', 'Last count'), cell: (r) => figure(r, 'count') },
   ];
   return (
     <ListPage
