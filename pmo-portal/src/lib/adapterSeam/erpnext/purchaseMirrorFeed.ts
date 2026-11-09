@@ -251,7 +251,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
     const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
-    const legacy = stored === null && !REREAD_DOCTYPES.includes(doctype) ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
+    const legacy = stored === null && !REREAD_NAMESPACE[doctype] ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
     const cursor = parseCursor(stored ?? legacy);
     // Every cursor resumes inclusively: name-bearing cursors replay their boundary row, while legacy
     // and name-less cursors replay the whole timestamp boundary before advancing strictly past it.

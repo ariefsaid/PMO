@@ -354,8 +354,10 @@ describe('erpnext/purchaseMirrorFeed', () => {
     failedWrite.client.maxRetries = 3;
     failedWrite.rpc.mockResolvedValueOnce({ data: null, error: { message: 'write failed' } });
     await expect(feedPurchaseMirror(failedWrite.sc, { client: failedWrite.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('write failed');
-    expect(failedWrite.fetchImpl).toHaveBeenCalledTimes(2); // the order list, then its item lines
-    expect(failedWrite.urls).toHaveLength(2);
+    // The order list and its item lines are read once each; a failed order write defers (like invoices), so the
+    // other doctypes still take their turn before the pass fails.
+    expect(failedWrite.urls.filter((u) => u.includes('/Purchase Order?'))).toHaveLength(1);
+    expect(failedWrite.urls.filter((u) => u.includes('/Purchase Order Item?'))).toHaveLength(1);
     expect(failedWrite.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
   });
 
