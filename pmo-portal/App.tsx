@@ -63,6 +63,7 @@ import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
+import { i18next } from '@/src/lib/i18n';
 import { preloadMinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
 import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
@@ -166,71 +167,102 @@ const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Obje
  * chunk and the project routes include the overview's ProjectSCurve (+ a
  * deep-linked tab's chunks), so a data response never gates a second download.
  */
-const PRELOAD_RULES: Array<{ path: string; chunks: PreloadableRouteChunk[] }> = [
-  { path: '/', chunks: [ExecutiveDashboard] },
-  { path: '/projects', chunks: [Projects] },
-  { path: '/projects/new', chunks: [ProjectNew] },
-  ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH).map(([path, chunks]) => ({ path, chunks })),
-  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve] },
-  { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve] },
-  { path: '/sales', chunks: [SalesPipeline] },
+/**
+ * #2097 — the namespaces a destination's FIRST PAINT needs, loaded by `preloadForPath` in parallel
+ * with its code chunk. i18next boots with `common` alone, so without this a page's catalogue would
+ * start downloading only when its component mounts (after the chunk) and the first frame would show
+ * English source strings. Each entry is the PAGE's own catalogue(s), not the transitive import
+ * graph: components lower down declare theirs (`useTranslation('<ns>')`) or are covered by
+ * `parseMissingKeyHandler`'s on-demand load. Keep it to what the route renders immediately — the
+ * point is a smaller boot, and a needless catalogue is the cost this change removed.
+ */
+const PROJECT_TAB_NAMESPACES: Record<string, readonly string[]> = {
+  budget: ['project'],
+  procurement: ['project', 'procurement'],
+  materials: ['project', 'stock'],
+  tasks: ['project'],
+  documents: ['project', 'documentViewer'],
+  contract: ['project', 'projectTabs', 'stock', 'timeAndMaterials'],
+};
+
+interface PreloadRule {
+  path: string;
+  chunks: PreloadableRouteChunk[];
+  namespaces?: readonly string[];
+}
+
+const PRELOAD_RULES: PreloadRule[] = [
+  { path: '/', chunks: [ExecutiveDashboard], namespaces: ['dashboard'] },
+  { path: '/projects', chunks: [Projects], namespaces: ['projects'] },
+  { path: '/projects/new', chunks: [ProjectNew], namespaces: ['projects'] },
+  ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH).map(([path, chunks]) => ({
+    path,
+    chunks,
+    namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
+  })),
+  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
-  { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve] },
-  { path: '/procurement', chunks: [ProcurementPage] },
-  { path: '/procurement/new', chunks: [ProcurementCreate] },
-  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails] },
-  { path: '/procurement/:procurementId', chunks: [ProcurementDetails] },
-  { path: '/timesheets', chunks: [TimesheetsPage] },
-  { path: '/approvals', chunks: [ApprovalsPage] },
-  { path: '/companies', chunks: [CompaniesPage] },
-  { path: '/master-data/:kind', chunks: [MasterDataPage] },
-  { path: '/companies/:companyId', chunks: [CompanyDetailPage] },
-  { path: '/contacts', chunks: [ContactsPage] },
-  { path: '/contacts/:contactId', chunks: [ContactDetailPage] },
+  { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
+  { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate'] },
+  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
+  { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
+  { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
+  // The triage queue renders one section per approval domain; all four are static imports.
+  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance'] },
+  { path: '/companies', chunks: [CompaniesPage], namespaces: ['crm'] },
+  { path: '/master-data/:kind', chunks: [MasterDataPage], namespaces: ['administration'] },
+  { path: '/companies/:companyId', chunks: [CompanyDetailPage], namespaces: ['crm'] },
+  { path: '/contacts', chunks: [ContactsPage], namespaces: ['crm'] },
+  { path: '/contacts/:contactId', chunks: [ContactDetailPage], namespaces: ['crm'] },
   { path: '/incidents', chunks: [IncidentsPage] },
   { path: '/incidents/:incidentId', chunks: [IncidentDetailPage] },
-  { path: '/my-tasks', chunks: [MyTasksPage] },
-  { path: '/calendar', chunks: [CalendarPage] },
-  { path: '/meetings', chunks: [MeetingsPage] },
-  { path: '/meetings/new', chunks: [MeetingCreatePage, { preload: preloadMinutesEditor }] },
-  { path: '/meetings/:meetingId', chunks: [MeetingDetailPage, { preload: preloadMinutesEditor }] },
-  { path: '/expenses', chunks: [ExpenseClaimsPage] },
-  { path: '/expenses/new', chunks: [ExpenseClaimNewPage] },
-  { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage] },
-  { path: '/imprest', chunks: [ImprestFloatsPage] },
-  { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage] },
-  { path: '/equipment', chunks: [EquipmentUsagePage] },
-  { path: '/equipment/assets', chunks: [EquipmentAssetsPage] },
-  { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage] },
-  { path: '/reports', chunks: [ManagementPackPage] },
-  { path: '/administration/:section', chunks: [AdministrationPage] },
-  { path: '/administration', chunks: [AdministrationPage] },
-  { path: '/finance', chunks: [FinanceHubPage] },
-  { path: '/finance/receivables', chunks: [ReceivablesPage] },
-  { path: '/finance/payables', chunks: [PayablesPage] },
-  { path: '/finance/reports', chunks: [ManagementPackPage] },
-  { path: '/finance/statements', chunks: [FinancialStatementsPage] },
-  { path: '/sales-invoices/:invoiceId', chunks: [SalesInvoicesPage] },
-  { path: '/sales-invoices', chunks: [ReceivablesPage] },
-  { path: '/incoming-payments/:receiptId', chunks: [IncomingPaymentsPage] },
-  { path: '/incoming-payments', chunks: [PayablesPage] },
-  { path: '/revenue-by-project', chunks: [ManagementPackPage] },
-  { path: '/erp-purchases', chunks: [ErpPurchasesPage] },
-  { path: '/financial-statements', chunks: [FinancialStatementsPage] },
-  { path: '/integrations', chunks: [IntegrationsPage] },
+  { path: '/my-tasks', chunks: [MyTasksPage], namespaces: ['tasks'] },
+  { path: '/calendar', chunks: [CalendarPage], namespaces: ['calendar'] },
+  { path: '/meetings', chunks: [MeetingsPage], namespaces: ['meetings'] },
+  { path: '/meetings/new', chunks: [MeetingCreatePage, { preload: preloadMinutesEditor }], namespaces: ['meetingCreate', 'meetings'] },
+  { path: '/meetings/:meetingId', chunks: [MeetingDetailPage, { preload: preloadMinutesEditor }], namespaces: ['meetings'] },
+  { path: '/expenses', chunks: [ExpenseClaimsPage], namespaces: ['expenseClaims'] },
+  { path: '/expenses/new', chunks: [ExpenseClaimNewPage], namespaces: ['expenseClaims', 'imprest'] },
+  { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage], namespaces: ['imprest'] },
+  { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
+  { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
+  { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
+  { path: '/equipment/assets', chunks: [EquipmentAssetsPage], namespaces: ['equipment'] },
+  { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
+  { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
+  { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
+  { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/receivables', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
+  { path: '/sales-invoices/:invoiceId', chunks: [SalesInvoicesPage], namespaces: ['finance'] },
+  { path: '/sales-invoices', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/incoming-payments/:receiptId', chunks: [IncomingPaymentsPage], namespaces: ['finance'] },
+  { path: '/incoming-payments', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/revenue-by-project', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/erp-purchases', chunks: [ErpPurchasesPage], namespaces: ['finance'] },
+  { path: '/financial-statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
+  { path: '/integrations', chunks: [IntegrationsPage], namespaces: ['administration'] },
+  // A view is user-composed from arbitrary panels: there is no fixed catalogue set to preload, and
+  // each panel's own hook/deep key fetches its catalogue on mount.
   { path: '/views', chunks: [MyViewsPage] },
-  { path: '/views/new', chunks: [ViewBuilderPage] },
-  { path: '/views/:viewId/edit', chunks: [ViewBuilderPage] },
+  { path: '/views/new', chunks: [ViewBuilderPage], namespaces: ['viewBuilder'] },
+  { path: '/views/:viewId/edit', chunks: [ViewBuilderPage], namespaces: ['viewBuilder'] },
   { path: '/views/:viewId', chunks: [UserViewRenderer] },
-  { path: '/settings/profile', chunks: [ProfileSettingsPage] },
-  { path: '/stock/setup', chunks: [StockSetupPage] },
-  { path: '/stock/documents/:documentId/edit', chunks: [StockCountPage] },
-  { path: '/stock/documents/:documentId', chunks: [StockDocumentDetailPage] },
-  { path: '/stock/documents', chunks: [StockDocumentsPage] },
-  { path: '/stock/ledger', chunks: [StockLedgerPage] },
-  { path: '/stock/reorder', chunks: [StockReorderPage] },
-  { path: '/stock/new/:kind', chunks: [StockMovementFormPage] },
-  { path: '/stock', chunks: [StockOnHandPage] },
+  { path: '/settings/profile', chunks: [ProfileSettingsPage], namespaces: ['profilePreferences'] },
+  { path: '/stock/setup', chunks: [StockSetupPage], namespaces: ['stock'] },
+  { path: '/stock/documents/:documentId/edit', chunks: [StockCountPage], namespaces: ['stock'] },
+  { path: '/stock/documents/:documentId', chunks: [StockDocumentDetailPage], namespaces: ['stock'] },
+  { path: '/stock/documents', chunks: [StockDocumentsPage], namespaces: ['stock'] },
+  { path: '/stock/ledger', chunks: [StockLedgerPage], namespaces: ['stock'] },
+  { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
+  { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
+  { path: '/stock', chunks: [StockOnHandPage], namespaces: ['stock'] },
   { path: '*', chunks: [NotFoundPage] },
 ];
 
@@ -253,13 +285,33 @@ function routePatternMatches(pattern: string, pathname: string): boolean {
 /** The chunks `preloadForPath` will fire for this pathname (unit-test seam). */
 // eslint-disable-next-line react-refresh/only-export-components -- preload rules are shared with the rail (onPreloadHref) and route-entry tests
 export function preloadsForPath(pathname: string): PreloadableRouteChunk[] {
-  const path = pathname.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
-  return (PRELOAD_RULES.find((rule) => routePatternMatches(rule.path, path))?.chunks) ?? [];
+  return preloadRuleForPath(pathname)?.chunks ?? [];
 }
 
-/** Fire every matching route's preload (idempotent per module). */
+function normalizePath(pathname: string): string {
+  return pathname.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+}
+
+function preloadRuleForPath(pathname: string): PreloadRule | undefined {
+  return PRELOAD_RULES.find((rule) => routePatternMatches(rule.path, normalizePath(pathname)));
+}
+
+/**
+ * The translation namespaces this destination's first paint renders (#2097). i18next boots with
+ * `common` only, so these are what keep a route from painting English source strings while its
+ * catalogue is still in flight.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- same preload rules, consumed by the route-entry effect and tests
+export function namespacesForPath(pathname: string): readonly string[] {
+  return preloadRuleForPath(pathname)?.namespaces ?? [];
+}
+
+/** Fire every matching route's preloads — its code chunks AND its translation namespaces —
+ * in parallel (idempotent per module; i18next de-dupes a namespace it already has). */
 // eslint-disable-next-line react-refresh/only-export-components -- same preload rules, consumed by the rail prop and the route-entry effect
 export function preloadForPath(pathname: string): void {
+  const namespaces = namespacesForPath(pathname);
+  if (namespaces.length) void i18next.loadNamespaces(namespaces);
   for (const chunk of preloadsForPath(pathname)) void chunk.preload();
 }
 
