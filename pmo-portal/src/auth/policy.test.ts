@@ -937,6 +937,35 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
   });
 });
 
+describe('can() — the Odoo register and maintenance entities (#1511 F5; UX mirror of D7 — dispatch and 0797 are the authority)', () => {
+  it('F5-T4 only an Admin or Project Manager changes the register (equipmentRegister mirrors FR-OFM-033)', () => {
+    expect(allowedRoles('create', 'equipmentRegister')).toEqual(['Admin', 'Project Manager']);
+    expect(allowedRoles('edit', 'equipmentRegister')).toEqual(['Admin', 'Project Manager']);
+    expect(can('create', 'equipmentRegister', { realRole: 'Finance' })).toBe(false);
+    expect(can('edit', 'equipmentRegister', { realRole: 'Engineer' })).toBe(false);
+    expect(can('create', 'equipmentRegister', { realRole: 'Admin' })).toBe(true);
+    expect(can('edit', 'equipmentRegister', { realRole: 'Project Manager' })).toBe(true);
+  });
+
+  it('F5-T4 every active role records maintenance; nobody records it while viewing as', () => {
+    for (const action of ['create', 'edit'] as const) {
+      expect(allowedRoles(action, 'maintenance')).toEqual(ALL_ROLES);
+      for (const realRole of ALL_ROLES) expect(can(action, 'maintenance', { realRole })).toBe(true);
+      for (const realRole of ALL_ROLES) {
+        expect(can(action, 'maintenance', { realRole, record: { viewOnly: true } })).toBe(false);
+      }
+    }
+  });
+
+  it('F5-T4 a view-as session hides every register write affordance', () => {
+    for (const action of ['create', 'edit'] as const) {
+      expect(can(action, 'equipmentRegister', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    }
+    expect(can('create', 'equipmentRegister', { realRole: null })).toBe(false);
+    expect(can('edit', 'maintenance', { realRole: null })).toBe(false);
+  });
+});
+
 describe('can() — time-and-materials rate card and sign-off (#1514 T7; the 0515-0517 RPCs are the authority)', () => {
   it('T7.2 setting a rate is Admin or Finance — never an Executive or a PM, mirroring save/end_contract_rate_line', () => {
     expect(allowedRoles('manage', 'tmRate')).toEqual(['Admin', 'Finance']);

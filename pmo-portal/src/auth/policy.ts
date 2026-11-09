@@ -123,6 +123,8 @@ export type Entity =
   | 'equipmentAsset'
   | 'equipmentUsage'
   | 'equipmentCosting'
+  | 'equipmentRegister'
+  | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
   | 'tmSignoff';
@@ -202,6 +204,8 @@ const COST_ATTRIBUTION_WRITE: Role[] = ['Admin', 'Finance'];
 const EQUIPMENT_APPROVE: Role[] = ['Admin', 'Executive', 'Finance', 'Project Manager'];
 /** #1519: who may set what an hour is worth — mirrors save/end/preview_equipment_costing (Admin, Finance). */
 const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
+/** #1511 F5: who may change the Odoo-backed register — mirrors D7 (the asset rule; dispatch narrows per command). */
+const EQUIPMENT_REGISTER_WRITE: Role[] = ['Admin', 'Project Manager'];
 /** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
  *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
 const TM_RATE_WRITE: Role[] = ['Admin', 'Finance'];
@@ -747,6 +751,22 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
   },
   equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
+  /**
+   * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role
+   * gates and 0797's RPC/RLS are the authority (ADR-0016); the FE may be stricter, never looser.
+   *   equipmentRegister ← register writes need Admin or Project Manager (D7, the shipped asset rule).
+   *   maintenance        ← every active role records maintenance (D7); both refuse a view-as session.
+   */
+  equipmentRegister: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
+    edit: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
+  },
+  maintenance: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(ALL),
+    edit: allowUnlessViewOnly(ALL),
+  },
   /**
    * Time-and-materials claims (#1514, migrations 0515-0517). UX ONLY — the RPCs are the authority (ADR-0016); the FE
    * may be stricter, never looser.

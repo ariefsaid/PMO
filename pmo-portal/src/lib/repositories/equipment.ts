@@ -20,4 +20,11 @@ export const equipmentRepository: EquipmentRepository = {
   endCosting: (settingKey, effectiveTo, expectedVersion) => wrap(() => dal.endCosting(settingKey, effectiveTo, expectedVersion)),
   previewCosting: (draft) => wrap(() => dal.previewCosting(draft)),
   listAllocations: (q) => wrap(() => dal.listAllocations(q)),
+  listRegister: () => wrap(() => dal.listRegister()),
+  listMaintenance: (ref) => wrap(() => dal.listMaintenance(ref)),
+  listPickers: (kind) => wrap(() => dal.listPickers(kind)),
+  listPendingChanges: (recordIds) => wrap(() => dal.listPendingChanges(recordIds)),
+  listAssetMatches: () => wrap(() => dal.listAssetMatches()),
+  acceptAssetMatches: (pairs) => wrap(() => dal.acceptAssetMatches(pairs)),
+  sendEquipmentCommand: (operation, record, idempotencyKey) => wrap(() => dal.sendEquipmentCommand(operation, record, idempotencyKey)),
 };
