@@ -26,13 +26,12 @@ export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp:
   const policy = POLICY[kind];
   const live = pmo.filter((p) => p.active !== false);
   const sameRole = (p: PmoMaster, e: NormalisedMaster) => (p.role ?? null) === (e.role ?? null);
-  const index = (keys: (p: PmoMaster) => string[]) => {
+  const index = (key: (p: PmoMaster) => string) => {
     const m = new Map<string, PmoMaster[]>();
-    for (const p of live) for (const k of new Set(keys(p))) if (k) m.set(k, [...(m.get(k) ?? []), p]);
+    for (const p of live) { const k = key(p); if (k) m.set(k, [...(m.get(k) ?? []), p]); }
     return m;
   };
-  // #2052: a record's `altCodes` are keys like its `code`; a project is found by the project number or the client project code
-  const byTax = index((p) => [normTax(p.taxId)]), byCode = index((p) => [normCode(p.code), ...(p.altCodes ?? []).map(normCode)]), byName = index((p) => [normaliseName(p.name)]);
+  const byTax = index((p) => normTax(p.taxId)), byCode = index((p) => normCode(p.code)), byName = index((p) => normaliseName(p.name));
   const claims: Claim[] = [];
   const rows = erp.filter((e) => !e.internal).sort((a, b) => a.externalId.localeCompare(b.externalId));
   for (const e of rows) {

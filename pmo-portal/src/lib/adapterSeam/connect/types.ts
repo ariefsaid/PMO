@@ -26,8 +26,6 @@ export interface PmoMaster {
   role?: 'client' | 'vendor';
   taxId?: string | null;
   code?: string | null;
-  /** Further keys the record is known by; the matcher compares them exactly like `code` (trimmed, case-insensitive). */
-  altCodes?: readonly string[];
   /** Archived records are not candidates (ECA-2). Default true. */
   active?: boolean;
   /** The PMO unit of an item, mapped to the ERP's unit by the adapter. */
@@ -46,9 +44,6 @@ export interface ConnectAdapter {
   /** Which PMO `projects` column this ERP's project code matches on (FR-ECA-014). Absent means `code`, the client
    *  project code: the adapter declares it, so no code above the adapter keeps a per-ERP table (#1692). */
   readonly projectCodeField?: PmoProjectCodeField;
-  /** A second `projects` column the ERP's project code may equal (#2052): Odoo names a cost account after the project number, but a
-   *  hand-made account or one PMO sent carries the client project code. Absent means no second key. */
-  readonly projectAltCodeField?: PmoProjectCodeField;
   /** One page of a kind, keyset-paged; `nextCursor` is null on the last page. */
   listMasters(kind: MasterKind, cursor: string | null): Promise<{ rows: NormalisedMaster[]; nextCursor: string | null }>;
   /** Census, read-only: how many records `listMasters` would page through. */

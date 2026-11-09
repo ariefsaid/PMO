@@ -70,7 +70,7 @@ export async function advanceConnectRuns(sc: SupabaseClient, org: { orgId: strin
         after = page[page.length - 1].external_id;
       }
     },
-    pmoMasters: (kind) => pmoMasters(sc, org.orgId, kind, adapter.projectCodeField, adapter.projectAltCodeField),
+    pmoMasters: (kind) => pmoMasters(sc, org.orgId, kind, adapter.projectCodeField),
     writeProposals: async (kind, outcomes, erp, pmoName) => {
       const rows = outcomes.map((o) => toRow(kind, o, erp, pmoName));
       const chunks = Math.max(1, Math.ceil(rows.length / CHUNK));   // a kind with nothing to propose still marks itself proposed

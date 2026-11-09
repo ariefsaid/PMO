@@ -101,26 +101,21 @@ async function allRows(sc: SupabaseClient, table: string, cols: string, orgId: s
 
 /** The PMO side of the matcher for one kind. A project is matched on the PMO column the ERP's connect adapter declares
  *  (#1692): an ERPNext project is named by the client project code, an Odoo cost account carries the PMO project number
- *  (FR-ODC-072) — so nothing here knows a tier. An adapter may declare a second column (#2052); its value rides as `altCodes`. The employee `code` is the lower-cased work email (people link on a key,
+ *  (FR-ODC-072) — so nothing here knows a tier. The employee `code` is the lower-cased work email (people link on a key,
  *  never a name). */
 export async function pmoMasters(
   sc: SupabaseClient,
   orgId: string,
   kind: MasterKind,
   projectCodeField: PmoProjectCodeField = 'code',
-  projectAltCodeField?: PmoProjectCodeField,
 ): Promise<PmoMaster[]> {
   if (kind === 'party') {
     return (await allRows(sc, 'companies', 'id, name, type, erp_tax_id', orgId, (q) => q.in('type', ['Client', 'Vendor']).is('archived_at', null)))
       .map((r) => ({ id: String(r.id), name: String(r.name), role: r.type === 'Client' ? 'client' as const : 'vendor' as const, taxId: (r.erp_tax_id as string | null) ?? null }));
   }
   if (kind === 'project') {
-    const alt = projectAltCodeField && projectAltCodeField !== projectCodeField ? projectAltCodeField : null;
-    return (await allRows(sc, 'projects', `id, name, ${projectCodeField}${alt ? `, ${alt}` : ''}`, orgId, (q) => q.is('archived_at', null)))
-      .map((r) => {
-        const altCode = alt ? (r[alt] as string | null) : null;
-        return { id: String(r.id), name: String(r.name), code: (r[projectCodeField] as string | null) ?? null, ...(altCode ? { altCodes: [altCode] } : {}) };
-      });
+    return (await allRows(sc, 'projects', `id, name, ${projectCodeField}`, orgId, (q) => q.is('archived_at', null)))
+      .map((r) => ({ id: String(r.id), name: String(r.name), code: (r[projectCodeField] as string | null) ?? null }));
   }
   if (kind === 'employee') {
     return (await allRows(sc, 'profiles', 'id, full_name, email', orgId, (q) => q.eq('status', 'active')))
