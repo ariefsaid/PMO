@@ -3,6 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
 import { repositories } from '@/src/lib/repositories';
+import type { BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode, BudgetDistributionPlan, BudgetVersionMode } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -192,6 +193,12 @@ export function useBudgetMutations(projectId: string) {
         invalidateBoth();
       }),
     onSuccess: () => {
+      // #1030: the push runs in the background and writes no mirror row yet, so a re-read now says
+      // "never pushed". Seed a pending row; `onPushSettled` above invalidates it for the durable truth.
+      queryClient.setQueryData<BudgetPushStatusRow[]>(['budget-push-status', projectId], [{
+        pushState: 'pending', pushError: null, unmappedCategories: null, erpBudgetName: null,
+        fiscalYear: null, pushedAt: null, holdReleasable: false, staleAttribution: false,
+      }]);
       invalidateBoth();
       invalidateMoneyCollections();
       safeTrack(() => trackBudgetActivated(realRole ?? 'unknown'));
