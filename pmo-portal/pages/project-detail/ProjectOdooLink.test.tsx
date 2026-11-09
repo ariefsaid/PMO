@@ -9,12 +9,14 @@ const h = vi.hoisted(() => ({
   link: { mutateAsync: vi.fn(), isPending: false },
   unlink: { mutateAsync: vi.fn(), isPending: false },
   plan: { mutateAsync: vi.fn(), isPending: false },
+  conn: { data: undefined as unknown },
   me: { id: 'u-pm', role: 'Project Manager' as string },
   role: { realRole: 'Project Manager' as string, effectiveRole: 'Project Manager' as string },
 }));
 vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooProjectLinks: () => h.links,
   useOdooSetup: (verb: string) => ({ 'link-project': h.link, 'unlink-project': h.unlink, 'set-analytic-plan': h.plan }[verb]),
+  useOdooConnection: () => h.conn,
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: h.me }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => h.role }));
@@ -25,6 +27,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.links.data = { planId: 7, accounts: ACCOUNTS, linked: [] };
   h.links.isPending = false; h.links.isError = false;
+  h.conn.data = undefined;
   h.me = { id: 'u-pm', role: 'Project Manager' };
   h.role = { realRole: 'Project Manager', effectiveRole: 'Project Manager' };
   for (const m of [h.link, h.unlink, h.plan]) m.mutateAsync.mockResolvedValue({});
@@ -100,6 +103,25 @@ it('with no plan chosen an Admin chooses one; a project manager is told to ask',
   mount();
   expect(screen.getByText(/ask an administrator/i)).toBeInTheDocument();
   expect(screen.queryByRole('button')).not.toBeInTheDocument();
+});
+
+it('AC-ODC-014 while Odoo is unreachable the screen still shows the mirror controls and the unavailable notice with its age', () => {
+  h.conn.data = { status: 'active', activated: true, connection: { state: 'unreachable', failures: 3, last_ok_at: '2026-11-01T14:05:00Z', last_checked_at: '2026-11-01T14:05:00Z', error_class: 'unreachable', missing: [] } };
+  mount();
+  const note = screen.getByRole('status');
+  expect(note).toHaveTextContent('Odoo cannot be reached');
+  expect(note).toHaveTextContent(/as of \d{1,2}[:.]\d{2}/);
+  expect(screen.getByLabelText('Cost account')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Link' })).toBeInTheDocument();
+});
+
+it('AC-ODC-014 a healthy connection shows no notice, only the controls', () => {
+  const fresh = new Date(Date.now() - 30_000).toISOString();
+  h.conn.data = { status: 'active', activated: true, connection: { state: 'healthy', failures: 0, last_ok_at: fresh, last_checked_at: fresh, error_class: null, missing: [] } };
+  mount();
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Cost account')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Link' })).toBeInTheDocument();
 });
 
 it('a failed read offers a retry', () => {
