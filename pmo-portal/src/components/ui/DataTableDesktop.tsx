@@ -413,7 +413,7 @@ export function DataTableDesktop<Row>({
                       : undefined
                   }
                   className={cn(
-                    'group border-b border-border/70 last:border-b-0 transition-colors',
+                    'group border-b border-border/70 last:border-b-0',
                     onActivate && 'cursor-pointer',
                     onActivate && !selected && 'hover:bg-surface-hover',
                     selected && 'bg-surface-selected'
