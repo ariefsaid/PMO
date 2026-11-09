@@ -1,8 +1,9 @@
 /**
  * Re-check the Odoo connection now (FR-ODC-031 user probe), stored like a sweep probe. A failed probe is still an answer
- * (200 with the state it produced). The card's Re-check is ONE authenticated read through the stored key: full capability
- * discovery is ~78 sequential Odoo calls, each re-resolving DNS, and ran the edge isolate into its CPU limit (#2051).
- * Discovery (FR-ODC-020) runs on connect, activation, reconnect and the daily sweep, or here with `full: true`.
+ * (200 with the state it produced). On a healthy stored snapshot the card's Re-check is ONE authenticated read through the
+ * stored key; with no snapshot, a degraded one (so a fixed permission clears it now) or `full: true`, it runs capability
+ * discovery (FR-ODC-020, ~78 sequential Odoo calls). The light read is cheap; it is not a proven fix for the edge CPU
+ * terminations seen on the local per-worker runtime (#2051), whose consumer is still unmeasured.
  */
 import { bindCall, OdooError } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { fetchOdooVersionMajor } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
@@ -22,16 +23,16 @@ export async function recheck(c: OdooCtx): Promise<Response> {
   let snapshot: CapabilitySnapshot | undefined;
   const stored = r.config.capabilities as CapabilitySnapshot | undefined;
   try {
-    if (c.body.full === true) {
+    if (c.body.full === true || !stored || stored.missing?.length) {
       // A failed version probe falls back to the version stored at activation; with none, it is a failure, not a healthy answer.
       const versionMajor = (await fetchOdooVersionMajor(r.client)) ?? stored?.version_major ?? null;
       if (versionMajor === null) throw new OdooError('unreachable');
       snapshot = await discoverCapabilities(bindCall(r.client), { versionMajor, now: new Date(), deadlineAt: Date.now() + DISCOVERY_BUDGET_MS });
       outcome = { ok: true, missing: snapshot.missing };
     } else {
-      // Proves the key, database, company scope and JSON-2 in one request; what the last discovery found missing stands until the next one.
+      // Healthy snapshot: one request proves the key, database, company scope and JSON-2; nothing was missing, so nothing is.
       await bindCall(r.client)<number>('res.company', 'search_count', { domain: [] });
-      outcome = { ok: true, missing: stored?.missing ?? [] };
+      outcome = { ok: true, missing: [] };
     }
   } catch (err) {
     outcome = { ok: false, errorClass: err instanceof OdooError ? err.errorClass : 'unreachable' };

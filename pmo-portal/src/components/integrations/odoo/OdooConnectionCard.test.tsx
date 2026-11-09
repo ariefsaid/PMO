@@ -159,7 +159,7 @@ it('#2051 Re-check that could not finish (no usable answer) says the connection 
   h.setup.mockImplementation(async (verb: string) => { if (verb === 'recheck') throw new AppError('Edge Function returned a non-2xx status code'); return { ok: true }; });
   mount('Admin', connected());
   await user.click(await screen.findByRole('button', { name: 'Re-check' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('The check could not finish, so the connection was not changed. Try again in a minute.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('The check could not finish, so the connection may not have changed. Try again in a minute.');
   expect(screen.queryByText(/Something went wrong/)).not.toBeInTheDocument();
 });
 
@@ -173,6 +173,28 @@ it('#2051 Re-check whose result could not be saved, and a too-soon second check,
   h.setup.mockRejectedValueOnce(new AppError('x', 'RATE_LIMITED'));
   await user.click(screen.getByRole('button', { name: 'Re-check' }));
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('This was just run. Try again in a minute.'));
+});
+
+it('#2051 a Re-check Odoo answered with a server error says so, not "Nothing was changed"', async () => {
+  const user = userEvent.setup();
+  h.setup.mockResolvedValue({ state: 'healthy', errorClass: 'server-error' });
+  mount('Admin', connected());
+  await user.click(await screen.findByRole('button', { name: 'Re-check' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Odoo answered with an error. Try again.');
+  expect(screen.queryByText(/Nothing was changed/)).not.toBeInTheDocument();
+});
+
+it.each([
+  ['credentials', 'Odoo rejected the API key. Check the key and try again.'],
+  ['kill-switch', 'Integrations are switched off.'],
+  ['inactive', 'The Odoo connection is not set up. Finish setting it up first.'],
+])('#2051 a Re-check refused with %s says why, not "try again in a minute"', async (code, line) => {
+  const user = userEvent.setup();
+  h.setup.mockImplementation(async (verb: string) => { if (verb === 'recheck') throw new AppError('x', code); return { ok: true }; });
+  mount('Admin', connected());
+  await user.click(await screen.findByRole('button', { name: 'Re-check' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(line);
+  expect(screen.queryByText(/in a minute/)).not.toBeInTheDocument();
 });
 
 it('#2051 a healthy Re-check says "Checked just now."', async () => {

@@ -243,6 +243,8 @@ describe('external-set-company — Odoo gates', () => {
 describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () => {
   const ACTIVATED = { site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
     config: { database: 'db1', odoo_company_id: 1, connection: { state: 'healthy', failures: 0, last_ok_at: null, last_checked_at: null, error_class: null, missing: [] } } };
+  // A healthy stored snapshot: the only case where the card's Re-check is the one-call path.
+  const WITH_SNAPSHOT = { ...ACTIVATED, config: { ...ACTIVATED.config, capabilities: { version_major: 20, missing: [] } } };
   const merged = (calls: FetchCall[]) => rpcCall(calls, 'merge_external_org_binding_config').map((c) => c.bodyJson as { p_org_id: string; p_external_tier: string; p_patch: { connection: ConnectionRecord; capabilities?: CapabilitySnapshot } });
 
   it('FR-ODC-031 an Admin full recheck probes now and stores a healthy state with the snapshot', async () => {
@@ -255,8 +257,8 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
     assertEquals(JSON.stringify(m).includes(KEY), false);
   });
 
-  it('#2051 the card Re-check is one authenticated read: no version probe, no discovery, no snapshot rewrite', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED });
+  it('#2051 the card Re-check on a healthy snapshot is one authenticated read: no version probe, no discovery, no snapshot rewrite', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: WITH_SNAPSHOT });
     assertEquals([r.res.status, r.json.state], [200, 'healthy']);
     assertEquals(r.fake.calls, [{ model: 'res.company', method: 'search_count' }]);
     assertEquals(odooCalls(r.calls).length, 1);
@@ -265,15 +267,30 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
     assertEquals(r.text.includes(KEY), false);
   });
 
-  it('#2051 the light Re-check keeps what the last full discovery found missing, so it never reports healthy over it', async () => {
-    const config = { ...ACTIVATED.config, capabilities: { version_major: 20, missing: ['uom.uom'] } };
+  it('FR-ODC-020 a Re-check on a degraded snapshot runs discovery, so a fixed permission clears the state now', async () => {
+    const config = { ...ACTIVATED.config, connection: { ...ACTIVATED.config.connection, state: 'degraded', missing: ['uom.uom'] }, capabilities: { version_major: 20, missing: ['uom.uom'] } };
     const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config } });
-    assertEquals([r.res.status, r.json.state, r.json.missing], [200, 'degraded', ['uom.uom']]);
-    assertEquals(r.fake.calls.length, 1);
+    assertEquals([r.res.status, r.json.state, r.json.missing], [200, 'healthy', []]);
+    assertEquals(r.fake.calls.length > 1, true);
+    const m = merged(r.calls);
+    assertEquals([m.length, m[0].p_patch.connection.state, m[0].p_patch.capabilities?.missing], [1, 'healthy', []]);
+  });
+
+  it('FR-ODC-020 a Re-check on a degraded snapshot whose item is still missing stays degraded naming it', async () => {
+    const config = { ...ACTIVATED.config, capabilities: { version_major: 20, missing: ['uom.uom'] } };
+    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config }, prepare: (f) => f.dropModel('uom.uom') });
+    assertEquals([r.json.state, r.json.missing], ['degraded', ['uom.uom']]);
+  });
+
+  it('FR-ODC-020 a Re-check with no stored snapshot runs discovery and stores one', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED });
+    assertEquals(r.res.status, 200);
+    assertEquals(r.fake.calls.length > 1, true);
+    assertEquals('capabilities' in merged(r.calls)[0].p_patch, true);
   });
 
   it('#2051 the light Re-check with Odoo unreachable answers 200 with the failure class, one failure counted', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, prepare: (f) => f.failNext('transport') });
+    const r = await call({ setupAction: 'recheck' }, { binding: WITH_SNAPSHOT, prepare: (f) => f.failNext('transport') });
     assertEquals([r.res.status, r.json.errorClass], [200, 'unreachable']);
     assertEquals(merged(r.calls)[0].p_patch.connection.failures, 1);
   });
@@ -291,7 +308,7 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
   });
 
   it('FR-ODC-031 a network failure counts once; the previous state is kept until the third', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, prepare: (f) => f.failNext('transport') });
+    const r = await call({ setupAction: 'recheck' }, { binding: WITH_SNAPSHOT, prepare: (f) => f.failNext('transport') });
     assertEquals([r.res.status, r.json.state], [200, 'healthy']);
     assertEquals(merged(r.calls)[0].p_patch.connection.failures, 1);
   });
