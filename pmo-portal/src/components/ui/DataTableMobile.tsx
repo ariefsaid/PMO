@@ -62,7 +62,14 @@ function mobileCardPropsEqual<Row>(a: Readonly<DataTableMobileCardProps<Row>>, b
     && a.selected === b.selected
     && a.isSelected === b.isSelected
     && a.columns === b.columns
-    && a.fingerprint === b.fingerprint;
+    && a.fingerprint === b.fingerprint
+    // PRESENCE, not identity (same rule as the desktop row memo, #2102 review I1): the card's
+    // checkbox, ⋯ menu and activation button appear/disappear with these props, so a permission
+    // flip beside a stable `columns` array must repaint the card instead of leaving it stale.
+    && a.canActivate === b.canActivate
+    && Boolean(a.onActivate) === Boolean(b.onActivate)
+    && Boolean(a.rowMenu) === Boolean(b.rowMenu)
+    && Boolean(a.selection) === Boolean(b.selection);
 }
 
 function DataTableMobileCardInner<Row>({

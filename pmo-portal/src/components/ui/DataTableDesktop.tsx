@@ -51,10 +51,46 @@ function cssVarKey(key: string): string {
 
 /** A body cell's width reads a custom property set once on `<table>` (#2102): a column resize
  *  updates one variable instead of N×M inline styles, so the memoised body never re-renders
- *  while the user drags. A variable that is absent (never-sized column) resolves to `auto` —
- *  exactly the rendering of the absent inline width it replaces. */
+ *  while the user drags. An unsized column's variable is defined as `auto` (never left absent):
+ *  custom properties inherit, so an absent one would let a table nested inside a cell pick up a
+ *  same-named variable from the outer table. */
 function columnWidthVar(key: string): string {
   return `var(--dt-w-${cssVarKey(key)})`;
+}
+
+/** Registers a resize gesture's move listener plus EVERY gesture-terminal signal, and runs
+ *  `onEnd` exactly once (#2102 review C1). A pointer-up can be lost — released outside the
+ *  browser, the app deactivated mid-drag (⌘-Tab, a notification stealing focus), or the OS
+ *  cancelling a touch — and since the memoised body skips every update while
+ *  `isResizingColumn` is set, a missed end would freeze the table body permanently. So the
+ *  gesture ends on the FIRST of: mouseup, touchend, pointercancel, window blur, or the document
+ *  becoming hidden. `onEnd` clears the flag (un-freezing the body) and persists the width once. */
+function beginResizeGesture<E extends Event>(
+  moveEventName: 'mousemove' | 'touchmove',
+  move: (event: E) => void,
+  onEnd: () => void,
+): void {
+  let ended = false;
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') stop();
+  };
+  const stop = () => {
+    if (ended) return;
+    ended = true;
+    window.removeEventListener(moveEventName, move as EventListener);
+    window.removeEventListener('mouseup', stop);
+    window.removeEventListener('touchend', stop);
+    window.removeEventListener('pointercancel', stop);
+    window.removeEventListener('blur', stop);
+    document.removeEventListener('visibilitychange', onVisibility);
+    onEnd();
+  };
+  window.addEventListener(moveEventName, move as EventListener);
+  window.addEventListener('mouseup', stop);
+  window.addEventListener('touchend', stop);
+  window.addEventListener('pointercancel', stop);
+  window.addEventListener('blur', stop);
+  document.addEventListener('visibilitychange', onVisibility);
 }
 
 /** Whether content is hidden to the right of the scrollport. Held OUTSIDE React state on purpose: the first
@@ -170,7 +206,16 @@ function dataTableRowPropsEqual<Row>(a: Readonly<DataTableRowProps<Row>>, b: Rea
     && a.isSelected === b.isSelected
     && a.seamStore === b.seamStore
     && a.columns === b.columns
-    && a.fingerprint === b.fingerprint;
+    && a.fingerprint === b.fingerprint
+    // PRESENCE, not identity (#2102 review I1): a row's cell count is decided by whether the
+    // selection cell / actions cell / activation button render at all. `rowMenu`, `selection`,
+    // `onActivate` and `canActivate` are re-created on every parent render, so only their
+    // presence may be compared — but it MUST be, or a permission-gated menu appearing beside a
+    // stable `columns` array leaves this row one cell short of the header (silent corruption).
+    && a.canActivate === b.canActivate
+    && Boolean(a.onActivate) === Boolean(b.onActivate)
+    && Boolean(a.rowMenu) === Boolean(b.rowMenu)
+    && Boolean(a.selection) === Boolean(b.selection);
 }
 
 function DataTableRowInner<Row>({
@@ -361,6 +406,12 @@ function tableBodyPropsEqual<Row>(a: Readonly<DataTableTableBodyProps<Row>>, b: 
     && a.colSpan === b.colSpan
     && a.groupHeaderSpan === b.groupHeaderSpan
     && a.canActivate === b.canActivate
+    // Same presence keys as the row memo (#2102 review I1): `colSpan` already covers the header
+    // count, but re-rendering this <tbody> does not re-render its memoised rows — each row must
+    // see the presence change itself to grow/shrink its own cell count.
+    && Boolean(a.onActivate) === Boolean(b.onActivate)
+    && Boolean(a.rowMenu) === Boolean(b.rowMenu)
+    && Boolean(a.selection) === Boolean(b.selection)
     && a.listStateNode === b.listStateNode
     && a.seamStore === b.seamStore
     && a.columns === b.columns
@@ -514,11 +565,13 @@ export function DataTableDesktop<Row>({
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   // Width variables live once on <table> (#2102): body cells reference them, so a live resize
   // paints through CSS without touching the memoised body. Sized = user-resized or kind default.
+  // An unsized column is defined as `auto` rather than left absent: custom properties inherit,
+  // so an absent one could be picked up from an enclosing table by a nested table's cells.
   const columnSizeVars = useMemo(() => {
     const style: Record<string, string> = {};
     for (const column of columns) {
       const width = columnSizing[column.key] ?? columnDefaultSize(column);
-      if (width !== undefined) style[`--dt-w-${cssVarKey(column.key)}`] = `${width}px`;
+      style[`--dt-w-${cssVarKey(column.key)}`] = width !== undefined ? `${width}px` : 'auto';
     }
     return style;
   }, [columns, columnSizing]);
@@ -627,35 +680,27 @@ export function DataTableDesktop<Row>({
                           // freezes; widths still paint live through the <table> CSS variables.
                           table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: header.column.id }));
                           const resize = (clientX: number) => table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
-                          const move = (moveEvent: MouseEvent) => resize(moveEvent.clientX);
-                          const stop = () => {
-                            window.removeEventListener('mousemove', move);
-                            window.removeEventListener('mouseup', stop);
+                          // ONE end path for every gesture-terminal signal (#2102 C1): clear the
+                          // freeze and write widths once, even when the mouseup never arrives.
+                          beginResizeGesture<MouseEvent>('mousemove', (moveEvent) => resize(moveEvent.clientX), () => {
                             table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: false }));
                             // One persisted write per gesture, here on release — never per move.
                             persistColumnSizing();
-                          };
-                          window.addEventListener('mousemove', move);
-                          window.addEventListener('mouseup', stop, { once: true });
+                          });
                         }}
                         onTouchStart={(event) => {
                           const startX = event.touches[0]?.clientX;
                           if (startX === undefined) return;
                           const startWidth = header.getSize();
                           table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: header.column.id }));
-                          const move = (moveEvent: TouchEvent) => {
+                          beginResizeGesture<TouchEvent>('touchmove', (moveEvent) => {
                             const clientX = moveEvent.touches[0]?.clientX;
                             if (clientX !== undefined) table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
-                          };
-                          const stop = () => {
-                            window.removeEventListener('touchmove', move);
-                            window.removeEventListener('touchend', stop);
+                          }, () => {
                             table.setColumnSizingInfo((info) => ({ ...info, isResizingColumn: false }));
                             // One persisted write per gesture, here on release — never per move.
                             persistColumnSizing();
-                          };
-                          window.addEventListener('touchmove', move, { passive: true });
-                          window.addEventListener('touchend', stop, { once: true });
+                          });
                         }}
                         onDoubleClick={() => {
                           header.column.resetSize();
