@@ -1,6 +1,6 @@
--- 0714_budget_return_to_pm.sql — #1413: an approver returns a waiting Draft budget version to the PM.
+-- 0792_budget_return_to_pm.sql — #1413: an approver returns a waiting Draft budget version to the PM.
 -- A Draft is "waiting for approval" while returned_at is null. Return stamps returned_at/by/reason
--- (the Draft stays editable, all lines kept); resubmit clears them. Reversal: rollback/0714_budget_return_to_pm_down.sql.
+-- (the Draft stays editable, all lines kept); resubmit clears them. Reversal: rollback/0792_budget_return_to_pm_down.sql.
 
 alter table public.budget_versions
   add column returned_at timestamptz,
