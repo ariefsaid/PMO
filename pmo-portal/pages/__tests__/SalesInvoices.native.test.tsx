@@ -210,8 +210,9 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
 
   it('embedded receivables uses a compact Invoices heading and lets the Finance shell start creation', () => {
     renderPage('/finance/receivables?layout=a&create=1', true);
-    expect(screen.getByRole('heading', { level: 2, name: 'Invoices' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New Invoice' })).not.toBeInTheDocument();
+    // The create dialog is open on mount, so the page behind it is hidden from assistive tech (modal).
+    expect(screen.getByRole('heading', { level: 2, name: 'Invoices', hidden: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New Invoice', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });

@@ -15,9 +15,12 @@ describe('Toast and dialog geometry', () => {
     const toast = document.querySelector<HTMLElement>('[data-toast-container]');
     await waitFor(() => expect(toast).toHaveAttribute('data-dialog-open', 'true'));
     expect(screen.getByRole('alert')).toHaveTextContent('Keep this remedy visible');
+    // The library stack itself renders at the safe top edge while the dialog is open.
+    await waitFor(() => expect(document.querySelector('[data-sonner-toaster]')).toHaveAttribute('data-y-position', 'top'));
     view.rerender(<ToastProvider><ToastTrigger /><ConfirmDialog open={false} title="Discard changes?" description="Unsaved changes remain." confirmLabel="Discard" onConfirm={() => {}} onCancel={() => {}} /></ToastProvider>);
     await waitFor(() => expect(toast).toHaveAttribute('data-dialog-open', 'false'));
     expect(screen.getByRole('alert')).toHaveTextContent('Keep this remedy visible');
+    await waitFor(() => expect(document.querySelector('[data-sonner-toaster]')).toHaveAttribute('data-y-position', 'bottom'));
   });
 
   // Issue 1816: a side drawer is edge-anchored, so the dialog remedy above would land a

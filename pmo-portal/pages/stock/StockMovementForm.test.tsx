@@ -66,7 +66,7 @@ async function fillIssue(qty = '5', search = 'cem', option: RegExp = /CEM - Ceme
   await userEvent.selectOptions(screen.getByLabelText(/^Project/), 'p1');
   await userEvent.selectOptions(await screen.findByLabelText(/^Work item/), 'b1');
   await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
-  await userEvent.type(screen.getByRole('searchbox'), search);
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), search);
   await userEvent.click(await screen.findByRole('option', { name: option }));
   await userEvent.type(screen.getByLabelText(/^Quantity/), qty);
 }
@@ -76,8 +76,8 @@ describe('StockMovementForm', () => {
     const { container } = renderForm('issue');
     await fillIssue();
     await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
-    await userEvent.clear(screen.getByRole('searchbox'));
-    await userEvent.type(screen.getByRole('searchbox'), 'cement');
+    await userEvent.clear(await screen.findByRole('combobox', { name: /^(search|cari) /i }));
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cement');
     expect(await screen.findByRole('option', { name: /CEM - Cement 50kg/ })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -110,7 +110,7 @@ describe('StockMovementForm', () => {
     await user.tab({ shift: true }); // work item -> back to the item picker (it sits above the work item)
     expect(picker).toHaveFocus();
     await user.keyboard('{Enter}');
-    await user.type(await screen.findByRole('searchbox'), 'cem');
+    await user.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cem');
     await user.keyboard('{ArrowDown}{Enter}');
     await user.tab(); // item picker -> work item
     await user.tab(); // work item -> quantity
