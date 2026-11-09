@@ -599,13 +599,13 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.queryByRole('button', { name: /reject/i })).not.toBeInTheDocument();
   });
 
-  it('AC-805: Finance viewer IS offered Approve and Reject for Requested procurement', () => {
+  it('AC-805: Finance viewer IS offered Approve and Reject for Requested procurement', async () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
     const header = screen.getByTestId('record-header');
-    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     expect(within(header).getByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
   });
 
@@ -1523,18 +1523,18 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.queryByTestId('line-item-add-row')).toBeNull();
   });
 
-  it('AC-PROC-002: the Draft-header edit affordance shows for the requester while Draft', () => {
+  it('AC-PROC-002: the Draft-header edit affordance shows for the requester while Draft', async () => {
     renderPage();
     const header = screen.getByTestId('record-header');
-    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
   });
 
-  it('offers header editing to the Engineer requester', () => {
+  it('offers header editing to the Engineer requester', async () => {
     mockEffectiveRole = 'Engineer';
     renderPage();
     const header = screen.getByTestId('record-header');
-    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
   });
 
@@ -1543,7 +1543,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     mockUpdateHeader.mockResolvedValue(undefined);
     renderPage();
     const header = screen.getByTestId('record-header');
-    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     fireEvent.click(within(header).getByTestId('edit-header'));
     const form = screen.getByTestId('header-edit-card');
     await userEvent.clear(within(form).getByLabelText(/Title/));
@@ -1558,7 +1558,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     toast.mockClear();
     renderPage();
     const header = screen.getByTestId('record-header');
-    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     fireEvent.click(within(header).getByTestId('edit-header'));
     const form = screen.getByTestId('header-edit-card');
     await userEvent.clear(within(form).getByLabelText(/Title/));
@@ -1569,12 +1569,12 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(toast).not.toHaveBeenCalledWith('Procurement updated', 'Header saved', 'success');
   });
 
-  it('AC-PROC-002: header-edit is HIDDEN for a non-requester (record-scoped gate)', () => {
+  it('AC-PROC-002: header-edit is HIDDEN for a non-requester (record-scoped gate)', async () => {
     // Edit is scoped to Draft/Rejected AND requester/Admin — a non-requester PM must not see it.
     detailState.data = { ...draftByAlice, requested_by_id: 'u-someone-else' };
     renderPage();
     const header = screen.getByTestId('record-header');
-    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     expect(within(header).queryByTestId('edit-header')).toBeNull();
   });
 
