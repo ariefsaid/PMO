@@ -96,6 +96,9 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
   const ambiguityConfirmed = ambiguousRows.length === 0 || confirmedKey === ambiguousKey;
   const canSave = hasInput && validRows.length > 0 && ambiguityConfirmed && !hasResults && !paste.isSaving;
   const unresolved = results.some((r) => r.status !== 'created');
+  // AC-ERR-001: a rejected row is also shown inline and stays; a fresh object per results change re-announces it.
+  const firstError = results.find((r) => r.error)?.error;
+  const submitError = useMemo(() => (firstError ? { headline: firstError.headline, detail: firstError.detail } : null), [results]); // eslint-disable-line react-hooks/exhaustive-deps
   const failedRetryable = results.filter((r) => r.status === 'failed' && r.retryable);
 
   const headerText = t('budgetPaste.header', 'First row is a header');
@@ -153,6 +156,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
       onSubmit={submit}
       onClose={close}
       submitDisabled={!canSave}
+      submitError={submitError}
       hideSubmit={hasResults}
       disabledReason={t('budgetPaste.disabledReason', 'Paste rows with a mapped category and amount, with at least one valid row.')}
       loading={paste.isSaving}

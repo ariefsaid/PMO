@@ -2411,6 +2411,8 @@ describe('budget paste rows dialog (#1473 C)', () => {
     expect(within(dialog).queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument();
     expect(mockBudgetRepository.createLineItem).toHaveBeenCalledTimes(2);
     expect(mockRefreshBudgetQueries).toHaveBeenCalled();
+    // AC-ERR-001: the rejection also shows inline in the dialog (outlives the toast).
+    expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
   });
 
   it('AC-008 has no axe violations, announces results in a live region, and reads in Bahasa', async () => {
