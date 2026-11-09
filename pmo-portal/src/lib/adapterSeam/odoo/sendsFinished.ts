@@ -6,7 +6,7 @@
 export interface SendsStatus {
   run: { state: string; finished_at: string | null } | null;
   waitingForSend: number;
-  proposalCounts?: Record<string, { send: number; review: number }>;
+  proposalCounts?: Record<string, { link: number; bring_in: number; send: number; review: number; applied_link: number }>;
 }
 
 const SEND_KINDS = ['party', 'item', 'project'] as const;

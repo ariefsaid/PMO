@@ -35,6 +35,7 @@ type Resolved = Extract<OdooClientForOrgResult, { client: unknown }>;
 /** Plain words for the two refusals Odoo's adapter raises itself; anything else (Odoo's own text never travels) gets the generic sentence. */
 const REASONS: Record<string, string> = {
   'unit-unmapped': 'its unit has no match in Odoo yet',
+  'project-number-missing': 'the project has no project number yet',
 };
 
 export const odooConnectCtx = (r: Resolved): OdooConnectCtx => {
@@ -75,7 +76,11 @@ export function drainOdooConnectSends(
       return { connect: createOdooConnectAdapter(call!, ctx), probe: (kind, master) => odooSendProbe(call!, ctx!, kind, master) };
     },
     afterSent: async (kind, _master, externalId) => { if (kind === 'project') await mirrorSentAccount(sc, org.orgId, call!, externalId); },
-    refuse: (kind) => (kind === 'project' && ctx?.analyticPlanId === null ? 'Choose the cost-account plan for projects first, then send this project again.' : null),
+    refuse: (kind, master) => {
+      if (kind !== 'project') return null;
+      if (ctx?.analyticPlanId === null) return 'Choose the cost-account plan for projects first, then send this project again.';
+      return master.code?.trim() ? null : 'This project has no project number yet, so its cost account cannot be named. Give it one, then send it again.';
+    },
     reissueOnInconclusiveAbsence: () => false,
     reasonOf: (err) => REASONS[(err as { message?: string }).message ?? ''] ?? null,
     personText: 'Odoo people are not sent from PMO yet. Add this person in Odoo.',

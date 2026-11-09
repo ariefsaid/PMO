@@ -254,7 +254,7 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
     erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
   if (command.operation === 'create') {
-    const record = command.record as { customerId?: string; salesInvoiceId?: string; date?: string };
+    const record = command.record as { customerId?: string; salesInvoiceId?: string; date?: string; withholding_article?: unknown };
     // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
     // the service-role insert (RLS is bypassed). customer_id → companies, sales_invoice_id →
     // sales_invoices. A null link (e.g. an on-account PE with no customer/SI) skips the lookup. A link
@@ -268,6 +268,8 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
       customer_id: customerId,
       sales_invoice_id: salesInvoiceId,
       date: record.date ?? null,
+      // #1275: the stated tax article is a create-only PMO fact (never in `patch`: a later ERP amendment must not clear it).
+      ...(record.withholding_article === 'pph23' || record.withholding_article === 'pph4_2' ? { withholding_article: record.withholding_article } : {}),
       // A same-key recovery may be retried under a different Finance JWT after Odoo committed. The
       // canonical was stamped from the original actor persisted on the money outbox; prefer that
       // verified witness over the replay caller.

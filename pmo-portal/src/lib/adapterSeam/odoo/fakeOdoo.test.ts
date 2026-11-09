@@ -9,6 +9,14 @@ const setup = () => {
 const keyset = (w: string, id: number) => ['|', ['write_date', '>', w], '&', ['write_date', '=', w], ['id', '>', id]];
 
 describe('fakeOdoo', () => {
+  it('answers `not in`, and reads res.users with its partner link', async () => {
+    const { fake, call } = setup();
+    fake.seed('res.partner', [{ id: 1, name: 'a' }, { id: 2, name: 'b' }, { id: 3, name: 'c' }]);
+    fake.seed('res.users', [{ id: 1, active: false, partner_id: [2, 'b'] }]);
+    expect(await call('res.partner', 'search', { domain: [['id', 'not in', [2, 3]]] })).toEqual([1]);
+    expect(await call('res.users', 'search_read', { domain: [], fields: ['partner_id'], context: { active_test: false } })).toEqual([{ id: 1, partner_id: [2, 'b'] }]);
+  });
+
   it('pages the §2.7 keyset domain in (write_date, id) order with no repeat across pages', async () => {
     const { fake, call } = setup();
     fake.seed('res.partner', [

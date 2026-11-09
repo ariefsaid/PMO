@@ -157,6 +157,16 @@ async function setAmount(user: ReturnType<typeof userEvent.setup>, label: RegExp
 }
 
 describe('Incoming Payments while PMO owns revenue (#784)', () => {
+  it('AC-WHA-006: a PMO-native receipt shows no withholding article choice', async () => {
+    h.invoices.data = [openInvoice];
+    const user = userEvent.setup();
+    renderPage();
+    await pickInvoice(user);
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    expect(screen.getByLabelText(/Withheld tax amount/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Withholding article')).not.toBeInTheDocument();
+  });
+
   it('UX-010/011 Finance gets one receive action and no duplicate empty-state CTA', () => {
     renderPage();
     expect(screen.getAllByRole('button', { name: 'Receive Payment' })).toHaveLength(1);

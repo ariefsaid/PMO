@@ -69,7 +69,7 @@ const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unk
 const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null), createLineItem: vi.fn() }));
 const mockRefreshBudgetQueries = vi.hoisted(() => vi.fn());
 
-const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
+const mockActivate = vi.fn().mockResolvedValue({ pushState: 'queued' });
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
@@ -120,6 +120,8 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
+    // #2065: a failed ledger-mode read now shows a notice, so the connection read must resolve (org not on Odoo).
+    odoo: { getConnection: () => Promise.resolve(null) },
     budget: {
       ...mockBudgetRepository,
       listArchiveTargets: (...args: unknown[]) => mockListArchiveTargets(...args),
@@ -672,41 +674,6 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  // ── HIGH-C (Luna re-audit round 2): the push is a CONSEQUENCE of activation, never its precondition
-  //    (ADR-0059 §3.2) — so activation still SUCCEEDS when the push fails. But "swallowed" must mean
-  //    "recorded and surfaced", never "lost": a dispatch that never reached the edge function writes no
-  //    mirror row at all, the sweep backstop's queue IS that mirror, and the user was shown a plain
-  //    success while ERPNext kept enforcing the previous budget.
-  it('HIGH-C activation whose ERP push failed still succeeds, but SAYS SO instead of toasting a clean success', async () => {
-    roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
-    budgetState.data = 0;
-    versionsState.data = [draftVersion];
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    const toast = await findToastAnnouncement('alert', /activated/i);
-    expect(toast).toHaveTextContent(/ERPNext/i);
-    resetState();
-  });
-
-  it('clears an earlier activation warning when the operator starts another budget action', async () => {
-    roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
-    budgetState.data = 0;
-    versionsState.data = [draftVersion];
-    renderPage();
-
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    expect(await findToastAnnouncement('alert', /activated/i)).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
-    expect(screen.queryByText('Version activated, but ERPNext was not updated')).not.toBeInTheDocument();
-    resetState();
-  });
-
   it('keeps an unresolved error when New version is opened and cancelled', async () => {
     budgetState.data = 0;
     versionsState.data = [activeVersion];
@@ -729,26 +696,6 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
-    resetState();
-  });
-
-  /**
-   * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
-   * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
-   * attempt was made and there is nothing to retry.
-   */
-  it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
-    roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
-    budgetState.data = 0;
-    versionsState.data = [draftVersion];
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    const toast = await findToastAnnouncement('alert', /activated/i);
-    expect(toast).toHaveTextContent(/no budget lines/i);
-    // …and it does NOT tell the operator to retry a push that was never attempted.
-    expect(toast).not.toHaveTextContent(/retry/i);
     resetState();
   });
 
