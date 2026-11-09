@@ -47,6 +47,12 @@ const ACTIVATED_AT = '2026-10-15T10:00:00.000Z';
 const WAIT = 'waiting-for-budget-archive-cancellation';
 const SWEEP_SECRET = 'synthetic-sweep-secret';
 const NOW = Date.parse('2026-10-28T00:05:00.000Z');
+/** The person who activated VERSION (the resume's only correct attribution). */
+const ACTIVATOR = '88888888-8888-4888-8888-888888888888';
+/** Someone who manually archived a version on the same project AFTER that activation. */
+const MANUAL_ARCHIVER = '99999999-9999-4999-8999-999999999999';
+/** The archived predecessor of VERSION — the `budget_version_id` an activation-queued request names. */
+const PREDECESSOR = '55555555-5555-4555-8555-555555555555';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -101,9 +107,28 @@ function makeFixture(args: {
   orgTwoIntents?: string[];
   /** rm-1472 — an extra parked `remove` unit for an account the re-derived plan no longer desires. */
   orgOneDroppedAccount?: string;
+  /** ⚑ I-1 — how the ACTIVATION's own archive request reads back: `queued` (the normal, recorded case),
+   *  `none` (that activation queued no cancellation, so no activator is recorded) or `ambiguous` (two
+   *  rows claim the same activation timestamp, so no single person can be attributed). */
+  activationRequest?: 'queued' | 'none' | 'ambiguous';
+  /** ⚑ I-1 — someone manually archived on this project AFTER the activation. Their settled intent is the
+   *  newest on the project, which is what the shipped code wrongly attributed the resumed mint to. */
+  manualArchiveBy?: string;
+  /** ⚑ I-1 — an EARLIER activation on the same project also queued a cancellation (`queued_by_activation`,
+   *  a different `created_at`). Attribution must key on THIS version's activation stamp, not merely on
+   *  "some activation-queued request exists on the project". */
+  priorActivationRequestBy?: string;
+  /** ⚑ M-2 — the activator's CURRENT authorization as `actor_authorization_state` reports it. */
+  actorState?: { role: string | null; active: boolean };
+  /** ⚑ M-4 — make the fence read as settled on its first read and unsettled from this read (1-based)
+   *  onwards, so the resume's own check passes and the gate's re-check answers 202. */
+  unsettleFenceOnRead?: number;
+  /** ⚑ M-4 — drop the category→ERP-account mapping so the re-derived gate refuses (422) on resume. */
+  dropCategoryMapping?: boolean;
 }) {
   let nextOutboxId = 0;
   let nextBudgetId = 0;
+  let fenceReads = 0;
   const nowIso = new Date(NOW).toISOString();
   const budgets = new Map<string, ErpBudgetDoc>();
   const erpCreates: Array<{ name: string; body: Row }> = [];
@@ -130,7 +155,7 @@ function makeFixture(args: {
     project,
   });
 
-  const intent = (ordinal: number, orgId: string, project: string, version: string, actor: string, state: string) => ({
+  const intent = (ordinal: number, orgId: string, project: string, version: string, actor: string, state: string, updatedAt: string = nowIso) => ({
     id: 'a0000000-0000-4000-8000-' + ordinal.toString(16).padStart(12, '0'),
     org_id: orgId,
     request_id: '90000000-0000-4000-8000-' + ordinal.toString(16).padStart(12, '0'),
@@ -148,7 +173,7 @@ function makeFixture(args: {
     pushed_project_start_date: '2026-02-01',
     pushed_project_end_date: '2026-11-30',
     state,
-    updated_at: nowIso,
+    updated_at: updatedAt,
   });
 
   const binding = (id: string, orgId: string, project: string) => ({
@@ -171,6 +196,38 @@ function makeFixture(args: {
     budget_mode: 'whole_project',
     id: version,
   });
+
+  const request = (ordinal: number, orgId: string, project: string, version: string, requestedBy: string, queuedByActivation: boolean, createdAt: string) => ({
+    id: '90000000-0000-4000-8000-' + ordinal.toString(16).padStart(12, '0'),
+    org_id: orgId,
+    project_id: project,
+    budget_version_id: version,
+    requested_by: requestedBy,
+    cancel_erp: true,
+    live_target_count: 1,
+    queued_by_activation: queuedByActivation,
+    created_at: createdAt,
+  });
+
+  const activationRequests = args.activationRequest ?? 'queued';
+  const orgOneRequests = activationRequests === 'none'
+    ? []
+    : activationRequests === 'ambiguous'
+      ? [
+        request(30, ORG, PROJECT, PREDECESSOR, ACTIVATOR, true, ACTIVATED_AT),
+        request(31, ORG, PROJECT, PREDECESSOR, MANUAL_ARCHIVER, true, ACTIVATED_AT),
+      ]
+      : [request(30, ORG, PROJECT, PREDECESSOR, ACTIVATOR, true, ACTIVATED_AT)];
+  // The manual archive of a DIFFERENT version on the same project, recorded later: its settled intent is
+  // the newest on the project, so a project-wide "latest settled actor" read answers with ITS actor.
+  const manualRequest = args.manualArchiveBy
+    ? [request(32, ORG, PROJECT, PREDECESSOR, args.manualArchiveBy, false, '2026-10-20T09:00:00.000Z')]
+    : [];
+  // A cancellation queued by an EARLIER activation of the same project: same `queued_by_activation`
+  // flag, a different transaction stamp.
+  const priorActivationRequest = args.priorActivationRequestBy
+    ? [request(33, ORG, PROJECT, PREDECESSOR, args.priorActivationRequestBy, true, '2026-08-01T08:00:00.000Z')]
+    : [];
 
   const tables: Record<string, Row[]> = {
     external_org_bindings: [
@@ -196,7 +253,9 @@ function makeFixture(args: {
       { id: 'd0000000-0000-4000-8000-000000000002', budget_version_id: OTHER_VERSION, category: 'Labor', budgeted_amount: '90000.00', fiscal_year: null },
     ],
     budget_category_account_map: [
-      { id: 'e0000000-0000-4000-8000-000000000001', org_id: ORG, category: 'Labor', erp_account: ACCOUNT, is_push_target: true },
+      ...(args.dropCategoryMapping
+        ? []
+        : [{ id: 'e0000000-0000-4000-8000-000000000001', org_id: ORG, category: 'Labor', erp_account: ACCOUNT, is_push_target: true }]),
       { id: 'e0000000-0000-4000-8000-000000000002', org_id: OTHER_ORG, category: 'Labor', erp_account: ACCOUNT, is_push_target: true },
     ],
     budget_distribution_plans: [
@@ -230,9 +289,19 @@ function makeFixture(args: {
     budget_version_erp_mirror: [],
     budget_archive_cancel_intents: [
       ...args.orgOneIntents.map((state, index) => intent(10 + index, ORG, PROJECT, VERSION, ACTOR, state)),
+      ...(args.manualArchiveBy
+        ? [intent(40, ORG, PROJECT, PREDECESSOR, args.manualArchiveBy, 'complete', '2026-10-20T09:00:05.000Z')]
+        : []),
       ...(args.orgTwoIntents ?? []).map((state, index) => intent(20 + index, OTHER_ORG, OTHER_PROJECT, OTHER_VERSION, OTHER_ACTOR, state)),
     ],
-    budget_archive_requests: [],
+    budget_archive_requests: [
+      ...orgOneRequests,
+      ...manualRequest,
+      ...priorActivationRequest,
+      // The other org's own activation-queued request, so its parked unit is parked on the FENCE (still
+      // pending), never on a missing activator.
+      request(50, OTHER_ORG, OTHER_PROJECT, PREDECESSOR, OTHER_ACTOR, true, ACTIVATED_AT),
+    ],
     external_command_outbox: [],
     external_refs: [],
     notifications: [],
@@ -272,7 +341,7 @@ function makeFixture(args: {
         const params = (body ?? {}) as Row;
         if (rpc === 'read_vault_secret') return jsonResponse('synthetic-api-key:synthetic-api-secret');
         if (rpc === 'org_has_active_erpnext_binding' || rpc === 'domain_owned_by_tier') return jsonResponse(true);
-        if (rpc === 'actor_authorization_state') return jsonResponse({ role: 'Finance', active: true });
+        if (rpc === 'actor_authorization_state') return jsonResponse(args.actorState ?? { role: 'Finance', active: true });
         if (rpc === 'outbox_reconcile_candidates') return jsonResponse([]);
         if (rpc === 'outbox_retry_pending') return jsonResponse([]);
         if (rpc === 'claim_erp_sweep_lock' || rpc === 'release_erp_sweep_lock' || rpc === 'mark_erp_full_sweep_done') {
@@ -332,6 +401,14 @@ function makeFixture(args: {
       }
 
       const table = decodeURIComponent(url.pathname.slice('/rest/v1/'.length));
+      // ⚑ M-4 — the fence can become UNSETTLED again between the resume's own check and the gate's
+      // re-check inside it (a late cancellation reaching ERP). Simulate that ordering exactly.
+      if (table === 'budget_archive_cancel_intents' && method === 'GET') {
+        fenceReads += 1;
+        if (args.unsettleFenceOnRead && fenceReads >= args.unsettleFenceOnRead) {
+          for (const row of tableRows('budget_archive_cancel_intents')) row.state = 'pending';
+        }
+      }
       const rows = tableMatches(table, url);
       if (method === 'GET') {
         if (request.headers.get('Accept')?.includes('vnd.pgrst.object')) return jsonResponse(rows[0] ?? null);
@@ -480,8 +557,8 @@ Deno.test('rm-1472 a parked unit is resumed through the normal gate once its can
     `the minted row must carry the gate's own year-qualified identity: ${JSON.stringify(outbox[0])}`);
   assert(typeof outbox[0]!.idempotency_key === 'string' && (outbox[0]!.idempotency_key as string).includes(VERSION),
     'the minted row must carry the server-derived push key');
-  assert(outbox[0]!.actor_user_id === ACTOR,
-    `the resumed command must be attributed to a real recorded actor, never minted unattributed: ${JSON.stringify(outbox[0])}`);
+  assert(outbox[0]!.actor_user_id === ACTIVATOR,
+    `the resumed command must be attributed to the person who ACTIVATED the version, never minted unattributed: ${JSON.stringify(outbox[0])}`);
   assert(fixture.erpCreates.length === 1, `ERPNext must receive the replacement Budget: ${JSON.stringify(fixture.erpCreates)}`);
   assert(fixture.erpSubmits.length === 1, 'the replacement Budget must be submitted exactly once');
 
@@ -559,4 +636,145 @@ Deno.test('rm-1472 a held cancellation stops the wait with a reason a person can
       ((notice.metadata as Row | undefined)?.action_required === 'budget-archive-cancellation-held')
       || String(notice.reason ?? notice.kind ?? '').includes('budget-archive-cancellation-held')),
     `the operator surface must be raised: ${JSON.stringify(notices)}`);
+});
+
+Deno.test('rm-1472/I-1 the resumed mint belongs to the ACTIVATION’s author, not to whoever last archived on the project', async () => {
+  // The concrete case review r8 named: a MANUAL archive by someone else lands after this activation and
+  // its settled intent is the newest on the project. Reading the actor off the project's latest intent
+  // (the shipped behaviour) mints the replacement Budget as that manual archiver — an SoD breach when
+  // they drafted the version, and a hold when they have since been deactivated.
+  const fixture = makeFixture({
+    orgOneIntents: ['complete'],
+    orgTwoIntents: ['pending'],
+    manualArchiveBy: MANUAL_ARCHIVER,
+  });
+
+  const response = await fixture.invoke();
+  assert(response.status === 200, `a valid tick must complete (got ${response.status})`);
+
+  const outbox = outboxRows(fixture, ORG);
+  assert(outbox.length === 1, `the parked unit must be resumed once: ${JSON.stringify(outbox)}`);
+  assert(outbox[0]!.actor_user_id === ACTIVATOR,
+    `the resumed push is the ACTIVATOR's act: a later manual archive must not become its author (got ${String(outbox[0]!.actor_user_id)})`);
+  assert(String(outbox[0]!.actor_user_id) !== MANUAL_ARCHIVER,
+    'the manual archiver must never be attributed with a push they did not make');
+  assert(fixture.erpCreates.length === 1, 'the replacement Budget is minted exactly once');
+});
+
+Deno.test('rm-1472/I-1 an EARLIER activation’s queued request on the project does not capture this version’s attribution', async () => {
+  // Same project, same `queued_by_activation` flag, a different transaction stamp: only the request
+  // created in the transaction that stamped THIS version's `activated_at` may supply the actor.
+  const fixture = makeFixture({
+    orgOneIntents: ['complete'],
+    orgTwoIntents: ['pending'],
+    priorActivationRequestBy: MANUAL_ARCHIVER,
+  });
+
+  const response = await fixture.invoke();
+  assert(response.status === 200, `a valid tick must complete (got ${response.status})`);
+
+  const outbox = outboxRows(fixture, ORG);
+  assert(outbox.length === 1, `the older activation's request must not suppress this resume: ${JSON.stringify(outbox)}`);
+  assert(outbox[0]!.actor_user_id === ACTIVATOR,
+    `the actor comes from the request created at THIS version's activation stamp: ${JSON.stringify(outbox[0])}`);
+});
+
+Deno.test('rm-1472/I-1 an activation that recorded no activator holds the units — a resume never guesses an author', async () => {
+  // This activation queued no cancellation of its own (a manual archive was still in flight), so no
+  // `budget_archive_requests` row names it and NOBODY is recorded as its activator.
+  const fixture = makeFixture({ orgOneIntents: ['complete'], orgTwoIntents: ['pending'], activationRequest: 'none' });
+
+  const response = await fixture.invoke();
+  assert(response.status === 200, `a valid tick must complete (got ${response.status})`);
+
+  assert(outboxRows(fixture, ORG).length === 0, 'an unattributable push must never be minted');
+  assert(fixture.erpCreates.length === 0, 'ERPNext must receive nothing under a guessed actor');
+  const unit = unitRows(fixture, ORG)[0]!;
+  assert(unit.push_state === 'held' && unit.push_error === 'budget-archive-cancellation-held',
+    `with no recorded activator the unit is held for a person: ${JSON.stringify(unit)}`);
+  const notices = fixture.tables.notifications as Row[];
+  assert(notices.some((notice) => (notice.metadata as Row | undefined)?.action_required === 'budget-archive-cancellation-held'),
+    `the operator surface must be raised: ${JSON.stringify(notices)}`);
+  const heldBody = String(notices.find((notice) => (notice.metadata as Row | undefined)?.action_required === 'budget-archive-cancellation-held')?.body ?? '');
+  assert(heldBody.length > 40 && !heldBody.includes('budget-archive-cancellation-held'),
+    `the notification body must explain what a person can do: ${heldBody}`);
+});
+
+Deno.test('rm-1472/I-1 two requests claiming the same activation stamp are ambiguous — held, never guessed', async () => {
+  const fixture = makeFixture({ orgOneIntents: ['complete'], orgTwoIntents: ['pending'], activationRequest: 'ambiguous' });
+
+  const response = await fixture.invoke();
+  assert(response.status === 200, `a valid tick must complete (got ${response.status})`);
+
+  assert(outboxRows(fixture, ORG).length === 0, 'an ambiguous attribution must not pick one of the two');
+  assert(fixture.erpCreates.length === 0, 'ERPNext must receive nothing under a guessed actor');
+  const unit = unitRows(fixture, ORG)[0]!;
+  assert(unit.push_state === 'held', `an ambiguous activation is a hold: ${JSON.stringify(unit)}`);
+});
+
+Deno.test('rm-1472/M-2 an activator who may no longer push is held under its OWN reason, not "cancellation held"', async () => {
+  const fixture = makeFixture({
+    orgOneIntents: ['complete'],
+    orgTwoIntents: ['pending'],
+    // The activator is an active member, but their CURRENT role cannot push a budget.
+    actorState: { role: 'Engineer', active: true },
+  });
+
+  const response = await fixture.invoke();
+  assert(response.status === 200, `a valid tick must complete (got ${response.status})`);
+
+  assert(outboxRows(fixture, ORG).length === 0, 'a deauthorized activator must not push anything');
+  assert(fixture.erpCreates.length === 0, 'ERPNext must receive nothing from an unauthorized actor');
+  const unit = unitRows(fixture, ORG)[0]!;
+  assert(unit.push_state === 'held', `the unit is held for a person: ${JSON.stringify(unit)}`);
+  assert(unit.push_error === 'budget-archive-resume-actor-unauthorized',
+    `the reason must name the ACTOR, since the cancellation itself is settled: ${JSON.stringify(unit)}`);
+  const notices = fixture.tables.notifications as Row[];
+  const raised = notices.filter((notice) => (notice.metadata as Row | undefined)?.action_required === 'budget-archive-resume-actor-unauthorized');
+  assert(raised.length > 0, `the operator surface must carry the same distinct reason: ${JSON.stringify(notices)}`);
+  // M-2 — the notice carries a SENTENCE, not the code echoed back at the operator.
+  const body = String(raised[0]!.body ?? '');
+  assert(body.length > 40 && !body.includes('budget-archive-resume-actor-unauthorized'),
+    `the notification body must explain what to do: ${body}`);
+});
+
+Deno.test('rm-1472/M-4 the gate refusing on resume (422) pushes nothing and leaves the units parked', async () => {
+  // The category→account mapping was removed after activation, so the re-derived gate refuses. The
+  // resume must NOT swallow that into a hold: the units stay on the wait marker and a later tick retries
+  // once a person fixes the mapping (the FR-BFY-075 posture).
+  const fixture = makeFixture({ orgOneIntents: ['complete'], orgTwoIntents: ['pending'], dropCategoryMapping: true });
+
+  const response = await fixture.invoke();
+  assert(response.status === 200, `a valid tick must complete (got ${response.status})`);
+
+  assert(outboxRows(fixture, ORG).length === 0, 'a refused gate must not mint an outbox row');
+  assert(fixture.erpCreates.length === 0, 'a refused gate must not reach ERPNext');
+  const parked = unitRows(fixture, ORG).find((row) => row.erp_account === ACCOUNT)!;
+  assert(parked.push_state === 'pending' && parked.push_error === WAIT,
+    `a gate refusal leaves the unit PARKED so the pass retries by itself: ${JSON.stringify(parked)}`);
+
+  // …and the gate's own refusal is recorded durably, never silently dropped.
+  const refusals = unitRows(fixture, ORG).filter((row) => row.erp_account === '');
+  assert(refusals.some((row) => row.push_state === 'failed' && row.push_error === 'budget-category-unmapped'),
+    `the gate's durable refusal row must exist: ${JSON.stringify(refusals)}`);
+
+  const second = await fixture.invoke();
+  assert(second.status === 200, `the second tick must complete (got ${second.status})`);
+  assert(fixture.erpCreates.length === 0, 'a still-refused gate keeps pushing nothing on later ticks');
+});
+
+Deno.test('rm-1472/M-4 a cancellation that became unsettled again mid-resume (202) keeps the units parked', async () => {
+  // The fence read settled when the resume checked it, then a cancellation reached ERPNext before the
+  // gate re-checked it inside the same resume. The gate answers 202 again: nothing is pushed, and the
+  // units stay on the wait marker for the next tick.
+  const fixture = makeFixture({ orgOneIntents: ['complete'], orgTwoIntents: ['pending'], unsettleFenceOnRead: 2 });
+
+  const response = await fixture.invoke();
+  assert(response.status === 200, `a valid tick must complete (got ${response.status})`);
+
+  assert(outboxRows(fixture, ORG).length === 0, 'a re-parked 202 must not mint an outbox row');
+  assert(fixture.erpCreates.length === 0, 'a re-parked 202 must not reach ERPNext');
+  const unit = unitRows(fixture, ORG)[0]!;
+  assert(unit.push_state === 'pending' && unit.push_error === WAIT,
+    `an unsettled-again fence leaves the unit parked, never held: ${JSON.stringify(unit)}`);
 });

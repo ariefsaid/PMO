@@ -55,6 +55,9 @@ export const TRANSLATED_PUSH_ERRORS: ReadonlySet<string> = new Set([
   'budget-fiscal-year-ambiguous',
   'budget-multi-fiscal-year-unphased',
   'outbox-finalize-refused',
+  // rm-1472 / M-2 — the two held-for-a-person reasons a parked replacement push resolves to.
+  'budget-archive-cancellation-held',
+  'budget-archive-resume-actor-unauthorized',
 ]);
 
 const CODES: Record<string, Entry> = {
@@ -165,6 +168,20 @@ const CODES: Record<string, Entry> = {
     message: 'There is no queued push command left for this budget, so the automatic recovery had nothing to work with.',
     retryable: true,
     remedy: 'Retry the push to queue a fresh command.',
+  },
+  // ⚑ rm-1472 / M-2 (review r8) — the two reasons a PARKED replacement push is held for a person once
+  // the project's archive-cancellation fence is settled. Retryable ON PURPOSE: a Retry re-runs the whole
+  // gate under the retrying person's own authority, which is exactly the way out of both (a different,
+  // currently-authorised pusher; and for a held cancellation, after the previous Budget is resolved).
+  'budget-archive-cancellation-held': {
+    message: 'Nothing was sent for this budget yet: an earlier ERPNext budget cancellation for the project still needs a person, or the person who activated this version can no longer be identified.',
+    retryable: true,
+    remedy: 'Resolve the previous version’s budget in ERPNext, then retry — an authorised pusher’s retry runs every check again.',
+  },
+  'budget-archive-resume-actor-unauthorized': {
+    message: 'Nothing was sent for this budget: the person recorded as having activated this version is no longer allowed to push budgets to ERPNext. The earlier cancellation is not the problem.',
+    retryable: true,
+    remedy: 'Restore that person’s access, or have an Admin or Finance user retry the push — it runs under whoever retries it.',
   },
   // ⚑ rm-1472 — a parked unit RETIRED because it is no longer part of the active budget. Not a failure:
   // the account left the plan when the previous version's ERPNext budget was cancelled, so there is

@@ -2316,6 +2316,12 @@ const BUDGET_MIRROR_ABSENT = 'absent';
  *  resolve the predecessor's cancellation", not "this push lost its command". */
 export const BUDGET_ARCHIVE_CANCEL_HELD = 'budget-archive-cancellation-held';
 
+/** ⚑ M-2 (review r8) — the named reason a parked unit is HELD because the recorded activator is no
+ *  longer allowed to push a budget. Distinct from `BUDGET_ARCHIVE_CANCEL_HELD`: the cancellation itself
+ *  is settled and fine, so telling an operator "the cancellation needs a person" would send them to the
+ *  wrong place. */
+export const BUDGET_ARCHIVE_RESUME_ACTOR_UNAUTHORIZED = 'budget-archive-resume-actor-unauthorized';
+
 /** What the resume driver did with one version's parked units this tick. */
 export type BudgetArchiveWaitResumeOutcome = 'driven' | 'waiting' | 'held';
 
@@ -2343,16 +2349,18 @@ async function holdWaitingBudgetUnits(
   if (error) throw new AppError(error.message, error.code);
 }
 
-/** Park a version's waiting units because a PERSON must act (a held cancellation, or no actor left to
- *  attribute the replacement push to) — and say so once on the operator surface. */
+/** Park a version's waiting units because a PERSON must act (a held cancellation, no recorded activator
+ *  to attribute the replacement push to, or an activator who may no longer push) — and say so once on
+ *  the operator surface, under the reason the units are parked with. */
 async function parkWaitingBudgetUnitsForPerson(
   serviceClient: SupabaseClient,
   orgId: string,
   versionId: string,
   projectId: string,
+  reason: string = BUDGET_ARCHIVE_CANCEL_HELD,
 ): Promise<void> {
-  await holdWaitingBudgetUnits(serviceClient, orgId, versionId, BUDGET_ARCHIVE_CANCEL_HELD);
-  await surfaceActionRequired(serviceClient, orgId, 'budget-archive-cancellation-held', { versionId, projectId });
+  await holdWaitingBudgetUnits(serviceClient, orgId, versionId, reason);
+  await surfaceActionRequired(serviceClient, orgId, reason, { versionId, projectId });
 }
 
 /** Retire every parked unit the re-derived plan no longer contains: the account left the plan because
@@ -2395,23 +2403,41 @@ async function retirePlanAbsentWaitingUnits(
   }
 }
 
-/** The recorded person the predecessor's archive decision belongs to — the ONLY honest attribution a
- *  sweep-side resume can carry (the activation actor is not persisted, and FR-BUD-102 forbids minting
- *  an unattributed money command). Re-authorized at drive time by `checkErpnextCommandAuthorization`
- *  against their CURRENT role, exactly like every other sweep-originated money write. */
-async function settledBudgetArchiveActor(
+/** The person who ACTIVATED this version — read from the archive request the activation itself queued.
+ *
+ *  ⚑ I-1 (review r8) — the activation actor is RECORDED, once, and it is the only honest attribution a
+ *  resumed mint can carry. `queue_budget_archive_cancel` (0579) inserts its `budget_archive_requests`
+ *  row with `queued_by_activation=true` and `requested_by=auth.uid()` in the SAME transaction that
+ *  stamps the successor's `activated_at=now()`, and inside one transaction `now()` is the transaction
+ *  timestamp — so `created_at = <this version's activated_at>` names exactly that activation's own
+ *  request.
+ *
+ *  The shipped behaviour read the ACTOR off the latest settled `budget_archive_cancel_intents` row on
+ *  the PROJECT instead. That fence is project-wide, so a manual archive (or a later activation of a
+ *  different version) superseded this version's row and the replacement Budget was minted as whoever
+ *  last touched the project's cancellation queue — someone who may be the version's own drafter (the
+ *  SoD breach 0579/FR-BUD-102 forbid) or may since have been deactivated.
+ *
+ *  Zero matches ⇒ this activation queued no cancellation of its own, so NO activator is recorded: hold
+ *  for a person, never guess. More than one ⇒ ambiguous, hold for a person as well.
+ */
+async function budgetActivationActor(
   serviceClient: SupabaseClient,
   orgId: string,
   projectId: string,
+  activatedAt: string,
 ): Promise<string | null> {
-  const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-    .select('actor_user_id')
-    .eq('org_id', orgId).eq('project_id', projectId)
-    .in('state', ['complete', 'superseded'])
-    .order('updated_at', { ascending: false })
-    .limit(1).maybeSingle();
+  const { data, error } = await serviceClient.from('budget_archive_requests')
+    .select('id,requested_by')
+    .eq('org_id', orgId)
+    .eq('project_id', projectId)
+    .eq('queued_by_activation', true)
+    .eq('created_at', activatedAt)
+    .limit(2);
   if (error) throw new AppError(error.message, error.code);
-  const actor = (data as { actor_user_id?: unknown } | null)?.actor_user_id;
+  const rows = (data ?? []) as Array<{ requested_by?: unknown }>;
+  if (rows.length !== 1) return null;
+  const actor = rows[0]?.requested_by;
   return typeof actor === 'string' && actor !== '' ? actor : null;
 }
 
@@ -2434,8 +2460,8 @@ async function settledBudgetArchiveActor(
  *
  * Fail-closed and quiet where that is right:
  *  - fence `pending` → the units stay parked on the wait (a later tick retries);
- *  - fence `held`, or no attributable actor → the units are HELD with a named reason + one
- *    action-required notice (waiting longer would release nothing);
+ *  - fence `held`, no RECORDED activator, or an activator who may no longer push → the units are HELD
+ *    with a named reason + one action-required notice (waiting longer would release nothing);
  *  - the gate refusing → its own durable failure row is written by the gate itself, and the units stay
  *    parked so the pass resumes by itself once a person fixes the cause (the FR-BFY-075 posture).
  */
@@ -2443,13 +2469,13 @@ export function budgetArchiveWaitResumeLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   cache?: ErpAuthPairCache,
-): (versionId: string, projectId: string | null) => Promise<BudgetArchiveWaitResumeOutcome> {
+): (versionId: string, projectId: string | null, activatedAt: string | null) => Promise<BudgetArchiveWaitResumeOutcome> {
   // One gate run per version per tick: several parked units of one version must not each re-run it.
   const perVersion = new Map<string, Promise<BudgetArchiveWaitResumeOutcome>>();
-  return (versionId, projectId) => {
+  return (versionId, projectId, activatedAt) => {
     const running = perVersion.get(versionId);
     if (running) return running;
-    const started = resumeWaitingBudgetVersion(serviceClient, org, versionId, projectId, cache);
+    const started = resumeWaitingBudgetVersion(serviceClient, org, versionId, projectId, activatedAt, cache);
     perVersion.set(versionId, started);
     return started;
   };
@@ -2460,30 +2486,36 @@ async function resumeWaitingBudgetVersion(
   org: OrgBinding,
   versionId: string,
   projectId: string | null,
+  activatedAt: string | null,
   cache?: ErpAuthPairCache,
 ): Promise<BudgetArchiveWaitResumeOutcome> {
-  // The fence is project-scoped (that is the grain the gate reasons on). Without the project there is
-  // nothing to prove, so never release: leave the units parked for a later tick.
-  if (!projectId) return 'waiting';
+  // The fence is project-scoped (that is the grain the gate reasons on) and the attribution is keyed on
+  // the activation stamp. Without either there is nothing to prove, so never release: leave the units
+  // parked for a later tick (the backstop never calls this without an Active, stamped version).
+  if (!projectId || !activatedAt) return 'waiting';
   const state = await budgetArchiveCancelState(serviceClient, org.orgId, projectId);
   if (state === 'pending') return 'waiting';
   if (state === 'held') {
     await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
     return 'held';
   }
-  const actorUserId = await settledBudgetArchiveActor(serviceClient, org.orgId, projectId);
+  // ⚑ I-1 — the ACTIVATOR of this version, never the latest archive intent on the project.
+  const actorUserId = await budgetActivationActor(serviceClient, org.orgId, projectId, activatedAt);
   if (!actorUserId) {
+    // No activation-queued request names this version's activation (or more than one does): nobody is
+    // recorded as having activated it, so there is no honest attribution. Never guess — hold.
     await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
     return 'held';
   }
-  // Re-authorize the recorded actor NOW (never trust that they were allowed when the archive was
+  // Re-authorize the recorded activator NOW (never trust that they were allowed when the activation was
   // requested) — the same rule the synchronous dispatch and the outbox replay apply.
   const authorization = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, actorUserId, {
     domain: ERPNEXT_BUDGET_DOMAIN,
     record: { erp_doc_kind: 'budget' },
   });
   if (!authorization.ok) {
-    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
+    // ⚑ M-2 — its own reason: the cancellation settled fine, the PERSON cannot push any more.
+    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId, BUDGET_ARCHIVE_RESUME_ACTOR_UNAUTHORIZED);
     return 'held';
   }
 
@@ -2517,6 +2549,15 @@ async function resumeWaitingBudgetVersion(
     return 'waiting';
   }
 
+  // ⚑ M-1 (review r8) — THE ONE REMAINING WINDOW, deliberately fail-closed. The gate above cleared
+  // this version's wait marker on its settled path (budgetDispatch.ts: `push_error: null` for every
+  // planned unit) BEFORE any unit below reaches `dispatchMoneyWrite`. A crash in between leaves a unit
+  // `pending`, `push_error` NULL and no outbox row, so the next tick's backstop no longer recognizes it
+  // as parked and holds it `budget-push-no-outbox-candidate` — which re-runs every gate and mints under
+  // the retrying person's own authority. Recovery for that window is therefore the HELD path (a person),
+  // never a second automatic release; it can never double-mint, because a unit with no outbox row has no
+  // ERP document either. Narrowing it further would mean clearing the marker per unit after its outbox
+  // row exists, which the gate (shared with the synchronous activation path) does not do.
   for (const unit of plan.units ?? []) {
     const unitCommand = commandForBudgetUnit(command, unit);
     try {
@@ -2569,8 +2610,9 @@ export function budgetBackstopDepsLive(
   /** ⚑ rm-1472 — the parked-unit resume. A row whose own `push_error` says it is waiting on an
    *  archive cancellation is NOT an outbox orphan: the fan-out never began, so there is nothing for
    *  this queue to find. The resume runs the gate again (once per version per tick) and releases the
-   *  units through it. Absent ⇒ such a row is left exactly as it is, never relabelled `held`. */
-  resumeArchiveWait?: (versionId: string, projectId: string | null) => Promise<BudgetArchiveWaitResumeOutcome>,
+   *  units through it, attributed to the version's ACTIVATION actor (read from the request that
+   *  activation queued — I-1). Absent ⇒ such a row is left exactly as it is, never relabelled `held`. */
+  resumeArchiveWait?: (versionId: string, projectId: string | null, activatedAt: string | null) => Promise<BudgetArchiveWaitResumeOutcome>,
 ): BudgetBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
   return {
@@ -2705,7 +2747,7 @@ export function budgetBackstopDepsLive(
         // Release is the SAME gate, re-run by the resume driver; while the fence still says pending the
         // row stays parked on its own reason and the next tick tries again.
         if (row.push_error === BUDGET_ARCHIVE_CANCEL_WAIT) {
-          if (resumeArchiveWait) await resumeArchiveWait(row.budget_version_id, version.project_id ?? null);
+          if (resumeArchiveWait) await resumeArchiveWait(row.budget_version_id, version.project_id ?? null, version.activated_at ?? null);
           return;
         }
         // FR-BUD-102 ("never finalize with a NULL actor"): the foreground dispatch never even reached

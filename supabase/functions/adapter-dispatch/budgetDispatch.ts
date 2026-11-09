@@ -595,6 +595,12 @@ export async function buildBudgetDispatchPlan(args: {
           .in('fiscal_year', [...new Set(budgetUnits.map((unit) => unit.fiscalYear))]);
         if (sentinelError) throw new BudgetGateError('commit-rejected', 'budget push: could not clear the prior gate-failure status');
         if (isWholeProjectRange) {
+          // ⚑ M-1 (review r8) — on the SETTLED path this clears the wait marker for every planned unit
+          // before the fan-out writes any outbox row (the sweep's resume does the same in its own loop).
+          // A crash in that gap leaves a unit `pending` with a null error and no outbox row, which the
+          // backstop then holds as `budget-push-no-outbox-candidate` instead of resuming it. That is
+          // fail-CLOSED (no outbox row ⇒ no ERP document ⇒ never a duplicate) and the operator's Retry
+          // is the documented way out, so the gap is accepted, not widened.
           let waitingRows = serviceClient.from('budget_version_account_erp_mirror')
             .update({ push_state: 'pending', push_error: cancellationWait })
             .eq('org_id', orgId).eq('budget_version_id', gate.versionId)
