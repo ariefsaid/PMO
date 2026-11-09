@@ -7,13 +7,14 @@ import { cn } from '@/src/components/ui/cn';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
+import { attentionSignal } from './attentionSignal';
 
 /** A non-project attention row (approvals waiting, projects without a budget, …) listed after the projects. */
 export interface AttentionExtra { id: string; title: string; meta?: React.ReactNode; pill: string; href: string; tone: 'warn' | 'lost' | 'neutral' }
 
-const AVATAR_TONE = { lost: 'bg-destructive-solid text-destructive-foreground', warn: 'bg-warning text-white', neutral: 'bg-primary text-primary-foreground' } as const;
+const AVATAR_TONE = { lost: 'bg-destructive-solid text-destructive-foreground', warn: 'bg-status-warning-surface text-warning-foreground', neutral: 'bg-status-neutral-surface text-muted-foreground' } as const;
 
-const Row: React.FC<{ href: string; initialsOf: string; name: string; tone: keyof typeof AVATAR_TONE; title: string; meta?: React.ReactNode; pill: React.ReactNode; pillVariant: 'warn' | 'lost' | 'open' }> = ({ href, initialsOf, name, tone, title, meta, pill, pillVariant }) => (
+const Row: React.FC<{ href: string; initialsOf: string; name: string; tone: keyof typeof AVATAR_TONE; title: string; meta?: React.ReactNode; pill: React.ReactNode; pillVariant: 'warn' | 'lost' | 'open' | 'neutral' }> = ({ href, initialsOf, name, tone, title, meta, pill, pillVariant }) => (
   <li className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
     <Avatar name={name} initials={initialsOf} size="md" decorative className={cn(AVATAR_TONE[tone])} />
     <div className="min-w-0 flex-1">
@@ -37,21 +38,16 @@ export const AttentionProjects: React.FC<{ projects: AttentionProject[]; extras?
     <ol aria-label={t('hub.company.attentionListName', 'Projects that need attention, most urgent first')} className="divide-y divide-border">
       {projects.map((row) => {
         const name = projectDisplayName(row);
-        const overPercent = row.over_budget && row.budget_used_ratio !== null && Number.isFinite(row.budget_used_ratio) ? Math.round((row.budget_used_ratio - 1) * 100) : null;
+        const signal = attentionSignal(row, t);
         const meta = [
           row.overdue_items > 0 ? t('hub.company.attentionOverdue', { count: row.overdue_items, defaultValue: '{{count}} overdue', defaultValue_one: '{{count}} overdue' }) : null,
           row.waiting_approvals > 0 ? t('hub.company.attentionApprovals', { count: row.waiting_approvals, defaultValue: '{{count}} awaiting approval', defaultValue_one: '{{count}} awaiting approval' }) : null,
         ].filter(Boolean).join(' · ');
-        const pill = overPercent !== null
-          ? t('hub.company.attentionOverBudget', '{{percent}}% over budget', { percent: overPercent })
-          : row.overdue_items > 0
-            ? t('hub.company.attentionOverdue', { count: row.overdue_items, defaultValue: '{{count}} overdue', defaultValue_one: '{{count}} overdue' })
-            : row.waiting_approvals > 0
-              ? t('hub.company.attentionApprovals', { count: row.waiting_approvals, defaultValue: '{{count}} awaiting approval', defaultValue_one: '{{count}} awaiting approval' })
-              : statusLabel(row.status);
-        return <Row key={row.id} href={`/projects/${row.id}`} initialsOf={name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()} name={name} tone={overPercent !== null ? 'lost' : 'warn'} title={name} meta={meta} pill={pill} pillVariant={overPercent !== null ? 'lost' : 'warn'} />;
+        // A project the server listed with no signal reads as calm, never as a warning.
+        const tone = signal ? signal.variant : 'neutral';
+        return <Row key={row.id} href={`/projects/${row.id}`} initialsOf={name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()} name={name} tone={tone} title={name} meta={meta} pill={signal ? signal.label : statusLabel(row.status)} pillVariant={tone} />;
       })}
-      {extras.map((item) => <Row key={item.id} href={item.href} initialsOf={item.title.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()} name={item.title} tone="neutral" title={item.title} meta={item.meta} pill={item.pill} pillVariant="open" />)}
+      {extras.map((item) => <Row key={item.id} href={item.href} initialsOf={item.title.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()} name={item.title} tone={item.tone} title={item.title} meta={item.meta} pill={item.pill} pillVariant={item.tone === 'neutral' ? 'open' : item.tone} />)}
     </ol>
   );
 };

@@ -11,12 +11,14 @@ export interface InvoicedTrendCardProps {
   onRetry?: () => void;
   /** Drawn inside another card: the tile drops its own frame. */
   bare?: boolean;
+  /** Small line only, no second headline figure. */
+  compact?: boolean;
 }
 
 /** #2055: a trend with fewer than three months reads as a crash, so it is hidden until it has them. The trend's loading / error / nothing-invoiced states around the tile; the figures hook owns the data. */
-export const InvoicedTrendCard: React.FC<InvoicedTrendCardProps> = ({ trend, pending, error, onRetry, bare }) => {
+export const InvoicedTrendCard: React.FC<InvoicedTrendCardProps> = ({ trend, pending, error, onRetry, bare, compact }) => {
   const { t } = useTranslation('dashboard');
   if (error) return <ListState variant="error" title={t('trend.error', "Couldn't load the invoiced trend")} onRetry={onRetry} />;
-  if (pending) return <ListState variant="loading" rows={1} className="min-h-[168px]" />;
-  return trend?.hasLine ? <InvoicedTrendTile trend={trend} bare={bare} /> : null;
+  if (pending) return <ListState variant="loading" rows={1} className={compact ? 'min-h-[88px]' : 'min-h-[168px]'} />;
+  return trend?.hasLine ? <InvoicedTrendTile trend={trend} bare={bare} compact={compact} /> : null;
 };

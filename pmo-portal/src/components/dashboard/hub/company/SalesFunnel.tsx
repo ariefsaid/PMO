@@ -9,10 +9,17 @@ import { formatCompactCurrency } from '@/src/lib/format';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
 const OPEN_STATUSES = new Set(SALES_COLUMNS.filter((column) => !column.terminal).flatMap((column) => column.statuses));
-const BAND = ['bg-primary', 'bg-primary/85', 'bg-violet', 'bg-violet/80', 'bg-violet/65'];
+const BAND = [
+  'bg-primary text-primary-foreground',
+  'bg-primary text-primary-foreground',
+  'bg-status-violet-surface text-status-violet-text ring-1 ring-inset ring-violet/40',
+  'bg-status-violet-surface text-status-violet-text ring-1 ring-inset ring-violet/40',
+  'bg-status-violet-surface text-status-violet-text ring-1 ring-inset ring-violet/40',
+];
 
 /** Open pipeline stages as stacked bands that narrow stage by stage: name and count on the left, gross and weighted value on the right. */
-export const SalesFunnel: React.FC<{ stages: PipelineStage[]; currency: string }> = ({ stages, currency }) => {
+/** `won`: the period's won result as the last band; `value` is the figure as shown (count and amount), `href` its drill. */
+export const SalesFunnel: React.FC<{ stages: PipelineStage[]; currency: string; won?: { value: string; href?: string } }> = ({ stages, currency, won }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
@@ -25,13 +32,25 @@ export const SalesFunnel: React.FC<{ stages: PipelineStage[]; currency: string }
           <button
             type="button"
             onClick={() => navigate(`/sales?status=${encodeURIComponent(stage.status as string)}`)}
-            className={cn('flex min-h-8 w-full items-center justify-between gap-2 rounded-md px-2.5 py-1 text-left text-xs font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', BAND[index % BAND.length])}
+            className={cn('flex min-h-8 w-full items-center justify-between gap-2 rounded-md px-2.5 py-1 text-left text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', BAND[index % BAND.length])}
           >
             <span className="truncate">{statusLabel(stage.status as string)} · {stage.count}</span>
             <span className="shrink-0 tabular-nums">{formatCompactCurrency(stage.total_value, currency)} · {t('hub.company.funnelWeightedShort', 'w {{amount}}', { amount: formatCompactCurrency(stage.weighted_value, currency) })}</span>
           </button>
         </li>
       ))}
+      {won && (
+        <li style={{ width: `${Math.max(62, 100 - open.length * 9)}%` }} className="mx-auto">
+          <button
+            type="button"
+            onClick={() => navigate(won.href ?? '/projects?filter=won')}
+            className="flex min-h-8 w-full items-center justify-between gap-2 rounded-md bg-success px-2.5 py-1 text-left text-xs font-semibold text-success-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <span className="truncate">{t('dashboard:winRate.won', 'Won')}</span>
+            <span className="shrink-0 tabular-nums">{won.value}</span>
+          </button>
+        </li>
+      )}
     </ul>
   );
 };

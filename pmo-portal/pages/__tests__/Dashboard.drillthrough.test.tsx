@@ -139,14 +139,13 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
   // - Pipeline is the open-stage set → /sales (the open pipeline board).
   // - Overdue counts submitted/unpaid invoices past due → the receivables overdue filter.
   // - Supplier payables count Vendor Invoiced procurements → the exact status filter.
-  // - Still to invoice counts work orders, which have no org-wide list — /projects stays (deviation).
+  // - Still to invoice counts work orders, which have no org-wide list — /projects stays (deviation); it sits in the Billing card, not the strip.
   const executiveDrills = [
     ['Contract on hand', '/projects?filter=on-hand'],
     ['Margin on billed work', '/projects?filter=on-hand'],
     ['Pipeline (weighted)', '/sales'],
     ['Owed by clients · overdue', '/finance/receivables?overdue=true'],
     ['Owed to suppliers', '/procurement?status=Vendor+Invoiced'],
-    ['Still to invoice on work orders', '/projects'],
   ] as const;
 
   it('AC-IXD-DASH-W5-C2A-EXEC-1: each company KPI with a destination links to its owning page', () => {
@@ -155,6 +154,15 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
       const tile = companyFigureTile(label);
       expect(within(tile).getByRole('link')).toHaveAttribute('href', href);
     }
+  });
+
+  it('AC-IXD-DASH-W5-C2A-EXEC-1b: still to invoice, shown once in the Billing card, links to /projects', () => {
+    renderExec();
+    const billing = screen.getByRole('heading', { name: 'Billing and collections' }).closest('.panel-card') as HTMLElement;
+    const links = screen.getAllByRole('link', { name: /Still to invoice on work orders/ });
+    expect(links).toHaveLength(1);
+    expect(billing).toContainElement(links[0]);
+    expect(links[0]).toHaveAttribute('href', '/projects');
   });
 
   it('AC-IXD-DASH-W5-C2A-EXEC-2: a KPI without a destination does not render a drill link', () => {
@@ -278,6 +286,7 @@ vi.mock('@/src/hooks/useProjectStatusLabel', () => ({
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }),
 }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/dashboard/restructure/useNeedsYou')>();

@@ -248,6 +248,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const todayError = figures.todayError;
   const pipelineStages = pipeline.data?.stages ?? [];
   const periodMini = (id: string) => periodFigure(id) ?? { id, label: id, value: null };
+  const wonFigure = periodFigure('won');
+  const stillToInvoice = todayFigure('still-to-invoice');
   const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
     || Boolean(procurements.data?.length || figures.pipeline?.projects?.length);
 
@@ -292,13 +294,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const attentionProjects = data?.attention_projects ?? [];
   const planProjects = data?.top_projects ?? [];
   const attentionNeeds = [...deliveryNeeds, ...purchasingNeeds];
-  const cardLink = (to: string, label: string) => <Link to={to} className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"><span>{label}</span><Icon name="chev" className="size-4" /></Link>;
+  const cardLink = (to: string, label: string, ariaLabel?: string) => <Link to={to} aria-label={ariaLabel} className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"><span>{label}</span><Icon name="chev" className="size-4" /></Link>;
   const projectsState = figures.dashboardPending || projects.isPending ? 'loading' : figures.dashboardError || projects.isError ? 'error' : 'ready';
 
   const approvalChip = needs.isPending ? <ListState variant="loading" rows={1} className="h-11 w-56 overflow-hidden" /> : needs.isError ? <ListState variant="error" title={t('dashboard:hub.company.approvalsError', "Couldn't load approvals and attention items")} onRetry={needs.refetch} /> : <section aria-label={t('dashboard:hub.company.approvals', 'Approvals waiting for you')}><ApprovalStrip items={needs.items.filter((item) => item.id === 'approvals').map((item) => ({ id: item.id, tone: item.tone, icon: 'check', count: item.count, label: item.label, href: item.href }))} /></section>;
   // The strip reads left to right: what we hold, what is coming, what we billed, what it earned, what we are owed, what we owe.
   const kpiFigures = KPI_ORDER.map((id) => todayFigure(id) ?? periodFigure(id)).filter((figure): figure is DashboardFigure => Boolean(figure));
-  const attentionExtras: AttentionExtra[] = attentionNeeds.slice(0, Math.max(2, 6 - attentionProjects.length)).map((item) => ({ id: item.id, title: `${item.count} ${item.label}`, meta: item.amount, pill: t('dashboard:hub.company.attentionReview', 'Review'), href: item.href, tone: item.tone }));
+  const attentionExtras: AttentionExtra[] = attentionNeeds.map((item) => ({ id: item.id, title: `${item.count} ${item.label}`, meta: item.amount, pill: t('dashboard:hub.company.attentionReview', 'Review'), href: item.href, tone: item.tone }));
 
   return <div className="space-y-[var(--space-panel-gap)]" data-company-role={role}>
     <header className="flex flex-wrap items-center gap-3">
@@ -310,14 +312,14 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       {figures.todayPending || figures.periodPending ? Array.from({ length: 6 }, (_, i) => <KPITile key={i} loading accent={ACCENTS[KPI_ORDER[i]]} tone="blue" icon="grid" label="" value="" className="min-h-[96px]" />) : todayError ? <div className="col-span-full"><ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} /></div> : kpiFigures.map((figure) => <div key={figure.id} className="min-w-0"><KPITile accent={ACCENTS[figure.id]} icon={ICONS[figure.id] ?? 'grid'} tone={TONES[figure.id] ?? 'blue'} label={figure.label} value={figure.value ?? '—'} exactValue={figure.exactValue} unavailableReason={figure.value == null ? figure.unavailableReason : undefined} help={help(figure.id)} to={figure.href} linkLabel={figure.href ? t('dashboard:hub.company.openFigure', 'Open related records for {{metric}}.', { metric: figure.label }) : undefined} loading={false} vs={figure.subline ? String(figure.subline) : undefined} className="h-full" />{figure.id === 'billed-margin' && canOpenAccountingMap && data && (data.on_hand_actual_coverage_total ?? 0) > (data.on_hand_actual_coverage_count ?? 0) && <Link className="-mt-2 mb-1 mx-4 inline-flex min-h-11 max-w-[calc(100%-2rem)] items-center whitespace-normal text-xs font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('dashboard:hub.company.reviewAccountingMappings', 'Review accounting mappings')}</Link>}</div>)}
     </section>
     <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <Card className="min-w-0">
+      <Card className="flex min-w-0 flex-col">
         <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))}>
           <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.planVsActual.title', 'Plan vs actual')}<HelpPopover subject={t('dashboard:hub.company.planVsActual.title', 'Plan vs actual')}>{t('dashboard:hub.company.planVsActual.help', 'Contract value against recorded spending for the largest projects in {{currency}}. Spending is shown only when it is complete and in the contract currency.', { currency: orgCurrency })}</HelpPopover></span>
         </CardHead>
-        <CardPad>{projectsState === 'loading' ? <ListState variant="loading" shape="chart" rows={4} /> : projectsState === 'error' ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <PlanVsActualChart projects={planProjects} currency={orgCurrency} />}</CardPad>
+        <CardPad className="flex-1">{projectsState === 'loading' ? <ListState variant="loading" shape="chart" rows={4} /> : projectsState === 'error' ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <PlanVsActualChart projects={planProjects} currency={orgCurrency} />}</CardPad>
       </Card>
       <Card className="min-w-0">
-        <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.viewAll', 'View all'))}>
+        <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.viewAll', 'View all'), t('dashboard:hub.company.viewAllProjectsLabel', 'View all projects'))}>
           <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.needsAttention', 'Needs attention')}<HelpPopover subject={t('dashboard:hub.company.needsAttention', 'Needs attention')}>{t('dashboard:hub.company.topAttentionProjects', 'The 5 projects that most need attention')}{'. '}{t('dashboard:hub.company.attentionRule', 'Ranked by how many kinds of signal a project has (overdue work, over budget, waiting approvals), then by overdue items.')}{showDeliveryAllClear && ' ' + t('dashboard:hub.company.checkedRiskClear', '0 projects at risk. All {{count}} active delivery projects are currently on track.', { count: activeDeliveryProjects })}{activeDeliveryProjects > 0 && data?.active_delivery_actual_project_count != null && ' ' + t('dashboard:hub.company.actualsCoverage', 'Actuals available for {{available}} of {{total}} active delivery projects.', { available: data.active_delivery_actual_project_count, total: activeDeliveryProjects })}</HelpPopover></span>
         </CardHead>
         <CardPad>
@@ -326,17 +328,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </Card>
     </div>
     <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-      <Card className="min-w-0">
-        <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))}>{t('dashboard:hub.company.activeProjects.title', 'Active projects')}</CardHead>
-        <CardPad>{projectsState === 'loading' ? <ListState variant="loading" rows={4} /> : projectsState === 'error' ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <ActiveProjectsTable projects={projects.data ?? []} budgets={budgetReview.data ?? []} attentionIds={attentionProjects.map((row) => row.id)} statusVariant={statusVariant} />}</CardPad>
-      </Card>
+      <ActiveProjectsTable projects={projects.data ?? []} budgets={budgetReview.data ?? []} attention={attentionProjects} state={projectsState} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} headerLink={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))} />
       <Card className="min-w-0">
         <CardHead level={2} actions={cardLink('/sales', t('dashboard:hub.company.openSales', 'Open sales'))}>
           <span className="inline-flex items-center gap-1">{t('dashboard:hub.company.salesFunnel', 'Sales funnel')}<HelpPopover subject={t('dashboard:hub.company.salesFunnel', 'Sales funnel')}>{t('dashboard:hub.company.help.pipelineStages', 'Each open stage shows its gross project value and the value weighted by its win probability. Won and lost projects are excluded.')}</HelpPopover></span>
         </CardHead>
         <CardPad className="grid gap-3">
-          {pipeline.isPending ? <ListState variant="loading" shape="chart" rows={2} /> : pipeline.isError ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={() => { void pipeline.refetch(); }} /> : <SalesFunnel stages={pipelineStages} currency={orgCurrency} />}
-          <FigureGroup heading={t('dashboard:hub.company.salesFigures', 'Sales results')} figures={[{ ...periodMini('won'), help: help('won') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
+          {pipeline.isPending ? <ListState variant="loading" shape="chart" rows={2} /> : pipeline.isError ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={() => { void pipeline.refetch(); }} /> : <SalesFunnel stages={pipelineStages} currency={orgCurrency} won={wonFigure && typeof wonFigure.value === 'string' ? { value: wonFigure.value, href: wonFigure.href } : undefined} />}
           <WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded />
         </CardPad>
       </Card>
@@ -345,8 +343,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <Card className="min-w-0">
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('dashboard:hub.company.billing', 'Billing and collections')}</CardHead>
         <CardPad className="grid gap-3">
-          <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
-          <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
+          <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }, ...(stillToInvoice ? [{ ...stillToInvoice, help: help('still-to-invoice') }] : [])]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
+          <InvoicedTrendCard bare compact trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
           {finance && <ClientAgingBlock />}
         </CardPad>
       </Card>

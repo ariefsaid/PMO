@@ -513,7 +513,8 @@
         "otherCurrency_other": "{{count}} proyek dalam mata uang lain tidak disertakan",
         "noBudget_one": "{{count}} proyek belum punya anggaran aktif",
         "noBudget_other": "{{count}} proyek belum punya anggaran aktif",
-        "setBudgets": "Atur anggaran"
+        "setBudgets": "Atur anggaran",
+        "overBudget": "Melebihi anggaran"
       },
       "needsAttention": "Perlu perhatian",
       "attentionClear": "Tidak ada yang perlu perhatian saat ini",
@@ -532,8 +533,12 @@
         "scope": "Proyek yang ditampilkan",
         "atRiskFirst": "Berisiko dulu",
         "all": "Semua",
-        "empty": "Tidak ada proyek aktif"
+        "empty": "Tidak ada proyek aktif",
+        "progress": "Progres",
+        "noPhases": "Belum ada fase",
+        "deliveryPercent": "Pengerjaan {{percent}}%"
       },
+      "viewAllProjectsLabel": "Lihat semua proyek",
       "funnelWeightedShort": "b {{amount}}"
     }
   },
@@ -642,7 +647,9 @@
     "noBids": "Tidak ada tender pada periode ini untuk menghitung rasio.",
     "noDecidedBids": "Tidak ada tender yang diputuskan untuk mata uang ini pada periode ini.",
     "noBidValue": "Nilai tender tidak tercatat untuk mata uang ini pada periode ini.",
-    "noDecidedValue": "Nilai tender yang diputuskan tidak tercatat untuk mata uang ini pada periode ini."
+    "noDecidedValue": "Nilai tender yang diputuskan tidak tercatat untuk mata uang ini pada periode ini.",
+    "ofShort": "{{won}} dari {{total}}",
+    "staleShort": "Mandek ({{days}}+ hari)"
   },
   "executive": {
     "spendingContractPercent": "{{percent}}% dari kontrak",
@@ -664,7 +671,8 @@
     "falling": "Turun",
     "chartName": "Tren tagihan, {{first}} sampai {{last}}: {{direction}}",
     "steady": "Stabil",
-    "error": "Tren penagihan tidak dapat dimuat"
+    "error": "Tren penagihan tidak dapat dimuat",
+    "compactLabel": "Ditagih, {{months}} bulan terakhir"
   },
   "helpPopover": {
     "label": "Tentang {{subject}}"

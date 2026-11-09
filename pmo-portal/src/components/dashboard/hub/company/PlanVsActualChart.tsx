@@ -39,16 +39,23 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
   const incomplete = rows.filter((row) => row.actual == null).length;
   const noBudget = rows.filter((row) => row.budget == null).length;
   const otherCurrency = projects.filter((project) => project.currency !== currency).length;
+  const anyOver = rows.some((row) => row.used != null && row.used > 100);
+  const legend = [
+    { label: planLabel, swatch: <span aria-hidden className="size-[9px] rounded-[2px]" style={{ background: chartTheme.series.neutral }} /> },
+    { label: budgetLabel, swatch: <span aria-hidden className="size-[9px] rounded-[2px] border border-primary bg-primary/15" /> },
+    { label: actualLabel, swatch: <span aria-hidden className="size-[9px] rounded-[2px]" style={{ background: chartTheme.series.primary }} /> },
+    ...(anyOver ? [{ label: t('hub.company.planVsActual.overBudget', 'Over budget'), swatch: <span aria-hidden className="size-[9px] rounded-[2px]" style={{ background: chartTheme.series.destructive }} /> }] : []),
+  ];
   return (
-    <div>
-      <div className="overflow-x-auto"><div role="img" aria-label={name} className="h-[340px] min-w-[560px]">
+    <div className="flex h-full flex-col">
+      <div className="min-h-[340px] flex-1 overflow-x-auto"><div role="img" aria-label={name} className="h-full min-h-[340px] min-w-[560px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 4, right: 8, bottom: 8, left: 0 }} barGap={3} barCategoryGap="22%">
             <CartesianGrid vertical={false} stroke={chartTheme.grid} />
             <XAxis dataKey="name" tick={<NameTick />} stroke={chartTheme.grid} interval={0} height={44} tickLine={false} />
             <YAxis type="number" tick={axisTickStyle} stroke={chartTheme.grid} width={48} tickLine={false} axisLine={false} tickFormatter={(value: number) => formatCompactCurrency(value, currency)} />
-            <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.percent != null ? ` (${t('hub.company.planVsActual.percentOfContract', '{{percent}}% of contract', { percent: item.payload.percent })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
-            <Legend iconType="square" iconSize={9} verticalAlign="top" align="right" height={24} wrapperStyle={{ fontSize: 12 }} />
+            <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
+            <Legend verticalAlign="top" align="right" height={24} content={() => <ul className="m-0 flex list-none flex-wrap justify-end gap-x-3 p-0 text-xs text-muted-foreground">{legend.map((item) => <li key={item.label} className="inline-flex items-center gap-1.5">{item.swatch}{item.label}</li>)}</ul>} />
             <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
             <Bar dataKey="budget" name={budgetLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
             <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced}>

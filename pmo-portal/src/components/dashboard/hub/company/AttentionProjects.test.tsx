@@ -27,6 +27,13 @@ describe('AttentionProjects ranking rule', () => {
     expect(screen.getByRole('link', { name: /Alpha/ })).toHaveAttribute('href', '/projects/a');
   });
 
+  it('a project with no signal reads as calm: neutral pill showing its status, not a warning', () => {
+    render(<MemoryRouter><AttentionProjects projects={[row({ id: 'n', name: 'Calm', attention_signals: 0, status: 'Ongoing Project' })]} /></MemoryRouter>);
+    const item = screen.getByRole('link', { name: 'Calm' }).closest('li') as HTMLElement;
+    expect(item).toHaveTextContent('Ongoing Project');
+    expect(item.innerHTML).not.toMatch(/warning/);
+  });
+
   it('shows an all-clear line when nothing needs attention', () => {
     render(<MemoryRouter><AttentionProjects projects={[]} /></MemoryRouter>);
     expect(screen.getByText(/nothing needs attention/i)).toBeInTheDocument();

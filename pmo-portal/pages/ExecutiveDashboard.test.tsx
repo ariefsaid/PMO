@@ -135,6 +135,8 @@ beforeEach(() => {
   };
 });
 
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
+
 describe('company area hub (#1403)', () => {
   it('AC-DASH-1403-01: Executive sees the KPI strip, plan vs actual, needs attention, sales funnel and billing', () => {
     renderPage();
@@ -146,8 +148,10 @@ describe('company area hub (#1403)', () => {
     const atRisk = screen.getByRole('link', { name: '2 projects at risk' });
     expect(atRisk).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(atRisk).toHaveTextContent('2');
-    // L6: the still-to-invoice figure lives in its tile, which links to the work; the panel does not repeat it.
-    expect(screen.getByRole('link', { name: 'Open related records for Still to invoice on work orders.' })).toHaveAttribute('href', '/projects');
+    // L6: the still-to-invoice figure is shown once, in the Billing card, linking to the work; the attention panel does not repeat it.
+    const billing = screen.getByRole('heading', { name: 'Billing and collections' }).closest('.panel-card') as HTMLElement;
+    expect(within(billing).getByRole('link', { name: /Still to invoice on work orders/ })).toHaveAttribute('href', '/projects');
+    expect(screen.getAllByRole('link', { name: /Still to invoice on work orders/ })).toHaveLength(1);
     expect(screen.queryByRole('link', { name: /work order still to invoice/i })).not.toBeInTheDocument();
     // C4: an always-empty "Percent of billed work: —" line is not shown as a value.
     expect(screen.queryByText(/Percent of billed work/)).not.toBeInTheDocument();
@@ -227,8 +231,10 @@ describe('company area hub (#1403)', () => {
     const list = screen.getByRole('list', { name: /need attention/i });
     expect(within(list).getAllByRole('link').map((link) => link.textContent)).toEqual(['Project 6', 'Project 5', 'Project 4', 'Project 3', 'Project 2']);
     expect(within(list).getByRole('link', { name: 'Project 6' })).toHaveAttribute('href', '/projects/project-6');
-    expect(within(list).getByText('4 overdue · 50% over budget · 2 awaiting approval')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View all 5 projects' })).toHaveAttribute('href', '/projects');
+    const row = within(list).getByRole('link', { name: 'Project 6' }).closest('li') as HTMLElement;
+    expect(within(row).getByText('4 overdue · 2 awaiting approval')).toBeInTheDocument();
+    expect(within(row).getByText('50% over budget')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View all projects' })).toHaveAttribute('href', '/projects');
   });
 
   it('F2: keeps review accounting mappings on its own line below the margin subline', () => {

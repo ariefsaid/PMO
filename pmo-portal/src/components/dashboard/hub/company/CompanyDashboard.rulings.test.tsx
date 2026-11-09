@@ -88,6 +88,8 @@ const invoiced = (id: string, title: string, over: Record<string, unknown> = {})
   ...over,
 });
 
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
+
 describe('L12(a): Ready to pay uses the procurement record\'s unpaid balance', () => {
   it('L12: shows the supplier invoice less payments, never the order value, and says an unrecorded amount once', () => {
     state.procurements = [

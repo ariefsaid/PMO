@@ -513,7 +513,8 @@
         "otherCurrency_other": "{{count}} projects in another currency are left out",
         "noBudget_one": "{{count}} project has no active budget yet",
         "noBudget_other": "{{count}} projects have no active budget yet",
-        "setBudgets": "Set budgets"
+        "setBudgets": "Set budgets",
+        "overBudget": "Over budget"
       },
       "needsAttention": "Needs attention",
       "attentionClear": "Nothing needs attention right now",
@@ -532,8 +533,12 @@
         "scope": "Which projects to list",
         "atRiskFirst": "At risk first",
         "all": "All",
-        "empty": "No active projects"
+        "empty": "No active projects",
+        "progress": "Progress",
+        "noPhases": "No phases yet",
+        "deliveryPercent": "Delivery {{percent}}%"
       },
+      "viewAllProjectsLabel": "View all projects",
       "funnelWeightedShort": "w {{amount}}"
     }
   },
@@ -642,7 +647,9 @@
     "noBids": "No bids in this period to calculate a rate.",
     "noDecidedBids": "No decided bids in this currency for this period.",
     "noBidValue": "No bid value recorded for this currency in this period.",
-    "noDecidedValue": "No decided bid value recorded for this currency in this period."
+    "noDecidedValue": "No decided bid value recorded for this currency in this period.",
+    "ofShort": "{{won}} of {{total}}",
+    "staleShort": "Stale ({{days}}+ days)"
   },
   "executive": {
     "spendingContractPercent": "{{percent}}% of contract",
@@ -664,7 +671,8 @@
     "falling": "Falling",
     "chartName": "Invoiced trend, {{first}} to {{last}}: {{direction}}",
     "steady": "Steady",
-    "error": "Couldn't load the invoiced trend"
+    "error": "Couldn't load the invoiced trend",
+    "compactLabel": "Invoiced, last {{months}} months"
   },
   "helpPopover": {
     "label": "About {{subject}}"

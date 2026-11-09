@@ -59,6 +59,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ok([]) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ok([]) }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({ useActualsSnapshot: () => ok([]), useApAgingSnapshot: () => ok([]), useArAgingSnapshot: () => ok([]) }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ position: { receivablesAgeing: {}, payablesAgeing: {} }, isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true }) }));
