@@ -110,6 +110,10 @@ async function main() {
       const r = await fetch(`${o.url}/rest/v1/projects?select=id&order=created_at.asc&limit=1`, { headers: { apikey: anon, authorization: `Bearer ${tokens[route.email]}` } });
       vars.projectId = (await r.json())[0]?.id;
     }
+    if (route.calls.some((c) => (c.body ?? '').includes('{procurementIds}'))) { // every purchase this user can read, resolved at run time
+      const r = await fetch(`${o.url}/rest/v1/procurements?select=id&order=id.asc&limit=1000`, { headers: { apikey: anon, authorization: `Bearer ${tokens[route.email]}` } });
+      vars.procurementIds = JSON.stringify((await r.json()).map((x) => x.id));
+    }
     const pages = [];
     const end = performance.now() + o.duration * 1000;
     await Promise.all(Array.from({ length: o.users }, async (_, i) => {
