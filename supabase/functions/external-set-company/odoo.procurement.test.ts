@@ -60,12 +60,34 @@ describe('Odoo router — employ-domain (P2-T9)', () => {
     }
   });
 
-  it('only procurement is employable under odoo here: another domain is a bad request and reaches no verb', async () => {
-    for (const domain of ['revenue', 'timesheets', 'companies', 42, undefined]) {
+  it('only procurement and companies are employable under odoo here: another domain is a bad request and reaches no verb', async () => {
+    for (const domain of ['revenue', 'timesheets', 'budget', 42, undefined]) {
       const r = await call({ setupAction: 'employ-domain', domain });
       assertEquals(r.res.status, 400, String(domain));
       assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').length, 0);
     }
+  });
+
+  it('FR-ODC-055 an Admin employs companies under odoo through the same guarded verb, as the verified actor', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'companies' });
+    assertEquals([r.res.status, r.json], [200, { ok: true }]);
+    assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').map((c) => c.bodyJson),
+      [{ p_org_id: 'org-1', p_external_tier: 'odoo', p_domain: 'companies', p_action: 'employ', p_actor_id: 'user-1' }]);
+  });
+
+  it('FR-ODC-055 a companies employ refused by the database because partner sends are still waiting: 409 sends-pending', async () => {
+    const message = 'Some records are still being sent to Odoo. Wait for them to finish, then try again.';
+    const r = await call({ setupAction: 'employ-domain', domain: 'companies' }, { rpc: { admin_change_domain_ownership: () => pgError('P0001', message) } });
+    assertEquals([r.res.status, r.json.error], [409, 'sends-pending']);
+  });
+
+  it('companies: a non-Admin is refused before the verb; a second ERP that already owns them is the database\'s plain refusal (422)', async () => {
+    for (const role of ['Finance', 'Project Manager']) {
+      const r = await call({ setupAction: 'employ-domain', domain: 'companies' }, { role });
+      assertEquals([r.res.status, rpcCall(r.calls, 'admin_change_domain_ownership').length], [403, 0], role);
+    }
+    const taken = await call({ setupAction: 'employ-domain', domain: 'companies' }, { rpc: { admin_change_domain_ownership: () => pgError('P0001', 'an ERPNext connection is active for this organization') } });
+    assertEquals([taken.res.status, taken.json.error], [422, 'config-rejected']);
   });
 
   it('the database\'s plain refusals come back as config-rejected with their own words, and a stale snapshot says what to do', async () => {

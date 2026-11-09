@@ -194,6 +194,39 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   await recordOutboundLineage(ctx, canonical, 'revenue', canonical.si_number as string | undefined);
 }
 
+/** #1825 — a receipt finalize records its Odoo read-back on the invoice mirror. The settle (`settleReceipt`)
+ *  read the invoice back from Odoo AFTER reconciling the receipt against it, so the receipt's own reference
+ *  merged into `odoo_matched_payment_refs` — together with the money Odoo then showed — is the
+ *  single-system evidence the invoice's awaiting-Odoo flag clears on: the reference appears in the invoice's
+ *  read-back, and no wall-clock comparison decides anything. Canonicals without the block (ERPNext receipts,
+ *  rows finalized before the evidence existed) write nothing; an unreadable header keeps the money keys out
+ *  whole (the mirror never erases what the ledger said). */
+async function recordReceiptReadBackOnInvoice(ctx: ReadModelWriterCtx, canonical: PmoRecord, salesInvoiceId: string | null): Promise<void> {
+  const refs = canonical.odoo_matched_payment_refs;
+  const readBack = canonical.odoo_invoice_read_back;
+  if (!Array.isArray(refs) || refs.length === 0 || typeof readBack !== 'object' || readBack === null) return;
+  if (salesInvoiceId === null) return;
+  // #1825 (review I2): the merge is ONE server-side statement (`record_sales_invoice_receipt_read_back`,
+  // 0695). The read-merge-write that stood here raced a concurrent receipt finalizing on the same
+  // invoice — the loser's stale merge dropped the winner's ref, whose flag then never clears (no clock
+  // fallback once the read-back is recorded). The RPC serializes concurrent callers on the invoice row
+  // and appends-with-distinct, so every committed ref survives; a replay's duplicate collapses.
+  const facts = readBack as { erp_modified?: unknown; erp_outstanding_amount?: unknown; odoo_read_at?: unknown };
+  const outstanding = typeof facts.erp_outstanding_amount === 'string' ? facts.erp_outstanding_amount : null;
+  const { error } = await ctx.serviceClient.rpc('record_sales_invoice_receipt_read_back', {
+    p_org: ctx.orgId,
+    p_invoice_id: salesInvoiceId,
+    p_refs: refs.filter((ref): ref is string => typeof ref === 'string'),
+    // A fact the read-back could not read is LEFT OUT (null → the RPC coalesces instead of writing):
+    // the mirror never erases what the ledger said — erp_modified and odoo_read_at included (review M1).
+    p_erp_modified: typeof facts.erp_modified === 'string' ? facts.erp_modified : null,
+    p_outstanding: outstanding,
+    p_status: outstanding !== null ? deriveSiStatus(outstanding, 1) : null,
+    p_odoo_read_at: typeof facts.odoo_read_at === 'string' ? facts.odoo_read_at : null,
+  });
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** `incoming_payments` — the PE-receive read-model (spec §4.2).
  *  Mirrors ERP-derived canonical; `sales_invoice_id` resolved from the command's
  *  `record.salesInvoiceId`; `status` derives from docstatus (1 = Paid, else Scheduled);
@@ -241,7 +274,20 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
       recorded_by_id: typeof canonical.recorded_by_id === 'string' ? canonical.recorded_by_id : ctx.callerUserId ?? null,
       ...patch,
     });
-    if (error) throw new AppError(error.message, error.code);
+    if (error) {
+      // #1825 (review I1): a REPLAY re-runs the create insert after the payment row already exists —
+      // e.g. the first attempt died in the invoice read-back write below, or the outbox retried a
+      // committed command. The duplicate key IS the already-applied receipt, so fall through to that
+      // write instead of failing the replay forever (the awaiting-Odoo flag would stick: the canonical
+      // records the read-back, so the clock fallback is disabled). A 23505 on a DIFFERENT row (or key)
+      // is still a fault: the row is read back by (org, id) and only a match is treated as applied.
+      if (error.code !== '23505') throw new AppError(error.message, error.code);
+      const existing = await ctx.serviceClient.from('incoming_payments').select('id')
+        .eq('org_id', ctx.orgId).eq('id', String(canonical.id)).maybeSingle();
+      if (existing.error) throw new AppError(existing.error.message, existing.error.code);
+      if (existing.data === null) throw new AppError(error.message, error.code);
+    }
+    await recordReceiptReadBackOnInvoice(ctx, canonical, salesInvoiceId);
     return;
   }
   const { error } = await (

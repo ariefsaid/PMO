@@ -113,8 +113,9 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 // These timesheet-flow tests keep procurement empty so the timesheet section is
 // the surface under test (its behavior is unchanged, just embedded in the inbox).
 const procState = { data: [] as unknown[], isPending: false, isError: false };
+const procurementReads = vi.hoisted(() => vi.fn());
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ ...procState, refetch: vi.fn() }),
+  useProcurements: (opts?: unknown) => { procurementReads(opts); return { ...procState, refetch: vi.fn() }; },
 }));
 vi.mock('@/src/hooks/useProcurementDetail', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/hooks/useProcurementDetail')>();
@@ -244,6 +245,12 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals page states', () => {
+  it('PERF-APPR-1: the queue reads only Requested procurements, not the whole org list', () => {
+    renderPage('procurement');
+    expect(procurementReads).toHaveBeenCalledWith({ status: 'Requested' });
+    expect(procurementReads).not.toHaveBeenCalledWith(undefined);
+  });
+
   it('AC-904: Approvals page renders approvals-loading skeleton while pending, approvals-empty when no submitted sheets, error + Retry that re-runs the query (NFR-TS-UI-001)', () => {
     // Loading
     queryState.isPending = true;

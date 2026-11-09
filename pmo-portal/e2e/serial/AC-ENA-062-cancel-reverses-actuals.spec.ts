@@ -18,6 +18,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAR_CURRENCY } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -41,6 +42,7 @@ test.setTimeout(240_000);
 const benchHeaders = () => ({ Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`, 'Content-Type': 'application/json' });
 
 async function bench(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<Record<string, unknown>> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}${path}`, { method, headers: benchHeaders(), body: body === undefined ? undefined : JSON.stringify(body) });
   const json = (await res.json()) as { data?: Record<string, unknown>; exc_type?: string; _server_messages?: string };
   expect(res.status, `bench ${method} ${path}: ${json.exc_type ?? ''} ${json._server_messages ?? ''}`).toBe(200);
@@ -147,6 +149,7 @@ test('AC-ENA-062: cancelling a Purchase Invoice in ERPNext brings the project ac
     expect((mirrored ?? []).every((r) => r.is_cancelled === true)).toBe(true);
   } finally {
     if (piName) {
+      assertLocalBenchUrl(BENCH_URL);
       const doc = await fetch(`${BENCH_URL}/api/resource/Purchase%20Invoice/${encodeURIComponent(piName)}`, { headers: benchHeaders() })
         .then((r) => r.json() as Promise<{ data?: { docstatus?: number } }>).catch(() => ({ data: undefined }));
       if (doc.data?.docstatus === 1) {

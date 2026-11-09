@@ -96,3 +96,8 @@ export const useWithdrawTmSignoff = () => useTmMutation((claimId: string) => rep
 export const useConfirmTmSignoff = () => useTmMutation(
   (claimId: string) => repositories.timeAndMaterials.confirmTmSignoff(claimId), ['progress-claims'],
 );
+/** #1817: invoice a confirmed claim in PMO (no ERP). The invoice lists, the work order's billing and finances move with it. */
+export const useInvoiceTmClaimNative = () => useTmMutation(
+  (claimId: string) => repositories.timeAndMaterials.invoiceNativeTmClaim(claimId),
+  ['progress-claims', 'salesInvoices', 'salesInvoice', 'revenueByProject', 'work-order-billing', 'unbilled-work-orders'],
+);

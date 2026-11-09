@@ -80,6 +80,40 @@ describe('useProcurements lean', () => {
   });
 });
 
+describe('useProcurements lean without routes', () => {
+  it('PERF-FIN-1: asks the DAL to skip approval routes, under its own cache entry', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ lean: true, withoutRoutes: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ lean: true, withoutRoutes: true });
+    expect(client.getQueryData(['procurements', 'org-1', 'lean-list-no-routes'])).toBe(result.current.data);
+  });
+});
+
+describe('useProcurements requested-only (approvals queue)', () => {
+  it('PERF-APPR-1: reads only Requested rows under its own key inside the list prefix, so an approve refetches the queue', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ status: 'Requested' }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ status: 'Requested' });
+    expect(client.getQueryData(['procurements', 'org-1', 'requested'])).toBe(result.current.data);
+    expect(client.getQueryData(procurementsKey('org-1'))).toBeUndefined();
+
+    // The transition's own invalidation (prefix ['procurements', orgId]) must reach the queue key.
+    vi.mocked(listProcurements).mockClear();
+    await client.invalidateQueries({ queryKey: ['procurements', 'org-1'] });
+    await waitFor(() => expect(listProcurements).toHaveBeenCalledWith({ status: 'Requested' }));
+  });
+});
+
 describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
   beforeEach(() => {
     ownershipState.data = [];

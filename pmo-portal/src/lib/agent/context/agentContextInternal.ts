@@ -21,3 +21,11 @@ export interface AgentContextValue {
 }
 
 export const AgentContextContext = React.createContext<AgentContextValue | null>(null);
+
+/**
+ * The write side alone, with an identity that never changes. A page that only PUBLISHES its entity
+ * reads this instead of `AgentContextContext`, so publishing does not re-render the publisher
+ * (the provider re-renders on every setEntity and hands readers a fresh value).
+ */
+export type AgentContextPublisher = Pick<AgentContextValue, 'setEntity' | 'setSelection'>;
+export const AgentContextPublisherContext = React.createContext<AgentContextPublisher | null>(null);

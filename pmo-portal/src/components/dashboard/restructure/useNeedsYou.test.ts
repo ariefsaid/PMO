@@ -12,7 +12,7 @@ describe('needs-you dashboard selectors', () => {
     const [item] = buildNeedsItems('Project Manager', {
       projectsOverBudget: 2,
       projectsOverBudgetPartial: true,
-    }, translate);
+    }, translate, 'USD');
     expect(item).toMatchObject({ id: 'projects-over-budget', count: 2, countLabel: 'At least 2' });
   });
 
@@ -20,7 +20,7 @@ describe('needs-you dashboard selectors', () => {
     const [item] = buildNeedsItems('Project Manager', {
       projectsOverBudget: 0,
       projectsOverBudgetUnknown: 3,
-    }, translate);
+    }, translate, 'USD');
     expect(item).toMatchObject({ id: 'projects-risk-unchecked', count: 3, tone: 'neutral' });
     expect(item?.label).toMatch(/without a checkable budget/i);
   });
@@ -28,7 +28,7 @@ describe('needs-you dashboard selectors', () => {
   it('shows executive approvals, risk and procurement needs with their work destinations', () => {
     const items = buildNeedsItems('Executive', {
       approvals: 2, atRiskProjects: 1, procurementsAwaitingApproval: 3,
-    }, translate);
+    }, translate, 'USD');
 
     expect(items.map(({ count, href }) => [count, href])).toEqual([
       [2, '/approvals'],
@@ -47,7 +47,7 @@ describe('needs-you dashboard selectors', () => {
       supplierInvoices: { count: 4, knownTotals: [], unknownBalances: 1 },
       readyToBill: 0,
       budgetsOver: 1,
-    }, translate);
+    }, translate, 'USD');
 
     expect(items.map(({ count, href }) => [count, href])).toEqual([
       [2, '/finance/receivables?overdue=true'],
@@ -62,10 +62,10 @@ describe('needs-you dashboard selectors', () => {
   it('shows the Project Manager queue and links it to the owning work areas', () => {
     const items = buildNeedsItems('Project Manager', {
       approvals: 2, projectsOverBudget: 1, overdueProjectTasks: 5, timesheetsToApprove: 3,
-    }, translate);
+    }, translate, 'USD');
 
     expect(items.map(({ count, href }) => [count, href])).toEqual([
-      [2, '/approvals'], [1, '/projects?filter=My+Projects'],
+      [2, '/approvals'], [1, '/projects?filter=at-risk'],
       [5, '/projects?filter=My+Projects'], [3, '/approvals?scope=timesheets'],
     ]);
     expect(items.map(({ label }) => label)).toEqual([
@@ -77,10 +77,10 @@ describe('needs-you dashboard selectors', () => {
   it('shows only Engineer time, task and returned-expense needs', () => {
     const items = buildNeedsItems('Engineer', {
       timesheetStatus: 'Rejected', engineerTasks: 2, returnedExpenses: 1,
-    }, translate);
+    }, translate, 'USD');
 
     expect(items.map(({ count, href }) => [count, href])).toEqual([
-      [1, '/timesheets'], [2, '/my-tasks'], [1, '/expenses'],
+      [1, '/timesheets'], [2, '/my-tasks?due=week'], [1, '/expenses?status=Rejected'],
     ]);
     expect(items.map(({ label }) => label).join(' ')).not.toMatch(/\$|Rp|IDR/);
     expect(items.map(({ label }) => label)).toEqual([
@@ -89,7 +89,7 @@ describe('needs-you dashboard selectors', () => {
   });
 
   it('AC-RD-RISK-001: a zero at-risk count with unbudgeted active projects still says risk cannot be checked', () => {
-    const items = buildNeedsItems('Executive', { atRiskProjects: 0, riskUncheckedProjects: 2 }, translate);
+    const items = buildNeedsItems('Executive', { atRiskProjects: 0, riskUncheckedProjects: 2 }, translate, 'USD');
     expect(items.map((item) => item.id)).toEqual(['risk-unchecked']);
     expect(items[0]!.label).toMatch(/without an active budget; risk can't be checked yet/);
     expect(items[0]!.label).not.toMatch(/on track/i);
@@ -104,10 +104,38 @@ describe('needs-you dashboard selectors', () => {
       timesheetStatus: 'Approved', engineerTasks: 0, returnedExpenses: 0,
     };
 
-    expect(buildNeedsItems('Admin', clear, translate)).toEqual([]);
-    expect(buildNeedsItems('Finance', clear, translate)).toEqual([]);
-    expect(buildNeedsItems('Project Manager', clear, translate)).toEqual([]);
-    expect(buildNeedsItems('Engineer', clear, translate)).toEqual([]);
+    expect(buildNeedsItems('Admin', clear, translate, 'USD')).toEqual([]);
+    expect(buildNeedsItems('Finance', clear, translate, 'USD')).toEqual([]);
+    expect(buildNeedsItems('Project Manager', clear, translate, 'USD')).toEqual([]);
+    expect(buildNeedsItems('Engineer', clear, translate, 'USD')).toEqual([]);
+  });
+
+  it('issue 1973: lists Needs-You amounts with the org currency first, then the rest alphabetically, whatever row order arrived', () => {
+    const [overdue] = buildNeedsItems('Finance', {
+      overdueInvoices: {
+        count: 3,
+        // Facts read orders rows by id; first-encountered currency order is therefore load-dependent.
+        knownTotals: [
+          { currency: 'IDR', amount: 5_000_000 },
+          { currency: 'AUD', amount: 1_250_000 },
+          { currency: 'USD', amount: 2_500_000 },
+        ],
+        unknownBalances: 0,
+        oldestDays: 3,
+      },
+    }, translate, 'USD');
+    expect(String(overdue?.amount).match(/[A-Z]{3}/g)).toEqual(['USD', 'AUD', 'IDR']);
+  });
+
+  it('issue 1973: with the org currency absent from the totals, the amounts stay alphabetical', () => {
+    const [supplier] = buildNeedsItems('Finance', {
+      supplierInvoices: {
+        count: 2,
+        knownTotals: [{ currency: 'USD', amount: 2_500_000 }, { currency: 'IDR', amount: 5_000_000 }],
+        unknownBalances: 0,
+      },
+    }, translate, 'EUR');
+    expect(String(supplier?.amount).match(/[A-Z]{3}/g)).toEqual(['IDR', 'USD']);
   });
 
   it('keeps supplier totals limited to known unpaid invoice balances and counts unknown balances', () => {
@@ -139,7 +167,7 @@ describe('needs-you dashboard selectors', () => {
       },
     });
     const bahasa = (key: string, fallback: string, options?: Record<string, unknown>) => i18n.t(key, { defaultValue: fallback, ...(options ?? {}) });
-    const [atRisk] = buildNeedsItems('Executive', { atRiskProjects: 1 }, bahasa);
+    const [atRisk] = buildNeedsItems('Executive', { atRiskProjects: 1 }, bahasa, 'USD');
 
     expect(atRisk).toMatchObject({ count: 1, href: '/projects?filter=at-risk', label: 'proyek berisiko' });
   });

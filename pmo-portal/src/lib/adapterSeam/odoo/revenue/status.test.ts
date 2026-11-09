@@ -83,6 +83,78 @@ describe('AC-OCI-054 a receipt does not mark its invoice Paid before a fresh Odo
     })).toBe(true);
   });
 
+  // #1825: the two clocks decide nothing once the receipt's own Odoo reference appears in the invoice
+  // read-back (single-system evidence), whatever the clocks say.
+  it('clears awaiting Odoo on the read-back evidence even when the Odoo clock is behind PMOs', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T08:00:00.000Z', // Odoo's write_date: behind the outbox clock
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+      receiptCommandExternalRef: 'account.payment:42',
+      receiptCommandRecordedReadBack: true,
+      invoiceMatchedPaymentRefs: ['account.payment:42'],
+    })).toBe(false);
+  });
+
+  it('stays awaiting when the recorded reference is absent from the invoice read-back (the mirror has not caught up)', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:02:00.000Z', // even a read after outbox creation proves nothing without the reference
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+      receiptCommandExternalRef: 'account.payment:42',
+      receiptCommandRecordedReadBack: true,
+      invoiceMatchedPaymentRefs: [],
+    })).toBe(true);
+  });
+
+  it('a command still committing waits even with the reference evidence present', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T08:00:00.000Z',
+      receiptCommandState: 'committing',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+      receiptCommandExternalRef: 'account.payment:42',
+      receiptCommandRecordedReadBack: true,
+      invoiceMatchedPaymentRefs: ['account.payment:42'],
+    })).toBe(true);
+  });
+
+  it('a reference without recorded read-back evidence falls back to the clocks (rows committed before the evidence existed)', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T08:00:00.000Z',
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+      receiptCommandExternalRef: 'account.payment:42',
+      receiptCommandRecordedReadBack: false,
+    })).toBe(true);
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:02:00.000Z',
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+      receiptCommandExternalRef: 'account.payment:42',
+      receiptCommandRecordedReadBack: false,
+    })).toBe(false);
+  });
+
+  it('no reference recorded at all falls back to the clocks exactly as before', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T08:00:00.000Z',
+      receiptCommandState: 'held',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+    })).toBe(true);
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:02:00.000Z',
+      receiptCommandState: 'held',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+    })).toBe(false);
+  });
+
   it.each(['Paid', 'Cancelled'])('%s remains authoritative even if a receipt command is newer', (invoiceStatus) => {
     expect(invoiceReceiptAwaitingOdoo({
       invoiceStatus,
@@ -99,5 +171,23 @@ describe('AC-OCI-054 a receipt does not mark its invoice Paid before a fresh Odo
       receiptCommandState: 'failed',
       receiptCommandCreatedAt: '2026-11-02T09:00:00.000Z',
     })).toBe(false);
+  });
+
+  // #1825 (review I1): the replay-after-partial-failure path. Attempt 1 committed the payment row but
+  // failed the invoice read-back write, so the invoice's references hold nothing yet — the outbox's
+  // recorded read-back disables the clock fallback, and the flag would stay awaiting forever. The
+  // replay treats the duplicate payment row as already applied and writes the read-back; the reference
+  // arriving is what clears the flag — never a clock.
+  it('a replay that lands the read-back reference clears the flag a failed first attempt left stuck', () => {
+    const base = {
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:02:00.000Z', // even a read after outbox creation proves nothing without the reference
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+      receiptCommandExternalRef: 'account.payment:42',
+      receiptCommandRecordedReadBack: true,
+    } as const;
+    expect(invoiceReceiptAwaitingOdoo({ ...base, invoiceMatchedPaymentRefs: [] })).toBe(true);
+    expect(invoiceReceiptAwaitingOdoo({ ...base, invoiceMatchedPaymentRefs: ['account.payment:42'] })).toBe(false);
   });
 });

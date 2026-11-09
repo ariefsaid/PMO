@@ -22,6 +22,7 @@ import { formatInstantDate } from '@/src/lib/format';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import { EditActivityModal } from '@/pages/activity/EditActivityModal';
+import { ActivityShowMore } from '@/pages/activity/ActivityShowMore';
 import { hrefForActivity } from './activityLinks';
 
 /**
@@ -48,7 +49,8 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
   const { t } = useTranslation();
   const may = usePermission();
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useContactActivities(contactId);
+  const { data, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useContactActivities(contactId);
   // DD-MTG-6 (second half): the timeline unions the touchpoint log with MINUTED meetings this
   // contact attended. RLS filters the meetings to what the viewer may read (FR-MTG-031) — most
   // viewers legitimately see none, so empty is a normal state, never an error.
@@ -68,7 +70,12 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   const activities = data ?? [];
-  const contactMeetings = meetingsQuery.data ?? [];
+  // #1990: only the newest activity page is loaded, so a meeting older than the oldest loaded
+  // activity waits for "Show more" rather than jumping ahead of activity that is not loaded yet.
+  const oldestLoaded = hasNextPage ? activities[activities.length - 1]?.occurred_at : undefined;
+  const contactMeetings = (meetingsQuery.data ?? []).filter(
+    (m) => oldestLoaded === undefined || m.occurred_at >= oldestLoaded,
+  );
 
   // One timeline, newest-first: touchpoints (editable) + minuted meetings (read-only links).
   type TimelineEntry =
@@ -252,6 +259,15 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
             );
           })}
         </ol>
+      )}
+
+      {!isPending && !isError && activities.length > 0 && (
+        <ActivityShowMore
+          shown={activities.length}
+          hasNextPage={Boolean(hasNextPage)}
+          isFetchingNextPage={isFetchingNextPage}
+          onShowMore={() => void fetchNextPage()}
+        />
       )}
 
       {/* Edit activity modal — the ONE shared CRM activity edit form (PGA02-006/CROSS-69). */}

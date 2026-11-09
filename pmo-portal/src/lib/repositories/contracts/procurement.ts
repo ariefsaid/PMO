@@ -43,6 +43,10 @@ export interface ProcurementListOptions {
   withSharedDetails?: boolean;
   /** Dashboards: the shared list's money/stage inputs without `open_commitment` and the record-reference embeds. */
   lean?: boolean;
+  /** With `lean`: skip the approval-route read for callers that never show an approve/reject affordance (the finance position). */
+  withoutRoutes?: boolean;
+  /** Server-side status filter (the approvals queue reads only `Requested`); same row shape as the unfiltered list. */
+  status?: Tables<'procurements'>['status'];
 }
 
 export interface ProcurementRepository {

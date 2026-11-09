@@ -4,18 +4,30 @@
  * a row read, paged by keyset.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MasterKind, PmoMaster, CensusDomain } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
+import type { MasterKind, PmoMaster, CensusDomain, PmoProjectCodeField } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
 import { Constants } from '../../../pmo-portal/src/lib/supabase/database.types.ts';
 
 const PAGE = 1000;
-export const OPEN_PROCUREMENT = '(Paid,Cancelled)';
+
+/**
+ * One definition of an "open" purchase (#1736): the database holds it (`connect_open_purchase_statuses`, 0703), the new-item send queue
+ * calls it and this read carries the same answer to the census and to the drain. Never restate the list here — a second copy is exactly
+ * the drift that put a Draft line in front of the Admin while the queue never sent it.
+ */
+export async function openPurchaseStatuses(sc: SupabaseClient): Promise<string[]> {
+  const { data, error } = await sc.rpc('connect_open_purchase_statuses');
+  if (error) throw new Error('could not read the open-purchase statuses');
+  const statuses = (data ?? []) as string[];
+  if (statuses.length === 0) throw new Error('the open-purchase statuses are empty');
+  return statuses;
+}
 
 /** Distinct names of the items on procurements that are still open, as `{id, name}` keyset pages. */
-async function* itemNamePages(sc: SupabaseClient, orgId: string): AsyncGenerator<Array<{ id: string; name: string }>> {
+async function* itemNamePages(sc: SupabaseClient, orgId: string, statuses: string[]): AsyncGenerator<Array<{ id: string; name: string }>> {
   let after: string | null = null;
   for (;;) {
     let q = sc.from('procurement_items').select('id, name, procurements!inner(status)').eq('org_id', orgId)
-      .not('procurements.status', 'in', OPEN_PROCUREMENT).order('id', { ascending: true }).limit(PAGE);
+      .in('procurements.status', statuses).order('id', { ascending: true }).limit(PAGE);
     if (after) q = q.gt('id', after);
     const { data, error } = await q;
     if (error) throw new Error('could not read the PMO items');
@@ -28,7 +40,8 @@ async function* itemNamePages(sc: SupabaseClient, orgId: string): AsyncGenerator
 
 async function distinctItemNames(sc: SupabaseClient, orgId: string): Promise<string[]> {
   const names = new Set<string>();
-  for await (const page of itemNamePages(sc, orgId)) for (const r of page) if (r.name) names.add(r.name);
+  const statuses = await openPurchaseStatuses(sc);
+  for await (const page of itemNamePages(sc, orgId, statuses)) for (const r of page) if (r.name) names.add(r.name);
   return [...names];
 }
 
@@ -86,20 +99,23 @@ async function allRows(sc: SupabaseClient, table: string, cols: string, orgId: s
   }
 }
 
-/** What a PMO project is called in the ERP's own terms: ERPNext's project is matched on the Client Project Code; an Odoo cost
- *  account carries the PMO project number (FR-ODC-072). Keyed by tier, so no code above the adapter branches on it. */
-const PROJECT_CODE_COLUMN: Record<string, string> = { erpnext: 'code', odoo: 'pmo_project_number' };
-
-/** The PMO side of the matcher for one kind. The employee `code` is the lower-cased work email (people link on a key, never a name). */
-export async function pmoMasters(sc: SupabaseClient, orgId: string, kind: MasterKind, tier = 'erpnext'): Promise<PmoMaster[]> {
+/** The PMO side of the matcher for one kind. A project is matched on the PMO column the ERP's connect adapter declares
+ *  (#1692): an ERPNext project is named by the client project code, an Odoo cost account carries the PMO project number
+ *  (FR-ODC-072) — so nothing here knows a tier. The employee `code` is the lower-cased work email (people link on a key,
+ *  never a name). */
+export async function pmoMasters(
+  sc: SupabaseClient,
+  orgId: string,
+  kind: MasterKind,
+  projectCodeField: PmoProjectCodeField = 'code',
+): Promise<PmoMaster[]> {
   if (kind === 'party') {
     return (await allRows(sc, 'companies', 'id, name, type, erp_tax_id', orgId, (q) => q.in('type', ['Client', 'Vendor']).is('archived_at', null)))
       .map((r) => ({ id: String(r.id), name: String(r.name), role: r.type === 'Client' ? 'client' as const : 'vendor' as const, taxId: (r.erp_tax_id as string | null) ?? null }));
   }
   if (kind === 'project') {
-    const column = PROJECT_CODE_COLUMN[tier] ?? 'code';
-    return (await allRows(sc, 'projects', `id, name, ${column}`, orgId, (q) => q.is('archived_at', null)))
-      .map((r) => ({ id: String(r.id), name: String(r.name), code: (r[column] as string | null) ?? null }));
+    return (await allRows(sc, 'projects', `id, name, ${projectCodeField}`, orgId, (q) => q.is('archived_at', null)))
+      .map((r) => ({ id: String(r.id), name: String(r.name), code: (r[projectCodeField] as string | null) ?? null }));
   }
   if (kind === 'employee') {
     return (await allRows(sc, 'profiles', 'id, full_name, email', orgId, (q) => q.eq('status', 'active')))

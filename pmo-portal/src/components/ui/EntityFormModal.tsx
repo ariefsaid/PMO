@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { FormActions } from './FormFields';
 import { ConfirmDialog } from './ConfirmDialog';
 import { acquireBackgroundInert } from './backgroundInert';
+import { useExitPresence } from './useExitPresence';
 import {
   overlayBackdropClassName,
   overlayBackdropStyle,
@@ -72,6 +73,8 @@ export interface EntityFormModalProps {
   /** Footer primary label, e.g. "Create deal". */
   submitLabel: string;
   cancelLabel?: string;
+  /** Read-only dialog: only the footer submit (labelled Close/Done) dismisses. */
+  hideCancel?: boolean;
   /** Native form submit handler — call preventDefault + run your mutation. */
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
@@ -120,6 +123,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   subtitle,
   submitLabel,
   cancelLabel,
+  hideCancel,
   onSubmit,
   onClose,
   submitDisabled,
@@ -134,6 +138,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   children,
 }) => {
   const { t } = useTranslation();
+  const { mounted, closing } = useExitPresence(open, '--motion-dialog-out');
   const titleId = useId();
   const subId = useId();
   const summaryId = useId();
@@ -286,7 +291,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
     }
   }, [confirmDiscard]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <>
@@ -294,6 +299,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
         <div
           data-testid="entity-modal-scrim"
           aria-hidden
+          data-closing={closing || undefined}
           onClick={requestClose}
           className={overlayBackdropClassName}
           style={overlayBackdropStyle}
@@ -308,8 +314,9 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
           onKeyDown={onTrapKeyDown}
           // While the discard ConfirmDialog is open it owns focus + AT; make the
           // form dialog inert so the background can't be tabbed into or read.
-          inert={confirmDiscard || undefined}
-          aria-hidden={confirmDiscard || undefined}
+          inert={confirmDiscard || closing || undefined}
+          aria-hidden={confirmDiscard || closing || undefined}
+          data-closing={closing || undefined}
           className={cn(
             overlayDesktopContainerClassName,
             'flex max-h-[85dvh] flex-col',
@@ -411,6 +418,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
               <FormActions
                 submitLabel={submitLabel}
                 cancelLabel={cancelLabel ?? t('entityForm.cancel', 'Cancel')}
+                hideCancel={hideCancel}
                 onCancel={requestClose}
                 disabled={submitDisabled}
                 hideSubmit={hideSubmit}

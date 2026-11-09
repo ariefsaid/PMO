@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import {
   useQuery,
   useQueryClient,
+  type Query,
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
@@ -219,8 +220,9 @@ function useGuardedStatementQuery<TRequest, TResponse>(args: {
   enabled: boolean; // caller's original flag, not requestEnabled
   request: TRequest | null;
   fetch: (request: TRequest) => Promise<TResponse>;
+  refetchInterval?: number | false | ((query: Query<TResponse, Error, TResponse>) => number | false | undefined);
 }): GuardedQueryResult<TResponse> {
-  const { auth, queryKey, eligible, enabled, request, fetch } = args;
+  const { auth, queryKey, eligible, enabled, request, fetch, refetchInterval } = args;
   const queryClient = useQueryClient();
   const keyId = keyToken(queryKey);
   const identityPrefix = useMemo(() => [FEATURE_KEY[0], ...auth.identityParts] as const, [auth.identityParts]);
@@ -233,6 +235,7 @@ function useGuardedStatementQuery<TRequest, TResponse>(args: {
     queryKey,
     enabled: requestEnabled,
     retry: false,
+    refetchInterval,
     queryFn: async ({ signal }) => {
       const guard = guardRef.current;
       const state = queryClient.getQueryState<TResponse, Error>(queryKey);
@@ -353,6 +356,7 @@ function normalizeSelection(selection: GetFinancialStatementInput | null): {
 export function useFinancialStatement(
   selection: GetFinancialStatementInput | null,
   enabled = true,
+  refetchInterval?: number | false | ((query: Query<FinancialStatementRead, Error, FinancialStatementRead>) => number | false | undefined),
 ): GuardedQueryResult<FinancialStatementRead> {
   const auth = useLiveAuth();
   const normalized = normalizeSelection(selection);
@@ -392,5 +396,6 @@ export function useFinancialStatement(
     enabled,
     request,
     fetch: repositories.financialStatements.get,
+    refetchInterval,
   });
 }

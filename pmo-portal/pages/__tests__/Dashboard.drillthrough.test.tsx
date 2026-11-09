@@ -32,9 +32,10 @@ const dash = {
   projects_at_risk: 1,
   projects_by_status: [],
   procurements_by_status: [{ status: 'Paid', count: 2 }],
-  top_projects: [
-    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, currency: 'USD', budget: 4_000_000, spent: 3_000_000, status: 'Ongoing Project' },
-    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, currency: 'USD', budget: 2_000_000, spent: 1_000_000, status: 'Ongoing Project' },
+  top_projects: [],
+  attention_projects: [
+    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, currency: 'USD', budget: 4_000_000, spent: 3_000_000, status: 'Ongoing Project', attention_signals: 1, overdue_items: 2, overdue_tasks: 2, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null },
+    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, currency: 'USD', budget: 2_000_000, spent: 1_000_000, status: 'Ongoing Project', attention_signals: 0, overdue_items: 0, overdue_tasks: 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null },
   ],
 };
 
@@ -57,7 +58,11 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useOverdueInvoiceFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useHasAnySalesInvoice: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
+  useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -128,10 +133,16 @@ const companyFigureTile = (label: string) => {
 };
 
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
+  // #1461: each href opens exactly the record set its figure sums/counts.
+  // - Contract on hand / Margin on billed work sum the ON-HAND projects (Won-Pending-KoM,
+  //   Ongoing, On Hold, Close Out) → the `on-hand` list filter, not the narrower Ongoing tab.
+  // - Pipeline is the open-stage set → /sales (the open pipeline board).
+  // - Overdue counts submitted/unpaid invoices past due → the receivables overdue filter.
+  // - Supplier payables count Vendor Invoiced procurements → the exact status filter.
+  // - Still to invoice counts work orders, which have no org-wide list — /projects stays (deviation).
   const executiveDrills = [
-    // AC-IXD-DASH-W5-C2A (dev oracle): the figure opens the ongoing projects it sums.
-    ['Contract on hand', '/projects?filter=Ongoing'],
-    ['Margin on billed work', '/finance/receivables'],
+    ['Contract on hand', '/projects?filter=on-hand'],
+    ['Margin on billed work', '/projects?filter=on-hand'],
     ['Pipeline (weighted)', '/sales'],
     ['Owed by clients · overdue', '/finance/receivables?overdue=true'],
     ['Owed to suppliers', '/procurement?status=Vendor+Invoiced'],
@@ -156,13 +167,27 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
     const contractTile = companyFigureTile('Contract on hand');
     expect(contractTile).toHaveTextContent('$6M');
     expect(contractTile).toHaveTextContent(/Left after spending:/);
-    expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+    expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');
 
     const marginTile = companyFigureTile('Margin on billed work');
     expect(marginTile).toHaveTextContent('$1M');
     // C4: the always-empty percent line is not rendered as a value; the help tooltip states why it is unknown.
     expect(marginTile).not.toHaveTextContent(/Percent of billed work/);
-    expect(within(marginTile).getByRole('link')).toHaveAttribute('href', '/finance/receivables');
+    expect(within(marginTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');
+  });
+
+  it('#1461: each period figure drills with its own window to the list holding its counted records', () => {
+    renderExec();
+    // The harness org day is 2026-06-03, so the default ytd period is 2026-01..2026-06.
+    // - Invoiced sums issued invoices dated in the window → receivables invoices in that window.
+    // - Collected sums Paid receipts dated in the window → the payments view, Paid, same window.
+    // - Won counts on-hand projects decided in the window → the won drill filter + window.
+    expect(screen.getByRole('link', { name: /Invoiced · excl\. tax/ }))
+      .toHaveAttribute('href', '/finance/receivables?from=2026-01&to=2026-06');
+    expect(screen.getByRole('link', { name: /^Collected/ }))
+      .toHaveAttribute('href', '/finance/receivables?view=payments&status=Paid&from=2026-01&to=2026-06');
+    expect(screen.getByRole('link', { name: /^Won/ }))
+      .toHaveAttribute('href', '/projects?filter=won&from=2026-01&to=2026-06');
   });
 
   it('AC-IXD-DASH-W5-C2A-EXEC-6: pipeline forecast margin is shown as a sub-line, not a separate drill tile', () => {
@@ -198,16 +223,16 @@ const renderFinance = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-FIN-1: "Contracted revenue" tile drills to /projects?filter=Ongoing', () => {
+  it('AC-IXD-DASH-W5-C2A-FIN-1: "Contracted revenue" drills to exactly its counted set (Ongoing Project only, #1461)', () => {
     renderFinance();
     const tile = screen.getByTestId('kpi-revenue');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=ongoing-project');
   });
 
-  it('AC-IXD-DASH-W5-C2A-FIN-2: "Recorded spending" tile drills to /projects?filter=Ongoing', () => {
+  it('AC-IXD-DASH-W5-C2A-FIN-2: "Recorded spending" drills to exactly its counted set (on-hand projects, #1461)', () => {
     renderFinance();
     const tile = screen.getByTestId('kpi-spend');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
   it('AC-IXD-DASH-W5-C2A-FIN-3: "Outstanding invoices" tile drills to /procurement?status=Vendor+Invoiced', () => {
@@ -235,8 +260,8 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
 // ── PM dashboard ─────────────────────────────────────────────────────────────
 
 const mine = [
-  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: null, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
-  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
+  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin: 500_000, realized_margin_pct: null, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
+  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin: 120_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
 ];
 
 
@@ -272,22 +297,31 @@ const renderPM = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — PM dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-PM-1: "My projects" tile drills to /projects?filter=My+Projects', () => {
+  // #1461: the PM figures count MY DELIVERY projects (get_pm_dashboard_projects ∩ delivery
+  // statuses), so every drill carries the delivery filter scoped to my PM id — never the
+  // all-statuses "My Projects" tab nor the org-wide at-risk filter.
+  it('AC-IXD-DASH-W5-C2A-PM-1: "My projects" drills to my delivery projects (#1461)', () => {
     renderPM();
     const tile = screen.getByTestId('kpi-my-projects');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=u1');
   });
 
-  it('AC-IXD-DASH-W5-C2A-PM-2: "My contract value" tile drills to /projects?filter=My+Projects', () => {
+  it('AC-IXD-DASH-W5-C2A-PM-2: "My contract value" drills to my delivery projects (#1461)', () => {
     renderPM();
     const tile = screen.getByTestId('kpi-my-contract-value');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=u1');
   });
 
-  it('AC-IXD-DASH-W5-C2A-PM-3: "At risk" tile drills to /projects?filter=at-risk', () => {
+  it('AC-IXD-DASH-W5-C2A-PM-3: "At risk" drills to MY at-risk projects, not the org-wide queue (#1461)', () => {
     renderPM();
     const tile = screen.getByTestId('kpi-at-risk');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk&pm=u1');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-PM-4: "Margin to date" drills to my delivery projects (#1461)', () => {
+    renderPM();
+    const tile = screen.getByTestId('kpi-margin-to-date');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=u1');
   });
 
   it('AC-IXD-DASH-W5-C2A-PM-3: "At risk" tile has a descriptive linkLabel', () => {

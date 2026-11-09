@@ -8,18 +8,23 @@ const state = vi.hoisted(() => ({ payments: [
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }) }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useDashboard: () => ({}), useSalesPipeline: () => ({}), useWinRate: () => ({}) }));
 vi.mock('@/src/hooks/useManagementPack', () => ({ useManagementPack: () => ({}) }));
-vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({}), useIncomingPayments: () => ({ data: state.payments }) }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useOverdueInvoiceFacts: () => ({}),
+  usePaidPaymentFacts: () => ({ data: state.payments }),
+  useHasAnySalesInvoice: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
+  useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({}) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({}) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ isResolved: true }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({}) }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({}) }));
 vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, selectSupplierInvoices: () => undefined }));
-vi.mock('@/pages/procurement/blocks/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
+vi.mock('@/src/lib/procurement/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
 
 import { useCompanyFigures } from './useCompanyFigures';
 
 it('shows the collected KPI for fractional receipts in the selected period', () => {
   const { result } = renderHook(() => useCompanyFigures({ key: 'custom', label: 'January', from: '2026-01', to: '2026-01' }));
-  expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({ value: '$1', lines: ['$1'], href: '/finance/receivables?view=payments' });
+  expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({ value: '$1', lines: ['$1'], href: '/finance/receivables?view=payments&status=Paid&from=2026-01&to=2026-01' });
 });

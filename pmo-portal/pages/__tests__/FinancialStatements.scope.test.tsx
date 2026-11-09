@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { Session } from '@supabase/supabase-js';
 import { MemoryRouter } from 'react-router';
 import { I18nextProvider } from 'react-i18next';
-import { financeTestI18n, financeTestI18nReady } from './financeI18nTestInstance';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -223,6 +223,140 @@ describe('Financial statements company scope (AC-007)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: 'company' } });
     expect(await screen.findByText('Current native row')).toBeInTheDocument();
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ statement: 'profit_and_loss' }));
+  });
+
+  // #1930: an accepted "Refresh now" must refetch the statement read so republished figures
+  // replace the stale ones without a manual reload; non-accepted responses must not refetch.
+  it('#1930: an accepted Refresh now refetches the statement read and renders the republished figure', async () => {
+    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+    renderPage();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    const callsBeforeRefresh = readSpy.mock.calls.length;
+
+    // The sweep published new figures while the screen was showing the stale read.
+    readSpy.mockImplementation(async (input: GetFinancialStatementInput) => {
+      const next = read(input) as FinancialStatementRead & {
+        result: { payload: { current: { rows: Array<Record<string, string>> } } };
+      };
+      next.result.payload.current.rows = [{ account: 'Republished native row', closing_debit: '7654321.00' }];
+      return next;
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsBeforeRefresh + 1));
+    expect(await screen.findByText('Republished native row')).toBeVisible();
+    expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
+    expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+      periodKind: 'month', periodStart: '2026-09-01', statement: 'trial_balance', viewKind: 'account_breakdown',
+    }));
+  });
+
+  it('#1930: a coalesced Refresh now leaves the statement read untouched', async () => {
+    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('coalesced');
+    renderPage();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    const callsBeforeRefresh = readSpy.mock.calls.length;
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    expect(await screen.findByText('A refresh was requested recently.')).toBeVisible();
+    expect(readSpy).toHaveBeenCalledTimes(callsBeforeRefresh);
+    expect(screen.getByText('Current native row')).toBeVisible();
+  });
+
+  // The acceptance only bumps the org's refresh intent (available_at is +5 minutes); the sweep
+  // republishes later, so the page polls the statement read until the published generation
+  // changes or the ~10-minute cap passes. 30s interval, 10-minute cap.
+  function republishedRead(input: GetFinancialStatementInput): FinancialStatementRead {
+    const next = read(input) as FinancialStatementRead & {
+      generation: { asOf: string; snapshotId: string };
+      result: { payload: { current: { rows: Array<Record<string, string>> } } };
+    };
+    next.generation.asOf = '2026-10-17T14:00:00.000Z';
+    next.generation.snapshotId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    next.result.payload.current.rows = [{ account: 'Republished native row', closing_debit: '7654321.00' }];
+    return next;
+  }
+
+  it('#1930: an accepted Refresh now polls the read and stops once the republished figure renders', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+      renderPage();
+      expect(await screen.findByText('Current native row')).toBeInTheDocument();
+      const callsAfterLoad = readSpy.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      expect(await screen.findByText('Refresh requested. New figures appear shortly.')).toBeInTheDocument();
+      // Accepted refetches immediately, but the sweep has not republished yet.
+      await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 1));
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+
+      // First poll tick: same published generation, so the screen keeps the old figure and keeps polling.
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 2);
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+
+      // The sweep publishes; the next poll renders the new figure and stops polling.
+      readSpy.mockImplementation(async (input: GetFinancialStatementInput) => republishedRead(input));
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 3);
+      expect(await screen.findByText('Republished native row')).toBeInTheDocument();
+      expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('#1930: statement polling after an accepted Refresh now stops at the cap even when nothing changed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+      renderPage();
+      expect(await screen.findByText('Current native row')).toBeInTheDocument();
+      const callsAfterLoad = readSpy.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 1));
+
+      // The whole 10-minute window polls (immediate refetch plus one per 30s tick), then stops.
+      await act(async () => { await vi.advanceTimersByTimeAsync(600_000); });
+      const callsAtCap = readSpy.mock.calls.length;
+      expect(callsAtCap).toBeGreaterThan(callsAfterLoad + 1);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAtCap);
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('#1930: coalesced and unavailable Refresh now responses never poll the statement read', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const refreshNowSpy = vi.spyOn(repositories.financialStatements, 'refreshNow');
+      refreshNowSpy.mockResolvedValue('coalesced');
+      renderPage();
+      expect(await screen.findByText('Current native row')).toBeInTheDocument();
+      const callsAfterLoad = readSpy.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      expect(await screen.findByText('A refresh was requested recently.')).toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad);
+
+      refreshNowSpy.mockResolvedValue('unavailable');
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      expect(await screen.findByText('Refresh is not available yet.')).toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad);
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('AC-007: quarter and fiscal-year selections use catalogue ranges and BS as-at ends without deriving dates', async () => {

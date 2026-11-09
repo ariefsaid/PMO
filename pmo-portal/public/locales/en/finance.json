@@ -191,7 +191,8 @@
     "mobileOutstandingUnknown": "Outstanding balance unknown",
     "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
     "mobileInvoiceAmountUnspecified": "Invoice amount",
-    "pairedCountedOnce": "Counted once with the ERP invoice {{number}}."
+    "pairedCountedOnce": "Counted once with the ERP invoice {{number}}.",
+    "allocatedInErp": "Allocated in your accounting system; read-only here."
   },
   "invoices": {
     "description": "Client invoices.",
@@ -204,7 +205,47 @@
     "statusAwaitingOdoo": "Receipt sent, awaiting Odoo",
     "statusPaidOdoo": "Paid",
     "journalLabel": "Received into",
-    "titleUnnumbered": "Receipt, not numbered yet"
+    "titleUnnumbered": "Receipt, not numbered yet",
+    "apply": {
+      "title": "Apply to invoices",
+      "subtitle": "{{amount}} not yet applied",
+      "submit": "Apply",
+      "action": "Apply to invoices",
+      "noOpenInvoices": "This customer has no approved invoice in {{currency}} that still owes money.",
+      "invoiceCol": "Invoice",
+      "invoicePlaceholder": "Choose an invoice…",
+      "amountCol": "Amount",
+      "fillBalance": "Fill balance",
+      "removeRow": "Remove this invoice",
+      "addInvoice": "Add another invoice",
+      "leftToApply": "Left to apply: {{amount}}",
+      "exceedsReceipt": "This is more than the payment has left to apply.",
+      "exceedsBalance": "This is more than the invoice still owes ({{amount}}).",
+      "pickInvoice": "Choose an invoice.",
+      "amountPositive": "Enter an amount above zero, with no more than 2 decimals.",
+      "done": "Payment applied"
+    },
+    "unapply": {
+      "action": "Unapply",
+      "actionFor": "Unapply {{invoice}}",
+      "confirmTitle": "Take this payment off the invoice?",
+      "confirmBody": "The amount goes back to \"Not yet applied\" on the payment, and {{invoice}} owes it again.",
+      "done": "Payment taken off the invoice"
+    },
+    "onAccount": {
+      "mode": "No invoice chosen: this is recorded as a payment on account for the customer. You can apply it to invoices afterwards."
+    },
+    "refusal": {
+      "allocationExceedsUnapplied": "This is more than the payment has left to apply.",
+      "allocationExceedsBalance": "This is more than the invoice still owes.",
+      "allocationAmountInvalid": "Check the amounts: each one must be above zero, with no more than 2 decimals.",
+      "allocationDuplicateInvoice": "An invoice can be listed only once.",
+      "allocationClientMismatch": "That invoice belongs to a different client.",
+      "allocationCurrencyMismatch": "That invoice is in a different currency.",
+      "allocationAlreadyReversed": "This part of the payment was already taken off the invoice.",
+      "receiptNotApplicable": "This payment can no longer be applied. It may have been cancelled.",
+      "requestIdReused": "This request was already used for a different payment. Close this window and start again."
+    }
   },
   "statements": {
     "amountsIn": "Amounts in",
@@ -676,6 +717,9 @@
     "creditNotes": "Credit notes",
     "amountUnavailable": "Amount not available",
     "creditNotesUnavailable": "Credit notes could not be read right now.",
+    "taxDocument": "Tax document",
+    "taxDocumentUnavailable": "Tax documents are unavailable in Odoo.",
+    "taxDocumentRecorded": "Odoo generates no tax document. The e-Faktur number recorded above stands.",
     "next": {
       "pending": "Odoo has not confirmed it yet. PMO checks again by itself; there is nothing to do.",
       "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
@@ -755,6 +799,121 @@
       "currency": "The purchase currency differs from the accounting currency.",
       "attachedElsewhere": "This journal line already belongs to another purchase.",
       "alreadyAttached": "This journal line is already attached to this purchase."
+    }
+  },
+  "odooLedger": {
+    "state": {
+      "fresh": "Up to date",
+      "stale": "Not updated for over 30 minutes",
+      "catchingUp": "Still reading Odoo history",
+      "unavailable": "Odoo not reachable, showing the last data"
+    },
+    "check": {
+      "notChecked": "Not checked against Odoo",
+      "outOfDate": "Check is out of date",
+      "matches": "Matches Odoo",
+      "differs": "Differs from Odoo",
+      "checkedAt": "Checked {{time}}",
+      "differsAria": "Accounts that differ from Odoo",
+      "account": "Account {{account}}: PMO {{pmo}}, Odoo {{odoo}}"
+    },
+    "provenance": {
+      "aria": "Where these figures come from",
+      "asOf": "Odoo ledger as of {{time}}",
+      "noData": "Nothing read from the Odoo ledger yet"
+    },
+    "remainder": {
+      "aria": "Amounts not counted in a category or project",
+      "unmapped_one": "Accounts without a budget category ({{accounts}}): debits {{debit}}, credits {{credit}} ({{count}} line). Not counted in any category.",
+      "unmapped_other": "Accounts without a budget category ({{accounts}}): debits {{debit}}, credits {{credit}} ({{count}} lines). Not counted in any category.",
+      "unattributed_one": "Belong to no project: debits {{debit}}, credits {{credit}} ({{count}} line).",
+      "unattributed_other": "Belong to no project: debits {{debit}}, credits {{credit}} ({{count}} lines).",
+      "unlinked_one": "In cost accounts no project is linked to: debits {{debit}}, credits {{credit}} ({{count}} line).",
+      "unlinked_other": "In cost accounts no project is linked to: debits {{debit}}, credits {{credit}} ({{count}} lines)."
+    },
+    "amountsIn": "Amounts in {{currency}}",
+    "budget": {
+      "title": "Actuals from Odoo",
+      "unlinked": "Actual cost cannot be shown yet: no Odoo cost account is linked to this project.",
+      "linkAccount": "Link a cost account",
+      "askAdmin": "An administrator can link one.",
+      "loadFailed": "The Odoo ledger status could not be read"
+    },
+    "lines": {
+      "totalsOnly": "Your role sees the project totals. Lines are visible to Finance, Executive and Admin.",
+      "unlinked": "No Odoo cost account is linked to this project, so there are no lines to show.",
+      "loadFailed": "The lines could not be read",
+      "date": "Date",
+      "document": "Document",
+      "account": "Account",
+      "partner": "Partner",
+      "amount": "Amount ({{currency}})",
+      "table": "Odoo lines behind this category",
+      "empty": "No lines in this category",
+      "emptySub": "Posted Odoo lines in this project’s cost account and a mapped account appear here.",
+      "showingSoFar": "Showing {{shown}} so far",
+      "showing": "Showing {{shown}} of {{total}}",
+      "more": "Show more",
+      "all": "All"
+    },
+    "statement": {
+      "currentYearEarnings": "Current-year earnings",
+      "previousYearsEarnings": "Earnings of previous years",
+      "account": "Account",
+      "derived": "(calculated)",
+      "openingDebit": "Opening debit",
+      "openingCredit": "Opening credit",
+      "debit": "Debit",
+      "credit": "Credit",
+      "closingDebit": "Closing debit",
+      "closingCredit": "Closing credit",
+      "total": "Total",
+      "amount": "Amount",
+      "totalIncome": "Total income",
+      "totalExpense": "Total expense",
+      "net": "Net result",
+      "balance": "Balance",
+      "totalAssets": "Total assets",
+      "totalLiabilitiesEquity": "Total liabilities and equity",
+      "income": "Income",
+      "expense": "Expenses",
+      "assets": "Assets",
+      "liabilities": "Liabilities",
+      "equity": "Equity",
+      "empty": "No accounts with activity",
+      "notInUse": "Odoo ledger not in use yet",
+      "notInUseSub": "Statements from Odoo appear here after an Admin moves this organisation to the Odoo ledger.",
+      "unavailable": "No Odoo ledger lines yet",
+      "unavailableSub": "Statements appear when PMO has read posted lines from Odoo.",
+      "partial": "Partial: PMO is still reading the Odoo history, so these figures may be incomplete.",
+      "unclassified": "{{count}} accounts in the ledger are not in the Odoo account list yet, so they are not placed in a section.",
+      "doesNotBalance": "This balance sheet does not balance: assets and liabilities plus equity differ by {{amount}}.",
+      "periodSide": "Period shown"
+    },
+    "card": {
+      "blockedCatchingUp": "PMO is still reading the Odoo history. You can move to the Odoo ledger once it has caught up.",
+      "blockedNotChecked": "PMO has not compared its figures with Odoo yet. The first check runs after the history is read.",
+      "blockedStale": "The last comparison with Odoo is out of date. A new one runs after the next update.",
+      "refusedNotCaughtUp": "PMO is still reading the Odoo history.",
+      "refusedNotChecked": "The Odoo ledger has not been compared with Odoo yet.",
+      "refusedStale": "The last comparison is out of date. Wait for the next one.",
+      "refusedUnconfirmed": "A difference needs a written reason before you can move on.",
+      "title": "Odoo ledger",
+      "inUse": "In use",
+      "notInUse": "Not in use yet",
+      "inUseBody": "Actual cost and statements come from the Odoo ledger.",
+      "notInUseBody": "Budgets and statements still follow PMO’s own documents until an Admin moves to the Odoo ledger.",
+      "loadFailed": "The Odoo ledger status could not be read",
+      "differsAdmin": "PMO and Odoo differ on the accounts above. You can still move to the Odoo ledger by writing down why the difference is acceptable.",
+      "differsOther": "PMO and Odoo differ on the accounts above. An Admin can move to the Odoo ledger after explaining the difference.",
+      "askAdmin": "The figures match. An Admin can move to the Odoo ledger.",
+      "switchExplained": "Move to the Odoo ledger with a reason",
+      "switch": "Move to the Odoo ledger",
+      "confirmTitle": "Move to the Odoo ledger",
+      "confirmBody": "Every budget and statement of this organisation will show actual cost from the Odoo ledger, and PMO’s own documents stop counting as actual cost. PMO cannot move back; ask support if you need that.",
+      "reasonLabel": "Why is the difference acceptable?",
+      "reasonHelp": "Kept in the audit trail with your name.",
+      "confirmAction": "Move to the Odoo ledger"
     }
   },
   "budgetPaste": {

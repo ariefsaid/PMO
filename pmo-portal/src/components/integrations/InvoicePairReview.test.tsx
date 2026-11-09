@@ -10,8 +10,9 @@ const h = vi.hoisted(() => ({
   unpairInvoice: vi.fn(),
   listUnpairedNativeInvoices: vi.fn(),
   listAcceptedInvoicePairs: vi.fn(),
+  listOwn: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: h } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: h, externalDomainOwnership: { listOwn: h.listOwn } } }));
 
 import { InvoicePairReview } from './InvoicePairReview';
 
@@ -22,6 +23,7 @@ const proposal = (n: number, extra: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.listOwn.mockResolvedValue([{ domain: 'revenue', externalTier: 'erp' }]);
   h.proposeInvoicePairs.mockResolvedValue([proposal(1), proposal(2)]);
   h.listUnpairedNativeInvoices.mockResolvedValue([]);
   h.listAcceptedInvoicePairs.mockResolvedValue([]);
@@ -126,6 +128,53 @@ it('shows nothing, and reads nothing, for a role that cannot pair invoices', () 
   mount('Engineer');
   expect(screen.queryByText('PMO-1')).not.toBeInTheDocument();
   expect(h.proposeInvoicePairs).not.toHaveBeenCalled();
+});
+
+const paired9 = { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9' };
+const released = () => h.listOwn.mockResolvedValue([{ domain: 'procurement', externalTier: 'erp' }]);
+
+it('PERF-FIN-1 reads no proposals or unpaired invoices, and shows nothing, while no ERP owns revenue', async () => {
+  released();
+  mount();
+  await waitFor(() => expect(h.listAcceptedInvoicePairs).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 20));
+  expect(h.proposeInvoicePairs).not.toHaveBeenCalled();
+  expect(h.listUnpairedNativeInvoices).not.toHaveBeenCalled();
+  expect(screen.queryByText('PMO-1')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Count each once' })).not.toBeInTheDocument();
+});
+
+it('PERF-FIN-1 pairs accepted before the ERP released revenue still show their count and stay undoable', async () => {
+  released();
+  h.listAcceptedInvoicePairs.mockResolvedValue([paired9]);
+  mount();
+
+  fireEvent.click(await screen.findByText('1 invoice already counts once'));
+  fireEvent.click(screen.getByRole('button', { name: 'Undo PMO-9' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Undo' }));
+  await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n9'));
+  expect(h.proposeInvoicePairs).not.toHaveBeenCalled();
+});
+
+it('PERF-FIN-1 a failed ownership read still reads the proposals, as before', async () => {
+  h.listOwn.mockRejectedValue(new Error('ownership down'));
+  mount();
+  expect(await screen.findByText('PMO-1')).toBeInTheDocument();
+  expect(h.proposeInvoicePairs).toHaveBeenCalled();
+});
+
+it('PERF-FIN-1 proposals cached from an ERP era are not shown once ownership is released', async () => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  qc.setQueryData(['invoicePairs', 'propose', 'org-1'], [proposal(1)]);
+  released();
+  render(
+    <QueryClientProvider client={qc}>
+      <ImpersonationProvider realRole="Finance"><InvoicePairReview orgId='org-1' /></ImpersonationProvider>
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(h.listOwn).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 20));
+  expect(screen.queryByText('PMO-1')).not.toBeInTheDocument();
 });
 
 it('renders nothing when there is nothing to review', async () => {

@@ -50,10 +50,12 @@ import {
 } from '@/src/components/ui';
 import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { useBudgetPosition } from './project-detail/useProjectPosition';
+import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
-import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
+import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
+import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
+import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -148,6 +150,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const queryClient = useQueryClient();
   const usersQuery = useUsers();
   const erpBindingQuery = useErpnextBinding();
+  // #1507 S7 (FR-ODA-052): an Odoo-ledger project with no linked cost account shows no actual cost rather than a zero.
+  const odooActuals = useOdooProjectActuals(projectId);
   const currentUserId = currentUser?.id ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedForecast = searchParams.get('budgetView') === 'forecast';
@@ -482,7 +486,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     );
   }
 
-  const canSeeActuals = canReadMoney && position.canSeeActual;
+  const canSeeActuals = canReadMoney && position.canSeeActual && !odooActuals.unlinked;
   const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
   const summaryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
     lines: selectedVersion.line_items,
@@ -874,6 +878,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         {view === 'actual' ? (
           selectedVersion ? <>
             {!compatibleBasis && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.currencyBasisNotice', 'Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, projectCurrency: project.currency })}</p>}
+            <BudgetOdooActuals projectId={projectId} />
             <DataTable
               embedded
               rows={enrichedRows}
@@ -1027,7 +1032,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">
             <h2 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h2>
-            <p className="text-sm text-muted-foreground">{t('projectDetail.budget.ledgerRowsUnavailable', 'Transaction-level ledger records are unavailable in the project finance summary.')}</p>
+            <BudgetOdooCategoryLines projectId={projectId} category={selectedCategory.category} fallback={
+              <p className="text-sm text-muted-foreground">{t('projectDetail.budget.ledgerRowsUnavailable', 'Transaction-level ledger records are unavailable in the project finance summary.')}</p>
+            } />
           </section>
           <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
             <h2 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h2>

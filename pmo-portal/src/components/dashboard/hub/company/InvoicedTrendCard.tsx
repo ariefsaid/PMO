@@ -15,6 +15,6 @@ export interface InvoicedTrendCardProps {
 export const InvoicedTrendCard: React.FC<InvoicedTrendCardProps> = ({ trend, pending, error, onRetry }) => {
   const { t } = useTranslation('dashboard');
   if (error) return <ListState variant="error" title={t('trend.error', "Couldn't load the invoiced trend")} onRetry={onRetry} />;
-  if (pending) return <ListState variant="loading" rows={1} />;
+  if (pending) return <ListState variant="loading" rows={1} className="min-h-[168px]" />;
   return trend ? <InvoicedTrendTile trend={trend} /> : null;
 };

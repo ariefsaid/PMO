@@ -47,6 +47,16 @@ interface Entry {
   severity?: 'info';
 }
 
+/** Codes whose copy lives in the `project` locale (`projectDetail.budget.pushError.<code>`). The rest of this
+ *  module is still inline English: translating it is a follow-up. */
+export const TRANSLATED_PUSH_ERRORS: ReadonlySet<string> = new Set([
+  'budget-project-start-date-missing',
+  'budget-fiscal-year-unresolved',
+  'budget-fiscal-year-ambiguous',
+  'budget-multi-fiscal-year-unphased',
+  'outbox-finalize-refused',
+]);
+
 const CODES: Record<string, Entry> = {
   // ── budget push ──────────────────────────────────────────────────────────────────────────────
   'budget-category-unmapped': {
@@ -60,6 +70,35 @@ const CODES: Record<string, Entry> = {
     message: 'This budget spans more than one fiscal year, which ERPNext records as one budget per year.',
     retryable: false,
     remedy: 'Split the budget so each version covers a single fiscal year, then activate it again.',
+  },
+  // #1364 — refused before anything was written: the project's own dates decide the fiscal years, so the
+  // fix is on the project, and a retry cannot succeed until it is made.
+  'budget-project-start-date-missing': {
+    message: 'The project has no start date, so PMO cannot tell which fiscal year this budget belongs to.',
+    retryable: false,
+    remedy: 'Set the project start and end dates, then retry the push.',
+  },
+  'budget-fiscal-year-unresolved': {
+    message: 'No ERPNext fiscal year contains the project start or end date.',
+    retryable: false,
+    remedy: 'Add the missing fiscal year in ERPNext, or correct the project dates, then retry the push.',
+  },
+  'budget-fiscal-year-ambiguous': {
+    message: 'More than one ERPNext fiscal year contains the project start date, so PMO will not pick one.',
+    retryable: false,
+    remedy: 'Remove the overlap between the fiscal years in ERPNext, then retry the push.',
+  },
+  'budget-multi-fiscal-year-unphased': {
+    message: 'The project spans more than one fiscal year but some budget lines have no fiscal year.',
+    retryable: false,
+    remedy: 'Set a fiscal year on every budget line (or shorten the project dates to one year), then activate again.',
+  },
+  // #1364 — the ERP document exists but PMO's finalize step refused to record it, repeatedly. The refusals
+  // behind it are rules (a different Budget on the slot, a changed version), so a Retry meets the same one.
+  'outbox-finalize-refused': {
+    message: 'ERPNext accepted the budget, but PMO could not record its reference after several tries.',
+    retryable: false,
+    remedy: "Retrying repeats the same refusal. Ask an administrator to check the ERPNext connection and the budget's saved reference.",
   },
   'budget-draft-rival-on-grain': {
     message: 'ERPNext already holds an unsubmitted budget for this project and fiscal year.',
@@ -140,6 +179,27 @@ const CODES: Record<string, Entry> = {
     message: 'ERPNext understood the request and refused it.',
     retryable: true,
   },
+  // ── ERP master sends (#1504 S8): the reasons an Odoo create or lookup is refused, as the adapter raises them ──
+  validation: {
+    message: 'The ERP refused this record because something in it is not valid there.',
+    retryable: true,
+    remedy: 'Check the record\u2019s name, tax number and code, fix what is wrong, then try again.',
+  },
+  ambiguous: {
+    message: 'Two records in the ERP match this one, so nothing was sent.',
+    retryable: false,
+    remedy: 'Link the right ERP record by hand, or remove the duplicate there.',
+  },
+  'unit-unmapped': {
+    message: 'This item\u2019s unit has no match in the ERP yet, so it was not sent.',
+    retryable: false,
+    remedy: 'Match the unit in the ERP connection settings, then send the item again.',
+  },
+  'analytic-plan-unset': {
+    message: 'No cost account plan is chosen for projects yet, so this project was not sent.',
+    retryable: false,
+    remedy: 'Choose the plan in the ERP connection settings, then send the project again.',
+  },
   'config-rejected': {
     message: 'The ERPNext connection is not usable — it is inactive, or its version no longer matches.',
     retryable: false,
@@ -169,6 +229,37 @@ const CODES: Record<string, Entry> = {
     message: 'This push is held because the person recorded as its approver is no longer authorised to send it, and PMO will not send it again under anyone else.',
     retryable: false,
     remedy: 'Re-activate the approver, or have an administrator resolve the hold — retrying under the same recorded approver is refused.',
+  },
+  // ── purchase-order revise refusals (#1998) ───────────────────────────────────────────────────
+  revision_superseded: {
+    message: 'A newer revision already exists for this purchase order, so this revision cannot be pushed.',
+    retryable: false,
+    remedy: 'View the latest revision of the purchase order to send or review changes.',
+  },
+  'revision-superseded': {
+    message: 'A newer revision already exists for this purchase order, so this revision cannot be pushed.',
+    retryable: false,
+    remedy: 'View the latest revision of the purchase order to send or review changes.',
+  },
+  po_has_submitted_bill: {
+    message: 'This purchase order has a submitted supplier bill in the ERP, so it cannot be revised to cancel the order.',
+    retryable: false,
+    remedy: 'Cancel or credit the submitted bill in the ERP first before revising this purchase order.',
+  },
+  revision_not_issued: {
+    message: 'This purchase order revision has not been issued yet in PMO.',
+    retryable: false,
+    remedy: 'Issue the revision before pushing it to the ERP.',
+  },
+  po_not_found: {
+    message: 'The purchase order could not be found.',
+    retryable: false,
+    remedy: 'Check that the purchase order exists and has not been deleted.',
+  },
+  'below-received': {
+    message: 'Ordered quantity cannot be reduced below the quantity already received or billed.',
+    retryable: false,
+    remedy: 'Adjust the revision quantity to be at least the received or billed amount.',
   },
   // ⚑ round-12 SHOULD-FIX 2 (mirror half) — the attestation moves a `held` mirror to `failed` and leaves
   // this code. That row lands in the same "needs attention" queue, so it must classify rather than read
@@ -239,8 +330,15 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
     };
   }
 
-  const code = splitCode(classifiedInput);
-  const entry = CODES[code];
+  let code = splitCode(classifiedInput);
+  let entry = CODES[code];
+  if (!entry || code === 'commit-rejected' || code === 'adapter-held') {
+    const subMatch = classifiedInput.match(/\b(revision_superseded|revision-superseded|po_has_submitted_bill|revision_not_issued|po_not_found|below-received)\b/);
+    if (subMatch && CODES[subMatch[1]]) {
+      code = subMatch[1];
+      entry = CODES[code];
+    }
+  }
   if (entry) {
     return {
       code,

@@ -48,7 +48,7 @@ describe('document-preview AC-012 controlled documents', () => {
     expect(screen.getByText('Latest in SharePoint. This is not the approved version.')).toBeInTheDocument();
     expect(screen.getByText('Approved version 2.0')).toBeInTheDocument();
     expect(screen.getByText('File content differs from its issue-time baseline.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /View approved version history/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Check approved version/ })).toBeInTheDocument();
   });
 
   it('an Issued document gets the notice and drift state but no approved-version history', async () => {
@@ -56,14 +56,14 @@ describe('document-preview AC-012 controlled documents', () => {
     await open(owner({ status: 'Issued' }));
     await screen.findByTitle('Plan');
     expect(screen.getByText('Issued version 2.0')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /View approved version history/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Check approved version/ })).not.toBeInTheDocument();
   });
 
   it.each(['unsupported', 'unavailable', 'access_denied'] as const)('when the preview is %s the recovery stays and latest bytes are never relabelled as approved', async (kind) => {
     previewMicrosoftDocument.mockRejectedValue(new PreviewFailure(kind));
     await open(owner());
     await screen.findByRole('alert');
-    expect(screen.getByRole('button', { name: /View approved version history/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Check approved version/ })).toBeInTheDocument();
     expect(screen.getByText('Latest in SharePoint. This is not the approved version.')).toBeInTheDocument();
     expect(screen.getByText('Approved version 2.0')).toBeInTheDocument(); // the pin comes from the row, not recomputed
   });

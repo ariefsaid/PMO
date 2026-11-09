@@ -7,6 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useOverdueInvoiceFacts } from '@/src/hooks/useRevenue';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
@@ -16,16 +17,18 @@ import { awaitingApprovalKey, expenseClaimsAwaitingKey } from '@/src/hooks/appro
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { orderByCurrency } from './currencyOrder';
 import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
-import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { supplierUnpaid, withLinkedDocuments } from '@/pages/procurement/blocks/procurementMoney';
+import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';
@@ -83,13 +86,15 @@ type Translate = (key: string, defaultValue: string, options?: Record<string, un
 const counted = (t: Translate, key: string, singular: string, plural: string, count: number) =>
   t(key, count === 1 ? singular : plural, { count });
 
-const amountsText = (totals: CurrencyTotal[], t: Translate): string | undefined => {
+/** One joined amounts figure per known currency, in the shared dashboard currency order (issue 1973):
+ *  the facts read orders rows by id, so first-encountered order is load-dependent — sort it. */
+const amountsText = (totals: CurrencyTotal[], t: Translate, orgCurrency: string): string | undefined => {
   if (totals.length === 0) return undefined;
-  return totals.map(({ currency, amount }) => moneyFigure(amount, currency, t('needs.amountUnavailable', 'Amount unavailable'), { code: true }).value).join(' · ');
+  return orderByCurrency(totals, orgCurrency).map(({ currency, amount }) => moneyFigure(amount, currency, t('needs.amountUnavailable', 'Amount unavailable'), { code: true }).value).join(' · ');
 };
 
 /** Pure role adapter for the shared needs list; every zero count is intentionally omitted. */
-export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate): NeedsItem[] {
+export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate, orgCurrency: string, viewerId?: string | null): NeedsItem[] {
   const items: NeedsItem[] = [];
   const add = (item: NeedsItem | null) => { if (item && item.count > 0) items.push(item); };
   const approvalItem = (count: number | undefined): NeedsItem | null => count === undefined ? null : ({
@@ -123,12 +128,12 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       const unknown = overdue.unknownBalances > 0
         ? ` · ${t('needs.unknownBalanceDays', '{{count}} balance unknown; {{days}} days overdue', { count: overdue.unknownBalances, days: overdue.oldestDays ?? '—' })}`
         : '';
-      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t), href: '/finance/receivables?overdue=true', tone: 'lost' });
+      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
       label: [counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count), facts.supplierInvoices.unknownBalances > 0 ? t('needs.unknownBalanceCount', 'Unknown balances: {{count}}', { count: facts.supplierInvoices.unknownBalances }) : null].filter(Boolean).join(' · '),
-      amount: amountsText(facts.supplierInvoices.knownTotals, t), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
+      amount: amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });
     if (facts.readyToBill !== undefined) add({
       id: 'ready-to-bill', count: facts.readyToBill,
@@ -151,7 +156,8 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
         ? t('needs.pmAtLeast', 'At least {{count}}', { count: facts.projectsOverBudget })
         : undefined,
       label: counted(t, 'needs.pmOverBudget', 'project over 90% of budget', 'projects over 90% of budget', facts.projectsOverBudget),
-      href: '/projects?filter=My+Projects', tone: 'warn',
+      // #1461: the count is MY projects at risk, so the drill scopes the at-risk filter to me.
+      href: viewerId ? `/projects?filter=at-risk&pm=${encodeURIComponent(viewerId)}` : '/projects?filter=at-risk', tone: 'warn',
     });
     if (facts.projectsOverBudget === 0 && facts.projectsOverBudgetUnknown !== undefined) add({
       id: 'projects-risk-unchecked', count: facts.projectsOverBudgetUnknown,
@@ -182,12 +188,12 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (facts.engineerTasks !== undefined) add({
       id: 'engineer-tasks', count: facts.engineerTasks,
       label: counted(t, 'needs.engineerTasks', 'task overdue or due this week', 'tasks overdue or due this week', facts.engineerTasks),
-      href: '/my-tasks', tone: 'warn',
+      href: '/my-tasks?due=week', tone: 'warn',
     });
     if (facts.returnedExpenses !== undefined) add({
       id: 'returned-expenses', count: facts.returnedExpenses,
       label: counted(t, 'needs.returnedExpense', 'expense claim returned', 'expense claims returned', facts.returnedExpenses),
-      href: '/expenses', tone: 'lost',
+      href: '/expenses?status=Rejected', tone: 'lost',
     });
   }
 
@@ -206,26 +212,22 @@ function activeTask(status: string): boolean {
   return !['Done', 'Complete', 'Completed', 'Cancelled'].includes(status);
 }
 
-export function selectOverdueInvoices(rows: SalesInvoiceRow[] | undefined, organizationToday: string | null): OverdueInvoiceNeeds | undefined {
+export function selectOverdueInvoices(rows: OverdueInvoiceFact[] | undefined, organizationToday: string | null): OverdueInvoiceNeeds | undefined {
   if (!rows || !organizationToday) return undefined;
-  const overdue = rows.filter((invoice) => {
-    if (invoice.status !== 'Submitted' && invoice.status !== 'Unpaid') return false;
-    const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
-    const age = overdueAgeDays(dueDate, organizationToday);
-    return age !== null && age > 0;
-  });
+  // #1457: the overdue decision (and the age) is the one shared rule.
+  const overdueRows = rows
+    .map((invoice) => ({ invoice, days: clientInvoiceOverdueDays(invoice, organizationToday) }))
+    .filter((row): row is { invoice: OverdueInvoiceFact; days: number } => row.days !== null);
   const totals = new Map<string, number>();
   let unknownBalances = 0;
   let oldestDays: number | null = null;
-  for (const invoice of overdue) {
-    const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
-    const age = overdueAgeDays(dueDate, organizationToday);
-    if (age !== null) oldestDays = Math.max(oldestDays ?? 0, age);
+  for (const { invoice, days } of overdueRows) {
+    oldestDays = Math.max(oldestDays ?? 0, days);
     const amount = invoice.erp_outstanding_amount;
     if (amount === null || !Number.isFinite(amount)) unknownBalances += 1;
     else totals.set(invoice.currency, (totals.get(invoice.currency) ?? 0) + amount);
   }
-  return { count: overdue.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances, oldestDays };
+  return { count: overdueRows.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances, oldestDays };
 }
 
 export function selectSupplierInvoices(rows: ProcurementWithRefs[] | undefined): SupplierInvoiceNeeds | undefined {
@@ -265,6 +267,7 @@ export interface NeedsYouResult {
 }
 
 export function useNeedsYou(role: Role | null): NeedsYouResult {
+  const orgCurrency = useOrgCurrency();
   const { t } = useTranslation('dashboard');
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
@@ -281,11 +284,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: getExecutiveDashboard,
     enabled: Boolean(orgId && companyRole),
   });
-  const salesInvoiceQuery = useQuery({
-    queryKey: ['salesInvoices', orgId, 'all'],
-    queryFn: () => repositories.revenue.listInvoices(),
-    enabled: Boolean(orgId && companyRole),
-  });
+  const salesInvoiceQuery = useOverdueInvoiceFacts(Boolean(orgId && companyRole));
   const procurementsQuery = useProcurements({ lean: true, enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
   const workOrdersQuery = useUnbilledWorkOrders(Boolean(orgId && companyRole));
   const budgetReviewQuery = useQuery({
@@ -424,9 +423,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const engineerSourcesPending = timesheetsQuery.isPending;
   const engineerSourcesError = timesheetsQuery.isError;
   const translate = (key: string, fallback: string, options?: Record<string, unknown>) => t(key, { defaultValue: fallback, ...(options ?? {}) });
-  const items = buildNeedsItems(role, facts, translate);
+  const items = buildNeedsItems(role, facts, translate, orgCurrency, userId);
   const companyAreaItems = companyRole
-    ? [...buildNeedsItems('Executive', facts, translate), ...buildNeedsItems('Finance', facts, translate)]
+    ? [...buildNeedsItems('Executive', facts, translate, orgCurrency, userId), ...buildNeedsItems('Finance', facts, translate, orgCurrency, userId)]
       .filter((item) => ['at-risk', 'procurement-approvals', 'overdue-invoices', 'supplier-invoices', 'budgets-over', 'ready-to-bill'].includes(item.id))
     : [];
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];

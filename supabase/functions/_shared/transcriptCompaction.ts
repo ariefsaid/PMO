@@ -65,7 +65,9 @@ export function estimateTranscriptChars(messages: ModelMessage[]): number {
  */
 function toolRowCount(content: string): number | undefined {
   try {
-    const p = JSON.parse(content) as { rowCount?: unknown; rows?: unknown };
+    const parsed = JSON.parse(content) as { rowCount?: unknown; rows?: unknown; untrusted_record_data?: unknown; result?: unknown };
+    // Read results arrive inside the untrusted-data envelope; count rows on the inner result.
+    const p = (parsed?.untrusted_record_data ? parsed.result : parsed) as { rowCount?: unknown; rows?: unknown } | null;
     if (p && typeof p === 'object') {
       if (typeof p.rowCount === 'number') return p.rowCount;
       if (Array.isArray(p.rows)) return p.rows.length;

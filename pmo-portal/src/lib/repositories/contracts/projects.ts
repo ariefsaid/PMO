@@ -2,6 +2,7 @@
 import type {
   ProjectRow,
   ProjectWithRefs,
+  ProjectPickerOption,
   CreateProjectInput,
   ProjectHeaderInput,
   SetProjectContractValueInput,
@@ -17,6 +18,7 @@ export interface ProjectRepository {
   listByClient(clientId: string): Promise<ProjectWithRefs[]>;
   getWithRefs(id: string): Promise<ProjectWithRefs | null>;
   listPipelineStageConfig(): Promise<PipelineStageConfig[]>;
+  listPickerOptions(): Promise<ProjectPickerOption[]>;
   listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
   listNumbers(ids: readonly string[]): Promise<Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>>;
   get(id: string): Promise<OpportunityRow | null>;

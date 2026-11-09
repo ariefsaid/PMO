@@ -104,7 +104,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => procurementsState }));
-vi.mock('./project-detail/useProjectPosition', () => ({ useBudgetPosition: () => positionState }));
+vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => positionState }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isPending: false }) }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
@@ -144,8 +144,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import ProjectBudget from './ProjectBudget';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
-import { financeTestI18n } from './__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };

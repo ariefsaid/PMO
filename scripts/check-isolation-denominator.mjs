@@ -190,7 +190,7 @@ export function validateDenominator(parsed) {
     if (!r || !/^[a-z_][a-z0-9_]*$/.test(r.name) || rpcNames.has(r.name)) throw new Error('invalid denominator: duplicate or invalid RPC name');
     rpcNames.add(r.name);
     if (!['inert', 'write', 'read'].includes(r.class)) throw new Error(`invalid denominator: RPC ${r.name} class is required`);
-    if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== 500))) {
+    if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![400, 403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== (e.sqlstate === 'P0001' ? 400 : 500)))) {
       throw new Error(`invalid denominator: RPC ${r.name} expect_denial must declare SQLSTATE/HTTP pairs (never 401)`);
     }
     if (r.shape != null && !['empty-array', 'false', 'boolean', 'must-deny', 'null'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);

@@ -1,7 +1,7 @@
 /** Revenue (sales invoices / incoming payments) repository contract. */
 import type { CommandIntent } from './commandIntent';
 import type {
-  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow,
+  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow, OverdueInvoiceFact, PaidPaymentFact,
   InvoicePairProposal, UnpairedNativeInvoice, AcceptedInvoicePair,
 } from '@/src/lib/db/revenue';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
@@ -45,10 +45,22 @@ export interface RevenueRepository {
   downloadInvoicePdf(siId: string): Promise<Blob>;
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
+  /** #1415: apply a PMO receipt across one or more invoices (org without an ERP). `requestId` makes a retry a replay. */
+  applyReceipt(input: { receiptId: string; allocations: Array<{ invoiceId: string; amount: number }>; requestId: string }): Promise<string[]>;
+  /** #1415: reverse one allocation of a PMO receipt (the invoice is restated). */
+  unapplyAllocation(allocationId: string): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
   listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
   /** Count overdue open client invoices from a narrow projection for the navigation rail. */
   countOverdueInvoices(today: string): Promise<number>;
+  /** Dashboard: open client invoices, only the columns the overdue tile reads. */
+  listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]>;
+  /** Dashboard: Paid receipts, only the columns the collected figure reads. */
+  listPaidPaymentFacts(): Promise<PaidPaymentFact[]>;
+  /** Dashboard empty-state evidence: whether the org holds ANY client invoice, any status. */
+  hasAnySalesInvoice(): Promise<boolean>;
+  /** Dashboard empty-state evidence: whether the org holds ANY incoming payment, any status. */
+  hasAnyIncomingPayment(): Promise<boolean>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */
