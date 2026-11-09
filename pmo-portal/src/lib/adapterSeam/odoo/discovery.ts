@@ -53,6 +53,19 @@ export const ASSET_MODELS: Record<string, readonly string[]> = {
 /** A send declared supported needs `create` on its model; without it the connection is degraded with the reason. */
 const SEND_MODELS = { 'party.send': 'res.partner', 'project.send': 'account.analytic.account', 'item.send': 'product.product' } as const;
 
+/**
+ * The labour models (labour/bodies.ts, labour/anchors.ts, V-OLH-1..13) plus the anchor model. Probed apart from O1_MODELS
+ * so an Odoo without `hr_timesheet` is recorded as absent, never degraded (FR-OLH-001): a timesheet-less Odoo must not
+ * degrade an org's connection. Keep the first key `hr.employee`: `labourCapabilityGap` walks this order and fails closed on it.
+ */
+export const LABOUR_MODELS: Record<string, readonly string[]> = {
+  'hr.employee': ['name', 'work_email', 'active', 'write_date'],
+  'account.analytic.line': ['name', 'date', 'unit_amount', 'amount', 'project_id', 'employee_id', 'account_id', 'company_id', 'write_date'],
+  'account.move': ['name', 'move_type', 'state', 'journal_id', 'date', 'write_date'],
+  'account.move.line': ['account_id', 'debit', 'credit', 'analytic_distribution', 'move_id', 'display_type', 'write_date'],
+  'ir.model.data': ['module', 'name', 'model', 'res_id'],
+};
+
 const OPERATIONS = ['read', 'create', 'write', 'unlink'] as const;
 
 export interface ModelProbe { exists: boolean; read: boolean; create: boolean; write: boolean; unlink: boolean; fields_missing: string[] }
@@ -65,6 +78,8 @@ export interface CapabilitySnapshot {
   later: Record<string, boolean>;
   /** The fleet and maintenance models; absent on a snapshot taken before #1511. Never part of `missing`. */
   assets?: Record<string, ModelProbe>;
+  /** The labour models (#1510); absent on a snapshot taken before it. Recorded, never part of `missing`. */
+  labour?: Record<string, ModelProbe>;
   missing: string[];
 }
 
@@ -104,6 +119,8 @@ export async function discoverCapabilities(
   }
   const assets: Record<string, ModelProbe> = {};
   for (const [model, fields] of Object.entries(ASSET_MODELS)) assets[model] = await probeModel(call, model, fields, true);
+  const labour: Record<string, ModelProbe> = {};
+  for (const [model, fields] of Object.entries(LABOUR_MODELS)) labour[model] = await probeModel(call, model, fields, true);
 
   const missing = Object.entries(models).flatMap(([m, p]) => (!p.exists ? [m] : !p.read ? [`${m}:read`] : p.fields_missing.map((f) => `${m}:${f}`)));
   for (const [workflow, model] of Object.entries(SEND_MODELS)) {
@@ -119,5 +136,5 @@ export async function discoverCapabilities(
     ? (await call<{ id: number; name: string }[]>('res.company', 'search_read', { domain: [], fields: ['id', 'name'] })).map(({ id, name }) => ({ id, name }))
     : [];
   const v = versionPolicy(ctx.versionMajor, true);
-  return { observed_at: ctx.now.toISOString(), version_major: ctx.versionMajor, untested_version: v.ok && v.untested, companies, models, later, assets, missing };
+  return { observed_at: ctx.now.toISOString(), version_major: ctx.versionMajor, untested_version: v.ok && v.untested, companies, models, later, assets, labour, missing };
 }

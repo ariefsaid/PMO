@@ -27,13 +27,15 @@ const FIELDS: Record<string, string[]> = {
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
   'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
-  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
+  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'journal_id', 'date', 'invoice_line_ids', 'line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
-  'account.analytic.line': ['name', 'write_date'],
+  'account.analytic.line': ['name', 'date', 'unit_amount', 'amount', 'project_id', 'employee_id', 'account_id', 'company_id', 'write_date'],
+  // Labour (#1510; bed claims V-OLH-1..13). The employee's rate is a field a user may write; PMO never sends it.
+  'hr.employee': ['name', 'work_email', 'active', 'hourly_cost', 'write_date'],
   // Fleet and maintenance (#1511; bed claims V-OFM-1..8). A maintenance request has no `active`: Odoo archives it with `archive`.
   'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
   'fleet.vehicle.model': ['name', 'brand_id', 'write_date'],
@@ -123,6 +125,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   let stepFault: 'after-create' | 'after-post' | 'after-reconcile' | null = null;
   let invoiceSeq = 0;
   let paymentSeq = 0;
+  let entrySeq = 0;
   const calls: FakeOdoo['calls'] = [];
   const fields = Object.fromEntries(Object.entries(FIELDS).map(([m, f]) => [m, [...f]]));
   const denied = new Set<string>();
@@ -307,8 +310,58 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     Object.assign(table('account.move').get(id)!, { amount_untaxed: units(t.untaxed), amount_tax: units(t.tax), amount_total: units(t.total), amount_residual: units(t.total) });
     return id;
   };
-  const postInvoice = (row: Row) => {
+  /**
+   * A journal entry the way the labour cost posting creates one (V-OLH-7): `account.move/create {move_type:'entry',
+   * journal_id, date, line_ids}` with tuple commands. Its lines exist from the create, in draft, as in Odoo.
+   */
+  const createEntryMove = (vals: Record<string, unknown>) => {
+    const id = newId('account.move');
+    const { line_ids: tuples, ...rest } = vals;
+    const stamp = fmt(++clock);
+    table('account.move').set(id, { active: true, state: 'draft', name: '/', ...rest, id, create_date: stamp, write_date: stamp });
+    const lineIds = ((tuples as unknown[][] | undefined) ?? []).map((tuple) => {
+      const v = (tuple[2] ?? {}) as Record<string, unknown>;
+      const debit = Number(v.debit ?? 0), credit = Number(v.credit ?? 0);
+      const lineId = newId('account.move.line');
+      table('account.move.line').set(lineId, {
+        id: lineId, move_id: id, display_type: 'product', name: v.name ?? false, account_id: v.account_id ?? false,
+        debit, credit, balance: debit - credit, analytic_distribution: v.analytic_distribution ?? false,
+        move_name: '/', parent_state: 'draft', date: rest.date ?? false, journal_id: rest.journal_id ?? false,
+        company_id: rest.company_id ?? false, write_date: stamp,
+      });
+      return lineId;
+    });
+    table('account.move').get(id)!.line_ids = lineIds;
+    return id;
+  };
+  /**
+   * `action_post {ids}` on an entry (V-OLH-7): the move goes `posted`, and each debit line's `analytic_distribution`
+   * generates one `account.analytic.line` per split at that share of the debit — the GL and the analytic ledger meeting.
+   */
+  const postEntryMove = (row: Row) => {
     if (row.state !== 'draft') throw userError('The entry must be in draft state to be posted.');
+    const stamp = fmt(++clock);
+    const name = `MISC/2026/${String(++entrySeq).padStart(5, '0')}`;
+    Object.assign(row, { state: 'posted', name, write_date: stamp });
+    for (const lineId of ((row.line_ids as number[] | undefined) ?? [])) {
+      const line = table('account.move.line').get(lineId);
+      if (!line) continue;
+      Object.assign(line, { move_name: name, parent_state: 'posted', write_date: stamp });
+      const dist = line.analytic_distribution;
+      if (!dist || typeof dist !== 'object' || Array.isArray(dist)) continue;
+      for (const [accountId, share] of Object.entries(dist as Record<string, unknown>)) {
+        if (typeof share !== 'number' || !Number.isFinite(share)) continue;
+        const id = newId('account.analytic.line');
+        const debitCents = Math.round(Number(line.debit ?? 0) * 100);
+        table('account.analytic.line').set(id, {
+          id, name: line.name ?? false, account_id: Number(accountId), project_id: false, employee_id: false,
+          date: row.date ?? false, unit_amount: 0, amount: Math.round(debitCents * share / 100) / 100,
+          company_id: row.company_id ?? false, write_date: stamp,
+        });
+      }
+    }
+  };
+  const postInvoice = (row: Row) => {    if (row.state !== 'draft') throw userError('The entry must be in draft state to be posted.');
     if (!row.partner_id) throw userError('The field Customer is required.');
     const t = totals(row.id);
     if (t.total < 0) throw userError('An invoice with a negative total cannot be posted.');
@@ -375,6 +428,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(shaped(m, r), b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
       if (m === 'account.move' && (vals.move_type === 'out_invoice' || vals.move_type === 'out_refund')) return createInvoice(vals);
+      if (m === 'account.move' && vals.move_type === 'entry') return createEntryMove(vals);
+      // V-OLH-1: Odoo refuses a timesheet line with no employee ("Timesheets must be created with an active employee").
+      if (m === 'account.analytic.line' && !vals.employee_id) throw rejected('Timesheets must be created with an active employee');
       if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       if (m === 'account.payment' && isModelledPayment(vals)) return createPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       if (m === 'account.payment.register') {
@@ -398,6 +454,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const r = table(m).get(id);
         if (!r) continue;
+        // V-OLH-9: a posted journal entry refuses a write, so a correction must be a new entry (D7).
+        if (m === 'account.move' && r.state === 'posted') throw userError('You cannot modify a posted entry.');
         const { order_line: lines, ...rest } = b.vals as Record<string, unknown>;
         table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : (b.vals as object)), id, write_date: fmt(++clock) });
         if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);
@@ -455,6 +513,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const row = table(m).get(id);
         if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
+        else if (m === 'account.move' && row?.move_type === 'entry') postEntryMove(row);
         else if (m === 'account.move' && isCustomerMove(row)) postInvoice(row!);
         else if (m === 'account.payment' && row?.payment_type === 'inbound' && row.partner_type === 'customer') postInboundPayment(row);
         else if (m === 'account.payment' && row && 'move_id' in row) postPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, row);

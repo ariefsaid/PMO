@@ -109,6 +109,88 @@ describe('fakeOdoo', () => {
       },
     ]);
   });
+  describe('labour models (bed claims V-OLH-1, -4, -5, -7, -9, -11)', () => {
+    const ENTRY = {
+      move_type: 'entry', journal_id: 9, date: '2026-10-31', ref: 'PMO labour 2026-10', company_id: 1,
+      line_ids: [
+        [0, 0, { account_id: 41, name: 'Labour · P-1', debit: '1000000.00', credit: '0.00', analytic_distribution: { '77': 100 } }],
+        [0, 0, { account_id: 42, name: 'Payroll payable', debit: '0.00', credit: '1000000.00' }],
+      ],
+    };
+    const withEmployee = (extra: Record<string, unknown> = {}) => ({ vals_list: [{ project_id: 7, employee_id: 3, date: '2026-11-02', unit_amount: 4, name: 'TS 2026-W45 · 2026-11-02', company_id: 1, ...extra }] });
+
+    it('AC-OLH-020 answers fields_get and has_access for every labour model', async () => {
+      const { call } = setup();
+      for (const model of ['hr.employee', 'account.analytic.line', 'account.move', 'account.move.line']) {
+        expect(Object.keys(await call<Record<string, unknown>>(model, 'fields_get', {})), model).toContain('write_date');
+        expect(await call(model, 'has_access', { operation: 'create' }), model).toBe(true);
+      }
+      const lineFields = Object.keys(await call<Record<string, unknown>>('account.analytic.line', 'fields_get', {}));
+      for (const field of ['date', 'unit_amount', 'amount', 'project_id', 'employee_id', 'account_id', 'company_id']) expect(lineFields, field).toContain(field);
+    });
+
+    it('V-OLH-1 an analytic line without an employee is refused the way the bed refuses it, and one with an employee is created', async () => {
+      const { fake, call } = setup();
+      fake.seed('hr.employee', [{ id: 3, name: 'Example One', work_email: 'one@example.com', active: true, write_date: '2026-11-01 00:00:00' }]);
+      const { vals_list } = withEmployee();
+      const { employee_id: _omit, ...withoutEmployee } = vals_list[0];
+      await expect(call('account.analytic.line', 'create', { vals_list: [withoutEmployee] })).rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('account.analytic.line')).toEqual([]);
+      const [id] = await call<number[]>('account.analytic.line', 'create', withEmployee());
+      expect(fake.rows('account.analytic.line')).toMatchObject([{ id, employee_id: 3, unit_amount: 4 }]);
+    });
+
+    it('V-OLH-4/-5 a create with amount stores it verbatim, and a later employee-rate write changes nothing', async () => {
+      const { fake, call } = setup();
+      fake.seed('hr.employee', [{ id: 3, name: 'Example One', active: true }]);
+      await call('account.analytic.line', 'create', withEmployee({ amount: 0 }));
+      expect(fake.rows('account.analytic.line')[0].amount).toBe(0);
+      const before = fake.rows('hr.employee')[0].write_date as string;
+      await call('hr.employee', 'write', { ids: [3], vals: { hourly_cost: 250000 } });
+      expect(fake.rows('account.analytic.line')[0].amount).toBe(0);
+      expect((fake.rows('hr.employee')[0].write_date as string) > before).toBe(true);
+    });
+
+    it('V-OLH-7 posting an entry posts it and generates one analytic line per distribution split, at the debit', async () => {
+      const { fake, call } = setup();
+      const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [ENTRY] });
+      expect(fake.rows('account.move')[0]).toMatchObject({ state: 'draft', move_type: 'entry', journal_id: 9 });
+      await call('account.move', 'action_post', { ids: [moveId] });
+      const move = fake.rows('account.move')[0];
+      expect(move.state).toBe('posted');
+      expect(move.name).not.toBe('/');
+      expect(fake.rows('account.move.line')).toMatchObject([
+        { move_id: moveId, account_id: 41, debit: 1000000, credit: 0, parent_state: 'posted' },
+        { move_id: moveId, account_id: 42, debit: 0, credit: 1000000, parent_state: 'posted' },
+      ]);
+      expect(fake.rows('account.analytic.line')).toMatchObject([{ account_id: 77, amount: 1000000, date: '2026-10-31' }]);
+    });
+
+    it('V-OLH-8 a distribution split across two analytic accounts generates one analytic line per split share', async () => {
+      const { fake, call } = setup();
+      const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [{ ...ENTRY, line_ids: [[0, 0, { account_id: 41, name: 'Labour · P-1', debit: '1000000.00', credit: '0.00', analytic_distribution: { '77': 60, '78': 40 } }], [0, 0, { account_id: 42, name: 'Payroll payable', debit: '0.00', credit: '1000000.00' }]] }] });
+      await call('account.move', 'action_post', { ids: [moveId] });
+      expect(fake.rows('account.analytic.line')).toMatchObject([{ account_id: 77, amount: 600000 }, { account_id: 78, amount: 400000 }]);
+    });
+
+    it('V-OLH-9 a posted journal entry refuses a write', async () => {
+      const { fake, call } = setup();
+      const [moveId] = await call<number[]>('account.move', 'create', { vals_list: [ENTRY] });
+      await call('account.move', 'action_post', { ids: [moveId] });
+      await expect(call('account.move', 'write', { ids: [moveId], vals: { ref: 'again' } })).rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('account.move')[0].ref).toBe('PMO labour 2026-10');
+    });
+
+    it('V-OLH-11 deleting an analytic line removes it and leaves no tombstone anywhere', async () => {
+      const { fake, call } = setup();
+      fake.seed('hr.employee', [{ id: 3, name: 'Example One', active: true }]);
+      const [id] = await call<number[]>('account.analytic.line', 'create', withEmployee());
+      await call('account.analytic.line', 'unlink', { ids: [id] });
+      expect(fake.rows('account.analytic.line')).toEqual([]);
+      expect(fake.rows('ir.model.data')).toEqual([]);
+    });
+  });
+
   describe('fleet and maintenance models (bed claims V-OFM-1, -5, -6)', () => {
     it('AC-OFM-010 answers fields_get for the seven asset models and has_access for them', async () => {
       const { call } = setup();

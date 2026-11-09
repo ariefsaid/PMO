@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bindCall, OdooError } from './client.ts';
 import { createFakeOdoo } from './fakeOdoo.ts';
-import { ASSET_MODELS, discoverCapabilities, LATER_MODELS, O1_MODELS, versionPolicy } from './discovery.ts';
+import { ASSET_MODELS, discoverCapabilities, LABOUR_MODELS, LATER_MODELS, O1_MODELS, versionPolicy } from './discovery.ts';
 
 describe('odoo/discovery — AC-ODC-012 version policy', () => {
   it.each([
@@ -40,6 +40,23 @@ describe('odoo/discovery — AC-ODC-011 capability snapshot', () => {
     expect(snap).toMatchObject({ observed_at: NOW.toISOString(), version_major: 20, untested_version: false, companies: [{ id: 1, name: 'Main Co' }] });
     expect(fake.calls.some((c) => c.model === 'ir.module.module')).toBe(false);
     expect(Object.keys(snap.assets ?? {}).sort()).toEqual(Object.keys(ASSET_MODELS).sort());
+    expect(Object.keys(snap.labour ?? {}).sort()).toEqual(Object.keys(LABOUR_MODELS).sort());
+  });
+
+  it('AC-OLH-001 the labour models are probed with access and recorded under labour', async () => {
+    const { discover } = stockFake();
+    const snap = await discover();
+    expect(Object.keys(snap.labour ?? {}).sort()).toEqual(Object.keys(LABOUR_MODELS).sort());
+    for (const p of Object.values(snap.labour ?? {})) expect(p).toMatchObject({ exists: true, read: true, fields_missing: [] });
+  });
+
+  it('AC-OLH-001 an Odoo without hr_timesheet records the labour models absent and adds nothing to missing', async () => {
+    const { fake, discover } = stockFake();
+    const full = await discover();
+    fake.dropModel('account.analytic.line');
+    const snap = await discover();
+    expect(snap.labour?.['account.analytic.line']).toMatchObject({ exists: false, read: false });
+    expect(snap.missing).toEqual(full.missing);
   });
 
   it('AC-OFM-001 the asset models are probed with access and recorded under assets', async () => {
