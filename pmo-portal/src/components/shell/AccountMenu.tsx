@@ -89,7 +89,7 @@ export const AccountMenu: React.FC = () => {
           <Menu.Positioner side="bottom" align="end" sideOffset={8} collisionPadding={12} className="z-50">
             <Menu.Popup
               aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
-              className={cn(menuPopupClass, 'w-[min(320px,calc(100vw/var(--app-zoom)-24px))]')}
+              className={cn(menuPopupClass, 'w-[min(320px,calc(100vw/var(--app-zoom)_-_24px))] max-h-[calc(100dvh/var(--app-zoom)_-_var(--header-h)_-_16px)]')}
               style={menuPopupOrigin}
             >
               {/* Signed-in identity header */}
