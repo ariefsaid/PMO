@@ -391,7 +391,7 @@ describe('AC-IXD-PROC-W5-C3-D17: receipt / vendor-invoice recording stays quiet,
     detailState.data = { ...orderedFixture };
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record another document' }));
-    const item = headerActions().getByRole('menuitem', { name: 'Receipt' });
+    const item = screen.getByRole('menuitem', { name: 'Receipt' });
     expect(item.className).not.toContain('bg-primary');
     expect(item.className).not.toContain('bg-success');
     expect(item.className).not.toContain('bg-destructive');
@@ -414,7 +414,7 @@ describe('AC-IXD-PROC-W5-C3-D17: receipt / vendor-invoice recording stays quiet,
     detailState.data = { ...vendorInvoicedFixture };
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record another document' }));
-    const item = headerActions().getByRole('menuitem', { name: 'Supplier invoice' });
+    const item = screen.getByRole('menuitem', { name: 'Supplier invoice' });
     expect(item.className).not.toContain('bg-primary');
   });
 
@@ -441,7 +441,7 @@ describe('AC-IXD-PROC-W5-C3-D17: receipt / vendor-invoice recording stays quiet,
     detailState.data = { ...vendorInvoicedFixture, invoices: [] };
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record another document' }));
-    expect(headerActions().getByRole('menuitem', { name: 'Supplier invoice' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Supplier invoice' })).toBeInTheDocument();
   });
 
   it('D17-11: the receipt record action disappears at Paid (stage-passed)', () => {
@@ -487,8 +487,8 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing action-area behaviors uncha
   it('non-regression: Reject is never a loud destructive fill (a quiet menu item)', async () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const header = await openMoreActions();
-    const rejectItem = header.getByRole('menuitem', { name: /^reject$/i });
+    await openMoreActions();
+    const rejectItem = screen.getByRole('menuitem', { name: /^reject$/i });
     expect(rejectItem.className).not.toContain('bg-destructive');
     expect(rejectItem.className).not.toContain('bg-primary');
   });

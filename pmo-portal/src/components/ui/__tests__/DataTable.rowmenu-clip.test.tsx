@@ -18,7 +18,7 @@
  * Owning layer: Unit/RTL (the render-clip itself is verified by design-reviewer).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 
@@ -152,9 +152,9 @@ describe('DataTable RowMenu — clip escape + a11y (AC-W6-IXD-MENU)', () => {
     await userEvent.keyboard('{ArrowDown}');
     expect(items[2]).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}'); // wrap to first
-    expect(items[0]).toHaveFocus();
+    await waitFor(() => expect(items[0]).toHaveFocus()); // Base UI moves focus next frame
     await userEvent.keyboard('{ArrowUp}'); // wrap to last
-    expect(items[2]).toHaveFocus();
+    await waitFor(() => expect(items[2]).toHaveFocus());
   });
 
   it('AC-W6-IXD-MENU: Home/End jump to first/last menuitem', async () => {

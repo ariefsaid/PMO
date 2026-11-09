@@ -447,7 +447,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-page font-bold tracking-[-0.02em]">{t('projectDetail.tasks.heading', 'Tasks')}</h2>
           <div className="flex items-center gap-2">
-            <Menu.Root>
+            <Menu.Root modal={false}>
               <Menu.Trigger
                 render={<Button variant="outline" size="sm" />}
                 aria-label={t('projectDetail.tasks.moreOptions', 'More task options')}
