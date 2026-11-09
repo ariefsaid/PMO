@@ -51,7 +51,7 @@ async function runCheck(commit: (docId: string) => Response) {
     let out: { status: number; body: { checked: number; uncommitted?: number } } | null = null;
     await withFetchMock([
       supabaseRpc("m365_membership_state", () => jsonResponse({ state: "active", org_id: "synthetic-org", role: "Finance" })),
-      supabaseSelect("org_features", () => jsonResponse({ enabled: true }, { headers: { "content-type": "application/vnd.pgrst.object+json" } })),
+      supabaseRpc("service_feature_enabled", () => jsonResponse(true)),
       supabaseRpc("m365_claim_document_checks", () => jsonResponse([claimed(DOC_A, "a"), claimed(DOC_B, "b")])),
       supabaseSelect("ms_graph_connections", () => jsonResponse(connection, { headers: { "content-type": "application/vnd.pgrst.object+json" } })),
       { label: "graph-batch", host: "graph.microsoft.com", pathname: "/v1.0/$batch", method: "POST", response: () => jsonResponse({ responses: [item("a"), item("b")] }) },

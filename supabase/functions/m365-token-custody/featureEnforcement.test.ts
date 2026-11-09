@@ -27,8 +27,9 @@ async function withMicrosoftEnv<T>(fn: () => Promise<T>): Promise<T> {
 Deno.test("FR-PLN-006 m365_integration off refuses new consent links before writing PKCE state", async () => {
   await withMicrosoftEnv(() => run(newWorld({ featureEnabled: false }), async ({ call, calls }) => {
     const response = await call({ action: "initiate_connect" });
-    assertEquals(response.status, 409);
-    assertEquals((await response.json()).error, "feature_off");
+    // The member gate reads the same resolved switch, so a switched-off module is refused there (#1017).
+    assertEquals(response.status, 403);
+    assertEquals((await response.json()).error, "NOT_ENTITLED");
     assertEquals(calls.some((call) => call.url.pathname === "/rest/v1/m365_pkce_states"), false);
   }));
 });

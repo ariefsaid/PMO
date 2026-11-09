@@ -11,7 +11,8 @@ export type PerOrgSecretResult =
   | { kind: 'no-binding' }
   | { kind: 'resolved'; secret: string }
   | { kind: 'binding-vault-miss' }
-  /** A binding or vault read FAILED (threw) — unknown, not absent. Callers must fail closed. */
+  /** The STORE ERRORED (binding or vault read threw) — unknown, not absent (#654). Callers must fail closed and
+   *  never treat it as "no secret": seams throw on a store error instead of returning null. */
   | { kind: 'read-failed' };
 
 export interface PerOrgSecretDeps {
