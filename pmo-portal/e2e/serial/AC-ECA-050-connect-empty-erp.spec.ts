@@ -1,41 +1,54 @@
-// @e2e-isolation: serial — connects a disposable org's ERP binding; uses a disposable empty ERPNext company.
+// @e2e-isolation: serial — activates a disposable org's ERP binding; uses a disposable empty ERPNext company.
 /**
- * AC-ECA-050 — S-C: a live PMO org connects to a brand-new, empty ERPNext company.
+ * AC-ECA-050 — S-C: a live PMO org that holds history, on a brand-new empty ERPNext company.
  *
  * Given an Admin whose org already holds history (3 vendors, 2 projects, a purchase ordered BEFORE the connection, a
  * purchase awaiting approval, 4 distinct line items) and an empty ERPNext company,
  * When the Admin opens Integrations > Match records, reads the census, accepts all, waits for the sends to finish, and then
  * approves and orders one NEW purchase on a sent vendor and project using a sent item,
  * Then the ERP holds a Purchase Order for that purchase naming the sent supplier, project and item; the purchase ordered
- * before the connection says "Recorded before the ERP connection, not sent" and has no ERP Purchase Receipt; and PMO created
- * no ERP Account.
+ * before the connection says "Recorded before the ERP connection, not sent" and the ERP holds no Purchase Order and no
+ * Purchase Receipt naming it in ANY company; and PMO created no ERP Account.
+ *
+ * ⚑ THE CONNECT ACTION ITSELF IS NOT DRIVEN BY THIS JOURNEY — the fixture activates the binding. "Connect" is only
+ * reachable over HTTPS to a host that resolves public (`supabase/functions/external-connect/index.ts`,
+ * `validateErpNextCredentials`), and this bed is plain http on a private host, so the served action cannot be exercised
+ * against it without inventing a TLS front. Connect for an org WITH HISTORY is proven at the handler layer:
+ * `supabase/functions/external-connect/connect.test.ts` → "external-connect — ERPNext branch" (an Admin with valid
+ * credentials gets exactly the Vault write and an active binding, no ownership RPC) and "ERPNext refusal audit" (a
+ * refusal writes one audit row, never the key), plus the revenue employ refusal it can hit (FR-ECA-031) in
+ * `supabase/tests/0275_native_revenue_crossing.test.sql`. No bed journey covers the end-to-end admin connect: that is
+ * the remaining ECA-8 gap this header records, and the reason the title says "on a connected org", not "connects".
+ *
+ * ⚑ DEPENDS ON `fix/erp-po-company` (aa93d4e17, merged into this branch). Without it, "Record order" reaches the ERP
+ * before the order can land: the money bodies for a Purchase Order arrived without the binding's company, so ERPNext
+ * filed the document under the integration user's own default company, where the Project this journey sent does not
+ * belong ("Project ... does not belong to the Company ..."). The fix states the connected company on the PO, invoice and
+ * receipt bodies. Everything up to that call is proven here either way (census, accept all, vendor/project/item sends,
+ * the sweep ticking); do not soften the assertion below to get past a regression in it.
  *
  * Real boundaries only (served functions, real Postgres, real bench). Gated on the DEPENDENCY, never on process.env.CI.
  * Run: scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-ECA-050
- *
- * ⚑ BLOCKED ON A PRODUCT FIX (not on this spec): "Record order" reaches the ERP before the order can land. The money bodies
- * for a Purchase Order carry supplier, project and items but not the binding's company, so ERPNext files the document under the
- * integration user's own default company; the Project this journey sent belongs to the connected company, and ERPNext refuses the
- * document ("Project ... does not belong to the Company ..."). Everything up to that call is proven here (census, accept all,
- * vendor/project/item sends, the sweep ticking); the journey passes once a Purchase Order sent from PMO names the connected
- * company. Do not soften this assertion to work around it.
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import {
   AUTH_URL, SERVICE_KEY, benchPartyCount, FUNCTIONS_URL, READY, activateBinding, benchCount, benchDoc, benchList,
-  createBenchCompany, createOrg, dropOrg, loginAs, openMatchRecords, orgSendState, untilWithSweep,
+  createBenchCompany, createOrg, dropBenchRun, dropOrg, loginAs, openMatchRecords, orgSendState, untilWithSweep,
 } from './_ecaHelpers';
 import { runFullSweep } from './_sweepHelpers';
+
+type Json = Record<string, unknown>;
 
 if (FUNCTIONS_URL && !READY) throw new Error('AC-ECA-050: the served lane is up but its disposable ERP fixture env is incomplete: never a silent skip.');
 test.skip(!READY, 'AC-ECA-050 requires the served lane and the prepared ERPNext bed.');
 test.setTimeout(600_000);
 
-test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are sent, a new purchase reaches the ERP, nothing before the connection is sent', async ({ page }) => {
+test('AC-ECA-050 on a PMO org connected to an empty ERP: the masters are sent, a new purchase reaches the ERP, nothing before the connection is sent', async ({ page }) => {
   const admin = createClient(AUTH_URL, SERVICE_KEY);
   const suffix = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
   const org = await createOrg(admin, suffix);
+  // Assigned in the `try`, read by the `finally`'s bench cleanup (which must also run when the Company never came up).
   let company: string | undefined;
   try {
     company = await createBenchCompany(suffix);
@@ -74,20 +87,20 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
     const partyCard = review.getByTestId('connect-kind-party');
     await untilWithSweep(org.orgId, async () => {
       await expect(partyCard).toContainText(`3 in PMO, ${partiesBefore} in the connected system: 0 are the same, 3 will be sent`, { timeout: 3_000 });
-    }, 120_000);
+    }, 90_000, 'the census did not report the 3 PMO vendors as new');
 
     await review.getByRole('button', { name: 'Accept all' }).first().click();
     await page.getByRole('dialog').getByRole('button', { name: 'Accept all' }).click();
     // The sweep sends the masters; then the Admin re-reads both sides (the census is a snapshot) and sees the ERP side hold them. The bed's other parties are brought in too, so the PMO-side count is bed-dependent; links are asserted on the records below.
     await untilWithSweep(org.orgId, async () => {
       expect(await benchPartyCount(), 'the sends reached the ERP').toBe(partiesBefore + 3);
-    }, 90_000).catch(async (err) => {
-      throw new Error(`the three sent vendors did not all reach the ERP: ${(err as Error).message}; ${await orgSendState(admin, org.orgId)}`, { cause: err });
+    }, 75_000, 'the three sent vendors did not all reach the ERP').catch(async (err) => {
+      throw new Error(`${(err as Error).message}; ${await orgSendState(admin, org.orgId)}`, { cause: err });
     });
     await review.getByRole('button', { name: 'Check again' }).click();
     await untilWithSweep(org.orgId, async () => {
       await expect(partyCard).toContainText(`${partiesBefore + 3} in the connected system`, { timeout: 3_000 });
-    }, 90_000);
+    }, 45_000, 'the re-read census did not count the 3 sent vendors on the ERP side');
 
     // -- When: one NEW purchase is approved and ordered on a sent vendor/project/item ----------------------------------
     await loginAs(page, org.adminEmail);
@@ -100,7 +113,7 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
     // Admin waits for the send to land — the ERP really holding all four — before placing the order on them.
     await untilWithSweep(org.orgId, async () => {
       expect(await benchCount('Item', [['item_code', 'like', `%${suffix}%`]]), 'the four sent line items reached the ERP').toBe(item.length);
-    }, 300_000).catch(async (err) => {
+    }, 180_000, 'the four sent line items did not reach the ERP').catch(async (err) => {
       const sent = (await benchList('Item', [['item_code', 'like', `%${suffix}%`]], ['item_code'])).map((r) => r.item_code);
       throw new Error(`the sent line items are not all in the ERP (there: ${JSON.stringify(sent)}): ${(err as Error).message}; ${await orgSendState(admin, org.orgId)}`, { cause: err });
     });
@@ -116,18 +129,24 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
       const pos = await benchList('Purchase Order', [['company', '=', company], ['docstatus', '!=', 2]], ['name']);
       expect(pos, 'exactly one ERP Purchase Order (the new purchase), none for the pre-connect one').toHaveLength(1);
       poName = String(pos[0].name);
-    }, 90_000).catch(async (err) => {
+    }, 75_000, 'the new purchase did not reach the ERP as the connected company\'s one Purchase Order').catch(async (err) => {
       const { data: rows } = await admin.from('external_command_outbox').select('domain,state,operation,last_error,attempt_count').eq('org_id', org.orgId);
       const { data: own } = await admin.from('external_domain_ownership').select('domain').eq('org_id', org.orgId);
       const { data: pos } = await admin.from('purchase_orders').select('po_number,status').eq('org_id', org.orgId);
       const { data: pr } = await admin.from('procurements').select('title,status').eq('org_id', org.orgId);
       throw new Error(`${(err as Error).message}; own: ${JSON.stringify(own)} pos: ${JSON.stringify(pos)} pr: ${JSON.stringify(pr)}; outbox: ${JSON.stringify(rows).slice(0, 3000)}`, { cause: err });
     });
+    // The pre-connect purchase's own vendor is used by NO post-connect document here, so the leak oracle is bench-wide:
+    // a pre-cut-over order filed under another company is exactly the regression the company filter cannot see.
+    expect(
+      await benchCount('Purchase Order', [['supplier', '=', v[0].name]]),
+      'no ERP Purchase Order for the pre-connect purchase, in ANY company',
+    ).toBe(0);
     // The order is sent to the ERP; the purchase turns Ordered once the sweep delivers it.
     await untilWithSweep(org.orgId, async () => {
       await page.reload();
       await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 5_000 });
-    }, 90_000);
+    }, 45_000, 'the delivered order did not turn the purchase Ordered');
     const po = await benchDoc('Purchase Order', poName);
     expect(po.supplier_name ?? po.supplier).toBe(v[1].name);
     const erpProject = String(po.project ?? (po.items as Array<Json>)[0].project);
@@ -145,12 +164,16 @@ test('AC-ECA-050 an Admin connects a live PMO org to an empty ERP: masters are s
     await expect(page.getByTestId('ledger-pre-cutover')).toHaveText('Recorded before the ERP connection, not sent');
     await runFullSweep(FUNCTIONS_URL, org.orgId); // a full tick had its chance to push it
     expect(await benchCount('Purchase Receipt', [['company', '=', company]]), 'no ERP Purchase Receipt for the pre-connect purchase').toBe(0);
+    expect(
+      await benchCount('Purchase Receipt', [['supplier', '=', v[0].name]]),
+      'no ERP Purchase Receipt for the pre-connect purchase, in ANY company',
+    ).toBe(0);
 
     // -- Then: PMO never creates accounts ---------------------------------------------------------------------------------
     expect(await benchCount('Account', [['company', '=', company]])).toBe(accountsBefore);
   } finally {
+    // Disconnect first (the sweep stops ticking the org), then remove the org and everything the run put on the bed.
     await dropOrg(admin, org);
+    await dropBenchRun(suffix, company);
   }
 });
-
-type Json = Record<string, unknown>;

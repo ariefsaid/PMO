@@ -133,8 +133,8 @@ export const ALLOWED_SKIPS = [
   {
     file: 'serial/AC-ECA-05',
     reason: 'ERP connect scenario journeys (S-C, S-D) need the served functions lane and the throwaway ERPNext bench (their goal oracles are bench documents and counts).',
-    restore: 'Run in the local served-functions lane with the disposable ERP bench and ready binding (same fixture as AC-SETUP-001).',
-    verified: '2026-11-07',
+    restore: 'Run in the local served-functions lane with the throwaway ERPNext bench up: scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-ECA-05 . Each spec CREATES its own org, bench Company and active binding (no prepared binding is needed) and removes them again afterwards.',
+    verified: '2026-11-10',
   },
   {
     file: 'serial/AC-S09-005-project-match-review.spec.ts',
