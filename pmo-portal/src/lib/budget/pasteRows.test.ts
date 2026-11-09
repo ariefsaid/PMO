@@ -8,6 +8,7 @@ import { Constants } from '../supabase/database.types';
 import {
   multiplyPasteAmount,
   parsePasteAmount,
+  isAmbiguousCommaNumber,
   parsePasteTsv,
   PasteRowsParseError,
   previewPasteRows,
@@ -252,5 +253,12 @@ describe('budget paste rows', () => {
     expect(overLimit.errors).toContainEqual({ field: 'rows', code: 'too-many-rows' });
     expect(overLimit.validCount).toBe(0);
     expect(overLimit.invalidCount).toBe(501);
+  });
+});
+
+describe('isAmbiguousCommaNumber', () => {
+  it('flags a single comma with exactly three trailing digits only', () => {
+    for (const yes of ['12,345', ' 1,000 ', '999,999']) expect(isAmbiguousCommaNumber(yes), yes).toBe(true);
+    for (const no of ['1,200.50', '1,234,567', '12,34', '12,3456', '12345', '1.234', '1234,567']) expect(isAmbiguousCommaNumber(no), no).toBe(false);
   });
 });

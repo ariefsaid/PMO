@@ -915,5 +915,92 @@
       "refusedStale": "Pencocokan terakhir sudah usang. Tunggu pencocokan berikutnya.",
       "refusedUnconfirmed": "Selisih perlu alasan tertulis sebelum Anda dapat melanjutkan."
     }
+  },
+  "budgetPaste": {
+    "open": "Tempel baris",
+    "title": "Tempel baris",
+    "target": "Menambah ke {{version}} (Draf). Baris yang ada tetap dipertahankan.",
+    "save_other": "Simpan {{count}} baris valid",
+    "done": "Selesai",
+    "disabledReason": "Tempel baris dengan kolom kategori dan jumlah terpetakan, dengan minimal satu baris valid.",
+    "discardTitle": "Tutup tanpa menyelesaikan?",
+    "discardBody": "Baris tempelan yang belum disimpan dan baris yang belum terkonfirmasi akan dibuang. Periksa baris anggaran setelahnya.",
+    "discardConfirm": "Tutup",
+    "discardKeep": "Lanjut mengedit",
+    "textLabel": "Baris yang ditempel dari spreadsheet",
+    "textHelper": "Salin sel dari spreadsheet apa pun dan tempel di sini. Maksimal 500 baris. Angka memakai titik untuk desimal; koma boleh memisah ribuan.",
+    "parseError": "Teks tempelan memiliki tanda kutip yang tidak ditutup. Periksa lalu tempel ulang.",
+    "mappingLegend": "Pemetaan kolom",
+    "mapField": "Kolom {{field}}",
+    "notUsed": "Tidak dipakai",
+    "column": "Kol {{n}}",
+    "field": {
+      "category": "Kategori",
+      "description": "Deskripsi",
+      "amount": "Jumlah",
+      "quantity": "Kuantitas",
+      "rate": "Tarif",
+      "row": "Baris"
+    },
+    "header": "Baris pertama adalah judul kolom",
+    "modeLegend": "Mode jumlah",
+    "modeAmount": "Pakai Jumlah",
+    "modeProduct": "Pakai Kuantitas × Tarif",
+    "mapCategory": "Petakan \"{{raw}}\" ke",
+    "chooseCategory": "Pilih kategori",
+    "summary": "{{valid}} valid, {{invalid}} tidak valid. Total valid {{total}}. Baris tidak valid tidak disimpan.",
+    "previewLabel": "Pratinjau",
+    "col": {
+      "row": "Baris",
+      "status": "Pemeriksaan"
+    },
+    "ambiguousNote": "Dibaca {{amount}}, bukan desimal.",
+    "ambiguousConfirm_one": "{{count}} jumlah seperti 12,345 dibaca sebagai ribuan (12345), bukan desimal (12,345 = 12.345). Saya konfirmasi ini benar.",
+    "ambiguousConfirm_other": "{{count}} jumlah seperti 12,345 dibaca sebagai ribuan (12345), bukan desimal (12,345 = 12.345). Saya konfirmasi ini benar.",
+    "rowOk": "OK",
+    "rowError": {
+      "mapping-required": "Kolom {{field}} belum dipilih.",
+      "mode-required": "Pilih Jumlah atau Kuantitas × Tarif.",
+      "row-limit": "Terlalu banyak baris.",
+      "required": "{{field}} wajib diisi.",
+      "unknown-category": "Kategori tidak dikenal. Petakan di atas.",
+      "ambiguous-category": "Kategori cocok dengan lebih dari satu pilihan.",
+      "invalid-amount": "Jumlah harus angka positif dengan maksimal 2 desimal.",
+      "invalid-quantity": "Kuantitas harus angka positif.",
+      "invalid-rate": "Tarif harus angka positif.",
+      "invalid-product": "Kuantitas × Tarif harus berupa jumlah positif dalam sen utuh."
+    },
+    "blockError": {
+      "mapping-required": "Pilih kolom yang diperlukan.",
+      "mode-required": "Pilih Jumlah atau Kuantitas × Tarif.",
+      "too-many-rows": "Tempel maksimal 500 baris.",
+      "no-data": "Belum ada baris untuk dipratinjau."
+    },
+    "resultsLabel": "Hasil penyimpanan",
+    "progress": "Menyimpan {{completed}} dari {{total}}…",
+    "resultSummary": "{{created}} dari {{total}} baris tersimpan.",
+    "resultRow": "Baris {{row}} · {{category}} · {{amount}}",
+    "result": {
+      "created": "Tersimpan",
+      "failed": "Tidak tersimpan: {{reason}}",
+      "uncertain": "Belum terkonfirmasi. Periksa baris anggaran sebelum menempel baris ini lagi.",
+      "unsubmitted": "Tidak dikirim",
+      "pending": "Menyimpan…"
+    },
+    "retry_other": "Ulangi {{count}} baris gagal",
+    "hook": {
+      "noRows": "Tambahkan minimal satu baris valid sebelum menyimpan.",
+      "badRowNumbers": "Nomor baris sumber harus bilangan bulat positif yang unik.",
+      "badCategory": "Satu atau lebih baris memiliki kategori anggaran yang tidak didukung.",
+      "badDescription": "Satu atau lebih deskripsi baris tidak valid.",
+      "badAmount": "Satu atau lebih baris memiliki jumlah yang tidak valid atau tidak kanonis.",
+      "unsafeAmount": "Satu atau lebih jumlah tidak dapat disimpan dengan aman.",
+      "refreshFailed": "Penyegaran anggaran belum selesai. Muat ulang anggaran sebelum mengandalkan total.",
+      "reconcileFirst": "Selesaikan hasil saat ini atau mulai sesi tempel baru sebelum menyimpan lagi.",
+      "notDraft": "Anggaran terpilih bukan Draf yang dapat diedit. Periksa sebelum menyimpan.",
+      "originalGone": "Draf anggaran semula tidak lagi dipilih atau dapat ditulis. Periksa sebelum mencoba lagi."
+    },
+    "save_one": "Simpan {{count}} baris valid",
+    "retry_one": "Ulangi {{count}} baris gagal"
   }
 }

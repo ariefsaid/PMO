@@ -60,6 +60,7 @@ import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
 import BudgetLineItemEditor from './project-budget/BudgetLineItemEditor';
+import BudgetPasteRowsDialog from './project-budget/BudgetPasteRowsDialog';
 import DistributionGrid, { type DistributionReadinessStatus, type DistributionSourceWitness } from './project-budget/DistributionGrid';
 import BudgetModeSwitchDialog, { type BudgetModeSwitchRequest } from './project-budget/BudgetModeSwitchDialog';
 import { useBudgetReadiness } from './project-budget/BudgetReadiness';
@@ -138,6 +139,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const can = usePermission();
   const { realRole } = useEffectiveRole();
   const canWrite = can('edit', 'budgetLine');
+  // Paste rows creates lines, so it needs create AND edit on the real session role (impersonation is view-only).
+  const canPaste = can('create', 'budgetLine') && can('edit', 'budgetLine');
   const canReadMoney = can('view', 'salesInvoice');
   const canReadProcurements = can('view', 'procurement');
   const canManageAccounting = can('manage', 'orgAccounting');
@@ -184,7 +187,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
-  const [hasOpenLineBuffers, setHasOpenLineBuffers] = useState(false);
+  const [hasOpenEditorBuffers, setHasOpenEditorBuffers] = useState(false);
+  const [pasteTargetId, setPasteTargetId] = useState<string | null>(null);
+  const pasteOpen = pasteTargetId !== null;
+  const hasOpenLineBuffers = hasOpenEditorBuffers || pasteOpen;
   const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
   const [modeSwitchOpen, setModeSwitchOpen] = useState(false);
   const [modeSwitchStaleNonce, setModeSwitchStaleNonce] = useState(0);
@@ -244,6 +250,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const selectedVersion = view === 'forecast'
     ? activeVersion
     : versions.find((version) => version.id === selectedVersionId) ?? activeVersion ?? draftVersion ?? orderedVersions.at(-1);
+  // A target change drops the paste preview: it was reviewed against one Draft only.
+  const pasteTargetChanged = pasteTargetId !== null && !(selectedVersion?.id === pasteTargetId && selectedVersion.status === 'Draft');
+  React.useEffect(() => { if (pasteTargetChanged) setPasteTargetId(null); }, [pasteTargetChanged]);
 
   const distributionReadinessStatus: DistributionReadinessStatus = draftMode !== 'whole_project'
     ? 'current'
@@ -687,6 +696,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
         <div className="flex flex-wrap items-center gap-2">
+          {canPaste && <Button variant="outline" size="sm" onClick={() => setPasteTargetId(draftVersion.id)}>{t('budgetPaste.open', 'Paste rows')}</Button>}
           <Button variant="outline" size="sm" onClick={() => setModeSwitchOpen(true)}>{t('projectDetail.budget.changeBudgetMode', 'Change budget mode')}</Button>
           <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
         </div>
@@ -698,7 +708,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
         onDeleteLineItem={requestDeleteLineItem}
         onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
-        onOpenBuffersChange={setHasOpenLineBuffers}
+        onOpenBuffersChange={setHasOpenEditorBuffers}
         onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
         createIsPending={mutations.createLineItem.isPending}
         updateIsPending={mutations.updateLineItem.isPending}
@@ -1069,6 +1079,20 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           loading={mutations.switchDraftMode.isPending}
           onConfirm={changeDraftMode}
           onCancel={() => setModeSwitchOpen(false)}
+        />
+      )}
+      {pasteOpen && !pasteTargetChanged && draftVersion?.id === pasteTargetId && canPaste && !authoringRefreshNeeded && (
+        <BudgetPasteRowsDialog
+          key={draftVersion.id}
+          onClose={() => setPasteTargetId(null)}
+          projectId={projectId}
+          targetId={draftVersion.id}
+          selectedId={selectedVersion?.id ?? null}
+          isDraft={selectedVersion?.status === 'Draft'}
+          canCreate={can('create', 'budgetLine')}
+          canEdit={can('edit', 'budgetLine')}
+          currency={draftVersion.currency || project.currency}
+          versionLabel={`${draftVersion.name} · v${draftVersion.version}`}
         />
       )}
       {!authoringRefreshNeeded && budgetConfirm}
