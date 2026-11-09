@@ -298,7 +298,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const approvalChip = needs.isPending ? <ListState variant="loading" rows={1} className="h-11 w-56 overflow-hidden" /> : needs.isError ? <ListState variant="error" title={t('dashboard:hub.company.approvalsError', "Couldn't load approvals and attention items")} onRetry={needs.refetch} /> : <section aria-label={t('dashboard:hub.company.approvals', 'Approvals waiting for you')}><ApprovalStrip items={needs.items.filter((item) => item.id === 'approvals').map((item) => ({ id: item.id, tone: item.tone, icon: 'check', count: item.count, label: item.label, href: item.href }))} /></section>;
   // The strip reads left to right: what we hold, what is coming, what we billed, what it earned, what we are owed, what we owe.
   const kpiFigures = KPI_ORDER.map((id) => todayFigure(id) ?? periodFigure(id)).filter((figure): figure is DashboardFigure => Boolean(figure));
-  const attentionExtras: AttentionExtra[] = attentionNeeds.map((item) => ({ id: item.id, title: `${item.count} ${item.label}`, meta: item.amount, pill: t('dashboard:hub.company.attentionReview', 'Review'), href: item.href, tone: item.tone }));
+  const attentionExtras: AttentionExtra[] = attentionNeeds.slice(0, Math.max(2, 6 - attentionProjects.length)).map((item) => ({ id: item.id, title: `${item.count} ${item.label}`, meta: item.amount, pill: t('dashboard:hub.company.attentionReview', 'Review'), href: item.href, tone: item.tone }));
 
   return <div className="space-y-[var(--space-panel-gap)]" data-company-role={role}>
     <header className="flex flex-wrap items-center gap-3">

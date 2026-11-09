@@ -41,9 +41,9 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
   const otherCurrency = projects.filter((project) => project.currency !== currency).length;
   return (
     <div>
-      <div role="img" aria-label={name} className="h-[300px]">
+      <div className="overflow-x-auto"><div role="img" aria-label={name} className="h-[340px] min-w-[560px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 18, right: 8, bottom: 8, left: 0 }} barGap={3} barCategoryGap="22%">
+          <BarChart data={rows} margin={{ top: 4, right: 8, bottom: 8, left: 0 }} barGap={3} barCategoryGap="22%">
             <CartesianGrid vertical={false} stroke={chartTheme.grid} />
             <XAxis dataKey="name" tick={<NameTick />} stroke={chartTheme.grid} interval={0} height={44} tickLine={false} />
             <YAxis type="number" tick={axisTickStyle} stroke={chartTheme.grid} width={48} tickLine={false} axisLine={false} tickFormatter={(value: number) => formatCompactCurrency(value, currency)} />
@@ -57,7 +57,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </div></div>
       {noBudget > 0 && (
         <p data-testid="plan-actual-no-budget" className="mt-1 text-xs text-muted-foreground">
           {t('hub.company.planVsActual.noBudget', { count: noBudget, defaultValue: '{{count}} projects have no active budget yet', defaultValue_one: '{{count}} project has no active budget yet' })}

@@ -288,7 +288,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
               'Decided bids use their decision date; open bids use their creation date for this period; the stale count is current and age starts at the last stage change, falling back to project creation if none was recorded.',
             )}
           </p>}
-          <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
+          {!embedded && <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-1.5 rounded-full bg-success" />
               {t('dashboard:winRate.won', 'Won')}
@@ -297,7 +297,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
               <span aria-hidden className="size-1.5 rounded-full bg-secondary-foreground/40" />
               {t('dashboard:winRate.notWon', 'Lost or still open')}
             </span>
-          </div>
+          </div>}
           {declinedNote}
           {!embedded && <LossBreakdown range={activeRange} />}
         </>

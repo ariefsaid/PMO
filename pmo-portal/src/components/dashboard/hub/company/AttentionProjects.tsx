@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { cn } from '@/src/components/ui/cn';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
 
@@ -30,6 +31,7 @@ const Row: React.FC<{ href: string; initialsOf: string; name: string; tone: keyo
  */
 export const AttentionProjects: React.FC<{ projects: AttentionProject[]; extras?: AttentionExtra[] }> = ({ projects, extras = [] }) => {
   const { t } = useTranslation('dashboard');
+  const statusLabel = useProjectStatusLabel();
   if (projects.length === 0 && extras.length === 0) return <p className="py-6 text-center text-sm text-muted-foreground">{t('hub.company.attentionClear', 'Nothing needs attention right now')}</p>;
   return (
     <ol aria-label={t('hub.company.attentionListName', 'Projects that need attention, most urgent first')} className="divide-y divide-border">
@@ -44,7 +46,9 @@ export const AttentionProjects: React.FC<{ projects: AttentionProject[]; extras?
           ? t('hub.company.attentionOverBudget', '{{percent}}% over budget', { percent: overPercent })
           : row.overdue_items > 0
             ? t('hub.company.attentionOverdue', { count: row.overdue_items, defaultValue: '{{count}} overdue', defaultValue_one: '{{count}} overdue' })
-            : t('hub.company.attentionApprovals', { count: row.waiting_approvals, defaultValue: '{{count}} awaiting approval', defaultValue_one: '{{count}} awaiting approval' });
+            : row.waiting_approvals > 0
+              ? t('hub.company.attentionApprovals', { count: row.waiting_approvals, defaultValue: '{{count}} awaiting approval', defaultValue_one: '{{count}} awaiting approval' })
+              : statusLabel(row.status);
         return <Row key={row.id} href={`/projects/${row.id}`} initialsOf={name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()} name={name} tone={overPercent !== null ? 'lost' : 'warn'} title={name} meta={meta} pill={pill} pillVariant={overPercent !== null ? 'lost' : 'warn'} />;
       })}
       {extras.map((item) => <Row key={item.id} href={item.href} initialsOf={item.title.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()} name={item.title} tone="neutral" title={item.title} meta={item.meta} pill={item.pill} pillVariant="open" />)}

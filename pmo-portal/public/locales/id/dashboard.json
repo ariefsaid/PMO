@@ -533,7 +533,8 @@
         "atRiskFirst": "Berisiko dulu",
         "all": "Semua",
         "empty": "Tidak ada proyek aktif"
-      }
+      },
+      "funnelWeightedShort": "b {{amount}}"
     }
   },
   "restructure": {

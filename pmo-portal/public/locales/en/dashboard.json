@@ -533,7 +533,8 @@
         "atRiskFirst": "At risk first",
         "all": "All",
         "empty": "No active projects"
-      }
+      },
+      "funnelWeightedShort": "w {{amount}}"
     }
   },
   "restructure": {
