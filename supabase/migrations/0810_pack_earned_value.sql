@@ -8,6 +8,7 @@
 -- final accepted quantity; the assessment earns only beyond what closed work orders ordered; nothing earns past the
 -- contract quantity. p_as_at NULL = now (what get_project_billing reports); a date = as at the end of that month in
 -- the org timezone (latest assessment on or before it, only acceptances confirmed before the month ended).
+-- Every read is scoped to the project: the pack calls this once per project per month.
 create or replace function public.project_line_earned(p_project_id uuid, p_as_at date default null)
  returns table(boq_item_id uuid, earned_quantity numeric, rate numeric, earned_value numeric)
  language sql stable security invoker set search_path=public as $$
@@ -23,7 +24,7 @@ with tz as (
 ), assessed as (select q.boq_item_id,q.quantity_to_date from public.progress_assessment_quantities q join latest l on l.id=q.entry_id),
 latest_bast as (
  select distinct on (a.work_order_id) a.work_order_id,a.id,a.is_final
- from public.work_order_acceptances a,lim where a.status='Confirmed' and (lim.ts is null or a.confirmed_at<lim.ts)
+ from public.work_order_acceptances a,lim where a.project_id=p_project_id and a.status='Confirmed' and (lim.ts is null or a.confirmed_at<lim.ts)
  order by a.work_order_id,a.confirmed_at desc,a.id desc
 ), allocation as (
  select wl.boq_item_id,wl.work_order_id,wl.quantity,wo.status,wo.closing_acceptance_id,
@@ -31,7 +32,7 @@ latest_bast as (
  from public.work_order_lines wl join public.work_orders wo on wo.id=wl.work_order_id
  left join latest_bast lb on lb.work_order_id=wl.work_order_id
  left join public.work_order_acceptance_lines al on al.acceptance_id=lb.id and al.boq_item_id=wl.boq_item_id
- where wl.org_id=public.auth_org_id() and wo.status<>'Cancelled'
+ where wl.org_id=public.auth_org_id() and wo.project_id=p_project_id and wo.status<>'Cancelled'
 ), agg as (
  select b.id,b.rate,b.quantity contract_quantity,a.quantity_to_date assessed_quantity,
   coalesce((select sum(x.accepted) from allocation x where x.boq_item_id=b.id and x.final and x.status='Closed'),0) closed_final,
