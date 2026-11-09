@@ -5,6 +5,10 @@
 -- 0700 (#1739) moved the PMO basis to spent + open commitment in BOTH dashboard bodies and added one output field to the
 -- finance review (ledger_owned, appended last); the oracle carries those and nothing else, so it still proves output parity.
 -- The basis itself is owned by 0700_pmo_spend_split.test.sql.
+-- 0732 (#1418, DD-1418-ATTENTION) adds a second key, attention_projects (the Delivery five ranked by attention);
+-- top_projects and every other key are unchanged. That key is subtracted from BOTH sides of the dashboard comparison
+-- below and is owned by 0732_executive_attention_ranking.test.sql; everything else still compares value for value with
+-- the old body.
 begin;
 select plan(23);
 
@@ -376,27 +380,27 @@ insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debi
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Executive, ERP-ledger org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Executive, ERP-ledger org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Executive, ERP-ledger org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Project Manager, ERP-ledger org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Project Manager, ERP-ledger org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Project Manager, ERP-ledger org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Finance, ERP-ledger org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Finance, ERP-ledger org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Finance, ERP-ledger org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Engineer, ERP-ledger org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Engineer, ERP-ledger org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Engineer, ERP-ledger org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Admin, ERP-ledger org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Admin, ERP-ledger org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Admin, ERP-ledger org');
 reset role;
 
@@ -411,27 +415,27 @@ reset role;
 update external_org_bindings set status = 'disconnected' where org_id = '00000000-0000-0000-0000-000000000001';
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Executive, PMO-basis org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Executive, PMO-basis org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Executive, PMO-basis org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Project Manager, PMO-basis org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Project Manager, PMO-basis org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Project Manager, PMO-basis org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Finance, PMO-basis org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Finance, PMO-basis org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Finance, PMO-basis org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Engineer, PMO-basis org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Engineer, PMO-basis org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Engineer, PMO-basis org');
 reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}';
-select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Admin, PMO-basis org');
+select is((public.get_executive_dashboard()::jsonb - 'attention_projects')::text, (public._old_exec_dashboard()::jsonb - 'attention_projects')::text, 'AC-PERF-Q12-001 dashboard identical apart from attention_projects: Admin, PMO-basis org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Admin, PMO-basis org');
 reset role;
 

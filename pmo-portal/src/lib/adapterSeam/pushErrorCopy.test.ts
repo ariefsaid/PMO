@@ -200,6 +200,29 @@ describe('FR-ECA-030 a step on a purchase ordered before the ERP connection', ()
   });
 });
 
+describe('#1364 — a refusal before writing tells the user what to fix', () => {
+  it.each([
+    ['budget-project-start-date-missing', /start and end dates/i],
+    ['budget-fiscal-year-unresolved', /fiscal year/i],
+    ['budget-fiscal-year-ambiguous', /overlap/i],
+    ['budget-multi-fiscal-year-unphased', /fiscal year on every budget line/i],
+  ])('%s: names the fix and withholds a Retry that cannot succeed', (code, remedy) => {
+    const copy = describePushError(code);
+    expect(copy.code).toBe(code);
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toMatch(remedy);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('a finalize that kept refusing reads as a classified sentence and withholds a Retry that meets the same rule', () => {
+    const copy = describePushError('outbox-finalize-refused');
+    expect(copy.code).toBe('outbox-finalize-refused');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toBeTruthy();
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+});
+
 describe('describePushError — the refusals Odoo sends raise (#1504 S8-T6)', () => {
   const cases: Array<[string, RegExp, boolean]> = [
     ['validation', /refused/i, true],
@@ -226,3 +249,42 @@ describe('describePushError — the refusals Odoo sends raise (#1504 S8-T6)', ()
     expect(describePushMutationError(new Error('ambiguous')).code).toBe('ambiguous');
   });
 });
+
+describe('describePushError — PO revise push refusal reason codes (#1998)', () => {
+  const REVISE_CODES = [
+    'revision_superseded',
+    'revision-superseded',
+    'po_has_submitted_bill',
+    'revision_not_issued',
+    'po_not_found',
+    'below-received',
+  ] as const;
+
+  it.each(REVISE_CODES)('%s renders as plain words sentence with remedy, not raw token or unclassified fallback', (code) => {
+    const copy = describePushError(code);
+    expect(copy.code).toBe(code);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+    expect(copy.message).not.toMatch(/could not be classified|unrecognised|unexpected/i);
+    expect(copy.message.length).toBeGreaterThan(15);
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).not.toBeNull();
+    expect(copy.remedy).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('classifies commit-rejected prefixed revise refusals', () => {
+    const copy = describePushError('commit-rejected: po_has_submitted_bill');
+    expect(copy.code).toBe('po_has_submitted_bill');
+    expect(copy.message).not.toContain('commit-rejected');
+    expect(copy.message).not.toMatch(/could not be classified/i);
+    expect(copy.retryable).toBe(false);
+  });
+
+  it('classifies below-received with line item details', () => {
+    const copy = describePushError('commit-rejected: below-received: Cable tray');
+    expect(copy.code).toBe('below-received');
+    expect(copy.message).not.toContain('below-received');
+    expect(copy.message).not.toMatch(/could not be classified/i);
+    expect(copy.retryable).toBe(false);
+  });
+});
+

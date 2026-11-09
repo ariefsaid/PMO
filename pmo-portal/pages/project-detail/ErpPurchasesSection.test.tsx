@@ -102,8 +102,9 @@ describe('ErpPurchasesSection', () => {
 
   it('renders nothing for a project with no ERP purchases, only paid linked ones, or for a role without the procurement view', () => {
     both({ data: [row({ outstanding: 0, procurementId: 'x', linkId: 'l1' })] });
-    renderSection().unmount();
-    expect(screen.queryByRole('heading')).toBeNull();
+    const paidLinkedOnly = renderSection();
+    expect(paidLinkedOnly.container).toBeEmptyDOMElement();
+    paidLinkedOnly.unmount();
     both({ data: [] });
     const { container, unmount } = renderSection();
     expect(container).toBeEmptyDOMElement();

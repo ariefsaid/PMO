@@ -31,6 +31,7 @@ const OWNER_UUID = '11111111-1111-4111-a111-111111111111';
 interface RunOptions {
   modelFails?: boolean;
   modelStatus?: number;
+  automationsFlag?: string;
 }
 
 interface RunResult {
@@ -50,7 +51,7 @@ async function runAgentDispatchServed(
     SUPABASE_ANON_KEY: 'synthetic-anon-key',
     OPENROUTER_API_KEY: 'synthetic-openrouter-key',
     AGENT_DISPATCH_SECRET: DISPATCH_SECRET,
-    AGENT_AUTOMATIONS: 'true',
+    AGENT_AUTOMATIONS: opts.automationsFlag ?? 'true',
     AGENT_VERIFY_ANSWER: 'false',
   };
   const prevEnv = Object.fromEntries(
@@ -352,4 +353,20 @@ Deno.test('AC-DISP-SERVED-003: upstream model failure during fire records 0 usag
 
   // 0 usage rows written because model call failed
   assertEquals(usageRows.length, 0, 'failed model call must record 0 usage rows');
+});
+
+Deno.test('AC-DISP-SERVED-004: AGENT_AUTOMATIONS off returns 200 skipped with no model call and 0 usage rows', async () => {
+  const request = new Request('http://edge.test/agent-dispatch', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${DISPATCH_SECRET}` },
+    body: '{}',
+  });
+
+  const { response, body, usageRows, calls } = await runAgentDispatchServed(request, { automationsFlag: 'false' });
+
+  assertEquals(response.status, 200);
+  assertEquals(body.ok, true);
+  assertEquals(body.skipped, 'flag off');
+  assertEquals(calls.filter((c) => c.path === '/api/v1/chat/completions').length, 0);
+  assertEquals(usageRows.length, 0, 'flag-off tick must record 0 usage rows');
 });

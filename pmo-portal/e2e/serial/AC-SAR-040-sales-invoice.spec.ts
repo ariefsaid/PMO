@@ -25,6 +25,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -162,6 +163,7 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
 
       // ── 3. ERP-side proof: GET the Sales Invoice, verify project dimension ──
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(siName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });

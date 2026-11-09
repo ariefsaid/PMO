@@ -1,7 +1,9 @@
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays, deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
+import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
+import { toCents } from '@/src/lib/moneyCents';
 import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
 
 export type CurrencyTotals = Record<string, number>;
@@ -54,15 +56,9 @@ export interface FinancePosition {
   payablesAgeing: Record<string, PayablesAgeingBuckets>;
 }
 
-const OPEN_INVOICE_STATUSES = new Set<SalesInvoiceRow['status']>(['Unpaid', 'Submitted']);
-
 /** The one shared predicate for the dashboard's Ready to pay list and Finance payables. */
 export function isProcurementReadyToPay(procurement: Pick<ProcurementWithRefs, 'status'>): boolean {
   return procurement.status === 'Vendor Invoiced';
-}
-
-function cents(amount: number): number {
-  return Math.round(amount * 100);
 }
 
 function add(total: CurrencyTotals, currency: string, amountCents: number): void {
@@ -78,16 +74,19 @@ function calendarAgeDays(date: string | null | undefined, today: string | null |
   return Math.max(0, Math.floor((current - value) / 86_400_000));
 }
 
-function receivableBucket(days: number): keyof AgeingBuckets {
-  if (days <= 0) return 'notDue';
-  if (days <= 30) return 'd1_30';
-  if (days <= 60) return 'd31_60';
-  if (days <= 90) return 'd61_90';
-  return 'over90';
-}
-
-function payableBucket(days: number): keyof PayablesAgeingBuckets {
-  if (days <= 30) return 'd0_30';
+/**
+ * The age column a balance falls in (#1459: one rule, two column sets). Receivables keep a
+ * "not yet due" column for balances whose due date has not passed; payables start at 0–30 days
+ * because their age is never negative.
+ */
+export function ageingBucket(days: number, kind: 'receivables'): keyof AgeingBuckets;
+export function ageingBucket(days: number, kind: 'payables'): keyof PayablesAgeingBuckets;
+export function ageingBucket(
+  days: number,
+  kind: 'receivables' | 'payables',
+): keyof AgeingBuckets | keyof PayablesAgeingBuckets {
+  if (kind === 'receivables' && days <= 0) return 'notDue';
+  if (days <= 30) return kind === 'receivables' ? 'd1_30' : 'd0_30';
   if (days <= 60) return 'd31_60';
   if (days <= 90) return 'd61_90';
   return 'over90';
@@ -96,7 +95,7 @@ function payableBucket(days: number): keyof PayablesAgeingBuckets {
 /** Pure display calculation shared by the finance area and its attention/ageing blocks. */
 export function buildFinancePosition(input: FinancePositionInput): FinancePosition {
   const { invoices, payments, procurements, today, canApproveDraft } = input;
-  const receivablesCount = invoices.filter((invoice) => OPEN_INVOICE_STATUSES.has(invoice.status)).length;
+  const receivablesCount = invoices.filter((invoice) => isOpenClientInvoiceStatus(invoice.status)).length;
   const overdue: FinancePosition['overdue'] = [];
   const overdueTotals: CurrencyTotals = {};
   const receivablesAgeing: Record<string, AgeingBuckets> = {};
@@ -104,7 +103,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
   let receivablesUnknownCount = 0;
 
   for (const invoice of invoices) {
-    if (!OPEN_INVOICE_STATUSES.has(invoice.status)) continue;
+    if (!isOpenClientInvoiceStatus(invoice.status)) continue;
     const outstanding = invoice.erp_outstanding_amount;
     if (outstanding == null || !Number.isFinite(outstanding)) receivablesUnknownCount += 1;
     const dueDate = deriveArDueDate(
@@ -117,20 +116,21 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
 
     if (outstanding != null && Number.isFinite(outstanding)) {
       const buckets = receivablesAgeing[invoice.currency] ??= { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
-      const bucket = receivableBucket(age ?? 0);
-      buckets[bucket] += cents(outstanding);
+      buckets[ageingBucket(age ?? 0, 'receivables')] += toCents(outstanding);
     }
 
-    if (age == null || age <= 0) continue;
+    // #1457: the overdue decision is the one shared rule (status + derived due date + org day).
+    const overdueDays = clientInvoiceOverdueDays(invoice, today);
+    if (overdueDays === null) continue;
     if (outstanding == null || !Number.isFinite(outstanding)) {
       overdueUnknownCount += 1;
     } else {
-      add(overdueTotals, invoice.currency, cents(outstanding));
+      add(overdueTotals, invoice.currency, toCents(outstanding));
     }
     overdue.push({
       invoice,
-      daysOverdue: age,
-      outstanding: outstanding == null || !Number.isFinite(outstanding) ? null : cents(outstanding),
+      daysOverdue: overdueDays,
+      outstanding: outstanding == null || !Number.isFinite(outstanding) ? null : toCents(outstanding),
     });
   }
   overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
@@ -153,8 +153,8 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     if (payment.cancelled_at || payment.erp_cancelled_at) continue;
     const amount = knownUnappliedCash(payment);
     if (amount == null || amount <= 0) continue;
-    unappliedPayments.push({ payment, amount: cents(amount) });
-    add(unappliedTotals, payment.currency, cents(amount));
+    unappliedPayments.push({ payment, amount: toCents(amount) });
+    add(unappliedTotals, payment.currency, toCents(amount));
   }
 
   const payables: FinancePosition['payables'] = [];
@@ -172,11 +172,11 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
       payables.push({ procurement, ageDays, amount: null });
       continue;
     }
-    const amountCents = cents(unpaid.amount);
+    const amountCents = toCents(unpaid.amount);
     payables.push({ procurement, ageDays, amount: amountCents });
     add(payablesTotals, procurement.currency, amountCents);
     const buckets = payablesAgeing[procurement.currency] ??= { d0_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
-    buckets[payableBucket(ageDays)] += amountCents;
+    buckets[ageingBucket(ageDays, 'payables')] += amountCents;
   }
   payables.sort((a, b) => b.ageDays - a.ageDays);
 

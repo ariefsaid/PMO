@@ -12,6 +12,8 @@ import { recordFolderErrorCopy, recordFolderText, type RecordFolderCopyKey } fro
 export interface LinkExistingRecordFoldersProps {
   /** The org default library is chosen (the sweep matches folders inside it). */
   defaultAvailable: boolean;
+  /** The default-library read failed: with no known library, say that instead of "choose one". */
+  readFailed?: boolean;
   /** Set by the host while the default library is being changed or cleared. */
   disabled?: boolean;
 }
@@ -44,7 +46,7 @@ const addPage = (c: Counts, p: RecordFolderBackfillPage): Counts => ({
  * creates a folder, never changes the default library, never auto-runs, never retries by itself and
  * stops scheduling the moment it is stopped, the host disables it, the identity changes or it unmounts.
  */
-export function LinkExistingRecordFolders({ defaultAvailable, disabled = false }: LinkExistingRecordFoldersProps) {
+export function LinkExistingRecordFolders({ defaultAvailable, readFailed = false, disabled = false }: LinkExistingRecordFoldersProps) {
   const { t } = useTranslation('recordFolders');
   const qc = useQueryClient();
   const { currentUser } = useAuth();
@@ -161,7 +163,11 @@ export function LinkExistingRecordFolders({ defaultAvailable, disabled = false }
         )}
       </div>
       {!defaultAvailable && (
-        <p className="text-[12.5px] text-muted-foreground">{t('backfill.needsDefault', 'Choose a default document library first.')}</p>
+        <p className="text-[12.5px] text-muted-foreground">
+          {readFailed
+            ? t('backfill.readFailed', 'The default library could not be read, so folders cannot be linked yet. Retry the read above.')
+            : t('backfill.needsDefault', 'Choose a default document library first.')}
+        </p>
       )}
       <div role="status" className="min-w-0 space-y-1 text-[12.5px] text-muted-foreground">
         {busy && (

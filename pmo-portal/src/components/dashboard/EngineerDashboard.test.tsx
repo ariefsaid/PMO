@@ -129,8 +129,8 @@ describe('Engineer area hub', () => {
     expect(screen.getAllByRole('button', { name: /^Help:/ })).toHaveLength(4);
     expect(screen.getByRole('link', { name: 'Open timesheets for this week' })).toHaveAttribute('href', '/timesheets');
     expect(screen.getByRole('link', { name: 'Open timesheet status' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks');
-    expect(screen.getByRole('link', { name: 'Open returned expense claims' })).toHaveAttribute('href', '/expenses');
+    expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks?due=week');
+    expect(screen.getByRole('link', { name: 'Open returned expense claims' })).toHaveAttribute('href', '/expenses?status=Rejected');
 
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);
@@ -194,7 +194,7 @@ describe('Engineer area hub', () => {
     const panel = screen.getByRole('heading', { name: 'Tasks', level: 2 }).closest('.panel-card') as HTMLElement;
     expect(within(panel).queryByRole('link', { name: /tasks overdue or due this week/i })).not.toBeInTheDocument();
     expect(screen.getByTestId('kpi-tasks-due')).toHaveTextContent('2');
-    expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks');
+    expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks?due=week');
   });
 
   it('opens a recent entry in Timesheets and includes its description and status', () => {

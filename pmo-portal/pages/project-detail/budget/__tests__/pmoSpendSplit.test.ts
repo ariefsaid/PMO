@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveActualPosition, deriveBudgetConsumption } from '@/src/lib/projectFinances';
-import { buildBudgetSummaryRows, committedTotal } from '../budgetModel';
+import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
 
 /**
  * #1739 / AC-PFE-005 — the Projects list and the Budget tab split ONE purchase the same way.

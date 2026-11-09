@@ -39,7 +39,7 @@ vi.mock('@/src/hooks/useEquipment', async () => {
   };
 });
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }, { id: 'pj2', name: 'EQU P2', short_name: null, project_manager_id: 'u-other' }] }),
+  useProjectPickerOptions: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }, { id: 'pj2', name: 'EQU P2', short_name: null, project_manager_id: 'u-other' }] }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Eli Engineer' }, { id: 'u-pm', full_name: 'Pia Manager' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org1' } }) }));

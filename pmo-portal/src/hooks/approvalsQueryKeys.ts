@@ -1,5 +1,8 @@
 import type { Role } from '@/src/auth/AuthContext';
 
+/** The approvals queue's Requested-only read; a child of ['procurements', orgId], so every procurement invalidation refetches it. */
+export const requestedProcurementsKey = (orgId: string | undefined) => ['procurements', orgId, 'requested'] as const;
+
 export const procurementsKey = (orgId: string | undefined, withRefs = false, withSharedDetails = false, lean = false, withoutRoutes = false) =>
   lean
     ? withoutRoutes ? ['procurements', orgId, 'lean-list-no-routes'] as const : ['procurements', orgId, 'lean-list'] as const

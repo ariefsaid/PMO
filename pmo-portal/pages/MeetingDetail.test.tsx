@@ -51,7 +51,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
+  useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
 }));
 
 vi.mock('@/src/hooks/useTasks', () => ({

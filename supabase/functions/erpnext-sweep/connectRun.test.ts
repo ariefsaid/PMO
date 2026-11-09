@@ -57,6 +57,7 @@ function routes(o: Opts): MockRoute[] {
       return jsonResponse(all.filter((r) => r.id > after).slice(0, 1000));
     }),
     ...['projects', 'profiles', 'procurement_items'].map((t) => supabaseSelect(t, () => jsonResponse([]))),
+    rpc('connect_open_purchase_statuses', ['Approved', 'Vendor Quoted', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced']),
     { label: 'categories-in-use', method: 'HEAD', pathname: '/rest/v1/budget_line_items', response: () => countResponse(0) },
     supabaseSelect('erp_connect_staged', () => jsonResponse((o.staged ?? []).map((row) => ({ external_id: String(row.externalId), row })))),
     {

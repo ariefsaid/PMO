@@ -1,6 +1,6 @@
-// @e2e-isolation: self-isolated — creates a unique client, project, evidence document, rates and claim; uses the first empty week for the dedicated TSE-021 engineer. A confirmed claim is immutable, so that complete fixture is retained and its project archived per AC-CQ-020.
+// @e2e-isolation: self-isolated — creates a unique client, project, evidence document, rates and claim; uses the first empty week for the dedicated TSE-021 engineer. A confirmed claim is immutable, so that complete fixture (including its PMO-native invoice) is retained and its project archived per AC-CQ-020.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import {
@@ -255,7 +255,8 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   if (!serviceClient) throw new Error('AC-TM-018 fixture client was not initialized.');
 
   // The item catalog is an external read, so supply a local catalog row while the actual rate and mapping writes use the app.
-  await page.route('**/rest/v1/external_domain_ownership?*', async (route) => {
+  const ownershipUrl = '**/rest/v1/external_domain_ownership?*';
+  const ownershipStub = async (route: Route) => {
     if (route.request().method() !== 'GET') return route.continue();
     await route.fulfill({
       status: 200,
@@ -263,14 +264,17 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
       headers: { 'content-range': '0-0/1' },
       body: JSON.stringify([{ id: randomUUID(), org_id: orgId, external_tier: 'erpnext', domain: 'revenue' }]),
     });
-  });
+  };
+  await page.route(ownershipUrl, ownershipStub);
   // The Overview reads ownership through the one overview read; swap only that section for the same row.
-  await page.route('**/rest/v1/rpc/get_project_overview_read', async (route) => {
+  const overviewUrl = '**/rest/v1/rpc/get_project_overview_read';
+  const overviewStub = async (route: Route) => {
     const res = await route.fetch();
     const rows = await res.json();
     const ownership = [{ id: randomUUID(), org_id: orgId, external_tier: 'erpnext', domain: 'revenue' }];
     await route.fulfill({ response: res, json: Array.isArray(rows) ? rows.map((r: object) => ({ ...r, external_domain_ownership: ownership })) : { ...rows, external_domain_ownership: ownership } });
-  });
+  };
+  await page.route(overviewUrl, overviewStub);
   await page.route('**/functions/v1/external-items', async (route) => {
     const request = route.request().postDataJSON() as { purpose?: string } | null;
     await route.fulfill({
@@ -440,7 +444,10 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await confirmDialog.getByRole('button', { name: 'Confirm sign-off' }).click();
   await expect(confirmDialog).not.toBeVisible({ timeout: 15_000 });
 
-  // This lane has no live ERP bench. The existing invoice action depends on that external service, so the journey stops at the confirmed PMO claim and does not fabricate an invoice response.
+  // The ERP stubs above only supplied the sales-item catalogue for the rate card. The seeded organisation has no ERP, so from here
+  // the page reads its real ownership: revenue is PMO's, and the signed-off claim is invoiced in PMO (#1817).
+  await page.unroute(ownershipUrl, ownershipStub);
+  await page.unroute(overviewUrl, overviewStub);
   await page.reload();
   const signedOffClaims = page.locator('section[aria-labelledby="tm-claims-heading"]');
   await expect(signedOffClaims.getByText('Signed off', { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -450,6 +457,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   const finalLine = signedOffLines.getByRole('listitem').filter({ hasText: LINE_LABEL });
   await expect(finalLine).toContainText(new RegExp(`${HOURS} hours?\\s*×.*50[,\\s]000`));
   await expect(finalLine).toContainText(/400[,\s]000/);
+  await page.keyboard.press('Escape');
 
   const claimResult = await serviceClient
     .from('tm_claims')
@@ -467,4 +475,46 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   const lineResult = await serviceClient.from('tm_claim_lines').select('units, rate, amount').eq('claim_id', claimResult.data.id).single();
   if (lineResult.error) throw new Error(`AC-TM-018 frozen claim line: ${lineResult.error.message}`);
   expect(lineResult.data).toMatchObject({ units: HOURS, rate: RATE, amount: HOURS * RATE });
+
+  // Finance creates the invoice from the signed-off claim, in PMO.
+  const claimRow = signedOffClaims.getByRole('listitem').filter({ hasText: 'Signed off' });
+  await claimRow.getByRole('button', { name: 'Create invoice' }).click();
+  const invoiceDialog = page.getByRole('dialog', { name: "Create this claim's invoice?" });
+  await expect(invoiceDialog).toContainText('A draft invoice is created in PMO from this claim.');
+  await invoiceDialog.getByRole('button', { name: 'Create invoice' }).click();
+  await expect(visibleToast(page, 'Invoice drafted in PMO')).toBeVisible({ timeout: 15_000 });
+  await expect(claimRow).toContainText('Invoiced · Draft', { timeout: 15_000 });
+  await expect(claimRow.getByRole('button', { name: 'Create invoice' })).toHaveCount(0);
+
+  // Oracle: the invoice shows the approved units and rate, and carries the claim's id and total.
+  const draft = await serviceClient
+    .from('sales_invoices')
+    .select('id, status, pmo_native, amount, billing_kind, native_lines')
+    .eq('id', claimResult.data.id)
+    .single();
+  if (draft.error) throw new Error(`AC-TM-018 native invoice: ${draft.error.message}`);
+  expect(draft.data).toMatchObject({ status: 'Draft', pmo_native: true, amount: HOURS * RATE, billing_kind: 'contract' });
+  expect(draft.data.native_lines).toEqual([
+    expect.objectContaining({ description: `${LINE_LABEL} (hour)`, qty: HOURS, rate: RATE, amount: HOURS * RATE }),
+  ]);
+
+  // A second person approves it from the Approvals queue, after reading the lines; the claim row then shows the invoice number.
+  const clientName = `${projectName.replace('Time materials ', '')} Client`;
+  await page.clock.setFixedTime(new Date());
+  await login(page, 'admin@acme.test');
+  await page.clock.setFixedTime(fixedNow);
+  await page.goto('/approvals');
+  const invoiceQueue = page.getByRole('region', { name: 'Customer invoices awaiting you' });
+  const invoiceItem = invoiceQueue.getByRole('listitem').filter({ hasText: clientName });
+  await expect(invoiceItem).toBeVisible({ timeout: 15_000 });
+  await invoiceItem.getByRole('button', { name: new RegExp(`Show invoice details for ${clientName}`, 'i') }).click();
+  const invoiceLines = invoiceItem.getByRole('list', { name: 'Line items' });
+  await expect(invoiceLines).toContainText(`${LINE_LABEL} (hour)`);
+  await expect(invoiceLines).toContainText(new RegExp(`${HOURS}.*50[,.]000`));
+  await invoiceItem.getByRole('button', { name: 'Approve' }).click();
+  await page.getByRole('button', { name: 'Approve invoice' }).click();
+  await expect(invoiceItem).toHaveCount(0, { timeout: 15_000 });
+
+  await page.goto(billingUrl);
+  await expect(page.locator('section[aria-labelledby="tm-claims-heading"]')).toContainText(/Invoiced · INV-\d{10}/, { timeout: 20_000 });
 });

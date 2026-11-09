@@ -1,7 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
+import type { ContactDirectoryPage, ContactRow, ContactInput } from '@/src/lib/db/contacts';
+import type {
+  CrmActivityRow,
+  CrmActivityInput,
+  CrmActivityPatch,
+  ActivityCursor,
+  ActivityPage,
+} from '@/src/lib/db/crmActivities';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -16,6 +29,65 @@ export function useContacts(opts?: { enabled?: boolean }) {
     queryKey: ['contacts', orgId],
     queryFn: () => repositories.contact.list(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
+/** The directory's page size: 50, the established Odoo-directory/AdminUsers page size (#1989). */
+export const CONTACTS_DIRECTORY_PAGE_SIZE = 50;
+
+/**
+ * ONE server page of the Contacts directory (issue #1989, the Master-data/AdminUsers pattern):
+ * the URL's company filter + committed search go to the SERVER; filter, search, page and page
+ * size are part of the query key so an old view's response can never be served as the new one,
+ * and `keepPreviousData` keeps the previous page visible while a new one loads. 'All' is the
+ * ABSENCE of a company filter; a blank search is the absence of a search.
+ */
+export function useContactsPage(input: {
+  companyId: string;
+  search: string;
+  page: number;
+  pageSize: number;
+}) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ContactDirectoryPage>({
+    queryKey: ['contacts', orgId, 'page', input.companyId, input.search, input.page, input.pageSize],
+    queryFn: () =>
+      repositories.contact.listPage({
+        page: input.page,
+        pageSize: input.pageSize,
+        companyId: input.companyId === 'All' ? undefined : input.companyId,
+        search: input.search.trim() || undefined,
+      }),
+    enabled: Boolean(orgId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The exact non-archived contact total — the "of Y" behind the directory's filtered
+ * "Showing X of Y" (#1989). One head count per org, cached; the page enables it only while a
+ * filter/search is active (unfiltered, the page's own total IS the directory total).
+ */
+export function useContactsTotal(opts?: { enabled?: boolean }) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<number>({
+    queryKey: ['contacts', orgId, 'total'],
+    queryFn: () => repositories.contact.count(),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * The full-set export read (#1989): EVERY contact matching the directory's current
+ * filter/search, fetched only when the user actually exports.
+ */
+export function useContactsExportAll() {
+  return useMutation({
+    mutationFn: (params?: { companyId?: string; search?: string }) =>
+      repositories.contact.listAll(params),
   });
 }
 
@@ -46,15 +118,36 @@ export function useContactsByCompany(companyId: string | null | undefined) {
   });
 }
 
-/** A contact's activity timeline (newest-first), for the quick-view drawer. */
+/**
+ * Newest-first activity pages (#1990): the first page is the most recent; `fetchNextPage` loads
+ * the next older one by keyset cursor. `data` is the flattened list of every loaded row.
+ * Every activity write trims the cache to page one and refetches it (stale cursors on older
+ * pages would skip or repeat a row), so a new activity lands on top.
+ */
+function useActivityPages(
+  queryKey: unknown[],
+  enabled: boolean,
+  fetchPage: (cursor: ActivityCursor | null) => Promise<ActivityPage>,
+) {
+  return useInfiniteQuery<ActivityPage, Error, CrmActivityRow[], unknown[], ActivityCursor | null>({
+    queryKey,
+    initialPageParam: null,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
+    getNextPageParam: (last) => last.nextCursor,
+    select: (d) => d.pages.flatMap((p) => p.rows),
+    enabled,
+  });
+}
+
+/** A contact's activity timeline (newest-first, paged), for the contact record page. */
 export function useContactActivities(contactId: string | null | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<CrmActivityRow[]>({
-    queryKey: ['crm-activities', orgId, contactId],
-    queryFn: () => repositories.contact.listActivities(contactId as string),
-    enabled: Boolean(orgId && contactId),
-  });
+  return useActivityPages(
+    ['crm-activities', orgId, contactId],
+    Boolean(orgId && contactId),
+    (cursor) => repositories.contact.listActivitiesPage(contactId as string, cursor),
+  );
 }
 
 /**
@@ -75,8 +168,9 @@ export function useContactMeetings(contactId: string | null | undefined) {
 }
 
 /**
- * Account-level activity timeline (T17): fetches all crm_activities across a company's
- * contacts in ONE batched query (C3 — crm_activities_contact_idx covers this path).
+ * Account-level activity timeline (T17): the newest page of crm_activities across a company's
+ * contacts in ONE batched query (C3 — crm_activities_contact_idx covers this path), with
+ * `fetchNextPage` for older ones (#1990).
  *
  * The hook accepts the list of contactIds for this company (from useContactsByCompany)
  * to avoid coupling to another DB query. When contactIds is empty the result is empty.
@@ -86,12 +180,11 @@ export function useCompanyActivities(contactIds: string[]) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const key = contactIds.slice().sort().join(',');
-
-  return useQuery<CrmActivityRow[]>({
-    queryKey: ['crm-activities', 'by-company', orgId, key],
-    queryFn: () => repositories.contact.listActivitiesForContacts(contactIds),
-    enabled: Boolean(orgId && contactIds.length > 0),
-  });
+  return useActivityPages(
+    ['crm-activities', 'by-company', orgId, key],
+    Boolean(orgId && contactIds.length > 0),
+    (cursor) => repositories.contact.listActivitiesForContactsPage(contactIds, cursor),
+  );
 }
 
 export interface UpdateContactArgs {
@@ -108,6 +201,15 @@ export interface UpdateContactArgs {
 export function useContactMutations() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
+  // Older pages were fetched with cursors from the OLD first page; after a write those cursors
+  // would skip (insert) or repeat (delete) a row. Keep only page one, then refetch it (#1990).
+  const refreshActivities = () => {
+    qc.setQueriesData<InfiniteData<ActivityPage, ActivityCursor | null>>(
+      { queryKey: ['crm-activities'] },
+      (d) => d && { pages: d.pages.slice(0, 1), pageParams: d.pageParams.slice(0, 1) },
+    );
+    qc.invalidateQueries({ queryKey: ['crm-activities'] });
+  };
   const invalidateContacts = () => {
     qc.invalidateQueries({ queryKey: ['contacts'] });
     // CW-4b: also bust the single-record family so an open `/contacts/:id` detail page refetches.
@@ -138,7 +240,7 @@ export function useContactMutations() {
     mutationFn: (input: CrmActivityInput) =>
       repositories.contact.createActivity(input, currentUser?.id ?? null),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+      refreshActivities();
       qc.invalidateQueries({ queryKey: ['contacts'] });
     },
   });
@@ -147,14 +249,14 @@ export function useContactMutations() {
     mutationFn: ({ id, ...patch }: { id: string } & CrmActivityPatch) =>
       repositories.contact.updateActivity(id, patch),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+      refreshActivities();
     },
   });
 
   const deleteActivity = useMutation({
     mutationFn: (id: string) => repositories.contact.deleteActivity(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+      refreshActivities();
     },
   });
 

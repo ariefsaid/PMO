@@ -41,8 +41,11 @@ function useLens(): Lens {
 }
 
 const Suspended: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" />}>{children}</React.Suspense>
+  <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>{children}</React.Suspense>
 );
+
+/** Below the first screen: the browser skips layout and paint until the block nears the viewport (find-in-page, anchors and print still reach it). */
+const BELOW_FOLD = '[content-visibility:auto] [contain-intrinsic-size:auto_480px]';
 
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void }> = ({ project, isPipeline, onOpen }) => {
@@ -89,7 +92,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <MyOpenTasks projectId={project.id} />
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
-        <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
+        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
         {/* AC-PERF-003 (plan 1c): the work-order billing block sits below the fold — its three reads
             wait until the block nears the viewport (WhenNearViewport renders children immediately
             where IntersectionObserver is absent, so unit tests and old browsers are unchanged). */}
@@ -106,7 +109,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
         </div>
-        <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
+        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
         <WhenNearViewport>
           <BillingMilestonesBlock projectId={project.id} />
         </WhenNearViewport>

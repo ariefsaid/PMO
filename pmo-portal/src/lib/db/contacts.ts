@@ -29,16 +29,98 @@ function throwWrite(error: PostgrestErrorLike): never {
   throw new AppError(error.message, error.code);
 }
 
+/** One server page of the directory + the exact total matching the filter/search. */
+export interface ContactDirectoryPage {
+  rows: ContactRow[];
+  /** The exact count of contacts matching the filter/search over the WHOLE org — never the page length. */
+  total: number;
+}
+
+/**
+ * Escape a user-typed term for a quoted PostgREST `ilike` pattern: `%`/`_` are LIKE
+ * metacharacters, `\\` is the escape character they are escaped with, and `"` would terminate the
+ * quoted value. Without this, a search for `100%` would match every row.
+ */
+function likeAny(value: string): string {
+  return `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
+}
+
+/**
+ * ONE server page of the Contacts directory (issue #1989, the Master-data pattern): the company
+ * filter and the name/email search are applied on the SERVER *before* the range (so a match on
+ * page 7 is found and counted). Ordering is TOTAL: `full_name` then `id` — equal names are common
+ * in a directory, and an OFFSET page over a non-total order can repeat one contact and skip
+ * another. Archived rows are hidden. org_id is NEVER sent — RLS scopes the rows.
+ *
+ * A missing exact count is an ERROR (`COUNT_UNRESOLVED`), never `0`: a count the server failed to
+ * answer must not render a verified-looking empty directory (the AdminUsers ruling).
+ */
+export async function listContactsPage(input: {
+  page: number;
+  pageSize: number;
+  companyId?: string;
+  search?: string;
+}): Promise<ContactDirectoryPage> {
+  const from = Math.max(0, input.page - 1) * input.pageSize;
+  const term = input.search?.trim();
+  const pattern = term ? likeAny(term) : null;
+  const filtered = <Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q }>(q: Q): Q => {
+    if (input.companyId) q = q.eq('company_id', input.companyId);
+    return pattern ? q.or(`full_name.ilike.${pattern},email.ilike.${pattern}`) : q;
+  };
+  const { data, error, count } = await filtered(
+    supabase.from('contacts').select('*', { count: 'exact' }).is('archived_at', null),
+  )
+    .order('full_name')
+    .order('id')
+    .range(from, from + input.pageSize - 1);
+  // An OFFSET past the last page (rows archived since the pager was drawn) is answered 416 /
+  // PGRST103: that is an EMPTY page over the real total, so the pager can correct down — not an error.
+  if (error?.code === 'PGRST103') {
+    const head = await filtered(
+      supabase.from('contacts').select('id', { count: 'exact', head: true }).is('archived_at', null),
+    );
+    if (head.error) throwWrite(head.error);
+    return { rows: [], total: head.count ?? 0 };
+  }
+  if (error) throwWrite(error);
+  if (count === null || count === undefined) {
+    throw new AppError('The contacts directory total could not be resolved.', 'COUNT_UNRESOLVED');
+  }
+  return { rows: (data ?? []) as ContactRow[], total: count };
+}
+
+/**
+ * The exact number of non-archived contacts in the org — the "of Y" behind a filtered
+ * "Showing X of Y" on the directory (#1989). A head count: `head: true` sends no body bytes.
+ */
+export async function countContacts(): Promise<number> {
+  const { count, error } = await supabase
+    .from('contacts')
+    .select('id', { count: 'exact', head: true })
+    .is('archived_at', null);
+  if (error) throwWrite(error);
+  return count ?? 0;
+}
+
 /**
  * List the caller's org non-archived contacts ordered by name (AC-CRM-020). org_id is NEVER
  * sent — RLS (contacts_select: org_id = auth_org_id()) scopes rows.
+ *
+ * #1989: an optional `companyId` and `search` narrow the set SERVER-side inside the keyset read,
+ * so the full-set export matches exactly what the directory's server page shows for the same
+ * filter/search.
  *
  * DAL01-005: reads EVERY keyset page (ordered by id — the only unique, total order) so the
  * directory, pickers and export stay complete past PostgREST's single-response cap; the
  * name-ordered contract is restored in memory. A page error throws (code preserved) — a partial
  * directory can never be mistaken for a complete one.
  */
-export async function listContacts(): Promise<ContactRow[]> {
+export async function listContacts(params?: {
+  companyId?: string;
+  search?: string;
+}): Promise<ContactRow[]> {
+  const term = params?.search?.trim();
   const rows = await fetchAllRowsByKeyset<ContactRow>((afterId, limit) => {
     let query = supabase
       .from('contacts')
@@ -46,6 +128,11 @@ export async function listContacts(): Promise<ContactRow[]> {
       .is('archived_at', null)
       .order('id', { ascending: true })
       .limit(limit);
+    if (params?.companyId) query = query.eq('company_id', params.companyId);
+    if (term) {
+      const pattern = likeAny(term);
+      query = query.or(`full_name.ilike.${pattern},email.ilike.${pattern}`);
+    }
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<PageResult<ContactRow>>;
   });

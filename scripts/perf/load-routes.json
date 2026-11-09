@@ -1,0 +1,967 @@
+{
+ "dashboard-exec": {
+  "email": "exec@acme.test",
+  "route": "/",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_currency%2Cdefault_timezone",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/resolved_org_features",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/user_views?select=id%2Cuser_id%2Cname%2Cdescription%2Cscope%2Ccreated_at%2Cupdated_at%2Carchived_at&archived_at=is.null&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/is_operator",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_domain_ownership?select=id%2Corg_id%2Cexternal_tier%2Cdomain&order=external_tier.asc",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_locale%2Cdefault_number_locale%2Cdefault_timezone&limit=1",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=id%2Cstatus%2Cinvoice_date%2Cerp_due_date%2Creceived_date%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%29&status=in.%28Submitted%2CUnpaid%29&paired_erp_invoice_id=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_win_rate",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_from\":\"{yearStart}\",\"p_to\":\"{monthEnd}\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_executive_dashboard",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_sales_pipeline",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=id%2Cstatus%2Ccurrency%2Cinvoice_date%2Cerp_due_date%2Creceived_date%2Cerp_outstanding_amount%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%29&status=in.%28Submitted%2CUnpaid%29&paired_erp_invoice_id=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/incoming_payments?select=status%2Cdate%2Camount%2Ccurrency&status=eq.Paid&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/procurements?select=*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%2Cproject_manager_id%29%2Cvendor%3Acompanies%28name%29%2Crequested_by%3Aprofiles%21procurements_requested_by_id_fkey%28full_name%29%2Cstatus_events%3Aprocurement_status_events%28to_status%2Ccreated_at%29%2Cpurchase_requests%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Cpurchase_orders%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Creceipts%3Aprocurement_receipts%28receipt_date%2Ccreated_at%29%2Cprocurement_invoices%28amount%2Cinvoice_date%2Ccreated_at%2Cerp_outstanding_amount%2Cexternal_ref%29%2Cpayments%28amount%2Cdate%2Ccreated_at%2Cstatus%29&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_unbilled_work_orders",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_limit\":8}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_management_pack",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_from\":\"{yearStart}\",\"p_to\":\"{monthStart}\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_management_pack",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_from\":\"{monthStartMinus12}\",\"p_to\":\"{monthStartMinus1}\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/erp_purchase_documents_linked?select=id%2Cerp_doctype%2Cerp_name%2Csupplier%2Csupplier_name%2Cdoc_date%2Cdue_date%2Cbill_no%2Ccurrency%2Cgrand_total%2Cnet_total%2Coutstanding_amount%2Cerp_status%2Cis_return%2Cproject_ids%2Cprocurement_id%2Clink_id&erp_docstatus=eq.1&pmo_owned=eq.false&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_finance_budget_review",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/timesheets?select=*%2Cowner%3Aprofiles%21timesheets_user_id_fkey%21inner%28full_name%2Cmanager_id%29%2Centries%3Atimesheet_entries%28*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%29%29&status=eq.Submitted&user_id=neq.{userId}&order=id.asc&owner.or=%28manager_id.eq.{userId}%2Cmanager_id.is.null%29&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/expense_claims?select=*%2Cclaimant%3Aprofiles%21expense_claims_claimant_id_fkey%28full_name%29%2Cproject%3Aprojects%28name%2Cshort_name%29%2Cfloat%3Aimprest_floats%28currency%29&status=eq.Submitted&order=created_at.desc%2Cid.desc&offset=0&limit=201",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=*%2Cclient%3Acompanies%21projects_client_id_fkey%28name%2Cshort_name%29%2Cend_client%3Acompanies%21projects_end_client_id_fkey%28name%2Cshort_name%29%2Cpm%3Aprofiles%21projects_project_manager_id_fkey%28full_name%29&status=in.%28%22Won%2C+Pending+KoM%22%2COngoing+Project%2COn+Hold%2CClose+Out%2CInternal+Project%29&archived_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_loss_breakdown",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_from\":\"{yearStart}\",\"p_to\":\"{monthEnd}\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_procurement_approval_routes",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":[\"60000000-0000-0000-0000-000000000003\",\"61000000-0000-0000-0000-000000000008\",\"61000000-0000-0000-0000-000000000012\"]}"
+   }
+  ]
+ },
+ "dashboard-pm": {
+  "email": "pm@acme.test",
+  "route": "/",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/resolved_org_features",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/user_views?select=id%2Cuser_id%2Cname%2Cdescription%2Cscope%2Ccreated_at%2Cupdated_at%2Carchived_at&archived_at=is.null&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/is_operator",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_domain_ownership?select=id%2Corg_id%2Cexternal_tier%2Cdomain&order=external_tier.asc",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_locale%2Cdefault_number_locale%2Cdefault_timezone&limit=1",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_pm_dashboard_projects",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/timesheets?select=*%2Cowner%3Aprofiles%21timesheets_user_id_fkey%21inner%28full_name%2Cmanager_id%29%2Centries%3Atimesheet_entries%28*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%29%29&status=eq.Submitted&user_id=neq.{userId}&order=id.asc&owner.manager_id=eq.{userId}&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/procurements?select=*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%29%2Cvendor%3Acompanies%28name%29%2Crequested_by%3Aprofiles%21procurements_requested_by_id_fkey%28full_name%29%2Copen_commitment%3Aprocurement_open_commitment&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_currency%2Cdefault_timezone",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/procurements?select=*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%2Cproject_manager_id%29%2Cvendor%3Acompanies%28name%29%2Crequested_by%3Aprofiles%21procurements_requested_by_id_fkey%28full_name%29%2Cstatus_events%3Aprocurement_status_events%28to_status%2Ccreated_at%29%2Cpurchase_requests%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Cpurchase_orders%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Creceipts%3Aprocurement_receipts%28receipt_date%2Ccreated_at%29%2Cprocurement_invoices%28amount%2Cinvoice_date%2Ccreated_at%2Cerp_outstanding_amount%2Cexternal_ref%29%2Cpayments%28amount%2Cdate%2Ccreated_at%2Cstatus%29&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/expense_claims?select=*%2Cclaimant%3Aprofiles%21expense_claims_claimant_id_fkey%28full_name%29%2Cproject%3Aprojects%28name%2Cshort_name%29%2Cfloat%3Aimprest_floats%28currency%29&status=eq.Submitted&order=created_at.desc%2Cid.desc&offset=0&limit=201",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_procurement_approval_routes",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":[\"60000000-0000-0000-0000-000000000003\",\"61000000-0000-0000-0000-000000000008\",\"61000000-0000-0000-0000-000000000012\"]}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_procurement_approval_routes",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":[\"60000000-0000-0000-0000-000000000003\",\"61000000-0000-0000-0000-000000000008\",\"61000000-0000-0000-0000-000000000012\"]}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_projects_delivery?order=project_id.asc&offset=0&limit=1000",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":[\"40000000-0000-0000-0000-000000000004\",\"41000000-0000-0000-0000-000000000003\",\"41000000-0000-0000-0000-000000000002\",\"41000000-0000-0000-0000-000000000007\",\"40000000-0000-0000-0000-000000000005\",\"40000000-0000-0000-0000-000000000012\",\"41000000-0000-0000-0000-000000000009\",\"41000000-0000-0000-0000-000000000004\",\"40000000-0000-0000-0000-000000000011\",\"40000000-0000-0000-0000-000000000001\",\"41000000-0000-0000-0000-000000000008\",\"41000000-0000-0000-0000-000000000001\",\"41000000-0000-0000-0000-000000000005\",\"40000000-0000-0000-0000-000000000002\",\"41000000-0000-0000-0000-000000000006\",\"40000000-0000-0000-0000-000000000003\",\"40000000-0000-0000-0000-000000000013\"]}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/tasks?select=id%2Cproject_id%2Cstatus%2Cend_date&project_id=in.%2840000000-0000-0000-0000-000000000004%2C41000000-0000-0000-0000-000000000003%2C41000000-0000-0000-0000-000000000002%2C41000000-0000-0000-0000-000000000007%2C40000000-0000-0000-0000-000000000005%2C40000000-0000-0000-0000-000000000012%2C41000000-0000-0000-0000-000000000009%2C41000000-0000-0000-0000-000000000004%2C40000000-0000-0000-0000-000000000011%2C40000000-0000-0000-0000-000000000001%2C41000000-0000-0000-0000-000000000008%2C41000000-0000-0000-0000-000000000001%2C41000000-0000-0000-0000-000000000005%2C40000000-0000-0000-0000-000000000002%2C41000000-0000-0000-0000-000000000006%2C40000000-0000-0000-0000-000000000003%2C40000000-0000-0000-0000-000000000013%29&tombstoned_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=id%2Cpmo_project_number&id=in.%2840000000-0000-0000-0000-000000000001%2C40000000-0000-0000-0000-000000000004%2C41000000-0000-0000-0000-000000000001%2C41000000-0000-0000-0000-000000000002%2C41000000-0000-0000-0000-000000000003%2C41000000-0000-0000-0000-000000000004%29&limit=6",
+    "headers": {
+     "accept-profile": "public"
+    }
+   }
+  ]
+ },
+ "project": {
+  "email": "exec@acme.test",
+  "route": "/projects/:id",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_currency%2Cdefault_timezone",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/resolved_org_features",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/user_views?select=id%2Cuser_id%2Cname%2Cdescription%2Cscope%2Ccreated_at%2Cupdated_at%2Carchived_at&archived_at=is.null&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/is_operator",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_domain_ownership?select=id%2Corg_id%2Cexternal_tier%2Cdomain&order=external_tier.asc",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_locale%2Cdefault_number_locale%2Cdefault_timezone&limit=1",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=id%2Cstatus%2Cinvoice_date%2Cerp_due_date%2Creceived_date%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%29&status=in.%28Submitted%2CUnpaid%29&paired_erp_invoice_id=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=*%2Cclient%3Acompanies%21projects_client_id_fkey%28name%2Cshort_name%29%2Cend_client%3Acompanies%21projects_end_client_id_fkey%28name%2Cshort_name%29%2Cpm%3Aprofiles%21projects_project_manager_id_fkey%28full_name%29&id=eq.{projectId}",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_project_overview_read",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_project_id\":\"{projectId}\",\"p_include_money\":true,\"p_include_commitments\":true,\"p_include_budget\":true}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=*%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%2Cname%2Cshort_name%29%2Csales_invoice_authors%28user_id%29%2Cproject%3Aprojects%21sales_invoices_project_id_fkey%28subject_to_vat%29&project_id=eq.{projectId}&paired_erp_invoice_id=is.null&order=invoice_date.desc%2Ccreated_at.desc%2Cid.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_org_bindings?select=org_id%2Cexternal_tier%2Csite_url%2Cstatus%2Cconnected_by%2Cconnected_at%2Cdisconnected_at%2Cconfig&org_id=eq.{orgId}",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_financial_statement_catalogue",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_project_id\":\"{projectId}\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/procurements?select=*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%2Cproject_manager_id%29%2Cvendor%3Acompanies%28name%29%2Crequested_by%3Aprofiles%21procurements_requested_by_id_fkey%28full_name%29%2Copen_commitment%3Aprocurement_open_commitment%2Cstatus_events%3Aprocurement_status_events%28to_status%2Ccreated_at%29%2Cpurchase_requests%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Cpurchase_orders%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Creceipts%3Aprocurement_receipts%28receipt_date%2Ccreated_at%29%2Cprocurement_invoices%28amount%2Cinvoice_date%2Ccreated_at%2Cerp_outstanding_amount%2Cexternal_ref%29%2Cpayments%28amount%2Cdate%2Ccreated_at%2Cstatus%29%2Cpr_refs%3Apurchase_requests%28external_ref%29%2Cpo_refs%3Apurchase_orders%28external_ref%29%2Cvi_refs%3Aprocurement_invoices%28external_ref%29&project_id=eq.{projectId}&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/tasks?select=*%2Cassignee%3Aprofiles%21tasks_assignee_id_fkey%28id%2Cfull_name%29%2Cdependencies%3Atask_dependencies%21task_dependencies_task_id_fkey%28depends_on_id%29&project_id=eq.{projectId}&tombstoned_at=is.null&order=created_at.asc%2Cid.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_financial_statement_catalogue",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_project_id\":\"{projectId}\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=id%2Cname%2Cshort_name%2Ccode%2Cpmo_project_number%2Cstatus%2Cclient_id%2Cproject_manager_id%2Cend_client_id%2Cservice_line%2Csector%2Clocation%2Caward_type%2Cbidding_entity%2Ccontract_value%2Ccurrency%2Ctax_treatment%2Ctax_amount%2Ctax_rate%2Ctax_base_numerator%2Ctax_base_denominator%2Ccustomer_contract_ref%2Ccontract_date%2Cdecided_at%2Cstart_date%2Cend_date%2Cclient%3Acompanies%21projects_client_id_fkey%28name%2Cshort_name%29%2Cend_client%3Acompanies%21projects_end_client_id_fkey%28name%2Cshort_name%29%2Cpm%3Aprofiles%21projects_project_manager_id_fkey%28full_name%29&id=eq.{projectId}",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_procurement_approval_routes",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":[\"61000000-0000-0000-0000-000000000008\"]}"
+   }
+  ]
+ },
+ "procurement": {
+  "email": "exec@acme.test",
+  "route": "/procurement",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_currency%2Cdefault_timezone",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/resolved_org_features",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/user_views?select=id%2Cuser_id%2Cname%2Cdescription%2Cscope%2Ccreated_at%2Cupdated_at%2Carchived_at&archived_at=is.null&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/is_operator",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_domain_ownership?select=id%2Corg_id%2Cexternal_tier%2Cdomain&order=external_tier.asc",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_locale%2Cdefault_number_locale%2Cdefault_timezone&limit=1",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=id%2Cstatus%2Cinvoice_date%2Cerp_due_date%2Creceived_date%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%29&status=in.%28Submitted%2CUnpaid%29&paired_erp_invoice_id=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/procurements?select=*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%2Cproject_manager_id%29%2Cvendor%3Acompanies%28name%29%2Crequested_by%3Aprofiles%21procurements_requested_by_id_fkey%28full_name%29%2Copen_commitment%3Aprocurement_open_commitment%2Cstatus_events%3Aprocurement_status_events%28to_status%2Ccreated_at%29%2Cpurchase_requests%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Cpurchase_orders%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Creceipts%3Aprocurement_receipts%28receipt_date%2Ccreated_at%29%2Cprocurement_invoices%28amount%2Cinvoice_date%2Ccreated_at%2Cerp_outstanding_amount%2Cexternal_ref%29%2Cpayments%28amount%2Cdate%2Ccreated_at%2Cstatus%29%2Cpr_refs%3Apurchase_requests%28external_ref%29%2Cpo_refs%3Apurchase_orders%28external_ref%29%2Cvi_refs%3Aprocurement_invoices%28external_ref%29&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=*%2Cclient%3Acompanies%21projects_client_id_fkey%28name%2Cshort_name%29%2Cend_client%3Acompanies%21projects_end_client_id_fkey%28name%2Cshort_name%29%2Cpm%3Aprofiles%21projects_project_manager_id_fkey%28full_name%29&status=in.%28%22Won%2C+Pending+KoM%22%2COngoing+Project%2COn+Hold%2CClose+Out%2CInternal+Project%29&archived_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/companies?select=*&archived_at=is.null&order=id.asc&limit=1000&type=eq.Vendor",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/erp_purchase_documents_linked?select=id%2Cerp_doctype%2Cerp_name%2Csupplier%2Csupplier_name%2Cdoc_date%2Cdue_date%2Cbill_no%2Ccurrency%2Cgrand_total%2Cnet_total%2Coutstanding_amount%2Cerp_status%2Cis_return%2Cproject_ids%2Cprocurement_id%2Clink_id&erp_docstatus=eq.1&pmo_owned=eq.false&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_procurement_approval_routes",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":[\"60000000-0000-0000-0000-000000000003\",\"61000000-0000-0000-0000-000000000008\",\"61000000-0000-0000-0000-000000000012\"]}"
+   }
+  ]
+ },
+ "receivables": {
+  "email": "exec@acme.test",
+  "route": "/finance/receivables",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_currency%2Cdefault_timezone",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/resolved_org_features",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/user_views?select=id%2Cuser_id%2Cname%2Cdescription%2Cscope%2Ccreated_at%2Cupdated_at%2Carchived_at&archived_at=is.null&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/is_operator",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_domain_ownership?select=id%2Corg_id%2Cexternal_tier%2Cdomain&order=external_tier.asc",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_locale%2Cdefault_number_locale%2Cdefault_timezone&limit=1",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=id%2Cstatus%2Cinvoice_date%2Cerp_due_date%2Creceived_date%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%29&status=in.%28Submitted%2CUnpaid%29&paired_erp_invoice_id=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=*%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%2Cname%2Cshort_name%29%2Csales_invoice_authors%28user_id%29%2Cproject%3Aprojects%21sales_invoices_project_id_fkey%28subject_to_vat%29&paired_erp_invoice_id=is.null&order=invoice_date.desc%2Ccreated_at.desc%2Cid.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/incoming_payments?select=*%2Ccustomer%3Acompanies%21incoming_payments_customer_id_fkey%28name%29%2Callocations%3Aincoming_payment_allocations%28id%2Csales_invoice_id%2Camount%2Ccash_amount%2Cwithheld_amount%2Ccurrency%2Creversed_at%29&order=date.desc%2Ccreated_at.desc%2Cid.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&order=full_name.asc",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/companies?select=*&type=eq.Client&archived_at=is.null&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=*%2Cclient%3Acompanies%21projects_client_id_fkey%28name%2Cshort_name%29%2Cend_client%3Acompanies%21projects_end_client_id_fkey%28name%2Cshort_name%29%2Cpm%3Aprofiles%21projects_project_manager_id_fkey%28full_name%29&status=in.%28%22Won%2C+Pending+KoM%22%2COngoing+Project%2COn+Hold%2CClose+Out%2CInternal+Project%29&archived_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=*%2Cclient%3Acompanies%21projects_client_id_fkey%28name%2Cshort_name%29%2Cend_client%3Acompanies%21projects_end_client_id_fkey%28name%2Cshort_name%29%2Cpm%3Aprofiles%21projects_project_manager_id_fkey%28full_name%29&status=in.%28%22Won%2C+Pending+KoM%22%2COngoing+Project%2COn+Hold%2CClose+Out%2CInternal+Project%29&archived_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/procurements?select=*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%2Cproject_manager_id%29%2Cvendor%3Acompanies%28name%29%2Crequested_by%3Aprofiles%21procurements_requested_by_id_fkey%28full_name%29%2Cstatus_events%3Aprocurement_status_events%28to_status%2Ccreated_at%29%2Cpurchase_requests%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Cpurchase_orders%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Creceipts%3Aprocurement_receipts%28receipt_date%2Ccreated_at%29%2Cprocurement_invoices%28amount%2Cinvoice_date%2Ccreated_at%2Cerp_outstanding_amount%2Cexternal_ref%29%2Cpayments%28amount%2Cdate%2Ccreated_at%2Cstatus%29&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   }
+  ]
+ },
+ "procurement-set": {
+  "email": "exec@acme.test",
+  "route": "/procurement",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/rest/v1/profiles?select=*&id=eq.{userId}",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_currency%2Cdefault_timezone",
+    "headers": {
+     "accept": "application/vnd.pgrst.object+json",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/resolved_org_features",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/user_views?select=id%2Cuser_id%2Cname%2Cdescription%2Cscope%2Ccreated_at%2Cupdated_at%2Carchived_at&archived_at=is.null&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/is_operator",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{}"
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_domain_ownership?select=id%2Corg_id%2Cexternal_tier%2Cdomain&order=external_tier.asc",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/external_project_bindings?select=id%2Corg_id%2Cproject_id%2Cexternal_tier%2Cexternal_container_id%2Cconfig%2Clinked_by%2Clinked_at%2Cdisconnected_at&org_id=eq.{orgId}&disconnected_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/organizations?select=default_locale%2Cdefault_number_locale%2Cdefault_timezone&limit=1",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "HEAD",
+    "path": "/rest/v1/notifications?select=*&read_at=is.null",
+    "headers": {
+     "prefer": "count=exact",
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/sales_invoices?select=id%2Cstatus%2Cinvoice_date%2Cerp_due_date%2Creceived_date%2Ccompanies%21sales_invoices_customer_id_fkey%28erp_payment_terms_days%29&status=in.%28Submitted%2CUnpaid%29&paired_erp_invoice_id=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/procurements?select=*%2Cproject%3Aprojects%28name%2Cshort_name%2Ccode%2Cproject_manager_id%29%2Cvendor%3Acompanies%28name%29%2Crequested_by%3Aprofiles%21procurements_requested_by_id_fkey%28full_name%29%2Cstatus_events%3Aprocurement_status_events%28to_status%2Ccreated_at%29%2Cpurchase_requests%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Cpurchase_orders%28amount%2Cdate%2Ccreated_at%2Cexternal_ref%29%2Creceipts%3Aprocurement_receipts%28receipt_date%2Ccreated_at%29%2Cprocurement_invoices%28amount%2Cinvoice_date%2Ccreated_at%2Cerp_outstanding_amount%2Cexternal_ref%29%2Cpayments%28amount%2Cdate%2Ccreated_at%2Cstatus%29%2Cpr_refs%3Apurchase_requests%28external_ref%29%2Cpo_refs%3Apurchase_orders%28external_ref%29%2Cvi_refs%3Aprocurement_invoices%28external_ref%29&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/projects?select=*%2Cclient%3Acompanies%21projects_client_id_fkey%28name%2Cshort_name%29%2Cend_client%3Acompanies%21projects_end_client_id_fkey%28name%2Cshort_name%29%2Cpm%3Aprofiles%21projects_project_manager_id_fkey%28full_name%29&status=in.%28%22Won%2C+Pending+KoM%22%2COngoing+Project%2COn+Hold%2CClose+Out%2CInternal+Project%29&archived_at=is.null&order=id.asc&offset=0&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/companies?select=*&archived_at=is.null&order=id.asc&limit=1000&type=eq.Vendor",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/rest/v1/erp_purchase_documents_linked?select=id%2Cerp_doctype%2Cerp_name%2Csupplier%2Csupplier_name%2Cdoc_date%2Cdue_date%2Cbill_no%2Ccurrency%2Cgrand_total%2Cnet_total%2Coutstanding_amount%2Cerp_status%2Cis_return%2Cproject_ids%2Cprocurement_id%2Clink_id&erp_docstatus=eq.1&pmo_owned=eq.false&order=id.asc&limit=1000",
+    "headers": {
+     "accept-profile": "public"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/get_procurement_approval_routes",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":[\"60000000-0000-0000-0000-000000000003\",\"61000000-0000-0000-0000-000000000008\",\"61000000-0000-0000-0000-000000000012\"]}"
+   },
+   {
+    "method": "POST",
+    "path": "/rest/v1/rpc/procurement_open_commitments",
+    "headers": {
+     "content-profile": "public",
+     "content-type": "application/json"
+    },
+    "body": "{\"p_ids\":{procurementIds}}"
+   }
+  ]
+ }
+}

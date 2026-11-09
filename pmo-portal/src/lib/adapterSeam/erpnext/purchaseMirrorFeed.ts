@@ -6,7 +6,8 @@
  */
 import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
-import { readWm, type LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
+import type { LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
+import { readWm } from './watermark.ts';
 
 export type PurchaseDoctype = 'Purchase Order' | 'Purchase Receipt' | 'Purchase Invoice' | 'Payment Entry';
 export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry'];
@@ -38,7 +39,7 @@ const PASS_BUDGET_MS = 25_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 
 export interface PurchaseFeedServiceClient extends Pick<LedgerFeedServiceClient, 'from'> {
-  rpc(name: 'upsert_erp_purchase_documents', args: { p_org_id: string; p_rows: PurchaseMirrorRow[] }):
+  rpc(name: 'upsert_erp_purchase_documents', args: { p_org_id: string; p_rows: PurchaseMirrorRow[]; p_restamp?: boolean }):
     PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 
@@ -250,6 +251,8 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   }
 
   // Alternate durable units so every document type progresses within the shared budget.
+  let failure: unknown;
+  try {
   while (pending.length > 0) {
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) break;
@@ -293,7 +296,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
           for (const [name, row] of latest) row.purchase_orders = orders.get(name) ?? [];
         }
         if (latest.size > 0) {
-          const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...latest.values()] }));
+          const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...latest.values()], p_restamp: false }));
           if (error) throw new AppError(error.message, error.code);
           fed += Number(data ?? 0);
           wroteRows = true;
@@ -326,10 +329,22 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       pending.push(state);
     }
   }
-  if (deferred !== undefined) throw deferred;
-  if (!wroteRows) {
-    const { error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] }));
-    if (error) throw new AppError(error.message, error.code);
+  } catch (error) {
+    failure = error;
   }
+  failure ??= deferred;
+  // #1290: pages write with p_restamp false; the org-wide project-link / PMO-owned re-stamp runs once per tick, here,
+  // after any rows were written (even when the tick stopped early: the cursor already moved past them) or on an idle
+  // tick. A failed re-stamp is caught up by the next tick's (the stamp is org-wide and idempotent).
+  if (wroteRows || failure === undefined) {
+    const stampDeadline = Math.max(deadline, Date.now() + REQUEST_TIMEOUT_MS);
+    try {
+      const { error } = await withinBudget(stampDeadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [], p_restamp: true }));
+      if (error) throw new AppError(error.message, error.code);
+    } catch (error) {
+      failure ??= error;
+    }
+  }
+  if (failure !== undefined) throw failure;
   return { fed, caughtUp: pending.length === 0 && !outOfTime };
 }

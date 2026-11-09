@@ -31,6 +31,12 @@ const ROLES = [
   { role: 'Project Manager', email: 'pm@acme.test', pages: ['/'] },
 ];
 
+// poll page.url() from node: page.waitForFunction hung on the signed-in app although location was already '/'
+async function waitForPath(page, ok, ms = 20000) {
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 100))) if (ok(new URL(page.url()).pathname)) return;
+  throw new Error(`timed out waiting for path, at ${page.url()}`);
+}
+
 const config = { ...desktop, settings: { ...desktop.settings, onlyCategories: ['performance'], throttling: { ...desktop.settings.throttling, cpuSlowdownMultiplier: 4 } } };
 const RUNS = Number(process.env.LH_RUNS || 3); // scores swing 5-10 points run to run; report the median-score run
 const all = [];
@@ -38,29 +44,43 @@ const all = [];
 for (let run = 0; run < RUNS; run++) {
 const rows = [];
 for (const { role, email, pages } of ROLES) {
-  const browser = await puppeteer.launch({ executablePath: chromium.executablePath(), headless: true });
+  const browser = await puppeteer.launch({ executablePath: chromium.executablePath(), headless: true, protocolTimeout: 600000 });
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1350, height: 940 });
+    page.on('dialog', (d) => { console.error(`dialog ${d.type()}: ${d.message()}`); d.dismiss().catch(() => {}); });
     await page.goto(`${base}/login`);
     await page.type('input[type=email], input[name=email]', email);
     await page.type('input[type=password]', password);
-    await Promise.all([page.waitForFunction(() => location.pathname === '/', { timeout: 20000 }), page.keyboard.press('Enter')]);
+    await page.keyboard.press('Enter');
+    await waitForPath(page, (p) => p === '/');
 
+    const resolved = pages.slice();
+    const pi = pages.indexOf('/projects/:id');
+    if (pi >= 0) {
+      await page.goto(`${base}/projects`, { waitUntil: 'domcontentloaded' });
+      // first project row's id (rows have no anchor; a handle click on the row hung)
+      let href = null;
+      for (let i = 0; i < 200 && !href; i++) {
+        href = await page.evaluate(() => (() => { const id = document.querySelector('tbody tr[id]')?.id; return id ? `/projects/${id}` : null; })());
+        if (!href) await new Promise((r) => setTimeout(r, 100));
+      }
+      if (!href) throw new Error('no project row on /projects');
+      await page.goto(`${base}${href}`, { waitUntil: 'domcontentloaded' });
+      resolved[pi] = new URL(page.url()).pathname;
+    }
     const flow = await startFlow(page, { config, flags: { disableStorageReset: true } });
     const names = [];
-    for (let route of pages) {
-      if (route === '/projects/:id') {
-        await page.goto(`${base}/projects`, { waitUntil: 'networkidle0' });
-        await page.waitForSelector('tbody tr');
-        await Promise.all([page.waitForFunction(() => /^\/projects\/[^/]+$/.test(location.pathname)), page.click('tbody tr')]);
-        const href = new URL(page.url()).pathname;
-        route = href;
-      }
+    for (const route of resolved) {
       names.push(route);
+      console.error(new Date().toISOString(), role, 'navigate', route);
       await flow.navigate(`${base}${route}`, { name: route });
     }
     const flowResult = await flow.createFlowResult();
+    if (process.env.LH_ARTIFACTS) { // raw traces + devtools logs per step, for long-task attribution
+      fs.mkdirSync(process.env.LH_ARTIFACTS, { recursive: true });
+      fs.writeFileSync(path.join(process.env.LH_ARTIFACTS, `run${run}-${role.replace(/ /g, '')}.json`), JSON.stringify({ artifacts: await flow.createArtifactsJson(), flowResult }));
+    }
     flowResult.steps.forEach((s, i) => {
       const a = s.lhr.audits;
       // gzip size of each script the page requested, from the build output (the preview server does not compress)

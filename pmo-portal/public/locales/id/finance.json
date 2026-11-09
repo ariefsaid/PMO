@@ -191,7 +191,8 @@
     "mobileOutstandingUnknown": "Saldo terutang tidak diketahui",
     "mobileInvoiceAmountInclusive": "Total faktur termasuk PPN",
     "mobileInvoiceAmountUnspecified": "Jumlah faktur",
-    "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}."
+    "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}.",
+    "allocatedInErp": "Dialokasikan di sistem akuntansi Anda; hanya bisa dilihat di sini."
   },
   "invoices": {
     "description": "Faktur klien.",
@@ -204,7 +205,47 @@
     "statusAwaitingOdoo": "Kuitansi terkirim, menunggu Odoo",
     "statusPaidOdoo": "Lunas",
     "journalLabel": "Diterima di",
-    "titleUnnumbered": "Kuitansi, belum bernomor"
+    "titleUnnumbered": "Kuitansi, belum bernomor",
+    "apply": {
+      "title": "Terapkan ke faktur",
+      "subtitle": "{{amount}} belum diterapkan",
+      "submit": "Terapkan",
+      "action": "Terapkan ke faktur",
+      "noOpenInvoices": "Pelanggan ini tidak punya faktur yang sudah disetujui dalam {{currency}} dan masih ada sisa tagihan.",
+      "invoiceCol": "Faktur",
+      "invoicePlaceholder": "Pilih faktur…",
+      "amountCol": "Jumlah",
+      "fillBalance": "Isi sisa tagihan",
+      "removeRow": "Hapus faktur ini",
+      "addInvoice": "Tambah faktur lain",
+      "leftToApply": "Sisa yang bisa diterapkan: {{amount}}",
+      "exceedsReceipt": "Jumlahnya melebihi sisa pembayaran yang belum diterapkan.",
+      "exceedsBalance": "Jumlahnya melebihi sisa tagihan faktur ({{amount}}).",
+      "pickInvoice": "Pilih faktur.",
+      "amountPositive": "Isi jumlah di atas nol, maksimal 2 angka desimal.",
+      "done": "Pembayaran diterapkan"
+    },
+    "unapply": {
+      "action": "Batalkan penerapan",
+      "actionFor": "Batalkan penerapan {{invoice}}",
+      "confirmTitle": "Tarik pembayaran ini dari faktur?",
+      "confirmBody": "Jumlahnya kembali ke \"Belum diterapkan\" pada pembayaran, dan {{invoice}} kembali memiliki sisa tagihan sebesar itu.",
+      "done": "Pembayaran ditarik dari faktur"
+    },
+    "onAccount": {
+      "mode": "Belum ada faktur dipilih: pembayaran ini dicatat untuk pelanggan tanpa faktur. Anda bisa menerapkannya ke faktur nanti."
+    },
+    "refusal": {
+      "allocationExceedsUnapplied": "Jumlahnya melebihi sisa pembayaran yang belum diterapkan.",
+      "allocationExceedsBalance": "Jumlahnya melebihi sisa tagihan faktur.",
+      "allocationAmountInvalid": "Periksa jumlahnya: tiap jumlah harus di atas nol, maksimal 2 angka desimal.",
+      "allocationDuplicateInvoice": "Satu faktur hanya boleh dicantumkan sekali.",
+      "allocationClientMismatch": "Faktur itu milik klien lain.",
+      "allocationCurrencyMismatch": "Faktur itu memakai mata uang lain.",
+      "allocationAlreadyReversed": "Bagian pembayaran ini sudah ditarik dari faktur.",
+      "receiptNotApplicable": "Pembayaran ini tidak bisa diterapkan lagi. Mungkin sudah dibatalkan.",
+      "requestIdReused": "Permintaan ini sudah dipakai untuk pembayaran lain. Tutup jendela ini dan mulai lagi."
+    }
   },
   "statements": {
     "amountsIn": "Jumlah dalam",
@@ -758,6 +799,121 @@
       "currency": "Mata uang pembelian berbeda dari mata uang akuntansi.",
       "attachedElsewhere": "Baris jurnal ini sudah menjadi bagian dari pembelian lain.",
       "alreadyAttached": "Baris jurnal ini sudah dilampirkan ke pembelian ini."
+    }
+  },
+  "odooLedger": {
+    "state": {
+      "fresh": "Terbaru",
+      "stale": "Belum diperbarui lebih dari 30 menit",
+      "catchingUp": "Masih membaca riwayat Odoo",
+      "unavailable": "Odoo tidak terjangkau, menampilkan data terakhir"
+    },
+    "check": {
+      "notChecked": "Belum dicocokkan dengan Odoo",
+      "outOfDate": "Hasil pencocokan sudah usang",
+      "matches": "Cocok dengan Odoo",
+      "differs": "Berbeda dari Odoo",
+      "checkedAt": "Dicocokkan {{time}}",
+      "differsAria": "Akun yang berbeda dari Odoo",
+      "account": "Akun {{account}}: PMO {{pmo}}, Odoo {{odoo}}"
+    },
+    "provenance": {
+      "aria": "Asal angka-angka ini",
+      "asOf": "Buku besar Odoo per {{time}}",
+      "noData": "Belum ada data yang dibaca dari buku besar Odoo"
+    },
+    "remainder": {
+      "aria": "Jumlah yang tidak dihitung dalam kategori atau proyek",
+      "unmapped_one": "Akun tanpa kategori anggaran ({{accounts}}): debit {{debit}}, kredit {{credit}} ({{count}} baris). Tidak dihitung dalam kategori mana pun.",
+      "unmapped_other": "Akun tanpa kategori anggaran ({{accounts}}): debit {{debit}}, kredit {{credit}} ({{count}} baris). Tidak dihitung dalam kategori mana pun.",
+      "unattributed_one": "Tidak termasuk proyek mana pun: debit {{debit}}, kredit {{credit}} ({{count}} baris).",
+      "unattributed_other": "Tidak termasuk proyek mana pun: debit {{debit}}, kredit {{credit}} ({{count}} baris).",
+      "unlinked_one": "Di akun biaya yang belum ditautkan ke proyek: debit {{debit}}, kredit {{credit}} ({{count}} baris).",
+      "unlinked_other": "Di akun biaya yang belum ditautkan ke proyek: debit {{debit}}, kredit {{credit}} ({{count}} baris)."
+    },
+    "amountsIn": "Jumlah dalam {{currency}}",
+    "budget": {
+      "title": "Biaya aktual dari Odoo",
+      "unlinked": "Biaya aktual belum dapat ditampilkan: belum ada akun biaya Odoo yang ditautkan ke proyek ini.",
+      "linkAccount": "Tautkan akun biaya",
+      "askAdmin": "Administrator dapat menautkannya.",
+      "loadFailed": "Status buku besar Odoo tidak dapat dibaca"
+    },
+    "lines": {
+      "totalsOnly": "Peran Anda melihat total proyek. Baris rinci terlihat oleh Keuangan, Eksekutif, dan Admin.",
+      "unlinked": "Belum ada akun biaya Odoo yang ditautkan ke proyek ini, jadi tidak ada baris untuk ditampilkan.",
+      "loadFailed": "Baris tidak dapat dibaca",
+      "date": "Tanggal",
+      "document": "Dokumen",
+      "account": "Akun",
+      "partner": "Mitra",
+      "amount": "Jumlah ({{currency}})",
+      "table": "Baris Odoo di balik kategori ini",
+      "empty": "Tidak ada baris pada kategori ini",
+      "emptySub": "Baris Odoo yang sudah diposting pada akun biaya proyek ini dan akun yang dipetakan muncul di sini.",
+      "showingSoFar": "Menampilkan {{shown}} sejauh ini",
+      "showing": "Menampilkan {{shown}} dari {{total}}",
+      "more": "Tampilkan lagi",
+      "all": "Semua"
+    },
+    "statement": {
+      "currentYearEarnings": "Laba tahun berjalan",
+      "previousYearsEarnings": "Laba tahun-tahun sebelumnya",
+      "account": "Akun",
+      "derived": "(dihitung)",
+      "openingDebit": "Debet awal",
+      "openingCredit": "Kredit awal",
+      "debit": "Debet",
+      "credit": "Kredit",
+      "closingDebit": "Debet akhir",
+      "closingCredit": "Kredit akhir",
+      "total": "Jumlah",
+      "amount": "Jumlah",
+      "totalIncome": "Total pendapatan",
+      "totalExpense": "Total beban",
+      "net": "Hasil bersih",
+      "balance": "Saldo",
+      "totalAssets": "Total aset",
+      "totalLiabilitiesEquity": "Total kewajiban dan ekuitas",
+      "income": "Pendapatan",
+      "expense": "Beban",
+      "assets": "Aset",
+      "liabilities": "Kewajiban",
+      "equity": "Ekuitas",
+      "empty": "Tidak ada akun yang berkegiatan",
+      "notInUse": "Buku besar Odoo belum dipakai",
+      "notInUseSub": "Laporan dari Odoo muncul di sini setelah Admin memindahkan organisasi ini ke buku besar Odoo.",
+      "unavailable": "Belum ada baris buku besar Odoo",
+      "unavailableSub": "Laporan muncul setelah PMO membaca baris yang diposting dari Odoo.",
+      "partial": "Sebagian: PMO masih membaca riwayat Odoo, jadi angka ini mungkin belum lengkap.",
+      "unclassified": "{{count}} akun di buku besar belum ada di daftar akun Odoo, jadi belum ditempatkan pada bagian laporan.",
+      "doesNotBalance": "Neraca ini tidak seimbang: aset dan kewajiban ditambah ekuitas berbeda sebesar {{amount}}.",
+      "periodSide": "Periode ditampilkan"
+    },
+    "card": {
+      "blockedCatchingUp": "PMO masih membaca riwayat Odoo. Anda dapat pindah ke buku besar Odoo setelah selesai.",
+      "blockedNotChecked": "PMO belum membandingkan angkanya dengan Odoo. Pencocokan pertama berjalan setelah riwayat selesai dibaca.",
+      "blockedStale": "Pencocokan terakhir dengan Odoo sudah usang. Pencocokan baru berjalan setelah pembaruan berikutnya.",
+      "title": "Buku besar Odoo",
+      "inUse": "Dipakai",
+      "notInUse": "Belum dipakai",
+      "inUseBody": "Biaya aktual dan laporan keuangan berasal dari buku besar Odoo.",
+      "notInUseBody": "Anggaran dan laporan masih mengikuti dokumen PMO sampai Admin pindah ke buku besar Odoo.",
+      "loadFailed": "Status buku besar Odoo tidak dapat dibaca",
+      "differsAdmin": "PMO dan Odoo berbeda pada akun di atas. Anda tetap dapat pindah ke buku besar Odoo dengan menuliskan mengapa selisihnya dapat diterima.",
+      "differsOther": "PMO dan Odoo berbeda pada akun di atas. Admin dapat pindah ke buku besar Odoo setelah menjelaskan selisihnya.",
+      "askAdmin": "Angkanya cocok. Admin dapat pindah ke buku besar Odoo.",
+      "switchExplained": "Pindah ke buku besar Odoo dengan alasan",
+      "switch": "Pindah ke buku besar Odoo",
+      "confirmTitle": "Pindah ke buku besar Odoo",
+      "confirmBody": "Setiap anggaran dan laporan organisasi ini akan menampilkan biaya aktual dari buku besar Odoo, dan dokumen PMO sendiri tidak lagi dihitung sebagai biaya aktual. PMO tidak dapat kembali; hubungi dukungan bila perlu.",
+      "reasonLabel": "Mengapa selisih ini dapat diterima?",
+      "reasonHelp": "Disimpan dalam catatan audit beserta nama Anda.",
+      "confirmAction": "Pindah ke buku besar Odoo",
+      "refusedNotCaughtUp": "PMO masih membaca riwayat Odoo.",
+      "refusedNotChecked": "Buku besar Odoo belum dibandingkan dengan Odoo.",
+      "refusedStale": "Pencocokan terakhir sudah usang. Tunggu pencocokan berikutnya.",
+      "refusedUnconfirmed": "Selisih perlu alasan tertulis sebelum Anda dapat melanjutkan."
     }
   }
 }

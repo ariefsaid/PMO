@@ -418,19 +418,27 @@ async function claimAndCommit(
     if (isRecoveryReissue && money.reauthorizeRecoveryReissue) {
       const auth = await money.reauthorizeRecoveryReissue();
       if (!auth.ok) {
-        const heldCount = await money.markOutboxHeld(claimed.id, `recovery-reissue-unauthorized: ${auth.message}`, token);
+        const isSuperseded = auth.message === 'revision_superseded' || auth.message === 'revision-superseded' || auth.message?.startsWith('revision-superseded') || auth.message?.startsWith('revision_superseded');
+        const holdReason = isSuperseded ? `revision-superseded: ${auth.message}` : `recovery-reissue-unauthorized: ${auth.message}`;
+        const heldCount = await money.markOutboxHeld(claimed.id, holdReason, token);
         if (heldCount === 0) {
           // Fencing loss: another claimant superseded this token before the hold landed — surface the
           // row's CURRENT (possibly confirmed) state, not this claimant's stale hold.
           const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
           return reconcileOutbox(fresh!, deps);
         }
+        const causeLog = isSuperseded
+          ? `the revision is superseded (${auth.message})`
+          : `the recorded actor is no longer authorized (${auth.message})`;
+        const causeError = isSuperseded
+          ? (auth.message ? `revision is superseded (${auth.message})` : 'revision is superseded')
+          : (auth.message || 'actor no longer authorized');
         console.error(
           `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
-            `recovery reissue blocked: the recorded actor is no longer authorized (${auth.message}); awaiting operator resolution`,
+            `recovery reissue blocked: ${causeLog}; awaiting operator resolution`,
         );
         throw markCommandHeldOutbox(
-          new AppError(`money command held for operator resolution — recovery reissue blocked: ${auth.message || 'actor no longer authorized'}`, 'command-held'),
+          new AppError(`money command held for operator resolution — recovery reissue blocked: ${causeError}`, 'command-held'),
           claimed.id,
           token,
         );
@@ -531,7 +539,16 @@ const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
  * can only be resolved by lease expiry + the sweep, so waiting longer just hangs the request. */
 const COMMITTING_WAIT_BUDGET_MS = 3_000;
 
-async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number): Promise<CommandResult> {
+/** How many times the `committed` finalize may be refused (`record_outbox_ref` → 0 on a row that is still
+ * `committed`) before the request gives up. A genuine supersede changes the row's state on the first
+ * re-read; a refusal that repeats is a rule refusing, and re-asking it cannot change the answer. */
+const MAX_FINALIZE_REFUSALS = 3;
+
+/** Thrown when the finalize keeps refusing a still-`committed` row. The code is the recorded reason: the
+ * budget push writes it to the mirror (`push_error`) so the screen names it instead of going silent. */
+export const OUTBOX_FINALIZE_REFUSED = 'outbox-finalize-refused';
+
+async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number, finalizeRefusals = 0): Promise<CommandResult> {
   const { command, money } = deps;
   const outboxRecordId = deps.outboxRecordId ?? command.record.id;
   switch (row.state) {
@@ -566,7 +583,10 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       if (finalized === 0) {
         // F3 — superseded before the finalize writes landed; reconcile off the current state.
         const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
-        return reconcileOutbox(fresh!, deps);
+        if (fresh?.state === 'committed' && finalizeRefusals + 1 >= MAX_FINALIZE_REFUSALS) {
+          throw new AppError('the ERP document is committed but PMO could not record its reference', OUTBOX_FINALIZE_REFUSED);
+        }
+        return reconcileOutbox(fresh!, deps, undefined, finalizeRefusals + 1);
       }
       return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
     }

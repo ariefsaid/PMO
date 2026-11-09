@@ -17,7 +17,7 @@ import { awaitingApprovalKey, expenseClaimsAwaitingKey } from '@/src/hooks/appro
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
@@ -94,7 +94,7 @@ const amountsText = (totals: CurrencyTotal[], t: Translate, orgCurrency: string)
 };
 
 /** Pure role adapter for the shared needs list; every zero count is intentionally omitted. */
-export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate, orgCurrency: string): NeedsItem[] {
+export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate, orgCurrency: string, viewerId?: string | null): NeedsItem[] {
   const items: NeedsItem[] = [];
   const add = (item: NeedsItem | null) => { if (item && item.count > 0) items.push(item); };
   const approvalItem = (count: number | undefined): NeedsItem | null => count === undefined ? null : ({
@@ -156,7 +156,8 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
         ? t('needs.pmAtLeast', 'At least {{count}}', { count: facts.projectsOverBudget })
         : undefined,
       label: counted(t, 'needs.pmOverBudget', 'project over 90% of budget', 'projects over 90% of budget', facts.projectsOverBudget),
-      href: '/projects?filter=My+Projects', tone: 'warn',
+      // #1461: the count is MY projects at risk, so the drill scopes the at-risk filter to me.
+      href: viewerId ? `/projects?filter=at-risk&pm=${encodeURIComponent(viewerId)}` : '/projects?filter=at-risk', tone: 'warn',
     });
     if (facts.projectsOverBudget === 0 && facts.projectsOverBudgetUnknown !== undefined) add({
       id: 'projects-risk-unchecked', count: facts.projectsOverBudgetUnknown,
@@ -187,12 +188,12 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (facts.engineerTasks !== undefined) add({
       id: 'engineer-tasks', count: facts.engineerTasks,
       label: counted(t, 'needs.engineerTasks', 'task overdue or due this week', 'tasks overdue or due this week', facts.engineerTasks),
-      href: '/my-tasks', tone: 'warn',
+      href: '/my-tasks?due=week', tone: 'warn',
     });
     if (facts.returnedExpenses !== undefined) add({
       id: 'returned-expenses', count: facts.returnedExpenses,
       label: counted(t, 'needs.returnedExpense', 'expense claim returned', 'expense claims returned', facts.returnedExpenses),
-      href: '/expenses', tone: 'lost',
+      href: '/expenses?status=Rejected', tone: 'lost',
     });
   }
 
@@ -213,24 +214,20 @@ function activeTask(status: string): boolean {
 
 export function selectOverdueInvoices(rows: OverdueInvoiceFact[] | undefined, organizationToday: string | null): OverdueInvoiceNeeds | undefined {
   if (!rows || !organizationToday) return undefined;
-  const overdue = rows.filter((invoice) => {
-    if (invoice.status !== 'Submitted' && invoice.status !== 'Unpaid') return false;
-    const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
-    const age = overdueAgeDays(dueDate, organizationToday);
-    return age !== null && age > 0;
-  });
+  // #1457: the overdue decision (and the age) is the one shared rule.
+  const overdueRows = rows
+    .map((invoice) => ({ invoice, days: clientInvoiceOverdueDays(invoice, organizationToday) }))
+    .filter((row): row is { invoice: OverdueInvoiceFact; days: number } => row.days !== null);
   const totals = new Map<string, number>();
   let unknownBalances = 0;
   let oldestDays: number | null = null;
-  for (const invoice of overdue) {
-    const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
-    const age = overdueAgeDays(dueDate, organizationToday);
-    if (age !== null) oldestDays = Math.max(oldestDays ?? 0, age);
+  for (const { invoice, days } of overdueRows) {
+    oldestDays = Math.max(oldestDays ?? 0, days);
     const amount = invoice.erp_outstanding_amount;
     if (amount === null || !Number.isFinite(amount)) unknownBalances += 1;
     else totals.set(invoice.currency, (totals.get(invoice.currency) ?? 0) + amount);
   }
-  return { count: overdue.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances, oldestDays };
+  return { count: overdueRows.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances, oldestDays };
 }
 
 export function selectSupplierInvoices(rows: ProcurementWithRefs[] | undefined): SupplierInvoiceNeeds | undefined {
@@ -426,9 +423,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const engineerSourcesPending = timesheetsQuery.isPending;
   const engineerSourcesError = timesheetsQuery.isError;
   const translate = (key: string, fallback: string, options?: Record<string, unknown>) => t(key, { defaultValue: fallback, ...(options ?? {}) });
-  const items = buildNeedsItems(role, facts, translate, orgCurrency);
+  const items = buildNeedsItems(role, facts, translate, orgCurrency, userId);
   const companyAreaItems = companyRole
-    ? [...buildNeedsItems('Executive', facts, translate, orgCurrency), ...buildNeedsItems('Finance', facts, translate, orgCurrency)]
+    ? [...buildNeedsItems('Executive', facts, translate, orgCurrency, userId), ...buildNeedsItems('Finance', facts, translate, orgCurrency, userId)]
       .filter((item) => ['at-risk', 'procurement-approvals', 'overdue-invoices', 'supplier-invoices', 'budgets-over', 'ready-to-bill'].includes(item.id))
     : [];
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];

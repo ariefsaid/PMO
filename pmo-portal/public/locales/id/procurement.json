@@ -532,6 +532,28 @@
       "revised": "Revisi PO diterbitkan",
       "reviseNotSentHeadline": "Tidak dikirim: rute revisi ERP belum tersedia",
       "reviseNotSentDetail": "Variasi yang disetujui tetap di PMO. Tidak ada revisi pesanan pembelian yang diterbitkan.",
+      "refusal": {
+        "revision_superseded": {
+          "headline": "Revisi telah digantikan",
+          "detail": "Revisi yang lebih baru sudah ada untuk pesanan pembelian ini. Lihat revisi terbaru."
+        },
+        "po_has_submitted_bill": {
+          "headline": "Tidak dapat merevisi pesanan tertagih",
+          "detail": "Pesanan pembelian ini memiliki tagihan pemasok yang sudah diajukan di ERP dan tidak dapat direvisi."
+        },
+        "revision_not_issued": {
+          "headline": "Revisi belum diterbitkan",
+          "detail": "Revisi pesanan pembelian ini belum diterbitkan di PMO."
+        },
+        "po_not_found": {
+          "headline": "Pesanan pembelian tidak ditemukan",
+          "detail": "Pesanan pembelian tidak dapat ditemukan."
+        },
+        "below-received": {
+          "headline": "Jumlah di bawah yang diterima",
+          "detail": "Jumlah pesanan tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan."
+        }
+      },
       "chooseWorkOrder": "Pilih perintah kerja",
       "notPassed": "Tidak diteruskan",
       "linkLabel": "Perintah kerja klien",
@@ -594,6 +616,13 @@
       "attention": "Periksa di Odoo",
       "approval": "Menunggu persetujuan di Odoo",
       "refused": "Odoo tidak menerimanya",
+      "reason": {
+        "revision_superseded": "Revisi yang lebih baru sudah ada untuk pesanan pembelian ini.",
+        "po_has_submitted_bill": "Pesanan pembelian ini memiliki tagihan yang sudah diajukan di ERP.",
+        "revision_not_issued": "Revisi pesanan pembelian ini belum diterbitkan.",
+        "po_not_found": "Pesanan pembelian tidak ditemukan.",
+        "below-received": "Jumlah tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan."
+      },
       "next": {
         "pending": "Odoo belum mengonfirmasi. PMO memeriksa lagi sendiri; tidak ada yang perlu dilakukan.",
         "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Keuangan memeriksa Odoo lalu memutuskan.",

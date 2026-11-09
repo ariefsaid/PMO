@@ -407,6 +407,31 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
   });
 });
 
+describe('#1364 — a finalize that keeps refusing a still-committed row is bounded and names its reason', () => {
+  it('gives up after a few refusals with outbox-finalize-refused, never writes the mirror, never loops', async () => {
+    const fake = createFakeOutbox();
+    let calls = 0;
+    // The refusing ref RPC (the #1363 shape): returns 0 forever while the row stays `committed`.
+    // A loop that never gives up would spin here, so the stub fails loudly instead of hanging the run.
+    vi.spyOn(fake.deps, 'recordOutboxRef').mockImplementation(async () => {
+      if (++calls > 25) throw new Error('unbounded finalize retry');
+      return 0;
+    });
+    const writeReadModel = vi.fn();
+    const err = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } })),
+      command: baseCommand,
+      writeReadModel, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('outbox-finalize-refused');
+    expect(calls).toBeLessThanOrEqual(5);
+    expect(writeReadModel).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('committed');
+  });
+});
+
 describe('AC-ENA-012 confirmed retry — return the stored result, no ERP call, no claim', () => {
   it('returns the stored result without calling adapter.commit or claimOutboxForCommit', async () => {
     const fake = createFakeOutbox();
@@ -1058,6 +1083,27 @@ describe('FIX 2: a post-window recovery REISSUE re-asserts the actor authz; adop
     expect(reauthorizeRecoveryReissue).toHaveBeenCalledTimes(1);
     expect(commit).not.toHaveBeenCalled(); // the critical assertion: NO reissue under a stale actor
     // Operator-visible, never dropped: the row is HELD (not confirmed, not silently discarded).
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('a SUPERSEDED revision whose recovery would reissue is HELD with reason and error naming the superseded revision, NOT actor unauthorized (#1998)', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-REISSUE', canonical: { id: 'pmo-1' } }));
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: false, message: 'revision_superseded' }));
+
+    const error = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: { ...fake.deps, reauthorizeRecoveryReissue },
+    }).catch((e) => e);
+
+    expect(error).toMatchObject({ code: 'command-held' });
+    expect(error.message).toContain('revision');
+    expect(error.message).not.toContain('actor no longer authorized');
+    expect(fake.heldReasons[0]).toMatch(/^revision-superseded/);
+    expect(fake.heldReasons[0]).not.toContain('recovery-reissue-unauthorized');
+    expect(commit).not.toHaveBeenCalled();
     expect([...fake.rows.values()][0].state).toBe('held');
   });
 

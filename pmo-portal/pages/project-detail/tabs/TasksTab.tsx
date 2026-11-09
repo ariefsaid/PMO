@@ -32,9 +32,12 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import ProjectGantt from '../ProjectGantt';
+
+// The ReUI calendar is ~100 KB; only the Calendar view pays for it.
+const TaskCalendarView = React.lazy(() => import('./TaskCalendarView').then((m) => ({ default: m.TaskCalendarView })));
 import TaskBoard from './TaskBoard';
 import TaskFormModal from './TaskFormModal';
 import MilestoneGroupedList from './MilestoneGroupedList';
@@ -43,7 +46,7 @@ import { STATUSES, STATUS_OPTIONS, orderedTasks } from './taskViewModel';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 
-type ViewMode = 'list' | 'board' | 'timeline';
+type ViewMode = 'list' | 'board' | 'timeline' | 'calendar';
 type TaskScope = 'mine' | 'all';
 
 function localTodayIso(): string {
@@ -98,7 +101,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get('view');
-  const view: ViewMode = requestedView === 'board' || requestedView === 'timeline' ? requestedView : 'list';
+  const view: ViewMode = requestedView === 'board' || requestedView === 'timeline' || requestedView === 'calendar' ? requestedView : 'list';
   const hashTaskId = location.hash.startsWith('#task-') ? location.hash.slice('#task-'.length) : null;
   const requestedScope = searchParams.get('scope');
   const scope: TaskScope = requestedScope === 'mine' || requestedScope === 'all'
@@ -305,6 +308,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     }
   };
 
+  // Timeline drag / edge-resize (#1980): same gate as editing the task, same classifier as every
+  // other task write. Resolves false on failure so the bar snaps back.
+  const onReschedule = async (task: TaskWithRefs, patch: TaskPatch): Promise<boolean> => {
+    if (!canEditTask(task)) return false;
+    try {
+      await update.mutateAsync({ id: task.id, patch });
+      return true;
+    } catch (err) {
+      const { headline, detail } = classifyWriteError(err);
+      toast(headline, detail, 'warning');
+      return false;
+    }
+  };
+
   const onArchive = async (task: TaskWithRefs) => {
     if (!canArchive || externallyOwned) return;
     try {
@@ -489,6 +506,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
               { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
               { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
               { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
+              { value: 'calendar', label: t('projectDetail.tasks.view.calendar', 'Calendar') },
             ]}
             value={view}
             onChange={setTaskView}
@@ -610,7 +628,26 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           onSwitchView={setTaskView}
           onActivateTask={openTask}
           rowMenu={rowMenu}
+          canReschedule={canEditTask}
+          onReschedule={onReschedule}
         />
+      )}
+
+      {state === undefined && view === 'calendar' && (
+        <React.Suspense fallback={null}>
+        <TaskCalendarView
+          projectId={projectId}
+          tasks={filteredTasks}
+          milestones={milestoneList}
+          canEditTask={canEditTask}
+          onMove={(id, patch) => update.mutateAsync({ id, patch })}
+          onMoveError={(err) => {
+            const { headline, detail } = classifyWriteError(err);
+            toast(headline, detail, 'warning');
+          }}
+          onOpenTask={openTask}
+        />
+        </React.Suspense>
       )}
       </Card>
 

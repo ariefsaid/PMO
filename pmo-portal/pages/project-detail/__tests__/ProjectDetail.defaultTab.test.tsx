@@ -106,7 +106,7 @@ vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budge
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
+vi.mock('../../sales/DealBand', () => ({ default: () => <div>Pipeline</div> }));
 // ProjectSCurve now reads useTasks (s-curve actual line, ADR-0032) — it renders inside
 // ProjectDetail (the demote/lever lens) even though the tabs are stubbed, so mock the hook
 // to avoid the real useAuth dependency in this tab-selection test.
@@ -186,7 +186,7 @@ const renderAs = async (realRole: Role, path: string) => {
   // removed with the demand-loading change (#1469), which left the assertion vacuous and let a
   // chunk still in flight through to the assertions. Same 1 s default: no timeout increase.
   const panel = screen.getByRole('tabpanel');
-  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 
@@ -270,7 +270,7 @@ describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W
     const view = render(detailRoute('Engineer', '/projects/p1/materials'));
     try {
       expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
-      expect(within(screen.getByRole('tabpanel')).getByTestId('liststate-loading')).toBeInTheDocument();
+      expect(within(screen.getByRole('tabpanel')).getByTestId('project-detail-panel-loading')).toBeInTheDocument();
     } finally {
       view.unmount();
     }

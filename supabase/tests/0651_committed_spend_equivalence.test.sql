@@ -1,7 +1,7 @@
 -- 0651_committed_spend_equivalence.test.sql — the set-based project_committed_spend returns exactly what the 0373
 -- row-by-row body returns, for every basis and caller. The old body lives here as a test-only function.
 begin;
-select plan(19);
+select plan(27);
 
 create function pg_temp.old_project_committed_spend(p_project_id uuid)
 returns table (currency text, amount numeric, is_project_currency boolean)
@@ -120,6 +120,18 @@ insert into procurement_invoices (org_id, procurement_id, status, amount, curren
 insert into payments (org_id, procurement_id, status, amount, currency, date) values
   ('06510000-0000-0000-0000-0000000000e0','06510000-0000-0000-0000-0000000002f1','Paid',400,'IDR',current_date);
 
+-- 0723: every fixture purchase id, read as the owner (RLS bypassed), so each caller below is handed ids it can and cannot see.
+create function pg_temp.all_ids() returns uuid[] language sql security definer as $$
+  select array_agg(id order by id) from public.procurements where id::text like '06510000-%'
+$$;
+grant execute on function pg_temp.all_ids() to authenticated;
+create function pg_temp.same_commitments(p_uid uuid) returns text language sql as $$
+  select results_eq(
+    $q$ select p.id, public.procurement_open_commitment(p) from public.procurements p where p.id = any (pg_temp.all_ids()) order by 1 $q$,
+    $q$ select procurement_id, amount from public.procurement_open_commitments(pg_temp.all_ids()) order by 1 $q$,
+    '0723 open_commitments: same figure per purchase as the per-row function, as ' || p_uid)
+$$;
+
 create function pg_temp.same(p_uid uuid, p_project uuid) returns text language sql as $$
   select results_eq(
     format('select * from pg_temp.old_project_committed_spend(%L)', p_project),
@@ -130,6 +142,10 @@ $$;
 set local role authenticated;
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select pg_temp.same_commitments('06510000-0000-0000-0000-0000000000a1');
+select results_eq($$ select procurement_id, amount from public.procurement_open_commitments(array['06510000-0000-0000-0000-0000000001f3','06510000-0000-0000-0000-0000000001f5','06510000-0000-0000-0000-0000000001f4']::uuid[]) order by 1 $$,
+  $$ select id, public.procurement_open_commitment(p) from public.procurements p where id in ('06510000-0000-0000-0000-0000000001f3','06510000-0000-0000-0000-0000000001f5','06510000-0000-0000-0000-0000000001f4') order by 1 $$,
+  '0723 open_commitments: paid-pre-tax scaling, multi children and a wrong-currency payment match the per-row function');
 select pg_temp.same('06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d1');
 select pg_temp.same('06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d2');
 select pg_temp.same('06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d3');
@@ -145,6 +161,7 @@ select is((select count(*) from public.procurement_ledger_held_many(array[
   'held_many: a Finance member gets one held row per purchase they can see');
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select pg_temp.same_commitments('06510000-0000-0000-0000-0000000000a2');
 select pg_temp.same('06510000-0000-0000-0000-0000000000a2','06510000-0000-0000-0000-0000000000d1');
 select is((select count(*) from public.procurement_ledger_held_many(array[
           '06510000-0000-0000-0000-0000000001f1','06510000-0000-0000-0000-0000000001f2',
@@ -161,6 +178,8 @@ select is((select count(*) from public.procurement_ledger_held_many(array[
   'held_many: an Engineer gets no held row even for their own purchases (invoice money is for the money roles)');
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select pg_temp.same_commitments('06510000-0000-0000-0000-0000000000e1');
+select results_eq($$ select amount from public.procurement_open_commitments(array['06510000-0000-0000-0000-0000000002f3']::uuid[]) $$, $$ values (1400::numeric) $$, '0723 open_commitments: ERP basis pinned (3000 total less 1600 held in the ledger)');
 select pg_temp.same('06510000-0000-0000-0000-0000000000e1','06510000-0000-0000-0000-0000000000d3');
 select results_eq($$ select currency, amount, is_project_currency from project_committed_spend('06510000-0000-0000-0000-0000000000d3') $$,
   $$ values ('IDR'::text, 3650::numeric, true) $$,
@@ -177,9 +196,12 @@ select results_eq(
   'held_many: a Finance member''s set answer is exactly 0372''s per-id answer, purchase by purchase');
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000e2","role":"authenticated"}';
+select pg_temp.same_commitments('06510000-0000-0000-0000-0000000000e2');
 select pg_temp.same('06510000-0000-0000-0000-0000000000e2','06510000-0000-0000-0000-0000000000d3');
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select pg_temp.same_commitments('06510000-0000-0000-0000-0000000000b1');
+select is((select count(*) from public.procurement_open_commitments(pg_temp.all_ids())), 0::bigint, '0723 open_commitments: another org is handed every id and gets no row');
 select pg_temp.same('06510000-0000-0000-0000-0000000000b1','06510000-0000-0000-0000-0000000000d1');
 select is((select count(*) from project_committed_spend('06510000-0000-0000-0000-0000000000d1')), 0::bigint,
   'another org reads no positions');
@@ -198,7 +220,9 @@ select is((select coalesce(sum(held), 0) from public.procurement_ledger_held_man
 reset role;
 select ok(not has_function_privilege('anon','public.project_committed_spend(uuid)','execute')
       and not has_function_privilege('anon','public.procurement_ledger_held_many(uuid[])','execute')
-      and has_function_privilege('authenticated','public.project_committed_spend(uuid)','execute'),
+      and has_function_privilege('authenticated','public.project_committed_spend(uuid)','execute')
+      and not has_function_privilege('anon','public.procurement_open_commitments(uuid[])','execute')
+      and has_function_privilege('authenticated','public.procurement_open_commitments(uuid[])','execute'),
   'grants: signed-in only, anon none');
 
 select * from finish();

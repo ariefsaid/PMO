@@ -41,6 +41,7 @@ function routes(fake: FakeOdoo, o: Opts): MockRoute[] {
       response: (c: FetchCall) => (o.down ? new Response('no', { status: 503 }) : fake.fetch(c.url.toString(), { method: 'POST', headers: { Authorization: c.headers.get('authorization') ?? '' }, body: c.bodyText })) },
     { label: 'pmo-head', method: 'HEAD', pathname: /^\/rest\/v1\//, response: () => countResponse(2) },
     supabaseSelect('procurement_items', () => jsonResponse([{ id: 'i1', name: 'Semen' }])),
+    rpc('connect_open_purchase_statuses', ['Approved', 'Vendor Quoted', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced']),
     rpc('start_connect_run', 'run-1'),
     rpc('write_connect_census', null),
     rpc('accept_connect_proposals', { counts: {}, remaining: 0 }),

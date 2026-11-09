@@ -13,6 +13,8 @@
 > - **PII** — names, personal emails, phones, account-shape enumeration hints.
 > - **Secrets or their coordinates** — keys, vault/item names, env-var names, internal hostnames,
 >   tenant IDs.
+> - **Competitor analysis** — comparisons, gap analyses, screenshots or notes naming products we're
+>   compared against. They go in `docs/private/` only; public text says "competitor review".
 >
 > **Where open-weakness detail goes instead:** a GitHub **private security advisory**
 > (`Security → Advisories`), the local-only `docs/private/` (own git repo, no remote, ignored via `.git/info/exclude`; reviews/audits of unfixed defects go here), or the Director's private memory
