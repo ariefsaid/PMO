@@ -47,9 +47,9 @@ export interface World {
   tables?: Record<string, unknown[] | ((call: FetchCall) => unknown[])>;
   /** When true the project/procurement document reads never answer until the request is aborted. */
   hangDocuments?: boolean;
-  /** `org_features.enabled` for the m365 entitlement (default true). */
+  /** Entitlement shorthand: false resolves the `m365_integration` plan switch off (default true). */
   entitled?: boolean;
-  /** Effective `m365_integration` plan switch (default true). */
+  /** Effective `m365_integration` plan switch (default true); the single source of entitlement. */
   featureEnabled?: boolean;
   /** `m365_membership_state.state` (default active). */
   memberState?: "active" | "disabled" | "banned" | "missing";
@@ -154,8 +154,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
   return [
     ...extraTables,
     { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: ORG, role: world.role }) },
-    { label: "feature", pathname: "/rest/v1/rpc/service_feature_enabled", response: () => jsonResponse(world.featureEnabled ?? true) },
-    table("org_features", () => jsonResponse({ enabled: world.entitled ?? true }, OBJECT_HEADERS)),
+    { label: "feature", pathname: "/rest/v1/rpc/service_feature_enabled", response: () => jsonResponse((world.featureEnabled ?? true) && (world.entitled ?? true)) },
     table("projects", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("procurements", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("project_documents", documentRows),

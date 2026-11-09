@@ -221,6 +221,82 @@ export async function getBudgetActivationMode(versionId: string): Promise<Budget
   return data as BudgetActivationMode;
 }
 
+/** One Draft budget awaiting review in the org-wide "Review and activate drafts" list (#1273). */
+export interface OrgDraftBudget {
+  id: string;
+  projectId: string;
+  projectCode: string | null;
+  projectName: string;
+  currency: string;
+  version: number;
+  name: string;
+  total: number;
+  createdBy: string | null;
+  editorIds: string[];
+  documentUrl: string | null;
+  /** What the whole-project distribution gate needs (the same inputs the Budget tab reads). */
+  budgetMode: BudgetVersionMode;
+  projectStart: string | null;
+  projectEnd: string | null;
+  lines: Pick<BudgetLineItemRow, 'category' | 'budgeted_amount'>[];
+}
+
+const DRAFT_READ_CHUNK = 100;
+
+/**
+ * Every Draft budget version in the caller's org (RLS-scoped; org_id never sent) with its project,
+ * line-item total, editors and first linked source document. Read only: activation stays the
+ * per-budget `activateVersion` path.
+ */
+export async function listOrgDraftBudgets(): Promise<OrgDraftBudget[]> {
+  const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
+    .select('id,project_id,version,name,created_by,budget_mode,projects(code,name,currency,start_date,end_date)').eq('status', 'Draft')
+    .order('id', { ascending: true }).range(from, to));
+  if (!versions.length) return [];
+  const ids = versions.map((v) => v.id);
+  const totals = new Map<string, number>();
+  const lineRows = new Map<string, OrgDraftBudget['lines']>();
+  const editors = new Map<string, string[]>();
+  const docs = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += DRAFT_READ_CHUNK) {
+    const chunk = ids.slice(i, i + DRAFT_READ_CHUNK);
+    const [lines, eds, links] = await Promise.all([
+      fetchAllPages((from, to) => supabase.from('budget_line_items').select('id,budget_version_id,category,budgeted_amount')
+        .in('budget_version_id', chunk).order('id', { ascending: true }).range(from, to)),
+      fetchAllPages((from, to) => supabase.from('budget_version_editors').select('budget_version_id,user_id')
+        .in('budget_version_id', chunk).order('budget_version_id', { ascending: true }).order('user_id', { ascending: true }).range(from, to)),
+      fetchAllPages((from, to) => supabase.from('budget_version_document_links').select('id,budget_version_id,ms_web_url')
+        .in('budget_version_id', chunk).order('ms_linked_at', { ascending: true }).order('id', { ascending: true }).range(from, to)),
+    ]);
+    for (const l of lines) {
+      totals.set(l.budget_version_id, (totals.get(l.budget_version_id) ?? 0) + Number(l.budgeted_amount));
+      lineRows.set(l.budget_version_id, [...(lineRows.get(l.budget_version_id) ?? []), { category: l.category, budgeted_amount: l.budgeted_amount }]);
+    }
+    for (const e of eds) editors.set(e.budget_version_id, [...(editors.get(e.budget_version_id) ?? []), e.user_id]);
+    for (const d of links) if (!docs.has(d.budget_version_id)) docs.set(d.budget_version_id, d.ms_web_url);
+  }
+  return versions.map((v) => {
+    const project = Array.isArray(v.projects) ? v.projects[0] : v.projects;
+    return {
+      id: v.id,
+      projectId: v.project_id,
+      projectCode: project?.code ?? null,
+      projectName: project?.name ?? '',
+      currency: project?.currency ?? '',
+      version: v.version,
+      name: v.name,
+      total: totals.get(v.id) ?? 0,
+      createdBy: v.created_by,
+      editorIds: editors.get(v.id) ?? [],
+      documentUrl: docs.get(v.id) ?? null,
+      budgetMode: v.budget_mode === 'whole_project' ? 'whole_project' : 'per_year',
+      projectStart: project?.start_date ?? null,
+      projectEnd: project?.end_date ?? null,
+      lines: lineRows.get(v.id) ?? [],
+    };
+  });
+}
+
 /** Read-only, caller-authenticated readiness check for a Draft budget activation confirmation. */
 export async function precheckBudgetActivation(versionId: string): Promise<BudgetActivationPrecheckResult> {
   const { data, error } = await supabase.functions.invoke<BudgetActivationPrecheckResult>('adapter-dispatch', {

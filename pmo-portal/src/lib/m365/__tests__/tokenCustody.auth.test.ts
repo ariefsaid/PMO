@@ -62,56 +62,80 @@ describe('AC-M365SEP-003/015 — membership and org-approval are their own wire 
   });
 });
 
-/** The service-side membership read (`m365_membership_state`) the gate now always uses. */
-function membership(row: Record<string, unknown> | null) {
+/** The service-side reads the gate makes: `m365_membership_state` then the resolved plan switch. */
+function membership(row: Record<string, unknown> | null, featureEnabled: boolean | { error: true } = true) {
   const service = mockClient();
-  service.rpc.mockImplementation(() => Promise.resolve(
-    row ? { data: row, error: null } : { data: null, error: { code: 'PGRST116' } },
-  ));
+  service.rpc.mockImplementation((fn: string) => {
+    if (fn === 'service_feature_enabled') {
+      return Promise.resolve(typeof featureEnabled === 'object'
+        ? { data: null, error: { code: 'XX000' } }
+        : { data: featureEnabled, error: null });
+    }
+    return Promise.resolve(row ? { data: row, error: null } : { data: null, error: { code: 'PGRST116' } });
+  });
   return service;
 }
-const active = (role: string) => membership({ state: 'active', org_id: 'org-1', role });
+const active = (role: string, featureEnabled: boolean | { error: true } = true) =>
+  membership({ state: 'active', org_id: 'org-1', role }, featureEnabled);
 const gate = (caller: ReturnType<typeof mockClient>, service: ReturnType<typeof mockClient>) =>
   authorizeMemberEntitled({ callerClient: caller.client as never, serviceClient: service.client as never, userId: 'user-1' });
 
 describe('AC-M365SEP-001/003/005/006/007/011 — authorizeMemberEntitled (active member of an entitled org)', () => {
   it('AC-M365SEP-001: an active Project Manager of an entitled org is authorized (irrespective of role)', async () => {
-    const caller = mockClient({
-      org_features: [{ data: { enabled: true }, error: null }],
-      platform_operators: [{ data: null, error: null }],
-    });
-    expect(await gate(caller, active('Project Manager'))).toEqual({ orgId: 'org-1', role: 'Project Manager' });
-    expect(caller.selects).toContainEqual(expect.objectContaining({
-      table: 'org_features', eqs: expect.arrayContaining([['feature_key', 'm365_integration']]),
-    }));
+    const caller = mockClient({ platform_operators: [{ data: null, error: null }] });
+    const service = active('Project Manager');
+    expect(await gate(caller, service)).toEqual({ orgId: 'org-1', role: 'Project Manager' });
+    expect(service.rpc).toHaveBeenCalledWith('service_feature_enabled', { p_org_id: 'org-1', p_key: 'm365_integration' });
+  });
+
+  it('AC-M365SS-001: an active member is authorized when the plan resolves M365 on and no override row exists', async () => {
+    const caller = mockClient(); // no org_features row seeded anywhere
+    expect(await gate(caller, active('Project Manager', true))).toEqual({ orgId: 'org-1', role: 'Project Manager' });
+    expect(caller.from).not.toHaveBeenCalledWith('org_features');
+  });
+
+  it('AC-M365SS-002: a member is rejected NOT_ENTITLED when the plan resolves M365 off', async () => {
+    await expect(gate(mockClient(), active('Project Manager', false))).rejects.toMatchObject({ code: 'NOT_ENTITLED' });
+  });
+
+  it('teardown (requireEntitlement: false) skips the plan switch but still enforces membership', async () => {
+    const service = active('Project Manager', false);
+    expect(await authorizeMemberEntitled({
+      callerClient: mockClient().client as never, serviceClient: service.client as never, userId: 'user-1', requireEntitlement: false,
+    })).toEqual({ orgId: 'org-1', role: 'Project Manager' });
+    expect(service.rpc).not.toHaveBeenCalledWith('service_feature_enabled', expect.anything());
+    await expect(authorizeMemberEntitled({
+      callerClient: mockClient().client as never, serviceClient: membership({ state: 'disabled', org_id: 'org-1', role: 'Admin' }).client as never,
+      userId: 'user-1', requireEntitlement: false,
+    })).rejects.toMatchObject({ code: 'DISABLED_MEMBER' });
+  });
+
+  it('AC-M365SS-002: a failing entitlement read fails closed (NOT_ENTITLED)', async () => {
+    await expect(gate(mockClient(), active('Admin', { error: true }))).rejects.toMatchObject({ code: 'NOT_ENTITLED' });
   });
 
   it('AC-M365SEP-007: an active entitled Operator (Admin role) still passes — the de-gate excludes no one', async () => {
-    const caller = mockClient({ org_features: [{ data: { enabled: true }, error: null }] });
-    expect(await gate(caller, active('Admin'))).toEqual({ orgId: 'org-1', role: 'Admin' });
+    expect(await gate(mockClient(), active('Admin'))).toEqual({ orgId: 'org-1', role: 'Admin' });
   });
 
   it('AC-M365SEP-005: an active member of a NON-entitled org is rejected NOT_ENTITLED', async () => {
-    const caller = mockClient({ org_features: [{ data: { enabled: false }, error: null }] });
-    await expect(gate(caller, active('Project Manager'))).rejects.toMatchObject({ code: 'NOT_ENTITLED' });
+    await expect(gate(mockClient(), active('Project Manager', false))).rejects.toMatchObject({ code: 'NOT_ENTITLED' });
   });
 
   it('AC-M365SEP-004: a raw-banned member is rejected BANNED_MEMBER by the service-side state read', async () => {
-    const caller = mockClient({ org_features: [{ data: { enabled: true }, error: null }] });
-    await expect(gate(caller, membership({ state: 'banned', org_id: 'org-1', role: 'Admin' })))
-      .rejects.toMatchObject({ code: 'BANNED_MEMBER' });
-    expect(caller.from).not.toHaveBeenCalledWith('org_features');
+    const service = membership({ state: 'banned', org_id: 'org-1', role: 'Admin' });
+    await expect(gate(mockClient(), service)).rejects.toMatchObject({ code: 'BANNED_MEMBER' });
+    expect(service.rpc).not.toHaveBeenCalledWith('service_feature_enabled', expect.anything());
   });
 
   it('AC-M365SEP-003: an INACTIVE member is rejected DISABLED_MEMBER — explicitly NOT NOT_ENTITLED (NFR-M365SEP-002)', async () => {
-    // A disabled caller reads their own profile fine, so the rejection comes from the gate's explicit
-    // membership state, not from org_features' RLS side effect.
-    const caller = mockClient({ org_features: [{ data: { enabled: true }, error: null }] });
-    const rejection = gate(caller, membership({ state: 'disabled', org_id: 'org-1', role: 'Admin' }));
+    // The rejection comes from the gate's explicit membership state, not from an entitlement side effect.
+    const service = membership({ state: 'disabled', org_id: 'org-1', role: 'Admin' });
+    const rejection = gate(mockClient(), service);
     await expect(rejection).rejects.toMatchObject({ code: 'DISABLED_MEMBER' });
     await expect(rejection).rejects.not.toMatchObject({ code: 'NOT_ENTITLED' });
     // The entitlement lookup must NOT happen once membership fails (short-circuit).
-    expect(caller.from).not.toHaveBeenCalledWith('org_features');
+    expect(service.rpc).not.toHaveBeenCalledWith('service_feature_enabled', expect.anything());
   });
 
   it('AC-M365SEP-011: a caller with no resolvable membership is rejected BAD_REQUEST (discloses nothing about org existence)', async () => {
@@ -122,7 +146,7 @@ describe('AC-M365SEP-001/003/005/006/007/011 — authorizeMemberEntitled (active
   });
 
   it('AC-M365SEP-006: the gate NEVER queries platform_operators — operator authority is out of the data-access path', async () => {
-    const caller = mockClient({ org_features: [{ data: { enabled: true }, error: null }] });
+    const caller = mockClient();
     const service = active('Project Manager');
     await gate(caller, service);
     expect(caller.from.mock.calls.map((c) => c[0])).not.toContain('platform_operators');
@@ -138,8 +162,7 @@ describe('AC-M365SEP-012 — a non-member of an entitled org is forbidden (re-sp
   });
 
   it('AC-M365SEP-012: a member of a non-entitled org is forbidden from M365 actions', async () => {
-    const caller = mockClient({ org_features: [{ data: null, error: { code: 'PGRST116' } }] });
-    await expect(gate(caller, membership({ state: 'active', org_id: 'org-other', role: 'Admin' })))
+    await expect(gate(mockClient(), membership({ state: 'active', org_id: 'org-other', role: 'Admin' }, false)))
       .rejects.toMatchObject({ code: 'NOT_ENTITLED' });
   });
 });

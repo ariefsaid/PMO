@@ -435,13 +435,15 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       orgId: profile.org_id,
       tier: 'clickup',
       lookupBinding: async (orgId, externalTier) => {
-        const { data } = await serviceClient.from('external_org_bindings')
+        const { data, error } = await serviceClient.from('external_org_bindings')
           .select('secret_ref').eq('org_id', orgId).eq('external_tier', externalTier)
           .eq('status', 'active').maybeSingle();
+        if (error) throw new AppError('binding read failed', error.code); // a store error is not an absent row
         return data as { secret_ref?: string | null } | null;
       },
       readVaultSecret: async (ref) => {
-        const { data } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) throw new AppError('vault read failed', error.code); // a store error is not a missing secret
         return typeof data === 'string' ? data : null;
       },
     });
@@ -456,6 +458,10 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
         await serviceClient.rpc('cleanup_external_connect_attempt', {
           p_org_id: profile.org_id, p_external_tier: tier, p_secret_ref: secretRef, p_actor_id: userId,
         });
+      }
+      // A store error is retryable and must not read as "not ready" (a clean miss): distinct class, same refusal.
+      if (readiness.kind === 'read-failed') {
+        return errorResponse('The secret store could not be read; no connection was activated. Please try again.', 'SECRET_STORE_UNAVAILABLE', 503);
       }
       return errorResponse('ClickUp sync is not ready; no connection was activated', 'SYNC_NOT_READY', 422);
     }

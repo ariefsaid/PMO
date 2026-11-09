@@ -18,6 +18,7 @@ import {
   deleteDraftVersion,
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
+  listOrgDraftBudgets,
   removeBudgetDocumentLink,
   getBudgetDistribution,
   saveBudgetDistribution,
@@ -37,6 +38,7 @@ export const budgetRepository: BudgetRepository = {
   listArchiveLiveTargets: (versionIds) => wrap(() => listBudgetArchiveLiveTargets(versionIds)),
   listLegacyArchiveLiveTargets: (versionIds) => wrap(() => listLegacyBudgetArchiveLiveTargets(versionIds)),
   listArchiveTargets: (versionId) => wrap(() => listBudgetArchiveTargets(versionId)),
+  listOrgDrafts: () => wrap(() => listOrgDraftBudgets()),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
   createLineItem: (versionId, item, provenance) =>
     wrap(() => createLineItem(versionId, item, provenance)),

@@ -6,6 +6,7 @@ import { useFeature } from '@/src/auth/useFeature';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { InvoicePairReview } from '@/src/components/integrations/InvoicePairReview';
+import { BudgetDraftReview } from '@/src/components/finance/BudgetDraftReview';
 import { Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
@@ -202,6 +203,7 @@ const FinanceHub: React.FC = () => {
       </header>
       {/* ECA-5: Finance accepts invoice pairs here. Receivables is hidden while an ERP owns revenue, so this is the page Finance can always reach; self-hides when there is nothing to review. */}
       <InvoicePairReview orgId={currentUser?.org_id} />
+      <BudgetDraftReview />
       <div className="space-y-[var(--space-panel-gap)]">
         {areas}
         <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
