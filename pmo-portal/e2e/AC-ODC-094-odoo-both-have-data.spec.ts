@@ -55,9 +55,18 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
   await setup(token, { setupAction: 'set-analytic-plan', planId: String(scenario.planId) });
   await sweep();
   await setup(token, { setupAction: 'census' });
-  await sweepUntil(
-    () => setup<{ proposalCounts: Record<string, { link: number; send: number; bring_in: number; review: number }> }>(token, { setupAction: 'connect-status' }),
-    (s) => { const p = s.proposalCounts.party; return !!p && p.link >= 2 && p.send >= 1 && p.bring_in >= 1 && p.review >= 1; }, 'the proposals are ready',
+  // The sweep proposes ONE kind per tick, in order party, item, project, employee, account, so the party counts being
+  // ready is not the run being ready: accepting there would leave the project's link proposal unwritten (a later tick
+  // writes it) and the project would never bind. Wait for the whole run, or at least the project kind, before accepting.
+  type Status = { run: { state: 'staging' | 'proposing' | 'ready' | 'failed' } | null; proposalCounts: Record<string, { link: number; send: number; bring_in: number; review: number }> };
+  await sweepUntil<Status>(
+    () => setup<Status>(token, { setupAction: 'connect-status' }),
+    (s) => {
+      const p = s.proposalCounts.party;
+      return !!p && p.link >= 2 && p.send >= 1 && p.bring_in >= 1 && p.review >= 1
+        && (s.run?.state === 'ready' || s.proposalCounts.project !== undefined);
+    },
+    'the whole proposal run (party counts and the project kind) is ready', 20,
   );
   await setup(token, { setupAction: 'accept-proposals' });
   await sweepUntil(
