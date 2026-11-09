@@ -24,8 +24,8 @@ vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const RAW = 'this invoice would bill 100000.00 against work order WO-3 (worth 120000.00 excl. tax, with 80000.00 already invoiced or in draft): only 40000.00 is still to invoice';
 const WO = { id: 'wo-3', project_id: 'p1', wo_number: 'WO-3', title: 'Commissioning support', status: 'Issued', currency: 'USD', client_po_number: 'PO-9' } as WorkOrderRow;

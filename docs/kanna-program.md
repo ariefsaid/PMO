@@ -7,7 +7,7 @@ under the project's quality bar. It is the program-level intake artifact — agr
 any fan-out.
 
 Distinct from its sibling docs (don't duplicate them here):
-- [`docs/reviews/2026-06-11-kanna-gap-analysis.md`](reviews/2026-06-11-kanna-gap-analysis.md) — **what** is
+- (a competitor review, kept private) — **what** is
   missing (the analysis + per-gap effort/priority). The source for the wave table below.
 - [`docs/roadmap-spines.md`](roadmap-spines.md) — the 9-spine business model (the strategic frame).
 - [`docs/backlog.md`](backlog.md) — **live status**; its "ACTIVE PROGRAM" section points here.

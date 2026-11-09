@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeAll, describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
@@ -27,7 +27,7 @@ vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => 
  * project detail layout (header + the five delivery tabs) at EVERY stage.
  *
  *  - pipeline (pre-win) → the delivery tabs (Overview/Budget/Procurement/Tasks/Documents) ARE
- *    rendered AND the PipelineLens deal banner (stepper + Advance/Mark won/Mark lost) renders
+ *    rendered AND the DealBand deal banner (stepper + Advance/Mark won/Mark lost) renders
  *    ABOVE them, so a PM can plan budget/tasks/procurement while pursuing the deal. The delivery
  *    stat tiles + contract-value SoD editor stay delivery-only (the deal figures live in the banner).
  *  - onHand → the delivery tabs + SoD editor ARE rendered; the deal banner is NOT.
@@ -80,7 +80,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineState }));
-// PipelineLens calls useQueryClient to invalidate after a transition.
+// DealBand calls useQueryClient to invalidate after a transition.
 vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn(), getQueryData: vi.fn() }) };
@@ -185,9 +185,25 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </ToastProvider>
     </MemoryRouter>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). When a tabpanel is up, its demand-loaded chunk must have landed
+  // before any panel assertion; the not-found path has no tabpanel, and its settled
+  // not-found view renders straight from the mocked record, so the wait is satisfied there.
+  await waitFor(() => {
+    const panel = screen.queryByRole('tabpanel');
+    if (panel) expect(within(panel).queryAllByTestId('project-detail-panel-loading')).toHaveLength(0);
+  });
   return view;
 };
+
+// #1905 pattern (as in ProjectDetail.scurve-demote): the /projects/p1/tasks case renders the
+// real, lazy TasksTab chunk. Priming the import here keeps the helper's boundary wait off
+// the cold transform window, so the wait binds the fallback, not machine speed.
+beforeAll(async () => {
+  await import('../tabs/TasksTab');
+});
 
 beforeEach(() => {
   roleBox.value = 'Project Manager';
@@ -304,7 +320,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a pipeline record shows PipelineLens with Overview, Budget, Tasks and Documents', async () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a pipeline record shows DealBand with Overview, Budget, Tasks and Documents', async () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -330,10 +346,10 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
   });
 
   // list-working-set-return (#682, AC-LRC-004): ProjectDetail forwards its OWN router
-  // location.state down to PipelineLens, so a project opened from a narrowed Sales Pipeline
-  // resolves its quiet Sales link to that captured URL end-to-end (not just at PipelineLens's
+  // location.state down to DealBand, so a project opened from a narrowed Sales Pipeline
+  // resolves its quiet Sales link to that captured URL end-to-end (not just at DealBand's
   // own isolated-render level, proven separately in wave5-c3-pr2.test.tsx).
-  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the PipelineLens Sales link', async () => {
+  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the DealBand Sales link', async () => {
     projectsState.data = [pipelineRow];
     pipelineState.data = {
       stages: [],

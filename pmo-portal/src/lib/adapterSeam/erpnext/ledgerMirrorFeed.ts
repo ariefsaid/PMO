@@ -36,6 +36,9 @@ import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { fetchGlEntries, fetchPaymentLedgerEntries, type GlEntryRow, type LedgerFetchResult, type PaymentLedgerEntryRow } from './ledgerFetch.ts';
 import type { ErpClientDeps } from './client.ts';
+import { readWm, advanceWm, type WatermarkServiceClient } from './watermark.ts';
+
+export { readWm, advanceWm, type WatermarkServiceClient };
 
 /** Both mirrors' uuid PRIMARY KEY (0101 §1–§2) — the KEYSET cursor + stable order the scan needs. */
 const MIRROR_SCAN_ORDER = 'id';
@@ -207,39 +210,7 @@ async function settleRepair(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId: st
   if (error) throw new AppError(error.message, error.code);
 }
 
-export async function readWm(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId: string, domain: string): Promise<string | null> {
-  const { data, error } = await sc.from('external_sync_watermarks').select('watermark_cursor')
-    .eq('org_id', orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', domain).maybeSingle();
-  if (error) throw new AppError(error.message, error.code);
-  return (data as { watermark_cursor?: string } | null)?.watermark_cursor ?? null;
-}
 
-export async function advanceWm(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId: string, domain: string, next: string | null, prev: string | null): Promise<string | null> {
-  // Monotonic: never rewind. next null (no rows this feed) keeps the prior cursor.
-  const value = next === null ? prev : prev !== null && prev > next ? prev : next;
-  if (value === null) return null;
-
-  // A read-then-upsert is racy: another tick can advance the row after `prev` was read, then this
-  // tick's ordinary upsert would rewind it. Update only a row that is still strictly behind value.
-  const table = sc.from('external_sync_watermarks');
-  const { count, error: updateError } = await table.update(
-    { watermark_cursor: value },
-    { count: 'exact' },
-  ).eq('org_id', orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', domain)
-    .lt('watermark_cursor', value);
-  if (updateError) throw new AppError(updateError.message, updateError.code);
-
-  // If no row matched, it is either already at/ahead of value or absent. Insert-if-absent handles
-  // first activation without overwriting a concurrent winner; the final read reports the stored truth.
-  if (count === 0) {
-    const { error: insertError } = await sc.from('external_sync_watermarks').upsert(
-      { org_id: orgId, external_tier: ERPNEXT_TIER, domain, watermark_cursor: value },
-      { onConflict: 'org_id,external_tier,domain', ignoreDuplicates: true },
-    );
-    if (insertError) throw new AppError(insertError.message, insertError.code);
-  }
-  return readWm(sc, orgId, domain);
-}
 
 /** One voucher's identity — the key ERPNext reposts a voucher's ledger rows under. */
 type Voucher = { type: string; no: string };

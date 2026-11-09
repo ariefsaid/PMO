@@ -2,7 +2,7 @@ import { assertEquals, assertFalse } from "@std/assert";
 import { FakeTime } from "@std/testing/time";
 import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
 import {
-  DRIVE, PROJECT_ID, gget, graphCalls, makeScenarioRunner, newWorld, rpcBodies,
+  DRIVE, PROJECT_ID, gget, graphCalls, graphError, makeScenarioRunner, newWorld, rpcBodies,
 } from "./recordFolderTestKit.ts";
 import { openCallerGraphRead } from "./graphRead.ts";
 
@@ -119,5 +119,15 @@ Deno.test("AC-M365DOC-070 served browser metadata calls use a caller quota", asy
   await run(newWorld({ rate: () => jsonResponse(false) }), async ({ call, calls }) => {
     assertEquals((await call(proxy(`/drives/${DRIVE}/root`))).status, 429);
     assertEquals(graphCalls(calls).length, 0);
+  });
+});
+
+// #1288 F13: a member whom Microsoft refuses a site search is NOT told the admin-approval wording.
+// The wire answer is the generic Graph failure (never FORBIDDEN, which is only the org-approval initiator's refusal).
+Deno.test("AC-M365DOC-070 served site listing: a Graph 403 is GRAPH_ERROR, never FORBIDDEN", async () => {
+  await run(newWorld({ graph: [gget("/sites", () => graphError(403, "accessDenied"))] }), async ({ call }) => {
+    const response = await call(proxy("/sites", { search: "*" }));
+    assertEquals(response.status, 502);
+    assertEquals((await response.json()).error, "GRAPH_ERROR");
   });
 });

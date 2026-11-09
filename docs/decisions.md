@@ -465,7 +465,7 @@ billing) and spine 8 (asset registry) and is sequenced after them. Defined in
 
 ## OD-DOC — Document file storage (grill-with-docs session, owner-locked 2026-06-12)
 
-First issue of the KANNA gap-closing series (`review/kanna-gap-analysis.md`). Grilled per the
+First issue of the KANNA gap-closing series (a competitor review, kept private). Grilled per the
 new playbook §2 step-1b gate.
 
 ### OD-DOC-1 — Issue scope: infra + Documents tab only; procurement next; photos out
@@ -1098,7 +1098,7 @@ deferred under this single-org decision.
 
 ## OD-CR-1..6 — RIS-parity + CRM-v2 candidate program (owner grill 2026-07-22)
 
-Candidate program, **not scheduled**. Analysis: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md).
+Candidate program, **not scheduled**. Analysis: (a competitor review, kept private).
 Full decision text (batches A–D + the resulting sequence) lives in the **CANDIDATE PROGRAM** section of
 [`docs/backlog.md`](backlog.md) — indexed here so `OD-CR-*` resolves by id:
 
@@ -3645,9 +3645,13 @@ covers bills and payments; order, receipt and revision recovery are covered by a
 tests. Deno tests cover recorded-actor reauthorization, candidate reservation, PO-family ownership handling
 and rejection of amount-only adoption. The browser journey proves replay after a lost browser response.
 This records scoped implementation evidence only; release readiness remains the owner's decision.
+**Update 2026-11-07:** the sweep-recovery condition on the four procurement declarations is met by #1901, so
+`purchase.push`, `bill.push`, `vendor-payment.push` and `purchase-order.revise` are declared `supported` once the
+shared push suites' link cases pass against the production resolver (Odoo procurement runs the shared link check before adapter selection).
 
 ## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
-The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `receipt.read` and `invoice.pair-existing` remain pending on #1506; `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `invoice.pair-existing` remains pending on #1506 (`receipt.read` became supported 2026-11-07: the harness classifies both payment directions through the production feeds); `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+**Update 2026-11-07 (C7):** Odoo tax documents shipped without export per owner ruling (2026-11-07): FR-OCI-094 stands (write no ERP tax-document fields), capability `tax-document.read` is declared unavailable with a plain reason, hand-recorded e-Faktur remains PMO-owned, and migration slot 0514 is returned unused.
 
 Verification after the final dev merge (#1872): adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
 
@@ -3693,3 +3697,34 @@ already uses (OD-NAR / #784). This supersedes, for orgs with no ERP, the "PMO ha
 in ADR-0048 and ADR-0055 §5. Building a native ledger **extends** the vision, it does not reverse a decision. Not
 scheduled yet: the owner said record, don't build (2026-11-03). A future build takes a new ADR for the native ledger
 and a roadmap map.
+
+### DD-1418-ATTENTION — the dashboard's Delivery five is a true attention ranking, computed in the read model (Directive, 2026-11-07, #1418)
+The executive dashboard's five project rows were the five largest contracts, re-sorted on the client by spend percentage — so
+a small project with overdue work and a blown budget could never appear. The ranking now lives in the same
+`get_executive_dashboard` payload as a second key, `attention_projects` (0732; `top_projects` is untouched for its other
+readers; no new round trip, and the screen renders the returned order and never re-sorts): a project ranks first by the
+number of DISTINCT signal kinds it carries — overdue work, over budget, waiting approvals (0–3) — then by more overdue items
+(overdue open tasks + overdue milestones + overdue client invoices), then more waiting approvals (project-scoped Requested
+procurements + Submitted expense claims), then a higher budget-consumption ratio, then contract value, then id — so ties are
+deterministic. Each signal is an EXISTING definition reused, not a new one: overdue tasks follow the agent-chat
+whats_overdue rule; an overdue milestone is the project-detail rule (target past, effective % under 100, started); an
+overdue invoice is the AR due-date rule; "over budget" is the dashboard's own at-risk basis (spent + open commitment, ledger
+Actual for an ERP-ledger org) past 100% of the Active budget, with the ratio null — never a false zero — when the basis
+cannot be compared; "today" is the org-local day. Money size is deliberately not an ingredient of the ranking (that was
+the defect); contract value only breaks a tie between equally pressing projects. The population is the active delivery set
+(active_delivery_project_statuses(): Won Pending KoM, Ongoing, On Hold, Internal; Close Out is out), and tenancy and role visibility are exactly as before: the function is still SECURITY INVOKER so
+every signal read runs under the caller's RLS, and the function adds no per-role filter of its own, so each viewer sees the
+ranking over the projects and signals their role can read (as with top_projects); the role-aware queues stay on the "waiting for you" line. Proven in
+`supabase/tests/0732_executive_attention_ranking.test.sql` (AC-1418-01..18) and
+`pmo-portal/pages/ExecutiveDashboard.test.tsx` (F2/#1418, returned order rendered).
+
+### DD-TMN-1 — A no-ERP org invoices a T&M claim through its own RPC; invoice id = claim id (#1817, 2026-11-06)
+`create_native_tm_invoice(claim)` (migration 0704) is a new RPC, not a `p_id` argument on `create_native_sales_invoice`:
+that function is pinned by signature in six pgTAP files, the function-ACL proof and the isolation manifest, and a
+client-supplied id on a general creator would need the whole claim gate inside it anyway. The cost is VAT/currency drift
+between the two creators, covered by a parity test (AC-TM-025). The invoice takes the claim's id, which is the
+double-billing guard (primary key plus an explicit check that also blocks a cancelled invoice) and how the existing author
+trigger finds the claim. The work-order fence refuses any insert that reuses a claim id; it now lets this RPC through
+with a transaction-local marker that names the claim. Defaults taken from the plan (owner questions open): the approval
+rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
+line, no item code; no re-invoice after a cancel.

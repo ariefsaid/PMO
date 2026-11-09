@@ -43,10 +43,11 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useTimeAndMaterials', () => ({ useInvoiceTmClaimNative: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 
 import BillingTab from '../tabs/BillingTab';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
-import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 beforeEach(() => {
   h.role = 'Finance';

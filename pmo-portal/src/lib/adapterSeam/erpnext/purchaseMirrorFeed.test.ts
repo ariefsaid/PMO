@@ -36,6 +36,38 @@ function harness(docs: Record<string, unknown[]>) {
 }
 
 describe('erpnext/purchaseMirrorFeed', () => {
+  // #1290: the org-wide re-stamp runs once per tick, not once per page.
+  const restamps = (rpc: ReturnType<typeof vi.fn>) => rpc.mock.calls.filter((call) => call[1].p_restamp !== false);
+  function backlog(pages: number) {
+    const docs = Array.from({ length: pages * 500 }, (_, i) => ({ ...PO, name: `PO-${String(i).padStart(5, '0')}`, modified: '2026-04-01 00:00:00' }));
+    return harness({ 'Purchase Order': docs });
+  }
+
+  it('#1290 re-stamps once per tick, after a multi-page catch-up (page writes carry p_restamp false)', async () => {
+    const h = backlog(12);
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    const writes = h.rpc.mock.calls.filter((call) => call[1].p_rows.length > 0);
+    expect(writes.length).toBeGreaterThan(5);
+    expect(writes.every((call) => call[1].p_restamp === false)).toBe(true);
+    expect(restamps(h.rpc)).toHaveLength(1);
+    expect(h.rpc.mock.calls.at(-1)![1]).toEqual({ p_org_id: 'org-1', p_rows: [], p_restamp: true });
+  });
+
+  it('#1290 re-stamps once for what was written when the tick stops on an error', async () => {
+    const h = backlog(5);
+    h.rpc.mockImplementationOnce(async (_n: string, a: { p_rows: unknown[] }) => ({ data: a.p_rows.length, error: null }))
+      .mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+    await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('boom');
+    expect(restamps(h.rpc)).toHaveLength(1);
+    expect(h.rpc.mock.calls.at(-1)![1].p_rows).toEqual([]);
+  });
+
+  it('#1290 a single-page tick re-stamps once', async () => {
+    const h = backlog(1);
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    expect(restamps(h.rpc)).toHaveLength(1);
+  });
+
   it('AC-EPR-001 mirrors ERP-native POs and PIs with ERP figures and advances each watermark', async () => {
     const h = harness({ 'Purchase Order': [PO], 'Purchase Invoice': [PI] });
     const result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
@@ -63,7 +95,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(h.urls.find((u) => u.includes('/Purchase Receipt?'))).toContain('["modified","=","2026-02-01 10:00:00"]');
     expect(h.rpc).toHaveBeenCalledTimes(1);
-    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
+    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [], p_restamp: true });
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
       domain: purchaseWmDomain('Purchase Receipt'), watermark_cursor: '2026-02-01 10:00:00',
     }));
@@ -103,7 +135,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
     expect(h.rpc).toHaveBeenCalledTimes(1);
-    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
+    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [], p_restamp: true });
   });
 
   it('mirrors a same-timestamp late document after the completed page cursor', async () => {
@@ -117,7 +149,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
     expect(h.rpc.mock.calls[0][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: original.name }));
-    expect(h.rpc.mock.calls[1][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: late.name }));
+    expect(h.rpc.mock.calls.filter((call) => call[1].p_rows.length > 0)[1][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: late.name }));
     expect(h.urls.some((url) => url.includes('["name",">=","ACC-PINV-1"]'))).toBe(true);
   });
 
@@ -288,7 +320,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
 
     const saved = fake.rowsOf('external_sync_watermarks').find((row) => row.domain === 'purchases::v3::Purchase Order');
     expect(JSON.parse(String(saved?.watermark_cursor))).toEqual({ version: 2, modified: rows[499].modified, name: rows[499].name });
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls.filter((call) => call[1].p_rows.length > 0)).toHaveLength(1);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
@@ -360,7 +392,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
       await vi.advanceTimersByTimeAsync(1);
       await rejected;
       expect(fetchImpl).toHaveBeenCalledTimes(2);
-      expect(h.rpc).toHaveBeenCalledTimes(1);
+      expect(h.rpc).toHaveBeenCalledTimes(2); // the page write, then the tick's one re-stamp
       expect(JSON.parse(String(h.fake.rowsOf('external_sync_watermarks')[0].watermark_cursor))).toMatchObject({ name: rows[499].name });
     } finally {
       consoleError.mockRestore();

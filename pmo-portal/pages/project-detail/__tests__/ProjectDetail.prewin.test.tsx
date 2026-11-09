@@ -1,5 +1,5 @@
 /**
- * AC-IFW-RECORD-01 — Pre-win detail: sales levers (PipelineLens) render ABOVE the delivery
+ * AC-IFW-RECORD-01 — Pre-win detail: sales levers (DealBand) render ABOVE the delivery
  * planner (MilestoneStrip) and ABOVE the S-curve; and the S-curve is hidden for pre-win records.
  *
  * Lens-D regression invariant: a pre-win record renders the Opportunity-journey stepper and
@@ -178,7 +178,14 @@ const renderAt = async (path: string) => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). Every path renders the pre-win Overview, whose data hooks are mocked
+  // settled, so the fallback clears with the record commit — the wait refuses to return
+  // before it has.
+  const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 
@@ -196,12 +203,12 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     vi.spyOn(repositories.project, 'winEligibility').mockResolvedValue('allowed');
   });
 
-  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
+  it('AC-IFW-RECORD-01: pre-win record renders DealBand (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
     await renderAt('/projects/opp1');
 
-    // The PipelineLens "Project stage journey" stepper must be in the DOM (CW-1: "Deal" → "Project")
+    // The DealBand "Project stage journey" stepper must be in the DOM (CW-1: "Deal" → "Project")
     const projectJourney = screen.getByLabelText('Project stage journey');
-    // The "Project journey" heading in PipelineLens card (CW-1: "Opportunity journey" → "Project journey")
+    // The "Project journey" heading in DealBand card (CW-1: "Opportunity journey" → "Project journey")
     const projectJourneyHeading = screen.getByText('Project journey');
 
     expect(projectJourney).toBeInTheDocument();
@@ -244,7 +251,7 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
   it('AC-IFW-RECORD-01: pre-win record renders the Advance / Mark won / Mark lost sales levers', async () => {
     await renderAt('/projects/opp1');
 
-    // The sales action buttons from PipelineLens must be visible. Mark won arrives with the
+    // The sales action buttons from DealBand must be visible. Mark won arrives with the
     // server's eligibility answer (an async query), so it is awaited like any read.
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /Mark won/i })).toBeInTheDocument();

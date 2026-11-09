@@ -1,6 +1,7 @@
 /** Reporting contracts: management pack, snapshots, financial statements, FX. */
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
+import type { FinanceHubFigures } from '@/src/lib/db/financeHub';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import type { FinancialStatementCatalogue, FinancialStatementRead } from '@/src/lib/financialStatements';
 import type { FinancialStatementCatalogueOptions, GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
@@ -29,6 +30,8 @@ export interface ReportsRepository {
   managementPack(range: ManagementPackRange): Promise<ManagementPackFacts>;
   /** Record a project's month-end percent complete (one entry per project per month). */
   recordProgress(input: ProjectProgressInput): Promise<void>;
+  /** #1988 — the Finance hub's three figures from ONE narrow invoker RPC. */
+  figures(): Promise<FinanceHubFigures>;
 }
 
 /** Authorized financial statement read envelopes; all scope enforcement remains server-side. */

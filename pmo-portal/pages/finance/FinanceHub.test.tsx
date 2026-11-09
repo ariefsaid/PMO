@@ -9,8 +9,12 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 const state = vi.hoisted(() => ({
   role: 'Finance',
   position: null as FinancePosition | null,
-  catalogue: { data: undefined as undefined | { periods: Array<{ kind: string; currentStart: string }> }, isPending: false, isError: false, refetch: vi.fn() },
-  statement: { data: undefined as unknown, isPending: true, isError: false, refetch: vi.fn() },
+  figures: {
+    data: undefined as unknown,
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -38,12 +42,8 @@ vi.mock('@/src/hooks/useFinancePosition', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
-vi.mock('@/src/hooks/useManagementPack', () => ({
-  useManagementPack: () => ({ data: { to: '2026-10-01', totals: [{ currency: 'IDR', months: [{ unbilled: 1_230_000 }] }, { currency: 'USD', months: [{ unbilled: 500_000 }] }], rows: [{ kind: 'contract', projectId: 'project-1', latestProgress: null }, { kind: 'contract', projectId: 'project-2', latestProgress: null }] }, isPending: false, isError: false, refetch: vi.fn() }),
-}));
-vi.mock('@/src/hooks/useFinancialStatements', () => ({
-  useFinancialStatementCatalogue: () => state.catalogue,
-  useFinancialStatement: () => state.statement,
+vi.mock('@/src/hooks/useFinanceHubFigures', () => ({
+  useFinanceHubFigures: () => state.figures,
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
@@ -86,8 +86,15 @@ function renderHub(role = 'Finance') {
 
 beforeEach(() => {
   state.position = positionFixture();
-  state.catalogue = { data: { periods: [] }, isPending: false, isError: false, refetch: vi.fn() };
-  state.statement = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+  state.figures = {
+    data: {
+      pack: { asAt: '2026-10-01', unbilled: [{ currency: 'IDR', cents: 1_230_000 }, { currency: 'USD', cents: 500_000 }], contractRows: 2, invoicedBasisRows: 2 },
+      statement: { unpublished: true, periodStart: null, netProfit: null, currency: null },
+    },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  };
 });
 
 afterEach(() => {
@@ -204,9 +211,9 @@ describe('Finance hub', () => {
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
   });
 
-  it('AC-1405-HUB-007: statement catalogue errors offer a retry action', () => {
+  it('AC-1405-HUB-007: figure read errors offer a retry action', () => {
     const refetch = vi.fn();
-    state.catalogue = { data: undefined, isPending: false, isError: true, refetch };
+    state.figures = { data: undefined, isPending: false, isError: true, refetch };
     renderHub();
 
     screen.getAllByRole('button', { name: 'Retry' }).forEach((button) => button.click());

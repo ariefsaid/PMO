@@ -10,11 +10,12 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoListNumbers, repoGetWithRefs, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
+const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoListPicker, repoListNumbers, repoGetWithRefs, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
   listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
   listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
   repoList: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
+  repoListPicker: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X' }]),
   repoListNumbers: vi.fn().mockResolvedValue([{ id: 'p1', pmo_project_number: 'PMO-1' }]),
   repoGetWithRefs: vi.fn().mockResolvedValue({ id: 'p1', name: 'X', client: null, pm: null }),
   repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
@@ -27,6 +28,7 @@ vi.mock('@/src/lib/repositories', () => ({
     profile: { listProjectManagers },
     project: {
       list: repoList,
+      listPickerOptions: repoListPicker,
       listNumbers: repoListNumbers,
       getWithRefs: repoGetWithRefs,
       create: repoCreate,
@@ -40,6 +42,7 @@ vi.mock('@/src/lib/repositories', () => ({
 
 import {
   useProjects,
+  useProjectPickerOptions,
   useProject,
   usePrefetchProject,
   useClientCompanies,
@@ -249,5 +252,20 @@ describe('usePrefetchProject', () => {
     result.current(undefined);
 
     expect(prefetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('useProjectPickerOptions', () => {
+  it('reads the narrow picker list and a project write refetches it (key under projectKeys.all)', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProjectPickerOptions(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data).toEqual([{ id: 'p1', name: 'X' }]));
+    expect(repoList).not.toHaveBeenCalled();
+    repoListPicker.mockClear();
+    await qc.invalidateQueries({ queryKey: projectKeys.all('org-1') });
+    await waitFor(() => expect(repoListPicker).toHaveBeenCalledTimes(1));
   });
 });

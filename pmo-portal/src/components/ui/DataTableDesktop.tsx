@@ -44,27 +44,62 @@ function alignClass(align?: ColAlign) {
   return 'text-left';
 }
 
+/** Whether content is hidden to the right of the scrollport. Held OUTSIDE React state on purpose: the first
+ *  measurement usually flips it, and as `useState` that flip re-rendered the whole table body once per mount.
+ *  Only the tiny seam strips subscribe, so a flip re-renders them and nothing else. */
+interface SeamStore {
+  get: () => boolean;
+  set: (next: boolean) => void;
+  subscribe: (listener: () => void) => () => void;
+}
+
+function createSeamStore(): SeamStore {
+  let value = false;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (next) => {
+      if (next === value) return;
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
+}
+
+/** The separation gradient, rendered only while content remains hidden to the right. useSyncExternalStore
+ *  re-reads on subscribe, so a flip between render and subscription is never missed. */
+function RowMenuSeam({ store }: { store: SeamStore }) {
+  const visible = React.useSyncExternalStore(store.subscribe, store.get, () => false);
+  return visible ? <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} /> : null;
+}
+
 function useStickyRowMenuSeam(
   scrollportRef: React.RefObject<HTMLDivElement | null>,
   tableRef: React.RefObject<HTMLTableElement | null>,
   enabled: boolean,
   onOverflowChange?: (overflowing: boolean) => void,
-): boolean {
-  const [hasHiddenRightContent, setHasHiddenRightContent] = React.useState(false);
+): SeamStore {
+  const [store] = React.useState(createSeamStore);
 
   React.useLayoutEffect(() => {
     const scrollport = scrollportRef.current;
     const table = tableRef.current;
+    const report = (overflowing: boolean) => {
+      store.set(overflowing);
+      scrollport?.toggleAttribute('data-dt-overflowing', overflowing);
+      onOverflowChange?.(overflowing);
+    };
     if (!enabled || !scrollport || !table) {
-      setHasHiddenRightContent(false);
-      onOverflowChange?.(false);
+      report(false);
       return;
     }
 
     const measure = () => {
-      const overflowing = scrollport.scrollWidth - scrollport.clientWidth - scrollport.scrollLeft > 1;
-      setHasHiddenRightContent((current) => current === overflowing ? current : overflowing);
-      onOverflowChange?.(overflowing);
+      report(scrollport.scrollWidth - scrollport.clientWidth - scrollport.scrollLeft > 1);
     };
 
     measure();
@@ -84,9 +119,9 @@ function useStickyRowMenuSeam(
       if (observer) observer.disconnect();
       else window.removeEventListener('resize', measure);
     };
-  }, [enabled, onOverflowChange, scrollportRef, tableRef]);
+  }, [enabled, onOverflowChange, scrollportRef, tableRef, store]);
 
-  return hasHiddenRightContent;
+  return store;
 }
 
 export interface DataTableDesktopProps<Row> {
@@ -154,7 +189,7 @@ export function DataTableDesktop<Row>({
   const keyboardResizeStart = useRef<Record<string, number>>({});
 
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
-  const hasHiddenRightContent = useStickyRowMenuSeam(
+  const seamStore = useStickyRowMenuSeam(
     tableBranchRef,
     tableRef,
     Boolean(rowMenu) || Boolean(onOverflowChange),
@@ -178,7 +213,6 @@ export function DataTableDesktop<Row>({
     <div
       ref={tableBranchRef}
       data-testid="dt-table-branch"
-      data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
       className="relative overflow-x-auto"
     >
       <table
@@ -189,7 +223,7 @@ export function DataTableDesktop<Row>({
         }}
         className="w-full border-collapse text-control"
       >
-        <thead>
+        <thead className={state === 'error' ? 'sr-only' : undefined}>
           <tr>
             {selection && <th scope="col" className="sticky top-0 z-[2] h-[var(--table-head-height)] w-10 border-b border-border bg-surface-table-head px-2 text-left">
               <span onClick={(event) => event.stopPropagation()}>
@@ -312,7 +346,7 @@ export function DataTableDesktop<Row>({
             })}
             {rowMenu && (
               <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b border-border bg-surface-table-head')} scope="col">
-                {hasHiddenRightContent && <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />}
+                <RowMenuSeam store={seamStore} />
                 <span className="sr-only">{t('table.actions', 'Actions')}</span>
               </th>
             )}
@@ -436,7 +470,7 @@ export function DataTableDesktop<Row>({
                   })}
                   {rowMenu && (
                     <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
-                      {hasHiddenRightContent && <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />}
+                      <RowMenuSeam store={seamStore} />
                       {(() => {
                         const items = rowMenu(row) ?? [];
                         return items.length > 0 ? <RowMenu items={items} /> : null;

@@ -33,7 +33,6 @@ vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => (
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => erpState,
   useErpOrphans: () => ({ data: erpState.data.filter((row) => (row as { procurementId: string | null }).procurementId === null), isError: false, refetch: vi.fn() }),
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
@@ -41,7 +40,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => projectState }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => detailState }));
-vi.mock('../useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));
+vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-abc', label: 'Test Project', sub: 'PRJ-ABC' }] }),

@@ -24,6 +24,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { refreshAging, type AgingScope } from '../../src/lib/adapterSeam/erpnext/agingSnapshot.ts';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -51,6 +52,7 @@ async function benchHeaders(): Promise<Record<string, string>> {
 /** Find an open (docstatus=1, outstanding>0) Purchase Invoice on the bench for the seeded supplier;
  *  create one if none exists, so the aging report has a bucket to return. Returns the PI name. */
 async function ensureOpenPurchaseInvoice(suffix: string): Promise<string> {
+  assertLocalBenchUrl(BENCH_URL);
   const h = await benchHeaders();
   // try to find an existing open PI for the supplier
   const filters = encodeURIComponent(JSON.stringify([['supplier', '=', SUPPLIER], ['docstatus', '=', 1], ['outstanding_amount', '>', 0]]));
@@ -112,6 +114,7 @@ test.describe('AC-ENA-061: AP aging snapshot — report-RPC truth + provenance, 
         partyType: 'Supplier',
       };
       // the REAL served boundaries: the bench report RPC (real HTTP) + the real local-DB snapshot write
+      assertLocalBenchUrl(BENCH_URL);
       await refreshAging(admin as unknown as never, { fetchImpl: globalThis.fetch, apiKey: BENCH_KEY, apiSecret: BENCH_SECRET, baseUrl: BENCH_URL }, ORG_ID, scope);
 
       // read back the snapshot
@@ -145,6 +148,7 @@ test.describe('AC-ENA-061: AP aging snapshot — report-RPC truth + provenance, 
     } finally {
       // cleanup: cancel the PI we created (leave the bench clean), unflip the org, clear the snapshot
       const h = await benchHeaders();
+      assertLocalBenchUrl(BENCH_URL);
       await fetch(`${BENCH_URL}/api/resource/Purchase%20Invoice/${encodeURIComponent(piName)}`, { method: 'PUT', headers: h, body: JSON.stringify({ docstatus: 2 }) }).catch(() => undefined);
       await admin.from('erp_ap_aging_snapshot').delete().eq('org_id', ORG_ID);
       await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');

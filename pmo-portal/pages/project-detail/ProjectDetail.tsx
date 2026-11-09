@@ -17,7 +17,7 @@ import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
 import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
-import PipelineLens from './PipelineLens';
+import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import ProjectDetailRail from './ProjectDetailRail';
@@ -223,7 +223,7 @@ const ProjectDetail: React.FC = () => {
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectHeaderFacts project={project} />
-      {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
+      {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
       {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
           moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}
       {pipelineGroup === 'onHand' && isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mb-8" />}

@@ -1,6 +1,6 @@
 /**
  * AC-SCA-012 (#1513): a `purchase-order.revise` that would cancel the ERP order is refused while the purchase has a
- * submitted bill. The answer is the database's (`po_revision_push_refusal`, 0475), asked BEFORE any outbox or ERP work.
+ * submitted bill, and only the effective (highest issued) revision may be pushed (`revision_superseded`, 0742). The answer is the database's (`po_revision_push_refusal`, 0475), asked BEFORE any outbox or ERP work.
  * Fails closed on any unreadable input or unanswerable check. The key and the recovery decision live in the seam module
  * (AC-SCA-011); they are re-exported so the #1505 dispatch imports both from one place.
  */

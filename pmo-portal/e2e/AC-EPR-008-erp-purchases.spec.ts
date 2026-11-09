@@ -44,7 +44,7 @@ test('AC-EPR-008: a project shows its ERPNext purchases and the org list names t
     // oracle — supplier, amount, project — is unchanged.
 
     await section.getByRole('link', { name: 'All unlinked ERPNext documents' }).click();
-    await expect(page).toHaveURL(/\/erp-purchases$/);
+    await expect(page).toHaveURL(/\/procurement\?tab=orphans$/);
     await expect(page.locator('tr', { hasText: invoiceName })).toContainText(projectName);
   } finally {
     await admin.from('erp_purchase_documents').delete().eq('org_id', ORG_ID).eq('erp_name', invoiceName);

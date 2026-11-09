@@ -32,6 +32,7 @@
     "uncertain": "The current batch is still running, so the counts may change.",
     "stopped": "Stopped. {{count}} checked.",
     "interrupted": "Stopped early. Counts so far are kept; continue to check the rest.",
+    "readFailed": "The default library could not be read, so folders cannot be linked yet. Retry the read above.",
     "needsDefault": "Choose a default document library first.",
     "summary": "Linked {{linked}} · Need a choice {{needsChoice}} · No match/code {{missing}} · Failed {{failed}} · Already linked {{skipped}}"
   },

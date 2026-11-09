@@ -9,6 +9,7 @@ import { AppError } from '@/src/lib/appError';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
+import { BahasaProvider } from '@/test/bahasa';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 vi.mock('@/src/components/fx/FxEquivalent', () => ({
@@ -130,6 +131,21 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it('#1339: the status pill names the project status in the viewer\'s language', () => {
+    render(
+      <BahasaProvider>
+        <MemoryRouter>
+          <ToastProvider>
+            <ProjectDetailHeader project={onHand} />
+          </ToastProvider>
+        </MemoryRouter>
+      </BahasaProvider>,
+    );
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Proyek berjalan')).toBeInTheDocument();
+    expect(within(header).queryByText('Ongoing Project')).not.toBeInTheDocument();
+  });
+
   it('gives the full-width project title priority on mobile and keeps status below metadata', () => {
     roleBox.value = 'Project Manager';
     render(
@@ -444,10 +460,10 @@ async function stateTaxBasis() {
 
 // ── AC-PRJ-006 contract_value SoD (ADR-0019) ─────────────────────────────────
 describe('ProjectDetailHeader — contract_value SoD treatment', () => {
-  // Model B (ADR-0020, AC-IXD-PROJ-004): a pre-win (pipeline) deal renders the PipelineLens,
+  // Model B (ADR-0020, AC-IXD-PROJ-004): a pre-win (pipeline) deal renders the DealBand,
   // NOT the delivery header — so the delivery contract-value SoD editor (and the StatTiles
   // spend summary) are not mounted on a pre-win record. The deal's value is captured at
-  // create-time and surfaced as the PipelineLens "Value" stat; the on-hand SoD lock/edit
+  // create-time and surfaced as the DealBand "Value" stat; the on-hand SoD lock/edit
   // distinction (the goal-oracle) is asserted on the on-hand record below.
   it('AC-IXD-PROJ-004: PRE-WIN, the delivery contract-value editor + spend summary are NOT mounted', () => {
     renderHeader('Project Manager', preWin);

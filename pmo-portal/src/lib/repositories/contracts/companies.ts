@@ -1,8 +1,21 @@
 /** Company, contact and customer-reference repository contracts (ADR-0017). */
 import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
-import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
-import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
+import type {
+  CompanyDirectoryPage,
+  CompanyListRow,
+  CompanyOptionRow,
+  CompanyRow,
+  CompanyType,
+  CompanyInput,
+} from '@/src/lib/db/companies';
+import type { ContactDirectoryPage, ContactRow, ContactInput } from '@/src/lib/db/contacts';
+import type {
+  CrmActivityRow,
+  CrmActivityInput,
+  CrmActivityPatch,
+  ActivityCursor,
+  ActivityPage,
+} from '@/src/lib/db/crmActivities';
 import type { CompanyCustomerRef } from '@/src/lib/db/companyCollections';
 
 export interface CompanyRepository {
@@ -10,6 +23,14 @@ export interface CompanyRepository {
   listClients(): Promise<CompanyRow[]>;
   /** All companies in the org (archived hidden by default), optionally filtered by type. */
   list(params?: { type?: CompanyType }): Promise<CompanyRow[]>;
+  /** EVERY company matching the directory filter/search — the full-set export read (#1989). */
+  listAll(params?: { type?: CompanyType; search?: string }): Promise<CompanyRow[]>;
+  /** ONE server page of the directory: type filter + search applied server-side, exact total (#1989). */
+  listPage(input: { page: number; pageSize: number; type?: CompanyType; search?: string }): Promise<CompanyDirectoryPage>;
+  /** The exact non-archived total — the "of Y" behind a filtered "Showing X of Y" (#1989). */
+  count(): Promise<number>;
+  /** Every company as a display row (id + name fields) for pickers that must offer everyone (#1989). */
+  listOptions(): Promise<CompanyOptionRow[]>;
   /** A single company by id, or null when not found / not readable. */
   get(id: string): Promise<CompanyRow | null>;
   /** The readable subset of `ids` in batched reads; ids the caller cannot read are absent. */
@@ -31,6 +52,12 @@ export interface CompanyRepository {
 export interface ContactRepository {
   /** All non-archived contacts in the org, ordered by name. */
   list(): Promise<ContactRow[]>;
+  /** EVERY contact matching the directory filter/search — the full-set export read (#1989). */
+  listAll(params?: { companyId?: string; search?: string }): Promise<ContactRow[]>;
+  /** ONE server page of the directory: company filter + search applied server-side, exact total (#1989). */
+  listPage(input: { page: number; pageSize: number; companyId?: string; search?: string }): Promise<ContactDirectoryPage>;
+  /** The exact non-archived total — the "of Y" behind a filtered "Showing X of Y" (#1989). */
+  count(): Promise<number>;
   /** A company's non-archived contacts (the company-detail list). */
   listByCompany(companyId: string): Promise<ContactRow[]>;
   /** A single contact by id, or null when not found / not readable. */
@@ -47,6 +74,10 @@ export interface ContactRepository {
   listActivities(contactId: string): Promise<CrmActivityRow[]>;
   /** Batch-fetch activities for N contacts in one query (C3 N+1 fix), merged newest-first. */
   listActivitiesForContacts(contactIds: string[]): Promise<CrmActivityRow[]>;
+  /** One page of a contact's timeline, newest-first (#1990); pass the previous page's nextCursor for the next. */
+  listActivitiesPage(contactId: string, cursor: ActivityCursor | null): Promise<ActivityPage>;
+  /** One page of the merged timeline for N contacts in one query (#1990). */
+  listActivitiesForContactsPage(contactIds: string[], cursor: ActivityCursor | null): Promise<ActivityPage>;
   /** Log an activity (org_id trigger-stamped from the parent; logged_by from the caller). */
   createActivity(input: CrmActivityInput, loggedById: string | null): Promise<CrmActivityRow>;
   /** Update an activity's editable fields (kind/subject/body/occurred_at). */
@@ -54,6 +85,8 @@ export interface ContactRepository {
   /** Hard-delete an activity by id (RLS gate: MASTER_DATA roles + org). */
   deleteActivity(id: string): Promise<void>;
 }
+
+export type { CompanyListRow };
 
 /** Read-only canonical Customer-reference reads for composing ERP aging by PMO company. */
 export interface CompanyCollectionsRepository {

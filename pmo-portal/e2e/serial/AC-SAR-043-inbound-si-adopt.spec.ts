@@ -31,6 +31,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createHmac } from 'node:crypto';
 import { seedSAR, cleanupSAR } from './_sarHelpers';
 import { runFullSweep } from './_sweepHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -73,6 +74,7 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
     const seeded = await seedSAR(admin, suffix);
 
     // ── 1. CREATE a Sales Invoice NATIVELY in ERPNext (no PMO command) ──
+    assertLocalBenchUrl(ERPNEXT_BENCH_URL);
     const nativeSiBody = {
       customer: 'Spike Customer', // the bench-fixture ERP Customer (must pre-exist — a suffixed name would 404)
       items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 125000 }],
@@ -210,6 +212,7 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
     } finally {
       // Cleanup: delete the native SI from ERP (best effort)
       try {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(nativeSiNameFromErp!)}`, {
           method: 'PUT',
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}`, 'Content-Type': 'application/json' },

@@ -28,6 +28,10 @@ type BuildOdooProcurementRecoveryDeps = (candidate: OdooProcurementCandidate, ca
 type DispatchOdooProcurementRecovery = (deps: DispatchMoneyWriteDeps) => Promise<unknown>;
 type ReplayAuthorizer = typeof checkOutboxReplayAuthorization;
 type AnchoredElsewhere = (candidate: OdooProcurementCandidate) => Promise<boolean>;
+type HoldCommitted = (candidate: OdooProcurementCandidate, reason: string) => Promise<number>;
+
+/** Stable operator-facing reason on a committed row whose Odoo document is anchored to another PMO row. */
+export const COMMITTED_ANCHOR_HOLD_REASON = 'committed-anchor-owned-elsewhere: the Odoo document is anchored to another PMO record';
 type RecoveryResolvers = {
   resolveAdapter?: typeof resolveOdooProcurementAdapter;
   resolveMoneyOutboxDeps?: typeof resolveOdooMoneyOutboxDeps;
@@ -105,10 +109,21 @@ export function odooProcurementAnchoredElsewhere(sc: SupabaseClient, orgId: stri
     : Promise.resolve(false);
 }
 
+/** The fenced committed-to-held transition (`hold_committed_outbox`, 0701): 1 = held, 0 = the row moved on. */
+export function odooProcurementHoldCommitted(sc: SupabaseClient): HoldCommitted {
+  return async (candidate, reason) => {
+    const { data, error } = await sc.rpc('hold_committed_outbox', {
+      p_id: candidate.row.id, p_generation: candidate.row.claimGeneration, p_reason: reason,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return typeof data === 'number' ? data : Number(data ?? 0);
+  };
+}
+
 /** Run the bounded, shared-dispatch recovery path for eligible Odoo procurement outbox rows. */
 export async function reconcileOdooProcurementCandidates(
   candidates: OdooProcurementCandidate[],
-  options: { orgId: string; ownsProcurement: boolean; maxCandidates?: number; deadlineAt?: number; callBudget?: OdooCallBudget; candidateStartIndex?: number },
+  options: { orgId: string; ownsProcurement: boolean; maxCandidates?: number; deadlineAt?: number; callBudget?: OdooCallBudget; candidateStartIndex?: number; holdCommitted?: HoldCommitted },
   buildDeps: BuildOdooProcurementRecoveryDeps,
   anchoredElsewhere: AnchoredElsewhere,
   dispatch: DispatchOdooProcurementRecovery = dispatchMoneyWrite,
@@ -137,8 +152,14 @@ export async function reconcileOdooProcurementCandidates(
       break;
     }
     // Committed rows need only the ownership read; they do not enter an Odoo probe.
+    // A foreign-anchored one is never recovered, so it is held (operator queue) instead of staying in flight.
     if (candidate.row.state === 'committed' && await anchoredElsewhere(candidate)) {
-      result.skipped += 1;
+      try {
+        await options.holdCommitted?.(candidate, COMMITTED_ANCHOR_HOLD_REASON);
+        result.skipped += 1;
+      } catch (error) {
+        result.errors.push({ id: candidate.row.id, error: recoveryErrorCode(error) });
+      }
       continue;
     }
     const reservation = procurementRecoveryCallReservation(candidate);
@@ -280,7 +301,7 @@ export async function reconcileOdooProcurementOutbox(
   const recoveryBudgetMs = Math.min(options.timeBudgetMs ?? 60_000, 60_000);
   return reconcileOdooProcurementCandidates(candidates, {
     orgId, ownsProcurement: (ownership?.length ?? 0) > 0, maxCandidates: options.maxCandidates,
-    deadlineAt: now + recoveryBudgetMs, callBudget: options.callBudget,
+    deadlineAt: now + recoveryBudgetMs, callBudget: options.callBudget, holdCommitted: odooProcurementHoldCommitted(sc),
   },
     (candidate, callBudget) => buildOdooProcurementRecoveryDeps(sc, orgId, candidate, callBudget),
     odooProcurementAnchoredElsewhere(sc, orgId));

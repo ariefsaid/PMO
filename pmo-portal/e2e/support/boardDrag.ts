@@ -15,8 +15,11 @@ export async function dragCardTo(
   const viewportHeight = page.viewportSize()?.height ?? 800;
   const x = from.x + from.width / 2;
   const y = from.y + Math.min(16, from.height / 2);
-  // Aim inside the column's own box and inside the viewport (a tall column can start above the fold).
-  const targetY = Math.min(Math.max(to.y + 60, 24), viewportHeight - 24, to.y + to.height - 8);
+  // Aim at the card's own height, clamped inside the column's box and the viewport. The card is on
+  // screen, so this point is too. The old aim (column top + 60, clamped to y = 24) put the pointer at the
+  // top edge when a tall column started above the fold, outside the column, and the drop resolved to
+  // the neighbouring column.
+  const targetY = Math.min(Math.max(y, to.y + 8, 80), to.y + to.height - 8, viewportHeight - 24);
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 12, y, { steps: 3 });

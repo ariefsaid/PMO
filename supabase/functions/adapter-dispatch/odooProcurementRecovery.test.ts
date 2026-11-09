@@ -5,6 +5,7 @@ import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import {
   buildOdooProcurementRecoveryDeps,
   odooProcurementAnchoredElsewhere,
+  odooProcurementHoldCommitted,
   procurementRecoveryStartIndex,
   reconcileOdooProcurementCandidates,
   type OdooProcurementCandidate,
@@ -281,6 +282,41 @@ Deno.test('AC-OPP-062 committed rows with a foreign anchor are skipped without s
   assertEquals(result, { reconciled: 0, skipped: 1, budgetExhausted: false, errors: [] });
 });
 
+Deno.test('AC-OPP-062 a committed row with a foreign anchor is held with a stable reason through the fenced transition', async () => {
+  const holds: Array<[string, number, string]> = [];
+  const result = await reconcileOdooProcurementCandidates([candidate('1', { erp_doc_kind: 'purchase-order' }, { row: row('1', 'committed') })], {
+    orgId: 'org-a', ownsProcurement: true,
+    holdCommitted: async (item, reason) => { holds.push([item.row.id, item.row.claimGeneration, reason]); return 1; },
+  }, async () => deps, async () => true, async () => ({}));
+
+  assertEquals(holds, [['1', 1, 'committed-anchor-owned-elsewhere: the Odoo document is anchored to another PMO record']]);
+  assertEquals(result, { reconciled: 0, skipped: 1, budgetExhausted: false, errors: [] });
+});
+
+Deno.test('AC-OPP-062 a failed hold of a foreign-anchored committed row is reported and the pass continues', async () => {
+  const seen: string[] = [];
+  const result = await reconcileOdooProcurementCandidates([
+    candidate('1', { erp_doc_kind: 'purchase-order' }, { row: row('1', 'committed') }),
+    procurement('2'),
+  ], {
+    orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0,
+    holdCommitted: async () => { throw new AppError('rpc down', 'external-unreachable'); },
+  }, async (item) => { seen.push(item.row.id); return deps; }, async (item) => item.row.state === 'committed', async () => ({}));
+
+  assertEquals(seen, ['2']);
+  assertEquals(result.errors, [{ id: '1', error: 'external-unreachable' }]);
+  assertEquals(result.reconciled, 1);
+});
+
+Deno.test('AC-OPP-062 the default hold calls the fenced committed-to-held RPC with the row generation', async () => {
+  const calls: Array<[string, Record<string, unknown>]> = [];
+  const sc = { rpc: async (fn: string, args: Record<string, unknown>) => { calls.push([fn, args]); return { data: 1, error: null }; } };
+  const hold = odooProcurementHoldCommitted(sc as never);
+  const n = await hold(candidate('1', { erp_doc_kind: 'purchase-order' }, { row: { ...row('1', 'committed'), claimGeneration: 4 } }), 'committed-anchor-owned-elsewhere: x');
+  assertEquals(n, 1);
+  assertEquals(calls, [['hold_committed_outbox', { p_id: '1', p_generation: 4, p_reason: 'committed-anchor-owned-elsewhere: x' }]]);
+});
+
 Deno.test('AC-OPP-062 recovery re-checks authorization using the actor persisted on the outbox row', async () => {
   const actor = 'recorded-actor';
   const stored = {
@@ -539,4 +575,21 @@ Deno.test('AC-OPP-062 a tick that runs out of time while a candidate builds is c
   }, async () => false, async () => { dispatched += 1; return {}; });
 
   assertEquals([dispatched, result.budgetExhausted], [0, true]);
+});
+
+Deno.test('#1504 S8-T3 a master send (seed:<kind>:<id>) is never replayed by either Odoo recovery pass: the send drain alone drives it', async () => {
+  const seeds = ['companies', 'projects', 'items'].map((domain, i) => candidate(String(i + 1), { erp_doc_kind: 'purchase-order', verb: 'submit' }, {
+    row: { ...row(String(i + 1), 'quarantined', domain), idempotencyKey: `seed:party:record-${i + 1}` },
+  }));
+  const built: string[] = [];
+  const procurementResult = await reconcileOdooProcurementCandidates(seeds, { orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0 }, async (item) => {
+    built.push(item.row.id);
+    return deps;
+  }, async () => false, async () => ({}));
+  const revenueResult = await reconcileOdooRevenueCandidates(seeds as unknown as OdooRevenueCandidate[], { orgId: 'org-a', ownsRevenue: true }, async (item) => {
+    built.push(item.row.id);
+    return deps;
+  }, async () => ({}));
+  assertEquals(built, []);
+  assertEquals([procurementResult.reconciled, revenueResult.reconciled], [0, 0]);
 });
