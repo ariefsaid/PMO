@@ -129,10 +129,15 @@ export async function loginAs(page: Page, email: string): Promise<void> {
 /**
  * Wait for `check` to pass, ticking the real sweep between looks (the timer that stages the census and drains sends).
  * Fails with the last assertion error once `capMs` has passed, naming the phase: a slow bed must say WHICH wait ran out.
- * A tick that answers non-200 fails here rather than surfacing later as "the count stayed short".
+ * A tick that ANSWERS non-200 fails here rather than surfacing later as "the count stayed short". The one exception is
+ * the local edge runtime killing a tick outright (`546 WORKER_LIMIT` — no answer from the sweep at all), which is a
+ * missed turn like an overlapping tick: it is retried, and three in a row still fail the wait with that status.
  */
+const MAX_KILLED_TICKS = 3;
+
 export async function untilWithSweep(orgId: string, check: () => Promise<void>, capMs: number, phase: string): Promise<void> {
   const deadline = Date.now() + capMs;
+  let killedTicks = 0;
   for (;;) {
     try {
       await check();
@@ -148,8 +153,10 @@ export async function untilWithSweep(orgId: string, check: () => Promise<void>, 
       throw err;
     });
     if (tick && tick.status !== 200) {
+      if (tick.status === 546 && ++killedTicks < MAX_KILLED_TICKS) continue;
       throw new Error(`${phase}: the sweep tick failed: ${tick.status} ${JSON.stringify(tick.body).slice(0, 300)}`);
     }
+    killedTicks = 0;
   }
 }
 
@@ -202,6 +209,20 @@ const RUN_MASTER_FIELDS: ReadonlyArray<readonly [string, string]> = [
   ['Item', 'item_code'],
 ];
 
+/** A cancelled document's own ledger rows still LINK to it, and ERPNext refuses to delete a linked document: clear
+ *  them (`Payment Ledger Entry` then `GL Entry`, both by `voucher_no`) so the run's document can go. */
+async function clearVoucherLedger(name: string): Promise<void> {
+  for (const ledger of ['Payment Ledger Entry', 'GL Entry']) {
+    let rows: Json[];
+    try {
+      rows = await benchList(ledger, [['voucher_no', '=', name]], ['name']);
+    } catch {
+      continue; // this document has no such ledger rows
+    }
+    for (const row of rows) await benchDeleteQuiet(ledger, String(row.name));
+  }
+}
+
 /**
  * Remove everything a run created on the shared bench: its documents inside `company` (cancel-then-delete), its masters
  * by run-unique name, then the disposable Company itself. `company` is optional because a run can fail while creating
@@ -221,8 +242,14 @@ export async function dropBenchRun(suffix: string, company?: string): Promise<vo
         }
         for (const row of rows) {
           const name = String(row.name);
-          if (Number(row.docstatus) === 1) await benchCancelQuiet(doctype, name);
-          const problem = await benchDeleteQuiet(doctype, name);
+          const submitted = Number(row.docstatus) === 1;
+          if (submitted) await benchCancelQuiet(doctype, name);
+          let problem = await benchDeleteQuiet(doctype, name);
+          if (problem && submitted) {
+            // A cancelled document still holds its own (reversed) ledger rows, and they LINK to it: clear them.
+            await clearVoucherLedger(name);
+            problem = await benchDeleteQuiet(doctype, name);
+          }
           if (problem) problems.push(problem);
         }
       }
@@ -257,8 +284,25 @@ export async function dropBenchRun(suffix: string, company?: string): Promise<vo
  *
  * The disconnect is the definer transaction, not a row delete: `delete_vault_secret` is revoked from service_role
  * (`0341_integration_revocation_authorization.sql`), so deleting the binding row alone would leave this run's bench
- * credential in Vault for ever. Errors are collected and warned, never thrown: cleanup must not mask a test failure.
+ * credential in Vault for ever. Every org-scoped FK is NO ACTION (no cascade from `organizations`), so the shelves these
+ * journeys fill are emptied child-first before the org row; a table this list misses is NAMED in the warning rather than
+ * blocking the run. Errors are collected and warned, never thrown: cleanup must not mask a test failure.
  */
+const ORG_SHELVES = [
+  'sales_invoice_authors', 'sales_invoice_submit_authorizations', 'sales_invoices',
+  'procurement_invoice_lines', 'procurement_invoice_files', 'procurement_invoices',
+  'procurement_erp_links', 'procurement_doc_counters', 'procurement_items', 'purchase_orders', 'procurements',
+  'erp_connect_staged', 'erp_connect_proposals', 'erp_connect_census', 'erp_connect_runs',
+  'erp_purchase_documents', 'erp_purchase_document_marks',
+  'erp_journal_line_links', 'erp_payment_ledger_mirror', 'erp_gl_entry_mirror', 'erp_account_mirror',
+  'erp_actuals_snapshot', 'erp_ap_aging_snapshot', 'erp_ar_aging_snapshot', 'revenue_erp_mirror', 'erp_employees',
+  'external_ref_lineage', 'external_reference_items', 'external_refs', 'external_master_records',
+  'external_project_bindings', 'external_domain_ownership', 'external_org_bindings', 'external_command_outbox',
+  'external_sync_watermarks', 'erp_sweep_full_run', 'erp_sweep_lock', 'notifications',
+  'project_stage_entries', 'project_number_counters', 'projects', 'companies',
+  'record_changes', 'audit_events',
+] as const;
+
 export async function dropOrg(admin: SupabaseClient, org: EcaOrg): Promise<void> {
   const problems: string[] = [];
   const note = (what: string, error: { message?: string } | null | undefined) => {
@@ -268,13 +312,15 @@ export async function dropOrg(admin: SupabaseClient, org: EcaOrg): Promise<void>
     p_org_id: org.orgId, p_external_tier: 'erpnext', p_actor_id: org.adminId,
   });
   note('disconnect_external_integration', disconnectErr);
-  note('external_domain_ownership', (await admin.from('external_domain_ownership').delete().eq('org_id', org.orgId)).error);
-  note('external_org_bindings', (await admin.from('external_org_bindings').delete().eq('org_id', org.orgId)).error);
-  note('organizations', (await admin.from('organizations').delete().eq('id', org.orgId)).error);
+  for (const table of ORG_SHELVES) {
+    note(table, (await admin.from(table).delete().eq('org_id', org.orgId)).error);
+  }
+  note('profiles', (await admin.from('profiles').delete().eq('org_id', org.orgId)).error);
   for (const [who, id] of [['admin', org.adminId], ['pm', org.pmId]] as const) {
     const { error } = await admin.auth.admin.deleteUser(id);
     note(`auth user (${who})`, error);
   }
+  note('organizations', (await admin.from('organizations').delete().eq('id', org.orgId)).error);
   if (problems.length) {
     console.warn(`[eca] dropOrg left rows behind for org ${org.orgId} (cleanup never throws): ${problems.join('; ')}`);
   }

@@ -161,6 +161,9 @@ test('AC-ECA-050 on a PMO org connected to an empty ERP: the masters are sent, a
     await page.getByTestId('btn-save-gr').click();
     await page.getByRole('dialog').getByRole('button', { name: 'Save GR' }).click();
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 30_000 });
+    // The note lives on the case's documents tab — where the case's push/record state shows (FR-ECA-030) — so the Admin
+    // reads it there, as a user would, rather than inferring it from a count.
+    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: 'Files' }).click();
     await expect(page.getByTestId('ledger-pre-cutover')).toHaveText('Recorded before the ERP connection, not sent');
     await runFullSweep(FUNCTIONS_URL, org.orgId); // a full tick had its chance to push it
     expect(await benchCount('Purchase Receipt', [['company', '=', company]]), 'no ERP Purchase Receipt for the pre-connect purchase').toBe(0);

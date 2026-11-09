@@ -59,8 +59,11 @@ test('AC-ECA-051 on a PMO org connected to an ERP that holds some of the same re
     const today = new Date().toISOString().slice(0, 10);
     const reference = `ECA051-PO-${suffix}`;
     const erpInvoice = await benchCreate('Sales Invoice', {
-      company, customer: client.name, posting_date: today, due_date: today, po_no: reference, project: erpProject1, currency: 'IDR',
-      items: [{ item_code: serviceItem, qty: 1, rate: AMOUNT }], docstatus: 1,
+      // `set_posting_time` is the user's own "Edit Posting Date and Time": without it ERPNext overwrites posting_date with
+      // the SITE's today, which is a different calendar day from the host's UTC date for part of the day — and an invoice
+      // dated after the due date we state is refused ("Due Date cannot be before Posting / Supplier Invoice Date").
+      set_posting_time: 1, company, customer: client.name, posting_date: today, due_date: today, po_no: reference,
+      project: erpProject1, currency: 'IDR', items: [{ item_code: serviceItem, qty: 1, rate: AMOUNT }], docstatus: 1,
     });
     const erpTotal = Number((await benchDoc('Sales Invoice', String(erpInvoice.name))).grand_total);
     expect(erpTotal).toBe(AMOUNT);
