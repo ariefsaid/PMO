@@ -8,7 +8,7 @@
  */
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 // Type-only import from the component file (not the barrel) — keeps the
 // value-side dependency one-directional (CommandPalette imports filterAndCap
@@ -22,6 +22,7 @@ import { useCompanies } from '@/src/hooks/useCompanies';
 import { useContacts } from '@/src/hooks/useContacts';
 import { useIncidents } from '@/src/hooks/useIncidents';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { isFeatureEnabled } from '@/src/lib/features';
 
@@ -36,10 +37,14 @@ import { isFeatureEnabled } from '@/src/lib/features';
  * `code`, and a `run()` that navigates to the record's detail route — the
  * palette opens a record with a plain `navigate()` (no tab is created).
  *
- * Filtering, exact-code ranking, and the per-group cap live in `rankRecords`
- * (below) so the palette can apply them uniformly across Records + Navigate.
+ * Filtering, exact-code ranking and the per-group cap are the shim's `rankRecords`
+ * (entry-side, pure), so the palette applies one implementation to Records + Navigate.
+ *
+ * Named `useLiveRecordSearch`, NOT `useRecordSearch` (the shim's export): two modules exporting the
+ * same name meant a test importing the wrong one silently got the empty snapshot and a vacuous
+ * green (#2096 review).
  */
-export function useRecordSearch(
+export function useLiveRecordSearch(
   navigate: (path: string) => void,
   opts?: { enabled?: boolean },
 ): RecordSearch {
@@ -243,10 +248,35 @@ export function useRecordSearch(
  * from the first palette open; rendering null — the palette UI itself lives in App/CommandPalette.
  */
 export default function RecordSearchDataBridge({ open, navigate }: { open: boolean; navigate: (path: string) => void }) {
-  const result: RecordSearch = useRecordSearch(navigate, { enabled: open });
+  const result: RecordSearch = useLiveRecordSearch(navigate, { enabled: open });
+  const { currentUser } = useAuth();
+  const userId = currentUser?.id ?? null;
+  const orgId = currentUser?.org_id ?? null;
+  // The identity the CURRENT store contents belong to (undefined until the first publish).
+  const publishedFor = useRef<string | null | undefined>(undefined);
+  const identity = `${userId ?? ''}|${orgId ?? ''}`;
+
   useEffect(() => {
+    // #2096 review: this store is module-global and outlives the bridge, so it must never carry
+    // one user's rows into another user's session. On an identity change the lists have not
+    // re-keyed yet (AuthProvider's cache clear lands a tick later), so this render still holds
+    // the PREVIOUS user's rows — clear the store and skip publishing them; the re-keyed read
+    // publishes next. A first mount publishes normally (a warm cache must still reach the palette).
+    const changed = publishedFor.current !== undefined && publishedFor.current !== identity;
+    publishedFor.current = identity;
+    if (changed) {
+      publishRecordSearch({ records: [], isPending: false, isError: false });
+      return;
+    }
     publishRecordSearch({ records: result.records, isPending: result.isPending, isError: result.isError });
-  }, [result.records, result.isPending, result.isError]);
+  }, [identity, result.records, result.isPending, result.isError]);
+
+  // Sign-out unmounts the authenticated shell, so this bridge must not leave the last user's
+  // rows behind for the next sign-in in the same tab (the lazy chunk stays resolved).
+  useEffect(
+    () => () => publishRecordSearch({ records: [], isPending: false, isError: false }),
+    [],
+  );
   useEffect(() => {
     registerRecordSearchRefetch(result.refetch);
     return () => registerRecordSearchRefetch(null);
