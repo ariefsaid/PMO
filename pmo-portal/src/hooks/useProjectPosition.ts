@@ -38,11 +38,15 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
         budgets.set(category.category, 0);
       }
     }
-    const same = actuals?.currency === project.currency;
-    const rows: CategoryPosition[] = [...budgets.entries()].map(([category, budget]) => {
+    // #2066: the finances read names the currency its figures are really in (the Odoo company's on that ledger).
+    // `rows` compare a figure only in the project currency; `spendRows` carry it in its own currency for the Budget tab.
+    const spendCurrency = actuals?.currency ?? null;
+    const same = spendCurrency === project.currency;
+    const spendRows = [...budgets.keys()].map((category) => {
       const a = actuals?.categories.find((c) => c.category === category);
-      return { category, budget, actual: same && a?.mapped && a.amount !== null ? Number(a.amount) : null };
+      return { category, actual: a?.mapped && a.amount !== null ? Number(a.amount) : null };
     });
+    const rows: CategoryPosition[] = [...budgets.entries()].map(([category, budget], i) => ({ category, budget, actual: same ? spendRows[i].actual : null }));
     const budget = rows.reduce((s, r) => s + r.budget, 0);
     const allKnown = canSeeActual && rows.length > 0 && rows.every((r) => r.actual !== null);
     const spent = allKnown ? rows.reduce((s, r) => s + (r.actual ?? 0), 0) : null;
@@ -54,6 +58,9 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
       actualsError: canSeeActual && finances.isError,
       refetchActuals: finances.refetch,
       hasBudget: Boolean(active), canSeeActual, rows, budget, spent,
+      spendRows, spendCurrency,
+      // Spending is read but in another currency than the project's: stated as such, never as "not linked" or compared.
+      currencyDiffers: spendCurrency !== null && !same && spendRows.some((r) => r.actual !== null),
       projectOver: spent !== null && spent > budget ? spent - budget : null,
       overRows,
       unknown: rows.filter((r) => r.actual === null).length,
