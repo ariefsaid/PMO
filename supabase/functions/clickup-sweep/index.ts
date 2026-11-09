@@ -30,6 +30,7 @@ import {
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { resolveClickUpOrgToken } from '../_shared/clickupOrgSecret.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import {
   CLICKUP_TIER,
   CLICKUP_TASKS_DOMAIN,
@@ -276,6 +277,7 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
     // sweep error for ONE org must not abort reconciliation for the OTHERS (no cross-org DoS). Record
     // the failure and continue; the org's watermark simply does not advance and retries next schedule.
     try {
+      if (!externalConnectEnabled()) throw new AppError('external integrations are disabled by the operator', 'config-rejected');
       const token = await resolveClickUpOrgToken(serviceClient, orgId);
       const result = await sweepOrg(serviceClient, orgId, token, readDeadlineAtMs);
       totalApplied += result.applied;
