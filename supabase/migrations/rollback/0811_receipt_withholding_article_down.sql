@@ -26,6 +26,10 @@ begin
 end; $$;
 
 revoke update(pph23_prepaid_account, pph4_2_prepaid_account) on public.organizations from authenticated;
+update public.record_history_config
+   set captured = captured - 'receipt_withholding_article'
+ where entity_type = 'project'
+   and captured ? 'receipt_withholding_article';
 revoke insert(receipt_withholding_article), update(receipt_withholding_article) on public.projects from authenticated;
 alter table public.organizations drop column pph23_prepaid_account, drop column pph4_2_prepaid_account;
 alter table public.incoming_payments drop column withholding_article;

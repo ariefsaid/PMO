@@ -23,6 +23,12 @@ alter table public.projects
     check (receipt_withholding_article is null or receipt_withholding_article in ('pph23','pph4_2'));
 grant insert(receipt_withholding_article), update(receipt_withholding_article) on public.projects to authenticated;
 
+-- Change-capture registry (AC-CHG-011): a user-editable project field, so captured (SELECT is table-wide).
+update public.record_history_config
+   set captured = captured || '{"receipt_withholding_article":"enum"}'::jsonb
+ where entity_type = 'project'
+   and not (captured ? 'receipt_withholding_article');
+
 create or replace function public.audit_org_withholding_account() returns trigger
 language plpgsql security definer set search_path=public as $$
 begin

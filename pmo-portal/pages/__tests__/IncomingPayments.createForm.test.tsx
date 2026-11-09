@@ -340,6 +340,11 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, /Sales Invoice/, 'SI-WHA3');
+    for (const label of ['Amount settled', 'Cash received']) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, '1000');
+    }
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     const submitted = hoisted.createPaymentMutate.mock.calls.at(-1)?.[0];
     expect(submitted).toBeDefined();
