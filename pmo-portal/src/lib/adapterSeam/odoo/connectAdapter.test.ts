@@ -74,6 +74,14 @@ describe('odoo ConnectAdapter — listMasters / countDomain', () => {
     expect(await adapter.countDomain('party')).toBe(0);
   });
 
+  it('marks the partners of login users, archived and portal ones included, as internal so they never reach the review', async () => {
+    const { fake, adapter } = setup();
+    fake.seed('res.partner', [partner(1), partner(2, { supplier_rank: 0 }), partner(3, { supplier_rank: 0, active: false }), partner(4, { supplier_rank: 0 })]);
+    fake.seed('res.users', [{ id: 2, active: true, partner_id: [2, 'Administrator'] }, { id: 3, active: false, partner_id: [3, 'Public user'] }]);
+    const { rows } = await adapter.listMasters('party', null);
+    expect(rows.map((r) => [r.externalId, r.internal])).toEqual([['Vendor:1', false], ['2', true], ['3', true], ['4', false]]);
+  });
+
   it('reads the database\'s own partners once per adapter, not once per page', async () => {
     const { fake, adapter, bodies } = setup();
     fake.seed('res.partner', Array.from({ length: LIST_PAGE + 1 }, (_, i) => partner(i + 1)));

@@ -127,6 +127,12 @@ describe('AC-ECA-005 Odoo partner feed', () => {
     assertEquals([own.applied.length, own.reviews.length], [0, 0]);
   });
 
+  it('#2049 the partner of an Odoo login user is never brought in or put to review, archived or not', async () => {
+    const r = await feed([partner(6, { name: 'Site Portal User' }), partner(7, { name: 'Archived Login', active: false }), partner(8, { name: 'PT Real Vendor' })], { userPartners: [6, 7] });
+    assertEquals(r.applied.map((a) => a.p_external_id), ['Vendor:8']);
+    assertEquals(r.reviews.length, 0);
+  });
+
   it('contacts of a partner, partners with no role and archived partners are not touched', async () => {
     const r = await feed([
       partner(1, { parent_external_id: '9', attrs: { is_company: false } }),
