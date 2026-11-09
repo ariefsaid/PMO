@@ -299,8 +299,13 @@ test.describe('AC-018: a whole-project budget reaches the client ERP and Forecas
     // PMO's records: whole-project version Active, predecessor Archived, one pushed mirror row per account.
     const { data: versions } = await fx.admin.from('budget_versions').select('id, status').in('id', [fx.predecessorId, fx.wholeId]);
     expect(Object.fromEntries((versions ?? []).map((v) => [v.id, v.status]))).toEqual({ [fx.predecessorId]: 'Archived', [fx.wholeId]: 'Active' });
-    const { data: mirrors } = await fx.admin.from('budget_version_erp_mirror')
+    // ⚑ The v16 binding mirrors a range budget per ACCOUNT (`budget_version_account_erp_mirror`, 0293/0578).
+    // The legacy `budget_version_erp_mirror` has no `erp_account`/`to_fiscal_year` at all, so reading it here
+    // erred on every column and `(data ?? [])` turned that error into "no mirror rows" — an oracle that could
+    // never fail on the app's real state. The error is asserted, never swallowed.
+    const { data: mirrors, error: mirrorErr } = await fx.admin.from('budget_version_account_erp_mirror')
       .select('erp_account, push_state, erp_budget_name, fiscal_year, to_fiscal_year').eq('budget_version_id', fx.wholeId);
+    expect(mirrorErr, `mirror read: ${mirrorErr?.message}`).toBeNull();
     expect((mirrors ?? []).map((m) => m.erp_account).sort()).toEqual([LABOR_ACCOUNT, MATERIALS_ACCOUNT].sort());
     for (const m of mirrors ?? []) {
       expect(m.push_state, `mirror ${m.erp_account}: ${JSON.stringify(m)}`).toBe('pushed');
@@ -326,13 +331,27 @@ test.describe('AC-018: a whole-project budget reaches the client ERP and Forecas
 
     const table = forecast.getByRole('table', { name: 'Approved budget compared with recorded spending' });
     await expect(table).toBeVisible({ timeout: 20_000 });
-    const rowFigures = async (category: string) => (await table.getByRole('row', { name: new RegExp(category) }).getByRole('cell').allInnerTexts()).map(digits);
-    expect(await rowFigures('Labor'), 'Labor approved 60,000, recorded 12,000, remaining 48,000').toEqual(expect.arrayContaining(['6000000', '1200000', '4800000']));
-    expect(await rowFigures('Materials'), 'Materials approved 30,000, recorded 3,000, remaining 27,000').toEqual(expect.arrayContaining(['3000000', '300000', '2700000']));
+    // ⚑ Read the FIGURE, not a digit string: read-only money surfaces print WHOLE currency units (#1437,
+    // owner ruling 2026-10-27) — "60,000", never "60,000.00" — and the recorded cell carries its own
+    // "As of <date>" line underneath the amount. The leading money token is the amount, in whole units.
+    const amountIn = (text: string): number => Number((text.match(/\d[\d.,]*/) ?? [''])[0].replace(/[^\d]/g, ''));
+    const rowCells = async (category: string) => table.getByRole('row', { name: new RegExp(category) }).getByRole('cell').allInnerTexts();
+    const laborCells = await rowCells('Labor');
+    expect(laborCells.map(amountIn), `Labor cells: ${JSON.stringify(laborCells)}`).toEqual(expect.arrayContaining([60_000, 12_000, 48_000]));
+    const materialsCells = await rowCells('Materials');
+    expect(materialsCells.map(amountIn), `Materials cells: ${JSON.stringify(materialsCells)}`).toEqual(expect.arrayContaining([30_000, 3_000, 27_000]));
 
-    // Summary strip: 90,000 approved, 15,000 recorded, 75,000 remaining, 17% recorded.
-    const summary = (await forecast.locator('dl').first().locator('dd').allInnerTexts()).map(digits);
-    expect(summary.slice(0, 3)).toEqual(['9000000', '1500000', '7500000']);
-    await expect(forecast.locator('dl').first()).toContainText('17%');
+    // ⚑ FR-018 — the comparison strip must WITHHOLD a total while any category's approved budget is
+    // absent, never sum the categories that happen to carry a line. This whole-project version lines only
+    // Labor and Materials (the two mapped accounts), so approved / remaining / % stay unavailable and the
+    // surface NAME the absent categories; recorded spending is fully known, so its total is shown.
+    const summaryDds = await forecast.locator('dl').first().locator('dd').allInnerTexts();
+    expect(amountIn(summaryDds[1]), `recorded total in: ${JSON.stringify(summaryDds)}`).toBe(15_000);
+    expect(summaryDds[0], 'approved total is withheld, never a partial sum').toBe('—');
+    expect(summaryDds[2], 'remaining is withheld with the approved total').toBe('—');
+    expect(summaryDds[3], 'the recorded percentage is unavailable with the approved total').toBe('Unavailable');
+    const unknown = forecast.getByTestId('whole-project-unknown');
+    await expect(unknown, 'the absent approved figures are named, not silently dropped').toContainText('approved budget for');
+    await expect(unknown).toContainText('recorded spending for none');
   });
 });

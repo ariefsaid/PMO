@@ -700,7 +700,10 @@ describe('activateVersion', () => {
       data: { error: 'budget-cancellation-pending', message: 'An earlier ERPNext Budget cancellation is unresolved; range units are pending and no replacement was created.' },
       error: null,
     });
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'pending-cancellation' });
+    // ⚑ ADR-0062 moved the push out of the activation call: `activateVersion` now resolves on the PMO
+    // write alone (`'queued'`) and the outcome reaches the per-year push-status read. The 202 mapping
+    // this test is about still lives on the operator's retry, which reports it as its own state.
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'queued' });
     await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pending-cancellation' });
   });
 
