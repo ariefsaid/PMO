@@ -91,6 +91,13 @@ export interface ComboboxProps {
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
+// #2044 perf acceptance: "1,000 options → ≤~100 in the DOM". A long FK list must not
+// mount a row per record — but the cap may never truncate the SEARCH, so the page is
+// capped by the library, not by slicing the source: Base UI's `limit` scans the FULL
+// filtered set and stops once it has this many matches, so option #1000 is still
+// reachable by typing. Server-search mode owns its own page size, so it is not capped.
+const MAX_RENDERED_OPTIONS = 100;
+
 export const Combobox: React.FC<ComboboxProps> = ({
   label,
   value,
@@ -158,6 +165,17 @@ export const Combobox: React.FC<ComboboxProps> = ({
     return normalizeForSearch(o.label).includes(q) || !!(o.sub && normalizeForSearch(o.sub).includes(q));
   }, []);
 
+  // How many options match the query in TOTAL (not just the rendered page), so the
+  // capped list can say "N more". Same predicate the library filters with, so the
+  // note can never disagree with what typing actually narrows to.
+  const matchCount = useMemo(() => {
+    if (ss) return options.length;
+    const q = query.trim();
+    if (!q) return options.length;
+    return options.reduce((n, o) => n + (filter(o, q) ? 1 : 0), 0);
+  }, [ss, options, query, filter]);
+  const hiddenCount = ss ? 0 : Math.max(0, matchCount - MAX_RENDERED_OPTIONS);
+
   const load = useCallback(() => {
     if (!loadOptions) return;
     const id = ++loadIdRef.current;
@@ -218,6 +236,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
       <BaseCombobox.Root<ComboboxOption>
         items={options}
         filter={ss ? null : filter}
+        limit={ss ? undefined : MAX_RENDERED_OPTIONS}
         value={selected}
         isItemEqualToValue={(a, b) => a.value === b.value}
         itemToStringLabel={(o) => o.label}
@@ -397,6 +416,14 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       </BaseCombobox.Item>
                     )}
                   </BaseCombobox.List>
+                  {hiddenCount > 0 && (
+                    <div className="border-t border-border px-3 py-2 text-[12.5px] text-muted-foreground">
+                      {t('combobox.moreHidden', {
+                        defaultValue: 'Type to narrow ({{count}} more)',
+                        count: hiddenCount,
+                      })}
+                    </div>
+                  )}
                 </>
               )}
 

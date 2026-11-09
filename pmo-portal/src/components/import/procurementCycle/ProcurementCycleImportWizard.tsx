@@ -67,7 +67,6 @@ export function ProcurementCycleImportWizard({
   onClose,
 }: ProcurementCycleImportWizardProps) {
   const wiz = useProcurementCycleImport(projectLookup, vendorLookup, requestedById);
-  const titleId = useId();
   const subId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -77,17 +76,21 @@ export function ProcurementCycleImportWizard({
     onClose(didImport);
   }, [wiz.step, wiz.result, onClose]);
 
-  // AC-A11Y-MODAL-001 / CMP-009: background inert while open.
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Kept ALONGSIDE the library's
+  // `modal="trap-focus"`: that mode traps Tab and Esc but does NOT inert the app shell behind
+  // the dialog, so a pointer/screen-reader user could still reach it without this.
   useEffect(() => {
     return acquireBackgroundInert();
   }, []);
 
-  // Initial focus: the first real control in the dialog (Base UI restores focus to the opener on close).
+  // Initial focus: the step's first real CONTROL (the upload drop zone / a mapping select).
+  // Form controls are preferred over buttons so focus lands on the work, not the header's
+  // Close X (which is first in DOM order). Base UI restores focus to the opener on close.
   const initialFocus = useCallback(() => {
     const root = dialogRef.current;
-    const firstField = root?.querySelector<HTMLElement>(
-      'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-    );
+    const firstField =
+      root?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ??
+      root?.querySelector<HTMLElement>('button:not([disabled])');
     return firstField ?? root ?? true;
   }, []);
 
@@ -105,96 +108,95 @@ export function ProcurementCycleImportWizard({
         requestClose();
       }}
     >
-    <Dialog.Portal>
-    <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
-      <Dialog.Backdrop data-testid="cycle-import-scrim" className={overlayBackdropClassName} style={overlayBackdropStyle} />
-      <Dialog.Popup
-        ref={dialogRef}
-        initialFocus={initialFocus}
-        aria-modal="true"
-        aria-describedby={subId}
-        className={cn(
-          'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
-          'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
-          'origin-center motion-reduce:animate-none',
-        )}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
-          <div className="min-w-0 flex-1">
-            <Dialog.Title
-              id={titleId}
-              className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
-            >
-              {STEP_TITLE[wiz.step]}
-            </Dialog.Title>
-            <Dialog.Description render={<p />} id={subId} className="mt-px text-[12.5px] text-muted-foreground">
-              {STEP_SUBTITLE[wiz.step]}
-            </Dialog.Description>
-          </div>
-          <Button
-            variant="ghost"
-            iconOnly
-            aria-label="Close"
-            onClick={requestClose}
-            disabled={wiz.step === 'committing'}
+      <Dialog.Portal>
+        <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
+          <Dialog.Backdrop data-testid="cycle-import-scrim" className={overlayBackdropClassName} style={overlayBackdropStyle} />
+          <Dialog.Popup
+            ref={dialogRef}
+            initialFocus={initialFocus}
+            aria-modal="true"
+            aria-describedby={subId}
+            className={cn(
+              'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
+              'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
+              'origin-center motion-reduce:animate-none',
+            )}
           >
-            <Icon name="x" />
-          </Button>
-        </div>
-
-        {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
-          {wiz.step === 'upload' && <CycleUploadStep wiz={wiz} />}
-          {wiz.step === 'mapping' && <CycleMappingStep wiz={wiz} />}
-          {wiz.step === 'preview' && <CyclePreviewStep wiz={wiz} />}
-          {wiz.step === 'committing' && <CycleCommittingStep progress={wiz.progress} />}
-          {wiz.step === 'result' && <CycleResultStep wiz={wiz} />}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
-          {(wiz.step === 'mapping' || wiz.step === 'preview') && (
-            <Button variant="ghost" size="sm" onClick={wiz.back}>
-              Back
-            </Button>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            {wiz.step === 'upload' && (
-              <Button variant="ghost" size="sm" onClick={requestClose}>
-                Cancel
-              </Button>
-            )}
-            {wiz.step === 'mapping' && (
+            {/* Header */}
+            <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
+              <div className="min-w-0 flex-1">
+                <Dialog.Title
+                  className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
+                >
+                  {STEP_TITLE[wiz.step]}
+                </Dialog.Title>
+                <Dialog.Description render={<p />} id={subId} className="mt-px text-[12.5px] text-muted-foreground">
+                  {STEP_SUBTITLE[wiz.step]}
+                </Dialog.Description>
+              </div>
               <Button
-                variant="primary"
-                size="sm"
-                onClick={wiz.goPreview}
-                disabled={!wiz.allRequiredMapped}
+                variant="ghost"
+                iconOnly
+                aria-label="Close"
+                onClick={requestClose}
+                disabled={wiz.step === 'committing'}
               >
-                Next
+                <Icon name="x" />
               </Button>
-            )}
-            {wiz.step === 'preview' && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void wiz.commit()}
-                disabled={validRecordCount === 0 || !wiz.conflictReport}
-              >
-                Import {validRecordCount} record{validRecordCount !== 1 ? 's' : ''}
-              </Button>
-            )}
-            {wiz.step === 'result' && (
-              <Button variant="primary" size="sm" onClick={requestClose}>
-                Done
-              </Button>
-            )}
-          </div>
+            </div>
+
+            {/* Body */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
+              {wiz.step === 'upload' && <CycleUploadStep wiz={wiz} />}
+              {wiz.step === 'mapping' && <CycleMappingStep wiz={wiz} />}
+              {wiz.step === 'preview' && <CyclePreviewStep wiz={wiz} />}
+              {wiz.step === 'committing' && <CycleCommittingStep progress={wiz.progress} />}
+              {wiz.step === 'result' && <CycleResultStep wiz={wiz} />}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
+              {(wiz.step === 'mapping' || wiz.step === 'preview') && (
+                <Button variant="ghost" size="sm" onClick={wiz.back}>
+                  Back
+                </Button>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                {wiz.step === 'upload' && (
+                  <Button variant="ghost" size="sm" onClick={requestClose}>
+                    Cancel
+                  </Button>
+                )}
+                {wiz.step === 'mapping' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={wiz.goPreview}
+                    disabled={!wiz.allRequiredMapped}
+                  >
+                    Next
+                  </Button>
+                )}
+                {wiz.step === 'preview' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void wiz.commit()}
+                    disabled={validRecordCount === 0 || !wiz.conflictReport}
+                  >
+                    Import {validRecordCount} record{validRecordCount !== 1 ? 's' : ''}
+                  </Button>
+                )}
+                {wiz.step === 'result' && (
+                  <Button variant="primary" size="sm" onClick={requestClose}>
+                    Done
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Dialog.Popup>
         </div>
-      </Dialog.Popup>
-    </div>
-    </Dialog.Portal>
+      </Dialog.Portal>
     </Dialog.Root>
   );
 }

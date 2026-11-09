@@ -214,6 +214,9 @@ describe('ImportWizard', () => {
     const user = userEvent.setup();
     render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
     const dialog = screen.getByRole('dialog');
+    // Base UI applies the popup's initial focus on the NEXT FRAME; let it land before
+    // driving Tab, otherwise the pending initial focus races this test's own focus call.
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     const focusables = within(dialog).getAllByRole('button');
     const last = focusables[focusables.length - 1];
     last.focus();
@@ -221,5 +224,35 @@ describe('ImportWizard', () => {
     await user.tab();
     // wrapped: focus is no longer on `last` (moved back into the dialog start)
     expect(last).not.toHaveFocus();
+  });
+
+  it('while committing, Esc and the scrim cannot close the wizard (never abandon a write)', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    let release!: () => void;
+    create.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ id: '1' });
+        }),
+    );
+    render(<ImportWizard descriptor={descriptor} onClose={onClose} />);
+
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await user.click(await screen.findByRole('button', { name: /import 1 companies/i }));
+    // Mid-write: the wizard shows progress and must not be dismissible.
+    expect(await screen.findByRole('heading', { name: /importing/i })).toBeInTheDocument();
+    expect(screen.getByText(/importing 0 \/ 1/i)).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByTestId('import-scrim'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // The write finishes; the wizard completes normally.
+    release();
+    expect(await screen.findByTestId('import-result-summary')).toHaveTextContent('1 created');
   });
 });

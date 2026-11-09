@@ -894,6 +894,7 @@
       "retry": "Retry"
     },
     "listLabel": "{{noun}}s",
+    "moreHidden": "Type to narrow ({{count}} more)",
     "empty": {
       "withQuery": "No {{noun}} matches \"{{query}}\".",
       "bare": "No {{noun}} matches."
