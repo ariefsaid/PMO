@@ -253,9 +253,11 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   // because profiles_select intentionally hides disabled and banned callers under real RLS. It is
   // TOCTOU by nature, so the upsertError branch below remains the authoritative backstop.
   const membership = await readM365MembershipState(serviceClient, pkce.userId);
-  const { data: featRow } = await serviceClient.from('org_features').select('enabled')
-    .eq('org_id', pkce.orgId).eq('feature_key', 'm365_integration').maybeSingle();
-  const entitled = (featRow as { enabled?: boolean } | null)?.enabled === true;
+  const { data: entitledRaw, error: entitledError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: pkce.orgId,
+    p_key: 'm365_integration',
+  });
+  const entitled = !entitledError && entitledRaw === true;
   if (membership.state !== 'active' || membership.orgId !== pkce.orgId || !entitled) {
     await recordM365Error(serviceClient, {
       errorCode: 'CONNECTION_NOT_ALLOWED',

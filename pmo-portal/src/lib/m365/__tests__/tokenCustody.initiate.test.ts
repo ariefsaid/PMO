@@ -161,10 +161,9 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
   });
 
   it('AC-M365-102: an org without the entitlement is rejected (403 NOT_ENTITLED, no state stored)', async () => {
-    const service = mockClient();
+    const service = mockClient({}, { featureEnabled: false }); // plan resolves M365 off
     const caller = mockClient({
       profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
-      org_features: [{ data: { enabled: false }, error: null }],
     });
     const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));
     expect(result).toMatchObject({ status: 403, body: { error: 'NOT_ENTITLED' } });

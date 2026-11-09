@@ -158,10 +158,9 @@ describe('AC-M365-151 — connection_status enforces the SAME data-access gate (
 
   it('AC-M365-151: an unentitled caller is rejected NOT_ENTITLED (no row read)', async () => {
     const row = await fullConnectionRow('active');
-    const service = mockClient({ ms_graph_connections: [{ data: row, error: null }] });
+    const service = mockClient({ ms_graph_connections: [{ data: row, error: null }] }, { featureEnabled: false });
     const unentitledCaller = mockClient({
       profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
-      org_features: [{ data: { enabled: false }, error: null }],
     });
 
     const result = await handleConnectionStatus(deps({ service, caller: unentitledCaller, userId: 'user-1' }));
