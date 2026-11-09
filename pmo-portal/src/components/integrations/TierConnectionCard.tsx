@@ -1,3 +1,4 @@
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Icon, StatusPill, Button, type StatusVariant } from '@/src/components/ui';
@@ -123,7 +124,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted-foreground">{t('integrations.organization.readiness.connected', 'Connected')}</span>
           <CanWrite entity="integration" action="manage">
-            <a className="inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90" href={`#erp-setup-${firstMissingSetupStep}`}>
+            <a className={buttonClasses('primary', 'sm')} href={`#erp-setup-${firstMissingSetupStep}`}>
               {t('uxs07.finishSetup', 'Finish setup')}
             </a>
           </CanWrite>

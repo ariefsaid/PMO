@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import React from 'react';
 import type { TFunction } from 'i18next';
 import {
@@ -186,12 +187,7 @@ export function buildPipelineColumns({
         }
         return (
           <span className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
-            >
-              {r.pm_name.trim().charAt(0).toUpperCase()}
-            </span>
+            <Avatar name={r.pm_name} size="xs" decorative />
             <span className="whitespace-normal leading-tight">{r.pm_name}</span>
           </span>
         );

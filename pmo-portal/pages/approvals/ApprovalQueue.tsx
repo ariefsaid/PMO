@@ -147,7 +147,7 @@ export function QueueGroup({
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <h2 className="text-[11px] font-semibold text-muted-foreground">
           {title}
         </h2>
         <Badge>{count}</Badge>

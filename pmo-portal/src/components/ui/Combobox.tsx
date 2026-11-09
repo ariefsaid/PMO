@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import React, {
   useCallback,
   useEffect,
@@ -36,9 +37,8 @@ export interface ComboboxOption {
   wrapLabel?: boolean;
   /** Optional non-truncating labels shown as separate badges in the option row. */
   badges?: string[];
-  /** Optional 2-letter avatar + color for the chip/row. */
+  /** Optional 2-letter avatar for the chip/row. */
   initials?: string;
-  color?: string;
 }
 
 /** Server-search mode: the caller owns the options (searched and paged on the server); Combobox keeps the keyboard, focus and ARIA model and skips its own load and filter. */
@@ -204,17 +204,6 @@ export const Combobox: React.FC<ComboboxProps> = ({
     }
   }, [open]);
 
-  const Avatar: React.FC<{ opt: ComboboxOption; size: number }> = ({ opt, size }) =>
-    opt.initials ? (
-      <span
-        aria-hidden
-        className="grid shrink-0 place-items-center rounded-[5px] text-[9.5px] font-bold text-white"
-        style={{ width: size, height: size, background: opt.color ?? 'hsl(var(--primary))' }}
-      >
-        {opt.initials}
-      </span>
-    ) : null;
-
   return (
     <div className={cn('flex flex-col', formControl ? 'gap-2' : 'gap-1.5', className)}>
       <span id={labelId} className={cn('font-semibold text-foreground', formControl ? 'text-control' : 'text-[12px] leading-[1.3]')}>
@@ -272,7 +261,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
           >
             {selected ? (
               <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <Avatar opt={selected} size={20} />
+                {selected.initials && <Avatar name={selected.label} initials={selected.initials} size="xs" decorative />}
                 <span className="truncate">{selected.label}</span>
               </span>
             ) : (
@@ -369,7 +358,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                           opt.badges?.length || opt.wrapLabel ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
                         )}
                       >
-                        <Avatar opt={opt} size={22} />
+                        {opt.initials && <Avatar name={opt.label} initials={opt.initials} size="xs" decorative />}
                         {opt.wrapLabel ? (
                           <div className="min-w-0 flex-1">
                             <span className="block whitespace-normal break-words">{opt.label}</span>

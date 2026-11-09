@@ -837,6 +837,7 @@
         "progress": "Progress"
       },
       "noTaskProgress": "Task-level progress is not stored. Phase progress is calculated from the phase task statuses or its manual override.",
+      "moveTo": "Move to {{status}}",
       "moreOptions": "More task options",
       "clickUpSettings": "ClickUp list and sync",
       "scope": {

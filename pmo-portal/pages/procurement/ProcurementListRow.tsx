@@ -46,7 +46,7 @@ export const ProcurementListColumns: React.FC = () => {
     status: t('procurement.columns.status', 'Status'),
   };
   return (
-    <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid`}>
+    <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-xs font-semibold text-muted-foreground md:grid`}>
       {columnFields.map(({ key, span }) => <span key={key} className={span}>{labels[key]}</span>)}
     </div>
   );
@@ -110,7 +110,7 @@ const ExpandedPanel: React.FC<{
           {/* Line items */}
           {detail.data.items.length > 0 && (
             <div className="mb-3">
-              <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <h4 className="mb-1.5 text-[11px] font-semibold text-muted-foreground">
                 {t('procurement.preview.lineItems', 'Line items')}
               </h4>
               <ul className="space-y-1" aria-label={t('procurement.preview.lineItems', 'Line items')}>

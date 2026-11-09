@@ -20,10 +20,6 @@ import { UserDirectory } from './admin-users/UserDirectory';
 import { InviteFormModal, RoleFormModal, ManagerFormModal } from './admin-users/UserForms';
 import { useRoleLabels } from './admin-users/roleLabels';
 
-// CROSS-65: the presentation helpers and the directory moved to admin-users/; the AVATAR_HUES
-// export stays reachable from this module for the existing contrast tests.
-export { AVATAR_HUES } from './admin-users/avatar';
-
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
  * S4, ADR-0049). Admin-in-org or platform-Operator management of the org's profiles: directory +

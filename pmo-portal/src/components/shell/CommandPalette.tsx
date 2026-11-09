@@ -392,7 +392,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {/* Records still fetching — skeleton rows matching the 44px row geometry. */}
           {showLoading && (
             <div aria-hidden>
-              <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold text-muted-foreground">
                 {t('shell.palette.recordsGroup', 'Records')}
               </div>
               {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
@@ -416,7 +416,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             <>
               {groups.map((group) => (
                 <div key={group.name}>
-                  <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                  <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold text-muted-foreground">
                     {groupLabel(group.name)}
                   </div>
                   {group.items.map((item) => {

@@ -332,7 +332,8 @@ describe('TimeAndMaterials', () => {
     await user.click(screen.getByRole('button', { name: /Open claim/ }));
 
     const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
-    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).not.toBeInTheDocument();
+    // Opening the claim clears the toasts; the elements leave on the library's removal clock.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Dismiss notification' })).not.toBeInTheDocument());
     expect(within(drawer).getAllByRole('button', { name: 'Close' })).toHaveLength(1);
     await user.click(within(drawer).getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog', { name: /Time-and-materials claim/ })).not.toBeInTheDocument();

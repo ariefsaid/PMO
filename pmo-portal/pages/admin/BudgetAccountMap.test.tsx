@@ -4,8 +4,9 @@
  * directly" mocking idiom (`@/src/lib/repositories/budgetProjection` is mocked; usePermission reads
  * the real JWT role via the mocked `useEffectiveRole`).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -38,6 +39,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import BudgetAccountMap from './BudgetAccountMap';
 import { Constants } from '@/src/lib/supabase/database.types';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 /**
  * Router-driven fragment navigation control (AC-ADMIA-004). The focus/scroll behavior is keyed to

@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation, useNavigationType } from 'react-router';
@@ -76,6 +77,12 @@ vi.mock('@/src/auth/useAuth', () => ({
 import TasksTab from '../tabs/TasksTab';
 import { clearOwnershipCache, setTaskOwnership, setProjectBindings, setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
 import { act } from '@testing-library/react';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const profiles = [
   { id: 'eng-1', full_name: 'Dana Engineer', role: 'Engineer' },
@@ -510,14 +517,14 @@ describe('TasksTab — inbound ClickUp change (AC-CUA-091)', () => {
     listState.data = [demolition];
     const first = renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
-    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('Done');
+    expect(within(screen.getByTestId('task-col-Done')).getByText('Demolition')).toBeInTheDocument();
     first.unmount();
 
     // The signed webhook has been applied server-side: the read model now says In Progress.
     listState.data = [{ ...demolition, status: 'In Progress' }];
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
-    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('In Progress');
+    expect(within(screen.getByTestId('task-col-In Progress')).getByText('Demolition')).toBeInTheDocument();
   });
 });
 
@@ -597,10 +604,8 @@ describe('TasksTab — Mine / All list scope', () => {
   it('AC-1402 keeps Comments reachable from a Board card menu', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
-    const rowActions = screen.getAllByRole('button', { name: /Row actions/i })[0];
-    await userEvent.click(rowActions);
-    const menu = rowActions.closest('details')?.querySelector('[role="menu"]') as HTMLElement;
-    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Comments' }));
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Comments' }));
     expect(await screen.findByRole('dialog', { name: 'Survey the site' })).toBeInTheDocument();
   });
 

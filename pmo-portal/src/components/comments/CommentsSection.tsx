@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
@@ -137,9 +138,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
             const name = c.author?.full_name ?? t('comments.unknownAuthor', 'Former member');
             return (
               <li key={c.id} className="flex gap-3" data-testid="comment-item">
-                <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
-                  {name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
-                </span>
+                <Avatar name={name} size="lg" decorative />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <span className="text-sm font-semibold text-foreground">{name}</span>

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
@@ -144,6 +145,12 @@ import ProjectBudget from './ProjectBudget';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
@@ -698,7 +705,8 @@ describe('ProjectBudget Draft version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
-    expect(screen.queryByText('Version activated, but ERPNext was not updated')).not.toBeInTheDocument();
+    // The stale remedy leaves on the library's removal clock; the announcement clears at once.
+    await waitFor(() => expect(screen.queryByText('Version activated, but ERPNext was not updated')).not.toBeInTheDocument());
     resetState();
   });
 
