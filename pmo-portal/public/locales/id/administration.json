@@ -378,6 +378,12 @@
     "retry": "Coba lagi"
   },
   "admin": {
+    "receiptWithholding": {
+      "defaultLabel": "Akun bawaan",
+      "pph23Label": "Akun PPh 23 dibayar di muka",
+      "pph42Label": "Akun PPh 4(2) dibayar di muka",
+      "fallbackHint": "Penerimaan tanpa pasal, atau pasal tanpa akun sendiri, dicatat ke akun bawaan."
+    },
     "users": {
       "pager": {
             "label": "Halaman",

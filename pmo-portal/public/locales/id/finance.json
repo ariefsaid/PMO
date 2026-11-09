@@ -702,7 +702,12 @@
     "invoiceNumber": "Nomor faktur",
     "odooDraftNumber": "Draf — Odoo memberi nomor setelah disetujui",
     "erpLineItemsStoredExternally": "Baris faktur disimpan di sistem akuntansi untuk faktur ini.",
-    "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo."
+    "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo.",
+    "withholdingArticle": "Pasal pemotongan",
+    "withholdingArticleNone": "Tidak disebutkan",
+    "withholdingArticlePph23": "PPh 23",
+    "withholdingArticlePph42": "PPh 4(2)",
+    "withholdingArticleNotStated": "Tidak disebutkan"
   },
   "odooOutcome": {
     "confirmed": "Ada di Odoo",

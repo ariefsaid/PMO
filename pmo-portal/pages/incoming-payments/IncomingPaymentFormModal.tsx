@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EntityFormModal, TextField, NumberField, Combobox, FormGrid, FormSection, Button, ConfirmDialog, type SubmitError, type ComboboxOption } from '@/src/components/ui';
+import { EntityFormModal, TextField, NumberField, SelectField, Combobox, FormGrid, FormSection, Button, ConfirmDialog, type SubmitError, type ComboboxOption } from '@/src/components/ui';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
@@ -25,11 +25,13 @@ interface FormValues {
   receivedAmount: string;
   withheldAmount: string;
   withholdingSlipNumber: string;
+  /** #1275: the tax article the client withheld under; '' = not stated. */
+  withholdingArticle: '' | 'pph23' | 'pph4_2';
   date: string;
   journalId: string;
 }
 
-type ReceiptInput = { customerId: string; salesInvoiceId: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; journalId?: string; date: string };
+type ReceiptInput = { customerId: string; salesInvoiceId: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; withholdingArticle?: 'pph23' | 'pph4_2'; journalId?: string; date: string };
 
 /**
  * #684 (AC-PLC-009): both payment amounts are stored as numeric(14,2). This ONE locale-aware
@@ -134,6 +136,7 @@ interface IncomingPaymentFormModalProps {
       receivedAmount: number;
       withheldAmount?: number;
       withholdingSlipNumber?: string | null;
+      withholdingArticle?: 'pph23' | 'pph4_2';
       journalId?: string;
       date: string;
     },
@@ -177,6 +180,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
       receivedAmount: '0',
       withheldAmount: '0',
       withholdingSlipNumber: '',
+      withholdingArticle: initialInvoice?.project_receipt_withholding_article ?? '',
       journalId: '',
       // #784 (DD-NAR-17): a PMO receipt's payment date starts at today in the org's time zone.
       date: today,
@@ -214,6 +218,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   const receivedAmountField = form.fieldProps('receivedAmount');
   const withheldAmountField = form.fieldProps('withheldAmount');
   const slipField = form.fieldProps('withholdingSlipNumber');
+  const articleField = form.fieldProps('withholdingArticle');
   const dateField = form.fieldProps('date');
   const journalField = form.fieldProps('journalId');
   const withholdingPanelId = React.useId();
@@ -302,6 +307,8 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
         ...(withheldAmount > 0 ? {
           withheldAmount,
           withholdingSlipNumber: values.withholdingSlipNumber.trim(),
+          // #1275: ERP receipts only (a PMO-native receipt posts to no GL); Odoo ignores the article, so no picker.
+          ...(!native && !odoo && values.withholdingArticle ? { withholdingArticle: values.withholdingArticle } : {}),
         } : {}),
         ...(values.journalId ? { journalId: values.journalId } : {}),
         date: values.date,
@@ -341,7 +348,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             value={customerField.value}
             onChange={(value) => {
               if (value !== customerField.value) {
-                form.setValues({ customerId: value, salesInvoiceId: null, paidAmount: '0', receivedAmount: '0', withheldAmount: '0', withholdingSlipNumber: '' });
+                form.setValues({ customerId: value, salesInvoiceId: null, paidAmount: '0', receivedAmount: '0', withheldAmount: '0', withholdingSlipNumber: '', withholdingArticle: '' });
               }
             }}
             error={customerField.error}
@@ -355,6 +362,8 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             value={salesInvoiceField.value ?? ''}
             onChange={(value, _option) => {
               salesInvoiceField.onChange(value ?? '');
+              // #1275 (AC-WHA-007): pre-fill the article from the invoice's project; the accountant can change it.
+              if (!native) form.setValues({ withholdingArticle: invoices?.find((inv) => inv.id === value)?.project_receipt_withholding_article ?? '' });
               // #784 (DD-NAR-17): a PMO receipt's amount starts at what the chosen invoice still owes.
               const chosen = native ? invoices?.find((inv) => inv.id === value) : undefined;
               if (chosen?.erp_outstanding_amount != null && chosen.erp_outstanding_amount > 0) {
@@ -444,6 +453,19 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
                   error={slipField.error}
                   helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
                 />
+                {!native && !odoo && (
+                  <SelectField
+                    id={articleField.id}
+                    label={t('finance:financeCopy.withholdingArticle', 'Withholding article')}
+                    value={articleField.value}
+                    onChange={(v) => articleField.onChange(v as FormValues['withholdingArticle'])}
+                    options={[
+                      { value: '', label: t('finance:financeCopy.withholdingArticleNone', 'Not stated') },
+                      { value: 'pph23', label: t('finance:financeCopy.withholdingArticlePph23', 'PPh 23') },
+                      { value: 'pph4_2', label: t('finance:financeCopy.withholdingArticlePph42', 'PPh 4(2)') },
+                    ]}
+                  />
+                )}
               </FormGrid>
             </div>
           </div>

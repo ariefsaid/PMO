@@ -38,6 +38,7 @@ export function ProjectListActions({ editTarget, setEditTarget, archiveTarget, s
             pmName: editTarget.pm?.full_name ?? null,
             start_date: editTarget.start_date,
             end_date: editTarget.end_date,
+            receipt_withholding_article: (editTarget.receipt_withholding_article as 'pph23' | 'pph4_2' | null) ?? null,
           }}
           onClose={() => setEditTarget(null)}
           onSave={onSave}

@@ -378,6 +378,12 @@
     "retry": "Retry"
   },
   "admin": {
+    "receiptWithholding": {
+      "defaultLabel": "Default account",
+      "pph23Label": "PPh 23 prepaid account",
+      "pph42Label": "PPh 4(2) prepaid account",
+      "fallbackHint": "Receipts with no article, or an article without its own account, post to the default account."
+    },
     "users": {
       "pager": {
             "label": "Pages",
