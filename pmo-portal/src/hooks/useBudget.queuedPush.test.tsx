@@ -33,6 +33,13 @@ describe('#1030 push status reads Queued from activation until the push settles'
     expect(queryClient.getQueryData(['budget-push-status', 'p'])).toBeUndefined();
   });
 
+  it('does not seed when the push already settled before activation resolved (a fast failure)', async () => {
+    h.activateVersion.mockImplementationOnce(async (_id: string, cb: () => void) => { cb(); return { pushState: 'queued' }; });
+    const { result } = renderHook(() => useBudgetMutations('p'), { wrapper });
+    await act(async () => { await result.current.activate.mutateAsync('v'); });
+    expect(queryClient.getQueryData(['budget-push-status', 'p'])).toBeUndefined();
+  });
+
   it('the settle callback invalidates the status so the durable truth replaces the seed', async () => {
     let settle: () => void = () => {};
     h.activateVersion.mockImplementationOnce(async (_id: string, cb: () => void) => { settle = cb; return { pushState: 'queued' }; });
