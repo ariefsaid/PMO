@@ -253,9 +253,15 @@ select plan(7);
 -- re-derived by hand from the 146 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
 -- org; prepare also the project's progress authority, confirm Admin / Finance and preparer ≠ confirmer unless the sole active member. Proven by
 -- supabase/tests/tm_signoff.test.sql.
+-- ⚑ AMENDED BY 0854 (#1511 F3): `accept_equipment_asset_matches` joins the retained set (+1, count 163, re-derived by
+-- hand from the list). SECURITY DEFINER writer under a member's JWT that re-asserts active membership, the Admin role,
+-- the caller's org, the employment of `equipment` under Odoo and each row's org before it writes; proven by
+-- supabase/tests/odoo_equipment_adoption.test.sql (AC-OFM-021). `list_equipment_asset_matches` is SECURITY INVOKER and
+-- `record_odoo_asset_created` is service-role only, so neither is listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
   ('accept_connect_proposals'),
+  ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
   ('activate_budget_version'),
   ('add_skipped_stage_entry'),
   ('assign_sales_invoice_project'),
@@ -438,8 +444,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  162,
-  'AC-ACL-002 all 162 retained client-callable RPC names still have a public function');
+  163,
+  'AC-ACL-002 all 163 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -448,8 +454,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  162,
-  'AC-ACL-003 all 162 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  163,
+  'AC-ACL-003 all 163 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
