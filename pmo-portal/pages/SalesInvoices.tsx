@@ -3,7 +3,7 @@ import { SalesInvoiceDetail } from './sales-invoices/SalesInvoiceDetail';
 import { SalesInvoiceDialogs } from './sales-invoices/SalesInvoiceDialogs';
 import { useSalesInvoiceActions } from './sales-invoices/useSalesInvoiceActions';
 import { SalesInvoiceFormModal } from './sales-invoices/SalesInvoiceFormModal';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
@@ -33,6 +33,7 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAssignInvoiceProject, useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
+import type { RevenueCommand } from '@/src/lib/repositories/contracts/odoo';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -152,6 +153,31 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const odooOffline = odoo && odooUnreachable;
   const odooCommands = useOdooRevenueCommandsForInvoices((data ?? []).map((invoice) => invoice.id), odoo);
   const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded || mode === 'erp');
+  // #2103: one index per read. The status cell asked "is any receipt awaiting Odoo for THIS invoice?"
+  // by scanning every payment (and every allocation inside it) per row, and looked the Odoo command up
+  // with a linear `find` — ~418k predicate reads on a 500-invoice / 500-payment keystroke.
+  const paymentsByInvoiceId = useMemo(() => {
+    const index = new Map<string, IncomingPaymentRow[]>();
+    const add = (invoiceId: string | null | undefined, payment: IncomingPaymentRow) => {
+      if (!invoiceId) return;
+      const bucket = index.get(invoiceId);
+      if (!bucket) { index.set(invoiceId, [payment]); return; }
+      if (bucket[bucket.length - 1] !== payment) bucket.push(payment);
+    };
+    for (const payment of paymentRows) {
+      add(payment.sales_invoice_id, payment);
+      for (const allocation of payment.allocation_details ?? []) add(allocation.invoice_id, payment);
+    }
+    return index;
+  }, [paymentRows]);
+  const commandsByRecordId = useMemo(() => {
+    const index = new Map<string, RevenueCommand>();
+    for (const command of odooCommands.data ?? []) {
+      if (command.kind !== 'sales-invoice' || index.has(command.recordId)) continue;
+      index.set(command.recordId, command);
+    }
+    return index;
+  }, [odooCommands.data]);
   const { data: profileRows = [] } = useAssignableProfiles();
   const profilesById = useMemo(() => new Map(profileRows.map((profile) => [profile.id, profile])), [profileRows]);
   const { day: organizationToday, isError: orgDayError, retry: retryOrgDay } = useFxOrgDay(true);
@@ -193,9 +219,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
-  const receiptAwaitingOdooForInvoice = (inv: SalesInvoiceRow) => paymentRows.some((payment) =>
-    (payment.sales_invoice_id === inv.id || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === inv.id)))
-    && invoiceReceiptAwaitingOdoo({
+  const receiptAwaitingOdooForInvoice = (inv: SalesInvoiceRow) => (paymentsByInvoiceId.get(inv.id) ?? []).some((payment) =>
+    invoiceReceiptAwaitingOdoo({
       invoiceStatus: inv.status,
       invoiceErpModified: inv.erp_modified,
       receiptCommandState: payment.push_command_state,
@@ -209,7 +234,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     }),
   );
   const invoiceStatus = (inv: SalesInvoiceRow) => {
-    const command = (odooCommands.data ?? []).find((row) => row.kind === 'sales-invoice' && row.recordId === inv.id);
+    const command = commandsByRecordId.get(inv.id);
     const externalOutcome = odoo ? deriveOdooOutcome({
       erpState: inv.odoo_state,
       erpAttention: inv.odoo_attention,
@@ -270,6 +295,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const urlSearch = searchParams.get('q') ?? '';
   useEffect(() => setSearch(urlSearch), [urlSearch]);
+  // #2103: the box stays immediate; filtering a long receivables list runs as a low-priority render so a
+  // keystroke never waits behind it. The text and the URL keep their existing (undebounced) contract.
+  const deferredSearch = useDeferredValue(search);
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
@@ -440,7 +468,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     : null;
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     // #1461: a dashboard 'Invoiced · excl. tax' drill carries its window (`from`/`to` month
     // tokens). The list then shows exactly the issued, non-cancelled invoices dated in that
     // window — the records the management-pack figure sums.
@@ -470,7 +498,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         // FIN-S1: the project filter control is gone; the project is reachable through search.
         // AC-002 #1325: either the short label or the contractual title finds the invoice.
         || [projectOptionsById.get(inv.project_id ?? '')].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
-  }, [all, canApproveDraft, currentUser?.id, organizationToday, projectOptionsById, search, searchParams, statusFilter]);
+  }, [all, canApproveDraft, currentUser?.id, deferredSearch, organizationToday, projectOptionsById, searchParams, statusFilter]);
 
   // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {

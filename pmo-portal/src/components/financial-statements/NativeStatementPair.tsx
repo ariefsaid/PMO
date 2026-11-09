@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { memo, useCallback, useId, useMemo, useState, type ReactNode } from 'react';
 import { ListState } from '@/src/components/ui/ListState';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { Icon } from '@/src/components/ui/icons';
@@ -174,17 +174,20 @@ interface ValueColumn {
 }
 
 function collapsibleGroupLines(lines: StatementLine[]): AccountLine[] {
-  return lines.flatMap((line, index) => {
-    if (line.kind !== 'account' || isComputedRow(line.source) || !(line.source.is_group === true || line.source.is_group_account === true)) return [];
+  // #2103: one forward pass. A group is collapsible exactly when the row after it is one step
+  // deeper (a spacer or a computed total closes the section) — the old per-candidate look-ahead
+  // re-scanned the rest of the statement for every group.
+  const groups: AccountLine[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.kind !== 'account' || isComputedRow(line.source) || !(line.source.is_group === true || line.source.is_group_account === true)) continue;
+    const next = lines[index + 1];
+    if (next === undefined || next.kind === 'spacer' || isComputedRow(next.source)) continue;
     const indent = typeof line.source.indent === 'number' ? line.source.indent : 0;
-    for (const candidate of lines.slice(index + 1)) {
-      if (candidate.kind === 'spacer' || isComputedRow(candidate.source)) break;
-      const nextIndent = typeof candidate.source.indent === 'number' ? candidate.source.indent : 0;
-      if (nextIndent <= indent) break;
-      return [line];
-    }
-    return [];
-  });
+    const nextIndent = typeof next.source.indent === 'number' ? next.source.indent : 0;
+    if (nextIndent > indent) groups.push(line);
+  }
+  return groups;
 }
 
 function hasCollapsibleGroups(lines: StatementLine[]): boolean {
@@ -203,6 +206,61 @@ function CollapseAll({ lines, collapsed, setCollapsed, labels }: {
   return <button type="button" className="h-8 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCollapsed(() => allCollapsed ? new Set() : new Set(groups.map((group) => group.key)))}>{allCollapsed ? labels.expandAll : labels.collapseAll}</button>;
 }
 
+interface StatementRowProps {
+  line: AccountLine;
+  valueColumns: readonly ValueColumn[];
+  presentation: StatementAmountPresentation;
+  notProvided: string;
+  labels: NativeStatementPairProps['labels'];
+  /** This row's own section can be collapsed/expanded. */
+  collapsible: boolean;
+  /** Only a collapsible row ever sees this change on a toggle — every other row keeps an identical prop set. */
+  collapsed: boolean;
+  onToggle: (key: string) => void;
+  final: boolean;
+}
+
+/**
+ * One account row. Memoised on primitives and stable containers (#2103): a group toggle changes
+ * only the touched group's own `collapsed` flag, so the rest of a 10k-amount-cell statement is
+ * reused instead of re-rendered.
+ */
+const StatementRow = memo(function StatementRow({ line, valueColumns, presentation, notProvided, labels, collapsible, collapsed, onToggle, final }: StatementRowProps) {
+  const label = displayLabel(line.source);
+  const computed = isComputedRow(line.source);
+  const emphasized = line.source.is_group === true || line.source.is_group_account === true
+    || hasNativeStatementEmphasis(primaryLabel(line.source));
+  const indent = typeof line.source.indent === 'number' && line.source.indent > 0 ? line.source.indent : 0;
+  const number = accountNumber(line.source, label);
+  const rule = computed ? 'border-t border-foreground/60' : undefined;
+  return (
+    <tr
+      data-row-kind={computed ? 'total' : emphasized ? 'group' : 'account'}
+      className={cn('text-[13.5px] text-foreground [&>*]:py-1.5', computed || emphasized ? 'font-semibold' : 'font-normal')}
+    >
+      <th scope="row" className={cn(ACCOUNT_CELL, 'min-w-40 max-w-72 whitespace-normal break-words md:min-w-48', computed || emphasized ? 'font-semibold' : 'font-normal', rule)}>
+        <div style={indent > 0 ? { paddingInlineStart: `calc(var(--spacing) * ${indent * 4})` } : undefined} className="flex items-center">
+          {collapsible && (
+            <button type="button" aria-label={(collapsed ? labels.expandGroup : labels.collapseGroup)(label)} aria-expanded={!collapsed} onClick={() => onToggle(line.key)} className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon name="chev" className={cn('transition-transform', !collapsed && 'rotate-90')} /></button>
+          )}
+          {number !== null && <span className="mr-2 font-normal text-muted-foreground tabular">{number}</span>}
+          <span>{label}</span>
+        </div>
+      </th>
+      {valueColumns.map(({ key, side, column }) => (
+        <AmountCell
+          key={key}
+          row={line[side]}
+          column={column}
+          presentation={presentation}
+          notProvided={notProvided}
+          className={cn(rule, final && 'border-b-4 border-double border-foreground/60')}
+        />
+      ))}
+    </tr>
+  );
+});
+
 function StatementTable({ headingId, lines, account, valueColumns, presentation, notProvided, collapsed, setCollapsed, labels }: {
   headingId: string;
   lines: StatementLine[];
@@ -218,58 +276,49 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
   const footer = last?.kind === 'account' && isComputedRow(last.source) ? last : null;
   const bodyLines = footer === null ? lines : lines.slice(0, -1);
 
-  const groups = collapsibleGroupLines(bodyLines).map((line) => {
-    const index = bodyLines.indexOf(line);
-    return { line, index, indent: typeof line.source.indent === 'number' ? line.source.indent : 0, label: displayLabel(line.source) };
-  });
+  // #2103: one pass over the body builds the group index and the collapsible-key set; the old code
+  // ran `bodyLines.indexOf` inside the groups map and `groups.some` on every row (O(lines × groups)).
+  const groupLines = collapsibleGroupLines(bodyLines);
+  const collapsibleKeys = new Set(groupLines.map((line) => line.key));
+  const groupIndexByKey = new Map<string, number>();
+  for (let index = 0; index < bodyLines.length; index += 1) {
+    const line = bodyLines[index];
+    if (line.kind === 'account' && collapsibleKeys.has(line.key) && !groupIndexByKey.has(line.key)) groupIndexByKey.set(line.key, index);
+  }
   const hiddenLines = new Set<number>();
-  groups.filter(({ line }) => collapsed.has(line.key)).forEach(({ index, indent }) => {
+  for (const group of groupLines) {
+    if (!collapsed.has(group.key)) continue;
+    const index = groupIndexByKey.get(group.key);
+    if (index === undefined) continue;
+    const indent = typeof group.source.indent === 'number' ? group.source.indent : 0;
     for (let childIndex = index + 1; childIndex < bodyLines.length; childIndex += 1) {
       const child = bodyLines[childIndex];
       if (child.kind === 'spacer' || isComputedRow(child.source)) break;
       if ((typeof child.source.indent === 'number' ? child.source.indent : 0) <= indent) break;
       hiddenLines.add(childIndex);
     }
-  });
-  const renderLine = (line: AccountLine, final: boolean) => {
-    const label = displayLabel(line.source);
-    const computed = isComputedRow(line.source);
-    const group = line.source.is_group === true || line.source.is_group_account === true
-      || hasNativeStatementEmphasis(primaryLabel(line.source));
-    const indent = typeof line.source.indent === 'number' && line.source.indent > 0 ? line.source.indent : 0;
-    const number = accountNumber(line.source, label);
-    const rule = computed ? 'border-t border-foreground/60' : undefined;
+  }
+  const toggle = useCallback((key: string) => setCollapsed((previous) => {
+    const next = new Set(previous);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  }), [setCollapsed]);
+
+  const row = (line: AccountLine, final: boolean) => {
+    const collapsible = collapsibleKeys.has(line.key);
     return (
-      <tr
+      <StatementRow
         key={line.key}
-        data-row-kind={computed ? 'total' : group ? 'group' : 'account'}
-        className={cn('text-[13.5px] text-foreground [&>*]:py-1.5', computed || group ? 'font-semibold' : 'font-normal')}
-      >
-        <th scope="row" className={cn(ACCOUNT_CELL, 'min-w-40 max-w-72 whitespace-normal break-words md:min-w-48', computed || group ? 'font-semibold' : 'font-normal', rule)}>
-          <div style={indent > 0 ? { paddingInlineStart: `calc(var(--spacing) * ${indent * 4})` } : undefined} className="flex items-center">
-            {groups.some(({ line: groupLine }) => groupLine.key === line.key) && (() => {
-              const isCollapsed = collapsed.has(line.key);
-              return <button type="button" aria-label={(isCollapsed ? labels.expandGroup : labels.collapseGroup)(label)} aria-expanded={!isCollapsed} onClick={() => setCollapsed((previous) => {
-                const next = new Set(previous);
-                if (isCollapsed) next.delete(line.key); else next.add(line.key);
-                return next;
-              })} className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon name="chev" className={cn('transition-transform', !isCollapsed && 'rotate-90')} /></button>;
-            })()}
-            {number !== null && <span className="mr-2 font-normal text-muted-foreground tabular">{number}</span>}
-            <span>{label}</span>
-          </div>
-        </th>
-        {valueColumns.map(({ key, side, column }) => (
-          <AmountCell
-            key={key}
-            row={line[side]}
-            column={column}
-            presentation={presentation}
-            notProvided={notProvided}
-            className={cn(rule, final && 'border-b-4 border-double border-foreground/60')}
-          />
-        ))}
-      </tr>
+        line={line}
+        valueColumns={valueColumns}
+        presentation={presentation}
+        notProvided={notProvided}
+        labels={labels}
+        collapsible={collapsible}
+        collapsed={collapsible && collapsed.has(line.key)}
+        onToggle={toggle}
+        final={final}
+      />
     );
   };
 
@@ -292,9 +341,9 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
         <tbody>
           {bodyLines.map((line, index) => hiddenLines.has(index) ? null : line.kind === 'spacer'
             ? <tr key={line.key} aria-hidden="true"><td colSpan={valueColumns.length + 1} className="h-3" /></tr>
-            : renderLine(line, false))}
+            : row(line, false))}
         </tbody>
-        {footer !== null && <tfoot>{renderLine(footer, true)}</tfoot>}
+        {footer !== null && <tfoot>{row(footer, true)}</tfoot>}
       </table>
     </div>
   );
@@ -326,13 +375,16 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [shown, setShown] = useState<Side>('current');
   const side = pair[shown];
-  const lines = mergeLines(side.rows, []);
-  const valueColumns = moneyColumns(side).map((column) => ({
+  // #2103: merged once per side, not once per render — the memoised rows compare row objects by
+  // reference, so a re-merge would re-render the whole statement on every group toggle.
+  const lines = useMemo(() => mergeLines(side.rows, []), [side.rows]);
+  // Stable identity across a group toggle: the memoised rows compare these lists by reference (#2103).
+  const valueColumns = useMemo(() => moneyColumns(side).map((column) => ({
     key: column.fieldname,
     side: 'current' as const,
     column,
     header: plainNativeStatementLabel(column.label),
-  }));
+  })), [side]);
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
@@ -379,19 +431,27 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
 function ComparativeStatement({ pair, reportTitle, companyLabel, currency, presentation, labels }: NativeStatementPairProps) {
   const headingId = useId();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const balanceSheet = pair.current.reportName === 'Balance Sheet';
-  const lines = mergeLines(pair.current.rows, pair.prior.rows);
-  const sideColumns = (side: Side): ValueColumn[] => periodColumns(pair[side]).map((column) => ({
-    key: `${side}-${column.fieldname}`,
-    side,
-    column,
-    header: (
-      <span className="flex flex-col items-end gap-0.5">
-        <span>{plainNativeStatementLabel(column.label)}</span>
-        <span className="font-normal normal-case tracking-normal">{labels[side]}</span>
-      </span>
-    ),
-  }));
+  const currentSide = pair.current;
+  const priorSide = pair.prior;
+  const balanceSheet = currentSide.reportName === 'Balance Sheet';
+  // #2103: merged once per pair, not once per render — the memoised rows compare row objects by
+  // reference, so a re-merge would re-render the whole statement on every group toggle.
+  const lines = useMemo(() => mergeLines(currentSide.rows, priorSide.rows), [currentSide, priorSide]);
+  // Stable identity across a group toggle: the memoised rows compare these lists by reference (#2103).
+  const valueColumns = useMemo<ValueColumn[]>(() => {
+    const sideColumns = (side: Side): ValueColumn[] => periodColumns(side === 'current' ? currentSide : priorSide).map((column) => ({
+      key: `${side}-${column.fieldname}`,
+      side,
+      column,
+      header: (
+        <span className="flex flex-col items-end gap-0.5">
+          <span>{plainNativeStatementLabel(column.label)}</span>
+          <span className="font-normal normal-case tracking-normal">{labels[side]}</span>
+        </span>
+      ),
+    }));
+    return [...sideColumns('current'), ...sideColumns('prior')];
+  }, [currentSide, priorSide, labels]);
   const periodLine = balanceSheet
     ? `${labels.asAt} ${formatDateOnly(pair.current.period.toDate)}`
     : `${labels.forThePeriod} ${sideRange(pair.current)}`;
@@ -419,7 +479,7 @@ function ComparativeStatement({ pair, reportTitle, companyLabel, currency, prese
               headingId={headingId}
               lines={lines}
               account={accountHeader(pair.current)}
-              valueColumns={[...sideColumns('current'), ...sideColumns('prior')]}
+              valueColumns={valueColumns}
               presentation={presentation}
               notProvided={labels.notProvided}
               collapsed={collapsed}

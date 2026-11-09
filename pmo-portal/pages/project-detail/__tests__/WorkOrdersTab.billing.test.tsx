@@ -824,6 +824,36 @@ describe('WorkOrdersTab — days since acceptance (#1640)', () => {
   });
 });
 
+describe('WorkOrdersTab — #2103 per-row contract scans', () => {
+  it('reads each contract line’s allocations a bounded number of times per render, not once per work order', () => {
+    const ORDERS = 8;
+    const LINES = 20;
+    let allocationReads = 0;
+    const contractLines = Array.from({ length: LINES }, (_, i) => {
+      const allocations = [{ workOrderId: `wo-${i % ORDERS}`, boqItemId: `boq-${i % 5}`, quantity: 10, claimedQuantity: 0, acceptedQuantity: null, final: false }];
+      const line: Record<string, unknown> = {
+        boqItemId: `boq-${i % 5}`, earningBasis: 'unit_rate', lineNo: i + 1,
+        orderedQuantity: 10, acceptedQuantity: 0, closedFinal: 0, earnedQuantity: 0, contractBalance: 10,
+      };
+      // The old render re-read every contract line's allocations once per visible order (ORDERS × LINES).
+      Object.defineProperty(line, 'allocations', { get: () => { allocationReads += 1; return allocations; }, enumerable: true });
+      return line;
+    });
+    h.list.data = Array.from({ length: ORDERS }, (_, i) => wo({ id: `wo-${i}`, wo_number: `WO-${i}` }));
+    h.projectBilling = {
+      data: {
+        currency: 'USD', contractNet: 100_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+        assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines,
+      },
+      isPending: false, isError: false, refetch: vi.fn(),
+    };
+    allocationReads = 0;
+    renderTab('Finance');
+    expect(screen.getAllByText('WO-7').length).toBeGreaterThan(0);
+    expect(allocationReads).toBeLessThanOrEqual(LINES * 6);
+  });
+});
+
 describe('WorkOrdersTab — Invoice this from the plan (#1640)', () => {
   const REFUSAL = "This work order can't be invoiced from here right now.";
   const arrive = (role: Role = 'Finance', clientId: string | null = 'c-1', arrange: () => void = () => {}) => {

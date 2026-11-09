@@ -58,7 +58,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { BoqItemRow, ProgressAssessmentInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
-import { claimNet, summarizeBilling, type AllocationFacts } from '@/src/lib/progressBilling';
+import { claimNet, summarizeBilling, type AllocationFacts, type ContractLineFacts } from '@/src/lib/progressBilling';
 import { summarizeInvoiceSettlement } from '../ContractCascade';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
@@ -223,6 +223,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const billingMutations = useProgressBillingMutations(projectId);
   const claimsQuery = useProjectClaims(projectId);
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
+  const boqById = useMemo(() => new Map(boqRows.map((boqItem) => [boqItem.id, boqItem])), [boqRows]);
   const claimRows = useMemo(() => claimsQuery.data ?? [], [claimsQuery.data]);
   const summary = projectBilling.data ? summarizeBilling(projectBilling.data) : null;
   const allocationsByWo = useMemo(() => {
@@ -230,20 +231,37 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     for (const row of lines.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
     return grouped;
   }, [lines.data]);
+  // #2103: the billing read is indexed by work order once. The old shape re-scanned every contract
+  // line's allocations for each order — and looked each BoQ item up with a linear `find` — every
+  // render, which is quadratic on a BoQ-heavy project.
+  const contractAllocationsByWo = useMemo(() => {
+    const grouped = new Map<string, { line: ContractLineFacts; allocation: AllocationFacts }[]>();
+    for (const contractLine of projectBilling.data?.contractLines ?? []) {
+      for (const allocation of contractLine.allocations) {
+        const bucket = grouped.get(allocation.workOrderId) ?? [];
+        bucket.push({ line: contractLine, allocation });
+        grouped.set(allocation.workOrderId, bucket);
+      }
+    }
+    return grouped;
+  }, [projectBilling.data]);
   const drawerLineRows = useMemo<OrderLineView[]>(() => rows.flatMap((order) =>
-    (projectBilling.data?.contractLines ?? []).flatMap((contractLine) => contractLine.allocations
-      .filter((allocation) => allocation.workOrderId === order.id)
-      .map((allocation) => {
-        const item = boqRows.find((boqItem) => boqItem.id === allocation.boqItemId) ?? null;
-        return {
-          key: `${allocation.boqItemId}-${order.id}`,
-          order,
-          item,
-          allocation,
-          rate: item?.rate == null ? null : Number(item.rate),
-        };
-      })),
-  ), [rows, projectBilling.data, boqRows]);
+    (contractAllocationsByWo.get(order.id) ?? []).map(({ allocation }) => {
+      const item = boqById.get(allocation.boqItemId) ?? null;
+      return {
+        key: `${allocation.boqItemId}-${order.id}`,
+        order,
+        item,
+        allocation,
+        rate: item?.rate == null ? null : Number(item.rate),
+      };
+    }),
+  ), [rows, contractAllocationsByWo, boqById]);
+  const drawerLineRowsByWo = useMemo(() => {
+    const grouped = new Map<string, OrderLineView[]>();
+    for (const line of drawerLineRows) grouped.set(line.order.id, [...(grouped.get(line.order.id) ?? []), line]);
+    return grouped;
+  }, [drawerLineRows]);
   const acceptancesByWo = useMemo(() => {
     const grouped = new Map<string, WorkOrderAcceptanceWithLines[]>();
     for (const row of acceptancesQuery.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
@@ -818,9 +836,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             )}
 
             {visibleCustomerOrders.length > 0 && <div className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => {
-              const orderAllocations = (projectBilling.data?.contractLines ?? []).flatMap((line) =>
-                line.allocations.filter((allocation) => allocation.workOrderId === row.id).map((allocation) => ({ line, allocation })),
-              );
+              // #2103: one Map read per order, not a re-scan of every contract allocation.
+              const orderAllocations = contractAllocationsByWo.get(row.id) ?? [];
               const rawLines = allocationsByWo.get(row.id) ?? [];
               const hasOrderLines = orderAllocations.length > 0 || rawLines.length > 0;
               const orderLineFactsReady = !lineReadsPending && !lineReadsFailed && (!hasOrderLines || Boolean(projectBilling.data));
@@ -868,7 +885,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 ...(row.status === 'Issued' && canTransition && !closeByBast(row.id) ? [{ label: t('projectDetail.workOrders.action.close', 'Close order'), onClick: () => setPending({ row, to: 'Closed' }) }] : []),
                 ...((row.status === 'Issued' || row.status === 'Draft') && canTransition ? [{ label: t('projectDetail.workOrders.action.cancel', 'Cancel order'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
               ];
-              const orderLineRows = drawerLineRows.filter((line) => line.order.id === row.id);
+              // #2103: indexed by work order once, never filtered per order.
+              const orderLineRows = drawerLineRowsByWo.get(row.id) ?? [];
               const lineColumns: Column<OrderLineView>[] = [
                 {
                   key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
@@ -1080,7 +1098,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                             <h4 className="mb-1 text-xs font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}</h4>
                             <ul className="flex flex-col gap-0.5 text-xs" data-testid={`wo-lines-${row.id}`}>
                               {rawLines.map((line) => {
-                                const item = boqRows.find((boqItem) => boqItem.id === line.boq_item_id);
+                                const item = boqById.get(line.boq_item_id);
                                 return <li key={line.id} className="tabular">{item ? `${item.item_code} — ${item.description}` : line.boq_item_id} <span className="font-semibold">{formatNumberExact(Number(line.quantity))}{item ? ` ${item.unit}` : ''}</span></li>;
                               })}
                             </ul>

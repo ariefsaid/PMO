@@ -64,8 +64,18 @@ const StockDocumentDetail: React.FC = () => {
   const seeCost = may('create', 'stockItem');
   const onHand = useStockOnHand({ warehouseId: d?.warehouse_id, includeZero: true }, Boolean(liveDraft && d?.warehouse_id));
   const costs = useStockDocumentCosts(d?.id, liveDraft && seeCost);
-  const balanceOf = (itemId: string) => (onHand.data ? onHand.data.find((r) => r.itemId === itemId && r.warehouseId === d?.warehouse_id) ?? { qtyOnHand: '0', valueOnHand: '0' } : undefined);
-  const costOf = (lineId: string) => costs.data?.find((c) => c.lineId === lineId)?.unitCost;
+  // #2103: three of these four look-ups run per line cell; index each read once instead of scanning it.
+  const balanceByItem = useMemo(() => {
+    const index = new Map<string, { qtyOnHand: string; valueOnHand?: string }>();
+    for (const row of onHand.data ?? []) {
+      if (row.warehouseId !== d?.warehouse_id || index.has(row.itemId)) continue;
+      index.set(row.itemId, row);
+    }
+    return index;
+  }, [onHand.data, d?.warehouse_id]);
+  const costByLine = useMemo(() => new Map((costs.data ?? []).map((c) => [c.lineId, c])), [costs.data]);
+  const balanceOf = (itemId: string) => (onHand.data ? balanceByItem.get(itemId) ?? { qtyOnHand: '0', valueOnHand: '0' } : undefined);
+  const costOf = (lineId: string) => costByLine.get(lineId)?.unitCost;
   const systemOf = (l: StockDocumentLine) => (liveDraft ? balanceOf(l.item_id)?.qtyOnHand ?? null : l.expected_quantity);
   const varianceOf = (l: StockDocumentLine) => { const sys = systemOf(l); return sys === null || l.counted_quantity === null ? null : subtractDecimal(l.counted_quantity, sys); };
   // Signed change of the line, valued as the server will: a stated in-cost, else the moving average (0416).
