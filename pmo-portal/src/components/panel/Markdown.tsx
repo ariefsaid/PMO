@@ -3,7 +3,7 @@
  * SECURITY (ADR-0039 boundary applied to prose, NFR-AXP-SEC-001):
  *   - NO rehype-raw / NO dangerouslySetInnerHTML → raw HTML in the model text is escaped/dropped, never executed.
  *   - disallowedElements + unwrapDisallowed strips script/style/iframe/form controls even if a plugin emitted them.
- *   - urlTransform (safeUrl) restricts link schemes; components.a forces rel + safe target.
+ *   - urlTransform (safeUrl) restricts link schemes; components.a renders only same-origin links as clickable; external links are plain text with the domain shown.
  * Do NOT add rehype-raw or widen SAFE_SCHEMES without a security review (ADR-0054 §2).
  */
 import React, { memo } from 'react';
@@ -33,14 +33,30 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
         unwrapDisallowed
         components={{
           a: ({ href, children, ...rest }) => {
-            const isAbsolute = !!href && /^https?:/i.test(href);
+            // Only same-origin links are clickable; anything else is plain text with its domain visible.
+            const sameOrigin = (() => {
+              try {
+                return !!href && new URL(href, window.location.origin).origin === window.location.origin;
+              } catch {
+                return false;
+              }
+            })();
+            if (!sameOrigin) {
+              let host = '';
+              try {
+                host = href ? new URL(href).hostname || new URL(href).pathname : '';
+              } catch {
+                /* unparseable → no domain to show */
+              }
+              return (
+                <span>
+                  {children}
+                  {host ? ` (${host})` : ''}
+                </span>
+              );
+            }
             return (
-              <a
-                href={href}
-                {...(isAbsolute ? { target: '_blank' } : {})}
-                rel="noopener noreferrer nofollow"
-                {...rest}
-              >
+              <a href={href} rel="noopener noreferrer nofollow" {...rest}>
                 {children}
               </a>
             );

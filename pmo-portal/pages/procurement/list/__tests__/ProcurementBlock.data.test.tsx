@@ -22,7 +22,6 @@ vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => (
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isError: false, isPending: false, refetch: vi.fn() }),
   useErpOrphans: () => ({ data: [], isError: false, refetch: vi.fn() }),
-  useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: null }) }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));

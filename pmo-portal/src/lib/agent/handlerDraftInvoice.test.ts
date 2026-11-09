@@ -82,7 +82,7 @@ describe('draft_invoice through the handler (#787)', () => {
     const { chip, invoke, create } = await propose('Project Manager');
     expect(chip).toBeUndefined();
     expect(invoke).not.toHaveBeenCalled();
-    expect(JSON.parse(create.mock.calls[1][0].messages.at(-1).content)).toEqual({ error: 'Only Finance or Admin can raise an invoice.' });
+    expect(JSON.parse(create.mock.calls[1][0].messages.at(-1).content)).toMatchObject({ untrusted_record_data: true, result: { error: 'Only Finance or Admin can raise an invoice.' } });
   });
 
   it('AC-AIN-010 role lost before approval → PERMISSION_DENIED, nothing dispatched', async () => {

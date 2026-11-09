@@ -614,7 +614,7 @@
     "unlink_odoo_cost_account(uuid,uuid,uuid)",
     "unpair_invoice(uuid)",
     "update_procurement_header(uuid,jsonb)",
-    "upsert_erp_purchase_documents(uuid,jsonb)",
+    "upsert_erp_purchase_documents(uuid,jsonb,boolean)",
     "void_vendor_withholding_slip(uuid,integer,text)",
     "withdraw_progress_claim(uuid)",
     "withdraw_subcontract_acceptance(uuid)",

@@ -1206,7 +1206,7 @@ segment is in front of us.
 > **No longer a candidate.** The wayfinder route map (GitHub #459, charted 2026-08-18) places this
 > program inside milestone 1 (first client live). The batches and the OD-CR-* decisions below stand;
 > the **sequence at the bottom of this section was revised** — read that, not the July one.
-Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
+Source: (a competitor review, kept private)
 (four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
 **Prereq (SATISFIED 2026-08-18):** the integrations program had to land on `main` first. It was
 blocked in a three-way loop — parity waited on integrations, integrations' M365 acceptance was parked

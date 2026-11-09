@@ -27,7 +27,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  erpPurchasesRepository, hasErpPurchases, linkErpPurchaseDocuments, listErpOrphans, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
+  erpPurchasesRepository, linkErpPurchaseDocuments, listErpOrphans, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
 } from './erpPurchases';
 
 const db = (over: Record<string, unknown>) => ({
@@ -119,13 +119,6 @@ describe('erpPurchases repository', () => {
     await expect(unlinkErpPurchaseDocument('l-1')).rejects.toThrow('Only Admin or Finance');
   });
 
-  it('hasErpPurchases reads the orphans view and is true only when an orphan exists', async () => {
-    expect(await hasErpPurchases()).toBe(false);
-    expect(h.calls).toContainEqual(['from', ['erp_purchase_orphans']]);
-    h.set({ data: [{ id: 'x' }], error: null });
-    expect(await hasErpPurchases()).toBe(true);
-  });
-
   it('listErpOrphans reads the default orphan view (set-aside left out), scoped to a project, with money as numbers', async () => {
     h.set({ data: [db({ procurement_id: undefined, link_id: undefined })], error: null });
     const rows = await listErpOrphans('p1');
@@ -149,13 +142,6 @@ describe('erpPurchasesRepository (ADR-0017 seam)', () => {
     expect(h.calls).toContainEqual(['eq', ['procurement_id', 'pur-1']]);
   });
 
-  it('hasAny is true only when an orphan exists', async () => {
-    h.set({ data: [{ id: 'a' }], error: null });
-    expect(await erpPurchasesRepository.hasAny()).toBe(true);
-    h.set({ data: [], error: null });
-    expect(await erpPurchasesRepository.hasAny()).toBe(false);
-  });
-
   it('link defaults dryRun to false and passes an explicit true; unlink sends the link id', async () => {
     h.rpc.mockResolvedValue({ data: { dry_run: false, counts: { link: 1, skip: 0, refused: 0 }, results: [] }, error: null });
     await erpPurchasesRepository.link([{ erp_name: 'PINV-A' }]);
@@ -169,7 +155,7 @@ describe('erpPurchasesRepository (ADR-0017 seam)', () => {
 
   it('a read error surfaces as an AppError keeping the code', async () => {
     h.set({ data: null, error: { message: 'denied', code: '42501' } });
-    await expect(erpPurchasesRepository.hasAny()).rejects.toMatchObject({ message: 'denied', code: '42501' });
+    await expect(erpPurchasesRepository.listOrphans('p1')).rejects.toMatchObject({ message: 'denied', code: '42501' });
   });
 });
 
