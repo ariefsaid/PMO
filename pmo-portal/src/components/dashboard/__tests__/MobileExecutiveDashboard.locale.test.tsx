@@ -15,6 +15,9 @@ afterEach(resetActiveLocale);
 describe('redesigned mobile dashboard accessible names in Bahasa', () => {
   it('keeps the contract-book name, risk doorway, figure help and spend labels in Bahasa', () => {
     dashboardHarness.areaItems = [{ id: 'at-risk', count: 1, label: 'proyek berisiko', href: '/projects?filter=at-risk', tone: 'warn' }];
+    dashboardHarness.dashboard!.top_projects = [
+      { id: 'alpha', name: 'Alpha', contract_value: 3_000, currency: 'USD', spent: 1_500, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
+    ];
     renderCompanyDashboard('id');
 
     expect(screen.getByRole('link', { name: 'Buka catatan terkait untuk Kontrak berjalan.' })).toHaveAttribute('href', '/projects?filter=Ongoing');
@@ -24,20 +27,19 @@ describe('redesigned mobile dashboard accessible names in Bahasa', () => {
     fireEvent.focus(help);
     expect(screen.getByRole('tooltip')).toHaveTextContent(/nilai kontrak/i);
 
-    const spendList = screen.getByRole('list', { name: 'Pengeluaran dibandingkan kontrak' });
-    expect(within(spendList).getByRole('link', { name: /Buka Alpha; pengeluaran tercatat/ })).toBeInTheDocument();
-    expect(within(spendList).getByRole('progressbar', { name: 'Alpha: 50% kontrak terpakai' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Tentang pengeluaran dibandingkan kontrak' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Perlu perhatian' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentang Perlu perhatian' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Rencana vs realisasi per proyek' })).toBeInTheDocument();
   });
 
-  it('formats the accessible spend with the configured number locale rather than the UI language', () => {
-    dashboardHarness.dashboard!.attention_projects = [
+  it('formats the chart figures for screen readers with the configured number locale rather than the UI language', () => {
+    dashboardHarness.dashboard!.top_projects = [
       { id: 'locale', name: 'Locale', contract_value: 3_000, currency: 'USD', spent: 1_500, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
     ];
     setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
     renderCompanyDashboard('id');
-    const spendList = screen.getByRole('list', { name: 'Pengeluaran dibandingkan kontrak' });
-    expect(within(spendList).getByRole('link', { name: /Locale.*US\$1\.500/ })).toBeInTheDocument();
-    expect(within(spendList).queryByRole('link', { name: /US\$1,500/ })).not.toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Rencana vs realisasi per proyek' });
+    expect(within(table).getByText('US$1.500')).toBeInTheDocument();
+    expect(within(table).queryByText('US$1,500')).not.toBeInTheDocument();
   });
 });
