@@ -74,10 +74,12 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, c
     setAtBottom(distanceFromBottom < 40);
   }, []);
 
-  // Auto-scroll to bottom when new entries arrive (unless user scrolled up)
+  // Auto-scroll to bottom when new entries arrive (unless user scrolled up).
+  // 'instant', deliberately (#2126): a new chunk used to re-start a smooth tween that
+  // interrupted the previous one, so the panel kept moving for the whole response.
   useEffect(() => {
     if (atBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
     }
   }, [transcript, atBottom]);
 

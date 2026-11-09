@@ -21,6 +21,7 @@ import {
   type DataTableSelection,
 } from '@/src/components/ui';
 import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
+import { scrollBehavior } from '@/src/lib/motion';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -191,7 +192,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       const el = document.getElementById(`task-${taskId}`);
       if (el) {
         scrolledRef.current = taskId;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
         setHighlightedTaskId(taskId);
       }
     });
@@ -466,7 +467,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
                       {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
                     </Menu.CheckboxItem>
                     <Menu.Item
-                      onClick={() => integrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                      onClick={() => integrationsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })}
                       className={menuItemClass}
                     >
                       {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}

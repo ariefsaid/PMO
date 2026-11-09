@@ -22,6 +22,11 @@ describe('#1970 motion', () => {
     }
   });
 
+  it('the global reduced-motion rule stops infinite loops (no 0.001ms jitter), #2126', () => {
+    const block = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(block).toContain('animation-iteration-count: 1 !important;');
+  });
+
   it('exit tokens are about 20% shorter than their entrances', () => {
     const ms = (n: string) => Number(new RegExp(`--motion-${n}:\\s*(\\d+)ms`).exec(css)?.[1]);
     // Toast motion moved to the library (Sonner owns entrance/exit and reduced-motion).
