@@ -19,9 +19,10 @@ select dblink_exec('cap_lock', $sql$
   insert into procurements(id,org_id,title,status,requested_by_id) values ('20390000-0000-0000-0000-000000000003','20390000-0000-0000-0000-000000000001','Capture lock','Draft','20390000-0000-0000-0000-000000000002');
 $sql$);
 
--- the other session holds the purchase row lock, exactly as an in-flight transition does
+-- the other session holds the purchase row lock as an in-flight transition does. FOR NO KEY UPDATE, not FOR UPDATE: the latter
+-- also blocks the insert's foreign-key check, so the capture would wait with or without the function's own lock.
 select dblink_exec('cap_lock', 'begin');
-select ok((select count(*)::int from dblink('cap_lock', $q$select id::text from procurements where id='20390000-0000-0000-0000-000000000003' for update$q$) as t(id text)) = 1,
+select ok((select count(*)::int from dblink('cap_lock', $q$select id::text from procurements where id='20390000-0000-0000-0000-000000000003' for no key update$q$) as t(id text)) = 1,
   '#2039 a second session holds the purchase lock');
 
 set local role authenticated;
@@ -34,7 +35,7 @@ reset role;
 
 select dblink_exec('cap_lock', 'commit');
 -- once released, a capture (run in the second session so this transaction never holds the row the cleanup deletes)
-select dblink_exec('cap_lock', $$ begin; set local request.jwt.claims = '{"sub":"20390000-0000-0000-0000-000000000002","role":"authenticated"}'; set local role authenticated $$);
+select dblink_exec('cap_lock', $$ begin; set local request.jwt.claims = '{"sub":"20390000-0000-0000-0000-000000000002","role":"authenticated"}'; set local role authenticated; set local lock_timeout = '3s' $$);
 select lives_ok($$ select * from dblink('cap_lock', $q$select (create_purchase_request('20390000-0000-0000-0000-000000000003','REF-LOCK','Draft',current_date,100)).id::text$q$) as t(id text) $$, '#2039 once released, the capture succeeds');
 select dblink_exec('cap_lock', 'commit');
 select is((select count(*) from purchase_requests where procurement_id='20390000-0000-0000-0000-000000000003'), 1::bigint, '#2039 exactly one request captured');
