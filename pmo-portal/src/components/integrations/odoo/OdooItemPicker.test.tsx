@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const h = vi.hoisted(() => ({ records: vi.fn() }));
 vi.mock('@/src/hooks/useOdoo', () => ({ useMasterRecordsInfinite: (input: unknown, enabled?: boolean) => h.records(input, enabled) }));
@@ -35,11 +35,13 @@ it('AC-ODC-040 nothing is requested until the picker is opened', () => {
   expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
 });
 
-it('AC-ODC-040 typing searches code and name after 300 ms', () => {
-  vi.useFakeTimers();
+it('AC-ODC-040 typing searches code and name after 300 ms', async () => {
   mount();
   open();
-  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'semen, 50kg' } });
+  // The popup mounts on the library's own schedule: wait for it on real timers, then fake the debounce.
+  const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
+  vi.useFakeTimers();
+  fireEvent.change(search, { target: { value: 'semen, 50kg' } });
   act(() => { vi.advanceTimersByTime(299); });
   expect(h.records).not.toHaveBeenCalledWith(expect.objectContaining({ search: 'semen, 50kg' }), true);
   act(() => { vi.advanceTimersByTime(2); });
@@ -69,11 +71,11 @@ it('AC-ODC-040 choosing an item reports the record and closes the list', () => {
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
 
-it('AC-ODC-040 the keyboard operates the picker: ArrowDown moves the highlight, Enter picks, Escape closes and returns focus', () => {
+it('AC-ODC-040 the keyboard operates the picker: ArrowDown moves the highlight, Enter picks, Escape closes and returns focus', async () => {
   const onChange = vi.fn();
   mount(onChange);
   open();
-  const search = screen.getByRole('searchbox');
+  const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
   fireEvent.keyDown(search, { key: 'ArrowDown' });
   fireEvent.keyDown(search, { key: 'ArrowDown' });
   const options = screen.getAllByRole('option');
@@ -81,9 +83,9 @@ it('AC-ODC-040 the keyboard operates the picker: ArrowDown moves the highlight, 
   fireEvent.keyDown(search, { key: 'Enter' });
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ external_id: '2' }));
   open();
-  fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' });
-  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-  expect(screen.getByRole('combobox')).toHaveFocus();
+  fireEvent.keyDown(await screen.findByRole('combobox', { name: /^(search|cari) /i }), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('combobox')).toHaveFocus());
 });
 
 it('AC-ODC-040 an empty result says so and a failed read offers a retry', () => {

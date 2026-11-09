@@ -29,7 +29,7 @@ const renderIt = () => {
 };
 async function pick(search: string, option: RegExp) {
   await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
-  await userEvent.type(screen.getByRole('searchbox'), search);
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), search);
   await userEvent.click(await screen.findByRole('option', { name: option }));
 }
 

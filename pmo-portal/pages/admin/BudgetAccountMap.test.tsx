@@ -70,7 +70,7 @@ const FragmentNav: React.FC = () => {
 
 const selectCatalogueAccount = async (user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, account: string) => {
   await user.click(within(dialog).getByRole('combobox', { name: /erp account/i }));
-  const search = await screen.findByRole('searchbox');
+  const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
   await user.type(search, account);
   await user.click(await screen.findByRole('option', { name: new RegExp(account, 'i') }));
 };
@@ -316,7 +316,7 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     await user.click(within(materials).getByRole('button', { name: /map materials/i }));
     const modal = await screen.findByRole('dialog');
     await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await user.type(search, '5100 - Direct Costs');
     expect(screen.queryByRole('option', { name: /5100 - Direct Costs/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
@@ -475,7 +475,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     await user.click(within(materials).getByRole('button', { name: 'Add account to Materials' }));
     const modal = await screen.findByRole('dialog', { name: 'Add account to Materials' });
     await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await user.type(search, 'Allowances - PSC');
     expect(screen.queryByRole('option', { name: /Allowances - PSC/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();

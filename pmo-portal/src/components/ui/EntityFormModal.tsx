@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { Dialog } from '@base-ui/react/dialog';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
@@ -7,7 +7,6 @@ import { Button } from './Button';
 import { FormActions } from './FormFields';
 import { ConfirmDialog } from './ConfirmDialog';
 import { acquireBackgroundInert } from './backgroundInert';
-import { useExitPresence } from './useExitPresence';
 import {
   overlayBackdropClassName,
   overlayBackdropStyle,
@@ -20,18 +19,20 @@ import {
 
 // ---------------------------------------------------------------------------
 // EntityFormModal — the create / focused-edit composite (crud-components §2.2).
-// Portal + scrim + focus-trap (reusing the ConfirmDialog machinery), a header
-// (title + subtitle + ghost close icon-button), a scrollable form-body slot, a
-// sticky FormActions footer, and a post-submit error summary that moves focus to
-// the first invalid field. Confirms before discarding a dirty form.
+// A PMO facade over Base UI's Dialog (same engine as ConfirmDialog): the library owns
+// the portal, focus trap, initial focus, focus return, Escape and scrim dismissal and
+// the exit animation; this file owns the header (title + subtitle + ghost close
+// icon-button), the scrollable form-body slot, the sticky FormActions footer, the
+// post-submit error summary that moves focus to the first invalid field, and the
+// confirm-before-discard gate on a dirty form.
 //
 // Token-pure: `popover` surface, 1px `border`, shared overlay radius, and the
 // theme-aware scrim role.
 //
-// a11y: `role="dialog"` + `aria-modal` + `aria-labelledby`/`aria-describedby`;
-// focus moves in on open, restores to the trigger on close; Esc + scrim close
-// (blocked while loading); the error summary is `role="alert"`; the body is a
-// real <form> so Enter submits; the app background goes `inert` while open.
+// a11y: `role="dialog"` + `aria-modal` + labelled/described by title/subtitle; focus
+// moves to the first form field on open; Esc + scrim close (blocked while loading);
+// the error summary is `role="alert"`; the body is a real <form> so Enter submits; the
+// app background goes `inert` while open.
 //
 // ⚑ Two WCAG Level A rules this component now encodes (2026-07-28 Discover pass,
 //   graduated in `EntityFormModal.focus.test.tsx` + docs/decisions.md OD-FORM-A11Y):
@@ -135,13 +136,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   children,
 }) => {
   const { t } = useTranslation();
-  const { mounted, closing } = useExitPresence(open, '--motion-dialog-out');
-  const titleId = useId();
-  const subId = useId();
   const summaryId = useId();
   const disabledReasonId = useId();
 
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const saveErrorRef = useRef<HTMLDivElement>(null);
 
@@ -166,67 +164,39 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
     else onClose();
   }, [loading, dirty, onClose]);
 
-  // Esc to close (through the same dirty/loading gate).
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !confirmDiscard) {
-        e.preventDefault();
-        requestClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, confirmDiscard, requestClose]);
-
-  // AC-A11Y-MODAL-001: background inert while open. DECLARED BEFORE the focus effect on
-  // purpose — React runs cleanups in declaration order, so the background is un-inerted
-  // BEFORE the focus-restore cleanup below tries to focus the trigger (focusing an inert
-  // element is a silent no-op).
+  // AC-A11Y-MODAL-001: background inert while open (the library hides siblings of its own
+  // portal; the app shell is a different subtree, so it is made inert here).
   useEffect(() => {
     if (!open) return;
     return acquireBackgroundInert();
   }, [open]);
 
-  // Focus: capture the trigger, move focus into the dialog on open, restore on close.
-  // C-1: prefer the first FORM FIELD (input/select/textarea) over buttons so the close
-  //      icon-button — which appears first in DOM order — is skipped on open.
-  // C-2: when the consumer conditionally unmounts the modal (the MilestoneStrip pattern),
-  //      the `open=false` branch never runs; a cleanup callback handles that case so focus
-  //      always restores to the trigger regardless of how the modal is removed from the tree.
-  useEffect(() => {
-    if (!open) return;
-
+  // Initial focus: the first real form field (the close icon-button comes first in DOM order and is
+  // skipped); a `Combobox` picker is a form field too — its trigger is a role="combobox" button (#785).
+  const initialFocus = useCallback(() => {
     triggerRef.current = document.activeElement as HTMLElement | null;
-    const root = dialogRef.current;
-    // First real form field; fall back to any focusable; then the dialog container itself. A `Combobox` picker is a
-    // form field too (its trigger is a role="combobox" button): skipping it opened a form whose first field is a picker
-    // on the next text box instead (#785 — the invoice dialog landed on its pre-filled description).
+    const root = popupRef.current;
     const firstField = root?.querySelector<HTMLElement>(
       'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role="combobox"]:not([disabled])',
     );
     const firstAny = root?.querySelector<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
-    (firstField ?? firstAny ?? root)?.focus();
+    return firstField ?? firstAny ?? root ?? true;
+  }, []);
 
-    // C-2 cleanup: restore focus when this effect re-runs (open→false) OR when the
-    // component is unmounted while still open (conditional-render consumer).
-    return () => {
-      const trigger = triggerRef.current;
-      triggerRef.current = null;
-      if (!trigger) return;
-      trigger.focus();
-      // AC-A11Y-MODAL-002: on Discard the nested confirm leaves in the SAME commit and still holds its share of the
-      // background `inert` while this cleanup runs, so the focus above is a silent no-op and focus lands on <body>.
-      // Every cleanup of the commit runs synchronously, so a microtask retry runs once the background is live again.
-      if (trigger.closest('[inert]')) {
-        queueMicrotask(() => {
-          // Never steal focus something else has deliberately taken in the meantime.
-          const stranded = !document.activeElement || document.activeElement === document.body;
-          if (stranded && trigger.isConnected && !trigger.closest('[inert]')) trigger.focus();
-        });
-      }
-    };
-  }, [open]);
+  // Focus return: to the opener. AC-A11Y-MODAL-002: after Discard the nested confirm leaves in the SAME commit and
+  // still holds its share of the background `inert`, so focusing the opener now is a silent no-op and focus would
+  // land on <body>; retry in a microtask once the background is live again.
+  const finalFocus = useCallback(() => {
+    const trigger = triggerRef.current;
+    triggerRef.current = null;
+    if (!trigger) return true;
+    if (!trigger.closest('[inert]')) return trigger;
+    queueMicrotask(() => {
+      const stranded = !document.activeElement || document.activeElement === document.body;
+      if (stranded && trigger.isConnected && !trigger.closest('[inert]')) trigger.focus();
+    });
+    return false;
+  }, []);
 
   // AC-A11Y-FORM-001: move focus to the first invalid field ONLY for a SUBMIT-surfaced
   // summary. `submitSeq` is bumped in the form's submit handler and the validation state
@@ -265,166 +235,148 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
     if (visibleSaveError) saveErrorRef.current?.focus();
   }, [visibleSaveError]);
 
-  // Focus trap within the dialog. Suspended while the discard ConfirmDialog is
-  // open — that dialog runs its own trap and owns the focus cycle, so the form
-  // trap must not fight it (would yank focus back into the form fields).
-  const onTrapKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (confirmDiscard) return;
-    if (e.key !== 'Tab') return;
-    const root = dialogRef.current;
-    if (!root) return;
-    const focusables = root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, [confirmDiscard]);
-
-  if (!mounted) return null;
-
-  return createPortal(
+  return (
     <>
-      <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
-        <div
-          data-testid="entity-modal-scrim"
-          aria-hidden
-          data-closing={closing || undefined}
-          onClick={requestClose}
-          className={overlayBackdropClassName}
-          style={overlayBackdropStyle}
-        />
-        <div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          aria-describedby={subtitle ? subId : undefined}
-          tabIndex={-1}
-          onKeyDown={onTrapKeyDown}
-          // While the discard ConfirmDialog is open it owns focus + AT; make the
-          // form dialog inert so the background can't be tabbed into or read.
-          inert={confirmDiscard || closing || undefined}
-          aria-hidden={confirmDiscard || closing || undefined}
-          data-closing={closing || undefined}
-          className={cn(
-            overlayDesktopContainerClassName,
-            'flex max-h-[85dvh] flex-col',
-            width === 'lg' ? 'max-w-[640px]' : overlayDefaultDesktopWidthClassName,
-          )}
-        >
-          {/* Header */}
-          <div className={overlayHeaderClassName}>
-            <div className="min-w-0 flex-1">
-              <h2 id={titleId} className="text-control font-semibold text-popover-foreground">
-                {title}
-              </h2>
-              {subtitle && (
-                <p id={subId} className="mt-1 text-support text-muted-foreground">
-                  {subtitle}
-                </p>
+      <Dialog.Root
+        open={open}
+        modal="trap-focus"
+        onOpenChange={(next, details) => {
+          if (next) return;
+          // The consumer owns `open`: Esc / scrim only ASK to close (through the dirty/loading gate).
+          // While the discard confirm is up it owns dismissal; a press inside it is "outside" here.
+          details.cancel();
+          if (!confirmDiscard) requestClose();
+        }}
+      >
+        <Dialog.Portal>
+          <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
+            <Dialog.Backdrop
+              data-testid="entity-modal-scrim"
+              className={overlayBackdropClassName}
+              style={overlayBackdropStyle}
+            />
+            <Dialog.Popup
+              ref={popupRef}
+              initialFocus={initialFocus}
+              finalFocus={finalFocus}
+              aria-modal="true"
+              // While the discard ConfirmDialog is open it owns focus + AT; make the
+              // form dialog inert so the background can't be tabbed into or read.
+              inert={confirmDiscard || undefined}
+              aria-hidden={confirmDiscard || undefined}
+              className={cn(
+                overlayDesktopContainerClassName,
+                'flex max-h-[85dvh] flex-col',
+                width === 'lg' ? 'max-w-[640px]' : overlayDefaultDesktopWidthClassName,
               )}
-            </div>
-            <Button
-              variant="ghost"
-              iconOnly
-              aria-label={t('entityForm.close', 'Close')}
-              onClick={requestClose}
-              disabled={loading}
             >
-              <Icon name="x" />
-            </Button>
+              {/* Header */}
+              <div className={overlayHeaderClassName}>
+                <div className="min-w-0 flex-1">
+                  <Dialog.Title className="text-control font-semibold text-popover-foreground">
+                    {title}
+                  </Dialog.Title>
+                  {subtitle && (
+                    <Dialog.Description render={<p />} className="mt-1 text-support text-muted-foreground">
+                      {subtitle}
+                    </Dialog.Description>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  iconOnly
+                  aria-label={t('entityForm.close', 'Close')}
+                  onClick={requestClose}
+                  disabled={loading}
+                >
+                  <Icon name="x" />
+                </Button>
+              </div>
+
+              {/* Body (the form) */}
+              <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
+                <div className={cn('min-h-0 flex-1 overflow-y-auto', overlayBodyClassName)}>
+                  {visibleSaveError && (
+                    <div
+                      ref={saveErrorRef}
+                      data-testid="entity-modal-save-error"
+                      role="alert"
+                      aria-label={t('entityForm.saveFailed', 'Save failed')}
+                      // Focus target for the rejected save — not in the Tab order, so it is
+                      // reached deliberately (on failure) and never sits between fields.
+                      tabIndex={-1}
+                      className="mb-4 flex gap-2.5 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
+                      <div className="min-w-0">
+                        <div className="text-control font-semibold text-destructive-text">
+                          {visibleSaveError.headline}
+                        </div>
+                        {visibleSaveError.detail && (
+                          <p className="text-support text-muted-foreground">{visibleSaveError.detail}</p>
+                        )}
+                        {visibleSaveError.action && (
+                          <p className="text-support">{visibleSaveError.action}</p>
+                        )}
+                        <p className="text-support text-muted-foreground">
+                          {t('entityForm.nothingSaved', 'Nothing was saved: your entries are still here.')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {showSummary && (
+                    <div
+                      id={summaryId}
+                      role="alert"
+                      aria-label={t('entityForm.formErrors', 'Form errors')}
+                      className="mb-4 flex gap-2.5 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3"
+                    >
+                      <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
+                      <div className="min-w-0">
+                        <div className="text-control font-semibold text-destructive-text">
+                          {t('entityForm.fixFields', 'Fix {{count}} fields before saving', { count: errorSummary!.length })}
+                        </div>
+                        {errorSummary!.map((item) => (
+                          <a
+                            key={item.fieldId}
+                            href={`#${item.fieldId}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              document.getElementById(item.fieldId)?.focus();
+                            }}
+                            className="block min-h-6 py-1 text-support text-destructive-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-6 [@media(pointer:coarse)]:min-h-11"
+                          >
+                            {item.message}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {children}
+                </div>
+
+                {/* Sticky footer */}
+                <div className={overlayFooterClassName}>
+                  {submitDisabled && (
+                    <span id={disabledReasonId} className="sr-only">
+                      {disabledReason ?? t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
+                    </span>
+                  )}
+                  <FormActions
+                    submitLabel={submitLabel}
+                    cancelLabel={cancelLabel ?? t('entityForm.cancel', 'Cancel')}
+                    hideCancel={hideCancel}
+                    onCancel={requestClose}
+                    disabled={submitDisabled}
+                    loading={loading}
+                    submitDescribedBy={disabledReasonId}
+                  />
+                </div>
+              </form>
+            </Dialog.Popup>
           </div>
-
-          {/* Body (the form) */}
-          <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div className={cn('min-h-0 flex-1 overflow-y-auto', overlayBodyClassName)}>
-              {visibleSaveError && (
-                <div
-                  ref={saveErrorRef}
-                  data-testid="entity-modal-save-error"
-                  role="alert"
-                  aria-label={t('entityForm.saveFailed', 'Save failed')}
-                  // Focus target for the rejected save — not in the Tab order, so it is
-                  // reached deliberately (on failure) and never sits between fields.
-                  tabIndex={-1}
-                  className="mb-4 flex gap-2.5 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
-                  <div className="min-w-0">
-                    <div className="text-control font-semibold text-destructive-text">
-                      {visibleSaveError.headline}
-                    </div>
-                    {visibleSaveError.detail && (
-                      <p className="text-support text-muted-foreground">{visibleSaveError.detail}</p>
-                    )}
-                    {visibleSaveError.action && (
-                      <p className="text-support">{visibleSaveError.action}</p>
-                    )}
-                    <p className="text-support text-muted-foreground">
-                      {t('entityForm.nothingSaved', 'Nothing was saved: your entries are still here.')}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {showSummary && (
-                <div
-                  id={summaryId}
-                  role="alert"
-                  aria-label={t('entityForm.formErrors', 'Form errors')}
-                  className="mb-4 flex gap-2.5 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3"
-                >
-                  <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
-                  <div className="min-w-0">
-                    <div className="text-control font-semibold text-destructive-text">
-                      {t('entityForm.fixFields', 'Fix {{count}} fields before saving', { count: errorSummary!.length })}
-                    </div>
-                    {errorSummary!.map((item) => (
-                      <a
-                        key={item.fieldId}
-                        href={`#${item.fieldId}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          document.getElementById(item.fieldId)?.focus();
-                        }}
-                        className="block min-h-6 py-1 text-support text-destructive-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-6 [@media(pointer:coarse)]:min-h-11"
-                      >
-                        {item.message}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {children}
-            </div>
-
-            {/* Sticky footer */}
-            <div className={overlayFooterClassName}>
-              {submitDisabled && (
-                <span id={disabledReasonId} className="sr-only">
-                  {disabledReason ?? t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
-                </span>
-              )}
-              <FormActions
-                submitLabel={submitLabel}
-                cancelLabel={cancelLabel ?? t('entityForm.cancel', 'Cancel')}
-                hideCancel={hideCancel}
-                onCancel={requestClose}
-                disabled={submitDisabled}
-                loading={loading}
-                submitDescribedBy={disabledReasonId}
-              />
-            </div>
-          </form>
-        </div>
-      </div>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {/* Dirty-discard confirm (nested ConfirmDialog). */}
       <ConfirmDialog
@@ -440,8 +392,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
         }}
         onCancel={() => setConfirmDiscard(false)}
       />
-    </>,
-    document.body,
+    </>
   );
 };
 

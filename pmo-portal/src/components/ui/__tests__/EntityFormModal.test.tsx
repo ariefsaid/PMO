@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import i18next from 'i18next';
@@ -319,38 +319,25 @@ describe('EntityFormModal: scrim + Esc close (clean + loading)', () => {
 });
 
 describe('EntityFormModal: focus trap', () => {
-  it('Tab from the last focusable wraps to the first (focus trap)', () => {
+  it('Tab past the last focusable wraps to the first; Shift+Tab past the first wraps to the last', async () => {
+    const user = userEvent.setup();
     render(
       <EntityFormModal {...baseProps}>
         <TextField label="Name" value="" onChange={() => {}} />
       </EntityFormModal>,
     );
     const dialog = screen.getByRole('dialog');
-    const focusables = dialog.querySelectorAll<HTMLElement>(
+    const focusables = [...dialog.querySelectorAll<HTMLElement>(
       'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
+    )];
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     last.focus();
-    fireEvent.keyDown(dialog, { key: 'Tab' });
-    expect(first).toHaveFocus();
-  });
-
-  it('Shift+Tab from the first focusable wraps to the last', () => {
-    render(
-      <EntityFormModal {...baseProps}>
-        <TextField label="Name" value="" onChange={() => {}} />
-      </EntityFormModal>,
-    );
-    const dialog = screen.getByRole('dialog');
-    const focusables = dialog.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    first.focus();
-    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
-    expect(last).toHaveFocus();
+    await user.tab();
+    await waitFor(() => expect(first).toHaveFocus());
+    await user.tab({ shift: true });
+    await waitFor(() => expect(last).toHaveFocus());
   });
 });
 
@@ -366,7 +353,7 @@ describe('EntityFormModal: lg width', () => {
 });
 
 describe('EntityFormModal: focus management', () => {
-  it('moves focus into the dialog on open and restores to the trigger on close', () => {
+  it('moves focus into the dialog on open and restores to the trigger on close', async () => {
     const trigger = document.createElement('button');
     trigger.textContent = 'open';
     document.body.appendChild(trigger);
@@ -377,13 +364,13 @@ describe('EntityFormModal: focus management', () => {
         <TextField label="Name" value="" onChange={() => {}} />
       </EntityFormModal>,
     );
-    expect(trigger).not.toHaveFocus();
+    await waitFor(() => expect(trigger).not.toHaveFocus());
     rerender(
       <EntityFormModal {...baseProps} open={false}>
         <TextField label="Name" value="" onChange={() => {}} />
       </EntityFormModal>,
     );
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
     trigger.remove();
   });
 });

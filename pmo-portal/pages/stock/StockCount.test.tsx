@@ -60,7 +60,7 @@ const renderAt = (path: string, role: Role = 'Engineer', viewingAs: Role = role)
 
 async function pickItem(search: string, option: RegExp, n = '') {
   await userEvent.click(screen.getByRole('combobox', { name: new RegExp(`^Item${n}`) }));
-  await userEvent.type(screen.getByRole('searchbox'), search);
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), search);
   await userEvent.click(await screen.findByRole('option', { name: option }));
 }
 
