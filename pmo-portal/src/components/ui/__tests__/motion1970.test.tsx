@@ -16,7 +16,8 @@ describe('#1970 motion', () => {
 
   it('every new animation is switched off under prefers-reduced-motion', () => {
     const block = css.slice(css.indexOf('Every #1970 animation is off'));
-    for (const cls of ['.menu-pop-anim', '.save-pulse::after', '.icon-swap-in', '.icon-swap-out', '.drawer-anim[data-closing]', '.confirm-anim[data-ending-style]']) {
+    for (const cls of ['.menu-pop-anim', '.save-pulse::after', '.icon-swap-in', '.icon-swap-out', '.confirm-anim[data-ending-style]']) {
+      // The drawer is a Base UI transition now; the global reduced-motion rule zeroes it.
       expect(block).toContain(cls);
     }
   });

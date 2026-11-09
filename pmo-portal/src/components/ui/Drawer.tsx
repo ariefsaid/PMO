@@ -1,35 +1,31 @@
-import React, { useCallback, useEffect, useId, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useId, useRef } from 'react';
+import { Drawer as BaseDrawer } from '@base-ui/react/drawer';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
 import { RecordHeader } from './RecordHeader';
 import { overlayBackdropClassName, overlayBackdropStyle } from './OverlaySurface';
-import { acquireBackgroundInert } from './backgroundInert';
-import { useExitPresence } from './useExitPresence';
 
 // ---------------------------------------------------------------------------
-// Drawer — a right-side quick-view sheet (Wave-5 Cluster 6, D11/D12).
+// Drawer: the app's one right-side sheet (quick views, record previews, file viewer).
 //
-// A read-first "look at this record" surface for dense list rows: click a row,
-// the panel slides in from the right over a scrim, the list stays in place
-// behind it. Sibling to EntityFormModal — it REUSES EntityFormModal's exact,
-// proven overlay machinery, re-housed as an edge-anchored panel:
-//   - createPortal(…, document.body) — never clipped by a table overflow box
-//   - the desaturated near-black scrim (No-Pure-Black-Shadow Rule), Esc + scrim
-//     close (blocked while `loading`)
-//   - focus capture on open / restore to the triggering row-button on close
-//   - a Tab focus-trap, suspended while a nested ConfirmDialog/Modal owns focus
-//     (the panel goes `inert` + aria-hidden — the same pattern EntityFormModal
-//     uses for its discard dialog)
-//   - role="dialog" + aria-modal + aria-labelledby/aria-describedby
+// Behaviour comes from Base UI's Drawer: focus trap and restore, Escape, outside
+// press, swipe-to-dismiss on touch, enter/exit transition, scroll lock and the
+// inert background. This file only supplies the look (DESIGN.md tokens) and the
+// two rules the library cannot know:
+//   - `loading` / `nestedOpen` veto a dismissal (mutation in flight; a nested
+//     ConfirmDialog owns Escape and focus).
+//   - stacking: drawers opened from separate React trees (the file viewer over a
+//     record drawer) are not Base UI siblings, so a module-level stack lets only
+//     the topmost one react to Escape or an outside press.
 //
-// Token-pure: `popover` surface, a single left `border` hairline seam,
-// neutral header and a ghost close icon-button. Slides in via `confirm-anim`
-// discipline; motion-reduce → crossfade.
-//
-// Same overlay z-band as the modal: scrim z-[800], panel z-[810].
+// One band below the modals (scrim z-[780], panel z-[790] vs their 800/810): a ConfirmDialog or
+// form modal opened from a drawer sits above it, stays clickable and is not an "outside press".
 // ---------------------------------------------------------------------------
+
+/** Open drawers, oldest first. Only the last entry may be dismissed by Escape, outside press or swipe. */
+const openStack: object[] = [];
 
 export interface DrawerProps {
   open: boolean;
@@ -82,93 +78,42 @@ export const Drawer: React.FC<DrawerProps> = ({
   headerActions,
   children,
 }) => {
-  const { mounted, closing } = useExitPresence(open, '--motion-drawer-out');
+  const { t } = useTranslation();
   const titleId = useId();
   const subId = useId();
+  const stackToken = useRef({});
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
-
-  // Close request through the loading gate (mutation in flight => ignore).
-  const requestClose = useCallback(() => {
-    if (loading) return;
-    onClose();
-  }, [loading, onClose]);
-
-  // Esc to close (through the loading gate). Suspended while a nested dialog is
-  // up — that dialog handles its own Esc and owns the close cycle.
   useEffect(() => {
     if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !nestedOpen) {
-        e.preventDefault();
-        requestClose();
-      }
+    const token = stackToken.current;
+    openStack.push(token);
+    return () => {
+      const index = openStack.indexOf(token);
+      if (index >= 0) openStack.splice(index, 1);
     };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, nestedOpen, requestClose]);
-
-  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
-  useEffect(() => {
-    if (!open) return;
-    return acquireBackgroundInert();
   }, [open]);
 
-  // Focus: capture the trigger, move focus into the panel on open, restore on
-  // close. Works for BOTH close patterns:
-  //   • re-render to open=false (EntityFormModal-style): the else-if branch fires.
-  //   • UNMOUNT (conditional-render consumers: {company && <CompanyDrawer/>}): the
-  //     effect cleanup fires and restores focus; the else-if never runs.
-  // Both paths call triggerRef.current.focus() exactly once; the cleanup nulls the
-  // ref afterward to prevent double-focus if the component somehow re-opens.
-  useEffect(() => {
-    if (open) {
-      triggerRef.current = document.activeElement as HTMLElement | null;
-      const root = dialogRef.current;
-      const first = root?.querySelector<HTMLElement>(
-        'input, select, textarea, button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-      );
-      (first ?? root)?.focus();
-      // Cleanup: runs on unmount (conditional-render consumers) OR when open
-      // changes to false (re-render consumers). Either way, focus is restored
-      // to the captured trigger before the drawer disappears.
-      return () => {
-        if (triggerRef.current) {
-          triggerRef.current.focus();
-          triggerRef.current = null;
-        }
-      };
+  const handleOpenChange = (next: boolean, details: BaseDrawer.Root.ChangeEventDetails) => {
+    if (next) return;
+    if (loading) {
+      details.cancel();
+      return;
     }
-  }, [open]);
-
-  // Focus trap within the panel. Suspended while a nested dialog is open — that
-  // dialog runs its own trap and owns the focus cycle, so the drawer trap must
-  // not fight it (would yank focus back into the drawer body).
-  const onTrapKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (nestedOpen) return;
-      if (e.key !== 'Tab') return;
-      const root = dialogRef.current;
-      if (!root) return;
-      const focusables = root.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    },
-    [nestedOpen],
-  );
-
-  if (!mounted) return null;
+    if (details.reason === 'close-press') {
+      onClose();
+      return;
+    }
+    // Escape, outside press, focus-out, swipe: a nested dialog or a drawer above owns them.
+    // A press inside a modal opened from this drawer (not a drawer itself) is not "outside".
+    const target = details.event?.target;
+    const inNestedModal = target instanceof Element
+      && Boolean(target.closest('[aria-modal="true"]:not([data-drawer-panel])'));
+    if (nestedOpen || inNestedModal || openStack[openStack.length - 1] !== stackToken.current) {
+      details.cancel();
+      return;
+    }
+    onClose();
+  };
 
   // CW-3a: when record-header props are supplied the drawer header renders the shared
   // RecordHeader anatomy (icon + name + status + top-right action zone) instead of the
@@ -176,101 +121,93 @@ export const Drawer: React.FC<DrawerProps> = ({
   // visually-hidden id anchors (RecordHeader's own h1/status carry no stable ids).
   const useRecordHeader = icon != null || status != null || headerActions != null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[800] flex justify-end">
-      <div
-        data-testid="drawer-scrim"
-        aria-hidden
-        data-closing={closing || undefined}
-        onClick={requestClose}
-        className={overlayBackdropClassName}
-        style={overlayBackdropStyle}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        // Shared-toast placement seam (issue 1816): marks this overlay as an
-        // edge-anchored drawer so ToastProvider tucks toasts below the header
-        // band instead of on top of it (the generic dialog remedy lands exactly
-        // there). Every drawer built on this component inherits the rule.
-        data-drawer-panel
-        aria-labelledby={titleId}
-        aria-describedby={subtitle ? subId : undefined}
-        tabIndex={-1}
-        onKeyDown={onTrapKeyDown}
-        // While a nested ConfirmDialog/Modal is open it owns focus + AT; make
-        // the panel inert so the background can't be tabbed into or read.
-        inert={nestedOpen || closing || undefined}
-        aria-hidden={nestedOpen || closing || undefined}
-        data-closing={closing || undefined}
-        className={cn(
-          // Edge-anchored: full-height right panel, square against the viewport
-          // edge (inner cards keep their own radius); the left border is the only seam.
-          'drawer-anim relative z-[810] flex h-full flex-col border-l border-border bg-popover',
-          'motion-reduce:animate-none',
-          'max-md:w-full',
-          width === 'lg' ? 'md:w-[min(560px,92vw)]' : 'md:w-[min(420px,92vw)]',
-        )}
-      >
-        {/* Header */}
-        <div data-drawer-header className="flex items-start gap-2 border-b border-border bg-secondary px-[var(--space-content-inset)] py-3">
-          {useRecordHeader ? (
-            <div className="min-w-0 flex-1">
-              {/* Visually-hidden a11y anchor — RecordHeader's own h1 carries no stable
-                  id, so the dialog's accessible name (aria-labelledby) points here.
-                  The status pill is conveyed visually + by RecordHeader's anatomy. */}
-              <span id={titleId} className="sr-only">
-                {title}
-              </span>
-              <RecordHeader
-                variant="drawer"
-                icon={null}
-                name={title}
-                status={status}
-                meta={subtitle}
-                metaId={subtitle ? subId : undefined}
-                actions={headerActions}
-              />
-            </div>
-          ) : (
-            <div className="min-w-0 flex-1">
-              <h2
-                id={titleId}
-                className="truncate text-control font-semibold text-popover-foreground"
-              >
-                {title}
-              </h2>
-              {subtitle && (
-                <div id={subId} className="mt-1 text-support text-muted-foreground">
-                  {subtitle}
+  return (
+    <BaseDrawer.Root open={open} onOpenChange={handleOpenChange} swipeDirection="right">
+      <BaseDrawer.Portal>
+        <BaseDrawer.Backdrop
+          data-testid="drawer-scrim"
+          className={cn('fixed inset-0 z-[780]', overlayBackdropClassName)}
+          style={overlayBackdropStyle}
+        />
+        <BaseDrawer.Viewport className="fixed inset-0 z-[790] flex items-stretch justify-end">
+          <BaseDrawer.Popup
+            // Shared-toast placement seam (issue 1816): marks this overlay as an
+            // edge-anchored drawer so ToastProvider tucks toasts below the header
+            // band instead of on top of it (the generic dialog remedy lands exactly
+            // there). Every drawer built on this component inherits the rule.
+            data-drawer-panel
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={subtitle ? subId : undefined}
+            // While a nested ConfirmDialog/Modal is open it owns focus + AT; make
+            // the panel inert so the background can't be tabbed into or read.
+            inert={nestedOpen || undefined}
+            aria-hidden={nestedOpen || undefined}
+            className={cn(
+              // Edge-anchored: full-height right panel, square against the viewport
+              // edge (inner cards keep their own radius); the left border is the only seam.
+              'drawer-sheet flex h-full flex-col border-l border-border bg-popover outline-none',
+              'max-md:w-full',
+              width === 'lg' ? 'md:w-[min(560px,92vw)]' : 'md:w-[min(420px,92vw)]',
+            )}
+          >
+            {/* Header */}
+            <div data-drawer-header className="flex items-start gap-2 border-b border-border bg-secondary px-[var(--space-content-inset)] py-3">
+              {useRecordHeader ? (
+                <div className="min-w-0 flex-1">
+                  {/* Visually-hidden a11y anchor: RecordHeader's own h1 carries no stable
+                      id, so the dialog's accessible name (aria-labelledby) points here. */}
+                  <span id={titleId} className="sr-only">
+                    {title}
+                  </span>
+                  <RecordHeader
+                    variant="drawer"
+                    icon={null}
+                    name={title}
+                    status={status}
+                    meta={subtitle}
+                    metaId={subtitle ? subId : undefined}
+                    actions={headerActions}
+                  />
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1">
+                  <h2
+                    id={titleId}
+                    className="truncate text-control font-semibold text-popover-foreground"
+                  >
+                    {title}
+                  </h2>
+                  {subtitle && (
+                    <div id={subId} className="mt-1 text-support text-muted-foreground">
+                      {subtitle}
+                    </div>
+                  )}
                 </div>
               )}
+              <BaseDrawer.Close
+                disabled={loading}
+                render={<Button variant="ghost" iconOnly aria-label={t('entityForm.close', 'Close')} />}
+              >
+                <Icon name="x" />
+              </BaseDrawer.Close>
             </div>
-          )}
-          <Button
-            variant="ghost"
-            iconOnly
-            aria-label="Close"
-            onClick={requestClose}
-            disabled={loading}
-          >
-            <Icon name="x" />
-          </Button>
-        </div>
 
-        {/* Body (scrollable) */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-[var(--space-content-inset)]">{children}</div>
+            {/* Body (scrollable). Content lets a mouse select text without starting a swipe. */}
+            <BaseDrawer.Content className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-[var(--space-content-inset)] py-[var(--space-content-inset)]">
+              {children}
+            </BaseDrawer.Content>
 
-        {/* Optional footer action row */}
-        {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-[var(--space-content-inset)] pt-2 pb-4">
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body,
+            {/* Optional footer action row */}
+            {footer && (
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-[var(--space-content-inset)] pt-2 pb-4">
+                {footer}
+              </div>
+            )}
+          </BaseDrawer.Popup>
+        </BaseDrawer.Viewport>
+      </BaseDrawer.Portal>
+    </BaseDrawer.Root>
   );
 };
 

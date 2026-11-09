@@ -26,7 +26,7 @@ test('AC-DOC-051/060/062: PM creates a new revision, a different reviewer approv
   const parentDraftRow = await createDocument(page, { title, code, category: 'Drawing', revision: 'A' });
 
   await parentDraftRow.getByLabel(`View ${title}`).click();
-  const uploadDrawer = page.getByRole('complementary', { name: title });
+  const uploadDrawer = page.getByRole('dialog', { name: title });
   await expect(uploadDrawer).toBeVisible();
   const [uploadChooser] = await Promise.all([
     page.waitForEvent('filechooser'),
@@ -34,7 +34,7 @@ test('AC-DOC-051/060/062: PM creates a new revision, a different reviewer approv
   ]);
   await uploadChooser.setFiles(PDF_FIXTURE);
   await expect(parentDraftRow.getByText('tiny-upload.pdf')).toBeVisible({ timeout: 15_000 });
-  await uploadDrawer.getByRole('button', { name: 'Close preview' }).click();
+  await uploadDrawer.getByRole('button', { name: 'Close' }).click();
   await expect(uploadDrawer).not.toBeVisible({ timeout: 10_000 });
 
   await issueDocument(page, documentRow(page, title));
@@ -102,7 +102,7 @@ test('AC-DOC-051/060/062: PM creates a new revision, a different reviewer approv
   await expect(supersededParentRow.getByLabel(`Replace file for ${title}`)).toHaveCount(0);
 
   await supersededParentRow.getByLabel(`View ${title}`).click();
-  const drawer = page.getByRole('complementary', { name: title });
+  const drawer = page.getByRole('dialog', { name: title });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText(/superseded by/i)).toBeVisible();
   await expect(drawer.getByLabel(`Upload file for ${title}`)).toHaveCount(0);

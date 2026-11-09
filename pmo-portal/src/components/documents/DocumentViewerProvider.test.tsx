@@ -45,7 +45,7 @@ describe('document-preview AC-001 the panel never moves the user', () => {
     render(app());
     await userEvent.click(screen.getByRole('button', { name: 'Preview Plan.png' }));
     await screen.findByRole('dialog');
-    await userEvent.click(screen.getByRole('button', { name: 'filter' }));
+    await userEvent.click(screen.getByText('filter'));
     expect(screen.getByTestId('where')).toHaveTextContent('/projects/1?filter=open');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
@@ -54,7 +54,7 @@ describe('document-preview AC-001 the panel never moves the user', () => {
     render(app());
     await userEvent.click(screen.getByRole('button', { name: 'Preview Plan.png' }));
     await screen.findByRole('dialog');
-    await userEvent.click(screen.getByRole('button', { name: 'go elsewhere' }));
+    await userEvent.click(screen.getByText('go elsewhere'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });

@@ -42,7 +42,8 @@ describe('Toast and dialog geometry', () => {
     const inset = toast!.style.getPropertyValue('--toast-top-inset');
     expect(inset).toMatch(/^\d+px$/);
 
-    act(() => { screen.getByRole('button', { name: 'Warn' }).click(); });
+    // The drawer is modal, so its trigger-mate behind it is out of the a11y tree; click it by text.
+    act(() => { screen.getByText('Warn').click(); });
     // The drawer stays marked while the dialog flag (still true — the drawer is aria-modal)
     // and the measured offset both hold.
     expect(toast).toHaveAttribute('data-dialog-open', 'true');

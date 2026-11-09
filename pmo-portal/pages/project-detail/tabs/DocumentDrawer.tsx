@@ -2,7 +2,7 @@ import { isMicrosoftFolder } from './documentUtils';
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Drawer, GateNotice, Icon, StatusPill, type RowMenuItem } from '@/src/components/ui';
+import { Button, Drawer, GateNotice, StatusPill, type RowMenuItem } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatDateOnly } from '@/src/lib/format';
@@ -313,16 +313,18 @@ export const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
 }) => {
   const isFolder = isMicrosoftFolder(doc);
   const [primaryTransition, ...secondaryTransitions] = transitions;
+  const hasFooter = canEdit || canDelete || hasFile || Boolean(sharePointUrl);
 
   return (
     <Drawer
       open
+      width="lg"
       title={doc.title}
       status={!isFolder ? <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill> : undefined}
       headerActions={<DocumentHeaderActions primaryAction={primaryTransition} fullRecordHref={fullRecordHref} />}
       nestedOpen={nestedOpen}
       onClose={onClose}
-      footer={<DocumentActionFooter
+      footer={hasFooter && <DocumentActionFooter
         canEdit={canEdit}
         canDelete={canDelete}
         hasFile={hasFile}
@@ -334,58 +336,6 @@ export const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
     >
       <DocumentPreviewFields statusHeadingLevel={2} doc={doc} parentDoc={parentDoc} childDocs={childDocs} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
     </Drawer>
-  );
-};
-
-export const DocumentPreviewPanel: React.FC<DocumentDrawerProps> = ({
-  doc,
-  parentDoc,
-  childDocs,
-  transitions,
-  sodBlocked,
-  canEdit,
-  canDelete,
-  hasFile,
-  sharePointUrl,
-  fullRecordHref,
-  nestedOpen,
-  onClose,
-  onEdit,
-  onDelete,
-  onViewDocument,
-  onDownload,
-  fileContent,
-  microsoftFile,
-}) => {
-  const { t } = useTranslation('project');
-  const isFolder = isMicrosoftFolder(doc);
-  const [primaryTransition, ...secondaryTransitions] = transitions;
-  return (
-    <aside
-      aria-labelledby="document-preview-title"
-      aria-hidden={nestedOpen || undefined}
-      inert={nestedOpen || undefined}
-      className="flex min-h-[440px] min-w-0 flex-col rounded-lg border border-border bg-card"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3.5">
-        <div className="min-w-0">
-          <h3 id="document-preview-title" className="break-words text-base font-semibold text-foreground">{doc.title}</h3>
-          {!isFolder && <div className="mt-1.5"><StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill></div>}
-        </div>
-        <div className="flex max-w-full flex-wrap items-center gap-2">
-          <DocumentHeaderActions primaryAction={primaryTransition} fullRecordHref={fullRecordHref} />
-          <Button variant="ghost" iconOnly aria-label={t('projectDetail.documents.action.closePreview', 'Close preview')} onClick={onClose}>
-            <Icon name="x" />
-          </Button>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <DocumentPreviewFields statusHeadingLevel={4} doc={doc} parentDoc={parentDoc} childDocs={childDocs} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
-      </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3.5">
-        <DocumentActionFooter canEdit={canEdit} canDelete={canDelete} hasFile={hasFile} sharePointUrl={sharePointUrl} onEdit={onEdit} onDelete={onDelete} onDownload={onDownload} />
-      </div>
-    </aside>
   );
 };
 

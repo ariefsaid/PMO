@@ -21,12 +21,12 @@ test('document-preview AC-002: a private project PDF opens inside PMO and closin
 
   // The local seed organisation has no Microsoft library, so this is the private flow.
   await row.getByLabel(`View ${title}`).click();
-  const drawer = page.getByRole('complementary', { name: title });
+  const drawer = page.getByRole('dialog', { name: title });
   await expect(drawer).toBeVisible();
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), drawer.getByLabel(`Upload file for ${title}`).click()]);
   await chooser.setFiles(PDF_FIXTURE);
   await expect(row.getByText('tiny-upload.pdf')).toBeVisible({ timeout: 15_000 });
-  await drawer.getByRole('button', { name: 'Close preview' }).click();
+  await drawer.getByRole('button', { name: 'Close' }).click();
   await expect(drawer).not.toBeVisible({ timeout: 10_000 });
 
   await issueDocument(page, documentRow(page, title));

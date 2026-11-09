@@ -613,11 +613,16 @@
 .confirm-sheet-anim { animation: confirmSheetIn var(--motion-sheet-in) var(--ease-out); }
 @keyframes confirmSheetIn { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
 
-/* ---------- Drawer (right-side sheet) entrance — slide-in from the right.
-   Auto-disabled by the global prefers-reduced-motion rule (duration → 0),
-   degrading to an instant crossfade (opacity 0→1 with no perceptible slide). */
-.drawer-anim { animation: drawerIn var(--motion-drawer-in) var(--ease-out); }
-@keyframes drawerIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+/* ---------- Drawer (right-side sheet): Base UI drives the transition through
+   [data-starting-style]/[data-ending-style] and --drawer-swipe-movement-x while a finger drags.
+   Reduced motion is handled by the global rule above (transition-duration → 0). */
+.drawer-sheet {
+  transform: translateX(var(--drawer-swipe-movement-x, 0px));
+  transition: transform var(--motion-drawer-in) var(--ease-out);
+}
+.drawer-sheet[data-starting-style], .drawer-sheet[data-ending-style] { transform: translateX(100%); }
+.drawer-sheet[data-ending-style] { transition-duration: var(--motion-drawer-out); }
+.drawer-sheet[data-swiping] { transition-duration: 0ms; }
 
 /* ---------- Exits (#1970): ~20% shorter than the entrance, same transform/opacity only.
    Base UI dialogs wait for [data-ending-style]; hand-rolled overlays use [data-closing]
@@ -625,12 +630,10 @@
 .confirm-anim[data-ending-style], .confirm-anim[data-closing] { animation: confirmOut var(--motion-dialog-out) ease-in forwards; }
 .confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing] { animation: confirmScrimOut var(--motion-dialog-out) ease-in forwards; }
 .confirm-sheet-anim[data-ending-style] { animation: confirmSheetOut var(--motion-sheet-out) ease-in forwards; }
-.drawer-anim[data-closing] { animation: drawerOut var(--motion-drawer-out) ease-in forwards; }
 [data-closing] { pointer-events: none; }
 @keyframes confirmOut { to { opacity: 0; transform: scale(0.95); } }
 @keyframes confirmScrimOut { to { opacity: 0; } }
 @keyframes confirmSheetOut { to { opacity: 0; transform: translateY(100%); } }
-@keyframes drawerOut { to { opacity: 0; transform: translateX(24px); } }
 
 /* ---------- Menus/popovers grow from their trigger: --menu-origin is set inline per
    placement (e.g. "top right" under the trigger, "bottom left" when flipped up). ---------- */
@@ -658,7 +661,7 @@
 @media (prefers-reduced-motion: reduce) {
   .confirm-anim[data-ending-style], .confirm-anim[data-closing],
   .confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing],
-  .confirm-sheet-anim[data-ending-style], .drawer-anim[data-closing],
+  .confirm-sheet-anim[data-ending-style],
   .menu-pop-anim, .save-pulse::after, .icon-swap-in, .icon-swap-out { animation: none; }
   .save-pulse::after { display: none; }
   .icon-swap-out { display: none; }

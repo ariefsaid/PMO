@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -65,7 +65,7 @@ beforeEach(() => {
 
 const rowOpenStillWorks = async () => {
   await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-  expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
+  expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
   expect(h.unlink).not.toHaveBeenCalled();
 };
 
@@ -101,7 +101,9 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     await userEvent.click(screen.getByRole('menuitem', { name: 'New revision from updated file' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    expect(within(screen.getByRole('complementary')).getByText(/Checked/)).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText(/Checked/)).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await rowOpenStillWorks();
   });
 
