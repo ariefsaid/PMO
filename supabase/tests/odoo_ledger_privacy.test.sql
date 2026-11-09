@@ -1,6 +1,6 @@
 -- #1507 S5 AC-ODA-015 (statements half): who may reach the Odoo statement reads. S4 extends this file for line detail and health.
 begin;
-select plan(45);
+select plan(46);
 
 insert into organizations (id, name) values
  ('a7460000-0000-0000-0000-000000000011','Priv A'),
@@ -48,6 +48,9 @@ select ok(not has_function_privilege('anon','public.get_odoo_statement(text,json
       and not has_function_privilege('anon','public.get_odoo_statement_catalogue(uuid)','execute')
       and not has_function_privilege('anon','public.odoo_project_ledger(uuid,text,date)','execute'),
   'AC-ODA-015 anonymous cannot execute the statement reads');
+select ok(not (select prosecdef from pg_proc where oid = 'public.get_odoo_ledger_lines(uuid,text,text,integer)'::regprocedure)
+      and not has_function_privilege('anon','public.get_odoo_ledger_lines(uuid,text,text,integer)','execute'),
+  'AC-ODA-015 the lines read is security invoker and anonymous cannot execute it');
 select is((select proconfig::text from pg_proc where oid = 'public.odoo_project_ledger(uuid,text,date)'::regprocedure), '{"search_path=public, pg_temp"}', 'AC-ODA-015 the project reader pins its search path');
 
 set local role authenticated;

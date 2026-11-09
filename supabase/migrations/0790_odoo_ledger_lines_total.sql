@@ -1,6 +1,8 @@
 -- 0790 (#2064): the Odoo ledger lines read says how many lines the filter has in total, with every page, so the list can show
 -- "Showing x of y" and an All view from the first page. Same signature and grants as 0764; only the returned object gains `total`.
+-- Deploy this before the frontend: the client rejects a lines page that has no `total`.
 -- Rollback: rollback/0790_odoo_ledger_lines_total_down.sql
+begin;
 
 create or replace function public.get_odoo_ledger_lines(p_project_id uuid, p_category text, p_after text default null, p_limit integer default 50)
 returns jsonb language plpgsql stable security invoker set search_path = public, pg_temp as $$
@@ -34,6 +36,7 @@ begin
     return jsonb_build_object('lines', '[]'::jsonb, 'next', null, 'limit', v_limit, 'linked', false, 'total', 0);
   end if;
   -- The size of the whole filter, whatever page this is: the list says "Showing x of y" from its first page.
+  -- ponytail: the count re-runs the filter on every page; fine at current mirror sizes, count on the first page only (p_after is null) if it grows.
   select count(*) into v_total from public.erp_gl_entry_mirror m
    where m.org_id = v_org and m.voucher_type = 'account.move' and not m.is_cancelled and m.project = v_acc
      and exists (select 1 from public.budget_category_account_map k where k.org_id = v_org and k.category = v_cat and k.erp_account = m.account);
@@ -54,3 +57,5 @@ begin
 end $$;
 revoke all on function public.get_odoo_ledger_lines(uuid,text,text,integer) from public, anon, authenticated;
 grant execute on function public.get_odoo_ledger_lines(uuid,text,text,integer) to authenticated;
+notify pgrst, 'reload schema';
+commit;
