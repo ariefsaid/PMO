@@ -4,13 +4,14 @@ import userEvent from '@testing-library/user-event';
 
 const h = vi.hoisted(() => ({
   conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> },
-  proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true },
+  proposal: { data: undefined as unknown }, sends: { data: undefined as boolean | undefined }, save: vi.fn(), can: { setValue: true, manage: true },
   accounts: { data: { rows: [{ external_id: '210', name: 'Advance Liability', code: '210', attrs: {} }, { external_id: '88', name: 'Tax Prepayments', code: '1350', attrs: {} }], total: 2 }, isError: false },
   accountSummary: { data: { inactive: 0, tombstoned: 0, asOf: new Date().toISOString() } },
 }));
 vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooConnection: () => h.conn,
   useOdooJournalProposal: () => h.proposal,
+  useOdooSendsFinished: () => h.sends,
   useOdooSetup: () => ({ mutateAsync: h.save, isPending: false }),
   useMasterRecords: () => h.accounts,
   useMasterSummary: () => h.accountSummary,
@@ -38,8 +39,9 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
 });
 
 it('FR-ODC-110 each step is done only when its own fact holds', () => {
-  h.conn.data = read({ account_defaults: { payable: 1 }, unit_map: { m: 2 }, default_warehouse_id: 3, sends_finished_at: '2026-11-01' }, { capabilities: { missing: [WH] } });
+  h.conn.data = read({ account_defaults: { payable: 1 }, unit_map: { m: 2 }, default_warehouse_id: 3 }, { capabilities: { missing: [WH] } });
   h.owned.data = [];
+  h.sends.data = true;
   render(<OdooSetupChecklist />);
   expect(['Odoo connected', 'Company chosen', 'Map once', 'Sends finished'].map(doneOf)).toEqual([true, true, true, true]);
   expect(doneOf('Odoo apps available')).toBe(false);
@@ -48,6 +50,30 @@ it('FR-ODC-110 each step is done only when its own fact holds', () => {
   h.owned.data = [{ externalTier: 'odoo', domain: 'companies' }];
   render(<OdooSetupChecklist />);
   expect(doneOf('Vendors and clients managed in Odoo')).toBe(true);
+});
+
+it('FR-ODC-110 the sends step follows the send state, so a stored marker alone does not make it Done', () => {
+  h.owned.data = [];
+  h.conn.data = read({ sends_finished_at: '2026-11-01' });
+  h.sends.data = false;
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Sends finished')).toBe(false);
+  cleanup();
+  h.conn.data = read({});
+  h.sends.data = true;
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Sends finished')).toBe(true);
+});
+
+it('FR-ODC-113 Finance (may set values, may not manage) is not shown the Admin-only sends step', () => {
+  h.conn.data = read({});
+  h.owned.data = [];
+  h.can.manage = false;
+  try {
+    render(<OdooSetupChecklist />);
+    expect(screen.queryByRole('listitem', { name: 'Sends finished' })).not.toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: 'Payment journal' })).toBeInTheDocument();
+  } finally { h.can.manage = true; }
 });
 
 it('FR-ODC-110 an org that is connected but not activated has only the first step done', () => {

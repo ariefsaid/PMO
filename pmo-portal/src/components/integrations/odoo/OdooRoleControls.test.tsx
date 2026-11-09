@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
 // The global setup stubs the section for the Integrations view suites; this suite tests the real one.
 vi.unmock('@/src/components/integrations/odoo/OdooIntegrationSection');
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { odoo: h, integrations: {} } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { odoo: h, integrations: { getConnectStatus: vi.fn().mockResolvedValue({ run: null, census: [], waitingForSend: 0 }) } } }));
 vi.mock('@/src/lib/db/externalDomainOwnership', () => ({ listOwnExternalDomainOwnership: h.listOwn }));
 
 import { OdooIntegrationSection } from './OdooIntegrationSection';
