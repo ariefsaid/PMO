@@ -284,11 +284,20 @@ jobs:
         working-directory: .
         run: python3 -m unittest discover -s scripts/tests -v
 
+      # Restore the Deno binary into the runner tool cache first: setup-deno v2.0.5
+      # checks the tool cache (tc.find) BEFORE downloading and skips the release
+      # download on a hit — the download 504'd GitHub-side on 2026-11-08/09.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: needs.scope.outputs.deno == 'true'
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
       # Deno steps run only when the diff can affect them (`scope.deno`; always on push / PR to main).
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         if: needs.scope.outputs.deno == 'true'
         with:
           # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
+          # Bump the cache key above together with this version.
           deno-version: '2.7.11'
       # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
       # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
@@ -371,7 +380,7 @@ jobs:
 
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
-          version: 2.105.0
+          version: 2.122.1
       # Pull every Supabase image (stack, pg_prove) from Docker Hub: GHCR rate-limits
       # them (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
       - name: Use Docker Hub for Supabase images
@@ -472,11 +481,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
-          version: 2.105.0
+          version: 2.122.1
       # Pull every Supabase image (stack, pg_prove) from Docker Hub: GHCR rate-limits
       # them (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
       - name: Use Docker Hub for Supabase images
         run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
+      # Cache the Deno binary in the runner tool cache: setup-deno v2.0.5 checks it via
+      # tc.find BEFORE downloading (src/install.ts), so a hit skips the release download
+      # that 504'd on 2026-11-08/09. Bump the key together with the version below.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
       # AC-S21-005 starts its local edge-function handler with `deno run`; each matrix runner is
       # isolated and cannot inherit the deno binary that the old unsharded integration job installed.
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
@@ -650,7 +666,7 @@ jobs:
 
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
-          version: 2.105.0
+          version: 2.122.1
       # Pull every Supabase image (stack, pg_prove) from Docker Hub: GHCR rate-limits
       # them (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
       - name: Use Docker Hub for Supabase images
@@ -662,6 +678,10 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: '2.7.11'
