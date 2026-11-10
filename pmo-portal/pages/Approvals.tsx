@@ -6,6 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
+import { scrollBehavior } from '@/src/lib/motion';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove } from './timesheets/TimesheetBulkApprove';
@@ -172,7 +173,7 @@ const ApprovalsPage: React.FC = () => {
   // One grammar at every width: below `lg` the preview stacks under the queue, so bring it into view.
   const pickItem = (key: string) => {
     setSelectedKey(key);
-    if (!isLargeScreen) document.getElementById('approvals-preview')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    if (!isLargeScreen) document.getElementById('approvals-preview')?.scrollIntoView?.({ behavior: scrollBehavior(), block: 'start' });
   };
   const selectedItem = queueItems.find((item) => item.key === selectedKey) ?? null;
 

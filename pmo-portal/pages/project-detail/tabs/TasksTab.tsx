@@ -174,7 +174,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       const el = document.getElementById(`task-${taskId}`);
       if (el) {
         scrolledRef.current = taskId;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
         setHighlightedTaskId(taskId);
       }
     });
