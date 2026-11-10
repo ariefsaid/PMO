@@ -30,13 +30,13 @@ export const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080
 export const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 export const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 
-export const ERP_COMPANY = 'PMO Smoke Co';
+export const ERP_COMPANY = process.env.PMO_ERP_TEST_COMPANY ?? 'PMO Smoke Co';
 /** Two REAL leaf expense accounts on the bench chart (never a group node, never a suspense default). */
-export const LABOR_ACCOUNT = 'Administrative Expenses - PSC';
-export const MATERIALS_ACCOUNT = 'Commission on Sales - PSC';
+export const LABOR_ACCOUNT = process.env.PMO_ERP_TEST_LABOR_ACCOUNT ?? 'Administrative Expenses - PSC';
+export const MATERIALS_ACCOUNT = process.env.PMO_ERP_TEST_MATERIALS_ACCOUNT ?? 'Commission on Sales - PSC';
 /** #768: a second, READ-ONLY Labor account. It must never appear in a pushed ERP Budget — AC-BUD-030's exact
  *  `accounts[]` equality proves that against the real bench on every run. Not used by `seed.sql`. */
-export const LABOR_SIBLING_ACCOUNT = 'Travel Expenses - PSC';
+export const LABOR_SIBLING_ACCOUNT = process.env.PMO_ERP_TEST_LABOR_SIBLING_ACCOUNT ?? 'Travel Expenses - PSC';
 
 /** A Finance user may activate a budget version (OD-BUDGET-3 write roles). */
 export const ACTIVATOR_EMAIL = 'finance@acme.test';
@@ -570,9 +570,13 @@ export async function cleanupBud(
 
   const versionIds = new Set(seed.versionIds);
   const { data: projectVersions, error: projectVersionsError } = await admin
-    .from('budget_versions').select('id').eq('project_id', seed.projectId);
+    .from('budget_versions').select('id, status').eq('project_id', seed.projectId);
   if (projectVersionsError) errors.push(`budget_versions cleanup inventory: ${projectVersionsError.message}`);
-  for (const version of (projectVersions ?? []) as Array<{ id: string }>) versionIds.add(version.id);
+  const versionStatuses = new Map<string, string>();
+  for (const version of (projectVersions ?? []) as Array<{ id: string; status: string }>) {
+    versionIds.add(version.id);
+    versionStatuses.set(version.id, version.status);
+  }
 
   const runCleanup = async (label: string, action: () => PromiseLike<{ error: { message: string } | null }>) => {
     try {
@@ -607,7 +611,11 @@ export async function cleanupBud(
     await runCleanup(`budget_version_erp_mirror(${versionId})`, () => admin.from('budget_version_erp_mirror').delete().eq('budget_version_id', versionId));
     await runCleanup(`budget_archive_cancel_intents(${versionId})`, () => admin.from('budget_archive_cancel_intents').delete()
       .eq('org_id', ORG_ID).eq('budget_version_id', versionId));
-    await runCleanup(`budget_line_items(${versionId})`, () => admin.from('budget_line_items').delete().eq('budget_version_id', versionId));
+    // Non-Draft versions' line items are immutable. Delete the owning version below and rely on its
+    // FK cascade; the readback after cleanup still verifies that no line items remain.
+    if (!versionStatuses.has(versionId) || versionStatuses.get(versionId) === 'Draft') {
+      await runCleanup(`budget_line_items(${versionId})`, () => admin.from('budget_line_items').delete().eq('budget_version_id', versionId));
+    }
     for (const actionRequired of ['budget-push-failed', 'budget-enforcement-absent', 'budget-archive-live-erp']) {
       await runCleanup(`notifications(${versionId},${actionRequired})`, () => admin.from('notifications').delete()
         .eq('org_id', ORG_ID).contains('metadata', { action_required: actionRequired, versionId }));

@@ -319,14 +319,14 @@ test('AC-018: a reviewed whole-project budget replaces annual ERP budgets and ap
     await editor.getByLabel('Line item description').fill(`AC-018 Labor ${suffix}`);
     await editor.getByLabel('Line item amount').fill(LABOR_TOTAL);
     await editor.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(editor.getByRole('row', { name: /Labor/ })).toContainText('1,234.56');
+    await expect(editor.getByRole('row').filter({ hasText: `AC-018 Labor ${suffix}` })).toContainText('1,234.56');
 
     await editor.getByRole('button', { name: /Add line item/ }).click();
     await editor.getByLabel('Line item category').selectOption('Materials');
     await editor.getByLabel('Line item description').fill(`AC-018 Materials ${suffix}`);
     await editor.getByLabel('Line item amount').fill(MATERIALS_TOTAL);
     await editor.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(editor.getByRole('row', { name: /Materials/ })).toContainText('2,345.67');
+    await expect(editor.getByRole('row').filter({ hasText: `AC-018 Materials ${suffix}` })).toContainText('2,345.67');
     await expect(editor.getByTestId('budget-edit-total')).toContainText('3,580.23');
 
     const distribution = page.getByTestId('budget-distribution-grid');
@@ -379,12 +379,31 @@ test('AC-018: a reviewed whole-project budget replaces annual ERP budgets and ap
     await expect(dialog).not.toBeVisible({ timeout: 60_000 });
     await expect(successorDraft).not.toBeVisible({ timeout: 30_000 });
     await expect(successorRow).toContainText('Active', { timeout: 30_000 });
+    await expect(page.getByText('Version activated, but ERPNext was not updated', { exact: true })).toBeVisible();
     await assertFullSweepScope([predecessorId, successorId], {
       versionId: predecessorId,
       names: predecessorTargets.map((target) => target.name),
     });
-    const sweep = await runSweepBud(FUNCTIONS_URL);
-    expect(sweep.status, `the shipped full sweep settles the actual budget push and predecessor removals: ${JSON.stringify(sweep.body)}`).toBe(200);
+    const cancellationSweep = await runSweepBud(FUNCTIONS_URL);
+    expect(cancellationSweep.status, `the shipped full sweep settles predecessor removals: ${JSON.stringify(cancellationSweep.body)}`).toBe(200);
+
+    const { data: settledCancellations, error: settledCancellationsError } = await admin
+      .from('budget_archive_cancel_intents').select('state').eq('org_id', ORG_ID).eq('budget_version_id', predecessorId);
+    if (settledCancellationsError) throw new Error(`read settled predecessor cancellations failed: ${settledCancellationsError.message}`);
+    expect(settledCancellations, 'the first scoped full sweep settles all witnessed predecessor cancellations').toHaveLength(4);
+    expect((settledCancellations ?? []).every((intent) => intent.state === 'complete')).toBe(true);
+    for (const predecessor of predecessorTargets) {
+      expect((await readErpBudget(predecessor.name)).docstatus, 'retry is offered only after the witnessed predecessor is cancelled').toBe(2);
+    }
+
+    // A whole-project replacement is intentionally held until its prior ERP targets are cancelled.
+    // Refresh the real budget surface, then use its authorized retry action after the sweep settles them.
+    await openBudgetTab(page, seeded.projectId);
+    await page.getByText('Sources and budget enforcement').click();
+    const enforcementNotice = page.getByTestId('budget-erp-notice');
+    await expect(enforcementNotice).toBeVisible();
+    await expect(enforcementNotice.getByRole('button', { name: 'Retry the push' }).first()).toBeVisible();
+    await enforcementNotice.getByRole('button', { name: 'Retry the push' }).first().click();
 
     const { data: finalVersion, error: finalVersionError } = await admin
       .from('budget_versions').select('status, budget_mode, created_by')

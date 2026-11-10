@@ -536,6 +536,14 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     expect(total.closest('tfoot')).not.toBeNull();
   });
 
+  it('the Draft editor line item keeps its cents visible after save', () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, total: 1234.56, line_items: [{ ...draftVersion.line_items[0], description: 'Precise line', budgeted_amount: 1234.56 }] }];
+    renderPage();
+    const table = screen.getByRole('table', { name: /line items/i });
+    expect(within(table).getByRole('row', { name: /Precise line/ })).toHaveTextContent('$1,234.56');
+  });
+
   it('the Draft editor still edits a row inline and saves through the same write path', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];

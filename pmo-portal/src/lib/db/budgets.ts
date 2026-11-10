@@ -880,6 +880,12 @@ interface BudgetFanOutResult {
  * value: it resolved, so the year the operator asked about is the year that pushed.
  */
 function pushStateForYear(result: unknown, fiscalYear: string | null): ActivateVersionResult['pushState'] {
+  if (typeof result === 'object' && result !== null && 'error' in result
+      && typeof (result as { error?: unknown }).error === 'string') {
+    // 2xx responses can still describe a deferred or rejected money command (for example, a range
+    // push waiting for predecessor cancellation). Such a response has not landed an ERP Budget.
+    return 'failed';
+  }
   const years = (result as BudgetFanOutResult | null | undefined)?.years;
   // A pre-BFY server names no years at all — taken at face value, as before.
   if (!Array.isArray(years)) return 'pushed';

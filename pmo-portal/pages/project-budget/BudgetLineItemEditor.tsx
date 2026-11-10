@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import { Button, DataTable, NumberField, type Column } from '@/src/components/ui';
 import type { BudgetLineItemRow, NewLineItem, BudgetVersionMode } from '@/src/lib/db/budgets';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
@@ -380,7 +380,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
             />
           </div>
         ) : (
-          <span className="font-medium">{formatCurrency(Number(li.budgeted_amount), currency)}</span>
+          <span className="font-medium">{formatCurrencyCents(Number(li.budgeted_amount), currency)}</span>
         );
       },
     },

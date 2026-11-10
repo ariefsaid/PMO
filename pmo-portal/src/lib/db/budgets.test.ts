@@ -611,6 +611,16 @@ describe('activateVersion', () => {
     await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'pushed' });
   });
 
+  it('AC-BFY-009 activation does not report a deferred budget cancellation as a landed push', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { error: 'budget-cancellation-pending', message: 'A predecessor cancellation is still settling.' },
+      error: null,
+    });
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+  });
+
   it('AC-BUD-032 activation still succeeds when the version carries no activation stamp to key the push on', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: null }, error: null }); // budgetPushKey fails closed on this
