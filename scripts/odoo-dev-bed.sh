@@ -12,16 +12,27 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENVF="$ROOT/.env.odoo.local"
+SHARED_ENV="$HOME/.pmo-odoo-bed.env"
 COMPOSE=(docker compose -f "$ROOT/scripts/odoo-bed/compose.yml" --env-file "$ENVF")
 MODULES="purchase,stock,account,project,analytic,hr_timesheet,fleet,maintenance"
 L10N="l10n_id"
 
 ensure_env() {
-  [ -f "$ENVF" ] && return
+  [ -L "$ENVF" ] && [ -f "$ENVF" ] && return
+  if [ -f "$ENVF" ]; then
+    if [ -e "$SHARED_ENV" ]; then
+      echo "Both bed env files exist; reconcile them before continuing" >&2; return 1
+    fi
+    mv "$ENVF" "$SHARED_ENV"
+  fi
   umask 077
-  { echo "ODOO_DB_PASSWORD=$(openssl rand -hex 12)"
+  if [ ! -e "$SHARED_ENV" ]; then
+    { echo "ODOO_DB_PASSWORD=$(openssl rand -hex 12)"
     echo "ODOO_ADMIN_PASSWORD=$(openssl rand -hex 12)"
-    echo "ODOO_PORT=8069"; echo "ODOO_DB=pmo_demo"; echo "ODOO_IMAGE=odoo:20.0"; } > "$ENVF"
+    echo "ODOO_PORT=8069"; echo "ODOO_DB=pmo_demo"; echo "ODOO_IMAGE=odoo:20.0"; } > "$SHARED_ENV"
+  fi
+  chmod 600 "$SHARED_ENV"
+  ln -s "$SHARED_ENV" "$ENVF"
 }
 load_env() { set -a; . "$ENVF"; set +a; }
 odoo_run() { "${COMPOSE[@]}" run --rm --no-deps -T odoo "$@"; }
@@ -88,6 +99,15 @@ PY
 
 cmd="${1:-status}"
 case "$cmd" in
+  --self-test)
+    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+    SHARED_ENV="$tmp/shared.env"; mkdir "$tmp/first" "$tmp/second"
+    ENVF="$tmp/first/.env.odoo.local"; ensure_env
+    ENVF="$tmp/second/.env.odoo.local"; ensure_env
+    [ -L "$tmp/first/.env.odoo.local" ] && [ -L "$ENVF" ]
+    cmp -s "$tmp/first/.env.odoo.local" "$ENVF"
+    echo "shared bed env self-test passed"
+    ;;
   up)
     ensure_env; load_env
     "${COMPOSE[@]}" up -d db
@@ -103,7 +123,7 @@ case "$cmd" in
   reset)
     ensure_env; load_env
     "${COMPOSE[@]}" down -v --remove-orphans
-    sed -i '' '/^ODOO_API_KEY=/d' "$ENVF"
+    sed -i '' '/^ODOO_API_KEY=/d' "$SHARED_ENV"
     exec "$0" up
     ;;
   status)
