@@ -117,7 +117,8 @@ export const ProjectRows: React.FC<{
   const { t: ts } = useTranslation('status');
   const showDelivery = rows.some((row) => row.delivery !== null);
   const showBudget = rows.some((row) => row.budgetUsed !== null);
-  const cols = ['minmax(0,1.5fr)', 'minmax(0,1.3fr)', showDelivery ? '5.5rem' : null, showBudget ? '5.5rem' : null, '10rem'].filter(Boolean).join(' ');
+  const showReason = rows.some((row) => row.reason);
+  const cols = ['minmax(0,1.5fr)', showReason ? 'minmax(0,1.3fr)' : null, showDelivery ? '5.5rem' : null, showBudget ? '5.5rem' : null, '10rem'].filter(Boolean).join(' ');
   const sorted = [...rows.filter((row) => row.offTrack || row.reason), ...rows.filter((row) => !row.offTrack && !row.reason)];
   return (
     <Card data-testid={testId}>
@@ -129,7 +130,7 @@ export const ProjectRows: React.FC<{
               : (
                 <>
                   <div aria-hidden="true" style={{ gridTemplateColumns: cols }} className="hidden gap-x-3 pb-1 text-control text-muted-foreground min-[900px]:grid">
-                    <span>{t('home.colProject', 'Project')}</span><span>{t('home.colNeeds', 'Needs you')}</span>
+                    <span>{t('home.colProject', 'Project')}</span>{showReason && <span>{t('home.colNeeds', 'Needs you')}</span>}
                     {showDelivery && <span className="text-right">{t('home.colDelivery', 'Delivery')}</span>}
                     {showBudget && <span className="text-right">{t('home.colBudget', 'Budget used')}</span>}
                     <span />
@@ -147,7 +148,7 @@ export const ProjectRows: React.FC<{
                           >
                             <span className={cn('min-w-0 text-control', quiet ? 'font-normal' : 'font-semibold')}>{row.name}</span>
                             <span className="min-[900px]:order-5 min-[900px]:justify-self-end">{row.offTrack ? <StatusPill variant="lost">{statusLabel('project', row.status, ts)}</StatusPill> : <StatusPill record="project" state={row.status} />}</span>
-                            <span className={cn('col-span-2 min-w-0 text-control min-[900px]:order-2 min-[900px]:col-span-1', row.offTrack ? 'text-destructive-text' : 'text-muted-foreground')}>{row.reason ?? ''}</span>
+                            {showReason && <span className={cn('col-span-2 min-w-0 text-control min-[900px]:order-2 min-[900px]:col-span-1', row.offTrack ? 'text-destructive-text' : 'text-muted-foreground')}>{row.reason ?? ''}</span>}
                             {(showDelivery || showBudget) && (
                               <span className="col-span-2 flex gap-4 text-control tabular text-muted-foreground min-[900px]:contents">
                                 {showDelivery && <span className="min-[900px]:order-3 min-[900px]:text-right"><span className="min-[900px]:hidden">{t('home.colDelivery', 'Delivery')} </span>{pct(row.delivery)}</span>}

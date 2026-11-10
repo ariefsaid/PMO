@@ -394,11 +394,12 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
 
-  it('F2: the budget review is drawn only when a figure exists, and shows the top five active budgets in RPC order', () => {
+  it('F2: the budget review shows (with the unknown spending left blank, never zero) the top five active budgets in RPC order', () => {
     const budget = (id: string, over: Record<string, unknown> = {}) => ({ id, name: `Budget ${id}`, client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 1_000, budget_currency: 'USD', spent: 1_500, variance: 500, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null, ...over });
     budgetReviewState.data = [budget('1', { spent: null, variance: null, actual_complete: false })];
     const { unmount } = renderPage();
-    expect(screen.queryByRole('heading', { name: 'Budget review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     unmount();
     budgetReviewState.data = [budget('x', { status: 'Leads' }), ...['1', '2', '3', '4', '5', '6'].map((id) => budget(id))];
     renderPage();

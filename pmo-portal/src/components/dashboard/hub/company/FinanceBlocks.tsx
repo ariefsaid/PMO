@@ -45,7 +45,7 @@ export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf }: { rows
 
 const usedPercent = (row: BudgetReviewRow) => budgetSpendKnown(row) && row.budget > 0 && row.budget_currency === row.currency ? Math.round(row.spent! / row.budget * 100) : null;
 
-/** The active budgets, largest overrun first. Drawn only when at least one row has a figure to compare. */
+/** The active budgets, largest overrun first. Blank columns (spending nobody has recorded) drop out by themselves. */
 export function BudgetReviewCard({ rows, pending, error, retry }: { rows: BudgetReviewRow[]; pending: boolean; error: boolean; retry: () => void }) {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
@@ -58,7 +58,7 @@ export function BudgetReviewCard({ rows, pending, error, retry }: { rows: Budget
     { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => { const pct = usedPercent(row); return pct === null ? null : <div className="flex min-w-24 items-center gap-2"><ProgressBar value={pct} widthless className="min-w-10 flex-1" aria-label={t('dashboard:hub.company.usedAria', '{{percent}}% of contract used', { percent: pct })} /><span>{pct}%</span></div>; }, exportValue: (row) => usedPercent(row) ?? '' },
     { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), kind: 'money', align: 'num', cell: (row) => row.variance === null ? null : formatTableMoney(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
   ];
-  if (!pending && !error && !rows.some(budgetSpendKnown)) return null;
+  if (!pending && !error && rows.length === 0) return null;
   return (
     <Card>
       <CardHead level={2} actions={<ExportButton rows={rows} columns={columns} entity={t('dashboard:hub.company.budgetReview', 'Budget review')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.budgetReview', 'Budget review')}</CardHead>

@@ -19,7 +19,7 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
 
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole('heading', { name: 'My dashboard' })).toBeVisible();
-  await expect(page.getByTestId('kpi-my-projects')).toBeVisible();
+  await expect(page.getByTestId('pm-projects')).toBeVisible();
 
   const sidebar = page.getByRole('navigation', { name: /primary navigation/i });
   await expect(sidebar.getByRole('link', { name: 'Projects' })).toBeVisible();
@@ -27,8 +27,7 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
   await expect(sidebar.getByRole('link', { name: 'Procurement' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Timesheets' })).toBeVisible();
 
-  const projectHeading = page.getByRole('heading', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true });
-  const flaggedProject = projectHeading.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true });
+  const flaggedProject = page.getByTestId('pm-projects').getByRole('link', { name: /Cascade Foods 6\.0 MW Ground-Mount PV/ });
   await expect(flaggedProject).toBeVisible();
   await flaggedProject.focus();
   await expect(flaggedProject).toBeFocused();
@@ -40,9 +39,6 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
   await page.goBack();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('heading', { name: 'My dashboard' })).toBeVisible();
-  await expect(page.getByTestId('kpi-my-projects')).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true })
-      .getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByTestId('pm-projects')).toBeVisible();
+  await expect(page.getByTestId('pm-projects').getByRole('link', { name: /Cascade Foods 6\.0 MW Ground-Mount PV/ })).toBeVisible();
 });
