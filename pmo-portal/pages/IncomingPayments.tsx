@@ -26,7 +26,7 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   formatCurrency,
   formatCurrencyCents,
-  formatDateOnly,
+  formatDay,
 } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -277,15 +277,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       count={data ? filtered.length : undefined}
       total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}
-      description={embedded ? undefined : odooOffline
-        ? t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')
-        : mode === undefined
-        ? undefined
-        : native
-          ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
-          : odoo
-            ? t('finance:financeCopy.paymentsReceivedFromClientsMirroredFromOdoo', 'Payments received from clients, mirrored from Odoo.')
-            : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
+      banner={!embedded && odooOffline ? <p role="status" className="mb-3 text-control text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
       primaryAction={!embedded && mode !== undefined && canCreate && !odooOffline ? (
         <Button variant="primary" onClick={() => { setInitialInvoiceId(undefined); setFormOpen(true); }}>
           <Icon name="plus" />
@@ -354,10 +346,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         <ListState
           variant="empty"
           icon="dollar"
-          title={t('financeCopy.noIncomingPaymentsYet', "No incoming payments yet")}
-          sub={canCreate
-            ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.')
-            : t('uxs26.receiptsEmptyProjectManager', 'No client receipts have been recorded yet. Finance records client payments.')}
+          title={t('financeCopy.noIncomingPaymentsYet', "No payments received yet")}
+          sub={canCreate ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'Use Receive Payment when a client pays.') : t('uxs26.receiptsEmptyProjectManager', 'Finance records client payments.')}
           stateId="incoming-payments-empty"
           role={realRole ?? undefined}
           module="incomingPayments"
@@ -373,8 +363,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           onActivate={embedded ? openPaymentPanel : undefined}
           rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
           mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="min-w-0 truncate text-[13px] font-semibold">{payment.customer_name ?? '—'}</span>
-            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
+            <span className="min-w-0 truncate text-control font-semibold">{payment.customer_name ?? '—'}</span>
+            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? (payment) => {
             const cancelled = displayStatus(payment) === 'Cancelled';
@@ -386,9 +376,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {odoo ? <OdooReceiptStatus receipt={payment} fallback={fallbackStatus} /> : fallbackStatus}
-                <span className="shrink-0 text-xs text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
+                <span className="shrink-0 text-control text-muted-foreground">{payment.date ? formatDay(payment.date) : '—'}</span>
               </div>
-              <span className="shrink-0 text-right text-xs tabular">
+              <span className="shrink-0 text-right text-control tabular">
                 <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
                 {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
               </span>
@@ -486,9 +476,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           amount: panelPayment.amount == null ? '—' : formatCurrency(panelPayment.amount, panelPayment.currency),
         }) : ''}
         subtitle={panelPayment ? <span className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-xs">{receiptNumber(panelPayment) ?? '—'}</span>
-          {panelInvoice && <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? '—'}</span>}
-          {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-xs">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
+          <span className="font-mono text-control">{receiptNumber(panelPayment) ?? '—'}</span>
+          {panelInvoice && <span className="font-mono text-control">{invoiceNumber(panelInvoice) ?? '—'}</span>}
+          {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-control">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
         </span> : undefined}
         icon={<Icon name="dollar" />}
         status={panelPayment ? odoo
@@ -506,10 +496,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       >
         {panelPayment && <div className="space-y-5 p-4 sm:p-5">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrencyCents(panelUnapplied, panelPayment.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrencyCents(panelUnapplied, panelPayment.currency)}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
           </dl>
           <section aria-labelledby="receivable-payment-invoices">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -540,7 +530,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               </li>)}
             </ul> : <p className="text-sm text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</p>}
             {!panelPayment.pmo_native && (
-              <p className="mt-2 text-xs text-muted-foreground">{t('finance:receivables.allocatedInErp', 'Allocated in your accounting system; read-only here.')}</p>
+              <p className="mt-2 text-control text-muted-foreground">{t('finance:receivables.allocatedInErp', 'Allocated in your accounting system; read-only here.')}</p>
             )}
           </section>
         </div>}

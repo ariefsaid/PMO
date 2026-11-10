@@ -3739,7 +3739,6 @@
     "recordedBeforeErp": "Recorded in PMO before the ERP was connected",
     "overpaidBy": "Overpaid by {{amount}}",
     "carriedIntoErpOpening": "Carried into the ERP opening balance: {{amount}} on {{date}}",
-    "nativeIncomingPaymentsDescription": "Customer receipts recorded in PMO against approved invoices.",
     "salesInvoiceRequired": "Choose the invoice this receipt settles.",
     "paymentDateLabel": "Payment date",
     "paymentDateNotFuture": "The payment date cannot be in the future.",
@@ -3835,8 +3834,7 @@
     "clearFilter": "Clear filter",
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
-    "noSalesInvoicesYet": "No sales invoices yet",
-    "createYourFirstInvoiceToStartBillingClients": "No client invoices have been recorded yet. Use New Invoice to start billing.",
+    "noSalesInvoicesYet": "No invoices yet",
     "noInvoicesMatchYourFilters": "No invoices match your filters",
     "tryADifferentStatusOrClearTheSearch": "Try a different status or clear the search.",
     "thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased": "This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released.",
@@ -3856,12 +3854,10 @@
     "payment": "Payment #",
     "reference": "Reference",
     "incomingPayments": "Incoming Payments",
-    "paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable": "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.",
     "receivePayment": "Receive Payment",
     "searchPayments": "Search payments…",
     "searchIncomingPayments": "Search incoming payments",
-    "noIncomingPaymentsYet": "No incoming payments yet",
-    "recordYourFirstPaymentReceivedFromAClient": "No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.",
+    "noIncomingPaymentsYet": "No payments received yet",
     "noPaymentsMatchYourFilters": "No payments match your filters",
     "cancelPayment": "Cancel payment",
     "salesInvoiceOptional": "Sales Invoice (optional)",
@@ -3973,10 +3969,8 @@
     "notPmoNative": "This invoice belongs to the ERP",
     "erpOwnsRevenue": "The connected ERP now raises and settles invoices",
     "newInvoiceTitle": "New invoice",
-    "newInvoiceSubtitle": "Create a new sales invoice for a client",
     "createInvoice": "Create invoice",
     "removeLine": "Remove line {{line}}",
-    "receivePaymentSubtitle": "Record a new incoming payment from a client",
     "recordPayment": "Record payment",
     "amountOutstanding": "{{amount}} outstanding",
     "pmoNative": "This invoice was raised in PMO. Approve it from Approvals",
@@ -3995,7 +3989,9 @@
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
     "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
-    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it."
+    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
+    "recordYourFirstPaymentReceivedFromAClient": "Use Receive Payment when a client pays.",
+    "createYourFirstInvoiceToStartBillingClients": "Use New Invoice to start billing."
   },
   "viewBuilder": {
     "privateScope": "Private: only you",
@@ -4161,7 +4157,8 @@
       "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
       "note": "Note",
       "save": "Save progress",
-      "saved": "Progress saved"
+      "saved": "Progress saved",
+      "titleFor": "Record progress · {{project}}"
     }
   },
   "uxs34": {
@@ -4745,8 +4742,8 @@
     "accountDraftUnavailable": "This unsaved choice is no longer available in the current chart. Choose another account or clear this field."
   },
   "uxs26": {
-    "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
-    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments."
+    "invoiceEmptyProjectManager": "Finance manages invoice creation.",
+    "receiptsEmptyProjectManager": "Finance records client payments."
   },
   "m365Documents": {
     "link": "Link from Microsoft 365",

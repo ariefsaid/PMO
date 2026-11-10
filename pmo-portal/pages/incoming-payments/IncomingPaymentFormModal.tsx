@@ -324,7 +324,6 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
     <EntityFormModal
       open
       title={t('financeCopy.receivePayment', 'Receive Payment')}
-      subtitle={t('financeCopy.receivePaymentSubtitle', 'Record a new incoming payment from a client')}
       submitLabel={t('financeCopy.recordPayment', 'Record payment')}
       cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={handleSubmit}

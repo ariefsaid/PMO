@@ -211,9 +211,6 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     <EntityFormModal
       open
       title={t('financeCopy.newInvoiceTitle', 'New invoice')}
-      subtitle={native
-        ? t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.')
-        : t('financeCopy.newInvoiceSubtitle', 'Create a new sales invoice for a client')}
       submitLabel={t('financeCopy.createInvoice', 'Create invoice')}
       cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={handleSubmit}
@@ -441,6 +438,8 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         )}
       </section>
       )}
+      {/* The consequence of Create lives next to it: the draft waits for a second person. */}
+      {native && <p className="mt-4 text-control text-muted-foreground">{t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.')}</p>}
     </EntityFormModal>
   );
 };

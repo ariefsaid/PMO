@@ -170,7 +170,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
   it('UX-010/011 Finance gets one receive action and no duplicate empty-state CTA', () => {
     renderPage();
     expect(screen.getAllByRole('button', { name: 'Receive Payment' })).toHaveLength(1);
-    expect(screen.getByText(/Use Receive Payment when a client payment arrives/)).toBeInTheDocument();
+    expect(screen.getByText(/Use Receive Payment when a client pays/)).toBeInTheDocument();
   });
 
   it('embedded receivables shows a compact Payments received heading without a page action or description', () => {
@@ -214,7 +214,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(card).toHaveTextContent('Acme Energy');
     expect(card).toHaveTextContent('RCV-2610070001');
     expect(card).toHaveTextContent('Received');
-    expect(card).toHaveTextContent('Oct 7, 2026');
+    expect(card).toHaveTextContent('7 Oct');
     expect(card).toHaveTextContent(/of/);
     expect(card.querySelector('dl')).toBeNull();
   });
@@ -389,10 +389,10 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect((await screen.findAllByText('Enter the payment date.')).length).toBeGreaterThan(0);
   });
 
-  it('AC-NAR-006 a cancelled PMO receipt offers no Cancel; the page says receipts are recorded in PMO', () => {
+  it('AC-NAR-006 a cancelled PMO receipt offers no Cancel', () => {
     h.payments.data = [receipt({ cancelled_at: '2026-10-07T01:00:00Z' })];
     renderPage();
-    expect(screen.getByText('Customer receipts recorded in PMO against approved invoices.')).toBeInTheDocument();
+    expect(screen.queryByText('Customer receipts recorded in PMO against approved invoices.')).not.toBeInTheDocument();
     // A row with no available action renders no menu trigger at all (DataTable).
     expect(screen.queryByRole('button', { name: 'Row actions' })).toBeNull();
   });
@@ -500,8 +500,6 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('button', { name: financeTestI18n.t('financeCopy.recordPayment') })).toBeInTheDocument();
     expect(financeTestI18n.t('financeCopy.recordPayment')).not.toBe('Record payment');
-    expect(dialog).toHaveTextContent(financeTestI18n.t('financeCopy.receivePaymentSubtitle'));
-    expect(financeTestI18n.t('financeCopy.receivePaymentSubtitle')).not.toBe('Record a new incoming payment from a client');
   });
 
   it('AC-NAR-003 (I-5) the payment date cannot be before the invoice date — the picker says so and refuses it', async () => {

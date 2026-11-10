@@ -562,10 +562,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         <ListState
           variant="empty"
           icon="doc"
-          title={t('financeCopy.noSalesInvoicesYet', "No sales invoices yet")}
-          sub={canCreate
-            ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'No client invoices have been recorded yet. Use New Invoice to start billing.')
-            : t('uxs26.invoiceEmptyProjectManager', 'No client invoices have been recorded yet. Finance manages invoice creation.')}
+          title={t('financeCopy.noSalesInvoicesYet', "No invoices yet")}
+          sub={canCreate ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'Use New Invoice to start billing.') : t('uxs26.invoiceEmptyProjectManager', 'Finance manages invoice creation.')}
           stateId="sales-invoices-empty"
           role={realRole ?? undefined}
           module="salesInvoices"
@@ -581,7 +579,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           onActivate={embedded ? openInvoicePanel : undefined}
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
           mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="min-w-0 truncate text-[13px] font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
+            <span className="min-w-0 truncate text-control font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
             <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? mobileCardDetails : undefined}

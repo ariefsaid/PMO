@@ -3739,7 +3739,6 @@
     "recordedBeforeErp": "Dicatat di PMO sebelum ERP terhubung",
     "overpaidBy": "Kelebihan bayar {{amount}}",
     "carriedIntoErpOpening": "Dibawa ke saldo awal ERP: {{amount}} pada {{date}}",
-    "nativeIncomingPaymentsDescription": "Penerimaan pelanggan yang dicatat di PMO atas faktur yang telah disetujui.",
     "salesInvoiceRequired": "Pilih faktur yang dilunasi penerimaan ini.",
     "paymentDateLabel": "Tanggal pembayaran",
     "paymentDateNotFuture": "Tanggal pembayaran tidak boleh di masa depan.",
@@ -3835,8 +3834,7 @@
     "clearFilter": "Hapus filter",
     "searchInvoices": "Cari faktur…",
     "searchSalesInvoices": "Cari faktur penjualan",
-    "noSalesInvoicesYet": "Belum ada faktur penjualan",
-    "createYourFirstInvoiceToStartBillingClients": "Belum ada faktur klien yang dicatat. Gunakan Faktur Baru untuk mulai menagih.",
+    "noSalesInvoicesYet": "Belum ada faktur",
     "noInvoicesMatchYourFilters": "Tidak ada faktur yang cocok dengan filter",
     "tryADifferentStatusOrClearTheSearch": "Coba status lain atau hapus pencarian.",
     "thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased": "Tindakan ini membatalkan faktur di ERPNext (docstatus 1→2). Faktur akan berstatus Dibatalkan dan tidak dapat diajukan lagi. Jumlah terutang akan dilepaskan.",
@@ -3856,12 +3854,10 @@
     "payment": "No. Pembayaran",
     "reference": "Referensi",
     "incomingPayments": "Pembayaran Masuk",
-    "paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable": "Pembayaran yang diterima dari klien dan dicerminkan dari ERPNext. Ditautkan ke faktur penjualan jika sesuai.",
     "receivePayment": "Terima Pembayaran",
     "searchPayments": "Cari pembayaran…",
     "searchIncomingPayments": "Cari pembayaran masuk",
-    "noIncomingPaymentsYet": "Belum ada pembayaran masuk",
-    "recordYourFirstPaymentReceivedFromAClient": "Belum ada penerimaan dari klien yang dicatat. Gunakan Terima Pembayaran saat pembayaran klien masuk.",
+    "noIncomingPaymentsYet": "Belum ada pembayaran diterima",
     "noPaymentsMatchYourFilters": "Tidak ada pembayaran yang cocok dengan filter",
     "cancelPayment": "Batalkan pembayaran",
     "salesInvoiceOptional": "Faktur Penjualan (opsional)",
@@ -3973,10 +3969,8 @@
     "notPmoNative": "Faktur ini dikelola di ERP",
     "erpOwnsRevenue": "ERP yang terhubung kini menerbitkan dan melunasi faktur",
     "newInvoiceTitle": "Faktur baru",
-    "newInvoiceSubtitle": "Buat faktur penjualan baru untuk klien",
     "createInvoice": "Buat faktur",
     "removeLine": "Hapus baris {{line}}",
-    "receivePaymentSubtitle": "Catat pembayaran masuk baru dari klien",
     "recordPayment": "Catat pembayaran",
     "amountOutstanding": "{{amount}} belum dibayar",
     "pmoNative": "Faktur ini dibuat di PMO. Setujui dari Persetujuan",
@@ -3995,7 +3989,9 @@
     "sodAuthorMissing": "Faktur ini tidak memiliki pembuat tercatat, sehingga tidak dapat disetujui",
     "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
     "activateEditorBlocked": "Anda menyusun draf atau mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
-    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya."
+    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
+    "recordYourFirstPaymentReceivedFromAClient": "Gunakan Terima Pembayaran saat klien membayar.",
+    "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih."
   },
   "viewBuilder": {
     "privateScope": "Pribadi: hanya Anda",
@@ -4161,7 +4157,8 @@
       "pctInvalid": "Masukkan angka 0 sampai 100, maksimal dua desimal.",
       "note": "Catatan",
       "save": "Simpan progres",
-      "saved": "Progres disimpan"
+      "saved": "Progres disimpan",
+      "titleFor": "Catat progres · {{project}}"
     }
   },
   "uxs34": {
@@ -4745,8 +4742,8 @@
     "accountDraftUnavailable": "Pilihan yang belum disimpan ini tidak lagi tersedia di daftar akun saat ini. Pilih akun lain atau kosongkan bidang ini."
   },
   "uxs26": {
-    "invoiceEmptyProjectManager": "Belum ada faktur klien yang dicatat. Finance mengelola pembuatan faktur.",
-    "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien."
+    "invoiceEmptyProjectManager": "Finance mengelola pembuatan faktur.",
+    "receiptsEmptyProjectManager": "Finance mencatat pembayaran klien."
   },
   "m365Documents": {
     "link": "Tautkan dari Microsoft 365",
