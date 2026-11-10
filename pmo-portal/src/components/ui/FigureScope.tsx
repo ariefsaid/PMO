@@ -1,29 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-
-/** A figure that has no value: it is not drawn, and says why in the page's one hidden-figures line. */
-export interface HiddenFigure {
-  label: string;
-  /** Short plain reason, e.g. "accounting is not connected". Figures with the same reason are counted together. */
-  reason: string;
-  /** Where the reason is fixed ("Set up"). */
-  link?: { to: string; label: string };
-}
-
-export interface FigureHelpEntry {
-  label: string;
-  text: React.ReactNode;
-}
-
-interface FigureScopeValue {
-  setHidden: (owner: string, entries: HiddenFigure[]) => void;
-  setHelp: (owner: string, entries: FigureHelpEntry[]) => void;
-  hidden: HiddenFigure[];
-  help: FigureHelpEntry[];
-}
-
-const FigureScopeContext = React.createContext<FigureScopeValue | null>(null);
+import { FigureScopeContext, useFigureScope, type FigureHelpEntry, type FigureScopeValue, type HiddenFigure } from './useFigureScope';
 
 /**
  * One page's figures: tiles inside it that have no value hide themselves and report here, and tiles with
@@ -54,35 +32,6 @@ export const FigureScope: React.FC<{ children: React.ReactNode }> = ({ children 
   }), [setHidden, setHelp, hiddenByOwner, helpByOwner]);
   return <FigureScopeContext.Provider value={value}>{children}</FigureScopeContext.Provider>;
 };
-
-export const useFigureScope = () => React.useContext(FigureScopeContext);
-
-/**
- * Report this component's hidden figures and help text to the nearest FigureScope for as long as it is
- * mounted. Returns whether a scope exists (a tile outside one keeps showing its reason in place).
- */
-export function useFigureReport(hidden: HiddenFigure[], help: FigureHelpEntry[] = []): boolean {
-  const scope = useFigureScope();
-  const owner = React.useId();
-  const setHidden = scope?.setHidden;
-  const setHelp = scope?.setHelp;
-  // The effect keys on content, not array identity, so a re-render with the same figures does not loop.
-  const hiddenKey = JSON.stringify(hidden);
-  const helpKey = JSON.stringify(help.map((h) => [h.label, typeof h.text === 'string' ? h.text : '']));
-  const helpRef = React.useRef(help);
-  helpRef.current = help;
-  React.useEffect(() => {
-    if (!setHidden) return;
-    setHidden(owner, JSON.parse(hiddenKey) as HiddenFigure[]);
-    return () => setHidden(owner, []);
-  }, [setHidden, owner, hiddenKey]);
-  React.useEffect(() => {
-    if (!setHelp) return;
-    setHelp(owner, helpRef.current);
-    return () => setHelp(owner, []);
-  }, [setHelp, owner, helpKey]);
-  return scope != null;
-}
 
 /** "3 figures hidden: accounting is not connected · Set up". Renders nothing when every figure has a value. */
 export const FigureHiddenLine: React.FC<{ className?: string }> = ({ className }) => {

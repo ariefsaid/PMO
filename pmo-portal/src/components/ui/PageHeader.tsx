@@ -1,6 +1,7 @@
 import React from 'react';
 import { HelpPopover } from './HelpPopover';
-import { FigureHelpList, useFigureScope } from './FigureScope';
+import { FigureHelpList } from './FigureScope';
+import { useFigureScope } from './useFigureScope';
 import { cn } from './cn';
 
 export interface PageHeaderProps {

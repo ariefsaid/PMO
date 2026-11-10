@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { DataTable, dropBlankColumns, isBlankCell, type Column } from '../DataTable';
+import { DataTable, type Column } from '../DataTable';
+import { dropBlankColumns, isBlankCell } from '../dataTableColumns';
 
 type Row = { id: string; name: string; actual: number | null; note: string; budget: string | null };
 const rows: Row[] = [

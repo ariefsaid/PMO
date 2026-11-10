@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import { KPITile } from '../KPITile';
 
 describe('KPITile', () => {
@@ -53,6 +54,11 @@ describe('KPITile', () => {
     expect(box.className).toContain('break-words');
   });
 
+  it('RD-077: the help "?" is not dimmed below the 3:1 non-text contrast floor', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" help="About" helpLabel="About this metric" />);
+    expect(screen.getByRole('button', { name: /About this metric/ }).className).not.toMatch(/opacity-/);
+  });
+
   it('renders label + tabular value', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline value" value="$4.2M" />);
     expect(screen.getByText('Pipeline value')).toBeInTheDocument();
@@ -75,10 +81,9 @@ describe('KPITile', () => {
     expect(screen.queryByTestId('kpi-delta')).not.toBeInTheDocument();
   });
 
-  it('no per-tile "?": the help prop is not drawn', () => {
-    render(<KPITile icon="dollar" tone="blue" label="x" value="1" help="Weighted by stage" helpLabel="About x" />);
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-    expect(screen.queryByText('Weighted by stage')).not.toBeInTheDocument();
+  it('help is a native keyboard-focusable button with an accessible name', () => {
+    render(<KPITile icon="dollar" tone="blue" label="x" value="1" help="Weighted by stage" />);
+    expect(screen.getByRole('button', { name: /help/i })).toBeInTheDocument();
   });
 
   it('loading renders a skeleton tile', () => {
@@ -108,16 +113,50 @@ describe('KPITile', () => {
       expect(tile).toHaveTextContent('3');
     });
 
-    it('AC-986-003: the link is the tile\'s only control; help text is not drawn inside the link or beside it', async () => {
+    it('AC-986-003: linked help is independently keyboard/touch reachable and never navigates', async () => {
+      const user = userEvent.setup();
+      function CurrentPath() {
+        const location = useLocation();
+        return <output data-testid="current-path">{location.pathname}</output>;
+      }
+
       render(
-        <MemoryRouter>
-          <KPITile icon="check" tone="amber" label="Awaiting your approval" value="3" to="/approvals" linkLabel="Approval destination" help="Items waiting on your decision" testId="approval-tile" />
+        <MemoryRouter initialEntries={['/']}>
+          <CurrentPath />
+          <KPITile
+            icon="check"
+            tone="amber"
+            label="Awaiting your approval"
+            value="3"
+            to="/approvals"
+            linkLabel="Approval destination"
+            help="Items waiting on your decision"
+            helpLabel="Approval help"
+            testId="approval-tile"
+          />
         </MemoryRouter>,
       );
+
       const tile = screen.getByTestId('approval-tile');
-      expect(within(tile).getAllByRole('link')).toHaveLength(1);
-      expect(within(tile).queryByRole('button')).not.toBeInTheDocument();
-      expect(within(tile).queryByText('Items waiting on your decision')).not.toBeInTheDocument();
+      const link = within(tile).getByRole('link', { name: 'Approval destination' });
+      const help = within(tile).getByRole('button', { name: 'Approval help: Awaiting your approval' });
+      expect(link).toHaveAttribute('href', '/approvals');
+      expect(link.contains(help)).toBe(false);
+      expect(help).toHaveClass('touch-target');
+
+      await user.tab();
+      expect(link).toHaveFocus();
+      await user.tab();
+      expect(help).toHaveFocus();
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Items waiting on your decision');
+
+      await user.keyboard('{Enter}');
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/');
+      await user.click(help);
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/');
+
+      await user.click(link);
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/approvals');
     });
 
     it('non-link tile is a div (no router needed)', () => {

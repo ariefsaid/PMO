@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from './cn';
 import { FigureContent } from './FigureContent';
-import { useFigureReport, type HiddenFigure } from './FigureScope';
+import { useFigureReport, type HiddenFigure } from './useFigureScope';
 
 export interface StatTile {
   label: React.ReactNode;

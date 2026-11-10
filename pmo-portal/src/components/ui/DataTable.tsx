@@ -15,6 +15,7 @@ import {
 } from './useTableColumnSizing';
 import { DataTableDesktop } from './DataTableDesktop';
 import { DataTableMobile } from './DataTableMobile';
+import { dropBlankColumns } from './dataTableColumns';
 import type { GroupedRowEntry } from './DataTableShared';
 
 export { RowMenu, MenuButton, type RowMenuItem };
@@ -62,8 +63,8 @@ export interface Column<Row> {
   /**
    * A column whose cell is blank (nothing, or the "—" empty marker) on every loaded row is not rendered.
    * Set this to keep it anyway, e.g. a column the user expects to find even when empty. Never applied while
-   * loading, empty or failed (no rows yet), nor to the first column, a `stickyLeft`/`rowHeader` column, or one
-   * that a `totals` row fills.
+   * loading, empty or failed (no rows yet), nor to the first column, a `stickyLeft`/`rowHeader` column, one with a
+   * `caveat` (the caveat explains its blanks), or one that a `totals` row fills.
    */
   keepWhenBlank?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
@@ -154,35 +155,6 @@ export interface DataTableProps<Row> {
   selection?: DataTableSelection<Row>;
   /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
   onOverflowChange?: (overflowing: boolean) => void;
-}
-
-const EMPTY_MARKERS = new Set(['—', '–', '-']);
-
-/** True when a cell renders nothing a person can read: null/false/''/whitespace, the "—" marker, or a list/fragment of those.
- *  Any other element counts as content (its output cannot be inspected without rendering it). */
-export function isBlankCell(node: React.ReactNode): boolean {
-  if (node == null || typeof node === 'boolean') return true;
-  if (typeof node === 'string') return node.trim() === '' || EMPTY_MARKERS.has(node.trim());
-  if (typeof node === 'number' || typeof node === 'bigint') return false;
-  if (Array.isArray(node)) return node.every(isBlankCell);
-  if (React.isValidElement(node) && node.type === React.Fragment) return isBlankCell((node.props as { children?: React.ReactNode }).children);
-  return false;
-}
-
-/** Columns that are blank on every loaded row are dropped (see `Column.keepWhenBlank`). */
-export function dropBlankColumns<Row>(
-  columns: Column<Row>[],
-  rows: Row[],
-  totals: DataTableProps<Row>['totals'],
-  loaded: boolean,
-): Column<Row>[] {
-  if (!loaded || rows.length === 0) return columns;
-  return columns.filter((column, index) => {
-    if (index === 0 || column.keepWhenBlank || column.stickyLeft || column.rowHeader) return true;
-    if (column.kind === 'actions' || column.kind === 'select') return true;
-    if (totals?.some((total) => total.values && !isBlankCell(total.values[column.key]))) return true;
-    return rows.some((row) => !isBlankCell(column.cell(row)) || (column.secondaryCell != null && !isBlankCell(column.secondaryCell(row))));
-  });
 }
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured

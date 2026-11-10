@@ -11,8 +11,9 @@ export interface ListPageProps {
   /** Embedded pages use a compact h2 while standalone list routes remain h1. */
   headingLevel?: 1 | 2;
   /**
-   * @deprecated No sentence sits under a page title (screen rule "Words"); renders nothing. Callers still
-   * passing one are listed in the date-formatting guard's allowlist and removed by the screen sweeps.
+   * @deprecated No sentence sits under a page title (screen rule "Words"). Callers still passing one are
+   * listed in `scripts/header-subtitle-allowlist.json`; the screen sweeps delete the prop (some carry a basis
+   * statement that needs a home first), and a new caller fails the guard.
    */
   description?: React.ReactNode;
   /** The page's ONE help control (what a definition on this screen means). */
@@ -78,6 +79,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   title,
   headingLevel = 1,
   help,
+  description,
   count,
   total,
   primaryAction,
@@ -117,6 +119,7 @@ export const ListPage: React.FC<ListPageProps> = ({
           ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
           : count}
       />
+      {description && <p className="-mt-2 mb-4 max-w-[68ch] text-sm text-muted-foreground">{description}</p>}
 
       {banner}
 

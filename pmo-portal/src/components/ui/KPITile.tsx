@@ -1,9 +1,11 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { cn } from './cn';
 import { FigureContent } from './FigureContent';
 import { Icon, type IconName } from './icons';
-import { useFigureReport, type HiddenFigure } from './FigureScope';
+import { Tooltip } from './Tooltip';
+import { useFigureReport, type HiddenFigure } from './useFigureScope';
 import type { KPITone } from './KPITile.types';
 
 // Re-exported (not duplicated) from the pure sibling file (see KPITile.types.ts doc comment) —
@@ -42,7 +44,10 @@ export interface KPITileProps {
   hiddenLink?: { to: string; label: string };
   /** Negative values turn destructive (DESIGN.md). */
   negative?: boolean;
-  /** Definition of the figure. Not drawn on the tile: a `FigureScope` collects it into the page's one help control. */
+  /**
+   * Definition of the figure. Inside a `FigureScope` it is not drawn on the tile: it is collected into the page's one
+   * help control. Outside one it is still the old per-tile "?" (until the page adopts the scope).
+   */
   help?: string;
   /** Names this figure in that help list; defaults to `label`. */
   helpLabel?: string;
@@ -123,6 +128,7 @@ export function KPITile({
   testId,
   className,
 }: KPITileProps) {
+  const { t } = useTranslation();
   const inRow = React.useContext(KPIRowContext);
   const caption = captionProp ?? vs ?? delta?.text;
   const unknown = !loading && !error && (unavailableReason != null || value == null);
@@ -153,6 +159,18 @@ export function KPITile({
         <Icon name={icon} />
       </span>}
       <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
+      {/* Legacy: outside a FigureScope the help stays a per-tile "?" until the page adopts the scope. */}
+      {help && !inScope && (
+        <Tooltip content={help} title={helpLabel}>
+          <button
+            type="button"
+            aria-label={helpLabel ? `${helpLabel}: ${label}` : t('dashboard.kpi.helpLabel', 'Help: {{label}}', { label })}
+            className="touch-target pointer-events-auto relative z-10 ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground [&_svg]:size-3.5"
+          >
+            <Icon name="help" />
+          </button>
+        </Tooltip>
+      )}
     </div>
   );
 
