@@ -11,7 +11,65 @@ const APP = path.join(ROOT, 'pmo-portal');
 const require = createRequire(path.join(APP, 'package.json'));
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const routes = process.argv.slice(2);
+// Runs in the page: measure only text with painted, non-hidden ancestors.
+function measureText() {
+  const main = document.querySelector('main');
+  if (!main) throw new Error('No main element to measure');
+  const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+  const sizes = {}; const samples = {}; let words = 0; let total = 0; let small = 0;
+  for (let node; (node = walker.nextNode());) {
+    const text = node.textContent.trim();
+    if (!text) continue;
+    const element = node.parentElement;
+    const style = getComputedStyle(element);
+    if (style.visibility !== 'visible' || !element.getClientRects().length || Number(style.opacity) === 0) continue;
+    let hidden = false;
+    for (let parent = element; parent; parent = parent.parentElement) {
+      const computed = getComputedStyle(parent);
+      if (computed.display === 'none' || Number(computed.opacity) === 0 || computed.contentVisibility === 'hidden') { hidden = true; break; }
+    }
+    if (hidden) continue;
+    const range = document.createRange(); range.selectNodeContents(node);
+    if (![...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)) continue;
+    const size = parseFloat(style.fontSize);
+    sizes[size] = (sizes[size] || 0) + text.length;
+    total += text.length; words += text.split(/\s+/u).length;
+    if (size < 14) { small += text.length; (samples[size] ||= []).length < 5 && samples[size].push(text.slice(0, 40)); }
+  }
+  const distinctFontSizes = Object.keys(sizes).map(Number).sort((a, b) => a - b);
+  if (!total) throw new Error('No visible text in main');
+  return { minFontPx: distinctFontSizes[0], pctCharsUnder14: small * 100 / total, distinctFontSizes, wordCount: words, smallTextSamples: samples };
+}
+function violations(metrics, baseline, label) {
+  const failures = [];
+  const samples = JSON.stringify(metrics.smallTextSamples);
+  if (metrics.minFontPx < 12) failures.push(`${label}: minFontPx=${metrics.minFontPx} (<12); samples=${samples}`);
+  if (metrics.pctCharsUnder14 > 15) failures.push(`${label}: pctCharsUnder14=${metrics.pctCharsUnder14.toFixed(2)} (>15); samples=${samples}`);
+  if (baseline !== undefined && metrics.wordCount > baseline * 1.05) failures.push(`${label}: wordCount=${metrics.wordCount} (>105% of ${baseline}); samples=${samples}`);
+  return failures;
+}
+async function selfTest() {
+  const systemChrome = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find((candidate) => fs.existsSync(candidate));
+  const browser = await chromium.launch({ headless: true, ...(systemChrome ? { executablePath: systemChrome } : {}) });
+  try {
+    const page = await browser.newPage();
+    const cases = [
+      { html: '<main><span style="font-size:11px">tiny text</span></main>', baseline: 2, expected: 'minFontPx' },
+      { html: '<main><span style="font-size:13px">small text</span><span style="font-size:16px">normal text</span></main>', baseline: 4, expected: 'pctCharsUnder14' },
+      { html: '<main style="font-size:16px">one two three four five six</main>', baseline: 5, expected: 'wordCount' },
+      { html: '<main style="font-size:16px">one two three four five</main>', baseline: 5, expected: null },
+    ];
+    for (const fixture of cases) {
+      await page.setContent(fixture.html);
+      const result = violations(await page.evaluate(measureText), fixture.baseline, 'fixture @390');
+      if (fixture.expected ? !result.some((failure) => failure.includes(fixture.expected)) : result.length) throw new Error(`Self-test failed: expected ${fixture.expected || 'pass'}, got ${result.join('; ')}`);
+    }
+    console.log('ux-proof self-test passed');
+  } finally { await browser.close(); }
+}
+if (process.argv.includes('--self-test')) { await selfTest(); process.exit(0); }
+const updateBudget = process.argv.includes('--update-word-budget');
+const routes = process.argv.slice(2).filter((arg) => arg !== '--update-word-budget');
 if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
   console.error('usage: scripts/ux-proof.sh /route [/route ...]');
   process.exit(2);
@@ -33,6 +91,11 @@ const authFile = process.env.UX_PROOF_AUTH
 if (!fs.existsSync(detector)) throw new Error(`Vendored detector missing: ${detector}; run scripts/vendor-skills.sh.`);
 if (!fs.existsSync(authFile)) throw new Error(`Auth storage state missing: ${authFile}; run the Playwright setup project first.`);
 
+const budgetPath = path.join(ROOT, 'docs/ux/word-budget.json');
+const budget = fs.existsSync(budgetPath) ? JSON.parse(fs.readFileSync(budgetPath, 'utf8')) : {};
+const login = path.basename(authFile).replace(/\.json$/, '');
+const measurements = [];
+
 const auth = JSON.parse(fs.readFileSync(authFile, 'utf8'));
 const localStorage = (auth.origins || []).flatMap((origin) => origin.localStorage || []);
 if (!localStorage.length) throw new Error(`No localStorage session found in ${authFile}`);
@@ -48,6 +111,7 @@ const countDetectorFindings = (value) => {
 };
 
 let failed = false;
+console.log('route | width | min px | chars <14% | font sizes | words');
 const cdpServer = net.createServer();
 await new Promise((resolve, reject) => cdpServer.listen(0, '127.0.0.1', resolve).once('error', reject));
 const cdpPort = cdpServer.address().port;
@@ -77,6 +141,16 @@ try {
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         });
         await page.screenshot({ path: path.join(output, `${stem}.png`), fullPage: true });
+        if (theme === 'light') {
+          const metrics = await page.evaluate(measureText);
+          const key = `${route}@${width}@${login}`;
+          measurements.push({ route, width, login, ...metrics });
+          console.log(`${route} | ${width} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.wordCount}`);
+          const errors = violations(metrics, updateBudget ? undefined : budget[key], `${route} @${width}`);
+          for (const error of errors) console.error(error);
+          if (errors.length) failed = true;
+          if (updateBudget || budget[key] === undefined) budget[key] = metrics.wordCount;
+        }
 
         const detect = spawnSync(detector, ['detect', '--cdp', `${cdpPort}`, '--target', page.url(), '--json', '--no-advisory'], {
           cwd: ROOT, encoding: 'utf8', timeout: 120_000,
@@ -103,4 +177,7 @@ try {
 } finally {
   await browser.close();
 }
+fs.writeFileSync(path.join(output, 'measurements.json'), `${JSON.stringify(measurements, null, 2)}\n`);
+fs.mkdirSync(path.dirname(budgetPath), { recursive: true });
+fs.writeFileSync(budgetPath, `${JSON.stringify(budget, null, 2)}\n`);
 process.exitCode = failed ? 1 : 0;
