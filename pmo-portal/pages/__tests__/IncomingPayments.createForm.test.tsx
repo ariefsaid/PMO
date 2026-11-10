@@ -273,6 +273,84 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     ]);
   });
 
+  async function enterWithholding(user: ReturnType<typeof userEvent.setup>) {
+    for (const [label, value] of [['Amount settled', '1110'], ['Cash received', '1000']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, value);
+    }
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    await user.clear(withheld);
+    await user.type(withheld, '110');
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'SYN-WHT-1275');
+  }
+
+  it('AC-WHA-006: an accountant records a receipt with PPh 4(2) withheld and the command carries the article', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-wha', si_number: 'SI-WHA' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA');
+    await enterWithholding(user);
+    await user.selectOptions(screen.getByLabelText('Withholding article'), 'pph4_2');
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate.mock.calls.at(-1)?.[0]).toMatchObject({
+      withheldAmount: 110, withholdingSlipNumber: 'SYN-WHT-1275', withholdingArticle: 'pph4_2',
+    });
+  });
+
+  it('AC-WHA-007: choosing an invoice pre-fills the article from its project, and the accountant can change it', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-wha2', si_number: 'SI-WHA2', project_receipt_withholding_article: 'pph4_2' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA2');
+    await enterWithholding(user);
+    const article = screen.getByLabelText('Withholding article');
+    expect(article).toHaveValue('pph4_2');
+    await user.selectOptions(article, 'pph23');
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate.mock.calls.at(-1)?.[0]).toMatchObject({ withholdingArticle: 'pph23' });
+  });
+
+  it('AC-WHA-007: changing the invoice keeps an article the accountant hand-picked', async () => {
+    hoisted.invoicesState.data = [
+      invoice({ id: 'si-wha4', si_number: 'SI-WHA4', project_receipt_withholding_article: 'pph4_2' }),
+      invoice({ id: 'si-wha5', si_number: 'SI-WHA5', project_receipt_withholding_article: 'pph4_2' }),
+    ];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA4');
+    await enterWithholding(user);
+    const article = screen.getByLabelText('Withholding article');
+    await user.selectOptions(article, 'pph23');
+    await pick(user, /Sales Invoice/, 'SI-WHA5');
+    expect(screen.getByLabelText('Withholding article')).toHaveValue('pph23');
+  });
+
+  it('AC-WHA-006: with nothing withheld the receipt carries no article', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-wha3', si_number: 'SI-WHA3', project_receipt_withholding_article: 'pph4_2' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA3');
+    for (const label of ['Amount settled', 'Cash received']) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, '1000');
+    }
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    const submitted = hoisted.createPaymentMutate.mock.calls.at(-1)?.[0];
+    expect(submitted).toBeDefined();
+    expect(Object.keys(submitted ?? {})).not.toContain('withholdingArticle');
+  });
+
   it('AC-S27-003: a native reconciliation error reveals the collapsed withholding evidence', async () => {
     hoisted.ownershipState.data = [];
     hoisted.invoicesState.data = [invoice({ id: 'si-native-mismatch', si_number: 'SI-NATIVE-MISMATCH', pmo_native: true })];

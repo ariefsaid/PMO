@@ -9,6 +9,15 @@ it('uses validated keys and separates identifiers from payment memo', () => {
   expect(ODOO_ANCHORS.payment.mutable).toBe(true);
 });
 
+it('an equipment key is a valid anchor too: `equipment:<uuid>` names one register record (#1511 F4)', () => {
+  const key = 'equipment:123e4567-e89b-12d3-a456-426614174000';
+  expect(anchorValue(key)).toBe(`pmo:${key}`);
+  expect(externalIdentifier(key)).toEqual({ module: 'pmo', name: 'equipment_123e4567_e89b_12d3_a456_426614174000' });
+  for (const bad of ['equipment:bad', 'equipment', 'equipment:', 'maintenance:123e4567-e89b-12d3-a456-426614174000']) {
+    expect(() => anchorValue(bad), bad).toThrow();
+  }
+});
+
 it('an external ref carries its Odoo model, so ids of different models never share one', () => {
   expect(odooExternalRef('stock.picking', 1)).toBe('stock.picking:1');
   expect(odooExternalRef('purchase.order', '1')).toBe('purchase.order:1');

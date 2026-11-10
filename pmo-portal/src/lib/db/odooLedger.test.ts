@@ -54,18 +54,24 @@ describe('getOdooLedgerHealth (AC-ODA-009/010)', () => {
 
 describe('getOdooLedgerLines (FR-ODA-051)', () => {
   it('passes the keyset and a bounded page size, and returns the next key', async () => {
-    ok({ lines: [{ id: 'l1', date: '2026-10-01', moveName: 'BILL/2026/0001', account: '5100', partner: 'Vendor A', debit: '10.00', credit: '0.00' }], next: 'l1', limit: 50, linked: true });
+    ok({ lines: [{ id: 'l1', date: '2026-10-01', moveName: 'BILL/2026/0001', account: '5100', partner: 'Vendor A', debit: '10.00', credit: '0.00' }], next: 'l1', limit: 50, linked: true, total: 120 });
     const page = await getOdooLedgerLines({ projectId: PROJECT, category: 'materials', after: 'l0', limit: 50 });
     expect(h.rpc).toHaveBeenCalledWith('get_odoo_ledger_lines', { p_project_id: PROJECT, p_category: 'materials', p_after: 'l0', p_limit: 50 });
     expect(page.linked).toBe(true);
     expect(page.next).toBe('l1');
+    expect(page.total).toBe(120);
     expect(page.lines[0]).toMatchObject({ moveName: 'BILL/2026/0001', partner: 'Vendor A', debit: '10.00' });
   });
 
   it('says unlinked, with no lines, when the project has no single linked account', async () => {
-    ok({ lines: [], next: null, limit: 50, linked: false });
+    ok({ lines: [], next: null, limit: 50, linked: false, total: 0 });
     const page = await getOdooLedgerLines({ projectId: PROJECT, category: 'materials' });
-    expect(page).toMatchObject({ linked: false, lines: [], next: null });
+    expect(page).toMatchObject({ linked: false, lines: [], next: null, total: 0 });
+  });
+
+  it('refuses a page with no total, instead of guessing one', async () => {
+    ok({ lines: [], next: null, limit: 50, linked: true });
+    await expect(getOdooLedgerLines({ projectId: PROJECT, category: 'materials' })).rejects.toEqual(expect.objectContaining({ code: 'odoo-ledger-invalid-response' }));
   });
 });
 

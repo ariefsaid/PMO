@@ -31,6 +31,7 @@ async function setup(
     ms_graph_connections: [{ data: await connection(), error: null }],
   });
   service.rpc.mockImplementation((fn) => {
+    if (fn === 'service_feature_enabled') return Promise.resolve({ data: entitled, error: null });
     if (fn === 'm365_membership_state') {
       return Promise.resolve({ data: { state: 'active', org_id: '10200000-0000-0000-0000-000000000001', role: 'Admin' }, error: null });
     }
@@ -42,12 +43,7 @@ async function setup(
     }
     return Promise.resolve({ data: null, error: null });
   });
-  const caller = mockClient({
-    org_features: [
-      { data: { enabled: entitled }, error: null },
-      { data: { enabled: entitled }, error: null },
-    ],
-  });
+  const caller = mockClient();
   const fetch = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
     new Response(JSON.stringify(graphPayload ?? { responses: [{
       id: '1', status: 200, body: {
@@ -79,6 +75,7 @@ async function setupIssue(input: {
   };
   const service = mockClient({ ms_graph_connections: [{ data: await connection(), error: null }] });
   service.rpc.mockImplementation((fn) => {
+    if (fn === 'service_feature_enabled') return Promise.resolve({ data: true, error: null });
     if (fn === 'm365_membership_state') {
       return Promise.resolve({ data: { state: 'active', org_id: projectDocument.org_id, role: 'Admin' }, error: null });
     }
@@ -86,7 +83,6 @@ async function setupIssue(input: {
     return Promise.resolve({ data: null, error: null });
   });
   const caller = mockClient({
-    org_features: [{ data: { enabled: true }, error: null }, { data: { enabled: true }, error: null }],
     project_documents: [{ data: projectDocument, error: null }],
   });
   let metadataRead = 0;
@@ -131,13 +127,13 @@ async function setupRefresh(controlled = false) {
   ];
   const service = mockClient({ ms_graph_connections: [{ data: await connection(), error: null }] });
   service.rpc.mockImplementation((fn) => {
+    if (fn === 'service_feature_enabled') return Promise.resolve({ data: true, error: null });
     if (fn === 'm365_membership_state') return Promise.resolve({ data: { state: 'active', org_id: orgId, role: 'Admin' }, error: null });
     if (fn === 'm365_refresh_reference') return Promise.resolve({ data: true, error: null });
     if (fn === 'm365_claim_document_checks') return Promise.resolve({ data: [], error: null });
     return Promise.resolve({ data: null, error: null });
   });
   const caller = mockClient({
-    org_features: [{ data: { enabled: true }, error: null }, { data: { enabled: true }, error: null }],
     project_documents: [{ data: rows, error: null }],
   });
   const fetch = vi.fn(async (inputUrl: string | URL | Request) => {

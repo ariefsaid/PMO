@@ -29,6 +29,7 @@ vi.mock('@/src/auth/usePermission', () => ({
 }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => true }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }) }));
+vi.mock('@/src/components/finance/BudgetDraftReview', () => ({ BudgetDraftReview: () => null }));
 vi.mock('@/src/components/integrations/InvoicePairReview', () => ({
   InvoicePairReview: ({ orgId }: { orgId?: string }) => <section data-testid="invoice-pair-review">{orgId}</section>,
 }));

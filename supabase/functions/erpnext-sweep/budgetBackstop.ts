@@ -36,6 +36,9 @@ export interface BudgetBackstopVersionRow {
   status: string;
   /** The ADR-0059 §4 state stamp. `null` ⇒ never activated — never a push candidate. */
   activated_at: string | null;
+  /** ⚑ rm-1472 — the project whose archive-cancellation fence governs a parked unit. Present on the
+   *  live read; absent ⇒ the resume cannot prove the fence and leaves the unit parked. */
+  project_id?: string | null;
 }
 
 /** One row of the mirror's own work queue (FR-BUD-123). */
@@ -55,6 +58,9 @@ export interface BudgetMirrorCandidateRow {
   to_fiscal_year?: string | null;
   erp_account?: string | null;
   budget_intent?: 'ensure' | 'remove' | null;
+  /** ⚑ rm-1472 — the row's own recorded reason. The sweep must not treat a unit the gate PARKED on
+   *  a known, self-resolving cause (`BUDGET_ARCHIVE_CANCEL_WAIT`) as an outbox-orphan defect. */
+  push_error?: string | null;
   created_at?: string | null;
   /** The fair-queue order key (0427): when this row was last selected by a pass; null = never. */
   last_attempt_at?: string | null;
