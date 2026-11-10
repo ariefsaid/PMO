@@ -42,7 +42,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('status');
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
   const fieldId = useId();
@@ -56,14 +56,28 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
     }
   }, [open]);
 
+  // Static keys (the i18n guard greps for them): one set of strings per verb.
+  const words = kind === 'reject'
+    ? {
+        title: t('reasonDialog.rejectTitle', 'Reject {{subject}}', { subject }).trim(),
+        confirm: t('reasonDialog.rejectConfirm', 'Reject'),
+        label: t('reasonDialog.rejectReasonLabel', 'Reason for rejecting'),
+        help: t('reasonDialog.rejectReasonHelp', 'The person who submitted it sees this.'),
+      }
+    : {
+        title: t('reasonDialog.returnTitle', 'Return {{subject}}', { subject }).trim(),
+        confirm: t('reasonDialog.returnConfirm', 'Return'),
+        label: t('reasonDialog.returnReasonLabel', 'Reason for returning'),
+        help: t('reasonDialog.returnReasonHelp', 'The person who gets it back sees this.'),
+      };
   const trimmed = reason.trim();
   const missing = trimmed === '';
   return (
     <ConfirmDialog
       open={open}
       tone={kind === 'reject' ? 'destructive' : 'default'}
-      title={title ?? t(`reasonDialog.${kind}.title`, kind === 'reject' ? 'Reject {{subject}}' : 'Return {{subject}}', { subject }).trim()}
-      confirmLabel={confirmLabel ?? t(`reasonDialog.${kind}.confirm`, kind === 'reject' ? 'Reject' : 'Return')}
+      title={title ?? words.title}
+      confirmLabel={confirmLabel ?? words.confirm}
       loading={loading}
       confirmDisabled={missing}
       initialFocus={() => wrapRef.current?.querySelector('textarea') ?? null}
@@ -80,8 +94,8 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
           {context != null && <div className="text-support text-muted-foreground">{context}</div>}
           <TextArea
             id={fieldId}
-            label={t(`reasonDialog.${kind}.reasonLabel`, kind === 'reject' ? 'Reason for rejecting' : 'Reason for returning')}
-            helper={t(`reasonDialog.${kind}.reasonHelp`, kind === 'reject' ? 'The person who submitted it sees this.' : 'The person who gets it back sees this.')}
+            label={words.label}
+            helper={words.help}
             required
             fullWidth
             rows={3}

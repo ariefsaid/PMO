@@ -4377,21 +4377,6 @@
       "project_stage_entry_add": "Skipped stage added"
     }
   },
-  "reasonDialog": {
-    "return": {
-      "title": "Return {{subject}}",
-      "confirm": "Return",
-      "reasonLabel": "Reason for returning",
-      "reasonHelp": "The person who gets it back sees this."
-    },
-    "reject": {
-      "title": "Reject {{subject}}",
-      "confirm": "Reject",
-      "reasonLabel": "Reason for rejecting",
-      "reasonHelp": "The person who submitted it sees this."
-    },
-    "reasonRequired": "Enter a reason."
-  },
   "entityForm": {
     "close": "Close",
     "cancel": "Cancel",

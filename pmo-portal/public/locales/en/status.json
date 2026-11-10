@@ -196,5 +196,20 @@
   "age": {
     "overdue_one": "{{n}} day overdue",
     "overdue_other": "{{n}} days overdue"
+  },
+  "reasonDialog": {
+    "returnTitle": "Return {{subject}}",
+    "returnConfirm": "Return",
+    "returnReasonLabel": "Reason for returning",
+    "returnReasonHelp": "The person who gets it back sees this.",
+    "rejectTitle": "Reject {{subject}}",
+    "rejectConfirm": "Reject",
+    "rejectReasonLabel": "Reason for rejecting",
+    "rejectReasonHelp": "The person who submitted it sees this.",
+    "reasonRequired": "Enter a reason."
+  },
+  "figures": {
+    "hidden_one": "{{count}} figure hidden: {{reason}}",
+    "hidden_other": "{{count}} figures hidden: {{reason}}"
   }
 }

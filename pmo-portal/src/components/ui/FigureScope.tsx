@@ -35,7 +35,7 @@ export const FigureScope: React.FC<{ children: React.ReactNode }> = ({ children 
 
 /** "3 figures hidden: accounting is not connected · Set up". Renders nothing when every figure has a value. */
 export const FigureHiddenLine: React.FC<{ className?: string }> = ({ className }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('status');
   const scope = useFigureScope();
   const hidden = scope?.hidden ?? [];
   if (hidden.length === 0) return null;
