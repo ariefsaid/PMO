@@ -238,3 +238,20 @@ All 15 names exist and return to the Billing/Readonly/Accountant bot; none needs
 | `move_name` | **Differs for a never-posted draft: `false`.** `parse` returns null on that, so a never-posted draft line is skipped (harmless for actuals), but a repost-after-draft is still seen because the name is kept once posted. No change needed; note it in the comment. |
 | `analytic_distribution` | Verified; `false` when empty. **Keys can be multi-plan `"157,159"` and percentages 50 or 150**; `distribution()` accepts these, `fanOutLine` must split on `,` (FR-ODA-003). |
 | Missing | `display_type` and `account_type` are readable and not in the list; not needed if S2 maps by account code, but `display_type` separates payable/tax counterpart lines from product lines if the account map cannot. |
+
+## 12. Fleet and maintenance field check
+
+Run: `scripts/with-odoo-lock.sh node scripts/odoo-probe.mjs --equipment` (2026-11-10), on the retained stock Community bed. Results distinguish field metadata and actual writes; absence of a usable prerequisite is inconclusive, not a failed behavioral claim.
+
+| Claim | Verdict | Evidence |
+|---|---|---|
+| V-OFM-1 | Differs | Listed fields exist, but a vehicle without a model was accepted. |
+| V-OFM-2 | Differs | Listed fields exist; metadata also exposes a company field. |
+| V-OFM-3 | Differs | Name-only creation succeeds, but the claimed location field is absent. |
+| V-OFM-4 | Differs | The requested create succeeds; request date and archive fields are absent and active exists. |
+| V-OFM-5 | Differs; stage behavior inconclusive | An ordinary stage update succeeded, but the claimed done field is absent and no done stage could be selected for the close transition. |
+| V-OFM-6 | Wrong | The claimed date field is absent; the requested service-log create was refused, while the same create without date succeeded. Service type is required in metadata. |
+| V-OFM-7 | Verified | Creating and updating a service log without the unsupported date field left the account-move count unchanged. |
+| V-OFM-8 | Verified | All listed fields exist. |
+| V-OFM-9 | Verified | The access checks for the requested operations returned true. |
+| V-OFM-10 | Verified | The external identifier was found after editing and archiving its equipment. |

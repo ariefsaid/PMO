@@ -46,6 +46,95 @@ async function attachExternalId(model, resId) {
   return item
 }
 
+// Fleet and maintenance claims. Output contains only HTTP status, shape and verdicts.
+if (process.argv.includes('--equipment')) {
+  const fields = [
+    ['V-OFM-1', 'fleet.vehicle', 'name license_plate vin_sn model_id driver_id odometer odometer_unit acquisition_date company_id active write_date'],
+    ['V-OFM-2', 'fleet.vehicle.model', 'name brand_id write_date'],
+    ['V-OFM-3', 'maintenance.equipment', 'name serial_no category_id model location company_id active write_date'],
+    ['V-OFM-4', 'maintenance.request', 'name equipment_id maintenance_type stage_id request_date schedule_date close_date duration priority description company_id archive write_date'],
+    ['V-OFM-5', 'maintenance.stage', 'name sequence done write_date'],
+    ['V-OFM-6', 'fleet.vehicle.log.services', 'vehicle_id service_type_id date state amount odometer vendor_id description notes company_id active write_date'],
+    ['V-OFM-8', 'fleet.service.type', 'name category write_date'],
+  ]
+  const metadata = new Map()
+  for (const [claim, model, names] of fields) {
+    const r = await call(model, 'fields_get', { attributes: ['type', 'required', 'selection'] })
+    metadata.set(model, r.json)
+    const missing = names.split(' ').filter((name) => !(name in (r.json || {})))
+    // Output names are part of the claim, not response values.
+    record(claim, `${model}/fields_get`, { status: r.status, json: missing }, r.status === 200 && !missing.length ? 'verified-fields' : 'differs')
+  }
+  const metaChecks = [
+    ['V-OFM-1 model required', metadata.get('fleet.vehicle')?.model_id?.required === true],
+    ['V-OFM-2 no company field', !metadata.get('fleet.vehicle.model')?.company_id],
+    ['V-OFM-3 name required', metadata.get('maintenance.equipment')?.name?.required === true],
+    ['V-OFM-4 archive instead of active', !metadata.get('maintenance.request')?.active && Boolean(metadata.get('maintenance.request')?.archive)],
+    ['V-OFM-6 service type required', metadata.get('fleet.vehicle.log.services')?.service_type_id?.required === true],
+  ]
+  for (const [claim, ok] of metaChecks) record(claim, 'fields_get', { status: 200, json: null }, ok ? 'verified' : 'differs')
+  const name = `pmo_probe_${Date.now()}`
+  const created = []
+  const make = async (model, vals) => {
+    const r = await call(model, 'create', { vals_list: [vals] })
+    const id = r.status === 200 && Array.isArray(r.json) ? r.json[0] : null
+    if (id) created.push([model, id])
+    return { r, id }
+  }
+  const one = async (model, domain = []) => (await call(model, 'search_read', { domain, fields: ['id'], limit: 1 })).json?.[0]?.id
+  try {
+    const company = await one('res.company')
+    const brand = await make('fleet.vehicle.model.brand', { name })
+    const model = await make('fleet.vehicle.model', { name, brand_id: brand.id })
+    const missingModel = await call('fleet.vehicle', 'create', { vals_list: [{ license_plate: `${name}_without_model` }] })
+    record('V-OFM-1 model required', 'fleet.vehicle/create', missingModel, missingModel.status >= 400 ? 'verified' : 'wrong')
+    if (missingModel.status === 200 && missingModel.json?.[0]) created.push(['fleet.vehicle', missingModel.json[0]])
+    const vehicle = await make('fleet.vehicle', { model_id: model.id, license_plate: name, company_id: company })
+    const equipment = await make('maintenance.equipment', { name })
+    record('V-OFM-3 name-only create', 'maintenance.equipment/create', equipment.r, equipment.id ? 'verified' : 'wrong')
+    const location = await call('maintenance.equipment', 'write', { ids: [equipment.id], vals: { location: name } })
+    record('V-OFM-3 location write', 'maintenance.equipment/write', location, location.status === 200 ? 'verified' : 'wrong')
+    const stage = await one('maintenance.stage', [['done', '=', true]]) || (await make('maintenance.stage', { name, done: true })).id
+    const ordinaryStage = await one('maintenance.stage')
+    const request = await make('maintenance.request', { name, equipment_id: equipment.id, maintenance_type: 'corrective', ...(ordinaryStage ? { stage_id: ordinaryStage } : {}), schedule_date: '2026-11-10 01:00:00', duration: 2.5, description: '<p>synthetic</p>', company_id: company })
+    record('V-OFM-4 request create', 'maintenance.request/create', request.r, request.id ? 'verified' : 'wrong')
+    const before = request.id && await call('maintenance.request', 'read', { ids: [request.id], fields: ['close_date', 'write_date', 'maintenance_team_id'] })
+    const requestEdit = await call('maintenance.request', 'write', { ids: [request.id], vals: { duration: 3, description: '<p>updated</p>' } })
+    record('V-OFM-4 request update', 'maintenance.request/write', requestEdit, requestEdit.status === 200 ? 'verified' : 'wrong')
+    if (ordinaryStage && request.id) {
+      const ordinaryMove = await call('maintenance.request', 'write', { ids: [request.id], vals: { stage_id: ordinaryStage, duration: 3 } })
+      record('V-OFM-5 stage update', 'maintenance.request/write', ordinaryMove, ordinaryMove.status === 200 ? 'verified' : 'wrong')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    const update = request.id && stage ? await call('maintenance.request', 'write', { ids: [request.id], vals: { stage_id: stage, duration: 3 } }) : { status: 0, json: null }
+    const after = request.id && await call('maintenance.request', 'read', { ids: [request.id], fields: ['close_date', 'write_date', 'maintenance_team_id'] })
+    record('V-OFM-5 stage move', 'maintenance.request/write+read', update, !stage ? 'inconclusive' : update.status === 200 && after?.json?.[0]?.close_date && after.json[0].write_date > before?.json?.[0]?.write_date ? 'verified' : 'differs')
+    const serviceType = await make('fleet.service.type', { name, category: 'service' })
+    const countBefore = await call('account.move', 'search_count', { domain: [] })
+    const service = await make('fleet.vehicle.log.services', { vehicle_id: vehicle.id, service_type_id: serviceType.id, date: '2026-11-10', state: 'done', amount: 100, odometer: 10, notes: name, company_id: company })
+    record('V-OFM-6 service create', 'fleet.vehicle.log.services/create', service.r, service.id ? 'verified' : 'wrong')
+    const acceptedService = service.id ? service : await make('fleet.vehicle.log.services', { vehicle_id: vehicle.id, service_type_id: serviceType.id, state: 'done', amount: 100, odometer: 10, notes: name, company_id: company })
+    record('V-OFM-6 service without date', 'fleet.vehicle.log.services/create', acceptedService.r, acceptedService.id ? 'verified' : 'wrong')
+    const edit = acceptedService.id ? await call('fleet.vehicle.log.services', 'write', { ids: [acceptedService.id], vals: { amount: 200 } }) : { status: 0, json: null }
+    const countAfter = await call('account.move', 'search_count', { domain: [] })
+    record('V-OFM-7 service accounting', 'account.move/search_count', countAfter, !acceptedService.id ? 'inconclusive' : edit.status === 200 && countBefore.status === 200 && countBefore.json === countAfter.json ? 'verified' : 'differs')
+    for (const modelName of ['fleet.vehicle', 'maintenance.equipment', 'maintenance.request', 'fleet.vehicle.log.services', 'ir.model.data']) {
+      for (const operation of modelName === 'ir.model.data' ? ['create'] : ['read', 'create', 'write']) {
+        const access = await call(modelName, 'has_access', { operation })
+        record('V-OFM-9', `${modelName}/has_access ${operation}`, access, access.status === 200 && access.json === true ? 'verified' : 'wrong')
+      }
+    }
+    const anchor = equipment.id && await make('ir.model.data', { module: 'pmo', name, model: 'maintenance.equipment', res_id: equipment.id })
+    const editEquipment = equipment.id && await call('maintenance.equipment', 'write', { ids: [equipment.id], vals: { model: name, active: false } })
+    const found = await call('ir.model.data', 'search_read', { domain: [['module', '=', 'pmo'], ['name', '=', name]], fields: ['model', 'res_id'] })
+    record('V-OFM-10 anchor survives edit and archive', 'ir.model.data/create+search_read', found, anchor?.id && editEquipment?.status === 200 && found.json?.[0]?.res_id === equipment.id ? 'verified' : 'wrong')
+  } finally {
+    for (const [model, id] of created.reverse()) await call(model, 'unlink', { ids: [id] })
+  }
+  for (const result of results) console.log(JSON.stringify(result))
+  process.exit(0)
+}
+
 // ---- O3 revenue claims (V-OCI1..15, plan C0): node scripts/odoo-probe.mjs --revenue ----
 // Synthetic Indonesian-chart company only; prints statuses, shapes, numbers and field names, never keys/hosts/db names.
 if (process.argv.includes('--revenue')) {
