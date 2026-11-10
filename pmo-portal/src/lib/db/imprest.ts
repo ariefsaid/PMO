@@ -45,6 +45,17 @@ export async function getPosition(floatId: string): Promise<ImprestPosition | nu
   fail(error);
   return data?.[0] ?? null;
 }
+/**
+ * Every requested float's position in ONE read (#2106, AC-PERF-2106-1). Migration 0830: the batched twin of
+ * `get_imprest_position`, SECURITY INVOKER on the same rows, one row per visible float in request order (ids the
+ * caller may not see are simply absent). The 200-id bound is the list's own LIST_LIMIT, mirrored server-side.
+ */
+export async function getPositions(floatIds: readonly string[]): Promise<ImprestPosition[]> {
+  if (floatIds.length === 0) return [];
+  const { data, error } = await supabase.rpc('get_imprest_positions', { p_float_ids: [...floatIds] });
+  fail(error);
+  return data ?? [];
+}
 export async function getPlanUsage(floatId: string, month: string): Promise<ImprestPlanUsageRow[]> {
   const { data, error } = await supabase.rpc('get_imprest_plan_usage', { p_float: floatId, p_month: month });
   fail(error);

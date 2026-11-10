@@ -5,6 +5,8 @@ export interface ImprestRepository {
   listFloats: typeof dal.listFloats;
   getFloat: typeof dal.getFloat;
   getPosition: typeof dal.getPosition;
+  /** Every requested float's position in ONE read (#2106). */
+  getPositions: typeof dal.getPositions;
   getPlanUsage: typeof dal.getPlanUsage;
   floatChoices: typeof dal.floatChoices;
   listPlans: typeof dal.listPlans;

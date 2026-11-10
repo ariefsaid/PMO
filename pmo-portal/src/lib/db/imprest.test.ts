@@ -141,6 +141,22 @@ describe('AC-IMP-080 reads', () => {
   });
 });
 
+describe('AC-PERF-2106-1 the batched position read', () => {
+  it('AC-PERF-2106-1 getPositions asks for every float id in ONE RPC, in the order given', async () => {
+    h.result.value = { data: [{ float_id: 'f1' }, { float_id: 'f2' }], error: null };
+    await expect(dal.getPositions(['f1', 'f2'])).resolves.toHaveLength(2);
+    expect(h.calls.rpc).toEqual([['get_imprest_positions', { p_float_ids: ['f1', 'f2'] }]]);
+  });
+  it('AC-PERF-2106-1 getPositions sends no request at all for an empty list', async () => {
+    await expect(dal.getPositions([])).resolves.toEqual([]);
+    expect(h.calls.rpc).toEqual([]);
+  });
+  it('AC-PERF-2106-1 getPositions surfaces a read error instead of an empty position set', async () => {
+    h.result.value = { data: null, error: { message: 'nope', code: '42501' } };
+    await expect(dal.getPositions(['f1'])).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
 describe('AC-IMP-084 form reads and the claim-to-float link', () => {
   it('AC-IMP-084 listFloatClaims reads the float\'s claims bounded at 200 + 1', async () => {
     h.result.value = { data: Array.from({ length: 201 }, (_, i) => ({ id: String(i) })), error: null };

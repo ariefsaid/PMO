@@ -332,9 +332,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // soft-archive). 'listByMeeting' added deliberately with #526 (the /action seam, migration
       // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
       // (My Tasks projection). 'listDueRows' added with #1741 (one batched read for the PM dashboard
-      // overdue count). This list is an exhaustive API-seam contract (ADR-0017) — extending
+      // overdue count). 'listByIds' added with #2106 (the minutes' action items in one read instead of
+      // one per block). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
