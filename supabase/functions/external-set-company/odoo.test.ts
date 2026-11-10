@@ -469,6 +469,11 @@ describe('external-set-company — Odoo refresh and reset-kind (FR-ODC-047, FR-O
     assertEquals(rpcCall(r.calls, 'reset_odoo_sync_kind')[0].bodyJson, { p_org_id: 'org-1', p_kind: 'product', p_actor_id: 'user-1' });
   });
 
+  it('AC-OFM-011 an Admin may reset an asset kind', async () => {
+    const r = await run([{ setupAction: 'reset-kind', kind: 'vehicle' }], { role: 'Admin' });
+    assertEquals([r.out[0].status, r.out[0].json], [200, { reset: 'vehicle' }]);
+  });
+
   it('FR-ODC-048 a reset while the sync runs → 409, nothing reset, the running sync\'s lock untouched', async () => {
     const routes = sweepRoutes().filter((r) => !String(r.label ?? '').includes('claim_erp_sweep_lock'));
     const r = await run([{ setupAction: 'reset-kind', kind: 'product' }], { role: 'Admin', extra: [supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(false)), ...routes] });

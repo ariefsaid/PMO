@@ -10,6 +10,30 @@ import { base, m2o, m2oName, str, withAttrs, type KindSpec } from '../kinds.ts';
 export const ASSET_KINDS = ['vehicle_model', 'vehicle', 'equipment', 'maintenance_stage', 'maintenance_request', 'service_type', 'vehicle_service'] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
+/** The PMO domain the register and its maintenance write through (D5). */
+export const EQUIPMENT_DOMAIN = 'equipment';
+
+/**
+ * The command kinds a register or maintenance write names (`record.erp_doc_kind`) and the domain each belongs to — the dispatch's
+ * kind→domain check reads this beside `KIND_DOMAIN` (D5/D7). Register kinds are narrowed to Admin and Project Manager in
+ * `adapter-dispatch/odooEquipment.ts`; the role map is the maintenance one (D7).
+ */
+export const EQUIPMENT_KIND_DOMAIN = {
+  'register-vehicle': EQUIPMENT_DOMAIN,
+  'register-equipment': EQUIPMENT_DOMAIN,
+  'maintenance-request': EQUIPMENT_DOMAIN,
+  'vehicle-service': EQUIPMENT_DOMAIN,
+} as const;
+export type EquipmentCommandKind = keyof typeof EQUIPMENT_KIND_DOMAIN;
+
+/** The mirror kind a command's Odoo record lands under (`external_master_records.kind`). */
+export const EQUIPMENT_MIRROR_KIND: Record<EquipmentCommandKind, AssetKind> = {
+  'register-vehicle': 'vehicle',
+  'register-equipment': 'equipment',
+  'maintenance-request': 'maintenance_request',
+  'vehicle-service': 'vehicle_service',
+};
+
 const num = (v: unknown): number | null => (typeof v === 'number' ? v : null);
 
 /** Odoo's editor html to plain text. `ponytail:` five entities only; the editor emits no others. */

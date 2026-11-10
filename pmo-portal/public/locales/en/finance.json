@@ -717,8 +717,6 @@
     "odooDraftNumber": "Draft — Odoo assigns the number on approval",
     "erpLineItemsStoredExternally": "Line items are kept in the accounting system for this invoice.",
     "paymentsReceivedFromClientsMirroredFromOdoo": "Payments received from clients, mirrored from Odoo.",
-    "versionActivatedPushQueued": "Version activated: the ERPNext budget is queued",
-    "cancellationPendingQueuedDetail": "{{version}}. An earlier ERPNext budget cancellation is still settling, so the replacement is queued and will be pushed automatically once it settles.",
     "withholdingArticle": "Withholding article",
     "withholdingArticleNone": "Not stated",
     "withholdingArticlePph23": "PPh 23",

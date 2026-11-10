@@ -2,7 +2,8 @@
  * "Refresh now" (FR-ODC-047: Admin/Finance, once per minute per org) and "resync one kind from scratch" (FR-ODC-048:
  * Admin/Operator, enforced again inside reset_odoo_sync_kind, audited there). Both act on the caller's own org only.
  */
-import { DIRECTORY_KINDS, type DirectoryKind } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
+import { DIRECTORY_KINDS } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
+import { ASSET_KINDS } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { sweepOdooOrg } from '../../_shared/odooSweep.ts';
 import { checkRequestRate } from '../../_shared/requestRateGuard.ts';
 import { odooError, type OdooCtx } from './router.ts';
@@ -21,7 +22,7 @@ export async function refresh(c: OdooCtx): Promise<Response> {
 
 export async function resetKind(c: OdooCtx): Promise<Response> {
   const kind = c.body.kind;
-  if (typeof kind !== 'string' || !DIRECTORY_KINDS.includes(kind as DirectoryKind)) return odooError(c, 'Unknown kind', 'BAD_REQUEST', 400);
+  if (typeof kind !== 'string' || ![...DIRECTORY_KINDS, ...ASSET_KINDS].includes(kind as never)) return odooError(c, 'Unknown kind', 'BAD_REQUEST', 400);
   // Held around the delete: a sweep mid-kind would otherwise write the old cursor straight back with its next page.
   const holder = crypto.randomUUID();
   const { data: claimed, error: claimError } = await c.sc.rpc('claim_erp_sweep_lock', { p_org_id: c.orgId, p_holder: holder, p_ttl: '1 minute' });
