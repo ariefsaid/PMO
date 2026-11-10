@@ -78,7 +78,7 @@ export interface KPITileProps {
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: a single truncated line. */
 const Caption: React.FC<{ children: string }> = ({ children }) => (
-  <div title={children} className="truncate text-[12px] text-muted-foreground">{children}</div>
+  <div className="break-words text-control text-muted-foreground">{children}</div>
 );
 
 const KPIRowContext = React.createContext(false);
@@ -158,7 +158,7 @@ export function KPITile({
       >
         <Icon name={icon} />
       </span>}
-      <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
+      <span className="break-words text-control font-medium text-foreground">{label}</span>
       {/* Legacy: outside a FigureScope the help stays a per-tile "?" until the page adopts the scope. */}
       {help && !inScope && (
         <Tooltip content={help} title={helpLabel}>
@@ -191,7 +191,7 @@ export function KPITile({
           ) : error ? null : (
             <div
               className={cn(
-                'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+                'min-w-0 break-words text-metric font-bold leading-none tracking-[-0.02em] tabular',
                 negative && 'text-destructive'
               )}
             >
@@ -213,7 +213,7 @@ export function KPITile({
       ) : error ? null : (
         <div
           className={cn(
-            'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+            'min-w-0 break-words text-metric font-bold leading-none tracking-[-0.02em] tabular',
             negative && 'text-destructive'
           )}
         >

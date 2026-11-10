@@ -136,7 +136,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
               isLastOdd && cn('col-span-2', spanReset),
             )}
           >
-            <div className="mb-1 text-control text-muted-foreground">{t.label}</div>
+            <div className="mb-1 text-control font-medium text-foreground">{t.label}</div>
             <div
               className={cn(
                 'min-w-0 break-words text-metric font-semibold tabular',
@@ -151,7 +151,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             >
               <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
             </div>
-            {t.sub && <div className="mt-0.5 truncate text-support text-muted-foreground">{t.sub}</div>}
+            {t.sub && <div className="mt-0.5 break-words text-control text-muted-foreground">{t.sub}</div>}
           </div>
         );
       })}

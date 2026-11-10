@@ -228,7 +228,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   return (
     <div className={cn('flex flex-col', formControl ? 'gap-2' : 'gap-1.5', className)}>
-      <span id={labelId} className={cn('font-semibold text-foreground', formControl ? 'text-control' : 'text-[12px] leading-[1.3]')}>
+      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">
@@ -280,21 +280,21 @@ export const Combobox: React.FC<ComboboxProps> = ({
             className={cn(
               'flex w-full items-center gap-2 rounded-md border text-foreground',
               formControl
-                ? 'h-[var(--control-height)] bg-card px-3 text-control [@media(pointer:coarse)]:h-11'
-                : 'h-8 bg-background px-[10px] text-[13.5px]',
+                ? 'h-auto min-h-[var(--control-height)] bg-card px-3 py-1 text-control [@media(pointer:coarse)]:min-h-11'
+                : 'h-auto min-h-8 bg-background px-[10px] py-1 text-control',
               'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
               error ? 'border-destructive' : 'border-border hover:border-input',
             )}
           >
             {selected ? (
-              <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <span className="flex min-w-0 flex-1 items-start gap-2 text-left">
                 {selected.initials && <Avatar name={selected.label} initials={selected.initials} size="xs" decorative />}
-                <span className="truncate">{selected.label}</span>
+                <span className="break-words">{selected.label}</span>
               </span>
             ) : (
-              <span className="flex-1 text-left text-muted-foreground">{placeholder}</span>
+              <span className="flex-1 break-words text-left text-muted-foreground">{placeholder}</span>
             )}
-            {/* Reserves the clear button's 24px slot left of the chevron so the label truncates
+            {/* Reserves the clear button's 24px slot left of the chevron so the label wraps
                 before it instead of running under it (the button is absolutely positioned). */}
             {clearable && value && <span aria-hidden="true" className="w-6 shrink-0" />}
             <Icon name="chev" className="size-[15px] shrink-0 rotate-90 text-muted-foreground" />
@@ -339,7 +339,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       ss.onLoadMore?.();
                     }
                   }}
-                  className="w-full border-0 bg-transparent text-[13.5px] text-foreground outline-none placeholder:text-muted-foreground"
+                  className="w-full border-0 bg-transparent text-control text-foreground outline-none placeholder:text-muted-foreground"
                 />
               </div>
 
@@ -353,7 +353,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
               )}
 
               {state === 'error' && (
-                <div className="px-3 py-3.5 text-center text-[12.5px]" style={{ color: 'hsl(0 72% 45%)' }}>
+                <div className="px-3 py-3.5 text-center text-control" style={{ color: 'hsl(0 72% 45%)' }}>
                   {t('combobox.error.title', { defaultValue: "Couldn't load {{noun}}s.", noun })}
                   <button
                     type="button"
@@ -368,7 +368,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
               {state === 'ready' && (
                 <>
-                  <BaseCombobox.Empty className="px-3 py-3.5 text-center text-[12.5px] text-muted-foreground empty:hidden">
+                  <BaseCombobox.Empty className="px-3 py-3.5 text-center text-control text-muted-foreground empty:hidden">
                     {query
                       ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
                       : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun })}
@@ -382,8 +382,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
                         key={opt.value}
                         value={opt}
                         className={cn(
-                          'flex cursor-pointer gap-2 rounded-sm px-2 text-[13.5px] data-[selected]:bg-primary/[0.07] data-[highlighted]:bg-accent data-[highlighted]:data-[selected]:bg-primary/[0.07]',
-                          opt.badges?.length || opt.wrapLabel ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
+                          'flex cursor-pointer gap-2 rounded-sm px-2 text-control data-[selected]:bg-primary/[0.07] data-[highlighted]:bg-accent data-[highlighted]:data-[selected]:bg-primary/[0.07]',
+                          'min-h-[34px] items-start py-1.5',
                         )}
                       >
                         {opt.initials && <Avatar name={opt.label} initials={opt.initials} size="xs" decorative />}
@@ -391,31 +391,31 @@ export const Combobox: React.FC<ComboboxProps> = ({
                           <div className="min-w-0 flex-1">
                             <span className="block whitespace-normal break-words">{opt.label}</span>
                             {opt.sub && (
-                              <span title={opt.sub} className="mt-1 block whitespace-normal break-words text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                              <span title={opt.sub} className="mt-1 block whitespace-normal break-words text-control text-muted-foreground">{opt.sub}</span>
                             )}
                           </div>
                         ) : opt.badges?.length ? (
                           <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                              <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+                              <span className="min-w-0 flex-1 break-words">{opt.label}</span>
                               {opt.badges.map((badge) => (
                                 <span
                                   key={badge}
-                                  className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-1.5 py-0.5 text-[10.5px] font-medium leading-none text-warning-foreground"
+                                  className="max-w-full break-words rounded-full bg-warning/10 px-1.5 py-0.5 text-control font-medium leading-snug text-warning-foreground"
                                 >
                                   {badge}
                                 </span>
                               ))}
                             </div>
                             {opt.sub && (
-                              <span title={opt.sub} className="mt-1 block min-w-0 truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                              <span title={opt.sub} className="mt-1 block min-w-0 break-words text-control text-muted-foreground">{opt.sub}</span>
                             )}
                           </div>
                         ) : (
                           <>
-                            <span className="min-w-0 truncate">{opt.label}</span>
+                            <span className="min-w-0 break-words">{opt.label}</span>
                             {opt.sub && (
-                              <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                              <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] break-words text-control text-muted-foreground">{opt.sub}</span>
                             )}
                           </>
                         )}
@@ -426,7 +426,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                     )}
                   </BaseCombobox.List>
                   {hiddenCount > 0 && (
-                    <div className="border-t border-border px-3 py-2 text-[12.5px] text-muted-foreground">
+                    <div className="border-t border-border px-3 py-2 text-control text-muted-foreground">
                       {t('combobox.moreHidden', {
                         defaultValue: 'Type to narrow ({{count}} more)',
                         count: hiddenCount,
@@ -437,7 +437,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
               )}
 
               {state === 'ready' && ss?.hasMore && ss.onLoadMore && (
-                <button type="button" onClick={ss.onLoadMore} className="w-full border-t border-border px-3 py-2 text-[12.5px] font-semibold text-primary hover:bg-accent">
+                <button type="button" onClick={ss.onLoadMore} className="w-full border-t border-border px-3 py-2 text-control font-semibold text-primary hover:bg-accent">
                   {ss.moreLabel ?? 'Show more'}
                 </button>
               )}

@@ -44,9 +44,9 @@ export const HoursBar: React.FC<HoursBarProps> = ({
     <div className="flex items-center gap-2.5 py-[5px]">
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5 min-w-0">
-          <span className="truncate text-[13px] font-semibold min-w-0">{label}</span>
+          <span className="min-w-0 break-words text-control font-semibold">{label}</span>
           {code && (
-            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{code}</span>
+            <span className="shrink-0 break-words font-mono text-control text-muted-foreground">{code}</span>
           )}
         </div>
         <span
@@ -63,7 +63,7 @@ export const HoursBar: React.FC<HoursBarProps> = ({
           />
         </span>
       </div>
-      <span className="w-auto min-w-10 shrink-0 text-right text-[12px] font-semibold tabular text-foreground">
+      <span className="w-auto min-w-10 shrink-0 text-right text-control font-semibold tabular text-foreground">
         {display}
       </span>
     </div>

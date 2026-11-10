@@ -17,7 +17,7 @@ export interface SectionHeaderProps {
  */
 export const SectionHeader: React.FC<SectionHeaderProps> = ({ title, action, className }) => (
   <div className={cn('mb-[var(--space-group)] flex flex-wrap items-center justify-between gap-[var(--space-group)]', className)}>
-    <h2 className="text-[16px] font-semibold">{title}</h2>
+    <h2 className="text-group font-semibold">{title}</h2>
     {action}
   </div>
 );

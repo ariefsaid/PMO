@@ -8,10 +8,10 @@ import { cn } from './cn';
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg';
 
 const sizeClasses: Record<AvatarSize, string> = {
-  xs: 'size-5 text-[10px]',
-  sm: 'size-6 text-[11px]',
-  md: 'size-[30px] text-[11px]',
-  lg: 'size-9 text-[12px]',
+  xs: 'size-5 text-control',
+  sm: 'size-6 text-control',
+  md: 'size-[30px] text-control',
+  lg: 'size-9 text-control',
 };
 
 export interface AvatarProps {

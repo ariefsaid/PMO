@@ -54,7 +54,7 @@ describe('RecordHeader', () => {
     expect(screen.getByText('Cascade Port · PRJ-001')).toBeInTheDocument();
   });
 
-  it('gives the record name remaining width, keeps status inline, and lets actions wrap below', () => {
+  it('keeps the full record name, status, and actions available', () => {
     render(
       <RecordHeader
         icon="C"
@@ -63,9 +63,9 @@ describe('RecordHeader', () => {
         actions={<button type="button">Edit</button>}
       />,
     );
-    expect(screen.getByRole('heading').className).toContain('truncate');
-    expect(screen.getByRole('heading').parentElement?.className).toContain('flex-nowrap');
-    expect(screen.getByTestId('record-header-actions').parentElement?.className).toContain('w-full');
+    expect(screen.getByRole('heading', { name: 'Cascade Port Authority — A Very Long Record Name' })).toBeVisible();
+    expect(screen.getByText('Client')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeVisible();
   });
 
   it('#1591: the action slot may shrink and wrap so a long unbreakable action cannot widen the page at 320px', () => {

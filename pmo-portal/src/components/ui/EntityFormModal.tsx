@@ -317,12 +317,12 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                           {visibleSaveError.headline}
                         </div>
                         {visibleSaveError.detail && (
-                          <p className="text-support text-muted-foreground">{visibleSaveError.detail}</p>
+                          <p className="text-control text-muted-foreground">{visibleSaveError.detail}</p>
                         )}
                         {visibleSaveError.action && (
-                          <p className="text-support">{visibleSaveError.action}</p>
+                          <p className="text-control">{visibleSaveError.action}</p>
                         )}
-                        <p className="text-support text-muted-foreground">
+                        <p className="text-control text-muted-foreground">
                           {t('entityForm.nothingSaved', 'Nothing was saved: your entries are still here.')}
                         </p>
                       </div>
@@ -348,7 +348,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                               e.preventDefault();
                               document.getElementById(item.fieldId)?.focus();
                             }}
-                            className="block min-h-6 py-1 text-support text-destructive-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-6 [@media(pointer:coarse)]:min-h-11"
+                            className="block min-h-6 py-1 text-control text-destructive-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-6 [@media(pointer:coarse)]:min-h-11"
                           >
                             {item.message}
                           </a>

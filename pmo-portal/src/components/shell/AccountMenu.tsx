@@ -65,7 +65,7 @@ export const AccountMenu: React.FC = () => {
     rowBase,
     'text-foreground data-[highlighted]:bg-accent data-[checked]:bg-primary/10 data-[checked]:font-medium data-[checked]:text-nav-active-text',
   );
-  const groupLabelClass = 'px-2.5 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground';
+  const groupLabelClass = 'px-2.5 pt-1 pb-0.5 text-control font-medium text-muted-foreground';
   const sep = <Menu.Separator className={menuSeparatorClass} />;
   const textSizeLabel = (size: TextSize) =>
     size === 'default' ? t('profilePreferences:textSize.default', 'Default') : size === 'large' ? t('profilePreferences:textSize.large', 'Large') : t('profilePreferences:textSize.larger', 'Larger');
@@ -75,12 +75,12 @@ export const AccountMenu: React.FC = () => {
       <Menu.Root>
         <Menu.Trigger
           aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
-          className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card pl-1.5 pr-2.5 hover:bg-accent"
+          className="touch-target inline-flex h-auto min-h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card py-1 pl-1.5 pr-2.5 hover:bg-accent"
         >
           <Avatar name={currentUser?.full_name} decorative fallback="U" />
           <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
-            <span className="block max-w-full truncate text-[13px] font-semibold">{currentUser?.full_name}</span>
-            <span className="text-[11px] leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
+            <span className="block max-w-full break-words text-control font-semibold">{currentUser?.full_name}</span>
+            <span className="break-words text-control leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
           </span>
           <Icon name="chev" className="hidden rotate-90 text-muted-foreground sm:block [&_svg]:size-3.5" />
         </Menu.Trigger>
@@ -95,8 +95,8 @@ export const AccountMenu: React.FC = () => {
               <div className="flex items-center gap-2.5 px-2.5 py-2">
                 <Avatar name={currentUser?.full_name} size="md" decorative />
                 <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-semibold leading-tight">{currentUser?.full_name}</span>
-                  <span className="block text-[11px] leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
+                  <span className="block break-words text-control font-semibold leading-tight">{currentUser?.full_name}</span>
+                  <span className="block break-words text-control leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
                 </span>
               </div>
 
