@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next';
 import { Button, Card, Icon } from '@/src/components/ui';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { useFeature } from '@/src/auth/useFeature';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import {
   initiateM365Connect,
   keepsFolderPermission,
@@ -147,8 +147,8 @@ function DisconnectErrorAlert({ headline, body }: { headline: string; body: stri
     >
       <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" aria-hidden="true" />
       <div className="min-w-0">
-        <div className="text-[13px] font-semibold text-destructive-text">{headline}</div>
-        <p className="text-[12.5px] text-muted-foreground">{body}</p>
+        <div className="text-control font-semibold text-destructive-text">{headline}</div>
+        <p className="text-control text-muted-foreground">{body}</p>
       </div>
     </div>
   );
@@ -362,7 +362,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
       <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
         <div className="flex items-center gap-2">
           <Icon name="plug" />
-          <h2 className="text-[15px] font-semibold text-foreground">
+          <h2 className="text-group font-semibold text-foreground">
             {t('integrations.personalM365.heading', 'Microsoft 365')}
           </h2>
         </div>
@@ -388,7 +388,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
     <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
       <div className="flex items-center gap-2">
         <Icon name="plug" />
-        <h2 className="text-[15px] text-foreground font-semibold">
+        <h2 className="text-group text-foreground font-semibold">
           {t('integrations.personalM365.heading', 'Microsoft 365')}
         </h2>
       </div>
@@ -403,7 +403,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
             {connectedAt
               ? t('integrations.personalM365.state.connectedSince', {
                   defaultValue: 'Connected since {{date}}. You can disconnect any time.',
-                  date: formatInstantDate(connectedAt),
+                  date: formatDay(connectedAt),
                 })
               : t('integrations.personalM365.state.connected', 'Connected. You can disconnect any time.')}
           </span>

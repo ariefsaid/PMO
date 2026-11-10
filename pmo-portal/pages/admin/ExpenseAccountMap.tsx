@@ -131,24 +131,24 @@ const ExpenseAccountMap: React.FC = () => {
 
   return (
     <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <h2 className="text-group font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
+      <p className="mt-1 text-control text-muted-foreground">
         {t(
           'admin.expenseMap.description',
-          'The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.',
+          'ERPNext accounts that approved claims and advances post to. A posting with an unmapped account stops and is reported.',
         )}
       </p>
       {/* S-12 (UX-080/RF-053): one gate banner per readiness state, each naming its own missing step.
           The map stays readable in every state; only mapping actions wait for readiness. */}
       {readiness.state === 'notConnected' && (
         <GateNotice variant="blocked" className="mt-3">
-          <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts. Expense posting is not active.')}</p>
+          <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts.')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
       {readiness.state === 'inactive' && (
         <GateNotice variant="blocked" className="mt-3">
-          <p>{t('uxs12.expensePosting.adminInactive', 'ERPNext is connected, but expense posting is not switched on yet. An Admin can switch it on in Integrations under ERPNext setup.')}</p>
+          <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is not switched on yet. Switch it on in Integrations, under ERPNext setup.')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
@@ -159,8 +159,8 @@ const ExpenseAccountMap: React.FC = () => {
         </GateNotice>
       )}
       {isReady && unmappedCount > 0 && (
-        <p role="status" className="mt-3 text-[13px] text-muted-foreground">
-          {t('uxs12.expensePosting.mapIncomplete', '{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.', { count: unmappedCount, total: EXPENSE_ACCOUNT_KEYS.length })}
+        <p role="status" className="mt-3 text-control text-muted-foreground">
+          {t('uxs12.expensePosting.mapIncomplete', '{{count}} of {{total}} accounts are not mapped; a posting that needs one stops.', { count: unmappedCount, total: EXPENSE_ACCOUNT_KEYS.length })}
         </p>
       )}
       {/* AC-MOBILE-OVERFLOW-001 — each row wraps (`flex-wrap`, `break-words`), so a long account name never pushes
@@ -172,7 +172,7 @@ const ExpenseAccountMap: React.FC = () => {
             <li
               key={key}
               data-testid="expense-account-row"
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13.5px]"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-control"
             >
               <span className="font-medium">{label(key)}</span>
               <span className="flex min-w-0 flex-wrap items-center gap-2">

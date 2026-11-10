@@ -41,7 +41,7 @@ export default function OrgProjectClassificationOptions() {
     }
   };
   return <section aria-label={t('projectClassification.title', 'Classification')} className="max-w-2xl space-y-4">
-    <p className="text-sm text-muted-foreground">{t('projectClassification.setupHelp', 'Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.')}</p>
+    <p className="text-sm text-muted-foreground">{t('projectClassification.setupHelp', 'Service lines and sectors on project forms. Removing one keeps it on existing projects.')}</p>
     {may('manage', 'orgProjectClassification') ? <>
       <FormGrid>
         <TextArea id="org-service-lines" label={t('projectClassification.serviceLines', 'Service lines')} value={values.serviceLines}

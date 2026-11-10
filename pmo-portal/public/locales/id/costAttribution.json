@@ -1,9 +1,8 @@
 {
   "add": "Tambah aturan",
-  "description": "Menempatkan biaya buku besar yang tidak memiliki proyek ERP ke proyek, misalnya gaji. Ditampilkan sebagai teralokasi, terpisah dari biaya yang ditandai di ERP, dan tidak ada yang ditulis ke ERP.",
   "empty": {
     "readOnly": "Finance dan Admin dapat menambah aturan.",
-    "sub": "Tambahkan aturan untuk menempatkan biaya buku besar tanpa proyek, seperti gaji, ke proyek.",
+    "sub": "Tambahkan aturan untuk menempatkan biaya tanpa tag ke proyek.",
     "title": "Belum ada aturan alokasi biaya"
   },
   "end": {

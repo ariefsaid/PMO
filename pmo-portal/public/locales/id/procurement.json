@@ -99,7 +99,7 @@
   },
   "gates": {
     "heading": "Aturan pembelian",
-    "intro": "Semua mati: pembelian dapat dimulai dari langkah mana pun. Aktifkan aturan hanya bila akuntansi Anda membutuhkannya.",
+    "intro": "Semua mati: pembelian dapat dimulai di langkah mana pun.",
     "loadError": "Aturan pembelian tidak dapat dimuat",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "request_before_order": "Wajib permintaan sebelum pesanan",
@@ -107,11 +107,7 @@
     "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
     "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
     "saving": "Menyimpan…",
-    "saved": "Tersimpan",
-    "request_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan pembelian lebih dulu.",
-    "approval_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan yang disetujui lebih dulu.",
-    "receipt_before_invoiceHelp": "Jika aktif, faktur pemasok memerlukan penerimaan barang lebih dulu.",
-    "approval_before_paymentHelp": "Jika aktif, pembayaran memerlukan jumlah yang disetujui lebih dulu."
+    "saved": "Tersimpan"
   },
   "documents": {
     "attachTo": "Lampirkan ke",
@@ -524,7 +520,13 @@
       "decidedBy": "Diputuskan oleh {{names}}",
       "projectApprovers": "pemberi persetujuan proyek",
       "done": "Selesai",
-      "status": { "Requested": "Diajukan", "Approved": "Disetujui", "Revised": "Direvisi", "Rejected": "Ditolak", "Disputed": "Disengketakan" },
+      "status": {
+        "Requested": "Diajukan",
+        "Approved": "Disetujui",
+        "Revised": "Direvisi",
+        "Rejected": "Ditolak",
+        "Disputed": "Disengketakan"
+      },
       "postWork": "Setelah kerja",
       "preWork": "Sebelum kerja",
       "approve": "Setujui",

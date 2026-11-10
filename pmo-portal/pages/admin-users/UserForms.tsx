@@ -291,16 +291,16 @@ export const ManagerFormModal: React.FC<{
           placeholder={t('admin.users.managerForm.placeholder', 'Assign a manager…')}
           searchPlaceholder={t('admin.users.managerForm.search', 'Search people…')}
         />
-        <p className="mt-1.5 text-[12px] text-muted-foreground">
+        <p className="mt-1.5 text-control text-muted-foreground">
           {t('admin.users.managerForm.hint', 'Used for timesheet-approval routing.')}
         </p>
         {choicesState === 'loading' && (
-          <p role="status" className="mt-1.5 text-[12px] text-muted-foreground">
+          <p role="status" className="mt-1.5 text-control text-muted-foreground">
             {t('administration:admin.users.managerForm.choicesLoading', 'Loading people…')}
           </p>
         )}
         {choicesState === 'error' && (
-          <p role="alert" className="mt-1.5 text-[12px] text-destructive">
+          <p role="alert" className="mt-1.5 text-control text-destructive">
             {t('administration:admin.users.managerForm.choicesError', "Couldn't load the people list.")}{' '}
             <button type="button" onClick={onRetryChoices} className="font-semibold underline underline-offset-2">
               {t('administration:admin.users.managerForm.choicesRetry', 'Retry')}
@@ -311,7 +311,7 @@ export const ManagerFormModal: React.FC<{
           <button
             type="button"
             onClick={() => form.setValue('managerId', null)}
-            className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-text hover:underline"
+            className="mt-2 inline-flex items-center gap-1.5 text-control font-semibold text-primary-text hover:underline"
           >
             <Icon name="x" className="size-[13px]" />
             {t('admin.users.managerForm.clear', 'Clear manager')}

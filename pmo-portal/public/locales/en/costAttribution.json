@@ -1,9 +1,8 @@
 {
   "add": "Add rule",
-  "description": "Places ledger cost that has no ERP project onto projects, for example payroll. It is shown as attributed, apart from cost tagged in the ERP, and nothing is written to the ERP.",
   "empty": {
     "readOnly": "Finance and Admin can add rules.",
-    "sub": "Add a rule to place untagged ledger cost, such as payroll, onto projects.",
+    "sub": "Add a rule to place untagged ledger cost onto projects.",
     "title": "No cost attribution rules yet"
   },
   "end": {

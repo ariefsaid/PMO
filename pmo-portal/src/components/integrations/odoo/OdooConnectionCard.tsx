@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { Button, Card, ConfirmDialog, EntityFormModal, FormGrid, FormSection, Icon, ListState, SelectField, StatusPill, TextField, type StatusVariant } from '@/src/components/ui';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { displayedConnection } from '@/src/lib/adapterSeam/odoo/connectionState';
-import { formatDateOnly, formatRelativeTime } from '@/src/lib/format';
+import { formatDay, formatRelativeTime } from '@/src/lib/format';
 import { useOdooConnect, useOdooConnection, useOdooDisconnect, useOdooSetup } from '@/src/hooks/useOdoo';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
@@ -115,7 +115,7 @@ export function OdooConnectionCard() {
     <Card className="p-4" data-tier="odoo" data-testid="odoo-card">
       <div className="flex flex-wrap items-center gap-2">
         <Icon name="plug" aria-hidden="true" />
-        <h3 className="text-[15px] font-semibold text-foreground">Odoo</h3>
+        <h3 className="text-group font-semibold text-foreground">Odoo</h3>
         {state && <StatusPill variant={pill[state].v} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pill[state].label}</StatusPill>}
       </div>
 
@@ -135,7 +135,7 @@ export function OdooConnectionCard() {
               {read.capabilities?.version_major != null && (<><dt className="text-muted-foreground">{t('administration:odoo.card.version', 'Odoo version')}</dt><dd className="font-medium text-foreground">{read.capabilities.version_major}</dd></>)}
               <dt className="text-muted-foreground">{t('administration:odoo.card.checked', 'Last check')}</dt>
               <dd className="font-medium text-foreground">{t('administration:odoo.card.checkedAgo', 'Checked {{age}}', { age: formatRelativeTime(read.connection?.last_checked_at) })}</dd>
-              {expiry && (<><dt className="text-muted-foreground">{t('administration:odoo.card.keyExpires', 'Key expires')}</dt><dd className="font-medium text-foreground">{formatDateOnly(expiry)}</dd></>)}
+              {expiry && (<><dt className="text-muted-foreground">{t('administration:odoo.card.keyExpires', 'Key expires')}</dt><dd className="font-medium text-foreground">{formatDay(expiry)}</dd></>)}
             </dl>
           )}
 

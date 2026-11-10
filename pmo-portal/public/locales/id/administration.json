@@ -102,11 +102,6 @@
       "taxPrepaid": "Akun pajak dibayar di muka",
       "taxPrepaidHint": "Pilih akun aset untuk pajak yang dipotong klien.",
       "accountFailed": "Akun tidak dapat disimpan. Coba lagi.",
-      "customerAdvance": "Akun uang muka pelanggan",
-      "customerAdvanceHint": "Pilih akun untuk menampung uang muka pelanggan.",
-      "taxPrepaid": "Akun pajak dibayar di muka",
-      "taxPrepaidHint": "Pilih akun aset untuk pajak yang dipotong klien.",
-      "accountFailed": "Akun tidak dapat disimpan. Coba lagi.",
       "employHint": "Setelah ini, Odoo memegang data vendor dan klien.",
       "title": "Penyiapan Odoo",
       "done": "Selesai",
@@ -172,17 +167,15 @@
       "rate": "Tarif",
       "taxUse": "Berlaku untuk",
       "title": "Direktori Odoo",
-      "description": "Salinan baca daftar Odoo Anda, dijaga tetap terbaru oleh PMO.",
       "search": "Cari kode atau nama",
       "tabs": "Direktori",
       "unavailable": "Odoo belum memiliki aplikasi yang dibutuhkan daftar ini",
       "unavailableWhy": "Belum tersedia: {{missing}}. Pasang atau izinkan di Odoo, lalu Cek ulang di halaman Integrasi.",
       "hidden": "{{inactive}} nonaktif · {{deleted}} dihapus di Odoo",
-      "locationsCut": "Sebagian lokasi tidak ditampilkan. Odoo memiliki lebih banyak daripada yang dapat ditampilkan halaman ini.",
+      "locationsCut": "Sebagian lokasi tidak ditampilkan.",
       "asOf": "Per {{when}}",
       "showInactive": "Tampilkan nonaktif dan terhapus",
       "empty": "Belum ada isinya",
-      "emptySub": "Tidak ada yang cocok, atau sinkronisasi pertama belum selesai.",
       "error": "Daftar ini tidak dapat dimuat",
       "pager": "Halaman",
       "range": "{{from}}–{{to}} dari {{total}}",
@@ -273,7 +266,7 @@
     "title": "Masukan dan survei",
     "on": "Aktif",
     "off": "Nonaktif",
-    "description": "Tombol Masukan di header dan, paling sering sebulan sekali, satu pertanyaan singkat setelah tugas pertama atau tinjauan triwulanan. Tidak pernah muncul saat seseorang mengisi formulir. Jawaban tidak memuat isi data."
+    "description": "Tombol Masukan di header dan, paling sering tiap 30 hari, survei singkat. Tidak pernah saat mengisi formulir."
   },
   "integrations": {
     "identityIncomplete": "Penyiapan belum selesai",
@@ -422,22 +415,22 @@
       "pph23Noun": "akun PPh 23",
       "pph42Label": "Akun PPh 4(2) dibayar di muka",
       "pph42Noun": "akun PPh 4(2)",
-      "fallbackHint": "Penerimaan tanpa pasal, atau pasal tanpa akun sendiri, dicatat ke akun bawaan."
+      "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
       "pager": {
-            "label": "Halaman",
-            "range": "{{from}}–{{to}} dari {{total}}",
-            "prev": "Halaman sebelumnya",
-            "next": "Halaman berikutnya"
+        "label": "Halaman",
+        "range": "{{from}}–{{to}} dari {{total}}",
+        "prev": "Halaman sebelumnya",
+        "next": "Halaman berikutnya"
       },
       "focus": {
-            "showing": "Menampilkan {{name}} — orang yang Anda ikuti dari halaman Anda.",
-            "return": "Kembali ke halaman Anda",
-            "locating": "Mencari {{name}}…",
-            "error": "Tidak dapat menemukan posisi {{name}} di direktori.",
-            "unavailable": "{{name}} sudah tidak ada di direktori Anda.",
-            "retry": "Coba lagi"
+        "showing": "Menampilkan {{name}}",
+        "return": "Kembali ke halaman Anda",
+        "locating": "Mencari {{name}}…",
+        "error": "Tidak dapat menemukan posisi {{name}} di direktori.",
+        "unavailable": "{{name}} sudah tidak ada di direktori Anda.",
+        "retry": "Coba lagi"
       },
       "managerForm": {
         "choicesLoading": "Memuat orang…",

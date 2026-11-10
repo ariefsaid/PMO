@@ -244,7 +244,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const header = (
     <SectionHeader
       title={t('console.organisationHeading', 'Organisation and plan')}
-      action={anyPending ? <span className="text-[12px] text-muted-foreground">{t('console.saving', 'Saving…')}</span> : undefined}
+      action={anyPending ? <span className="text-control text-muted-foreground">{t('console.saving', 'Saving…')}</span> : undefined}
     />
   );
 
@@ -320,12 +320,12 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           })}
         />
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[720px] border-collapse text-[13px]">
+          <table className="w-full min-w-[720px] border-collapse text-control">
             <caption className="sr-only">
               {t('console.switchesCaption', 'Effective switch state, its source, the plan default, the per-organisation override and the all-organisations switch.')}
             </caption>
             <thead>
-              <tr className="border-b border-border text-left text-[11px] text-muted-foreground">
+              <tr className="border-b border-border text-left text-control text-muted-foreground">
                 <th scope="col" className="px-4 py-2 font-semibold">{t('console.colFeature', 'Feature')}</th>
                 <th scope="col" className="px-4 py-2 font-semibold">{t('console.colEffective', 'Effective')}</th>
                 <th scope="col" className="px-4 py-2 font-semibold">{t('console.colSource', 'Source')}</th>
@@ -338,7 +338,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
               {FEATURE_GROUPS.map((group) => (
                 <React.Fragment key={group.id}>
                   <tr className="bg-secondary/40">
-                    <th scope="colgroup" colSpan={6} className="px-4 py-1.5 text-left text-[11px] font-semibold text-muted-foreground">
+                    <th scope="colgroup" colSpan={6} className="px-4 py-1.5 text-left text-control font-semibold text-muted-foreground">
                       {groupLabel(t, group.id)}
                     </th>
                   </tr>
@@ -376,7 +376,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                         </td>
                         <td className="px-4 py-2">
                           {isAdminOwned ? (
-                            <span className="text-[12px] text-muted-foreground">{t('console.adminOwnedRow', 'Admin-owned')}</span>
+                            <span className="text-control text-muted-foreground">{t('console.adminOwnedRow', 'Admin-owned')}</span>
                           ) : (
                             <div className="flex items-center gap-2">
                               <Switch
@@ -396,7 +396,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                                 </Button>
                               )}
                               {globalOffWins && (
-                                <span className="text-[12px] text-muted-foreground">
+                                <span className="text-control text-muted-foreground">
                                   {t('console.globalOffWins', 'All-organisations off wins')}
                                 </span>
                               )}
@@ -405,7 +405,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                         </td>
                         <td className="px-4 py-2">
                           {globalOn === null || globalOn === undefined ? (
-                            <span className="text-[12px] text-muted-foreground">
+                            <span className="text-control text-muted-foreground">
                               {key === 'feedback_surveys'
                                 ? t('console.adminOwnedRow', 'Admin-owned')
                                 : t('console.noGlobalRow', 'No all-organisations row')}
@@ -431,7 +431,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                 <th scope="row" className="px-4 py-2 text-left font-medium">
                   {t('console.coreHeading', 'Core modules (never switchable)')}
                 </th>
-                <td colSpan={5} className="px-4 py-2 text-[12.5px] text-muted-foreground">
+                <td colSpan={5} className="px-4 py-2 text-control text-muted-foreground">
                   {CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}
                 </td>
               </tr>
@@ -464,7 +464,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     const on = Boolean(editorPlanDefaults[key]);
                     return (
                       <li key={key} data-testid={`plan-default-${key}`} className="flex items-center justify-between gap-3 px-4 py-2">
-                        <span className="text-[13px]">{FEATURE_LABELS[key]}</span>
+                        <span className="text-control">{FEATURE_LABELS[key]}</span>
                         <Switch
                           checked={on}
                           onChange={() =>
@@ -486,8 +486,8 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           </div>
 
           <Card className="px-4 py-3">
-            <h3 className="text-[13px] font-semibold">{t('console.limitsHeading', 'Limits')}</h3>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">
+            <h3 className="text-control font-semibold">{t('console.limitsHeading', 'Limits')}</h3>
+            <p className="mt-0.5 text-control text-muted-foreground">
               {t('console.limitsHelper', 'Leave a field blank for unlimited / per contract.')}
             </p>
             <div className="mt-3 space-y-3">
@@ -573,7 +573,7 @@ const ReadOnlyFeatures: React.FC = () => {
               const on = Boolean(states?.[key]?.displayEnabled);
               return (
                 <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-[13.5px] font-medium">{FEATURE_LABELS[key]}</span>
+                  <span className="text-control font-medium">{FEATURE_LABELS[key]}</span>
                   <StatusPill variant={on ? 'won' : 'neutral'}>
                     {key === 'feedback_surveys'
                       ? t('console.adminOwnedRow', 'Admin-owned')
@@ -586,7 +586,7 @@ const ReadOnlyFeatures: React.FC = () => {
         ))}
         {CORE_FEATURES.map((key) => (
           <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-[13.5px] font-medium">{FEATURE_LABELS[key]}</span>
+            <span className="text-control font-medium">{FEATURE_LABELS[key]}</span>
             <StatusPill variant="neutral">{t('console.sourceCore', 'Always on')}</StatusPill>
           </li>
         ))}

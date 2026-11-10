@@ -130,7 +130,7 @@ export function ProcurementCycleImportWizard({
                 >
                   {STEP_TITLE[wiz.step]}
                 </Dialog.Title>
-                <Dialog.Description render={<p />} id={subId} className="mt-px text-[12.5px] text-muted-foreground">
+                <Dialog.Description render={<p />} id={subId} className="mt-px text-control text-muted-foreground">
                   {STEP_SUBTITLE[wiz.step]}
                 </Dialog.Description>
               </div>
@@ -214,8 +214,8 @@ function CycleUploadStep({ wiz }: { wiz: Wiz }) {
         className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-4 py-8 text-center"
       >
         <Icon name="upload" className="size-6 text-muted-foreground" />
-        <span className="text-[13.5px] font-semibold text-foreground">Choose an .xlsx file</span>
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-control font-semibold text-foreground">Choose an .xlsx file</span>
+        <span className="text-control text-muted-foreground">
           The first row must be column headers. Up to {MAX_IMPORT_ROWS} rows.
         </span>
         <input
@@ -233,7 +233,7 @@ function CycleUploadStep({ wiz }: { wiz: Wiz }) {
       </label>
       {wiz.parsing && <p role="status">Reading file…</p>}
       {wiz.parseError && (
-        <p role="alert" className="flex items-start gap-1.5 text-[12.5px] text-destructive">
+        <p role="alert" className="flex items-start gap-1.5 text-control text-destructive">
           <Icon name="alert" className="mt-px size-4 shrink-0" />
           {wiz.parseError}
         </p>
@@ -262,7 +262,7 @@ function CycleMappingStep({ wiz }: { wiz: Wiz }) {
         />
       ))}
       {!wiz.allRequiredMapped && (
-        <p role="alert" className="text-[12.5px] text-destructive">
+        <p role="alert" className="text-control text-destructive">
           Map the required fields (case_ref, type) to continue.
         </p>
       )}
@@ -286,7 +286,7 @@ function CycleMappingRow({
   const id = useId();
   return (
     <div className="grid grid-cols-[1fr_1fr] items-center gap-3">
-      <label htmlFor={id} className="text-[13px] font-medium text-foreground">
+      <label htmlFor={id} className="text-control font-medium text-foreground">
         {label}
         {required && <span className="ml-0.5 text-destructive">*</span>}
       </label>
@@ -294,7 +294,7 @@ function CycleMappingRow({
         id={id}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className="h-8 w-full rounded-md border border-border bg-card px-2 text-[13px] text-foreground"
+        className="h-8 w-full rounded-md border border-border bg-card px-2 text-control text-foreground"
       >
         <option value="">— Not mapped —</option>
         {headers.map((h, i) => (
@@ -323,7 +323,7 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
     <div className="flex flex-col gap-3">
       {/* Summary line + expand/collapse all */}
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[13px] text-foreground" data-testid="cycle-import-summary">
+        <p className="text-control text-foreground" data-testid="cycle-import-summary">
           <b className="font-semibold tabular-nums">{counts.totalCases} cases</b>,{' '}
           <b className="font-semibold tabular-nums">{counts.validRecords} records valid</b>,{' '}
           <span className="tabular-nums">{counts.skippedRecords} skipped</span>
@@ -332,7 +332,7 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
           <button
             type="button"
             onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(validatedGroups.map(vg => vg.group.caseRef)))}
-            className="shrink-0 text-[12px] text-primary-text hover:underline"
+            className="shrink-0 text-control text-primary-text hover:underline"
           >
             {allCollapsed ? 'Expand all' : 'Collapse all'}
           </button>
@@ -340,15 +340,15 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
       </div>
 
       {wiz.parseError && (
-        <div role="alert" className="text-[13px] text-destructive-text">
+        <div role="alert" className="text-control text-destructive-text">
           <p>{wiz.parseError}</p>
           <button type="button" onClick={() => void wiz.goPreview()} className="underline">Retry preview</button>
         </div>
       )}
-      {!wiz.conflictReport && !wiz.parseError && <p role="status" className="text-[13px] text-muted-foreground">Checking import identities…</p>}
-      {wiz.conflictReport && <p className="text-[13px] text-muted-foreground">{wiz.conflictReport.wouldCreate} to create, {wiz.conflictReport.wouldSkip} to skip, {wiz.conflictReport.wouldCollide} conflicts</p>}
+      {!wiz.conflictReport && !wiz.parseError && <p role="status" className="text-control text-muted-foreground">Checking import identities…</p>}
+      {wiz.conflictReport && <p className="text-control text-muted-foreground">{wiz.conflictReport.wouldCreate} to create, {wiz.conflictReport.wouldSkip} to skip, {wiz.conflictReport.wouldCollide} conflicts</p>}
       {wiz.conflictReport?.conflicts?.length ? (
-        <div className="text-[13px] text-destructive-text">
+        <div className="text-control text-destructive-text">
           <p>Reconcile these conflicts before importing the affected records:</p>
           <ul>
             {wiz.conflictReport.conflicts.map((conflict, index) => (
@@ -369,7 +369,7 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
       </div>
 
       {counts.totalCases === 0 && (
-        <p className="text-[13px] text-muted-foreground">No cases found in the sheet.</p>
+        <p className="text-control text-muted-foreground">No cases found in the sheet.</p>
       )}
     </div>
   );
@@ -404,19 +404,19 @@ function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: bo
           })}
         />
         <span className="min-w-0 flex-1">
-          <span className="font-mono text-[13px] font-semibold text-foreground">{caseRef}</span>
+          <span className="font-mono text-control font-semibold text-foreground">{caseRef}</span>
           {caseTitle !== caseRef && (
-            <span className="ml-2 truncate text-[13px] text-muted-foreground">{caseTitle}</span>
+            <span className="ml-2 truncate text-control text-muted-foreground">{caseTitle}</span>
           )}
           {/* D12: surface group errors on header so they're visible even when collapsed */}
           {!expanded && groupErrors.length > 0 && (
-            <span className="ml-2 text-[12px] text-destructive">
+            <span className="ml-2 text-control text-destructive">
               {groupErrors[0]}
               {groupErrors.length > 1 && ` (+${groupErrors.length - 1} more)`}
             </span>
           )}
         </span>
-        <span className="tabular-nums text-[12px] text-muted-foreground">
+        <span className="tabular-nums text-control text-muted-foreground">
           {validRowCount}/{rows.length} records
         </span>
         {valid ? (
@@ -430,7 +430,7 @@ function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: bo
       {groupErrors.length > 0 && (
         <div className="border-t border-border px-3 pb-2 pt-1.5">
           {groupErrors.map((e, i) => (
-            <p key={i} className="flex items-start gap-1 text-[12.5px] text-destructive">
+            <p key={i} className="flex items-start gap-1 text-control text-destructive">
               <Icon name="alert" className="mt-px size-3.5 shrink-0" />
               {e}
             </p>
@@ -471,11 +471,11 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
         'opacity-60': !row.valid,
       })}
     >
-      <span className="w-5 shrink-0 text-[12px] text-muted-foreground">{row.rowNumber}</span>
+      <span className="w-5 shrink-0 text-control text-muted-foreground">{row.rowNumber}</span>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-control">
           {type && <span className="font-semibold text-foreground">{type}</span>}
-          {ref && <span className="font-mono text-[13px] text-muted-foreground">{ref}</span>}
+          {ref && <span className="font-mono text-control text-muted-foreground">{ref}</span>}
           {status && <span className="text-muted-foreground">{status}</span>}
           {amount && (
             <span className="tabular-nums text-muted-foreground">
@@ -487,7 +487,7 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
         {row.errors.length > 0 && (
           <ul className="mt-0.5 space-y-0.5">
             {row.errors.map((e, i) => (
-              <li key={i} className="text-[11px] text-destructive">
+              <li key={i} className="text-control text-destructive">
                 {e}
               </li>
             ))}
@@ -514,14 +514,14 @@ function CycleCommittingStep({ progress }: { progress: CycleProgress | null }) {
     >
       <Icon name="refresh" className="size-5 animate-spin text-muted-foreground" />
       {progress && progress.total > 0 ? (
-        <p className="text-[13px] text-foreground">
+        <p className="text-control text-foreground">
           Creating case{' '}
           <span className="tabular-nums">{progress.done}</span>
           {' '}of{' '}
           <span className="tabular-nums">{progress.total}</span>…
         </p>
       ) : (
-        <p className="text-[13px] text-foreground">Creating procurement cases and records…</p>
+        <p className="text-control text-foreground">Creating procurement cases and records…</p>
       )}
     </div>
   );
@@ -564,19 +564,19 @@ function CycleResultStep({ wiz }: { wiz: Wiz }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px] text-foreground" data-testid="cycle-result-summary">
+      <p className="text-control text-foreground" data-testid="cycle-result-summary">
         <b className="font-semibold tabular-nums">{r.created} created</b>
         {r.failed > 0 && <>, <span className="tabular-nums">{r.failed} failed</span></>}.
       </p>
 
       {r.created > 0 && (
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="text-control text-muted-foreground">
           Documents can be attached to each case from its procurement detail page.
         </p>
       )}
 
       {failedRecords.length > 0 && (
-        <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-[12.5px]">
+        <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-control">
           {failedRecords.map((f, i) => (
             <li key={i} className="flex items-start gap-1.5">
               <Icon name="alert" className="mt-px size-3.5 shrink-0 text-destructive" />

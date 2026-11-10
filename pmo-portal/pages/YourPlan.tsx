@@ -28,26 +28,15 @@ import { formatNumber } from '@/src/lib/format';
  * tracked yet' until S5").
  */
 
-const LimitTile: React.FC<{
-  label: string;
-  limit: number | null;
-  unit?: 'count' | 'messages';
-}> = ({ label, limit }) => {
+const LimitFigure: React.FC<{ label: string; limit: number | null }> = ({ label, limit }) => {
   const { t } = useTranslation('plans');
   return (
-    <Card className="px-4 py-3">
-      <div className="text-[11px] font-semibold text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 text-[20px] font-semibold tabular-nums">
-        {limit === null
-          ? t('yourPlan.unlimited', 'Unlimited / per contract')
-          : formatNumber(limit)}
-      </div>
-      <div className="mt-0.5 text-xs text-muted-foreground">
-        {t('yourPlan.notTrackedYet', 'Usage not tracked yet')}
-      </div>
-    </Card>
+    <div className="min-w-0">
+      <dt className="text-control font-medium text-foreground">{label}</dt>
+      <dd className="mt-1 text-[20px] font-semibold tabular-nums">
+        {limit === null ? t('yourPlan.unlimited', 'Unlimited / per contract') : formatNumber(limit)}
+      </dd>
+    </div>
   );
 };
 
@@ -70,14 +59,16 @@ const PlanOnOff: React.FC<{ on: boolean }> = ({ on }) => {
   return <>{on ? t('yourPlan.on', 'On') : t('yourPlan.off', 'Off')}</>;
 };
 
-const PlanSwitchRow: React.FC<{ feature: OrgFeatureKey; on: boolean }> = ({ feature, on }) => (
-  <li className="flex items-center justify-between gap-3 px-4 py-2.5">
-    <span className="text-[13.5px]">{FEATURE_LABELS[feature]}</span>
-    <StatusPill variant={on ? 'won' : 'neutral'}>
-      <PlanOnOff on={on} />
-    </StatusPill>
-  </li>
-);
+/** One feature: plain text when on, marked "Off" when off, so a plan with everything on shows no repeated status. */
+const PlanFeature: React.FC<{ feature: OrgFeatureKey; on: boolean }> = ({ feature, on }) => {
+  const { t } = useTranslation('plans');
+  return (
+    <span className={on ? 'text-control' : 'inline-flex items-center gap-1.5 text-control text-muted-foreground'}>
+      {FEATURE_LABELS[feature]}
+      {on ? <span className="sr-only">: {t('yourPlan.on', 'On')}</span> : <StatusPill variant="neutral"><PlanOnOff on={false} /></StatusPill>}
+    </span>
+  );
+};
 
 export const YourPlan: React.FC = () => {
   const { t } = useTranslation('plans');
@@ -136,27 +127,27 @@ export const YourPlan: React.FC = () => {
       <Card className="px-4 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <div className="text-[11px] font-semibold text-muted-foreground">
+            <div className="text-control font-semibold text-muted-foreground">
               {t('yourPlan.currentPlan', 'Current plan')}
             </div>
             <div className="mt-1 text-[24px] font-bold tracking-[-0.02em]">{row.name}</div>
           </div>
-          <p className="max-w-[52ch] text-[13px] text-muted-foreground">
-            {t(
-              'yourPlan.intro',
-              'This page is read-only. Your organisation’s plan and its switches are set by the PMO operator. Ask them to change a plan or switch a feature on.',
-            )}
+          <p className="text-control text-muted-foreground">
+            {t('yourPlan.intro', 'Read-only. The PMO operator changes plans and features.')}
           </p>
         </div>
       </Card>
 
       <section aria-labelledby="your-plan-limits" className="min-w-0">
         <SectionHeader title={t('yourPlan.limitsHeading', 'Limits')} />
-        <div className="grid gap-3 sm:grid-cols-3">
-          <LimitTile label={t('yourPlan.seats', 'Included seats')} limit={row.seatLimit} />
-          <LimitTile label={t('yourPlan.projects', 'Active projects')} limit={row.projectLimit} />
-          <LimitTile label={t('yourPlan.aiMessages', 'AI messages per month')} limit={row.aiMonthlyMessages} />
-        </div>
+        <Card className="px-4 py-3">
+          <dl className="grid gap-4 sm:grid-cols-3">
+            <LimitFigure label={t('yourPlan.seats', 'Included seats')} limit={row.seatLimit} />
+            <LimitFigure label={t('yourPlan.projects', 'Active projects')} limit={row.projectLimit} />
+            <LimitFigure label={t('yourPlan.aiMessages', 'AI messages per month')} limit={row.aiMonthlyMessages} />
+          </dl>
+          <p className="mt-3 text-control text-muted-foreground">{t('yourPlan.notTrackedYet', 'Usage not tracked yet')}</p>
+        </Card>
       </section>
 
       <section aria-labelledby="your-plan-switches" className="min-w-0">
@@ -164,33 +155,22 @@ export const YourPlan: React.FC = () => {
         <div className="rounded-lg border border-border bg-card">
           <ul className="divide-y divide-border">
             {grouped.map((group) => (
-              <React.Fragment key={group.id}>
-                <li className="bg-secondary/40 px-4 py-1.5 text-[11px] font-semibold text-muted-foreground">
-                  {planGroupLabel(t, group.id)}
-                </li>
-                {group.keys.map((feature) => (
-                  <PlanSwitchRow
-                    key={feature}
-                    feature={feature}
-                    on={Boolean(states?.[feature]?.displayEnabled)}
-                  />
-                ))}
-              </React.Fragment>
+              <li key={group.id} className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
+                <span className="text-control font-semibold text-muted-foreground">{planGroupLabel(t, group.id)}</span>
+                <span className="flex flex-wrap gap-x-4 gap-y-1.5">
+                  {group.keys.map((feature) => (
+                    <PlanFeature key={feature} feature={feature} on={Boolean(states?.[feature]?.displayEnabled)} />
+                  ))}
+                </span>
+              </li>
             ))}
-            <li className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <span className="text-[13.5px]">{FEATURE_LABELS.feedback_surveys}</span>
-              <span className="flex items-center gap-2">
-                <StatusPill variant="neutral">{t('yourPlan.adminOwned', 'Your admin controls this')}</StatusPill>
-                <StatusPill variant={feedbackOn ? 'won' : 'neutral'}>
-                  <PlanOnOff on={feedbackOn} />
-                </StatusPill>
-              </span>
+            <li className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
+              <span className="text-control font-semibold text-muted-foreground">{t('yourPlan.adminOwned', 'Your admin controls this')}</span>
+              <PlanFeature feature="feedback_surveys" on={feedbackOn} />
             </li>
-            <li className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-              <span className="text-[13.5px]">{t('yourPlan.coreHeading', 'Always on for every plan')}</span>
-              <span className="text-[13px] text-muted-foreground">
-                {CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}
-              </span>
+            <li className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
+              <span className="text-control font-semibold text-muted-foreground">{t('yourPlan.coreHeading', 'Always on for every plan')}</span>
+              <span className="text-control">{CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}</span>
             </li>
           </ul>
         </div>

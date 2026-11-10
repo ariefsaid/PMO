@@ -235,12 +235,10 @@ export const IntegrationsView: React.FC = () => {
       {/* AC-ADMIA-006: organization-owned surface. States scope explicitly and separates it from the
           PERSONAL route at /integrations — a personal Microsoft 365 connection never implies that the
           organization integration is ready. The panel also names its next permitted action. */}
-      <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
-        {t('uxs07.organizationScope', 'Organization integrations are shared by your organization. Manage personal connections in ')}
+      <p className="mb-4 flex justify-end text-control" data-testid="integrations-owner-scope">
         <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
           {t('uxs07.personalConnections', 'My integrations')}
         </a>
-        {t('uxs07.scopeTail', '. Personal connections do not activate organization integrations.')}
       </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
           still render the tier cards. Each card additionally labels its own connection state as
@@ -250,7 +248,7 @@ export const IntegrationsView: React.FC = () => {
           <ListState
             variant="error"
             title={t('integrations.organization.readiness.bindUnavailableTitle', "Couldn't read connection status")}
-            sub={t('integrations.organization.readiness.bindUnavailableSub', 'Connection state is unknown right now. Try reading it again, or connect if you have not yet.')}
+            sub={t('integrations.organization.readiness.bindUnavailableSub', 'Connection state is unknown. Retry.')}
             onRetry={refetch}
             retryLabel={t('integrations.organization.readiness.retry', 'Retry')}
           />

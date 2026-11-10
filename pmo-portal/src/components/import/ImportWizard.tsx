@@ -109,7 +109,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     ? `Import ${descriptor.entity.toLowerCase()}`
                     : STEP_TITLE[wiz.step]}
                 </Dialog.Title>
-                <Dialog.Description render={<p />} id={subId} className="mt-px text-[12.5px] text-muted-foreground">
+                <Dialog.Description render={<p />} id={subId} className="mt-px text-control text-muted-foreground">
                   {STEP_SUBTITLE[wiz.step]}
                 </Dialog.Description>
               </div>
@@ -193,8 +193,8 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
         className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-4 py-8 text-center"
       >
         <Icon name="upload" className="size-6 text-muted-foreground" />
-        <span className="text-[13.5px] font-semibold text-foreground">Choose an .xlsx file</span>
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-control font-semibold text-foreground">Choose an .xlsx file</span>
+        <span className="text-control text-muted-foreground">
           The first row must be column headers. Up to {MAX_IMPORT_ROWS} rows.
         </span>
         <input
@@ -213,7 +213,7 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
       </label>
       {wiz.parsing && <p role="status">Reading file…</p>}
       {wiz.parseError && (
-        <p role="alert" className="flex items-start gap-1.5 text-[12.5px] text-destructive">
+        <p role="alert" className="flex items-start gap-1.5 text-control text-destructive">
           <Icon name="alert" className="mt-px size-4 shrink-0" />
           {wiz.parseError}
         </p>
@@ -236,7 +236,7 @@ function MappingStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         />
       ))}
       {!wiz.allRequiredMapped && (
-        <p role="alert" className="text-[12.5px] text-destructive">
+        <p role="alert" className="text-control text-destructive">
           Map every required field to continue.
         </p>
       )}
@@ -258,7 +258,7 @@ function MappingRow<Input>({
   const id = useId();
   return (
     <div className="grid grid-cols-[1fr_1fr] items-center gap-3">
-      <label htmlFor={id} className="text-[13px] font-medium text-foreground">
+      <label htmlFor={id} className="text-control font-medium text-foreground">
         {field.label}
         {field.required && <span className="ml-0.5 text-destructive">*</span>}
       </label>
@@ -266,7 +266,7 @@ function MappingRow<Input>({
         id={id}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className="h-8 w-full rounded-md border border-border bg-card px-2 text-[13px] text-foreground"
+        className="h-8 w-full rounded-md border border-border bg-card px-2 text-control text-foreground"
       >
         <option value="">— Not mapped —</option>
         {headers.map((h, i) => (
@@ -297,7 +297,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         const col = wiz.mapping[field.key];
         const raw = col == null ? '' : (rows[v.index]?.[col] ?? '');
         if (field.key === descriptor.fields[0]?.key) return raw || <span className="text-muted-foreground">—</span>;
-        return <>{raw || <span className="text-muted-foreground">—</span>}{v.errors[field.key] && <span className="mt-0.5 block text-[11px] text-destructive">{v.errors[field.key]}</span>}</>;
+        return <>{raw || <span className="text-muted-foreground">—</span>}{v.errors[field.key] && <span className="mt-0.5 block text-control text-destructive">{v.errors[field.key]}</span>}</>;
       },
       ...(field.key === descriptor.fields[0]?.key ? {
         primaryTitle: (v: (typeof wiz.validation)[number]) => {
@@ -305,7 +305,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
           return col == null ? '' : (rows[v.index]?.[col] ?? '');
         },
         secondaryCell: (v: (typeof wiz.validation)[number]) => v.errors[field.key]
-          ? <span className="mt-0.5 block text-[11px] text-destructive">{v.errors[field.key]}</span>
+          ? <span className="mt-0.5 block text-control text-destructive">{v.errors[field.key]}</span>
           : null,
       } : {}),
     })),
@@ -313,7 +313,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
   ];
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px] text-foreground" data-testid="import-summary">
+      <p className="text-control text-foreground" data-testid="import-summary">
         <b className="font-semibold">{wiz.counts.valid} valid</b>, {wiz.counts.invalid} invalid, {wiz.counts.total} total
       </p>
       <DataTable
@@ -322,7 +322,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         rowKey={(v) => String(v.index)}
         accessibleName={t('import:preview.tableName', 'Import row preview')}
         tableId={`components-import-importwizard-preview-${descriptor.entity.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-        className="text-[12.5px]"
+        className="text-control"
       />
     </div>
   );
@@ -332,7 +332,7 @@ function CommittingStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
   return (
     <div className="flex flex-col items-center gap-2 py-6 text-center" role="status" aria-live="polite">
       <Icon name="refresh" className="size-5 animate-spin text-muted-foreground" />
-      <p className="text-[13px] text-foreground">
+      <p className="text-control text-foreground">
         Importing {wiz.progress.done} / {wiz.progress.total}…
       </p>
     </div>
@@ -346,7 +346,7 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
   const nameKey = descriptor.fields[0]?.key;
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px] text-foreground" data-testid="import-result-summary">
+      <p className="text-control text-foreground" data-testid="import-result-summary">
         <b className="font-semibold">{r.created} created</b>
         {/* DD-BIMP-8: skipped rows are shown, never folded into `created` — a re-run that writes
             nothing must not claim it wrote something. */}
@@ -354,7 +354,7 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
         {r.failed.length > 0 && <>, {r.failed.length} failed</>}.
       </p>
       {r.failed.length > 0 && (
-        <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-[12.5px]">
+        <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-control">
           {r.failed.map((f) => {
             const col = nameKey ? wiz.mapping[nameKey] : null;
             const label = col == null ? '' : (rows[f.index]?.[col] ?? '');

@@ -9,12 +9,10 @@
     }
   },
   "uxs07": {
-    "organizationScope": "Integrasi organisasi digunakan bersama oleh organisasi Anda. Kelola koneksi pribadi di ",
     "personalConnections": "Integrasi saya",
-    "scopeTail": ". Koneksi pribadi tidak mengaktifkan integrasi organisasi.",
     "connectionOptions": "Opsi koneksi",
     "reviewRecords": "Tinjau data dari koneksi",
-    "liveRecordCheck": "Belum terverifikasi: tinjau data dari layanan terhubung untuk memastikan data dapat digunakan.",
+    "liveRecordCheck": "Belum diverifikasi. Tinjau satu catatan terhubung.",
     "pendingZero": "Tidak ada pembaruan yang menunggu untuk dikirim",
     "pendingOne": "{{count}} pembaruan menunggu untuk dikirim",
     "pendingMany": "{{count}} pembaruan menunggu untuk dikirim",
@@ -38,15 +36,14 @@
     "ownershipUnavailable": "Pembaruan otomatis tidak tersedia",
     "ownershipUnavailableHelp": "PMO tidak dapat memeriksa informasi yang diperbarui secara otomatis. Coba lagi.",
     "ownershipEmpty": "Belum ada informasi yang diperbarui secara otomatis",
-    "ownershipEmptyHelp": "Pilih informasi yang perlu tetap terkini dari setiap layanan terhubung.",
     "ownershipDomains": "{{service}} memperbarui {{count}} kelompok informasi di sini.",
-    "setupUnavailableHelp": "Kesiapan belum diketahui. Coba lagi, atau minta administrator PMO meninjau penyiapan ERP.",
+    "setupUnavailableHelp": "Kesiapan tidak diketahui.",
     "lastKnownTitle": "Menampilkan pemeriksaan penyiapan terakhir yang tersimpan",
-    "lastKnownBody": "Pemeriksaan terbaru gagal. Hasil ini mungkin sudah tidak berlaku; coba lagi atau minta administrator PMO meninjau penyiapan.",
+    "lastKnownBody": "Pemeriksaan saat ini gagal; hasil mungkin usang.",
     "retryCheck": "Periksa penyiapan lagi",
     "operatorHandoff": "Buka penyiapan akuntansi",
     "noDomains": "Belum ada informasi yang diperbarui dari ERPNext",
-    "m365ApprovalDescription": "Organisasi Anda mungkin perlu menyetujui aplikasi PMO Portal sebelum anggota tim menghubungkan Microsoft 365. Mulai langkah ini hanya jika Microsoft meminta persetujuan organisasi; persetujuan yang sudah ada tidak perlu diulang."
+    "m365ApprovalDescription": "Hanya jika Microsoft meminta persetujuan organisasi."
   },
   "uxs14": {
     "moreActions": "Tindakan lainnya",
@@ -55,18 +52,17 @@
     "contractReference": "Referensi kontrak pelanggan"
   },
   "uxs10": {
-    "mapPrinciple": "Satu akun biaya langsung menerima anggaran setiap kategori. Akun tambahan yang ditandai ke proyek hanya dapat dihitung dalam realisasi.",
     "rowOptions": "Opsi akun",
     "countOnlyAccounts": "{{count}} akun tambahan hanya dihitung dalam realisasi",
     "proposalsLabel": "Usulan akun pencatatan",
     "proposalsTitle": "Tinjau usulan akun pencatatan",
-    "proposalsHelp": "Usulan memakai akun buku besar aktif dalam kelompok biaya langsung. Pilihan yang sudah ada dipertahankan; kategori yang belum jelas memerlukan keputusan Anda.",
+    "proposalsHelp": "Saran memakai akun buku besar biaya langsung; pilihan yang ada dipertahankan.",
     "reviewProposals_one": "Tinjau {{count}} usulan",
     "reviewProposals_other": "Tinjau {{count}} usulan",
     "catalogueLoading": "Memuat bagan akun…",
-    "catalogueError": "Bagan akun tidak tersedia. Tidak ada usulan yang diterapkan.",
-    "catalogueFallback": "Bagan akun tersimpan masih kosong; pilihan ini berasal dari bagan akun ERP saat ini.",
-    "noProposal": "Tidak ada kecocokan biaya langsung yang jelas. Minta operator menentukan akun; akun overhead tidak akan dijadikan pengganti.",
+    "catalogueError": "Bagan akun tidak tersedia.",
+    "catalogueFallback": "Bagan akun tersimpan kosong; pilihan berasal dari bagan ERP saat ini.",
+    "noProposal": "Tidak ada kecocokan biaya langsung yang jelas. Selesaikan dengan operator Anda.",
     "proposalPartial": "Sebagian usulan tidak tersimpan ({{categories}}). Pilihan yang sudah ada tidak berubah; tinjau kategori tersebut lalu coba lagi.",
     "proposalSaved": "Peta pencatatan dikonfirmasi",
     "proposalSavedDetail_one": "Pilihan akun untuk {{count}} kategori telah disimpan.",
@@ -76,33 +72,33 @@
     "confirmAction": "Konfirmasi usulan",
     "accountSearch": "Cari nama atau nomor akun",
     "accountNoun": "akun",
-    "noPostingAccounts": "Tidak ada akun buku besar biaya langsung yang belum digunakan. Minta operator menambahkan akun yang sesuai; akun overhead bukan pengganti.",
-    "countOnlyHelp": "Akun ini dihitung dalam realisasi kategori; anggaran tidak pernah dicatat ke akun ini."
+    "noPostingAccounts": "Tidak ada akun buku besar biaya langsung yang belum dipakai.",
+    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini."
   },
   "uxs11": {
     "accountNoun": "akun",
     "accountPlaceholder": "Pilih akun",
     "accountSearch": "Cari nama atau nomor akun",
-    "bindingRequired": "Koneksi organisasi ERPNext aktif diperlukan untuk memuat pilihan ini. Minta administrator akuntansi meninjau koneksi.",
+    "bindingRequired": "Koneksi ERPNext aktif diperlukan untuk memuat pilihan ini.",
     "bindingLoadError": "Penyiapan ERPNext tidak dapat diperiksa. Coba lagi sebelum memutuskan apakah koneksi diperlukan.",
     "catalogueLoadError": "Tidak dapat memuat bagan akun",
     "checkingBinding": "Memeriksa penyiapan ERPNext…",
     "downPaymentHeading": "Uang muka",
-    "downPaymentIntro": "Pilih item ERPNext yang sudah ada untuk menagih uang muka pelanggan dan memperhitungkannya kembali pada klaim tagihan.",
+    "downPaymentIntro": "Item ERPNext untuk menagih uang muka pelanggan dan memulihkannya dari klaim penagihan.",
     "downPaymentItemLabel": "Item uang muka",
     "downPaymentItemPlaceholder": "Pilih item ERPNext",
     "downPaymentItemUnavailable": "Item tersimpan tidak ada dalam daftar item saat ini; item tetap tersimpan sampai diganti.",
     "downPaymentLoadError": "Tidak dapat memuat item uang muka",
-    "downPaymentItemsError": "Tidak dapat memuat item ERPNext. Coba lagi dari daftar item atau minta administrator akuntansi meninjau daftar item.",
-    "downPaymentNoItems": "Tidak ada item penjualan ERPNext yang ditemukan. Minta administrator akuntansi meninjau daftar item aktif; tidak ada item pengganti yang dipilih.",
+    "downPaymentItemsError": "Tidak dapat memuat item ERPNext. Coba lagi.",
+    "downPaymentNoItems": "Tidak ada item penjualan ERPNext.",
     "downPaymentRemoteChanged": "Item tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
     "downPaymentSaved": "Item uang muka disimpan",
-    "downPaymentUnverified": "Gunakan item yang dikonfigurasi untuk mencatat uang muka pelanggan ke akun liabilitas. Minta administrator akuntansi memeriksa akun item sebelum menyimpan.",
+    "downPaymentUnverified": "Akun item harus memposting uang muka pelanggan ke kewajiban.",
     "inputVatLabel": "Akun PPN Masukan",
     "itemNoun": "item",
     "itemSearch": "Cari item ERPNext",
     "loadingAccounts": "Memuat bagan akun…",
-    "noAssetAccounts": "Tidak ada akun Aset aktif. Minta administrator akuntansi menambahkan akun yang sesuai ke bagan akun ERP.",
+    "noAssetAccounts": "Tidak ada akun Aset aktif di bagan ERP.",
     "notConfigured": "Belum dikonfigurasi",
     "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
     "pph23Label": "Akun Utang PPh 23",
@@ -114,12 +110,12 @@
     "saveWithholding": "Simpan akun",
     "savedChoiceUnavailable": "Nilai tersimpan tidak ada di bagan akun saat ini; nilai tetap tersimpan sampai diganti.",
     "vendorTaxHeading": "Akun pajak tagihan pemasok",
-    "vendorTaxIntro": "Pilih akun dari bagan perusahaan untuk PPN Masukan dan pajak yang dipotong dari tagihan pemasok. Pilihan PPN Masukan memakai akun Aset; pilihan utang PPh memakai akun Liabilitas.",
+    "vendorTaxIntro": "Akun untuk PPN masukan (Aset) dan pajak yang dipotong dari tagihan pemasok (Kewajiban).",
     "vendorTaxLoadError": "Tidak dapat memuat akun pajak",
     "vendorTaxRemoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
     "vendorTaxSaved": "Akun pajak pemasok disimpan",
     "withholdingHeading": "Potongan pajak pada penerimaan",
-    "withholdingIntro": "Pilih akun Aset untuk pajak penghasilan yang dipotong pelanggan. Admin harus mengaturnya sebelum penerimaan dengan potongan pajak dapat dicatat.",
+    "withholdingIntro": "Akun Aset untuk pajak penghasilan yang dipotong klien. Atur sebelum mencatat penerimaan dengan pemotongan.",
     "withholdingLoadError": "Tidak dapat memuat akun pajak dibayar di muka",
     "withholdingPlaceholder": "Pilih akun Aset",
     "withholdingRemoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
@@ -127,7 +123,7 @@
   },
   "uxs08": {
     "reviewTitle": "Tinjau penyiapan bisnis",
-    "reviewDescription": "Tinjau cara organisasi Anda menjaga informasi bisnis tetap mutakhir. Koneksi yang sudah selesai akan dipertahankan; hanya hal yang perlu ditangani yang memerlukan keputusan.",
+    "reviewDescription": "Tautan yang selesai tetap ada; hanya yang perlu perhatian yang perlu keputusan.",
     "dataHeading": "Jaga agar informasi bisnis tetap mutakhir",
     "domainsLabel": "Informasi yang diperbarui dari ERPNext",
     "domainsAction": "Pilih informasi yang perlu diperbarui",
@@ -140,7 +136,7 @@
     "employeeLabel": "Anggota tim yang mencatat waktu",
     "employeeMissing": "Orang yang mencatat waktu dan masih memerlukan tautan karyawan ERP: {{count}}",
     "projectLabel": "Koneksi proyek",
-    "setupComplete": "Penyiapan selesai. Koneksi terkonfirmasi tetap tersimpan; tinjauan ini akan muncul kembali saat ada hal yang perlu ditangani.",
+    "setupComplete": "Pengaturan selesai.",
     "defaultsDialog": "Pengaturan pekerjaan dan tagihan",
     "domainDialog": "Informasi yang perlu diperbarui",
     "domainSubmit": "Simpan pilihan informasi",
@@ -219,13 +215,12 @@
     "date": "Tanggal publikasi",
     "rate": "IDR per USD",
     "source": "Sumber",
-    "description": "USD → IDR · JISDOR · hanya untuk nilai ekuivalen tampilan",
     "denied": "Kurs tersedia bagi Finance dan Admin.",
     "saved": "Kurs disimpan: {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
     "orgCurrencyError": "Mata uang organisasi tidak dapat ditentukan.",
     "loadError": "Kurs tidak dapat dimuat",
     "empty": "Belum ada kurs JISDOR",
-    "emptyBody": "Unggah riwayat JISDOR Bank Indonesia untuk menampilkan ekuivalen rupiah.",
+    "emptyBody": "Unggah riwayat JISDOR untuk menampilkan padanan rupiah.",
     "retry": "Coba lagi",
     "previous": "Sebelumnya",
     "next": "Berikutnya",
@@ -411,7 +406,7 @@
   },
   "admin": {
     "expenseMap": {
-      "notReady": "Hubungkan ERPNext sebelum memetakan akun pengeluaran. Pengiriman pengeluaran belum aktif.",
+      "notReady": "Hubungkan ERPNext sebelum memetakan akun biaya.",
       "error": {
         "title": "Tidak dapat memuat peta akun biaya"
       },
@@ -423,7 +418,7 @@
         "description": "Posting yang memerlukan akun ini akan berhenti sampai akun dipetakan lagi.",
         "title": "Hapus {{key}}?"
       },
-      "description": "Akun ERPNext tempat klaim biaya dan uang muka yang disetujui diposting. Posting yang memerlukan akun yang belum dipetakan akan berhenti dan dilaporkan.",
+      "description": "Akun ERPNext tujuan posting klaim dan uang muka yang disetujui. Posting dengan akun belum dipetakan berhenti dan dilaporkan.",
       "form": {
         "account": "Akun ERP",
         "legend": "Akun",
@@ -473,13 +468,12 @@
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
-      "description": "Basis awal untuk nilai kontrak, work order, atau invoice baru. Siapa pun yang mencatatnya bisa mengubahnya di formulir.",
-      "doesNotRestate": "Mengubah ini tidak mengubah angka yang sudah tercatat. Setiap record tetap memakai perlakuan pajak saat dicatat.",
+      "description": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah.",
       "label": "Perlakuan pajak default",
       "title": "Perlakuan pajak default",
       "toast": {
         "saved": "Perlakuan pajak default diperbarui",
-        "savedDetail": "Kontrak, work order, dan invoice baru akan memakai basis ini. Record yang sudah ada tidak berubah."
+        "savedDetail": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah."
       },
       "value": {
         "exclusive": "Exclusive: pajak ditambahkan di atas nilai",
@@ -608,10 +602,9 @@
         "grantedDetail": "Saldo organisasi telah diperbarui."
       },
       "form": {
-        "subtitle": "Tambahkan kredit ke pool organisasi. Berlaku segera.",
         "legend": "Detail pemberian",
         "amount": "Jumlah",
-        "amountHelper": "Harus lebih besar dari nol.",
+        "amountHelper": "Langsung ditambahkan ke kumpulan organisasi.",
         "note": "Catatan",
         "noteHelper": "Konteks opsional yang dicatat pada pemberian ini."
       },
@@ -621,7 +614,7 @@
     "budgetMap": {
       "sectionLabel": "Peta kategori anggaran ke akun ERP",
       "title": "Peta akun anggaran",
-      "description": "Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat dikirim ke ERP. Kategori yang belum dipetakan memblokir pengiriman SELURUH anggaran, bukan hanya baris itu.",
+      "description": "Setiap kategori anggaran memerlukan satu akun ERP untuk menerima anggarannya; akun lain hanya dihitung ke realisasi.",
       "columns": {
         "category": "Kategori",
         "erpAccount": "Akun ERP",
@@ -629,7 +622,6 @@
       },
       "unmapped": "Belum dipetakan: memblokir setiap pengiriman",
       "map": "Petakan {{category}}",
-      "multiNote": "Satu kategori boleh memiliki beberapa akun. Realisasinya dijumlahkan dari semua akun tersebut; anggarannya hanya dikirim ke akun bertanda Pengiriman anggaran.",
       "noPush": "Tanpa akun pengiriman: memblokir setiap pengiriman",
       "pushBadge": "Pengiriman anggaran",
       "addAccount": "Tambah akun ke {{category}}",
@@ -677,8 +669,8 @@
     },
     "projectNumberPattern": {
       "title": "Pola nomor proyek",
-      "description": "Atur format nomor proyek PMO. Format bawaan adalah PRJ-{YY}-{SEQ4}; format khusus harus menggunakan {CLIENT}, {YY}, dan {SEQ4} masing-masing tepat satu kali.",
-      "immutable": "Perubahan hanya berlaku untuk usulan berikutnya; nomor proyek yang sudah ada tidak berubah.",
+      "description": "Format nomor proyek dari PMO. Pola khusus memakai {CLIENT}, {YY}, dan {SEQ4} masing-masing sekali; bawaan PRJ-{YY}-{SEQ4}.",
+      "immutable": "Hanya berlaku untuk proposal berikutnya.",
       "loadError": {
         "title": "Pola nomor proyek tidak dapat dimuat"
       },
@@ -694,7 +686,7 @@
     },
     "spendApprovers": {
       "title": "Penyetuju pengeluaran",
-      "description": "Siapa yang menyetujui pengadaan. Pengeluaran yang dibebankan ke proyek dan masih dalam pos anggarannya disetujui oleh penyetuju proyek tersebut; biaya overhead perusahaan dan pengeluaran yang akan melampaui pos anggaran disetujui oleh penyetuju overhead. Cukup satu penyetuju yang terdaftar untuk menyetujui. Jika belum ada yang terdaftar, aturan peran standar berlaku.",
+      "description": "Pengeluaran dalam anggaran proyek diputuskan oleh penyetuju proyek; selebihnya oleh penyetuju overhead.",
       "orgSet": {
         "title": "Penyetuju overhead dan lebih anggaran"
       },
@@ -704,7 +696,7 @@
       "addOrg": "Tambah penyetuju overhead",
       "addProject": "Tambah penyetuju proyek",
       "remove": "Hapus {{name}}",
-      "empty": "Belum ada. Aturan peran standar berlaku.",
+      "empty": "Belum ada.",
       "adminOnly": "Hanya Admin yang dapat mengubah ini.",
       "loadError": {
         "title": "Gagal memuat penyetuju pengeluaran"
@@ -3483,12 +3475,12 @@
         "disconnectedAt": "Terputus",
         "connectAction": "Hubungkan {{service}}",
         "disconnectAction": "Putuskan {{service}}",
-        "clickupLocation": "ClickUp adalah layanan SaaS yang dihosting di AS: data tugas berada di ClickUp",
-        "erpLocation": "ERP yang dihosting sendiri: data berada di instans ERPNext Anda",
+        "clickupLocation": "Data berada di ClickUp (di AS).",
+        "erpLocation": "Data berada di instans ERPNext Anda.",
         "retry": "Coba lagi",
         "bindUnknown": "Status koneksi tidak tersedia",
         "bindUnavailableTitle": "Tidak dapat membaca status koneksi",
-        "bindUnavailableSub": "Status koneksi tidak diketahui saat ini. Coba baca lagi, atau hubungkan jika Anda belum melakukannya.",
+        "bindUnavailableSub": "Status koneksi tidak diketahui. Coba lagi.",
         "bindRetry": "Muat ulang status",
         "erpActivation": {
           "pending": "Menunggu aktivasi: pilih Perusahaan untuk mengaktifkan",
@@ -3644,13 +3636,10 @@
     }
   },
   "profileSettings": {
-    "description": "Pilih bahasa, format angka, dan zona waktu untuk portal ini.",
     "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
     "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan.",
     "language": {
       "label": "Bahasa antarmuka",
-      "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
-      "effective": "Bahasa aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi: {{value}}",
@@ -3662,7 +3651,6 @@
     "number": {
       "label": "Format angka",
       "help": "Pratinjau: {{value}}",
-      "effective": "Format angka aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi: {{value}}",
@@ -3680,7 +3668,6 @@
       "placeholder": "Pilih zona waktu",
       "search": "Cari zona waktu…",
       "noun": "zona waktu",
-      "effective": "Zona waktu aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi: {{timezone}}"
@@ -4094,7 +4081,7 @@
     "loadError": "Pilihan klasifikasi tidak dapat dimuat",
     "saved": "Pilihan klasifikasi disimpan",
     "retained": "Klasifikasi proyek yang ada tetap tersimpan.",
-    "setupHelp": "Tentukan lini layanan dan sektor pada formulir proyek. Menghapus pilihan tidak mengubah proyek yang sudah menggunakannya.",
+    "setupHelp": "Lini layanan dan sektor pada formulir proyek. Menghapus satu tidak mengubah proyek yang ada.",
     "serviceLines": "Lini layanan",
     "sectors": "Sektor",
     "onePerLine": "Satu pilihan per baris. Kosongkan jika tidak ada pilihan.",
@@ -4461,10 +4448,10 @@
   },
   "uxs12": {
     "expensePosting": {
-      "adminInactive": "ERPNext sudah terhubung, tetapi posting biaya belum diaktifkan. Admin dapat mengaktifkannya di Integrasi pada pengaturan ERPNext.",
+      "adminInactive": "Posting biaya belum diaktifkan. Aktifkan di Integrasi, pada pengaturan ERPNext.",
       "adminUnknown": "Tidak dapat memeriksa apakah posting biaya siap. Coba periksa lagi.",
       "retryReadiness": "Periksa lagi",
-      "mapIncomplete": "{{count}} dari {{total}} akun belum dipetakan. Posting yang memerlukan akun yang belum dipetakan akan berhenti sampai akun itu dipetakan.",
+      "mapIncomplete": "{{count}} dari {{total}} akun belum dipetakan; posting yang membutuhkannya berhenti.",
       "saveRefused": "Posting biaya belum siap saat ini, jadi akun tidak disimpan. Periksa pengaturan koneksi ERPNext di Integrasi.",
       "formNotConnected": "Posting biaya ke akuntansi tidak aktif. Anda tetap dapat menyimpannya di PMO, tetapi tidak akan masuk ke akuntansi.",
       "formInactive": "ERPNext sudah terhubung, tetapi posting biaya belum diaktifkan. Anda tetap dapat menyimpannya di PMO, tetapi tidak akan masuk ke akuntansi. Admin dapat mengaktifkannya di Integrasi.",
@@ -4529,18 +4516,18 @@
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",
-    "roleRoute": "Aturan standar: {{roles}} dapat menyetujui kasus pengadaan orang lain.",
+    "roleRoute": "Aturan standar: {{roles}} dapat menyetujui kasus orang lain.",
     "holders": "Saat ini: {{names}}.",
     "holdersNone": "Saat ini tidak ada anggota aktif yang memegang peran ini.",
     "holdersUnavailable": "Belum bisa memeriksa siapa yang memegang peran ini.",
     "routeUnavailable": "Belum bisa memastikan siapa yang dapat menyetujui saat ini.",
-    "noEligible": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan kasus pengadaan ini sampai ada yang memenuhi syarat ditambahkan.",
-    "escalate": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Kasus pengadaan ini diteruskan ke penyetuju overhead.",
-    "projectEmpty": "Belum ada penyetuju proyek. Kasus pengadaan dalam anggaran mengikuti aturan standar: {{roles}} dapat menyetujui. Kasus pengadaan yang melebihi garis anggaran, atau ketika garis anggaran tidak dapat diperiksa, diteruskan ke penyetuju overhead."
+    "noEligible": "Tidak ada yang terdaftar dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan.",
+    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan.",
+    "projectEmpty": "Belum ada. Dalam anggaran, {{roles}} dapat menyetujui; di atas anggaran, penyetuju overhead memutuskan."
   },
   "uxs38": {
-    "emptyScope": "Kurs referensi hanya memengaruhi ekuivalen rupiah yang ditampilkan. Catatan akuntansi tidak pernah diubah.",
-    "emptyNeedRole": "Admin atau anggota Finance dapat mengunggahnya dari halaman ini.",
+    "emptyScope": "Catatan akuntansi tidak pernah berubah.",
+    "emptyNeedRole": "Admin atau Keuangan dapat mengunggahnya.",
     "pageSummary": "Tanggal dari {{first}} hingga {{last}}: {{count}} memiliki kurs",
     "pageGaps": "Tidak ada kurs untuk {{dates}}",
     "moreEarlier": "kurs lebih lama di halaman berikutnya",
@@ -4804,7 +4791,7 @@
     },
     "linkFolders": {
       "heading": "Tautkan folder yang ada ke rekaman",
-      "description": "Cocokkan folder yang sudah ada di pustaka bawaan dengan proyek dan kasus yang belum punya folder. Ini hanya menautkan folder; tidak membuat folder."
+      "description": "Menautkan folder yang ada ke proyek dan kasus yang belum punya. Tidak membuat folder."
     },
     "defaultLibrary": {
       "browseFailed": "Lokasi Microsoft tidak dapat dimuat. Tutup dialog ini lalu coba lagi.",
@@ -4813,10 +4800,10 @@
       "clearDescription": "Pemilih dokumen akan mulai dari pemilih lokasi. Tautan yang ada tidak diubah.",
       "clearFailed": "Pustaka default tidak dapat dihapus.",
       "clearTitle": "Hapus pustaka default?",
-      "connectHint": "Hubungkan akun Microsoft 365 Anda untuk memilih pustaka. Menghapus default tidak memerlukan koneksi.",
+      "connectHint": "Memerlukan koneksi Microsoft 365 Anda.",
       "connectLink": "Buka Integrasi saya",
       "current": "Default saat ini:",
-      "description": "Pustaka yang pertama dibuka oleh pemilih dokumen. Ini tidak memberi siapa pun akses ke filenya; izin Microsoft tetap berlaku.",
+      "description": "Terbuka pertama di pemilih dokumen. Izin Microsoft tetap berlaku.",
       "disabledReason": "Pilih situs dan pustaka untuk menyimpan.",
       "heading": "Pustaka dokumen default",
       "library": "Pustaka",

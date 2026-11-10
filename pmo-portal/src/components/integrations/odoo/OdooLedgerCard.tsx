@@ -55,7 +55,7 @@ export function OdooLedgerCard() {
   return (
     <Card className="p-4" data-testid="odoo-ledger-card">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-[15px] font-semibold text-foreground">{t('odooLedger.card.title', 'Odoo ledger')}</h3>
+        <h3 className="text-group font-semibold text-foreground">{t('odooLedger.card.title', 'Odoo ledger')}</h3>
         {mode.onLedger && <StatusPill variant="won">{t('odooLedger.card.inUse', 'In use')}</StatusPill>}
         {!mode.pending && !mode.onLedger && <StatusPill variant="neutral">{t('odooLedger.card.notInUse', 'Not in use yet')}</StatusPill>}
       </div>

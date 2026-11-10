@@ -77,21 +77,21 @@ export default function OrgWithholdingAccount() {
   const readOnlyValues = [query.data?.defaultAccount, query.data?.pph23Account, query.data?.pph42Account];
 
   return <section aria-labelledby="withholding-account-heading">
-    <h2 id="withholding-account-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
+    <h2 id="withholding-account-heading" tabIndex={-1} className="scroll-mt-4 text-group font-semibold">
       {t('uxs11.withholdingHeading', 'Receipt withholding')}
     </h2>
-    <p className="mt-1 text-[13px] text-muted-foreground">
-      {t('uxs11.withholdingIntro', 'Choose the Asset account used for income tax withheld by clients. An Admin must configure it before a receipt with withholding can be recorded.')}
+    <p className="mt-1 text-control text-muted-foreground">
+      {t('uxs11.withholdingIntro', 'Asset account for income tax withheld by clients. Set it before recording a receipt with withholding.')}
     </p>
-    <p className="mt-1 text-[13px] text-muted-foreground">
-      {t('administration:admin.receiptWithholding.fallbackHint', 'Receipts with no article, or an article without its own account, post to the default account.')}
+    <p className="mt-1 text-control text-muted-foreground">
+      {t('administration:admin.receiptWithholding.fallbackHint', 'Receipts without their own account post to the default.')}
     </p>
     <div className="mt-3 max-w-md">
       {query.isError ? <ListState variant="error" title={t('uxs11.withholdingLoadError', "Couldn't load the tax-prepaid account")} onRetry={() => void query.refetch()} />
         : query.isPending ? <ListState variant="loading" rows={3} />
         : canManage ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draftValues()); }} className="space-y-3">
           {remoteChanged && (
-            <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+            <div role="status" className="rounded-md bg-secondary px-3 py-2 text-control text-secondary-foreground">
               <p>{t('uxs11.withholdingRemoteChanged', 'The saved account changed. Your edit is kept; reload the saved value to discard it.')}</p>
               <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
                 fields.forEach((f) => f.draft.reload());
@@ -130,22 +130,22 @@ export default function OrgWithholdingAccount() {
                 disabled={mutation.isPending || !canBrowse}
                 clearWhileDisabled
               />
-              {isStaleSavedChoice && <p className="text-[13px] text-muted-foreground">{t('uxs11.savedChoiceUnavailable', 'Saved value is not in the current chart')}</p>}
+              {isStaleSavedChoice && <p className="text-control text-muted-foreground">{t('uxs11.savedChoiceUnavailable', 'Saved value is not in the current chart')}</p>}
             </div>;
           })}
-          {binding.isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
-          {binding.isError && <div role="status" className="space-y-2 text-[13px] text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
-          {!binding.isPending && !binding.isError && !hasActiveBinding && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.bindingRequired', 'An active ERPNext organization connection is needed to load these choices. Ask your accounting administrator to review the connection.')}</p>}
-          {hasActiveBinding && catalogue.isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.loadingAccounts', 'Loading chart accounts…')}</p>}
+          {binding.isPending && <p role="status" className="text-control text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
+          {binding.isError && <div role="status" className="space-y-2 text-control text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
+          {!binding.isPending && !binding.isError && !hasActiveBinding && <p role="status" className="text-control text-muted-foreground">{t('uxs11.bindingRequired', 'An active ERPNext connection is needed to load these choices.')}</p>}
+          {hasActiveBinding && catalogue.isPending && <p role="status" className="text-control text-muted-foreground">{t('uxs11.loadingAccounts', 'Loading chart accounts…')}</p>}
           {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
-          {canBrowse && candidates.length === 0 && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.noAssetAccounts', 'No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.')}</p>}
+          {canBrowse && candidates.length === 0 && <p role="status" className="text-control text-muted-foreground">{t('uxs11.noAssetAccounts', 'No enabled Asset accounts in the ERP chart.')}</p>}
           {error && <FieldError>{error}</FieldError>}
           <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
         </form> : <>
-          <dl className="space-y-1 text-[13px]">
+          <dl className="space-y-1 text-control">
             {fields.map(({ key, label }, index) => <div key={key}><dt className="inline text-muted-foreground">{label}: </dt><dd className="inline">{readOnlyValues[index] ?? notConfigured}</dd></div>)}
           </dl>
-          <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
+          <p className="mt-2 text-control text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
         </>}
     </div>
   </section>;
