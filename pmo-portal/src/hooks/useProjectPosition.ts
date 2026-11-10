@@ -13,6 +13,8 @@ import { useBudgetVersions } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useTasks } from '@/src/hooks/useTasks';
+import { useProjectBilling } from '@/src/hooks/useProgressBilling';
+import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { budgetLinesByCategory } from '@/src/lib/budget/budgetModel';
@@ -136,6 +138,9 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
   const organizationDay = useFxOrgDay(true);
   const budget = useBudgetPosition(project, lens !== 'delivery');
   const receivables = useOverdueReceivables(project, lens !== 'delivery');
+  // A won project with no contract lines yet has nothing to bill against: one more thing that needs setting up.
+  const checkBilling = lens !== 'delivery' && may('view', 'workOrder') && projectStatusGroup(project.status as never) === 'onHand';
+  const billing = useProjectBilling(checkBilling ? project.id : '');
   const canApprove = lens !== 'delivery' && may('transition', 'procurement');
   const procurements = useProjectProcurements(canApprove ? project.id : null);
   const isPending = organizationDay.isPending || milestones.isPending || (lens === 'delivery' && tasks.isPending) || (lens !== 'delivery' && (
@@ -250,8 +255,15 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
           explanation: t('projectDetail.attention.approveTooltip', 'Counts project procurements that are waiting for your approval.') });
       }
     }
+    if (checkBilling && billing.data && billing.data.contractLines.length === 0) {
+      out.push({ key: 'billing', tone: 'warn', to: `${base}/contract`,
+        what: t('projectDetail.attention.billingWhat', 'No work orders yet'),
+        size: t('projectDetail.attention.billingSize', 'Nothing to invoice against'),
+        action: t('projectDetail.attention.billingAction', 'Contract & billing'),
+        explanation: t('projectDetail.attention.billingTooltip', 'A won project bills against its work orders; none are recorded yet.') });
+    }
     return out.sort((x, y) => (x.tone === y.tone ? 0 : x.tone === 'danger' ? -1 : 1));
-  }, [lens, organizationDay.day, tasks.data, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
+  }, [checkBilling, billing.data, lens, organizationDay.day, tasks.data, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
 
   return { items, myVisibleTaskKeys, isPending, error };
 }

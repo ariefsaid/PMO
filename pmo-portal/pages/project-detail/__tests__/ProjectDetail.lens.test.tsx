@@ -275,7 +275,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByText(/1,200,000/)).not.toBeInTheDocument();
   });
 
-  it('AC-009 support: Overview mounts project totals once, inside Money position, before the phase timeline and Activity', async () => {
+  it('AC-009 support: Overview mounts project totals once, inside Money position, after the phase timeline and Activity', async () => {
     projectsState.data = [onHandRow];
     await renderAt('/projects/p1');
     const totals = screen.getAllByTestId('project-profit-loss');
@@ -283,9 +283,10 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(totals[0]).toHaveTextContent('Project totals p1');
     expect(within(screen.getByRole('region', { name: /Money position/ })).getByTestId('project-profit-loss')).toBe(totals[0]);
     const phases = screen.getByRole('heading', { name: 'Phase timeline' });
-    const activity = screen.getByRole('button', { name: /Activity · \d+ comments/ });
-    expect(totals[0].compareDocumentPosition(phases) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const activity = screen.getByRole('region', { name: 'Activity' });
+    expect(screen.queryByRole('button', { name: /Activity · \d+ comments/ })).not.toBeInTheDocument();
     expect(phases.compareDocumentPosition(activity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(activity.compareDocumentPosition(totals[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('AC-009 support: other tabs and an unavailable project do not mount project totals', async () => {

@@ -131,10 +131,10 @@ vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => 
 
 import ProjectDetail from '../ProjectDetail';
 
-const renderAt = async (path: string) => {
+const renderAt = async (path: string, role = 'Project Manager') => {
   window.history.replaceState({}, '', path);
   const view = render(
-    <ImpersonationProvider realRole="Project Manager">
+    <ImpersonationProvider realRole={role as never}>
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
           <Routes>
@@ -213,9 +213,23 @@ describe('Sales-history disclosure defers its read to opening (AC-PERF-002, plan
   });
 });
 
-describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
+describe('ProjectDetail Activity on the money overview (AC-CHG-018)', () => {
+  it('AC-CHG-018: the PM overview carries Activity inline, and its Changes view is keyboard-operable', async () => {
+    await renderAt('/projects/p1');
+    const activity = screen.getByRole('region', { name: 'Activity' });
+    expect(screen.queryByRole('button', { name: /Activity · \d+ comments/i })).not.toBeInTheDocument();
+    expect(within(activity).getByTestId('record-history')).toHaveTextContent('project:p1:true:false');
+    const changes = within(activity).getByRole('tab', { name: 'Changes' });
+    changes.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(changes).toHaveAttribute('aria-selected', 'true');
+    expect(within(activity).getByTestId('record-history')).toBeInTheDocument();
+  });
+});
+
+describe('ProjectDetail Activity drawer (AC-CHG-018, delivery lens)', () => {
   it('AC-CHG-018: the legacy /history route opens Overview with the Activity drawer open', async () => {
-    await renderAt('/projects/p1/history');
+    await renderAt('/projects/p1/history', 'Engineer');
 
     // The open drawer hides the tab strip from the a11y tree, so read the tabs from the DOM.
     const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
@@ -225,13 +239,13 @@ describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
   });
 
   it('AC-CHG-018: /projects/:id/history shows the project history with child roll-up and kind filters', async () => {
-    await renderAt('/projects/p1/history');
+    await renderAt('/projects/p1/history', 'Engineer');
     const drawer = screen.getByRole('dialog', { name: 'Activity' });
     expect(within(drawer).getByTestId('record-history')).toHaveTextContent('project:p1:true:true');
   });
 
   it('AC-CHG-018: the Activity entry is keyboard-operable', async () => {
-    await renderAt('/projects/p1');
+    await renderAt('/projects/p1', 'Engineer');
     const activityLine = screen.getByRole('button', { name: /Activity · 0 comments/i });
     activityLine.focus();
     await userEvent.keyboard('{Enter}');
@@ -240,7 +254,7 @@ describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
   });
 
   it('AC-CHG-018: Activity is available from Overview only and closing its drawer restores focus', async () => {
-    const overviewPage = await renderAt('/projects/p1');
+    const overviewPage = await renderAt('/projects/p1', 'Engineer');
     const activityLine = screen.getByRole('button', { name: /Activity · 0 comments/i });
     expect(activityLine).toBeInTheDocument();
 
@@ -251,7 +265,7 @@ describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
     expect(activityLine).toHaveFocus();
     overviewPage.unmount();
 
-    const tasksPage = await renderAt('/projects/p1/tasks');
+    const tasksPage = await renderAt('/projects/p1/tasks', 'Engineer');
     expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Activity · 0 comments/i })).not.toBeInTheDocument();
     tasksPage.unmount();

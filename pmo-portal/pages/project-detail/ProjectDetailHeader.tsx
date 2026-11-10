@@ -1,5 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { initials } from '@/src/lib/initials';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
@@ -107,6 +108,8 @@ export interface ProjectDetailHeaderProps {
   secondaryAction?: React.ReactNode;
   /** Existing project detail content mounted from the header's single overflow menu. */
   menuContent?: React.ReactNode;
+  /** Schedule-health pill shown beside the status pill (compact record header). */
+  healthPill?: React.ReactNode;
 }
 
 interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project' | 'committedSpend' | 'committedOtherCurrencies' | 'commitmentSource' | 'ledgerBasis' | 'commitmentPending' | 'commitmentError'> {
@@ -284,6 +287,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   editValueRequest = 0,
   secondaryAction,
   menuContent,
+  healthPill,
 }) => {
   const { t } = useTranslation('project');
   // #1339: the status pill names the project status in the viewer's language; the enum itself is data.
@@ -681,7 +685,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   return (
     <>
       <RecordHeader
-        icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
+        icon={initials(projectDisplayName(project), { fallback: '•', style: 'tile' })}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
         status={statusOnPhoneRow ? undefined : statusPill}
