@@ -404,7 +404,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     }
     const amounts = Array.from(balances, ([currency, cents]) => formatCurrencyCents(cents / 100, currency));
     return amounts.length
-      ? <span className="text-xs font-medium tabular text-muted-foreground">{t('finance:receivables.openBalance', 'Open balance {{amount}}', { amount: amounts.join(' · ') })}</span>
+      ? <span className="text-control font-medium tabular text-muted-foreground">{t('finance:receivables.openBalance', 'Open balance {{amount}}', { amount: amounts.join(' · ') })}</span>
       : null;
   };
 
@@ -580,7 +580,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
           mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 flex-col gap-0.5">
             <span className="min-w-0 truncate text-control font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? mobileCardDetails : undefined}
           selection={embedded ? {

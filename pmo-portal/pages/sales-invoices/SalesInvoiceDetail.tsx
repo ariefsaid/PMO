@@ -4,7 +4,7 @@ import { Button, Icon, LifecycleStepper, ListState, RecordHeader, StatusPill } f
 import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDayYear } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -42,7 +42,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
       <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
           <Icon name="back" className="size-4" />
-          {t('financeCopy.backToInvoices', 'Back to Sales Invoices')}
+          {t('financeCopy.backToInvoices', 'Back to Receivables')}
         </Button>
         {isPending || mode === undefined ? (
           <ListState variant="loading" rows={3} />
@@ -75,17 +75,16 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               </>}
               primaryAction={recordPrimaryAction ? <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button> : undefined}
               stats={[
-                { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
-                { label: t('uxs17.dueDate', 'Due date'), value: dueDate ? formatDateOnly(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available') },
-                {
+                { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
+                { label: t('uxs17.dueDate', 'Due date'), value: dueDate ? formatDayYear(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available') },
+                // Unknown outstanding is left out; the receivables page carries the one hidden-figures line.
+                ...(viewTarget.erp_outstanding_amount == null ? [] : [{
                   label: t('financeCopy.outstanding', 'Outstanding'),
-                  value: viewTarget.erp_outstanding_amount == null
-                    ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
-                    : <>
-                      {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency)}
-                      <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
-                    </>,
-                },
+                  value: <>
+                    {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                    <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
+                  </>,
+                }]),
                 ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
               ]}
             />
@@ -100,7 +99,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                   </h2>
                   <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
                     {viewTarget.received_date
-                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDateOnly(viewTarget.received_date) })
+                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
                       : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
                   </p>
                 </div>

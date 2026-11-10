@@ -10,7 +10,7 @@ import { BudgetDraftReview } from '@/src/components/finance/BudgetDraftReview';
 import { Button, Card, CardHead, CardPad, Icon, ListState, PageHeader } from '@/src/components/ui';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
-import { moneyTileProps } from '@/src/components/finance/moneyTile';
+import { figureCols, moneyTileProps } from '@/src/components/finance/moneyTile';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
@@ -67,8 +67,14 @@ const FinanceHub: React.FC = () => {
   const toPay = payablesUnknown ? null : moneyTileProps(finance.position.payablesTotals, home);
   const toInvoice = pack ? moneyTileProps(unbilled, home) : null;
   const profit = statement?.currency && net !== null && !statementUnavailable ? moneyTileProps({ [statement.currency]: Math.round(net * 100) }, statement.currency) : null;
+  const shownTiles = [
+    hasRevenue && (finance.isPending || finance.isError || owed),
+    hasProcurement && (finance.isPending || finance.isError || toPay),
+    hasRevenue && (figures.isPending || figures.isError || toInvoice),
+    may('view', 'financialStatements') && ((figures.isPending && !statementUnavailable) || figures.isError || profit),
+  ].filter(Boolean).length;
   const tiles = (
-    <KPIRow aria-label={t('financeHub:hub.areas', 'Finance areas')} className="grid-cols-2 xl:grid-cols-4">
+    <KPIRow aria-label={t('financeHub:hub.areas', 'Finance areas')} className={figureCols(shownTiles)}>
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/receivables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.receivables', 'Receivables') })}
         label={t('financeHub:hub.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}

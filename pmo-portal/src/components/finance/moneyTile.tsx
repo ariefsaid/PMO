@@ -22,3 +22,11 @@ export function moneyTileProps(cents: CentsByCurrency, home: string): { value: R
     exactValue: formatTableMoney(homeAmount, home) ?? undefined,
   };
 }
+
+/** Grid columns for a tile row that is as wide as its visible tiles: a hidden tile leaves no empty cell. */
+export function figureCols(visible: number): string {
+  if (visible <= 1) return 'grid-cols-1';
+  if (visible === 2) return 'grid-cols-2';
+  if (visible === 3) return 'grid-cols-2 sm:grid-cols-3';
+  return 'grid-cols-2 xl:grid-cols-4';
+}

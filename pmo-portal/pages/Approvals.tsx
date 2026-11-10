@@ -294,8 +294,8 @@ const ApprovalsPage: React.FC = () => {
             data-testid="approvals-queue-region"
             className="min-w-0"
           >
-            <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3">
-              <h2 className="text-base font-semibold">
+            <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3 [&>div]:ml-auto">
+              <h2 className={activeScope === 'all' ? 'sr-only' : 'text-base font-semibold'}>
                 {activeScope === 'all' ? t('procurement:approvalQueue.headingAll', 'Purchases and timesheets') : t('approvals.queueHeading', 'Approvals queue')}
               </h2>
               <div className="flex flex-wrap items-center gap-2">

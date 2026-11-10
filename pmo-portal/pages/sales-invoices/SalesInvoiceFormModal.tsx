@@ -223,7 +223,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     >
       {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
+          <span className="text-control text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
       )}
       <FormSection legend={t('financeCopy.invoiceDetails', 'Invoice details')}>
@@ -384,7 +384,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         <h3 className="text-sm font-semibold">
           {t('uxs16.invoiceDraftReview', 'Invoice draft review')}
           {draftReviewCurrency && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">{draftReviewCurrency}</span>
+            <span className="ml-2 text-control font-normal text-muted-foreground">{draftReviewCurrency}</span>
           )}
         </h3>
         {!draftReviewCurrency ? (

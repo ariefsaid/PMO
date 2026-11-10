@@ -472,7 +472,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
     expect(screen.getByText('Total due')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Back to Sales Invoices' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Receivables' })).toBeInTheDocument();
   });
 
   it('keeps invoice details available to a reader but does not offer Continue to approve', async () => {
@@ -484,7 +484,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'View invoice' }));
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Back to Sales Invoices' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Receivables' })).toBeInTheDocument();
   });
 
   it.each([

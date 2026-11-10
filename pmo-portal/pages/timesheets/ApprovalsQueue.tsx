@@ -214,7 +214,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         <div className={isInline ? undefined : 'border-b border-border pb-4'}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
                 <span>{bulkWeekLabel(sheet.week_start_date, t)}</span>
                 <span className="tabular font-medium text-foreground">{total.toFixed(1)} {t('approvals.bulk.hoursUnit', 'h')}</span>
                 <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
@@ -228,7 +228,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           {/* OE08R01-003 — the notice follows the surface, not a prop: panel shows it, inline (which
               sits inside the queue that already states the policy) does not. */}
           {!isInline && (
-            <p className="mt-3 text-[12px] text-muted-foreground">
+            <p className="mt-3 text-control text-muted-foreground">
               {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
             </p>
           )}
@@ -236,7 +236,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
 
         <div className={isInline ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
           {rows.length === 0 ? (
-            <p className="px-2 py-3 text-[13px] text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
+            <p className="px-2 py-3 text-control text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
           ) : (
             <TimesheetGrid days={days} rows={rows} />
           )}
@@ -316,7 +316,7 @@ export const ApprovalsQueue: React.FC = () => {
         <TimesheetBulkControls controller={bulk} sheets={sheets} />
       </div>
 
-      <p className="mb-3 text-[12px] text-muted-foreground">
+      <p className="mb-3 text-control text-muted-foreground">
         {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
       </p>
 

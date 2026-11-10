@@ -126,7 +126,7 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await expect(page.getByRole('button', { name: localized('Continue to approve', 'Lanjutkan untuk menyetujui') })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('heading', { name: /Draft invoice|Draf faktur/ })).toContainText(tag);
-  await page.getByRole('button', { name: localized('Back to Sales Invoices', 'Kembali ke Faktur Penjualan') }).click();
+  await page.getByRole('button', { name: localized('Back to Receivables', 'Kembali ke Piutang') }).click();
   await expect(page).toHaveURL(/\/finance\/receivables\?q=/);
   await expect(page.getByLabel(localized('Search sales invoices', 'Cari faktur penjualan'))).toHaveValue(`${tag} Client`);
 
@@ -147,14 +147,14 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await page.getByRole('button', { name: localized('Approve invoice', 'Setujui faktur') }).click();
   await expect(item).toHaveCount(0, { timeout: 15_000 });
   row = await invoiceRow(page);
-  await expect(row.getByText(localizedExact('Unpaid · not yet due', 'Belum dibayar · belum jatuh tempo'))).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText(localizedExact('Unpaid', 'Belum dibayar'))).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/INV-\d{10}/);
 
   // Finance records a part payment, then more than is still owed.
   await signIn(page, 'finance@acme.test');
   await recordReceipt(page, '500000');
   row = await invoiceRow(page);
-  await expect(row.getByText(localizedExact('Partly paid · not yet due', 'Dibayar sebagian · belum jatuh tempo'))).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText(localizedExact('Partly paid', 'Dibayar sebagian'))).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/610[.,]000/);
   await recordReceipt(page, '700000', /^610[.,]000$/);
   row = await invoiceRow(page);

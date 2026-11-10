@@ -336,7 +336,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
     >
       {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">{t(odoo ? 'financeCopy.pushingToOdoo' : 'financeCopy.pushingToERPNext', odoo ? 'Sending to Odoo…' : 'Pushing to ERPNext…')}</span>
+          <span className="text-control text-muted-foreground">{t(odoo ? 'financeCopy.pushingToOdoo' : 'financeCopy.pushingToERPNext', odoo ? 'Sending to Odoo…' : 'Pushing to ERPNext…')}</span>
         </div>
       )}
       {odoo && unreachable && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
@@ -419,7 +419,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
               {t('uxs27.taxWithheldDisclosure', 'Tax withheld')}
             </Button>
             {showWithholdingSummary && (
-              <div className="mt-2 min-w-0 space-y-1 text-[13px] text-muted-foreground">
+              <div className="mt-2 min-w-0 space-y-1 text-control text-muted-foreground">
                 <p className="break-words">
                   {t('uxs27.withheldSummary', 'Tax withheld: {{amount}}', {
                     amount: `${moneyPrefix}${withheldAmountField.value}`,

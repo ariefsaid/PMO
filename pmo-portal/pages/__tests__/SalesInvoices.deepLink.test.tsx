@@ -365,9 +365,9 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Invoice date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 1, 2026')).toBeInTheDocument();
+    expect(screen.getByText('1 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('Due date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 31, 2026')).toBeInTheDocument();
+    expect(screen.getByText('31 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
@@ -420,7 +420,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Due date not available')).toBeInTheDocument();
-    expect(screen.getByText('Outstanding amount not available')).toBeInTheDocument();
+    expect(screen.queryByText('Outstanding')).not.toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -466,7 +466,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByRole('heading', { name: 'Received by client' })).toBeInTheDocument();
-    expect(screen.getByText('Client receipt was recorded for Oct 10, 2026.')).toBeInTheDocument();
+    expect(screen.getByText('Client receipt was recorded for 10 Oct 2026.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download approved PDF' })).not.toBeInTheDocument();
   });
 
@@ -478,7 +478,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     await userInstance.click(within(row as HTMLElement).getByRole('button', { name: 'Row actions' }));
     await userInstance.click(screen.getByRole('menuitem', { name: 'View invoice' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices/inv-2?q=ACC-SINV-2026-00002');
-    await userInstance.click(screen.getByRole('button', { name: 'Back to Sales Invoices' }));
+    await userInstance.click(screen.getByRole('button', { name: 'Back to Receivables' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=ACC-SINV-2026-00002');
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
   });

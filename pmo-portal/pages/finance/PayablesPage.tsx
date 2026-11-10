@@ -80,7 +80,7 @@ const PayablesPage: React.FC = () => {
       size: 210,
       cell: (row) => {
         const manager = projectManagers.get(row.procurement.project_id ?? '') ?? '';
-        return <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 whitespace-normal break-words text-muted-foreground">{row.procurement.project ? projectDisplayName(row.procurement.project) : '—'}</span>{manager && <span role="img" aria-label={manager} title={manager} className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">{initials(manager, { fallback: '' })}</span>}</div>;
+        return <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 whitespace-normal break-words text-muted-foreground">{row.procurement.project ? projectDisplayName(row.procurement.project) : '—'}</span>{manager && <span role="img" aria-label={manager} title={manager} className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-support font-semibold text-secondary-foreground">{initials(manager, { fallback: '' })}</span>}</div>;
       },
       exportValue: (row) => row.procurement.project ? projectDisplayName(row.procurement.project) : '',
     },

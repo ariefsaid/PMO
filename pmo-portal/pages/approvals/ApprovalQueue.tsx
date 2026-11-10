@@ -100,7 +100,7 @@ export function QueueButton({
             <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
           </div>
         </div>
-        <StatusPill record="timesheet" state={row.status} />
+        <StatusPill record="timesheet" state={row.status} className="py-1" />
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control text-muted-foreground">
         <span>

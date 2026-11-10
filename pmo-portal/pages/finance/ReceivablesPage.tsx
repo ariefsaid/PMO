@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Icon, PageHeader, ViewToggle } from '@/src/components/ui';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
-import { moneyTileProps } from '@/src/components/finance/moneyTile';
+import { figureCols, moneyTileProps } from '@/src/components/finance/moneyTile';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
@@ -173,7 +173,7 @@ export default function ReceivablesPage() {
       <div className="order-3 max-sm:order-4 mb-3"><FigureHiddenLine /></div>
 
       <div className="order-4 max-sm:order-5 min-w-0">
-        <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
+        <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || dataPending ? 1 : 0) + (overdueTile || dataPending ? 1 : 0) + 2)}`}>
           <KPITile
             icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
             value={owedTile?.value ?? null} exactValue={owedTile?.exactValue} loading={dataPending}
