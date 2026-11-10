@@ -198,7 +198,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return () => clearTimeout(timer);
   }, [query]);
 
-  // AC-A11Y-MODAL-001 / CMP-009: background inert while open (DESIGN.md modal rule).
+  // AC-A11Y-MODAL-001 / CMP-009: the app shell goes `inert` while the palette is open
+  // (DESIGN.md modal rule). Base UI is NOT a second owner of this: its modal focus manager
+  // only marks the background `aria-hidden` / `data-base-ui-inert`
+  // (FloatingFocusManager's `markOthers({ ariaHidden })`), which leaves it in the tab order
+  // for focus that starts outside the dialog.
   useEffect(() => {
     if (!open) return;
     return acquireBackgroundInert();
@@ -343,7 +347,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           <Dialog.Popup
             initialFocus={inputRef}
             finalFocus={returnFocusTo ? () => returnFocusTo : undefined}
-            role="dialog"
+            // `role="dialog"` is Base UI's own default; `aria-modal` is NOT set by the library
+            // (it removes the background from the a11y tree instead), so the modal contract is
+            // stated explicitly here and proven by CMP-009.
             aria-modal="true"
             aria-label={t('shell.palette.dialogLabel', 'Command palette')}
             className="cmdk-anim relative w-full max-w-[600px] overflow-hidden rounded-overlay border border-border bg-popover shadow-[var(--shadow-lg)] motion-reduce:animate-none"
@@ -468,6 +474,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <AskAiRow
                   offered={showAskAi}
                   query={askAiQuery}
+                  label={t('shell.palette.askAiRow', 'Ask AI: "{{query}}"', { query: askAiQuery })}
                   onSelect={handleSelect}
                   rowClassName={rowClassName}
                   subLabel={t('shell.palette.askAiSub', 'Open the assistant with this draft')}
@@ -491,11 +498,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 const AskAiRow: React.FC<{
   offered: boolean;
   query: string;
+  /** Localized "Ask AI: <draft>" row label (the draft is interpolated by the caller). */
+  label: string;
   onSelect: (value: string) => void;
   rowClassName: string;
   subLabel: string;
   takeSelection: (value: string | undefined) => void;
-}> = ({ offered, query, onSelect, rowClassName, subLabel, takeSelection }) => {
+}> = ({ offered, query, label, onSelect, rowClassName, subLabel, takeSelection }) => {
   const count = useCommandState((state) => state.filtered.count);
   const selected = useCommandState((state) => state.value);
   const askAiValue = `${ASK_AI_VALUE_PREFIX}${query}`;
@@ -511,7 +520,7 @@ const AskAiRow: React.FC<{
         <Icon name="search" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className="truncate font-medium leading-tight">Ask AI: &quot;{query}&quot;</span>
+        <span className="truncate font-medium leading-tight">{label}</span>
         <span className="text-[11.5px] leading-tight text-muted-foreground">{subLabel}</span>
       </span>
     </Command.Item>
@@ -524,11 +533,18 @@ const AskAiRow: React.FC<{
  * only exists while there are zero results, so it counts exactly then.
  */
 const LiveResultCount: React.FC<{ askAiOffered: boolean }> = ({ askAiOffered }) => {
+  const { t } = useTranslation();
   const count = useCommandState((state) => state.filtered.count);
   const total = count + (count === 0 && askAiOffered ? 1 : 0);
   return (
     <span data-testid="cmdk-live-count" aria-live="polite" className="sr-only">
-      {total > 0 ? `${total} result${total === 1 ? '' : 's'}` : ''}
+      {total > 0
+        ? t('shell.palette.resultCount', {
+          count: total,
+          defaultValue_one: '{{count}} result',
+          defaultValue_other: '{{count}} results',
+        })
+        : ''}
     </span>
   );
 };

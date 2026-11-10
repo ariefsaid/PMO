@@ -171,6 +171,9 @@ describe('CommandPalette', () => {
   it('ArrowDown moves aria-selected; focus stays on the combobox; Enter runs the selected item', async () => {
     const onClose = vi.fn();
     render(<CommandPalette open items={items} onClose={onClose} />);
+    // Base UI queues initial focus on the next animation frame; ArrowDown is only handled
+    // once the combobox owns it.
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveFocus());
     // first option is selected by default
     const opts = screen.getAllByRole('option');
     expect(opts[0]).toHaveAttribute('aria-selected', 'true');
@@ -468,8 +471,10 @@ describe('CommandPalette', () => {
     });
     render(<CommandPalette open items={[]} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), reference);
-    const result = await screen.findByRole('option');
-    expect(within(result).getByText(title)).toBeInTheDocument();
+    // Select by role: the identifier is rendered twice inside the row (the title, and the
+    // reference label split into unbreakable tokens), so a bare text query is ambiguous.
+    const result = await screen.findByRole('option', { name: new RegExp(title) });
+    expect(result).toHaveTextContent(title);
     await userEvent.keyboard('{Enter}');
     expect(state.navigate).toHaveBeenCalledWith(path);
   });

@@ -3307,6 +3307,7 @@
         "referenceLabel": "Reference: {{reference}}",
         "salesInvoice": "Sales invoice"
       },
+      "askAiRow": "Ask AI: \"{{query}}\"",
       "askAiSub": "Open the assistant with this draft",
       "dialogLabel": "Command palette",
       "inputLabel": "Search projects, records, or run a command",
@@ -3324,6 +3325,8 @@
       "recordIncident": "Incident",
       "noResults": "No results for “{{query}}”",
       "moreResults": "+{{count}} more: refine your search",
+      "resultCount_one": "{{count}} result",
+      "resultCount_other": "{{count}} results",
       "resultsLabel": "Command results",
       "retry": "Retry"
     },
