@@ -13,12 +13,12 @@ import { formatDateOnly } from '@/src/lib/format';
 type ActivityView = 'all' | 'comments' | 'changes';
 
 /** Activity = the project's conversation and its change history, two views of one job (UX NV3). */
-export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }> = ({ projectId, compact = false }) => {
+export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; title?: string }> = ({ projectId, compact = false, title }) => {
   const { t } = useTranslation('project');
   const [view, setView] = useState<ActivityView>('all');
   return (
-    <Card role="region" aria-label={t('projectDetail.activity.title', 'Activity')} className="min-w-0">
-      <CardHead>{t('projectDetail.activity.title', 'Activity')}</CardHead>
+    <Card role="region" aria-label={title ?? t('projectDetail.activity.title', 'Activity')} className="min-w-0">
+      <CardHead>{title ?? t('projectDetail.activity.title', 'Activity')}</CardHead>
       <CardPad className="flex min-w-0 flex-col gap-4">
       <ViewToggle<ActivityView>
         ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}

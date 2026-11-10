@@ -373,6 +373,7 @@
       }
     },
     "activity": {
+      "notesTitle": "Catatan dan aktivitas",
       "title": "Aktivitas",
       "viewLabel": "Tampilan aktivitas",
       "all": "Semua",

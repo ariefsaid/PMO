@@ -246,17 +246,10 @@ describe('ProjectDetail shell (decomposition)', () => {
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
 
-    await userEvent.click(screen.getByLabelText('More actions'));
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(menu).not.toBeNull();
-    expect(within(menu!).getByRole('button', { name: 'Project details' })).toHaveAttribute('aria-expanded', 'false');
-    expect(within(menu!).getByRole('button', { name: 'Change status' })).toBeInTheDocument();
-    expect(within(menu!).getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
-    expect(within(menu!).getByTestId('project-erp-link')).toBeInTheDocument();
-
-    await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
-    const details = within(menu!).getByTestId('project-detail-rail');
-    expect(within(menu!).getByRole('button', { name: 'Project details' })).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    expect(await screen.findByRole('button', { name: 'Change status' })).toBeInTheDocument();
+    expect(screen.getByTestId('project-erp-link')).toBeInTheDocument();
+    const details = screen.getByTestId('project-detail-rail');
     expect(within(details).getByText('Customer')).toBeInTheDocument();
     expect(within(details).getByText('Innovate Corp')).toBeInTheDocument();
     expect(within(details).getByText('Project manager')).toBeInTheDocument();
@@ -269,6 +262,12 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(details).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
+  });
+
+  it('2057: Copy link lives in the More actions menu', async () => {
+    await renderAt('/projects/p1');
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Copy link' })).toBeInTheDocument();
   });
 
   it('UIP-005: Overview owns the phase planner below the tab navigation', async () => {
@@ -297,9 +296,8 @@ describe('ProjectDetail shell (decomposition)', () => {
 
     expect(document.querySelector('[data-mobile-action-bar]')).toBeNull();
     expect(await within(screen.getByRole('tabpanel')).findByText('Document register', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('More actions'));
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(within(menu!).getByRole('button', { name: /change status/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    expect(await screen.findByRole('button', { name: /change status/i })).toBeInTheDocument();
   });
 
   it('CW-7: /projects/:id defaults to Overview for EVERY role — the URL is role-invariant (Engineer)', async () => {
@@ -314,10 +312,7 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('opens the project edit form from the single header Edit action', async () => {
     await renderAt('/projects/p1');
-    const editActions = within(screen.getByTestId('record-header-actions')).getAllByRole('button', { name: /^Edit$/i });
-    expect(editActions.length).toBeGreaterThan(0); // desktop action + responsive menu action share one edit behavior
-
-    await userEvent.click(editActions[0]);
+    await userEvent.click(within(screen.getByTestId('record-header-actions')).getByRole('button', { name: /^Edit$/i }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
@@ -430,9 +425,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     await renderAt('/projects/p1/budget');
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Budget' })).toHaveAttribute('aria-selected', 'true');
-    await userEvent.click(screen.getByLabelText('More actions'));
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(within(menu!).getByRole('button', { name: 'Project details' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Project details' })).toBeInTheDocument();
     // AC-W6-IXD-BUDHEAD (deliberate UX change): the redundant "Project Budget" <h2>
     // was dropped — the selected "Budget" tab is the section label and the "Active
     // budget" line is the section lead. Oracle updated per the BDD authoring rule:

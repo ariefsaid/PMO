@@ -394,7 +394,7 @@ describe('AC-IXD-PROC-W5-C3-D17: receipt / vendor-invoice recording stays quiet,
     const item = await screen.findByRole('menuitem', { name: 'Receipt' });
     expect(item.className).not.toContain('bg-primary');
     expect(item.className).not.toContain('bg-success');
-    expect(item.className).not.toContain('bg-destructive');
+    expect(item.className).not.toMatch(/(^|\s)bg-destructive(\s|$)/);
   });
 
   it('D17-5: after opening the receipt form, its submit button IS the only primary blue', async () => {

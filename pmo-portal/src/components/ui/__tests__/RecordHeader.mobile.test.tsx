@@ -1,7 +1,7 @@
 /**
- * AC-G3D-MOBILE-PH: PageHeader @390px overflow — flex-wrap + truncate guards.
+ * AC-G3D-MOBILE-PH: RecordHeader @390px overflow — flex-wrap + truncate guards.
  *
- * The PageHeader is used by every detail record page (ProjectDetailHeader,
+ * The RecordHeader is used by every detail record page (ProjectDetailHeader,
  * ProcurementDetails, CompanyDetail, ContactDetail). A long record name + a
  * status pill + action buttons must not overflow on a 390px viewport.
  *
@@ -15,13 +15,13 @@
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { PageHeader } from '../PageHeader';
+import { RecordHeader } from '../RecordHeader';
 import { StatusPill } from '../StatusPill';
 
-describe('AC-G3D-MOBILE-PH: PageHeader @390 overflow prevention', () => {
+describe('AC-G3D-MOBILE-PH: RecordHeader @390 overflow prevention', () => {
   it('the top row carries flex-wrap so items do not overflow on narrow viewports', () => {
     const { container } = render(
-      <PageHeader
+      <RecordHeader
         name="Alstom KLCC Extension Phase 2 Long Project Name"
         status={<StatusPill variant="progress">In Progress</StatusPill>}
         actions={<button type="button">Edit</button>}
@@ -35,7 +35,7 @@ describe('AC-G3D-MOBILE-PH: PageHeader @390 overflow prevention', () => {
 
   it('the inner flex container holding [name + status] carries min-w-0 to allow truncation', () => {
     const { container } = render(
-      <PageHeader
+      <RecordHeader
         name="Alstom KLCC Extension Phase 2 Long Project Name"
         status={<StatusPill variant="progress">In Progress</StatusPill>}
       />,
@@ -48,7 +48,7 @@ describe('AC-G3D-MOBILE-PH: PageHeader @390 overflow prevention', () => {
 
   it('the h1 carries truncate and min-w-0 to ellipsis a long record name', () => {
     render(
-      <PageHeader
+      <RecordHeader
         name="Alstom KLCC Extension Phase 2 — A Very Long Project Name That Exceeds 390px"
         status={<StatusPill variant="progress">In Progress</StatusPill>}
       />,
@@ -60,8 +60,9 @@ describe('AC-G3D-MOBILE-PH: PageHeader @390 overflow prevention', () => {
 
   it('the actions div carries shrink-0 so it is never squashed off-screen', () => {
     const { container } = render(
-      <PageHeader
+      <RecordHeader
         name="Long project name"
+        status={<StatusPill variant="progress">In Progress</StatusPill>}
         actions={<button type="button">Edit</button>}
       />,
     );
@@ -72,10 +73,10 @@ describe('AC-G3D-MOBILE-PH: PageHeader @390 overflow prevention', () => {
   });
 });
 
-describe('PageHeader mobile identity layout', () => {
+describe('RecordHeader mobile identity layout', () => {
   it('places status below the full-width title and metadata on mobile', () => {
     const { container } = render(
-      <PageHeader
+      <RecordHeader
         name="Cascade Foods 6.0 MW Ground-Mount PV"
         status={<StatusPill variant="progress">Ongoing Project</StatusPill>}
         meta={<span>PRJ-012 · Cascade Foods</span>}

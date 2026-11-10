@@ -200,7 +200,6 @@ const CompanyDetail: React.FC = () => {
     }
   };
 
-  const hasActions = canEdit || canArchive;
 
   return (
     <div>
@@ -216,22 +215,12 @@ const CompanyDetail: React.FC = () => {
         name={companyDisplayName(company)}
         icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
         status={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
-        actions={
-          hasActions ? (
-            <>
-              {canEdit && (
-                <Button variant="outline" size="sm" data-testid="company-edit" onClick={() => setEditOpen(true)}>
-                  {t('companyDetail.edit', 'Edit')}
-                </Button>
-              )}
-              {canArchive && (
-                <Button variant="ghost" size="sm" data-testid="company-archive" onClick={() => setArchiveOpen(true)}>
-                  {t('companyDetail.archive', 'Archive')}
-                </Button>
-              )}
-            </>
-          ) : undefined
-        }
+        primaryAction={canEdit ? (
+          <Button variant="primary" size="sm" data-testid="company-edit" onClick={() => setEditOpen(true)}>
+            {t('companyDetail.edit', 'Edit')}
+          </Button>
+        ) : undefined}
+        menuItems={canArchive ? [{ key: 'archive', testId: 'company-archive', label: t('companyDetail.archive', 'Archive'), onSelect: () => setArchiveOpen(true) }] : undefined}
       />
 
       {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}

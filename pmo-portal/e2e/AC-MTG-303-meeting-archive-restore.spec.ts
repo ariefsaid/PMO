@@ -57,6 +57,7 @@ test('AC-MTG-303: an author can restore an archived meeting and keep its minutes
   await expect(page.getByTestId('minutes-blocknote')).toContainText(minutesText);
   await expect(page.getByTestId('attendees-list')).toContainText(guestName);
 
+  await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByTestId('meeting-archive').click();
   const archiveDialog = page.getByRole('dialog');
   await expect(archiveDialog).toBeVisible();

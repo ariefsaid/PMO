@@ -3,9 +3,6 @@ import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Menu } from '@base-ui/react/menu';
-import { cn } from '@/src/components/ui/cn';
-import { menuItemClass, menuItemDanger, menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,7 +14,6 @@ import {
   Combobox,
   StatusPill,
   ListState,
-  Icon,
   ConfirmDialog,
   TextArea,
   Tabs,
@@ -27,6 +23,8 @@ import {
   useIsNarrow,
   ProjectNameLink,
   CompanyNameLink,
+  RecordMenu,
+  type RecordMenuItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
@@ -583,24 +581,26 @@ const ProcurementDetails: React.FC = () => {
     URL.revokeObjectURL(link.href);
   };
 
-  type MenuEntry = { key: string; label: React.ReactNode; run: () => void; danger?: boolean; testId?: string };
-  const captureItems: MenuEntry[] = [
-    ...recordKinds.map((kind) => ({ key: `record-${kind}`, label: recordKindLabels[kind], run: () => beginCapture(kind) })),
-    ...(canAddQuote ? [{ key: 'quote', label: t('procurementRecord:action.addQuote', 'Add quotation'), run: openQuotationCapture }] : []),
-    ...(canLinkAccounting ? [{ key: 'link', label: t('procurementRecord:linkAccounting', 'Link from accounting system'), run: () => setLinkDialogOpen(true) }] : []),
+  // Menu data for the record header and the phone action bar. `narrowOnly` rows repeat verbs the
+  // desktop header already shows elsewhere (the Record another document menu).
+  const recordMenuItems: RecordMenuItem[] = [
+    ...recordKinds.map((kind) => ({ key: `record-${kind}`, label: recordKindLabels[kind], onSelect: () => beginCapture(kind) })),
+    ...(canAddQuote ? [{ key: 'add-quote', label: t('procurementRecord:action.addQuote', 'Add quotation'), onSelect: openQuotationCapture }] : []),
+    ...(canLinkAccounting ? [{ key: 'link-accounting', label: t('procurementRecord:linkAccounting', 'Link from accounting system'), onSelect: () => setLinkDialogOpen(true) }] : []),
   ];
   const cancelAction = actionFor('Cancelled');
-  const moreItems: MenuEntry[] = [
-    ...(canEditHeader ? [{ key: 'edit', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), run: () => setHeaderEditOpen(true) }] : []),
-    { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), run: () => { setHistoryOpen(true); setTab('timeline'); } },
-    ...secondaryTransitionActions.map((action) => ({ key: action.to, label: action.label, run: () => onActionClick(action) })),
-    { key: 'export', label: t('procurementRecord:export', 'Export'), run: exportCurrentProcurement },
-    ...(returnAction ? [{ key: 'reject', danger: true, label: t('procurementDetail.action.reject', 'Reject'), run: () => onActionClick(returnAction) }] : []),
-    ...(cancelAction ? [{ key: 'cancel', danger: true, label: t('procurementRecord:cancelProcurement', 'Cancel procurement'), run: () => onActionClick(cancelAction) }] : []),
+  const moreMenuItems: RecordMenuItem[] = [
+    ...(isNarrow ? [
+      ...(returnAction ? [{ key: 'return', label: t('procurementRecord:action.return', 'Return'), onSelect: secondaryClick }] : []),
+      ...recordMenuItems,
+    ] : []),
+    ...(canEditHeader ? [{ key: 'edit-header', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), onSelect: () => setHeaderEditOpen(true) }] : []),
+    { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), onSelect: () => { setHistoryOpen(true); setTab('timeline'); } },
+    ...secondaryTransitionActions.map((action) => ({ key: `to-${action.to}`, label: action.label, onSelect: () => onActionClick(action) })),
+    { key: 'export', label: t('procurementRecord:export', 'Export'), onSelect: exportCurrentProcurement },
+    ...(returnAction ? [{ key: 'reject', label: t('procurementDetail.action.reject', 'Reject'), onSelect: () => onActionClick(returnAction), danger: true }] : []),
+    ...(cancelAction ? [{ key: 'cancel', label: t('procurementRecord:cancelProcurement', 'Cancel procurement'), onSelect: () => onActionClick(cancelAction), danger: true }] : []),
   ];
-  const renderItem = (item: MenuEntry) => (
-    <Menu.Item key={item.key} data-testid={item.testId} className={cn(menuItemClass, 'min-h-10', item.danger && menuItemDanger)} onClick={item.run}>{item.label}</Menu.Item>
-  );
 
   return (
     <div>
@@ -616,7 +616,6 @@ const ProcurementDetails: React.FC = () => {
       {handoffTarget && <RunOnMount run={runHandoff} />}
       {/* The record header carries the one current-stage action and document/menu actions. */}
       <RecordHeader
-        variant="drawer"
         className="mb-4"
         icon={null}
         name={p.title}
@@ -633,46 +632,21 @@ const ProcurementDetails: React.FC = () => {
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
-        actions={<div className="flex flex-wrap items-center justify-end gap-2">
+        actions={<>
           {waitingNote && <span className="min-w-0 text-[12px] text-muted-foreground">{waitingNote}</span>}
-          {(recordKinds.length > 0 || canAddQuote || canLinkAccounting) && <div className="relative hidden sm:block">
-            <Menu.Root modal={false}>
-            <Menu.Trigger render={<Button variant="outline" size="sm" />}>
-              {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
-            </Menu.Trigger>
-            <Menu.Portal>
-            <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
-            <Menu.Popup aria-label={t('procurementRecord:recordMenu', 'Record another document')} className={cn(menuPopupClass, 'min-w-56')} style={menuPopupOrigin}>
-              {captureItems.map(renderItem)}
-            </Menu.Popup>
-            </Menu.Positioner>
-            </Menu.Portal>
-            </Menu.Root>
-          </div>}
           {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
-          {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementDetail.action.reject', 'Reject')}</Button>}
-          {p.status === 'Approved' && canAddQuote && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openQuotationCapture}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Button>}
-          {/* B4: below 640px the phone action bar owns the one filled main action. */}
-          {mainAction && !isNarrow && <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>}
-          <div className="relative">
-            <Menu.Root modal={false}>
-            <Menu.Trigger render={<Button variant="outline" size="sm" className="hidden sm:inline-flex" />} aria-label={t('procurementRecord:moreActions', 'More procurement actions')}>⋯</Menu.Trigger>
-            <Menu.Portal>
-            <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
-            <Menu.Popup aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className={cn(menuPopupClass, 'min-w-48')} style={menuPopupOrigin}>
-              {moreItems.map(renderItem)}
-            </Menu.Popup>
-            </Menu.Positioner>
-            </Menu.Portal>
-            </Menu.Root>
-          </div>
-        </div>}
+          {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
+        </>}
+        // B4: below 640px the phone action bar owns the one filled main action and the menu.
+        primaryAction={mainAction && !isNarrow ? <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button> : undefined}
+        menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
+        menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
 
       {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive-text">{mutationError}</p>}
       <div className="space-y-3">
         <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
-        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer ? undefined : <ProcurementBudgetSignal
+        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer || (stageForStatus(p.status) === 'Request' && p.project_id) ? undefined : <ProcurementBudgetSignal
           projectId={p.project_id}
           totalValue={Number(p.total_value)}
           status={p.status}
@@ -894,16 +868,7 @@ const ProcurementDetails: React.FC = () => {
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
-            <Menu.Root modal={false}>
-              <Menu.Trigger render={<Button variant="outline" className="min-h-11" />} aria-label={t('procurementRecord:moreActions', 'More procurement actions')}>⋯</Menu.Trigger>
-              <Menu.Portal>
-              <Menu.Positioner side="top" align="end" sideOffset={8} collisionPadding={12} className="z-50">
-              <Menu.Popup aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className={cn(menuPopupClass, 'min-w-56 max-h-[55vh]')} style={menuPopupOrigin}>
-                {[...(returnAction ? [{ key: 'return', label: t('procurementRecord:action.return', 'Return'), run: secondaryClick }] : []), ...captureItems, ...moreItems].map(renderItem)}
-              </Menu.Popup>
-              </Menu.Positioner>
-            </Menu.Portal>
-            </Menu.Root>
+            <RecordMenu items={moreMenuItems} side="top" ariaLabel={t('procurementRecord:moreActions', 'More procurement actions')} triggerClassName="min-h-11" />
           </div>
         </div>
         <div aria-hidden="true" className="h-16 sm:hidden" />

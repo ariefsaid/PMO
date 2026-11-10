@@ -57,8 +57,8 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   });
 
   await page.goto(projectUrl);
-  await page.getByRole('button', { name: /^Activity · \d+ comments$/ }).click();
-  const activity = page.getByRole('dialog', { name: 'Activity' });
+  // #2057: a deal's Overview carries its notes and activity inline (no drawer doorway).
+  const activity = page.getByRole('region', { name: 'Notes and activity' });
   await expect(activity).toBeVisible({ timeout: 15_000 });
   await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
   await expect(activity.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible({ timeout: 15_000 });
@@ -79,8 +79,6 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await expect(events.nth(1)).toContainText(/End date: \D*30\D*2026 → \D*31\D*2026/);
   await expect(events.nth(1)).toContainText('Diego Salvatierra');
 
-  await activity.getByRole('button', { name: 'Close', exact: true }).click();
-
   // Mobile: no horizontal overflow (fonts settled before measuring).
   await page.setViewportSize({ width: 390, height: 800 });
   await waitForFonts(page);
@@ -95,8 +93,8 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await login(page, 'exec@acme.test');
   await page.goto('/sales');
   await openPipelineCard(page, name);
-  await page.locator('summary[aria-label="More actions"]').click();
-  await page.getByRole('button', { name: /Archive/i }).click();
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: /Archive/i }).click();
   const archiveDialog = page.getByRole('alertdialog');
   await expect(archiveDialog).toBeVisible({ timeout: 8_000 });
   await archiveDialog.getByRole('button', { name: /archive project/i }).click();

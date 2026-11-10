@@ -196,5 +196,20 @@
   "age": {
     "overdue_one": "Terlambat {{n}} hari",
     "overdue_other": "Terlambat {{n}} hari"
+  },
+  "reasonDialog": {
+    "returnTitle": "Kembalikan {{subject}}",
+    "returnConfirm": "Kembalikan",
+    "returnReasonLabel": "Alasan pengembalian",
+    "returnReasonHelp": "Alasan ini terlihat oleh orang yang menerimanya kembali.",
+    "rejectTitle": "Tolak {{subject}}",
+    "rejectConfirm": "Tolak",
+    "rejectReasonLabel": "Alasan penolakan",
+    "rejectReasonHelp": "Alasan ini terlihat oleh pengaju.",
+    "reasonRequired": "Isi alasan."
+  },
+  "figures": {
+    "hidden_one": "{{count}} angka disembunyikan: {{reason}}",
+    "hidden_other": "{{count}} angka disembunyikan: {{reason}}"
   }
 }

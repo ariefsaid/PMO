@@ -1024,5 +1024,12 @@
     },
     "save_one": "Simpan {{count}} baris valid",
     "retry_one": "Ulangi {{count}} baris gagal"
+  },
+  "invoiceTimeline": {
+    "label": "Linimasa status faktur",
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "received": "Diterima klien",
+    "paid": "Dibayar"
   }
 }

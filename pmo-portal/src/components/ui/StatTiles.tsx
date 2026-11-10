@@ -1,16 +1,23 @@
 import React from 'react';
 import { cn } from './cn';
 import { FigureContent } from './FigureContent';
+import { useFigureReport, type HiddenFigure } from './useFigureScope';
 
 export interface StatTile {
   label: React.ReactNode;
   value: React.ReactNode;
   /** Exact money value when the visible figure is compact. */
   exactValue?: string;
-  /** Unavailable reason; omit the number and show this in plain words. */
+  /**
+   * Why the figure is unknown. The tile is then not drawn: inside a `FigureScope` it is counted in the page's
+   * one "N figures hidden" line; outside one it shows the reason in place. A tile with no `value` is unknown too.
+   */
   unavailableReason?: string;
+  /** Where the unknown figure is fixed ("Set up"); the link in the hidden-figures line. */
+  hiddenLink?: { to: string; label: string };
   /** Positive → success, negative → destructive coloring on the value. */
   tone?: 'pos' | 'neg';
+  /** The tile's ONE caption (at most 6 words, one truncated line). */
   sub?: React.ReactNode;
 }
 
@@ -77,11 +84,21 @@ const CONTAINER_SPAN_RESET: Record<number, string> = {
  * behavior is identical to `framed`.
  */
 export const StatTiles: React.FC<StatTilesProps> = ({
-  tiles,
+  tiles: allTiles,
   columns = 4,
   className,
   variant = 'framed',
 }) => {
+  const isUnknown = (tile: StatTile) => tile.unavailableReason != null || tile.value == null;
+  const unknownTiles = allTiles.filter(isUnknown);
+  const inScope = useFigureReport(unknownTiles.map<HiddenFigure>((tile) => ({
+    label: typeof tile.label === 'string' ? tile.label : '',
+    reason: tile.unavailableReason ?? '',
+    ...(tile.hiddenLink ? { link: tile.hiddenLink } : {}),
+  })));
+  // Inside a scope an unknown tile is not drawn at all (the page's one line reports it).
+  const tiles = inScope ? allTiles.filter((tile) => !isUnknown(tile)) : allTiles;
+  if (tiles.length === 0) return null;
   const smColsClass = CONTAINER_COLS_CLASS[columns] ?? '';
   const spanReset = CONTAINER_SPAN_RESET[columns] ?? '';
   const isOdd = tiles.length % 2 !== 0;
@@ -134,7 +151,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             >
               <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
             </div>
-            {t.sub && <div className="mt-0.5 text-support text-muted-foreground">{t.sub}</div>}
+            {t.sub && <div className="mt-0.5 truncate text-support text-muted-foreground">{t.sub}</div>}
           </div>
         );
       })}

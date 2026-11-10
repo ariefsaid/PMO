@@ -1669,7 +1669,8 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const header = screen.getByTestId('record-header');
-    await userEvent.click(within(header).getByRole('button', { name: /^Reject$/ }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Reject$/ }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByRole('button', { name: /^Reject$/ })).toBeVisible();
     expect(mockTransition).not.toHaveBeenCalled();
@@ -1846,7 +1847,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.any(String), expect.anything(), 'warning'));
   });
 
-  it('AC-SEC-220: within the approved amount there is no ceiling message', () => {
+  it('AC-SEC-220: within the approved amount there is no ceiling message', async () => {
     detailState.data = { ...invoicedOver, paymentCeiling: { ok: true, reason: null, billedNet: 900, approvedAmount: 1000 } };
     renderPage();
     expect(screen.queryByTestId('payment-ceiling-note')).toBeNull();

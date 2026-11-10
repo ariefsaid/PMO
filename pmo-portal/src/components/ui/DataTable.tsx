@@ -15,6 +15,7 @@ import {
 } from './useTableColumnSizing';
 import { DataTableDesktop } from './DataTableDesktop';
 import { DataTableMobile } from './DataTableMobile';
+import { dropBlankColumns } from './dataTableColumns';
 import type { GroupedRowEntry } from './DataTableShared';
 
 export { RowMenu, MenuButton, type RowMenuItem };
@@ -59,6 +60,13 @@ export interface Column<Row> {
   stickyLeft?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
+  /**
+   * A column whose cell is blank (nothing, or the "—" empty marker) on every loaded row is not rendered.
+   * Set this to keep it anyway, e.g. a column the user expects to find even when empty. Never applied while
+   * loading, empty or failed (no rows yet), nor to the first column, a `stickyLeft`/`rowHeader` column, one with a
+   * `caveat` (the caveat explains its blanks), or one that a `totals` row fills.
+   */
+  keepWhenBlank?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
   size?: number;
   /** Minimum width when resizing is enabled. */
@@ -224,7 +232,10 @@ export function DataTable<Row>({
   onOverflowChange,
 }: DataTableProps<Row>) {
   const { t } = useTranslation('projects');
-  const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
+  const columns = useMemo(
+    () => dropBlankColumns(allColumns.filter((column) => !column.exportOnly), rows, totals, !state),
+    [allColumns, rows, totals, state],
+  );
   const userId = useContext(AuthContext)?.currentUser?.id;
   const { columnSizing, onColumnSizingChange } = useTableColumnSizing(
     tableId,
