@@ -290,9 +290,10 @@ describe('ProjectDetailHeader — content', () => {
     );
     const header = within(screen.getByTestId('record-header'));
     expect(header.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
-    const quietEdit = header.getByRole('button', { name: /^Edit$/i });
-    expect(quietEdit).not.toHaveClass('bg-primary');
-    await userEvent.click(quietEdit);
+    // One filled button: the state verb. Edit moves into the ⋯ menu.
+    expect(header.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+    await userEvent.click(header.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
     expect(onEditAgain).toHaveBeenCalledOnce();
   });
 

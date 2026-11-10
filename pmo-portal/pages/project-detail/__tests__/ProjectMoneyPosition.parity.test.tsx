@@ -88,7 +88,7 @@ const renderOverviewMoney = () => {
     </QueryClientProvider>,
   );
 };
-const costBlock = () => screen.getByRole('region', { name: /Budget vs actual/ });
+const costBlock = () => screen.getByRole('region', { name: /^Budget$/ });
 const definitionValueText = (scope: HTMLElement, label: string) => {
   const term = within(scope).getByText(label, { exact: true });
   return term.parentElement?.querySelector(':scope > dd')?.textContent ?? null;

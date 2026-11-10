@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -286,6 +286,19 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const navigate = useNavigate();
   const isDesktopHeader = useIsDesktop();
 
+  // The page's state verb (Raise invoice, Chase payment) can render nothing: only a button that is actually
+  // there takes the one filled slot; otherwise Edit does.
+  const primarySlotRef = useRef<HTMLSpanElement>(null);
+  const [primaryRendered, setPrimaryRendered] = useState(false);
+  useEffect(() => {
+    const slot = primarySlotRef.current;
+    if (!slot) { setPrimaryRendered(false); return; }
+    const check = () => setPrimaryRendered(slot.querySelector('button') !== null);
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(slot, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [primaryAction]);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   // contract_value inline-edit state.
@@ -471,13 +484,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // The state's own verb (Raise invoice, Chase payment) is the primary action when the page offers one;
   // otherwise Edit is. Edit stays one click away either way.
   // Phone keeps the header to one row: Edit moves into the menu there.
-  const editInMenu = canEdit && compact && !isDesktopHeader;
+  const editInMenu = canEdit && ((compact && !isDesktopHeader) || primaryRendered);
   const editButton = canEdit && !editInMenu ? (
-    <Button variant={primaryAction ? 'outline' : 'primary'} size="sm" className="touch-target" onClick={onEditProject}>
+    <Button variant="primary" size="sm" className="touch-target" onClick={onEditProject}>
       {t('projectDetail.header.action.edit', 'Edit')}
     </Button>
   ) : undefined;
-  const headerPrimary = primaryAction ?? editButton;
+  const primarySlot = primaryAction ? <span ref={primarySlotRef} className="inline-flex">{primaryAction}</span> : null;
+  const headerPrimary = primarySlot ?? editButton;
+  const extraEdit = primaryAction ? editButton : undefined;
   const menuItems: RecordMenuItem[] = [
     ...(compact ? [{ key: 'copy-link', label: t('projectDetail.header.copyLink', 'Copy link'), onSelect: () => void copyProjectLink() }] : []),
     ...(editInMenu ? [{ key: 'edit', label: t('projectDetail.header.action.edit', 'Edit'), onSelect: () => onEditProject?.() }] : []),
@@ -491,7 +506,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
     <Popover>
-      <PopoverTrigger className={buttonClasses('outline', 'sm', 'touch-target')}>
+      <PopoverTrigger className={buttonClasses('ghost', 'sm', 'touch-target')}>
         {t('projectDetail.header.projectDetails', 'Project details')}
       </PopoverTrigger>
       <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
@@ -539,9 +554,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       {statusOnPhoneRow && statusPill}
       {secondaryAction}
       {detailsPanel}
-      {primaryAction && editButton}
+      {extraEdit}
     </>
-  ) : primaryAction ? editButton : undefined;
+  ) : extraEdit;
 
   /** Existing explicit editor + role explanation; the idle value lives only in the metric. */
   const sodRow = isDelivery ? (

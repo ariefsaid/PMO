@@ -35,9 +35,7 @@ describe('UIP-003 project recognition', () => {
     for (const name of ['Project', 'PM', 'Status', 'Contract', 'Actual']) {
       expect(screen.getByRole('columnheader', { name })).toBeVisible();
     }
-    const avatar = screen.getByRole('img', { name: 'Sample Manager' });
-    expect(avatar).toBeVisible();
-    expect(avatar).toHaveAttribute('title', 'Sample Manager');
+    expect(screen.getByText('Sample Manager')).toBeVisible();
     expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Action' })).not.toBeInTheDocument();
   });

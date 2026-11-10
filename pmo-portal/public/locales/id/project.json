@@ -488,7 +488,7 @@
       "estimateTooltip": "Anggaran perkiraan dari catatan proyek; bukan versi anggaran aktif.",
       "noEstimate": "Belum ada anggaran perkiraan",
       "estimated": "Anggaran perkiraan {{amount}}",
-      "title": "Anggaran vs aktual",
+      "title": "Anggaran",
       "openBudgetArea": "Buka anggaran",
       "error": "Anggaran tidak dapat dimuat",
       "noBudget": "Belum ada anggaran aktif, jadi pengeluaran belum dapat dibandingkan.",
@@ -521,7 +521,8 @@
       "snapshotOver": "{{amount}} melebihi anggaran",
       "snapshotOverOnCommitments": "{{amount}} lebih begitu pesanan terikat masuk",
       "atRisk": "Berisiko",
-      "rowBudgetOnly": "{{budget}} dianggarkan"
+      "hiddenSpending": "pengeluaran belum terhubung",
+      "setUp": "Atur"
     },
     "milestones": {
       "currentPhaseLabel": "Fase saat ini",
@@ -530,7 +531,6 @@
     },
     "billingMilestones": {
       "title": "Milestone penagihan",
-      "subline": "Work order klien. Penagihan mengikuti tiap work order.",
       "error": "Gagal memuat milestone penagihan",
       "empty": "Belum ada work order.",
       "openContract": "Buka kontrak & penagihan",

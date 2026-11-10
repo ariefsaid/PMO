@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip, useFigureReport } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -246,7 +246,16 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   const committed = useProjectCommittedSpend(canReadProcurements ? project.id : null, canReadProcurements);
   const procurements = useProjectProcurements(canReadProcurements ? project.id : null);
   const label = (c: string) => budgetCategoryLabel(c, t);
-  const title = t('projectDetail.cost.title', 'Budget vs actual');
+  const title = t('projectDetail.cost.title', 'Budget');
+  // No spending to compare: the page's one hidden-figures line says so; the card does not repeat it.
+  const spendingUnlinked = pos.hasBudget && pos.canSeeActual && pos.spent === null && !pos.currencyDiffers && !pos.actualsPending && !pos.actualsError;
+  const inFigureScope = useFigureReport(spendingUnlinked
+    ? [{
+      label: t('projectDetail.budget.spent', 'Spent'),
+      reason: t('projectDetail.cost.hiddenSpending', 'spending is not linked'),
+      link: canFixSetup ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.setUp', 'Set up') } : undefined,
+    }]
+    : []);
   const action = onOpenBudget && <BlockAction onClick={onOpenBudget}>{t('projectDetail.cost.openBudgetArea', 'Open budget')}</BlockAction>;
 
   if (pos.isPending) return <Block id="pd-cost" title={title}><ListState variant="loading" rows={4} /></Block>;
@@ -346,7 +355,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       {pos.canSeeActual && pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
         <Note>{t('projectDetail.cost.currencyDiffers', 'Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.', { currency: pos.spendCurrency })}</Note>
       )}
-      {pos.canSeeActual && pos.spent === null && !pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
+      {spendingUnlinked && !inFigureScope && (
         <Note>
           {t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")}{' '}
           {canFixSetup
@@ -370,7 +379,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     <span className="truncate text-sm font-medium text-foreground">{label(r.category)}</span>
                     <span className={cn('text-right text-sm tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
-                        ? t('projectDetail.cost.rowBudgetOnly', '{{budget}} budgeted', { budget: whole(r.budget) })
+                        ? whole(r.budget)
                         : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
                     </span>
                     {pct !== null && <span className="col-span-2 w-full sm:col-span-1">

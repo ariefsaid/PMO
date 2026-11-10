@@ -488,7 +488,7 @@
       "estimateTooltip": "Estimated budget from the project record; not an active budget version.",
       "noEstimate": "No estimated budget yet",
       "estimated": "Estimated budget {{amount}}",
-      "title": "Budget vs actual",
+      "title": "Budget",
       "openBudgetArea": "Open budget",
       "error": "Couldn't load the budget",
       "noBudget": "No active budget yet, so spending can’t be compared.",
@@ -521,7 +521,8 @@
       "snapshotOver": "{{amount}} over budget",
       "snapshotOverOnCommitments": "{{amount}} over once committed orders land",
       "atRisk": "At risk",
-      "rowBudgetOnly": "{{budget}} budgeted"
+      "hiddenSpending": "spending is not linked",
+      "setUp": "Set up"
     },
     "milestones": {
       "currentPhaseLabel": "Current phase",
@@ -530,7 +531,6 @@
     },
     "billingMilestones": {
       "title": "Billing milestones",
-      "subline": "The client's work orders. Billing follows each work order.",
       "error": "Couldn't load the billing milestones",
       "empty": "No work orders yet.",
       "openContract": "Open contract & billing",

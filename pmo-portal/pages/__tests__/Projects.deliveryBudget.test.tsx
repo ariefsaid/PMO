@@ -130,8 +130,7 @@ describe('Projects delivery progress + budget used', () => {
 
     renderPage();
 
-    expect(screen.getAllByText(/Actual is partial on/)).toHaveLength(1);
-    expect(screen.getByText('Actual is partial on 1 of 25 projects.')).toBeInTheDocument();
+    expect(screen.queryByText(/Actual is partial on/)).not.toBeInTheDocument();
     expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
     expect(screen.getByText('$1,234,568')).toBeInTheDocument();
     expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321"]')).not.toBeNull();

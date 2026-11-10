@@ -1,10 +1,9 @@
 import type { TFunction } from 'i18next';
-import { Avatar } from '@/src/components/ui/Avatar';
 import { CompanyNameLink, ProgressBar, StatusPill, TaxBasisLabel, type Column } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { formatCurrency, formatDay } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -22,6 +21,8 @@ interface ProjectTableColumnInputs {
   moneyPending: boolean;
   moneyError: boolean;
   canViewMoney: boolean;
+  /** The signed-in user; a PM column that is only ever the viewer carries nothing and is dropped. */
+  viewerId?: string | null;
   isAtRiskActual: (project: ProjectWithRefs) => boolean;
   onOpen: (project: ProjectWithRefs) => void;
   onPrefetch?: (id: string) => void;
@@ -29,7 +30,7 @@ interface ProjectTableColumnInputs {
 }
 
 export function projectTableColumns({ filtered, deliverySummary, deliveryPending, deliveryError, projectMoney,
-  moneyPending, moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch, t }: ProjectTableColumnInputs) {
+  moneyPending, moneyError, canViewMoney, viewerId, isAtRiskActual, onOpen, onPrefetch, t }: ProjectTableColumnInputs) {
   const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
   const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
   // #2060: the table renders the SAME Actual the Cards view does, from the same collection read.
@@ -39,35 +40,29 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     moneyPending,
     moneyError,
   });
-  // ONE table-level coverage note (AC-RD-TBL-PROJ-001), counted over exactly the rows whose figure
-  // is withheld — so the note can never contradict an amount that is on screen. `coverageAsOf` is
-  // the newest ERP update among the visible rows.
-  const withheldRows = filtered.filter((project) => {
-    const state = actualPosition(project).state;
-    return state === 'partial' || state === 'unknown';
-  });
-  const partialRows = withheldRows.filter((project) => actualPosition(project).state === 'partial');
-  const unknownActualRows = withheldRows.filter((project) => actualPosition(project).state === 'unknown');
-  const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
-    const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
-    return asOf && (!latest || asOf > latest) ? asOf : latest;
-  }, null);
-  const coverageReason = moneyPending
-    ? undefined
-    : moneyError
-      ? t('projects:coverage.readError', 'Project spending could not be read.')
-      : partialRows.length > 0
-      ? coverageAsOf
-        ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatDay(coverageAsOf) })
-        : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length })
-      : unknownActualRows.length > 0
-        ? t('projects:coverage.unknown', 'Actual is unknown on {{count}} of {{total}} projects.', { count: unknownActualRows.length, total: filtered.length })
-        : undefined;
+  // The Actual column drops itself when no row has a figure. Say why once, on the page's hidden-figures
+  // line, instead of a sentence about a column that is not there. A role whose money read never runs
+  // (no data, no error) has nothing to set up, so it gets no line.
+  const actualHidden = !moneyPending && (moneyError || projectMoney !== undefined) && filtered.length > 0
+    && filtered.every((project) => {
+      const position = actualPosition(project);
+      return !position.text && !position.restricted;
+    });
+  const actualHiddenReason = !actualHidden ? null : moneyError
+    ? t('projects:coverage.hiddenReadError', 'spending could not be read')
+    : t('projects:coverage.hiddenNotLinked', 'spending is not linked');
+  // One tax basis across the visible contracts is said once, in the header; a mix keeps it on each figure.
+  const bases = [...new Set(filtered.map((p) => p.tax_treatment).filter((x): x is NonNullable<typeof x> => x === 'inclusive' || x === 'exclusive'))];
+  const sharedBasis = bases.length === 1
+    ? bases[0] === 'inclusive' ? t('tax.basis.inclusive', 'incl. PPN') : t('tax.basis.exclusive', 'excl. PPN')
+    : null;
   // The money-view-gated Contract column (see `canViewMoney`). A typed const — not an inline
   // conditional spread — so the surrounding array literal keeps its contextual `Column` typing.
   const contractColumn: Column<ProjectWithRefs> | null = canViewMoney ? {
     key: 'contract',
-    header: t('projects.columns.contract', 'Contract'),
+    header: sharedBasis
+      ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
+      : t('projects.columns.contract', 'Contract'),
     kind: 'money',
     size: 160,
     minSize: 152,
@@ -85,11 +80,13 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       return (
         <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
           <span>{formatCurrency(p.contract_value, p.currency)}</span>
-          <TaxBasisLabel
-            treatment={p.tax_treatment}
-            showDetails={false}
-            className="block max-w-full whitespace-normal break-words leading-tight"
-          />
+          {!sharedBasis && (
+            <TaxBasisLabel
+              treatment={p.tax_treatment}
+              showDetails={false}
+              className="block max-w-full whitespace-normal break-words leading-tight"
+            />
+          )}
           <span id={detailsId} className="sr-only">
             <TaxBasisLabel
               treatment={p.tax_treatment}
@@ -160,7 +157,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         const ids = [p.pmo_project_number, p.code].filter(Boolean).join(' · ');
         return (
           <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
-            <CompanyNameLink companyId={p.client_id} name={p.client ? companyDisplayName(p.client) : null} className="block max-w-full truncate" />
+            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="block max-w-full truncate" />}
             {ids && <>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="block whitespace-nowrap font-mono" title={ids}>{ids}</span></>}
             {p.end_client && <span className="block truncate text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
           </span>
@@ -209,8 +206,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
       kind: 'meta',
-      size: 112,
-      minSize: 112,
+      size: 160,
+      minSize: 128,
       maxSize: 320,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
@@ -221,24 +218,16 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         }),
-      // The compact initials avatar preserves the full PM name for assistive technology and hover.
       cell: (p) => {
-        if (p.project_manager_id == null) {
-          return <span className="text-sm text-muted-foreground">{t('projects.unassigned', 'Unassigned')}</span>;
-        }
-        const label = projectManagerLabel({
-          managerId: p.project_manager_id,
-          fullName: p.pm?.full_name,
-          unassignedLabel: t('projects.unassigned', 'Unassigned'),
-          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
-        });
-        return (
-          // Left-aligned with the other card values (director fix): the avatar started at a
-          // different x than the Status pill and Contract amount inside the card's shared grid.
-          <span className="flex items-center">
-            <Avatar name={label} size="xs" />
-          </span>
-        );
+        const label = p.project_manager_id == null
+          ? t('projects.unassigned', 'Unassigned')
+          : projectManagerLabel({
+            managerId: p.project_manager_id,
+            fullName: p.pm?.full_name,
+            unassignedLabel: t('projects.unassigned', 'Unassigned'),
+            unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+          });
+        return <span className={p.project_manager_id == null ? 'text-muted-foreground' : undefined}>{label}</span>;
       },
     },
     {
@@ -344,6 +333,58 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   // Money-view-gated roles have no `contract` column at all, so this inserts no Currency column
   // either — their export carries neither the contract figure nor its currency qualifier.
   const exportColumns = withCurrencyColumn(visibleColumns, 'contract', (r) => r.currency);
-  return { visibleColumns, exportColumns, coverageReason };
+  // On screen, a PM column that only ever names the viewer says nothing. The download keeps it.
+  // One manager across every visible project is said once, above the list, and the column goes.
+  const pmIsViewer = viewerId != null && filtered.length > 0 && filtered.every((p) => p.project_manager_id === viewerId);
+  const pmOf = (p: ProjectWithRefs) => projectManagerLabel({
+    managerId: p.project_manager_id,
+    fullName: p.pm?.full_name,
+    unassignedLabel: t('projects.unassigned', 'Unassigned'),
+    unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+  });
+  const onlyManagerId = filtered.length > 1 && filtered[0].project_manager_id != null && filtered.every((p) => p.project_manager_id === filtered[0].project_manager_id)
+    ? filtered[0].project_manager_id : null;
+  const sharedManager = !pmIsViewer && onlyManagerId != null ? pmOf(filtered[0]) : null;
+  const tableColumns = pmIsViewer || sharedManager ? visibleColumns.filter((column) => column.key !== 'pm') : visibleColumns;
+
+  // Phone cards: name; client · reference; status and progress; money. No repeated field labels.
+  const cellOf = (key: string, p: ProjectWithRefs) => visibleColumns.find((column) => column.key === key)?.cell(p);
+  const mobileCardTitle = (p: ProjectWithRefs) => {
+    const ids = [p.pmo_project_number, p.code].filter(Boolean).join(' · ');
+    return (
+      <div className="min-w-0">
+        {cellOf('project', p)}
+        {(p.client || ids) && (
+          <div className="mt-1 min-w-0 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="inline" />}
+            {p.client && ids && ' · '}
+            {ids && <span className="whitespace-nowrap font-mono" title={ids}>{ids}</span>}
+          </div>
+        )}
+      </div>
+    );
+  };
+  const mobileCardDetails = (p: ProjectWithRefs) => {
+    const progress = visibleColumns.some((column) => column.key === 'progress') && deliverySummary?.[p.id]?.deliveryPct != null ? cellOf('progress', p) : null;
+    const actual = visibleColumns.some((column) => column.key === 'actual') ? actualPosition(p).text : null;
+    const budgetUsed = visibleColumns.some((column) => column.key === 'budget-used') ? cellOf('budget-used', p) : null;
+    return (
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+          {cellOf('status', p)}
+          {progress && <span className="min-w-[7rem] max-w-[10rem] flex-1">{progress}</span>}
+        </div>
+        {canViewMoney && (
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span>{formatCurrency(p.contract_value, p.currency)}</span>
+            {!sharedBasis && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
+            {actual && <span className="text-muted-foreground">{t('projects:card.actualInline', '{{amount}} actual', { amount: actual })}</span>}
+            {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}
+          </div>
+        )}
+      </div>
+    );
+  };
+  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
 
 }

@@ -52,7 +52,7 @@ const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: f
 // Mutable role box (hoisted) — drives the create/edit/archive affordance gating (ADR-0016)
 // on the REAL JWT role. A test sets `roleBox.value` to render the page as a different role.
 const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
-  roleBox: { value: 'Project Manager' },
+  roleBox: { value: 'Project Manager', viewerId: 'u-alice' },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -68,6 +68,7 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = v
   projectMoneyState: {
     data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; complete?: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
     isPending: false,
+    fetchStatus: 'fetching' as 'fetching' | 'idle',
     isError: false,
     refetch: vi.fn(),
   },
@@ -94,7 +95,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: roleBox.value }),
+  useAuth: () => ({ currentUser: { id: roleBox.viewerId, org_id: 'org-1' }, role: roleBox.value }),
 }));
 // B-11 fix: Projects now reads the caller's tasks to scope an Engineer's "My Projects".
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
@@ -234,7 +235,29 @@ describe('Projects index — IA-3 (real data)', () => {
     renderPage();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getAllByText('Innovate Corp').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('img', { name: 'Alice Manager' }).length).toBeGreaterThan(0);
+    // Every seeded row is the viewer's own, so the PM column says nothing and is dropped.
+    expect(screen.queryByRole('columnheader', { name: 'PM' })).not.toBeInTheDocument();
+  });
+
+  it('says one shared manager once above the list and drops the column; different managers get the column with names', () => {
+    roleBox.viewerId = 'u-someone-else';
+    const previous = projectsState.data;
+    try {
+      renderPage();
+      expect(screen.queryByRole('columnheader', { name: 'PM' })).not.toBeInTheDocument();
+      expect(screen.getByText('Project manager: Alice Manager')).toBeInTheDocument();
+      cleanup();
+      projectsState.data = (previous as unknown as Record<string, unknown>[]).map((row, i) => (
+        i === 0 ? { ...row, project_manager_id: 'u-bob', pm: { full_name: 'Bob Builder' } } : row
+      )) as unknown as ProjectWithRefs[];
+      renderPage();
+      expect(screen.getByRole('columnheader', { name: 'PM' })).toBeInTheDocument();
+      expect(within(document.querySelector('tbody')!).getByText('Bob Builder')).toBeInTheDocument();
+      expect(screen.queryByText(/^Project manager:/)).not.toBeInTheDocument();
+    } finally {
+      projectsState.data = previous;
+      roleBox.viewerId = 'u-alice';
+    }
   });
 
   it('RF-010: keeps contract basis concise while exposing the complete qualifier to assistive technology', () => {
@@ -245,10 +268,9 @@ describe('Projects index — IA-3 (real data)', () => {
     }] as unknown as ProjectWithRefs[];
     try {
       renderPage();
-      const visibleBasis = screen.getByText('excl. PPN');
-      expect(visibleBasis).toBeVisible();
-      expect(visibleBasis).toHaveClass('whitespace-normal', 'break-words', 'max-w-full');
-      expect(visibleBasis).not.toHaveClass('whitespace-nowrap');
+      // One basis across the visible rows is said once, in the column header, not under every figure.
+      expect(screen.getByRole('columnheader', { name: 'Contract (excl. PPN)' })).toBeInTheDocument();
+      expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
       const detail = screen.getByText('excl. PPN 11% · DPP 1/1');
       expect(detail).toHaveAttribute('data-testid', 'contract-tax-label-p1');
       expect(detail).toHaveClass('max-w-full', 'whitespace-normal', 'break-words');
@@ -403,13 +425,6 @@ describe('Projects table — compact layout (#1)', () => {
     projectsState.isError = false;
   });
 
-  it('#1: the compact PM cell renders an identified avatar (look-pinning class oracle retired — avatars restyled in 129022a3e; behavior kept per the recomposition rule)', () => {
-    renderPage();
-    const tableBody = document.querySelector('tbody')!;
-    // Behavior oracle: the PM column renders an avatar carrying the manager's accessible name.
-    expect(within(tableBody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0]).toBeInTheDocument();
-  });
-
   it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {
     renderPage();
     // The progressbar role should be in the table and have a compact constrained wrapper
@@ -425,15 +440,6 @@ describe('Projects table — compact layout (#1)', () => {
     const outerSpan = bar.closest('span[class*="min-w-[80px]"]') ??
       bar.parentElement?.closest('span[class*="min-w-[80px]"]');
     expect(outerSpan).not.toBeNull();
-  });
-
-  it('M-D: PM initials are visible while the full name remains accessible', () => {
-    renderPage();
-    const tbody = document.querySelector('tbody')!;
-    const avatar = within(tbody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0];
-    expect(avatar).toHaveTextContent('AM');
-    expect(avatar).toHaveAttribute('title', 'Alice Manager');
-    expect(within(tbody as HTMLElement).queryByText('Alice Manager')).not.toBeInTheDocument();
   });
 
   it('RF-009: hides optional progress and budget columns when loaded data is absent', () => {
@@ -470,7 +476,7 @@ describe('Projects table — compact layout (#1)', () => {
       renderPage();
       expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
       expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
-      expect(screen.getByTestId('projects-coverage')).toHaveTextContent('Project spending could not be read.');
+      expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending could not be read');
     } finally {
       Object.assign(deliverySummaryState, priorDelivery, { isError: priorDeliveryError });
       projectMoneyState.data = priorMoney;
@@ -652,7 +658,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectsState.data = [{ ...seed[0], currency: 'EUR' }] as unknown as ProjectWithRefs[];
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     expect(within(document.querySelector('tbody')!).queryByText('$950')).not.toBeInTheDocument();
-    expect(screen.getByText('Actual is unknown on 1 of 1 projects.')).toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending is not linked');
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
     expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
     expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
@@ -689,7 +695,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '125000', asOf: null,
       excludesRestrictedRows: false, complete: false, categories: [] }, activeBudgetAmount: '500000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
     renderPage();
-    expect(screen.getByText('Actual is unknown on 1 of 1 projects.')).toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending is not linked');
     expect(screen.queryByText('25%')).not.toBeInTheDocument();
   });
 
@@ -698,7 +704,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '500000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
     renderPage();
     expect(within(document.querySelector('tbody')!).queryByText('$125,000')).not.toBeInTheDocument();
-    expect(screen.getByText('Actual is unknown on 1 of 1 projects.')).toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending is not linked');
   });
 
   it('AC-S02-008: displays canonical Actual, freshness and Active-budget utilization instead of committedSpend', () => {
@@ -743,6 +749,22 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(actualCell).toHaveTextContent('$7,200,000');
   });
 
+  it('a role whose money read never runs (idle query) gets no endless placeholder and no money columns', () => {
+    const prior = { data: projectMoneyState.data, isPending: projectMoneyState.isPending, fetchStatus: projectMoneyState.fetchStatus };
+    projectMoneyState.data = undefined;
+    projectMoneyState.isPending = true;
+    projectMoneyState.fetchStatus = 'idle';
+    try {
+      renderPage();
+      expect(screen.queryByRole('columnheader', { name: 'Actual' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+      expect(within(document.querySelector('tbody')!).queryByText('…')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    } finally {
+      Object.assign(projectMoneyState, prior);
+    }
+  });
+
   it('#2060: an unknown Actual is an em dash when other rows have one, and the column is dropped when none does', () => {
     const unknown = { ledgerBasis: 'erp' as const, actuals: { currency: 'USD', total: '7200000.00', asOf: '2026-10-01T00:00:00Z',
       excludesRestrictedRows: false, complete: false, categories: [{ category: 'Labor', mapped: false, amount: null }] },
@@ -751,7 +773,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const { unmount } = renderPage();
     // Blank on every row: no Actual column, one page-level line says why.
     expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
-    expect(screen.getByTestId('projects-coverage')).toHaveTextContent(/Actual is partial on 1 of 1 projects/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending is not linked');
     unmount();
     projectMoneyState.data = {
       p1: unknown,
@@ -796,8 +818,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(row.cells[budgetHeaderIndex]).toHaveTextContent('No active budget');
     expect(row.cells[budgetHeaderIndex].textContent).not.toContain('—');
     expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toBeNull();
-    // The coverage explanation is the one table note, not a per-row string.
-    expect(screen.getAllByText(/Actual is partial on 1 of 2 projects/)).toHaveLength(1);
+    // The column stays (another row has a figure), so there is no hidden-figures line for it.
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
@@ -809,7 +831,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const body = document.querySelector('tbody')!;
     expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Budget used/ })).not.toBeInTheDocument();
-    expect(screen.getAllByText('Project spending could not be read.')).toHaveLength(1);
+    expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('spending could not be read');
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
   });
 

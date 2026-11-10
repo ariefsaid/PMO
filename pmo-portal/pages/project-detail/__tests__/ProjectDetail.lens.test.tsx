@@ -221,7 +221,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     projectsState.data = [onHandRow];
     const view = await renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Budget vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Budget' })).toBeInTheDocument();
     // L6: the contract value is shown once on the screen — in Money position, not again in the header facts.
     expect(within(screen.getByRole('region', { name: /Money position/ })).getByText(formatCurrency(5_000_000, 'USD'))).toBeInTheDocument();
     expect(within(screen.getByLabelText('Project facts')).queryByText(/5,000,000/)).not.toBeInTheDocument();
@@ -242,7 +242,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     }
     expect(screen.getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Money position' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Budget vs actual' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Budget' })).not.toBeInTheDocument();
     expect(screen.queryByText(/5,000,000/)).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();

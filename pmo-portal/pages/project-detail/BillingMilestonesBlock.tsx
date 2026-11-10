@@ -26,8 +26,7 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
   const ageById = useMemo(() => new Map((age.data ?? []).map((a) => [a.workOrderId, a] as const)), [age.data]);
   const contractHref = `/projects/${projectId}/contract`;
   const shell = (children: React.ReactNode) => (
-    <Block id="pd-billing-milestones" title={title}
-      unit={t('projectDetail.billingMilestones.subline', "The client's work orders. Billing follows each work order.")}>{children}</Block>
+    <Block id="pd-billing-milestones" title={title}>{children}</Block>
   );
   if (orders.isPending || billing.isPending || age.isPending) return shell(<ListState variant="loading" rows={3} />);
   if (orders.isError || billing.isError || age.isError) {
