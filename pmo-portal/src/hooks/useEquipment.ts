@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import type { CostingDraft, UsageInput, UsageStatus } from '@/src/lib/db/equipment';
+import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
+import type { AssetMatchPair, CostingDraft, EquipmentCommandOperation, UsageInput, UsageStatus } from '@/src/lib/db/equipment';
 
 /**
  * Equipment usage and allocation (#1519 S5) over the repository seam (ADR-0017). Keys carry org_id (tenant scope).
@@ -11,7 +12,8 @@ import type { CostingDraft, UsageInput, UsageStatus } from '@/src/lib/db/equipme
  * constant, so the literal first key segment is the prefix we invalidate.
  */
 export const EQUIPMENT_QUERY_ROOTS = ['equipment-assets', 'equipment-usage', 'equipment-usage-totals', 'equipment-costing',
-  'equipment-allocations'] as const;
+  'equipment-allocations', 'equipment-register', 'equipment-maintenance', 'equipment-pickers', 'equipment-pending',
+  'equipment-asset-matches'] as const;
 const PROJECT_FINANCES_ROOT = 'project-finances';
 
 const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
@@ -55,6 +57,59 @@ export function useEquipmentAllocations(q: { assetId?: string; projectId?: strin
   });
 }
 
+// ── the Odoo register and maintenance reads (#1511 F5; Odoo owns the register while the org employs equipment) ──
+
+export function useRegister() {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['equipment-register', orgId],
+    queryFn: () => repositories.equipment.listRegister(),
+    enabled: Boolean(orgId),
+  });
+}
+/** An asset's maintenance records newest first — `ref` is the asset's `external_ref` (`equipment:42`, `vehicle:7`). */
+export function useAssetMaintenance(ref: string | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['equipment-maintenance', orgId, ref],
+    queryFn: () => repositories.equipment.listMaintenance(ref as string),
+    enabled: Boolean(orgId && ref),
+  });
+}
+/** Picker sources for the register/maintenance forms; `kind` names one mirrored picker kind. */
+export function useEquipmentPickers(kind: Parameters<typeof repositories.equipment.listPickers>[0] | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['equipment-pickers', orgId, kind],
+    queryFn: () => repositories.equipment.listPickers(kind as Parameters<typeof repositories.equipment.listPickers>[0]),
+    enabled: Boolean(orgId && kind),
+  });
+}
+/** The outbox rows still waiting on Odoo for the handed PMO records (the asset page's waiting/held strips). */
+export function usePendingEquipmentChanges(recordIds: string[]) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['equipment-pending', orgId, recordIds],
+    queryFn: () => repositories.equipment.listPendingChanges(recordIds),
+    enabled: Boolean(orgId && recordIds.length > 0),
+  });
+}
+/** The Admin match screen's proposals; `enabled=false` keeps the read off until the screen asks for it. */
+export function useAssetMatches(enabled = true) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['equipment-asset-matches', orgId],
+    queryFn: () => repositories.equipment.listAssetMatches(),
+    enabled: Boolean(orgId && enabled),
+  });
+}
+/** True while the org employs `equipment` under Odoo — the screens' ownership switch (D12). */
+export function useOdooEquipmentOwned(enabled = true) {
+  const ownership = useExternalDomainOwnership(enabled);
+  const rows = ownership.data ?? [];
+  return { ...ownership, owned: rows.some((r) => r.externalTier === 'odoo' && r.domain === 'equipment') };
+}
+
 /** Every write refreshes every equipment read plus the project's finances: one set of facts on screens that sit side by side. */
 function useEquipmentMutation<A, R>(fn: (a: A) => Promise<R>) {
   const qc = useQueryClient();
@@ -84,3 +139,11 @@ export const useEndCosting = () =>
 /** Preview is a READ the screen fires on demand; kept in a mutation so nothing is cached or invalidated (the DB computes it). */
 export const usePreviewCosting = () =>
   useMutation({ mutationFn: (draft: CostingDraft) => repositories.equipment.previewCosting(draft) });
+
+// ── the register/maintenance writes (#1511 F5): through the outbox, Odoo confirms before PMO shows it ──
+
+export const useAcceptAssetMatches = () =>
+  useEquipmentMutation((pairs: AssetMatchPair[]) => repositories.equipment.acceptAssetMatches(pairs));
+export const useSendEquipmentCommand = () =>
+  useEquipmentMutation((a: { operation: EquipmentCommandOperation; record: { id: string } & Record<string, unknown>; idempotencyKey: string }) =>
+    repositories.equipment.sendEquipmentCommand(a.operation, a.record, a.idempotencyKey));

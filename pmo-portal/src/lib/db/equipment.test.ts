@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AppError } from '@/src/lib/appError';
 
 /**
  * AC-EQU-017 (data half) — the equipment DAL (#1519 S5, plan S5.1).
@@ -7,15 +8,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * bounded at LIST_LIMIT + 1 so a silently trimmed read can never be mistaken for the whole set (money-path bucket 5).
  */
 const h = vi.hoisted(() => {
-  const result = { value: { data: null as unknown, error: null as unknown } };
+  const result = { value: {} as { data: unknown; error: unknown; count?: unknown } };
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[],
     select: [] as unknown[], eq: [] as unknown[], gte: [] as unknown[], lte: [] as unknown[], is: [] as unknown[],
-    order: [] as unknown[], limit: [] as unknown[], delete: [] as unknown[], single: 0,
+    in: [] as unknown[], order: [] as unknown[], limit: [] as unknown[], delete: [] as unknown[], single: 0,
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...a: unknown[]) => { (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'order', 'limit', 'insert', 'update', 'delete'] as const) builder[k] = chain(k);
+  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'in', 'order', 'limit', 'insert', 'update', 'delete'] as const) builder[k] = chain(k);
   builder.single = () => { calls.single++; return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
@@ -24,16 +25,20 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
+const dispatchMocks = vi.hoisted(() => ({ dispatchDomainCommand: vi.fn() }));
+vi.mock('@/src/lib/adapterSeam/dispatchClient', () => dispatchMocks);
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+
 import * as dal from './equipment';
 const { LIST_LIMIT } = dal;
 
 beforeEach(() => {
-  h.from.mockClear(); h.rpc.mockClear();
+  h.from.mockClear(); h.rpc.mockClear(); dispatchMocks.dispatchDomainCommand.mockReset();
   for (const [k, v] of Object.entries(h.calls)) {
     if (typeof v === 'number') (h.calls as unknown as Record<string, number>)[k] = 0;
     else (v as unknown[]).length = 0;
   }
-  h.result.value = { data: null, error: null };
+  h.result.value = { data: null, error: null, count: null };
 });
 
 const usageInput: dal.UsageInput = {
@@ -229,3 +234,123 @@ function costingDraft(): dal.CostingDraft {
     account_group: 'Expenses', cost_center: null, party_type: null, party: null, effective_from: '2026-09-01', effective_to: null,
   };
 }
+
+// ══ #1511 F5 — the Odoo register and maintenance data layer (mirror reads + dispatch; migration 0797's RPCs) ══
+
+describe('#1511 F5 register reads over the Odoo mirror', () => {
+  it('F5-T1 listRegister reads the odoo vehicle/equipment kinds, bounded at LIST_LIMIT + 1', async () => {
+    h.result.value = { data: Array.from({ length: LIST_LIMIT + 1 }, (_, i) => ({ id: String(i) })), error: null };
+    const out = await dal.listRegister();
+    expect(out.rows).toHaveLength(LIST_LIMIT);
+    expect(out.truncated).toBe(true);
+    expect(h.calls.from).toEqual(['external_master_records']);
+    expect(h.calls.select).toEqual(['id, kind, external_id, code, name, active, tombstoned_at, attrs, as_of']);
+    expect(h.calls.eq).toEqual([['external_tier', 'odoo']]);
+    expect(h.calls.in).toEqual([['kind', ['vehicle', 'equipment']]]);
+    expect(h.calls.order).toEqual(['name']);
+    expect(h.calls.limit).toEqual([LIST_LIMIT + 1]);
+  });
+
+  it('F5-T1 a null register read is an empty bounded list; a failed read throws with its code', async () => {
+    expect(await dal.listRegister()).toEqual({ rows: [], truncated: false });
+    h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
+    await expect(dal.listRegister()).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('F5-T1 listMaintenance maps an equipment ref to requests and a vehicle ref to service logs', async () => {
+    h.result.value = { data: [{ id: 'm1' }], error: null, count: 1 };
+    const equipment = await dal.listMaintenance('equipment:42');
+    const vehicle = await dal.listMaintenance('vehicle:7');
+    expect(equipment).toEqual({ rows: [{ id: 'm1' }], truncated: false, total: 1 });
+    expect(vehicle.rows).toEqual([{ id: 'm1' }]);
+    expect(h.calls.from).toEqual(['external_master_records', 'external_master_records']);
+    expect(h.calls.eq).toEqual([
+      ['external_tier', 'odoo'], ['kind', 'maintenance_request'], ['parent_external_id', '42'],
+      ['external_tier', 'odoo'], ['kind', 'vehicle_service'], ['parent_external_id', '7'],
+    ]);
+    expect(h.calls.order).toEqual([['source_write_date', { ascending: false }], ['source_write_date', { ascending: false }]]);
+    expect(h.calls.select).toEqual([
+      ['id, external_id, code, name, active, attrs, source_write_date, parent_external_id', { count: 'exact' }],
+      ['id, external_id, code, name, active, attrs, source_write_date, parent_external_id', { count: 'exact' }],
+    ]);
+  });
+
+  it('F5-T1 listMaintenance bounds at 50 shown and reports the exact total for the showing note', async () => {
+    h.result.value = { data: Array.from({ length: 51 }, (_, i) => ({ id: String(i) })), error: null, count: 137 };
+    const out = await dal.listMaintenance('equipment:42');
+    expect(out.rows).toHaveLength(50);
+    expect(out.truncated).toBe(true);
+    expect(out.total).toBe(137);
+    expect(h.calls.limit).toEqual([51]);
+  });
+
+  it('F5-T1 listMaintenance refuses a ref that is not a linked odoo asset before any read', async () => {
+    await expect(dal.listMaintenance('bogus')).rejects.toBeInstanceOf(AppError);
+    expect(h.calls.from).toEqual([]);
+  });
+
+  it('F5-T1 listPickers reads one picker kind live and not tombstoned; stages order by attrs sequence', async () => {
+    h.result.value = { data: [{ id: 's1' }], error: null };
+    await dal.listPickers('service_type');
+    await dal.listPickers('maintenance_stage');
+    expect(h.calls.from).toEqual(['external_master_records', 'external_master_records']);
+    expect(h.calls.eq).toEqual([
+      ['external_tier', 'odoo'], ['kind', 'service_type'], ['active', true],
+      ['external_tier', 'odoo'], ['kind', 'maintenance_stage'], ['active', true],
+    ]);
+    expect(h.calls.is).toEqual([['tombstoned_at', null], ['tombstoned_at', null]]);
+    expect(h.calls.order).toEqual([['name', { ascending: true }], ['attrs->sequence', { ascending: true }]]);
+    expect(h.calls.limit).toEqual([LIST_LIMIT + 1, LIST_LIMIT + 1]);
+  });
+
+  it('F5-T1 listPendingChanges reads the waiting outbox rows for the handed records only', async () => {
+    h.result.value = { data: [{ pmo_record_id: 'r1', state: 'pending' }], error: null };
+    const out = await dal.listPendingChanges(['r1', 'r2']);
+    expect(out).toEqual([{ pmo_record_id: 'r1', state: 'pending' }]);
+    expect(h.calls.from).toEqual(['external_command_outbox']);
+    expect(h.calls.select).toEqual(['pmo_record_id, state, idempotency_key, updated_at']);
+    expect(h.calls.eq).toEqual([['domain', 'equipment']]);
+    expect(h.calls.in).toEqual([
+      ['state', ['pending', 'committing', 'committed', 'quarantined', 'held']],
+      ['pmo_record_id', ['r1', 'r2']],
+    ]);
+    expect(h.calls.limit).toEqual([LIST_LIMIT + 1]);
+  });
+
+  it('F5-T1 listPendingChanges with no record ids reads nothing', async () => {
+    expect(await dal.listPendingChanges([])).toEqual([]);
+    expect(h.calls.from).toEqual([]);
+  });
+});
+
+describe('#1511 F5 adoption RPCs and the dispatch seam', () => {
+  it('F5-T1 listAssetMatches calls the 0797 read RPC with no args', async () => {
+    h.result.value = { data: [{ ref: 'equipment:42', action: 'link' }], error: null };
+    await expect(dal.listAssetMatches()).resolves.toEqual([{ ref: 'equipment:42', action: 'link' }]);
+    expect(h.calls.rpc).toEqual([['list_equipment_asset_matches', undefined]]);
+  });
+
+  it('F5-T1 acceptAssetMatches sends the pairs verbatim as p_pairs and returns the counts', async () => {
+    const pairs = [
+      { ref: 'equipment:42', action: 'link' as const, asset_id: 'a1' },
+      { ref: 'equipment:43', action: 'add' as const, default_unit: 'hours' as const },
+    ];
+    h.result.value = { data: { linked: 1, added: 1 }, error: null };
+    await expect(dal.acceptAssetMatches(pairs)).resolves.toEqual({ linked: 1, added: 1 });
+    expect(h.calls.rpc).toEqual([['accept_equipment_asset_matches', { p_pairs: pairs }]]);
+  });
+
+  it('F5-T1 a refused adoption batch keeps its code so the page can name the row', async () => {
+    h.result.value = { data: null, error: { message: 'already linked', code: '23505' } };
+    await expect(dal.acceptAssetMatches([{ ref: 'equipment:42', action: 'link' as const, asset_id: 'a1' }]))
+      .rejects.toMatchObject({ code: '23505' });
+  });
+
+  it('F5-T1 sendEquipmentCommand dispatches on the equipment domain with the handed idempotency key', async () => {
+    dispatchMocks.dispatchDomainCommand.mockResolvedValueOnce({ externalRecordId: 'maintenance.request:11', canonical: { id: 'r1' } });
+    const record = { id: 'r1', erp_doc_kind: 'maintenance-request', subject: 'Hydraulic leak' };
+    await expect(dal.sendEquipmentCommand('create', record, '15110000-0000-4000-8000-000000000001'))
+      .resolves.toEqual({ externalRecordId: 'maintenance.request:11', canonical: { id: 'r1' } });
+    expect(dispatchDomainCommand).toHaveBeenCalledWith('equipment', 'create', record, { idempotencyKey: '15110000-0000-4000-8000-000000000001' });
+  });
+});

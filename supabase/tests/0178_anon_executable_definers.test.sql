@@ -449,6 +449,7 @@ select is(
     where n.nspname = 'public'),
   165,
   'AC-ACL-002 all 165 retained client-callable RPC names still have a public function');
+
 select is(
   (select count(*)::int
      from pg_proc p

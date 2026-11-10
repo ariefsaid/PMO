@@ -1,5 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+import type { AdapterOperation, CommandResult } from '@/src/lib/adapterSeam/contract';
 import type { Database, Json, Tables } from '@/src/lib/supabase/database.types';
 
 /**
@@ -187,4 +189,108 @@ export async function listAllocations(
   });
   fail(error);
   return bounded(data);
+}
+
+// ── the Odoo register and maintenance data layer (#1511 F5) ─────────────────────────────────────────
+//
+// Odoo owns the register and maintenance records while the org employs `equipment` (ADR-0094): these reads go over
+// the mirror (`external_master_records`, kinds 0795) and these writes go through `adapter-dispatch` on the
+// `equipment` domain — nothing here writes `equipment_assets` by hand (0797's restrictive RLS refuses it).
+// Reads are bounded like every list in this module; maintenance reports the exact count so the page can say
+// "Showing x of y" without reading the whole set.
+
+export type RegisterRow = Pick<Tables<'external_master_records'>,
+  'id' | 'kind' | 'external_id' | 'code' | 'name' | 'active' | 'tombstoned_at' | 'attrs' | 'as_of'>;
+export type MaintenanceRow = Pick<Tables<'external_master_records'>,
+  'id' | 'external_id' | 'code' | 'name' | 'active' | 'attrs' | 'source_write_date' | 'parent_external_id'>;
+export type PickerRow = Pick<Tables<'external_master_records'>, 'id' | 'external_id' | 'name' | 'attrs'>;
+export type PickerKind = 'vehicle_model' | 'maintenance_stage' | 'service_type';
+export type PendingChangeRow = Pick<Tables<'external_command_outbox'>,
+  'pmo_record_id' | 'state' | 'idempotency_key' | 'updated_at'>;
+export type EquipmentAssetMatchRow = Database['public']['Functions']['list_equipment_asset_matches']['Returns'][number];
+export interface AssetMatchPair {
+  ref: string;
+  action: 'link' | 'add' | 'skip';
+  asset_id?: string | null;
+  default_unit?: 'hours' | 'days' | null;
+}
+export interface AssetMatchApplyResult { linked: number; added: number }
+export interface MaintenancePage { rows: MaintenanceRow[]; truncated: boolean; total: number | null }
+/** A register/maintenance command is created or edited in Odoo — never deleted (archive is `active = false`, D4). */
+export type EquipmentCommandOperation = Extract<AdapterOperation, 'create' | 'update'>;
+/** Rows shown of a bounded maintenance list; one extra row is fetched to know it is trimmed. */
+export const MAINTENANCE_SHOWN = 50;
+
+const REGISTER_COLS = 'id, kind, external_id, code, name, active, tombstoned_at, attrs, as_of';
+const MAINTENANCE_COLS = 'id, external_id, code, name, active, attrs, source_write_date, parent_external_id';
+
+/** Every mirrored vehicle and equipment item of the org (linked or not, live or archived) — the register list's source. */
+export async function listRegister(): Promise<Bounded<RegisterRow>> {
+  const { data, error } = await supabase.from('external_master_records').select(REGISTER_COLS)
+    .eq('external_tier', 'odoo').in('kind', ['vehicle', 'equipment'])
+    .order('name').limit(LIST_LIMIT + 1);
+  fail(error);
+  return bounded(data as RegisterRow[] | null);
+}
+
+/** An asset's maintenance records newest first — `equipment:<id>` reads requests, `vehicle:<id>` reads service logs. */
+export async function listMaintenance(ref: string): Promise<MaintenancePage> {
+  const [domain, parentId] = ref.split(':');
+  const kind = domain === 'equipment' ? 'maintenance_request' : domain === 'vehicle' ? 'vehicle_service' : null;
+  if (!kind || !parentId) throw new AppError('a maintenance list needs an Odoo register reference (equipment:<id> or vehicle:<id>)');
+  const { data, error, count } = await supabase.from('external_master_records')
+    .select(MAINTENANCE_COLS, { count: 'exact' })
+    .eq('external_tier', 'odoo').eq('kind', kind).eq('parent_external_id', parentId)
+    .order('source_write_date', { ascending: false }).limit(MAINTENANCE_SHOWN + 1);
+  fail(error);
+  const rows = (data ?? []) as MaintenanceRow[];
+  return { rows: rows.slice(0, MAINTENANCE_SHOWN), truncated: rows.length > MAINTENANCE_SHOWN, total: count };
+}
+
+/** The picker sources for the forms: vehicle models, maintenance stages (by sequence), service types. */
+export async function listPickers(kind: PickerKind): Promise<Bounded<PickerRow>> {
+  const { data, error } = await supabase.from('external_master_records').select('id, external_id, name, attrs')
+    .eq('external_tier', 'odoo').eq('kind', kind).eq('active', true).is('tombstoned_at', null)
+    .order(kind === 'maintenance_stage' ? 'attrs->sequence' : 'name', { ascending: true })
+    .limit(LIST_LIMIT + 1);
+  fail(error);
+  return bounded(data as PickerRow[] | null);
+}
+
+/** The outbox rows still waiting on Odoo (or held for a person) for the handed PMO records — the asset page's strips.
+ *  `recordIds` is already page-bounded (≤ 50 rows of one asset's list); the query keeps an explicit ceiling too. */
+export async function listPendingChanges(recordIds: string[]): Promise<PendingChangeRow[]> {
+  if (recordIds.length === 0) return [];
+  const { data, error } = await supabase.from('external_command_outbox')
+    .select('pmo_record_id, state, idempotency_key, updated_at')
+    .eq('domain', 'equipment')
+    .in('state', ['pending', 'committing', 'committed', 'quarantined', 'held'])
+    .in('pmo_record_id', recordIds)
+    .limit(LIST_LIMIT + 1);
+  fail(error);
+  return (data ?? []) as PendingChangeRow[];
+}
+
+/** The Admin match screen's proposals (0797 `list_equipment_asset_matches`): link or add per unlinked Odoo asset. */
+export async function listAssetMatches(): Promise<EquipmentAssetMatchRow[]> {
+  const { data, error } = await supabase.rpc('list_equipment_asset_matches');
+  fail(error);
+  return data ?? [];
+}
+
+/** Apply the accepted proposals in one server transaction (0797 `accept_equipment_asset_matches`). */
+export async function acceptAssetMatches(pairs: AssetMatchPair[]): Promise<AssetMatchApplyResult> {
+  const { data, error } = await supabase.rpc('accept_equipment_asset_matches', { p_pairs: pairs as unknown as Json });
+  fail(error);
+  return data as unknown as AssetMatchApplyResult;
+}
+
+/** A register or maintenance write through the outbox (FR-OFM-030/031): Odoo must confirm before PMO shows it. The
+ *  caller mints the idempotency key per intent (the served dispatch derives the create key from the record id). */
+export function sendEquipmentCommand(
+  operation: EquipmentCommandOperation,
+  record: { id: string } & Record<string, unknown>,
+  idempotencyKey: string,
+): Promise<CommandResult> {
+  return dispatchDomainCommand('equipment', operation, record satisfies Parameters<typeof dispatchDomainCommand>[2], { idempotencyKey });
 }

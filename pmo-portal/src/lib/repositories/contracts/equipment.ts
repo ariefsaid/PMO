@@ -17,4 +17,11 @@ export interface EquipmentRepository {
   endCosting: typeof dal.endCosting;
   previewCosting: typeof dal.previewCosting;
   listAllocations: typeof dal.listAllocations;
+  listRegister: typeof dal.listRegister;
+  listMaintenance: typeof dal.listMaintenance;
+  listPickers: typeof dal.listPickers;
+  listPendingChanges: typeof dal.listPendingChanges;
+  listAssetMatches: typeof dal.listAssetMatches;
+  acceptAssetMatches: typeof dal.acceptAssetMatches;
+  sendEquipmentCommand: typeof dal.sendEquipmentCommand;
 }
