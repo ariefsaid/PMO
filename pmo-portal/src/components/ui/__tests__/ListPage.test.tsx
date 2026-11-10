@@ -7,13 +7,11 @@ describe('ListPage shell', () => {
     render(
       <ListPage
         title="Companies"
-        description="Clients and vendors."
         count={42}
         primaryAction={<button type="button">New company</button>}
       />,
     );
     expect(screen.getByRole('heading', { name: /Companies/ })).toBeInTheDocument();
-    expect(screen.getByText('Clients and vendors.')).toBeInTheDocument();
     // count chip rides with the title
     expect(screen.getByTestId('list-page-count')).toHaveTextContent('42');
     // the primary action lives in the header (top-right), not the toolbar

@@ -40,9 +40,9 @@ describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
     const rail = screen.getByRole('complementary');
     const expected = [
       ['Dashboard', 'dashboard'], ['Projects', 'projects'],
-      ['Sales Pipeline', 'pipeline'], ['Procurement', 'procurement'], ['Meetings', 'cal'],
+      ['Sales Pipeline', 'pipeline'], ['Procurement', 'procurement'], ['Meetings', 'meetings'],
       ['Incidents', 'alert'], ['Finance', 'dollar'], ['Receivables', 'invoices'],
-      ['Payables', 'procurement'], ['Reports', 'reports'], ['Statements', 'reports'], ['Timesheets', 'clock'],
+      ['Payables', 'payments'], ['Reports', 'reports'], ['Statements', 'statements'], ['Timesheets', 'clock'],
       ['Expenses', 'expenses'], ['Approvals', 'approvals'], ['Companies', 'companies'],
       ['Contacts', 'contacts'], ['Saved view', 'views'], ['Administration', 'admin'],
     ] as const;
@@ -56,4 +56,18 @@ describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
       .toHaveAttribute('data-icon', 'message');
   });
 
+
+  it('every navigation item has its own icon (screen rule: navigation icons are unique per item)', () => {
+    renderRail();
+    const rail = screen.getByRole('complementary');
+    const seen = new Map<string, string>();
+    for (const link of within(rail).getAllByRole('link')) {
+      const key = link.querySelector('svg')?.getAttribute('data-icon');
+      if (!key) continue;
+      const name = link.textContent?.trim() ?? '';
+      expect(seen.get(key), `${name} shares the "${key}" icon with ${seen.get(key)}`).toBeUndefined();
+      seen.set(key, name);
+    }
+    expect(seen.size).toBeGreaterThan(15);
+  });
 });

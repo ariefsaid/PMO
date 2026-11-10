@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { RecordHeader } from '../RecordHeader';
@@ -145,5 +145,31 @@ describe('RecordHeader', () => {
     render(<RecordHeader icon="C" name="Acme" status="x" stats={[{ label: 'Value', value: 'Rp 5.000' }, { label: 'Due', value: '1 Jan' }]} />);
     expect(screen.getByText('Value')).toBeInTheDocument();
     expect(screen.getByText('Rp 5.000')).toBeInTheDocument();
+  });
+
+  it('one filled primary action; every other action is in the menu (a record header has no row of buttons)', async () => {
+    const run = vi.fn();
+    render(
+      <RecordHeader
+        icon={null}
+        name="PR-014"
+        status={<StatusPill variant="progress">Requested</StatusPill>}
+        primaryAction={<button type="button">Approve</button>}
+        menuItems={[{ key: 'h', label: 'Full history', onSelect: run }, { key: 'x', label: 'Reject', onSelect: run, danger: true }]}
+        stats={[{ label: 'Value', value: 'IDR 1M' }, { label: 'Needed by', value: '12 Nov' }]}
+      />,
+    );
+    const zone = screen.getByTestId('record-header-actions');
+    expect(within(zone).getAllByRole('button').map((b) => b.textContent)).toEqual(['Approve', '⋯']);
+    expect(screen.getByText('Needed by')).toBeInTheDocument();
+    await userEvent.click(within(zone).getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Reject' }));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('the page title is at least 20px (text-page token) and there is no menu trigger without items', () => {
+    render(<RecordHeader icon={null} name="PR-014" status="Requested" menuItems={[]} />);
+    expect(screen.getByRole('heading', { name: 'PR-014' }).className).toContain('text-page');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { ViewToggle } from '../ViewToggle';
-import { KPITile } from '../KPITile';
 
 /**
  * WCAG 2.5.5 Target Size (AA) — item D. Compact controls (28px segmented-control
@@ -49,11 +48,4 @@ describe('touch-target hit-area expansion (WCAG 2.5.5)', () => {
     }
   });
 
-  it('the KPI help "?" affordance carries the touch-target hook', () => {
-    render(
-      <KPITile icon="up" tone="blue" label="On-hand margin" value="42%" help="Realized actual margin." />,
-    );
-    const help = screen.getByRole('button', { name: /Help: On-hand margin/i });
-    expect(help.className).toContain('touch-target');
-  });
 });

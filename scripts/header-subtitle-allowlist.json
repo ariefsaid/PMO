@@ -1,0 +1,214 @@
+{
+  "components/IncidentFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "components/ProjectFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/AdministrationCredits.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/Companies.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/Contacts.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/ExpenseClaims.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/ImprestFloats.tsx": {
+    "ListPage-description": 1,
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/Incidents.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/IncomingPayments.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/ManagementPack.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/MasterData.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/Meetings.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/Procurement.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/Projects.tsx": {
+    "ListPage-description": 4
+  },
+  "pages/SalesInvoices.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/activity/EditActivityModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/admin-users/UserForms.tsx": {
+    "EntityFormModal-subtitle": 3
+  },
+  "pages/admin/BudgetAccountMap.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/admin/CostAttributionRuleForm.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/admin/ExpenseAccountMap.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/admin/SpendApprovers.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/company/CompanyFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/contact/ContactFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/equipment/EquipmentAssets.tsx": {
+    "ListPage-description": 1,
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/equipment/EquipmentCostingForm.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/equipment/EquipmentUsage.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/expenses/ExpenseClaimFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/finance/PayablesPage.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/incoming-payments/ApplyReceiptForm.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/incoming-payments/IncomingPaymentFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/procurement/LinkErpDocumentsDialog.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/procurement/PoVariationModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/procurement/SubcontractAcceptanceModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/procurement/SubcontractLinesEditor.tsx": {
+    "EntityFormModal-subtitle": 2
+  },
+  "pages/project-budget/BudgetPasteRowsDialog.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/AttachJournalLineDialog.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/BoqItemFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/ClaimEvidenceModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/InvoiceWorkOrderModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/MaterialAllowanceModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/MilestoneFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/ProgressAssessmentModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/ProgressClaimModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/StageDateDialog.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/TimeAndMaterials.tsx": {
+    "EntityFormModal-subtitle": 3
+  },
+  "pages/project-detail/WorkOrderAcceptanceModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/WorkOrderFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/WorkOrderLinesModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/WorkOrderValueModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/tabs/DocumentFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/project-detail/tabs/TaskFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/sales-invoices/SalesInvoiceDialogs.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/sales-invoices/SalesInvoiceFormModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "pages/stock/StockDocuments.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/stock/StockLedger.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/stock/StockOnHand.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/stock/StockReorder.tsx": {
+    "ListPage-description": 1
+  },
+  "pages/stock/StockSetup.tsx": {
+    "ListPage-description": 1
+  },
+  "src/components/EfakturModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/InvoiceProjectModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/NewRevisionModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/builder/PanelEditorForm.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/fx/FxRateUpload.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/integrations/ConnectCredentialsModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/integrations/ErpCompanyModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/integrations/M365DefaultLibraryCard.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/integrations/TaskListMatchReview.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/integrations/odoo/OdooConnectionCard.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/meetings/ActionItemModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/reports/RecordProgressModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  }
+}

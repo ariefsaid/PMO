@@ -21,7 +21,7 @@ import {
 // EntityFormModal — the create / focused-edit composite (crud-components §2.2).
 // A PMO facade over Base UI's Dialog (same engine as ConfirmDialog): the library owns
 // the portal, focus trap, initial focus, focus return, Escape and scrim dismissal and
-// the exit animation; this file owns the header (title + subtitle + ghost close
+// the exit animation; this file owns the header (title + ghost close
 // icon-button), the scrollable form-body slot, the sticky FormActions footer, the
 // post-submit error summary that moves focus to the first invalid field, and the
 // confirm-before-discard gate on a dirty form.
@@ -29,7 +29,7 @@ import {
 // Token-pure: `popover` surface, 1px `border`, shared overlay radius, and the
 // theme-aware scrim role.
 //
-// a11y: `role="dialog"` + `aria-modal` + labelled/described by title/subtitle; focus
+// a11y: `role="dialog"` + `aria-modal` + labelled by its title; focus
 // moves to the first form field on open; Esc + scrim close (blocked while loading);
 // the error summary is `role="alert"`; the body is a real <form> so Enter submits; the
 // app background goes `inert` while open.
@@ -70,6 +70,10 @@ export interface SubmitError {
 export interface EntityFormModalProps {
   open: boolean;
   title: string;
+  /**
+   * @deprecated No sentence sits under a form title (screen rule "Words"); renders nothing. ~60 callers still
+   * pass one: `scripts/header-subtitle-allowlist.json` lists them, and the screen sweeps delete them.
+   */
   subtitle?: string;
   /** Footer primary label, e.g. "Create deal". */
   submitLabel: string;
@@ -121,7 +125,6 @@ export interface EntityFormModalProps {
 export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   open,
   title,
-  subtitle,
   submitLabel,
   cancelLabel,
   hideCancel,
@@ -279,11 +282,6 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                   <Dialog.Title className="text-control font-semibold text-popover-foreground">
                     {title}
                   </Dialog.Title>
-                  {subtitle && (
-                    <Dialog.Description render={<p />} className="mt-1 text-support text-muted-foreground">
-                      {subtitle}
-                    </Dialog.Description>
-                  )}
                 </div>
                 <Button
                   variant="ghost"

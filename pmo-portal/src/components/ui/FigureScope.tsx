@@ -33,22 +33,25 @@ const FigureScopeContext = React.createContext<FigureScopeValue | null>(null);
 export const FigureScope: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [hiddenByOwner, setHiddenByOwner] = React.useState<Record<string, HiddenFigure[]>>({});
   const [helpByOwner, setHelpByOwner] = React.useState<Record<string, FigureHelpEntry[]>>({});
+  // Stable setters: tiles key their effects on these, so a new identity per state change would loop.
+  const setHidden = React.useCallback((owner: string, entries: HiddenFigure[]) => setHiddenByOwner((prev) => {
+    if (entries.length === 0 && !(owner in prev)) return prev;
+    const next = { ...prev };
+    if (entries.length === 0) delete next[owner]; else next[owner] = entries;
+    return next;
+  }), []);
+  const setHelp = React.useCallback((owner: string, entries: FigureHelpEntry[]) => setHelpByOwner((prev) => {
+    if (entries.length === 0 && !(owner in prev)) return prev;
+    const next = { ...prev };
+    if (entries.length === 0) delete next[owner]; else next[owner] = entries;
+    return next;
+  }), []);
   const value = React.useMemo<FigureScopeValue>(() => ({
-    setHidden: (owner, entries) => setHiddenByOwner((prev) => {
-      if (entries.length === 0 && !(owner in prev)) return prev;
-      const next = { ...prev };
-      if (entries.length === 0) delete next[owner]; else next[owner] = entries;
-      return next;
-    }),
-    setHelp: (owner, entries) => setHelpByOwner((prev) => {
-      if (entries.length === 0 && !(owner in prev)) return prev;
-      const next = { ...prev };
-      if (entries.length === 0) delete next[owner]; else next[owner] = entries;
-      return next;
-    }),
+    setHidden,
+    setHelp,
     hidden: Object.values(hiddenByOwner).flat(),
     help: Object.values(helpByOwner).flat(),
-  }), [hiddenByOwner, helpByOwner]);
+  }), [setHidden, setHelp, hiddenByOwner, helpByOwner]);
   return <FigureScopeContext.Provider value={value}>{children}</FigureScopeContext.Provider>;
 };
 
