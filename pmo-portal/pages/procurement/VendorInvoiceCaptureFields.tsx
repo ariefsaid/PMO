@@ -66,7 +66,7 @@ export const VendorInvoiceCaptureFields: React.FC<{ formId: string; capture: Ven
         <div className="flex min-w-[140px] flex-1 flex-col gap-1">
           <label
             htmlFor={`${formId}-tax-amount`}
-            className="text-[12px] font-semibold text-muted-foreground"
+            className="text-sm font-semibold text-muted-foreground"
           >
             {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
           </label>
@@ -81,7 +81,7 @@ export const VendorInvoiceCaptureFields: React.FC<{ formId: string; capture: Ven
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
             aria-describedby={nativeTax.vatSuggestion ? `${formId}-tax-amount-basis` : undefined}
-            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
           <TaxSuggestedFrom id={`${formId}-tax-amount-basis`} suggestion={nativeTax.vatSuggestion} />
         </div>
@@ -90,7 +90,7 @@ export const VendorInvoiceCaptureFields: React.FC<{ formId: string; capture: Ven
     {pmoAuthorsTax && <NativeWithholdingField formId={formId} tax={nativeTax} />}
 
     {isVendorInvoice && parsedTax === null && (
-      <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
+      <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-sm text-muted-foreground">
         {VI_TAX_REQUIRED_HINT}
       </p>
     )}

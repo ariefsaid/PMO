@@ -77,7 +77,7 @@ export const SubcontractLinesEditor: React.FC<{
       onClose={onClose} loading={form.saving} dirty={Object.values(form.values).some((v) => v !== '')}>
       <FormSection legend={t('subcontract.editor.legend', 'Quantity per line')}>
         {items.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t('subcontract.editor.noBoq', 'This project has no BoQ items yet.')}</p>
+          <p className="text-sm text-muted-foreground">{t('subcontract.editor.noBoq', 'This project has no BoQ items yet.')}</p>
         ) : (
           <FormGrid>
             {items.map((item) => (
@@ -89,7 +89,7 @@ export const SubcontractLinesEditor: React.FC<{
             ))}
           </FormGrid>
         )}
-        {form.errors.lines && <p role="alert" className="mt-1 text-[12px] text-destructive-text">{form.errors.lines}</p>}
+        {form.errors.lines && <p role="alert" className="mt-1 text-sm text-destructive-text">{form.errors.lines}</p>}
       </FormSection>
     </EntityFormModal>
   );
@@ -130,7 +130,7 @@ export const SubcontractAttributeModal: React.FC<{
               error={form.errors[r.boq_item_id]} localeAware />
           ))}
         </FormGrid>
-        {form.errors.lines && <p role="alert" className="mt-1 text-[12px] text-destructive-text">{form.errors.lines}</p>}
+        {form.errors.lines && <p role="alert" className="mt-1 text-sm text-destructive-text">{form.errors.lines}</p>}
       </FormSection>
     </EntityFormModal>
   );

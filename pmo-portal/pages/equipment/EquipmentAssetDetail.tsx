@@ -85,7 +85,7 @@ const AllocationsCard: React.FC<{ assetId: string; today: string; projectName: (
               emptySub={t('equipment:allocations.emptySub', 'Approved usage shows here by month and project.')} />
             {rows.filter((r) => open.has(rowId(r))).map((r) => (
               <div key={rowId(r)} className="mt-2 border-t border-border pt-1">
-                <p className="text-xs font-medium text-muted-foreground">{formatMonthYear(fromIso(r.month))}{r.project_id ? ` · ${projectName(r.project_id)}` : ''}</p>
+                <p className="text-sm font-medium text-muted-foreground">{formatMonthYear(fromIso(r.month))}{r.project_id ? ` · ${projectName(r.project_id)}` : ''}</p>
                 <Calculation r={r} t={t} money={(n) => money(n, r.project_id)} />
               </div>))}
           </>
@@ -157,7 +157,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
               ? <div className="space-y-1">
                 <p className="text-sm font-semibold">{basisLabel(t, current.basis)}</p>
                 <p className="text-sm text-muted-foreground">{settingLine(current)}</p>
-                <p className="text-xs text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: current.effective_from, version: current.version })}</p>
+                <p className="text-sm text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: current.effective_from, version: current.version })}</p>
               </div>
               : <p className="text-sm text-muted-foreground">{t('equipment:costing.none', 'No costing set. Usage is recorded and totalled per project, with no amount.')}</p>}
             <div className="mt-3 flex items-center gap-2 text-sm">

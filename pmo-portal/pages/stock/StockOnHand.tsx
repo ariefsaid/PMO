@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatTiles, TextField, type Column } from '@/src/components/ui';
-import { StockTabs } from '@/src/components/stock/StockTabs';
+import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, type Column } from '@/src/components/ui';
+import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -26,10 +26,12 @@ const StockOnHand: React.FC = () => {
   const [includeZero, setIncludeZero] = useState(false);
   const [search, setSearch] = useState('');
   const [belowOnly, setBelowOnly] = useState(false);
+  const navigate = useNavigate();
 
   const warehouses = useStockWarehouses(false);
   const keepers = useStockKeepers();
-  const below = useBelowReorder(belowOnly);
+  // The worklist always loads: its size is the one thing on this page that waits on someone.
+  const below = useBelowReorder(true);
   const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero || belowOnly ? { includeZero: true } : {}) });
 
   const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
@@ -65,7 +67,7 @@ const StockOnHand: React.FC = () => {
         cell: (r) => (
           <div className="min-w-0">
             <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
-            <span className="block truncate text-xs text-muted-foreground">{r.itemName}</span>
+            <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
           </div>
         ),
         exportValue: (r) => r.itemCode,
@@ -75,7 +77,7 @@ const StockOnHand: React.FC = () => {
         cell: (r) => (
           <div className="min-w-0">
             <span className="block truncate text-sm">{r.warehouseName}</span>
-            <span className="block truncate text-xs text-muted-foreground"><span className="font-mono">{r.warehouseCode}</span> · {t(`setup.kinds.${r.warehouseKind}`)}</span>
+            <span className="block truncate text-sm text-muted-foreground"><span className="font-mono">{r.warehouseCode}</span> · {t(`setup.kinds.${r.warehouseKind}`)}</span>
           </div>
         ),
         exportValue: (r) => r.warehouseName,
@@ -100,28 +102,34 @@ const StockOnHand: React.FC = () => {
     onHand.isError || lookupError ? 'error' : onHand.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
   const tooMany = parseStockError(onHand.error)?.code === 'STK_TOO_MANY';
 
-  const itemCount = new Set(rows.map((r) => r.itemId)).size;
-  const whCount = new Set(rows.map((r) => r.warehouseId)).size;
-  const centralCount = rows.filter((r) => r.warehouseKind === 'central').length;
-  const siteCount = rows.length - centralCount;
+  const lowCount = (below.data ?? []).length;
 
   return (
     <ListPage
       title={t('onHand.title')}
-      description={t('onHand.description')}
       count={state === undefined ? rows.length : undefined}
       total={state === undefined ? allRows.length : undefined}
       primaryAction={canMove && (
-        <div className="flex flex-wrap gap-2">
-          {NEW_KINDS.map((k) => (
-            <Link key={k} to={`/stock/new/${k}`} className="inline-flex">
-              <Button variant={k === 'issue' ? 'primary' : 'outline'} size="sm"><Icon name="plus" />{t(`kinds.${k}`)}</Button>
-            </Link>
-          ))}
+        <div className="flex items-center gap-2">
+          <Link to="/stock/new/issue" className="inline-flex">
+            <Button variant="primary"><Icon name="plus" />{t('kinds.issue')}</Button>
+          </Link>
+          <RecordMenu
+            label={t('onHand.moreMovements')}
+            ariaLabel={t('onHand.moreMovements')}
+            items={NEW_KINDS.filter((k) => k !== 'issue').map((k) => ({ key: k, label: t(`kinds.${k}`), onSelect: () => navigate(`/stock/new/${k}`) }))}
+          />
         </div>
       )}
-      filters={
-        <div className="flex flex-wrap items-end gap-3">
+    >
+      <StockTabs />
+      {state === undefined && lowCount > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-status-warning-surface px-4 py-3 text-control">
+          <span className="font-medium text-warning-foreground">{t('onHand.lowStock', { count: lowCount })}</span>
+          <Link to="/stock/reorder" className="font-medium text-primary-text underline-offset-4 hover:underline">{t('onHand.seeReorder')}</Link>
+        </div>
+      )}
+      <StockFilters>
           <SelectField
             label={t('onHand.filters.warehouse')}
             hideLabel
@@ -139,21 +147,7 @@ const StockOnHand: React.FC = () => {
             <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} />
             {t('onHand.filters.includeZero')}
           </label>
-        </div>
-      }
-    >
-      <StockTabs />
-      {state === undefined && (
-        <StatTiles
-          className="mb-3"
-          tiles={[
-            { label: t('onHand.tiles.items'), value: itemCount },
-            { label: t('onHand.tiles.warehouses'), value: whCount },
-            { label: t('onHand.tiles.central'), value: centralCount },
-            { label: t('onHand.tiles.site'), value: siteCount },
-          ]}
-        />
-      )}
+      </StockFilters>
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
       {state === 'error' && (
         <ListState

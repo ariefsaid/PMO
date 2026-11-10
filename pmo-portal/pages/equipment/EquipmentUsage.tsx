@@ -170,8 +170,8 @@ const EquipmentUsagePage: React.FC = () => {
   const columns: Column<GridRow>[] = [
     { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), kind: 'primary', rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
       cell: (r) => r.field === 'quantity'
-        ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-xs font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
-        : <span className="pl-3 text-xs text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
+        ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
+        : <span className="pl-3 text-sm text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
     { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? projectName(r.projectId) : null },
     ...days.map<Column<GridRow>>((d) => ({
       key: d, header: <span className={d === today ? 'font-semibold text-foreground' : undefined}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1', size: 76, minSize: 68,
@@ -250,8 +250,8 @@ const EquipmentUsagePage: React.FC = () => {
       cell: (e) => <span className="tabular-nums">{e.fuel_litres == null ? '—' : formatNumberMax2(Number(e.fuel_litres))} · {e.trips ?? '—'}</span> },
     { key: 'act', header: t('equipment:usage.columns.decision', 'Decision'),
       cell: (e) => {
-        if (e.author_id === userId) return <span className="text-xs text-muted-foreground">{t('equipment:usage.ownEntry', 'Your own entry')}</span>;
-        if (!mayDecide(e)) return <span className="text-xs text-muted-foreground">{t('equipment:usage.notYours', 'Another manager approves this')}</span>;
+        if (e.author_id === userId) return <span className="text-sm text-muted-foreground">{t('equipment:usage.ownEntry', 'Your own entry')}</span>;
+        if (!mayDecide(e)) return <span className="text-sm text-muted-foreground">{t('equipment:usage.notYours', 'Another manager approves this')}</span>;
         const who = `${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`;
         return (
           <span className="flex gap-1">

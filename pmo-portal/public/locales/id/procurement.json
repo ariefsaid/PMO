@@ -312,7 +312,11 @@
     "empty": {
       "title": "Belum ada pengadaan.",
       "scopeNote": "Pembelian yang hanya tercatat di sistem akuntansi tidak tercantum di sini."
-    }
+    },
+    "inStage": "Di tahap",
+    "inStageDays_one": "{{count}} hari",
+    "inStageDays_other": "{{count}} hari",
+    "filters": "Filter"
   },
   "common": {
     "loading": "Memuat…",
@@ -358,7 +362,12 @@
     "afterThisProcurement": "Setelah pengadaan ini",
     "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar",
     "barLabel": "Anggaran terpakai setelah pengadaan ini: {{pct}}% dari {{budget}}",
-    "barCaption": "Anggaran terpakai dengan pembelian ini: {{pct}}%"
+    "barCaption": "Anggaran terpakai dengan pembelian ini: {{pct}}%",
+    "uncommitted": "Anggaran belum terikat",
+    "actualsNotCounted": "Belanja aktual tidak dihitung",
+    "headroom": "Sisa ruang {{pct}}%",
+    "heading": "Dampak anggaran",
+    "openProject": "Buka proyek"
   },
   "headerEdit": {
     "heading": "Edit rincian pengadaan",
@@ -523,7 +532,13 @@
       "decidedBy": "Diputuskan oleh {{names}}",
       "projectApprovers": "pemberi persetujuan proyek",
       "done": "Selesai",
-      "status": { "Requested": "Diajukan", "Approved": "Disetujui", "Revised": "Direvisi", "Rejected": "Ditolak", "Disputed": "Disengketakan" },
+      "status": {
+        "Requested": "Diajukan",
+        "Approved": "Disetujui",
+        "Revised": "Direvisi",
+        "Rejected": "Ditolak",
+        "Disputed": "Disengketakan"
+      },
       "postWork": "Setelah kerja",
       "preWork": "Sebelum kerja",
       "approve": "Setujui",

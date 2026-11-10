@@ -115,10 +115,10 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
       <CardPad className="flex flex-col gap-3">
         {!issued ? (
           <div className="flex flex-col gap-2">
-            <p className="text-[13px] font-medium">{t('subcontract.lines.empty', 'No BoQ lines issued')}</p>
+            <p className="text-sm font-medium">{t('subcontract.lines.empty', 'No BoQ lines issued')}</p>
             {draftLines.length > 0 ? (
               <div data-testid="subcontract-draft-lines" className="flex flex-col gap-2">
-                <p className="text-[12.5px] text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {t('subcontract.lines.draftCount', '{{count}} draft lines, not yet issued. Issuing freezes revision 1.', { count: draftLines.length })}
                 </p>
                 {canEditLines && (
@@ -130,16 +130,16 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                 )}
               </div>
             ) : (
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {t('subcontract.lines.emptyHint', 'Set the BoQ lines this purchase order covers, then issue them to freeze revision 1.')}
               </p>
             )}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px] tabular">
+            <table className="w-full text-sm tabular">
               <thead>
-                <tr className="border-b border-border text-left text-[12px] text-muted-foreground">
+                <tr className="border-b border-border text-left text-sm text-muted-foreground">
                   <th scope="col" className="py-1.5 pr-3 font-semibold">{t('subcontract.col.line', 'Line')}</th>
                   <th scope="col" className="py-1.5 pr-3 font-semibold">{t('subcontract.col.unit', 'Unit')}</th>
                   <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.rate', 'Rate')}</th>
@@ -192,7 +192,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                 })}
               </tbody>
               <tfoot>
-                <tr className="text-[12.5px]">
+                <tr className="text-sm">
                   <td colSpan={canRequestVariation ? 10 : 9} className="pt-2">
                     <div className="flex flex-wrap justify-end gap-x-6 gap-y-1">
                       <span>
@@ -213,7 +213,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
 
         {exceptionRows.length > 0 && (
           <div data-testid="subcontract-cap-exceptions" role="status"
-            className="rounded-md border border-border bg-warning/10 p-2.5 text-[13px]">
+            className="rounded-md border border-border bg-warning/10 p-2.5 text-sm">
             <p className="font-semibold">{t('subcontract.exceptions.title', 'Bills the cap could not check')}</p>
             <ul className="mt-1 flex flex-col gap-1">
               {exceptionRows.map((e) => (
@@ -234,32 +234,32 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
 
         {issued && (
           <div className="flex flex-col gap-1.5" data-testid="subcontract-acceptances">
-            <p className="text-[12px] font-semibold text-muted-foreground">{t('subcontract.acceptance.title', 'Acceptances')}</p>
+            <p className="text-sm font-semibold text-muted-foreground">{t('subcontract.acceptance.title', 'Acceptances')}</p>
             {acceptances.isPending ? (
               <ListState variant="loading" rows={1} />
             ) : acceptances.isError ? (
               <ListState variant="error" title={t('subcontract.acceptance.loadError', 'Could not load the acceptances.')}
                 onRetry={() => void acceptances.refetch()} retryLabel={t('subcontract.lines.retry', 'Retry')} />
             ) : (acceptances.data ?? []).length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">{t('subcontract.acceptance.empty', 'No acceptances recorded')}</p>
+              <p className="text-sm text-muted-foreground">{t('subcontract.acceptance.empty', 'No acceptances recorded')}</p>
             ) : (
               <ul className="flex flex-col gap-1.5">
                 {(acceptances.data ?? []).map((a) => {
                   const isDraft = a.status === 'Draft';
                   const doc = (documents.data ?? []).find((d) => d.id === a.document_id);
                   return (
-                    <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border p-2 text-[13px]">
+                    <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border p-2 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold tabular">{formatDateOnly(a.acceptance_date)}</span>
                         <StatusPill variant={ACCEPTANCE_VARIANT[a.status] ?? 'neutral'}>
                           {t(`subcontract.acceptance.status.${a.status}`, a.status)}
                         </StatusPill>
-                        <span className="text-[12px] text-muted-foreground">
+                        <span className="text-sm text-muted-foreground">
                           {doc ? t('subcontract.acceptance.document', 'Signed document: {{title}}', { title: doc.title })
                             : t('subcontract.acceptance.noDocument', 'No signed document linked')}
                         </span>
                         {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (
-                          <span className="text-[12px] text-muted-foreground">{t('subcontract.acceptance.soleOperator', 'Confirmed by the only active member')}</span>
+                          <span className="text-sm text-muted-foreground">{t('subcontract.acceptance.soleOperator', 'Confirmed by the only active member')}</span>
                         )}
                       </div>
                       {isDraft && (

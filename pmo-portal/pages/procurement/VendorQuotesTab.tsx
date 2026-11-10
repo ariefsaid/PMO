@@ -207,7 +207,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
         }
       >
         Bid comparison
-        <span className="ml-2 text-[13px] font-normal text-muted-foreground">
+        <span className="ml-2 text-sm font-normal text-muted-foreground">
           {t('procurement:quotes.compareHint', 'Compare and select a supplier quote')}
         </span>
       </CardHead>
@@ -283,7 +283,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               // never a fake-working CTA); the wrapping span's own click still
               // reports intent, since a `disabled` element cannot dispatch one.
               onClick={() => trackComingSoonClicked('vendor-quote-file-upload', 'procurement')}
-              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-[12.5px] text-muted-foreground"
+              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-sm text-muted-foreground"
             >
               <Icon name="doc" width="1em" height="1em" />
               Attach file (coming soon)

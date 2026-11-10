@@ -150,14 +150,14 @@ const SubcontractAcceptanceModal: React.FC<SubcontractAcceptanceModalProps> = ({
           const typed = parseMoneyInputAtScale((values[r.boq_item_id] ?? '').trim(), 3);
           if (typed === null || milli(typed) <= milli(r.po_qty)) return null;
           return (
-            <p key={r.boq_item_id} data-testid={`sc-over-${r.boq_item_id}`} className="mt-1 text-[12px] font-medium text-warning-foreground">
+            <p key={r.boq_item_id} data-testid={`sc-over-${r.boq_item_id}`} className="mt-1 text-sm font-medium text-warning-foreground">
               {t('subcontract.acceptance.form.overPo', '{{item}}: {{qty}} {{unit}} more than the PO, shown as verified, not on PO.', {
                 item: r.item_code, qty: formatNumberExact((milli(typed) - milli(r.po_qty)) / 1000), unit: r.unit,
               })}
             </p>
           );
         })}
-        {errors.lines && <p role="alert" className="mt-1 text-[12px] text-destructive-text">{errors.lines}</p>}
+        {errors.lines && <p role="alert" className="mt-1 text-sm text-destructive-text">{errors.lines}</p>}
       </FormSection>
       <FormSection legend={t('subcontract.acceptance.form.noteLegend', 'Note')}>
         <TextArea id="sc-acc-note" label={t('subcontract.acceptance.form.note', 'Note (optional)')}
@@ -181,7 +181,7 @@ const SubcontractAcceptanceModal: React.FC<SubcontractAcceptanceModalProps> = ({
             )}
           </div>
           {preparedByMe && canConfirm && !soleOperator && (
-            <p className="mt-1 text-[12px] text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               {t('subcontract.acceptance.selfConfirmHint', 'You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.')}
             </p>
           )}

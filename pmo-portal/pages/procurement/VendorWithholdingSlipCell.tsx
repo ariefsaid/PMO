@@ -17,16 +17,16 @@ export interface VendorWithholdingSlipCellProps {
 
 export function VendorWithholdingSlipCell({ row, isLoading = false, isError = false, canWrite = false, onRetry, onRecord, onView, onHistory, vendorMissing = false, onSetVendor }: VendorWithholdingSlipCellProps) {
   const { t } = useTranslation();
-  if (isLoading) return <span className="text-xs text-muted-foreground" role="status">{t('bupot.loading', 'Loading bukti potong…')}</span>;
-  if (isError) return <span className="inline-flex items-center gap-1 text-xs text-destructive">{t('bupot.loadError', 'Bukti potong unavailable')} <button type="button" className="underline" onClick={onRetry}>{t('admin.retry', 'Retry')}</button></span>;
-  if (!row) return <span className="text-xs text-muted-foreground">{t('bupot.unavailable', 'Unavailable')}</span>;
+  if (isLoading) return <span className="text-sm text-muted-foreground" role="status">{t('bupot.loading', 'Loading bukti potong…')}</span>;
+  if (isError) return <span className="inline-flex items-center gap-1 text-sm text-destructive">{t('bupot.loadError', 'Bukti potong unavailable')} <button type="button" className="underline" onClick={onRetry}>{t('admin.retry', 'Retry')}</button></span>;
+  if (!row) return <span className="text-sm text-muted-foreground">{t('bupot.unavailable', 'Unavailable')}</span>;
   const labels: Record<string, string> = {
     slipped: t('bupot.state.slipped', 'Slipped'), 'needs-review': t('bupot.state.needsReview', 'Needs review'),
     unavailable: t('bupot.state.unavailable', 'Unavailable'), 'not-recorded': t('bupot.state.notRecorded', 'Not recorded'),
     'not-required': t('bupot.state.notRequired', 'Not required'), 'return-review': t('bupot.state.returnReview', 'Return review'),
   };
   const isActive = Boolean(row.active_slip_id);
-  return <div className="flex max-w-[14rem] flex-col items-end gap-0.5 text-right text-xs">
+  return <div className="flex max-w-[14rem] flex-col items-end gap-0.5 text-right text-sm">
     <span className={row.coverage_state === 'needs-review' ? 'font-medium text-foreground' : 'text-muted-foreground'}>{labels[row.coverage_state] ?? labels.unavailable}</span>
     {isActive && <>
       <span className="max-w-full break-all font-mono">{row.slip_number ?? ''}</span>

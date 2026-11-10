@@ -95,15 +95,15 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
-      <h3 className="text-[12.5px] font-semibold text-muted-foreground">
-        Budget impact
+      <h3 className="text-control font-semibold text-foreground">
+        {t('decisionSupport.heading', 'Budget impact')}
       </h3>
       {projectName ? (
         <ProjectNameLink
           projectId={scopedProjectId}
           name={projectName}
           legalName={projectLegalName}
-          className="text-[12.5px] font-medium text-foreground"
+          className="text-sm font-medium text-foreground"
         />
       ) : null}
     </div>
@@ -133,7 +133,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Budget unavailable — budget impact can&apos;t be shown right now.
           </p>
         </CardPad>
@@ -149,7 +149,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             No active budget set for this project — budget impact can&apos;t be shown.
           </p>
         </CardPad>
@@ -166,7 +166,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
     return (
       <Card variant="bare" className="mb-4"><CardPad>{heading}
-        <p className="text-[13px] text-muted-foreground">{t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')}</p>
+        <p className="text-sm text-muted-foreground">{t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')}</p>
       </CardPad></Card>
     );
   }
@@ -189,7 +189,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       : computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency: currency });
   } catch {
     return <Card variant="bare" className="mb-4"><CardPad>{heading}
-      <p className="text-[13px] text-muted-foreground">{t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')}</p>
+      <p className="text-sm text-muted-foreground">{t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')}</p>
     </CardPad></Card>;
   }
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } = signal;
@@ -214,11 +214,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : 'approved, not yet ordered',
     },
     {
-      label: 'Available',
+      // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".
+      label: t('decisionSupport.uncommitted', 'Uncommitted budget'),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      ...(otherCurrencyCommitted ? { sub: `Not counting commitments in other currencies: ${otherCurrencyCommitted}` } : {}),
+      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Actual spend not counted'),
     },
     { label: 'Project budget', value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
@@ -226,7 +227,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       value: formatCurrency(afterRequest, currency),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
-      sub: `${afterPct.toFixed(1)}% headroom remaining`,
+      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: afterPct.toFixed(1) }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     }]),
   ];
@@ -252,7 +253,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <span className="bg-muted-foreground/55" style={{ width: `${spokenPct}%` }} />
             <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
-          <p className="mt-1 text-support text-muted-foreground tabular">
+          <p className="mt-1 text-control text-muted-foreground tabular">
             {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
           </p>
         </div>
@@ -298,9 +299,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <div className="mt-3 pt-3 border-t border-border/50">
           <Link
             to={`/projects/${scopedProjectId}`}
-            className="inline-flex items-center gap-1 text-[12px] font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
-            Open project
+            {t('decisionSupport.openProject', 'Open project')}
           </Link>
         </div>
       </CardPad>

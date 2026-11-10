@@ -48,15 +48,15 @@ export const MoneyTotalLines: React.FC<MoneyTotalLinesProps> = ({ totals: allTot
       title={tooltip}
       aria-label={`${valueLabel}. ${tooltip}`}
       tabIndex={0}
-      className={`inline-flex flex-col items-start font-semibold tabular text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${lead ? 'text-[20px] leading-tight' : 'text-[13px] leading-snug'} ${className}`}
+      className={`inline-flex flex-col items-start font-semibold tabular text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${lead ? 'text-[20px] leading-tight' : 'text-sm leading-snug'} ${className}`}
     >
       {empty ? (
         <span>{formatNumber(0)}</span>
       ) : (
         <>
           {known.map((entry) => <span key={entry.total.currency}>{show(entry)}</span>)}
-          {partialLabel && <span className="text-[12px] font-normal text-muted-foreground">{partialLabel}</span>}
-          {unknownLabel && <span className="text-[12px] font-normal text-muted-foreground">{unknownLabel}</span>}
+          {partialLabel && <span className="text-sm font-normal text-muted-foreground">{partialLabel}</span>}
+          {unknownLabel && <span className="text-sm font-normal text-muted-foreground">{unknownLabel}</span>}
         </>
       )}
     </span>

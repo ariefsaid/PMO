@@ -13,8 +13,7 @@ import {
   Icon,
   ListState,
   MenuButton,
-  StatusPill,
-  TextArea,
+  ReasonDialog,
   Tooltip,
   useToast,
   type Column,
@@ -36,10 +35,10 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency, formatDate, formatShortMoney } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { ProcurementStatusPill, useProcurementStatusName } from './ProcurementStatusPill';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import {
   type ProcurementStage,
@@ -120,18 +119,6 @@ type ProcurementBudgetCategory = NonNullable<ProcurementWithRefs['budget_categor
 const TERMINAL_STATUSES: ProcurementStatus[] = ['Paid', 'Rejected', 'Cancelled'];
 const UNCATEGORIZED_FILTER = '__uncategorized__';
 const UNASSIGNED_FILTER = '__unassigned__';
-
-function statusText(status: ProcurementStatus, t: (key: string, fallback: string) => string): string {
-  const label = stageLabelForStatus(status);
-  if (label === 'Invoiced, not paid') return t('projectDetail.procurement.stageBand.invoicedNotPaid', label);
-  if (label === 'Paid') return t('projectDetail.procurement.stageBand.paid', label);
-  // N11: Approved is green, so it carries its own name; "Request" stays the grey (in-progress) label.
-  if (status === 'Approved') return t('projectDetail.procurement.stageBand.approved', 'Approved');
-  if (status === 'Vendor Quoted' || status === 'Quote Selected') return stageText('Request', t);
-  if (status === 'Rejected') return t('projectDetail.procurement.stage.rejected', 'Rejected');
-  if (status === 'Cancelled') return t('projectDetail.procurement.stage.cancelled', 'Cancelled');
-  return stageText(stageForStatus(status), t);
-}
 
 function stageText(stage: ProcurementStage | 'Invoiced' | 'Paid', t: (key: string, fallback: string) => string): string {
   switch (stage) {
@@ -255,7 +242,7 @@ function ProcurementBudgetLeft({
 
   return (
     <div className="space-y-1">
-      <div className="text-xs text-muted-foreground">
+      <div className="text-sm text-muted-foreground">
         {t('projectDetail.procurement.detail.budgetLeft', 'Budget left in category')}
       </div>
       <Tooltip content={source}>
@@ -322,25 +309,23 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   ), [derivations, erpByProcurement]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [selectedStage, setSelectedStage] = useState<ProcurementStage | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   // The input keeps the value the user just typed; the expensive filter/derive pass reads the
   // deferred copy, so a keystroke never waits on the 300-row recompute (#2101).
   const deferredSearch = useDeferredValue(search);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
+  // Phone: the filter selects sit behind one button so the first row is not pushed below the fold.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState<SortState>();
   const [pendingDecision, setPendingDecision] = useState<PendingDecision | null>(null);
-  const [returnComment, setReturnComment] = useState('');
   const openId = searchParams.get('open');
   // A shared ?open= link opens its record even when the current tab or filter hides the row.
   const selected = scopedRows.find((row) => row.id === openId) ?? null;
-  const expandedRow = rows.find((row) => row.id === expandedId) ?? null;
-  const focusRow = selected ?? expandedRow;
+  const focusRow = selected;
   const { data: project } = useProject(projectId ?? focusRow?.project_id ?? undefined);
-  const detailQuery = useProcurementDetail(selected?.id ?? expandedId ?? undefined);
+  const detailQuery = useProcurementDetail(selected?.id);
   const setSelected = useCallback((row: ProcurementWithRefs | null) => {
-    if (row) setExpandedId(null);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (row) next.set('open', row.id);
@@ -361,6 +346,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     },
   });
 
+  const statusName = useProcurementStatusName();
   const categoryLabel = useCallback((category: string | null) => category
     ? budgetCategoryLabel(category, t)
     : t('projectDetail.procurement.uncategorized', 'Uncategorized'), [t]);
@@ -388,7 +374,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         case 'title': return row.title;
         case 'category': return categoryLabel(row.budget_category);
         case 'value': return derivationFor(row).money.mostReal?.amount ?? 0;
-        case 'stage': return statusText(row.status, t);
+        case 'stage': return statusName(row.status);
         case 'age': return derivationFor(row).age;
         case 'owner': return row.requested_by?.full_name ?? '';
         default: return row.updated_at;
@@ -403,7 +389,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         : String(left).localeCompare(String(right));
       return comparison * direction;
     });
-  }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, t, categoryLabel, derivationFor]);
+  }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, statusName, categoryLabel, derivationFor]);
 
   const selectedRows = rows.filter((row) => selectedIds.has(row.id));
   const visibleIds = filteredRows.map((row) => row.id);
@@ -457,7 +443,6 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   const decide = (rowsToChange: ProcurementWithRefs[], target: DecisionTarget) => {
     if (rowsToChange.length === 0) return;
     // Write policy (OD-UX-1): Approve is a money decision, so it confirms against the amount, as on the record page.
-    setReturnComment('');
     setPendingDecision({ rows: rowsToChange, target });
   };
 
@@ -517,7 +502,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       <div className="space-y-1">
         {done.map((step) => (
           <div key={step.key} className="flex justify-between gap-4">
-            <span>{stageText(step.key, t)}</span><span>{formatDate(step.date)}</span>
+            <span>{stageText(step.key, t)}</span><span>{formatDay(step.date)}</span>
           </div>
         ))}
       </div>
@@ -533,7 +518,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.'),
       unpaid ? `${unpaid}. ${t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}` : null,
     ].filter(Boolean).join(' ');
-    if (amount === undefined) return <span className="text-xs text-muted-foreground">{t('procurement.moneyUnknown', 'Not recorded')}</span>;
+    if (amount === undefined) return <span className="text-sm text-muted-foreground">{t('procurement.moneyUnknown', 'Not recorded')}</span>;
     // Owner tidy ruling 2026-10-29: the stage word under the amount is gone — the
     // Stage pill in its own column already says it (the balance stays in the tooltip).
     return (
@@ -553,7 +538,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     const hideCategory = filteredRows.length > 0 && filteredRows.every((row) => !row.budget_category);
     const valueColumn: Column<ProcurementWithRefs> = {
       key: 'value',
-      header: <Tooltip content={t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.')}><span tabIndex={0}>{t('projectDetail.procurement.table.value', 'Value')}</span></Tooltip>,
+      header: t('projectDetail.procurement.table.value', 'Value'),
       kind: 'money',
       align: 'num',
       size: 120,
@@ -564,20 +549,21 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     };
     const settlementColumn: Column<ProcurementWithRefs> = {
       key: 'settlement',
-      header: <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}><span tabIndex={0}>{t('procurement.settlement', 'Paid / invoiced')}</span></Tooltip>,
+      header: t('procurement.settlement', 'Paid / invoiced'),
       kind: 'text',
       size: 134,
       minSize: 126,
       cell: (row) => {
         const money = derivationFor(row).money;
-        if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return <span className="text-muted-foreground">—</span>;
+        // Nothing invoiced yet is an empty cell, so a list with no invoices drops the whole column.
+        if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return null;
         const paid = money.paid.amount ?? 0;
         const percent = Math.max(0, Math.min(100, (paid / money.invoiced.amount) * 100));
         return (
           <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
             <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
-              <span className="shrink-0 text-xs tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
+              <span className="shrink-0 text-sm tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
                 {percent}%
               </span>
             </span>
@@ -608,48 +594,18 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         size: 280,
         minSize: 220,
         sortKey: 'title',
-        cell: (row) => {
-          const isExpanded = expandedId === row.id;
-          const rowMoney = derivationFor(row).money;
-          const rowValue = rowMoney.mostReal?.amount ?? Number(row.total_value ?? 0);
-          const items = detailQuery.data?.id === row.id ? detailQuery.data.items : [];
-          return (
-            <div className="min-w-0 space-y-2">
-              <div className="flex min-w-0 items-start gap-1">
-                <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                  {row.title}
-                </button>
-                <button type="button" aria-expanded={isExpanded} aria-label={t(isExpanded ? 'procurement.collapseDetails' : 'procurement.expandDetails', isExpanded ? 'Collapse procurement details' : 'Expand procurement details')}
-                  onClick={() => setExpandedId(isExpanded ? null : row.id)}
-                  className="shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                  <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${isExpanded ? '-rotate-90' : 'rotate-90'}`} />
-                </button>
-              </div>
-              <span className="block line-clamp-2 break-words text-xs text-muted-foreground">
-                <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span> · {row.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}
+        cell: (row) => (
+          <div className="min-w-0 space-y-1">
+            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              {row.title}
+            </button>
+            {(row.code || row.vendor?.name) && (
+              <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
+                {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
-              {isExpanded && (
-                <div className="space-y-2 border-t border-border/70 pt-2 text-xs" onClick={(event) => event.stopPropagation()}>
-                  <div><span className="text-muted-foreground">{t('procurement.nextStepLabel', 'Next step')}: </span>{nextStepText(row.status, canDecideRow(row), t)}</div>
-                  {canSeeMoney && project && <ProcurementBudgetLeft project={project} row={row} amount={rowValue} t={t} />}
-                  <div>
-                    <div className="mb-1 font-medium">{t('procurement.lineItems', 'Line items')}</div>
-                    {detailQuery.isPending && <span className="text-muted-foreground">{t('common.loading', 'Loading…')}</span>}
-                    {detailQuery.isError && <span className="text-muted-foreground">{t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}</span>}
-                    {!detailQuery.isPending && !detailQuery.isError && items.length > 0 ? (
-                      <ul className="space-y-1">
-                        {items.map((item) => <li key={item.id}>{item.name}{item.description ? ` · ${item.description}` : ''} · {item.quantity}</li>)}
-                      </ul>
-                    ) : !detailQuery.isPending && !detailQuery.isError ? (
-                      <span className="text-muted-foreground">{t('procurement.noLineItems', 'No line items recorded.')}</span>
-                    ) : null}
-                  </div>
-                  <button type="button" onClick={() => setSelected(row)} className="font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('procurement.openDrawer', 'Open procurement')}</button>
-                </div>
-              )}
-            </div>
-          );
-        },
+            )}
+          </div>
+        ),
         exportValue: (row) => row.title,
       },
       ...(hideCategory ? [] : [categoryColumn]),
@@ -657,19 +613,19 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       ...(canSeeMoney ? [settlementColumn] : []),
       {
         key: 'stage',
-        header: t('projectDetail.procurement.table.stage', 'Stage'),
+        header: t('projectDetail.procurement.table.status', 'Status'),
         kind: 'status',
-        size: 120,
-        minSize: 112,
+        size: 176,
+        minSize: 150,
         sortKey: 'stage',
         cell: (row) => (
           <Tooltip content={stageDateTooltip(row)}>
             <span tabIndex={0} className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <StatusPill variant={workflowVariant(row.status)}>{statusText(row.status, t)}</StatusPill>
+              <ProcurementStatusPill status={row.status} />
             </span>
           </Tooltip>
         ),
-        exportValue: (row) => statusText(row.status, t),
+        exportValue: (row) => statusName(row.status),
       },
       {
         key: 'next-step',
@@ -687,7 +643,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       },
       {
         key: 'age',
-        header: <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}><span tabIndex={0}>{t('procurement.ageShort', 'Age')}</span></Tooltip>,
+        header: t('procurement.inStage', 'In stage'),
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
@@ -697,11 +653,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         cell: (row) => {
           const days = derivationFor(row).age;
           return (
-            <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}>
-              <span tabIndex={0} className={`rounded-sm tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${days > 30 && row.status !== 'Paid' ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                {t('procurement.ageInStageDays', '{{count}}d', { count: days })}
-              </span>
-            </Tooltip>
+            <span className={`tabular ${days > 30 && !TERMINAL_STATUSES.includes(row.status) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+              {t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })}
+            </span>
           );
         },
         exportValue: (row) => derivationFor(row).age,
@@ -711,14 +665,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 150,
-        minSize: 105,
+        size: 190,
+        minSize: 150,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
           return (
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
-              <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-[12px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <Avatar name={owner} decorative />
                 <span className="truncate">{owner}</span>
               </span>
@@ -729,7 +683,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount, filteredRows]);
+  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, project, projectId, setSelected, rowAmount, filteredRows]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -747,11 +701,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     ? t('projectDetail.procurement.error.sub', "Something went wrong fetching this project's procurement.")
     : t('procurement.error.sub', 'Something went wrong fetching procurement.');
 
-  const runDecisionFromDialog = () => {
+  const runDecisionFromDialog = (reason?: string) => {
     if (!pendingDecision) return;
     const decision = pendingDecision;
     setPendingDecision(null);
-    void runTransition(decision.rows, decision.target, decision.target === 'Rejected' ? returnComment.trim() : undefined);
+    void runTransition(decision.rows, decision.target, decision.target === 'Rejected' ? reason : undefined);
   };
 
   const drawerDetails = detailQuery.data;
@@ -833,7 +787,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     <div className="space-y-4">
       {isPending ? (
         <div className={projectId ? undefined : 'rounded-lg border border-border bg-card'}><ListState variant="loading" rows={3} /></div>
-      ) : !isError && data && (
+      ) : !isError && data && projectId && (
         <ProcurementStageBand label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')}>
           {stageStats.map(({ key, rows: stageRows, currencyTotals }) => {
             const stageLabel = stageText(key, t);
@@ -852,14 +806,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
                   className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
-                  <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
+                  <span className="flex w-full min-w-0 items-center justify-between gap-1 text-sm font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
                     {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
                   <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
                     <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
-                    <span className="flex min-w-0 flex-wrap justify-start gap-x-2 text-xs text-muted-foreground">
+                    <span className="flex min-w-0 flex-wrap justify-start gap-x-2 text-sm text-muted-foreground">
                       {currencyTotals.map((item) => <span key={item.currency} title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
                     </span>
                   )}
@@ -888,21 +842,21 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <div className="space-y-1.5">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <span className="inline-flex min-w-0 items-center gap-2">
-                  <StatusPill variant={workflowVariant(row.status)}>{statusText(row.status, t)}</StatusPill>
-                  <span className={`text-xs tabular ${days > 30 && row.status !== 'Paid' ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                    <span className="sr-only">{t('procurement.ageShort', 'Age')}</span>
-                    {t('procurement.ageInStageDays', '{{count}}d', { count: days })}
+                  <ProcurementStatusPill status={row.status} />
+                  <span className={`text-sm tabular ${days > 30 && !TERMINAL_STATUSES.includes(row.status) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                    <span className="sr-only">{t('procurement.inStage', 'In stage')}</span>
+                    {t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })}
                   </span>
                 </span>
                 {canSeeMoney && rowAmount(row, true)}
               </div>
               <div className="flex min-w-0 items-center justify-between gap-3">
                 {next ? (
-                  <Link to={`/procurement/${row.id}`} className="inline-flex min-h-8 items-center rounded-sm text-[13px] font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  <Link to={`/procurement/${row.id}`} className="inline-flex min-h-8 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {next}
                   </Link>
                 ) : <span />}
-                <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
                   <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
                   <Avatar name={owner} size="xs" decorative />
                   <span className="truncate">{owner}</span>
@@ -938,6 +892,28 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         errorSub={globalErrorSub}
         onRetry={() => { void refetch(); }}
       >
+        {!projectId && !isPending && !isError && data && (
+          <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex gap-2 overflow-x-auto border-b border-border px-3 py-2.5 sm:px-4">
+            {stageStats.map(({ key, rows: stageRows }) => {
+              const forYou = key === 'Request' && canApprove
+                ? pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length
+                : 0;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={selectedStage === key}
+                  onClick={() => setSelectedStage((current) => current === key ? null : key)}
+                  className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:min-h-9 ${selectedStage === key ? 'border-primary/40 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`}
+                >
+                  {stageText(key, t)}
+                  <span className="tabular text-foreground">{stageRows.length}</span>
+                  {forYou > 0 && <span className="font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border px-3 py-2.5 sm:px-4">
           {selectedRows.length > 0 ? (
             <>
@@ -971,7 +947,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             </>
           ) : (
             <>
-              <label className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-[13px] focus-within:ring-2 focus-within:ring-ring sm:max-w-[260px]">
+              <label className="flex h-11 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-sm focus-within:ring-2 focus-within:ring-ring sm:h-9 sm:max-w-[260px]">
                 <Icon name="search" className="size-4 shrink-0 text-muted-foreground" />
                 <span className="sr-only">{t('projectDetail.procurement.searchLabel', 'Search procurement')}</span>
                 <input
@@ -982,13 +958,17 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                 />
               </label>
+              <Button variant="outline" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} className="h-11 md:hidden">
+                {t('procurement.filters', 'Filters')}
+              </Button>
+              <div className={`${filtersOpen ? 'flex' : 'hidden'} w-full min-w-0 flex-col gap-2 md:contents`}>
               {toolbarExtra}
               <label className="sr-only" htmlFor="procurement-category-filter">{t('projectDetail.procurement.filter.category', 'Filter by category')}</label>
               <select
                 id="procurement-category-filter"
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                className="h-11 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm sm:h-9 text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <option value="">{t('projectDetail.procurement.filter.allCategories', 'Category')}</option>
                 {rows.some((row) => !row.budget_category) && <option value={UNCATEGORIZED_FILTER}>{t('projectDetail.procurement.uncategorized', 'Uncategorized')}</option>}
@@ -999,12 +979,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 id="procurement-owner-filter"
                 value={ownerFilter}
                 onChange={(event) => setOwnerFilter(event.target.value)}
-                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                className="h-11 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm sm:h-9 text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <option value="">{t('projectDetail.procurement.filter.allOwners', 'Owner')}</option>
                 {rows.some((row) => !row.requested_by_id) && <option value={UNASSIGNED_FILTER}>{t('projectDetail.procurement.unassigned', 'Unassigned')}</option>}
                 {owners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
+              </div>
               {selectedStage && (
                 <Button variant="ghost" size="sm" aria-label={t('projectDetail.procurement.filter.clearStage', 'Clear stage filter')} onClick={() => setSelectedStage(null)}>
                   <Badge active>{stageText(selectedStage, t)} <Icon name="x" className="ml-1 size-3" /></Badge>
@@ -1025,8 +1006,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       <Drawer
         open={selected !== null}
         title={selected?.title ?? t('projectDetail.procurement.detail.title', 'Procurement details')}
-        subtitle={selected ? `${selected.code ?? selected.id.slice(0, 8)} · ${selected.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}` : undefined}
-        status={selected ? <StatusPill variant={workflowVariant(selected.status)}>{statusText(selected.status, t)}</StatusPill> : undefined}
+        subtitle={selected ? [selected.code, selected.vendor?.name].filter(Boolean).join(' · ') || undefined : undefined}
+        status={selected ? <ProcurementStatusPill status={selected.status} /> : undefined}
         width="lg"
         loading={transition.isPending}
         nestedOpen={pendingDecision !== null}
@@ -1045,21 +1026,21 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           <div className="space-y-6">
             <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-border/70 pb-5 text-sm">
               <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.category', 'Category')}</div>
+                <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.category', 'Category')}</div>
                 <div className="font-medium">{categoryLabel(selected.budget_category)}</div>
               </div>
               {canSeeMoney && (
                 <div className="space-y-1">
-                  <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.value', 'Value')}</div>
+                  <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.value', 'Value')}</div>
                   <Tooltip content={moneyTooltip}>
                     <span tabIndex={0} className="inline-flex rounded-sm font-medium tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                       {drawerMoney?.mostReal ? formatCurrency(drawerMoney.mostReal.amount, selected.currency) : t('procurement.moneyUnknown', 'Not recorded')}
                     </span>
                   </Tooltip>
-                  {drawerMoney?.mostReal && <div className="text-xs text-muted-foreground">{moneyBasisText(drawerMoney.mostReal.kind, t)}</div>}
+                  {drawerMoney?.mostReal && <div className="text-sm text-muted-foreground">{moneyBasisText(drawerMoney.mostReal.kind, t)}</div>}
                   {drawerUnpaid && (
                     <Tooltip content={t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}>
-                      <div tabIndex={0} className="rounded-sm text-xs font-medium text-warning-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                      <div tabIndex={0} className="rounded-sm text-sm font-medium text-warning-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                         {drawerUnpaid}
                       </div>
                     </Tooltip>
@@ -1067,14 +1048,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 </div>
               )}
               <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
+                <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
                 <div className="inline-flex min-w-0 items-center gap-2 font-medium">
                   <Avatar name={selected.requested_by?.full_name} decorative />
                   <span className="truncate">{selected.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
+                <div className="text-sm text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
                 <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}>
                   <span tabIndex={0} className="inline-flex rounded-sm tabular text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {t('procurement.ageInStageDays', '{{count}}d', { count: selected ? derivationFor(selected).age : 0 })}
@@ -1085,7 +1066,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <ProcurementBudgetLeft project={project} row={selected} amount={drawerMoney.mostReal.amount} t={t} />
               )}
               <div className="col-span-full space-y-1">
-                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
+                <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
                 <div className={selected.status === 'Requested' && canApprove ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
                   {nextStepText(selected.status, canDecideRow(selected), t)}
                 </div>
@@ -1093,16 +1074,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             </section>
 
             <section aria-labelledby="procurement-drawer-timeline">
-              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="procurement-drawer-timeline" className="text-sm font-semibold">{t('projectDetail.procurement.detail.timeline', 'Step timeline')}</h2>
-                <span className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.timelineHint', 'Steps can happen in any order; skipped steps are not recorded.')}</span>
-              </div>
+              <h2 id="procurement-drawer-timeline" className="mb-2 text-sm font-semibold">{t('projectDetail.procurement.detail.timeline', 'Step timeline')}</h2>
               <ol className="space-y-2 border-l border-border pl-4">
                 {timeline.map((step) => (
                   <li key={step.key} className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 text-sm">
                     <span aria-hidden="true" className={`absolute -left-[21px] top-1.5 size-2.5 rounded-full border ${step.date ? 'border-success bg-success' : 'border-border bg-card'}`} />
                     <span className={step.date ? 'font-medium text-foreground' : 'text-muted-foreground'}>{stageText(step.key, t)}</span>
-                    <time dateTime={step.date ?? undefined} className="text-xs tabular text-muted-foreground">
+                    <time dateTime={step.date ?? undefined} className="text-sm tabular text-muted-foreground">
                       {step.date ? formatDate(step.date) : t('projectDetail.procurement.detail.notRecorded', 'Not recorded')}
                     </time>
                   </li>
@@ -1114,7 +1092,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h2 id="procurement-drawer-documents" className="text-sm font-semibold">{t('projectDetail.procurement.detail.documents', 'Documents')}</h2>
                 {canAttachDocument && (
-                  <Link to={`/procurement/${selected.id}/files`} className="text-xs font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  <Link to={`/procurement/${selected.id}/files`} className="text-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {t('procurement.rowMenu.linkFile', 'Link a file')}
                   </Link>
                 )}
@@ -1139,51 +1117,61 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <p className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.noDocuments', 'No linked documents yet.')}</p>
               )}
             </section>
+
+            <section aria-labelledby="procurement-drawer-items">
+              <h2 id="procurement-drawer-items" className="mb-2 text-sm font-semibold">{t('procurement.lineItems', 'Line items')}</h2>
+              {detailQuery.isPending ? (
+                <p className="text-sm text-muted-foreground">{t('common.loading', 'Loading…')}</p>
+              ) : detailQuery.isError ? (
+                <p className="text-sm text-muted-foreground">{t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}</p>
+              ) : (drawerDetails?.items.length ?? 0) > 0 ? (
+                <ul className="divide-y divide-border">
+                  {drawerDetails!.items.map((item) => (
+                    <li key={item.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
+                      <span>{item.name}{item.description ? ` · ${item.description}` : ''}</span>
+                      <span className="tabular text-muted-foreground">{item.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('procurement.noLineItems', 'No line items recorded.')}</p>
+              )}
+            </section>
           </div>
         )}
       </Drawer>
 
       <ConfirmDialog
-        open={pendingDecision !== null}
+        open={pendingDecision !== null && pendingDecision.target !== 'Rejected'}
         title={pendingDecision?.target === 'Approved'
           ? pendingDecision.rows.length > 1
             ? t('projectDetail.procurement.confirm.approveManyTitle', 'Approve {{count}} procurements?', { count: pendingDecision.rows.length })
             : t('projectDetail.procurement.confirm.approveTitle', 'Approve this procurement?')
-          : pendingDecision?.target === 'Cancelled'
-          ? pendingDecision.rows.length > 1
+          : pendingDecision && pendingDecision.rows.length > 1
             ? t('projectDetail.procurement.confirm.cancelManyTitle', 'Cancel these procurements?')
-            : t('projectDetail.procurement.confirm.cancelTitle', 'Cancel this procurement?')
-          : (pendingDecision?.rows.length ?? 0) > 1
-            ? t('projectDetail.procurement.confirm.returnManyTitle', 'Return these procurements?')
-            : t('projectDetail.procurement.confirm.returnTitle', 'Return this procurement?')}
+            : t('projectDetail.procurement.confirm.cancelTitle', 'Cancel this procurement?')}
         description={pendingDecision?.target === 'Approved'
           ? pendingDecision.rows.length === 1
             ? t('projectDetail.procurement.confirm.approveDescription', '{{title}} · {{amount}}. Approving lets the order go ahead.', { title: pendingDecision.rows[0]!.title, amount: formatCurrency(Number(pendingDecision.rows[0]!.total_value), pendingDecision.rows[0]!.currency) })
             : t('projectDetail.procurement.confirm.approveManyDescription', 'Approving lets each order go ahead.')
-          : pendingDecision?.target === 'Cancelled'
-          ? t('projectDetail.procurement.confirm.cancelDescription', 'This procurement will be marked as cancelled.')
-          : (
-            <div className="space-y-3">
-              <p>{t('projectDetail.procurement.confirm.returnDescription', 'The procurement goes back to the person who raised it.')}</p>
-              <TextArea
-                label={t('projectDetail.procurement.confirm.returnComment', 'Return comment')}
-                value={returnComment}
-                onChange={setReturnComment}
-                required
-                maxLength={1000}
-                helper={t('projectDetail.procurement.confirm.returnCommentHelp', 'Say what the requester needs to change.')}
-              />
-            </div>
-          )}
+          : t('projectDetail.procurement.confirm.cancelDescription', 'This procurement will be marked as cancelled.')}
         confirmLabel={pendingDecision?.target === 'Approved'
           ? t('projectDetail.procurement.bulk.approve', 'Approve')
-          : pendingDecision?.target === 'Cancelled'
-          ? t('projectDetail.procurement.rowMenu.cancel', 'Cancel procurement')
-          : t('projectDetail.procurement.bulk.return', 'Return')}
+          : t('projectDetail.procurement.rowMenu.cancel', 'Cancel procurement')}
         tone={pendingDecision?.target === 'Cancelled' ? 'destructive' : 'default'}
-        confirmDisabled={pendingDecision?.target === 'Rejected' && returnComment.trim() === ''}
         loading={transition.isPending}
-        onConfirm={runDecisionFromDialog}
+        onConfirm={() => runDecisionFromDialog()}
+        onCancel={() => setPendingDecision(null)}
+      />
+      <ReasonDialog
+        open={pendingDecision?.target === 'Rejected'}
+        kind="return"
+        subject={pendingDecision && pendingDecision.rows.length > 1
+          ? t('projectDetail.procurement.confirm.returnSubjectMany', '{{count}} procurements', { count: pendingDecision.rows.length })
+          : t('projectDetail.procurement.confirm.returnSubject', 'procurement')}
+        context={pendingDecision && pendingDecision.rows.length === 1 ? pendingDecision.rows[0]!.title : undefined}
+        loading={transition.isPending}
+        onConfirm={(reason) => runDecisionFromDialog(reason)}
         onCancel={() => setPendingDecision(null)}
       />
     </div>
