@@ -11,7 +11,7 @@ export interface FigureContentProps {
 /** The figure contract shared by KPITile and StatTiles (DESIGN.md Unknowable-Is-Not-Zero rule). */
 export const FigureContent: React.FC<FigureContentProps> = ({ value, exactValue, unavailableReason }) => {
   if (unavailableReason) {
-    return <span role="status" className="text-sm font-normal text-muted-foreground">{unavailableReason}</span>;
+    return <span role="status" className="text-control font-normal text-muted-foreground">{unavailableReason}</span>;
   }
   if (exactValue) {
     return (

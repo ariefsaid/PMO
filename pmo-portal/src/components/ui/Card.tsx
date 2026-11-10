@@ -82,7 +82,7 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
         >
           {children}
         </Heading>
-        {subline != null && <p className="mt-1 text-support font-normal text-muted-foreground">{subline}</p>}
+        {subline != null && <p className="mt-1 text-control font-normal text-muted-foreground">{subline}</p>}
       </div>
       {actions != null && actions !== false && (
         <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>

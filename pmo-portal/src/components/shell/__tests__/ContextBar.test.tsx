@@ -255,7 +255,7 @@ describe('ContextBar — unified account menu', () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /account menu/i });
     expect(trigger).toHaveClass('max-w-[220px]');
-    expect(screen.getByText(displayName)).toHaveClass('truncate');
+    expect(screen.getByText(displayName)).toBeVisible();
   });
 
   it('AC-ACCT-003: Escape closes the menu and restores focus to the trigger', async () => {

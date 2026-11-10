@@ -227,9 +227,9 @@ export const ListState: React.FC<ListStateProps> = ({
         <div className="flex-1">
           {/* O18: a page whose only content is this error keeps its level-one heading. */}
           {title && (titleAsPageHeading
-            ? <h1 className="text-[13.5px] font-semibold text-destructive-text">{title}</h1>
-            : <div className="text-[13.5px] font-semibold text-destructive-text">{title}</div>)}
-          {sub && <div className="mt-px text-[12.5px] text-muted-foreground">{sub}</div>}
+            ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
+            : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
+          {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}
         </div>
         {onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry}>
@@ -250,8 +250,8 @@ export const ListState: React.FC<ListStateProps> = ({
       )}
     >
       <Icon name={icon} aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
-      {title && (titleAsPageHeading ? <h1 className="text-[15px] font-semibold">{title}</h1> : <div className="text-[15px] font-semibold">{title}</div>)}
-      {sub && <div className="max-w-[44ch] text-[13px] text-muted-foreground">{sub}</div>}
+      {title && (titleAsPageHeading ? <h1 className="text-group font-semibold">{title}</h1> : <div className="text-group font-semibold">{title}</div>)}
+      {sub && <div className="max-w-[44ch] text-control text-muted-foreground">{sub}</div>}
       {action && (
         <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">
           {action.label}

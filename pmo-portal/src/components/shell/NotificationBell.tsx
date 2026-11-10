@@ -254,7 +254,7 @@ export const NotificationBell: React.FC = () => {
         {unread > 0 && (
           <span
             aria-hidden="true"
-            className="absolute right-0.5 top-0.5 grid min-w-[16px] place-items-center rounded-full bg-foreground px-1 text-[10px] font-semibold leading-none text-background"
+            className="absolute right-0.5 top-0.5 grid min-w-[16px] place-items-center rounded-full bg-foreground px-1 text-support font-semibold leading-none text-background"
           >
             {unread > 99 ? '99+' : unread}
           </span>
@@ -270,12 +270,12 @@ export const NotificationBell: React.FC = () => {
             {t('shell.notifications.inboxHeading', 'Notifications inbox')}
           </h2>
           {inbox.status === 'loading' && (
-            <p className="px-2.5 py-3 text-[13px] text-muted-foreground">
+            <p className="px-2.5 py-3 text-control text-muted-foreground">
               {t('shell.notifications.loading', 'Loading notifications…')}
             </p>
           )}
           {inbox.status === 'error' && (
-            <p className="px-2.5 py-3 text-[13px] text-muted-foreground">
+            <p className="px-2.5 py-3 text-control text-muted-foreground">
               {t(
                 'shell.notifications.loadError',
                 "Couldn't load notifications. Try again shortly.",
@@ -283,7 +283,7 @@ export const NotificationBell: React.FC = () => {
             </p>
           )}
           {inbox.status === 'ready' && inbox.rows.length === 0 && (
-            <p className="px-2.5 py-3 text-[13px] text-muted-foreground">
+            <p className="px-2.5 py-3 text-control text-muted-foreground">
               {t('shell.notifications.empty', 'No notifications yet.')}
             </p>
           )}
@@ -307,21 +307,21 @@ export const NotificationBell: React.FC = () => {
                           style={{ background: sev.dot }}
                         />
                         <span
-                          className={cn('text-[11px] font-semibold uppercase tracking-wide', sev.labelCls)}
+                          className={cn('text-control font-semibold uppercase tracking-wide', sev.labelCls)}
                         >
                           {row.severity}
                         </span>
-                        <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                        <span className="ml-auto shrink-0 text-support text-muted-foreground">
                           {formatRelativeTime(row.created_at)}
                         </span>
                       </span>
-                      <span className={cn('text-[13px]', isUnread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
+                      <span className={cn('break-words text-control', isUnread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
                         {row.title}
                       </span>
                       {row.body && (
-                        <span className="line-clamp-2 text-[12px] text-muted-foreground">{row.body}</span>
+                        <span className="break-words text-control text-muted-foreground">{row.body}</span>
                       )}
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-control text-muted-foreground">
                         {isUnread
                           ? t('shell.notifications.unread', 'Unread')
                           : t('shell.notifications.read', 'Read')}
@@ -332,7 +332,7 @@ export const NotificationBell: React.FC = () => {
               })}
               {inbox.nextCursor && (
                 <li>
-                  <p aria-live="polite" className="px-2.5 py-1 text-[12px] text-muted-foreground">
+                  <p aria-live="polite" className="px-2.5 py-1 text-control text-muted-foreground">
                     {loadMoreError &&
                       t('shell.notifications.loadMoreError', "Couldn't load more. Try again.")}
                   </p>
@@ -341,7 +341,7 @@ export const NotificationBell: React.FC = () => {
                     onClick={loadMore}
                     disabled={loadingMore}
                     aria-busy={loadingMore}
-                    className="touch-target w-full rounded-md px-2.5 py-2 text-center text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                    className="touch-target w-full rounded-md px-2.5 py-2 text-center text-control font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                   >
                     {loadingMore
                       ? t('shell.notifications.loadingMore', 'Loading…')

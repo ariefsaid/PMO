@@ -352,9 +352,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             autoComplete="off"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 border-none bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
+            className="flex-1 border-none bg-transparent text-group text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <span className="rounded-[5px] border border-border bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          <span className="rounded-[5px] border border-border bg-secondary px-2 py-0.5 text-support font-semibold text-muted-foreground">
             Esc
           </span>
         </div>
@@ -372,7 +372,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         >
           {/* A record list failed — keep module nav working, offer a retry. */}
           {showError && (
-            <div className="mx-1 mt-1 flex items-center justify-between gap-2 rounded-[7px] border border-border bg-destructive/10 px-2.5 py-2 text-[12.5px] text-destructive-text">
+            <div className="mx-1 mt-1 flex items-center justify-between gap-2 rounded-[7px] border border-border bg-destructive/10 px-2.5 py-2 text-control text-destructive-text">
               <span>{t('shell.palette.recordsError', "Couldn't load records.")}</span>
               {(onRetry || referenceError) && (
                 <button
@@ -381,7 +381,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     onRetry?.();
                     if (referenceError) void referenceSearch.refetch();
                   }}
-                  className="rounded-[5px] border border-border bg-background px-2 py-0.5 text-[12px] font-semibold text-foreground hover:bg-accent"
+                  className="rounded-[5px] border border-border bg-background px-2 py-0.5 text-control font-semibold text-foreground hover:bg-accent"
                 >
                   {t('shell.palette.retry', 'Retry')}
                 </button>
@@ -392,7 +392,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {/* Records still fetching — skeleton rows matching the 44px row geometry. */}
           {showLoading && (
             <div aria-hidden>
-              <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              <div className="px-2.5 pb-[5px] pt-2.5 text-control font-bold uppercase tracking-[0.06em] text-muted-foreground">
                 {t('shell.palette.recordsGroup', 'Records')}
               </div>
               {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
@@ -409,14 +409,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
 
           {!hasResults && !showLoading ? (
-            <div className="px-2.5 py-8 text-center text-[13px] text-muted-foreground">
+            <div className="px-2.5 py-8 text-center text-control text-muted-foreground">
               {t('shell.palette.noResults', 'No results for “{{query}}”', { query })}
             </div>
           ) : (
             <>
               {groups.map((group) => (
                 <div key={group.name}>
-                  <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                  <div className="px-2.5 pb-[5px] pt-2.5 text-control font-bold uppercase tracking-[0.06em] text-muted-foreground">
                     {groupLabel(group.name)}
                   </div>
                   {group.items.map((item) => {
@@ -440,15 +440,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           <Icon name={item.icon} />
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-px">
-                          <span className="truncate font-medium leading-tight">{item.title}</span>
+                          <span className="break-words font-medium leading-tight">{item.title}</span>
                           {item.sub && (
-                            <span title={item.sub} className="truncate text-[11.5px] leading-tight text-muted-foreground">
+                            <span title={item.sub} className="break-words text-control leading-tight text-muted-foreground">
                               {item.sub}
                             </span>
                           )}
                         </span>
                         {item.code && (
-                          <span title={item.code} className="min-w-0 max-w-[45%] break-words text-right font-mono text-[11px] text-muted-foreground">
+                          <span title={item.code} className="min-w-0 max-w-[45%] break-words text-right font-mono text-control text-muted-foreground">
                             {renderCodeLabel(item.code, item.codeTokens)}
                           </span>
                         )}
@@ -456,12 +456,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     );
                   })}
                   {group.overflow > 0 && (
-                    <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+                    <div className="px-2.5 py-1.5 text-control text-muted-foreground">
                       {t('shell.palette.moreResults', '+{{count}} more: refine your search', { count: group.overflow })}
                     </div>
                   )}
                   {group.name === 'Records' && referenceQuerySettled && referenceSearch.data?.hasMore && (
-                    <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+                    <div className="px-2.5 py-1.5 text-control text-muted-foreground">
                       {t('shell.palette.uxs40.moreReferenceMatches', 'More reference matches; refine your search')}
                     </div>
                   )}
@@ -487,10 +487,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       <Icon name="search" />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-px">
-                      <span className="truncate font-medium leading-tight">
+                      <span className="break-words font-medium leading-tight">
                         Ask AI: &quot;{askAiQuery}&quot;
                       </span>
-                      <span className="text-[11.5px] leading-tight text-muted-foreground">
+                      <span className="text-control leading-tight text-muted-foreground">
                         {t('shell.palette.askAiSub', 'Open the assistant with this draft')}
                       </span>
                     </span>

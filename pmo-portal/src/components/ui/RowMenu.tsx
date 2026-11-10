@@ -208,7 +208,7 @@ export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel
                     onMouseEnter={() => setActive(i)}
                     onClick={() => activate(item)}
                     className={cn(
-                      'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
+                      'flex h-auto min-h-8 w-full items-center break-words rounded-md px-2.5 py-1 text-left text-control hover:bg-accent',
                       item.danger && 'text-destructive',
                       item.disabled && 'cursor-not-allowed text-muted-foreground hover:bg-transparent'
                     )}

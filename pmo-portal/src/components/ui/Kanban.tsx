@@ -68,26 +68,26 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             className="size-[9px] shrink-0 rounded-full"
             style={{ background: dotColor }}
           />
-          <span className="text-[13px] font-bold tracking-[-0.01em]">{title}</span>
+          <span className="text-control font-bold tracking-[-0.01em]">{title}</span>
           {prob && (
-            <span className="grid h-[17px] place-items-center rounded-full border border-border bg-background px-1.5 text-[10.5px] font-bold text-muted-foreground">
+            <span className="grid h-5 place-items-center rounded-full border border-border bg-background px-1.5 text-support font-bold text-muted-foreground">
               {prob}
             </span>
           )}
-          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-2 text-[11.5px] font-bold text-muted-foreground tabular">
+          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-2 text-support font-bold text-muted-foreground tabular">
             {count}
           </span>
         </div>
         {totals && <div className="mt-2 flex items-baseline gap-2">{totals}</div>}
         {dropState && (
-          <p className="mt-1 text-[11.5px] text-muted-foreground">
+          <p className="mt-1 text-control text-muted-foreground">
             {dropState !== 'blocked' ? t('boardDrag:dropHere', 'Drop to move here') : t('boardDrag:cantMoveHere', "Can't move here")}
           </p>
         )}
       </div>
       <div className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2">
         {empty ? (
-          <div className="py-6 text-center text-xs text-muted-foreground">{emptyMessage}</div>
+          <div className="py-6 text-center text-control text-muted-foreground">{emptyMessage}</div>
         ) : (
           children
         )}

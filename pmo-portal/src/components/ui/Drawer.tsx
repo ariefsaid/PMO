@@ -237,12 +237,12 @@ export const Drawer: React.FC<DrawerProps> = ({
             <div className="min-w-0 flex-1">
               <h2
                 id={titleId}
-                className="truncate text-control font-semibold text-popover-foreground"
+                className="break-words text-control font-semibold text-popover-foreground"
               >
                 {title}
               </h2>
               {subtitle && (
-                <div id={subId} className="mt-1 text-support text-muted-foreground">
+                <div id={subId} className="mt-1 text-control text-muted-foreground">
                   {subtitle}
                 </div>
               )}

@@ -126,7 +126,7 @@ export const AccountMenu: React.FC = () => {
   }, [open]);
 
   const rowBase =
-    'flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] transition-colors';
+    'flex h-auto min-h-8 w-full items-center gap-2.5 break-words rounded-md px-2.5 py-1 text-left text-control transition-colors';
 
   return (
     <div ref={rootRef} className="relative flex shrink-0 items-center">
@@ -137,17 +137,17 @@ export const AccountMenu: React.FC = () => {
         aria-expanded={open}
         aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
         onClick={() => setOpen((v) => !v)}
-        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card pl-1.5 pr-2.5 hover:bg-accent"
+        className="touch-target inline-flex h-auto min-h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card py-1 pl-1.5 pr-2.5 hover:bg-accent"
       >
         <span
           aria-hidden
-          className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground"
+          className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-control font-bold text-foreground"
         >
           {initials(currentUser?.full_name, { fallback: 'U' })}
         </span>
         <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
-          <span className="block max-w-full truncate text-[13px] font-semibold">{currentUser?.full_name}</span>
-          <span className="text-[11px] leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
+          <span className="block max-w-full break-words text-control font-semibold">{currentUser?.full_name}</span>
+          <span className="break-words text-control leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
         </span>
         <Icon name="chev" className="hidden rotate-90 text-muted-foreground sm:block [&_svg]:size-3.5" />
       </button>
@@ -168,15 +168,15 @@ export const AccountMenu: React.FC = () => {
           <div className="flex items-center gap-2.5 px-2.5 py-2">
             <span
               aria-hidden
-              className="grid size-7 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground"
+              className="grid size-7 shrink-0 place-items-center rounded-full bg-secondary text-control font-bold text-foreground"
             >
               {initials(currentUser?.full_name)}
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-[13px] font-semibold leading-tight">
+              <span className="block break-words text-control font-semibold leading-tight">
                 {currentUser?.full_name}
               </span>
-              <span className="block text-[11px] leading-tight text-muted-foreground">
+              <span className="block break-words text-control leading-tight text-muted-foreground">
                 {realRole ?? effectiveRole}
               </span>
             </span>
@@ -199,7 +199,7 @@ export const AccountMenu: React.FC = () => {
           <div className="my-1 border-t border-border" />
 
           {/* Theme — explicit choices leave the popup open so the new selection is seen/announced. */}
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="px-2.5 pt-1 pb-0.5 text-control font-medium uppercase tracking-wide text-muted-foreground">
             {t('shell.contextBar.themeHeading', 'Theme')}
           </div>
           <button
@@ -230,7 +230,7 @@ export const AccountMenu: React.FC = () => {
           </button>
 
           <div className="my-1 border-t border-border" />
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="px-2.5 pt-1 pb-0.5 text-control font-medium uppercase tracking-wide text-muted-foreground">
             {t('profilePreferences:textSize.label', 'Text size')}
           </div>
           <div role="group" aria-label={t('profilePreferences:textSize.label', 'Text size')}>
@@ -247,7 +247,7 @@ export const AccountMenu: React.FC = () => {
           {canImpersonate && (
             <>
               <div className="my-1 border-t border-border" />
-              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="px-2.5 pt-1 pb-0.5 text-control font-medium uppercase tracking-wide text-muted-foreground">
                 {t('shell.contextBar.viewAsRoleHeading', 'View as role')}
               </div>
               {effectiveRole !== realRole && (
@@ -289,7 +289,7 @@ export const AccountMenu: React.FC = () => {
           {SHOW_LEGAL_SUPPORT && (
             <>
               <div className="my-1 border-t border-border" />
-              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="px-2.5 pt-1 pb-0.5 text-control font-medium uppercase tracking-wide text-muted-foreground">
                 {t('shell.contextBar.legalAndSupport', 'Legal & support')}
               </div>
               <Link

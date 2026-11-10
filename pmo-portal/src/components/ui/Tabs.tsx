@@ -172,14 +172,14 @@ export function Tabs<V extends string = string>({
               </span>
             )}
             {t.count != null && t.countPresentation !== 'inline' && (
-              // Count badge: neutral fill + accessible neutral text, full radius, text-[11px]
+              // Count badge: neutral fill + accessible neutral text, full radius, 12px
               // (DESIGN.md §5 Count badge). The number is part of the tab's accessible
               // name (a11y: count read in label, not color-only).
-              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-status-neutral-surface px-1.5 text-[11px] font-medium text-count-foreground">
+              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-status-neutral-surface px-1.5 text-support font-medium text-count-foreground">
                 {t.count}
               </span>
             )}
-            {t.detail && <span className="ml-1.5 tabular text-[12px] font-normal text-muted-foreground">{t.detail}</span>}
+            {t.detail && <span className="ml-1.5 tabular text-control font-normal text-muted-foreground">{t.detail}</span>}
           </button>
         );
       })}

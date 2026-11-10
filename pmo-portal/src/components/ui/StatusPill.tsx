@@ -54,7 +54,7 @@ export interface StatusPillProps extends React.HTMLAttributes<HTMLSpanElement> {
 export const StatusPill: React.FC<StatusPillProps> = ({
   variant,
   children,
-  wrap = false,
+  wrap = true,
   className,
   style,
   ...rest
@@ -63,7 +63,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex h-6 items-center rounded-full px-2 text-control font-normal',
+        'inline-flex h-auto min-h-6 items-center rounded-full px-2 text-control font-normal',
         s.surfaceCls,
         wrap ? 'min-w-0 max-w-full' : 'shrink-0 whitespace-nowrap',
         s.labelCls,
@@ -86,7 +86,7 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 export const Badge: React.FC<BadgeProps> = ({ active = false, className, children, ...rest }) => (
   <span
     className={cn(
-      'inline-grid min-w-[20px] place-items-center rounded-full px-2 text-[11px] font-semibold tabular',
+      'inline-grid min-w-[20px] place-items-center rounded-full px-2 text-support font-semibold tabular',
       active ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground',
       className
     )}

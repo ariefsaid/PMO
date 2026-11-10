@@ -138,8 +138,6 @@
   --shadow-overlay: none;
 
   /* Type scale: semantic roles share Hanken Grotesk and retain tabular figures. */
-  --type-micro: 0.625rem;
-  --line-micro: 1.2;
   --type-support: 0.75rem;
   --line-support: 1.34;
   --type-control: 0.875rem;
@@ -289,8 +287,6 @@
   --shadow-overlay: none;
 
   /* Theme-independent type, shape, density, motion, and avatar tokens. */
-  --type-micro: 0.625rem;
-  --line-micro: 1.2;
   --type-support: 0.75rem;
   --line-support: 1.34;
   --type-control: 0.875rem;
@@ -413,8 +409,6 @@
   --radius-overlay: var(--overlay-radius);
   --spacing-section: var(--space-section);
   --spacing-group: var(--space-group);
-  --text-micro: var(--type-micro);
-  --text-micro--line-height: var(--line-micro);
   --text-support: var(--type-support);
   --text-support--line-height: var(--line-support);
   --text-control: var(--type-control);
@@ -773,7 +767,7 @@
 
   /* Headings: modest sizes for narrow panel, font-weight 600 */
   h1 {
-    font-size: 1.125rem;  /* ~18px, text-lg */
+    font-size: 1.25rem;  /* 20px, section role */
     font-weight: 600;
     line-height: 1.3;
     margin: 0.75em 0 0.5em 0;
@@ -849,7 +843,7 @@
   /* Inline code: monospace, subtle bg, padding, radius */
   code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.875em;
+    font-size: 1em;
     background: hsl(var(--muted));
     padding: 0.125rem 0.25rem;
     border-radius: calc(var(--radius) - 4px); /* 4px */

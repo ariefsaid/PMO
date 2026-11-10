@@ -64,7 +64,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     <div className="flex flex-wrap items-start gap-[var(--space-group)]">
       {icon && (
         <span
-          className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-primary-foreground [&_svg]:size-5"
+          className="grid size-11 shrink-0 place-items-center rounded-[10px] text-section font-bold text-primary-foreground [&_svg]:size-5"
           style={{ background: iconColor ?? 'hsl(var(--primary))' }}
         >
           {icon}
@@ -81,8 +81,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             'min-w-0 text-page font-semibold',
             statusBelowMetaOnMobile
               ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
-              : statusInline ? 'flex-[0_1_auto] truncate' : 'flex-1 break-words',
-            !actionsBelow && 'sm:truncate',
+              : statusInline ? 'flex-[0_1_auto] break-words' : 'flex-1 break-words',
           )}>{name}</h1>
           {status && <span className={cn(
             'self-baseline',
@@ -104,7 +103,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       >
         {stats.map((s, i) => (
           <div key={i}>
-            <div className="mb-1 text-support text-muted-foreground">{s.label}</div>
+            <div className="mb-1 text-control font-medium text-foreground">{s.label}</div>
             <div className="text-group font-semibold tabular">{s.value}</div>
           </div>
         ))}

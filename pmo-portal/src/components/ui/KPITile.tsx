@@ -147,7 +147,7 @@ export function KPITile<L extends string = string>({
       >
         <Icon name={icon} />
       </span>}
-      <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
+      <span className="text-control font-medium text-foreground">{label}</span>
       {help && (
         <Tooltip content={help} title={helpLabel}>
           <button
@@ -175,11 +175,11 @@ export function KPITile<L extends string = string>({
         <div className="relative z-10 flex min-w-0 flex-col gap-2.5 pointer-events-none">
           {head}
           {loading ? (
-            <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+            <div data-testid="kpi-skeleton" className="skel h-8 w-2/3" />
           ) : error ? null : (
             <div
               className={cn(
-                'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+                'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
                 negative && 'text-destructive'
               )}
             >
@@ -187,12 +187,12 @@ export function KPITile<L extends string = string>({
             </div>
           )}
           {(vs || ctaLabel) && (
-            <div className="flex items-center gap-2 text-[12px]">
+            <div className="flex items-center gap-2 text-control">
               {vs && <span className="text-muted-foreground">{vs}</span>}
               {ctaLabel && (
                 <span
                   aria-hidden="true"
-                  className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1 text-[13px] font-semibold text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)]"
+                  className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1 text-control font-semibold text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)]"
                 >
                   {ctaLabel}
                   <Icon name="chev" />
@@ -210,11 +210,11 @@ export function KPITile<L extends string = string>({
       {head}
 
       {loading ? (
-        <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+        <div data-testid="kpi-skeleton" className="skel h-8 w-2/3" />
       ) : error ? null : (
         <div
           className={cn(
-            'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+            'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
             negative && 'text-destructive'
           )}
         >
@@ -232,7 +232,7 @@ export function KPITile<L extends string = string>({
         />
       ) : (
         (delta || vs) && (
-          <div className="flex items-center gap-2 text-[12px]">
+          <div className="flex items-center gap-2 text-control">
             {delta && (
               <span
                 data-testid="kpi-delta"

@@ -372,7 +372,7 @@ describe('CommandPalette', () => {
     const result = await screen.findByRole('option', { name: /North Terminal/ });
     expect(within(result).getByText('North Terminal')).toBeInTheDocument();
     const context = within(result).getByText(/Contractual terminal refurbishment$/);
-    expect(context).toHaveClass('truncate');
+    expect(context).toBeVisible();
     expect(context).toHaveAttribute('title', 'Project · Contractual terminal refurbishment');
   });
 
@@ -476,7 +476,9 @@ describe('CommandPalette', () => {
     render(<CommandPalette open items={[]} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), reference);
     const result = await screen.findByRole('option');
-    expect(result.querySelector('.truncate')).toHaveTextContent(title);
+    const titleMatches = within(result).getAllByText(title);
+    expect(titleMatches.length).toBeGreaterThan(0);
+    expect(titleMatches[0]).toBeVisible();
     await userEvent.keyboard('{Enter}');
     expect(state.navigate).toHaveBeenCalledWith(path);
   });
