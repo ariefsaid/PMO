@@ -28,7 +28,7 @@ const binding = (config: Record<string, unknown> = {}, over: Record<string, unkn
 });
 
 interface State { fake: FakeOdoo; outbox: Array<Record<string, unknown>>; loseNextCreate?: boolean }
-interface Opts { binding?: Record<string, unknown>; companies?: Record<string, Record<string, unknown>>; reject?: string; revoked?: boolean; mirrorFails?: boolean; projectNumber?: string | null; actorGone?: boolean; failureEnds?: boolean; claimed: unknown[] }
+interface Opts { binding?: Record<string, unknown>; companies?: Record<string, Record<string, unknown>>; reject?: string; revoked?: boolean; mirrorFails?: boolean; projectNumber?: string | null; clientCode?: string | null; actorGone?: boolean; failureEnds?: boolean; claimed: unknown[] }
 const newState = (): State => ({ fake: createFakeOdoo({ key: KEY }), outbox: [] });
 
 async function tick(st: State, o: Opts) {
@@ -42,7 +42,10 @@ async function tick(st: State, o: Opts) {
     supabaseSelect('companies', (c) => one(o.companies?.[f(c, 'id')!] ?? { id: f(c, 'id'), name: 'PT Sinar Baja', type: 'Vendor', erp_tax_id: '01.234' })),
     // PostgREST answers only the selected columns: the client code and the PMO project number differ, so a read of the wrong one shows
     supabaseSelect('projects', (c) => {
-      const row: Record<string, unknown> = { id: f(c, 'id'), name: 'Jembatan', code: 'CLIENT-9', pmo_project_number: o.projectNumber === undefined ? 'PRJ-26-0007' : o.projectNumber };
+      const row: Record<string, unknown> = {
+        id: f(c, 'id'), name: 'Jembatan', code: o.clientCode === undefined ? 'CLIENT-9' : o.clientCode,
+        pmo_project_number: o.projectNumber === undefined ? 'PRJ-26-0007' : o.projectNumber,
+      };
       const cols = (c.url.searchParams.get('select') ?? '').split(',').map((x) => x.trim());
       return one(Object.fromEntries(Object.entries(row).filter(([k]) => cols.includes(k))));
     }),
@@ -196,6 +199,25 @@ describe('S8-T3 drainOdooConnectSends', () => {
       assert(/project number/.test(String(results(calls)[0].p_rejection)), String(results(calls)[0].p_rejection));
       assertEquals([st.fake.rows('account.analytic.account').length, st.outbox.length, result.rejected], [0, 0, 1]);
     }
+  });
+
+  it('AC-ODC-052 a project whose client code is empty still sends: the account is named by the PMO project number, never "null <name>"', async () => {
+    for (const clientCode of [null, '']) {
+      const st = newState();
+      const { calls } = await tick(st, { claimed: [prop('prop-p', 'project', 'p-1')], clientCode });
+      const acct = st.fake.rows('account.analytic.account');
+      assertEquals([acct.length, acct[0].code, acct[0].name], [1, 'PRJ-26-0007', 'PRJ-26-0007 Jembatan']);
+      assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [[String(acct[0].id), null]]);
+    }
+  });
+
+  it('AC-ODC-052 an account already carrying the project number is found and linked, never duplicated (reconnect/retry)', async () => {
+    const st = newState();
+    st.fake.seed('account.analytic.account', [{ id: 71, name: 'PRJ-26-0007 Jembatan', code: 'PRJ-26-0007', plan_id: [7, 'P'], company_id: [1, 'C'] }]);
+    const { result, calls } = await tick(st, { claimed: [prop('prop-p', 'project', 'p-1')] });
+    assertEquals(st.fake.rows('account.analytic.account').length, 1);
+    assertEquals([result.sent, result.rejected], [1, 0]);
+    assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [['71', null]]);
   });
 
   it('a sent project\'s cost account is mirrored before the link is recorded, and the directory cursor is passed back unchanged', async () => {
