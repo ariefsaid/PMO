@@ -1024,5 +1024,12 @@
       "notDraft": "The selected budget is not an editable Draft. Review it before saving.",
       "originalGone": "The original budget Draft is no longer selected or writable. Review it before retrying."
     }
+  },
+  "invoiceTimeline": {
+    "label": "Invoice status timeline",
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "received": "Received by client",
+    "paid": "Paid"
   }
 }

@@ -54,6 +54,7 @@ export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
 export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
 export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
+export { RecordMenu, type RecordMenuItem, type RecordMenuProps } from './RecordMenu';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';
 export { MobileToolbarDisclosure, type MobileToolbarDisclosureProps } from './MobileToolbarDisclosure';

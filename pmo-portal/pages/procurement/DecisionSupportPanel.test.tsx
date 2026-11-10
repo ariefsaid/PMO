@@ -305,9 +305,30 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     for (const tile of tiles) expect(tile).not.toBeEmptyDOMElement();
   });
 
-  it('does NOT render a progress bar (uninformative 0% bar removed — I1)', () => {
-    renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  it('2057: ONE budget-impact bar states the used share after this procurement and the budget it is measured against', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    reservedState.data = 200;
+    renderPanel({ projectId: 'proj-1', totalValue: 100, projectName: 'HQ Fit-Out', status: 'Requested' });
+    const bar = screen.getByRole('progressbar');
+    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+    // budget 1000, committed 300 + reserved 200 + this 100 = 600 used → 60%.
+    expect(bar).toHaveAttribute('aria-valuenow', '60');
+    expect(bar.getAttribute('aria-label')).toMatch(/60%/);
+    expect(bar.getAttribute('aria-label')).toMatch(/\$1,000/);
+    expect(screen.getByText(/Budget in use with this purchase: 60%/)).toBeInTheDocument();
+    // The figure behind the bar: 1000 − 300 − 200 − 100 left after this procurement.
+    expect(tileValue(/^after this procurement$/i).textContent).toMatch(/\$400\b/);
+  });
+
+  it('2057: past the budget the bar is full and carries the destructive tone', () => {
+    budgetState.data = 1000;
+    committedState.data = 900;
+    reservedState.data = 0;
+    renderPanel({ projectId: 'proj-1', totalValue: 300, projectName: 'HQ Fit-Out', status: 'Requested' });
+    const bar = screen.getByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuenow', '100');
+    expect(bar.querySelector('.bg-destructive')).not.toBeNull();
   });
 });
 

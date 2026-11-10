@@ -343,7 +343,7 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 8 (Steps 1 and 3)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 6 (Steps 1 and 3)', async () => {
     vi.stubGlobal('IntersectionObserver', stub.IO);
     renderProjectDetail();
     await settleRequests();
@@ -358,20 +358,21 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
     //     the org's ERP binding; the Overview foot's survey eligibility resolves org features.
     // Step-1 deltas (1a/1b/1c) each remove exactly the deferred reads; totals shift down from here.
     // Step 3 (AC-PERF-009): the finance-lens mount is the plan's five route reads (project, overview read,
-    // invoices, tasks, procurements) plus three in-tree consumers the plan did not itemize.
+    // invoices, tasks, procurements) plus one in-tree consumer the plan did not itemize (survey eligibility);
+    // #2057 moved ProjectErpLink's two reads behind the Project details popover.
     expect(endpointLabels().sort()).toEqual(
       [
         'read:projects', // useProject
-        'read:projects', // the ERP match-review context re-reads the record under its own key
         'rpc:get_project_overview_read', // finances, billing, BoQ, budget, committed spend, ownership, ledger, milestones, comment count, fx
         'read:sales_invoices',
         'read:tasks',
         'read:procurements',
-        'read:external_org_bindings', // ERP match-review context: the org binding check
+        // #2057: the ERP match-review context (a second projects read + the org binding check) now loads when
+        // the header's Project details popover opens, not on mount.
         'rpc:resolved_org_features', // Overview-foot survey eligibility
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(8);
+    expect(endpointLabels()).toHaveLength(6);
   });
 
   it('AC-PERF-003: the work-order reads fire exactly once when the block nears the viewport', async () => {

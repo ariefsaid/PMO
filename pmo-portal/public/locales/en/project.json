@@ -373,6 +373,7 @@
       }
     },
     "activity": {
+      "notesTitle": "Notes and activity",
       "title": "Activity",
       "viewLabel": "Activity view",
       "all": "All",

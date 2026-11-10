@@ -47,6 +47,18 @@ const Suspended: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 /** Below the first screen: the browser skips layout and paint until the block nears the viewport (find-in-page, anchors and print still reach it). */
 const BELOW_FOLD = '[content-visibility:auto] [contain-intrinsic-size:auto_480px]';
 
+/** A deal's Overview also carries its notes and activity and its documents, so the record fills the screen. */
+const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation('project');
+  return (
+    <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
+      <ProjectActivity projectId={project.id} compact title={t('projectDetail.activity.notesTitle', 'Notes and activity')} />
+      {/* Its own boundary: the rest of the Overview must not wait on the Documents chunk. */}
+      <div className="min-w-0"><React.Suspense fallback={<ListState variant="loading" rows={3} className="min-h-40" />}><DocumentsTab projectId={project.id} projectCode={project.code} /></React.Suspense></div>
+    </div>
+  );
+};
+
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void }> = ({ project, isPipeline, onOpen }) => {
   const lens = useLens();
@@ -73,6 +85,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
           </div>
           <DeliveryBlock projectId={project.id} isPipeline />
+          <PipelineRecordBlocks project={project} />
         </div>
       );
     }
@@ -82,6 +95,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
         {canSeeMoney && <div className="min-w-0 xl:col-span-2"><ProjectFinancesSection project={project} /></div>}
+        <div className="min-w-0 xl:col-span-2"><PipelineRecordBlocks project={project} /></div>
       </div>
     );
   }
@@ -240,7 +254,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
         </Suspended>
       </div>
       {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
-      {panel === 'overview' && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
+      {panel === 'overview' && !isPipeline && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
     </>
   );
 };

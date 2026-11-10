@@ -134,10 +134,8 @@ const resolveVat = (n: number, payload: unknown) => {
 /** Open the compact header's "More actions" menu and click "Change contract value". */
 async function openValueEditor() {
   const header = screen.getByTestId('record-header');
-  const menu = within(header).getByLabelText('More actions').closest('details');
-  expect(menu).not.toBeNull();
-  await userEvent.click(within(menu!).getByLabelText('More actions'));
-  await userEvent.click(within(menu!).getByRole('button', { name: 'Change contract value' }));
+  await userEvent.click(within(header).getByRole('button', { name: 'More actions' }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Change contract value' }));
 }
 
 beforeEach(() => {

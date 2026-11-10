@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi } from 'vitest';
 import { RecordHeader } from '../RecordHeader';
 import { StatusPill } from '../StatusPill';
 
@@ -97,5 +98,52 @@ describe('RecordHeader', () => {
     expect(header.className).not.toContain('border-border');
     expect(header.className).not.toContain('bg-card');
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+  });
+
+  it('2057: one primary action, then an overflow menu whose items run and close it; danger item is destructive', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onArchive = vi.fn();
+    render(
+      <RecordHeader
+        icon="C"
+        name="Acme"
+        status={<StatusPill variant="neutral">Client</StatusPill>}
+        primaryAction={<button type="button">Edit</button>}
+        menuItems={[
+          { key: 'copy', label: 'Copy link', onSelect: onEdit },
+          { key: 'archive', label: 'Archive', onSelect: onArchive, danger: true, testId: 'archive-item' },
+        ]}
+      />,
+    );
+    const zone = screen.getByTestId('record-header-actions');
+    expect(zone).toContainElement(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+    await user.click(await screen.findByTestId('archive-item'));
+    expect(onArchive).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+  });
+
+  it('2057: Escape closes the menu and keeps focus on its trigger; no trigger without items', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <RecordHeader icon="C" name="Acme" status="x" menuItems={[{ key: 'a', label: 'Do it', onSelect: vi.fn() }]} />,
+    );
+    const trigger = screen.getByRole('button', { name: 'More actions' });
+    await user.click(trigger);
+    await screen.findByRole('menu');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(trigger).toHaveFocus();
+    rerender(<RecordHeader icon="C" name="Acme" status="x" menuItems={[]} />);
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+  });
+
+  it('2057: key facts render as a labelled row under the title', () => {
+    render(<RecordHeader icon="C" name="Acme" status="x" stats={[{ label: 'Value', value: 'Rp 5.000' }, { label: 'Due', value: '1 Jan' }]} />);
+    expect(screen.getByText('Value')).toBeInTheDocument();
+    expect(screen.getByText('Rp 5.000')).toBeInTheDocument();
   });
 });

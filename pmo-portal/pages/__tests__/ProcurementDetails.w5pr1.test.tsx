@@ -535,7 +535,7 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
     renderPage();
     const header = await openMoreActions();
     const rejectItem = header.getByRole('menuitem', { name: /^reject$/i });
-    expect(rejectItem.className).not.toContain('bg-destructive');
+    expect(rejectItem.className).not.toMatch(/(^|\s)bg-destructive(\s|$)/);
     expect(rejectItem.className).not.toContain('bg-primary');
   });
 });
