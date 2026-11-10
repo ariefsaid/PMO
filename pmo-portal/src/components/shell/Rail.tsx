@@ -411,7 +411,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         >
           P
         </span>
-        <span className="text-[15px] font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>
+        <span className="text-group font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>
       </div>
 
       <nav
@@ -432,7 +432,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
             if (groupItems.length === 0) return null;
             return (
               <React.Fragment key={group}>
-                <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
+                <div className="px-2 pb-1.5 pt-3.5 text-control font-semibold text-muted-foreground">
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
@@ -441,7 +441,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
           })}
           {showMyViews && (
             <div role="group" aria-label={myViewsLabel}>
-              <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
+              <div className="px-2 pb-1.5 pt-3.5 text-control font-semibold text-muted-foreground">
                 {myViewsLabel}
               </div>
               {myViewsItems.map((view) => (
@@ -459,7 +459,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
                   }
                 >
                   <Icon name="views" />
-                  <span className="truncate">{view.name}</span>
+                  <span className="break-words">{view.name}</span>
                 </NavLink>
               ))}
             </div>

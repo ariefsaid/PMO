@@ -36,14 +36,14 @@ interface BreadcrumbProps {
 }
 
 /**
- * Wayfinding breadcrumb: muted links → foreground hover, bold ellipsized current.
+ * Wayfinding breadcrumb: muted links → foreground hover, bold current label.
  *
- * C3 mobile truncation (AC-IXD-MOBILE-W4-C3 C3-10):
+ * C3 mobile navigation (AC-IXD-MOBILE-W4-C3 C3-10):
  *   At ≤921px (the shell's rail-collapse breakpoint), show ONLY the current crumb
- *   truncated to max-w-[20ch]. Parent crumb links are hidden (the in-page BackBar
+ *   shown in full. Parent crumb links are hidden (the in-page BackBar
  *   already carries the parent escape on detail pages; the drawer carries top-level
  *   nav). This keeps the top bar tidy at 375px without sacrificing wayfinding.
- *   Desktop (>921px) is unchanged: all parts show, current truncates to max-w-[40ch].
+ *   Desktop (>921px) is unchanged: all parts show.
  */
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   const { t } = useTranslation();
@@ -72,7 +72,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   return (
     <nav
       aria-label={t('shell.breadcrumb.label', 'Breadcrumb')}
-      className={cn('flex min-w-0 items-center gap-2 text-[13.5px]', className)}
+      className={cn('flex min-w-0 flex-wrap items-center gap-2 text-control', className)}
     >
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
@@ -92,9 +92,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               <span
                 aria-current="page"
                 title={part.title}
-                // C3: at ≤921px truncate harder (20ch) — only the current crumb
-                // shows; at desktop full width allows 40ch before ellipsis.
-                className="max-w-[40ch] overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-foreground max-[921px]:max-w-[20ch]"
+                className="min-w-0 break-words font-semibold text-foreground"
               >
                 {label}
               </span>
@@ -122,7 +120,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   }}
                   aria-label={part.ariaLabel}
                   title={part.title}
-                  className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  className="break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}
                 </a>
@@ -132,7 +130,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   onClick={part.onClick}
                   aria-label={part.ariaLabel}
                   title={part.title}
-                  className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  className="break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}
                 </button>

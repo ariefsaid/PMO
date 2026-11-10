@@ -21,7 +21,7 @@ export const GateNotice: React.FC<GateNoticeProps> = ({
   <div
     role={variant === 'blocked' ? 'alert' : undefined}
     className={cn(
-      'flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-[13px] [&_svg]:mt-px [&_svg]:size-[17px] [&_svg]:shrink-0',
+      'flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-control [&_svg]:mt-px [&_svg]:size-[17px] [&_svg]:shrink-0',
       variant === 'blocked'
         ? 'border-warning/40 bg-warning/12 text-warning-foreground [&_svg]:text-[hsl(var(--warning-icon))]'
         : 'border-success/35 bg-success/10 text-[hsl(var(--success-text))] [&_svg]:text-success',

@@ -22,7 +22,7 @@ export const HelpPopover: React.FC<HelpPopoverProps> = ({ subject, children, cla
       >
         <Icon name="help" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-w-[min(20rem,calc(100vw-2rem))] text-[12.5px] leading-snug">{children}</PopoverContent>
+      <PopoverContent align="start" className="max-w-[min(20rem,calc(100vw-2rem))] text-control leading-snug">{children}</PopoverContent>
     </Popover>
   );
 };

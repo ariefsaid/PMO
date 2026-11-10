@@ -90,7 +90,7 @@ describe('RecordHeader mobile identity layout', () => {
     expect(row?.className).toMatch(/grid/);
     expect(title.className).toMatch(/col-span-2/);
     expect(meta?.className).toMatch(/row-start-2/);
-    expect(status?.className).toMatch(/row-start-3/);
+    expect(status?.parentElement?.className).toMatch(/row-start-3/);
     expect(container.querySelector('h1')).toHaveTextContent('Cascade Foods 6.0 MW Ground-Mount PV');
   });
 });

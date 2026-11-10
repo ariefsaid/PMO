@@ -247,7 +247,7 @@ export function DataTableDesktop<Row>({
                     ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                     : undefined}
                   className={cn(
-                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground whitespace-nowrap select-none',
+                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground break-words select-none',
                     col.stickyLeft && 'left-0 z-[3]',
                     alignClass(col.align),
                     col.colClassName
@@ -257,14 +257,14 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex items-center gap-1 hover:text-foreground [&_svg]:size-3"
+                      className="inline-flex flex-wrap items-center gap-1 break-words hover:text-foreground [&_svg]:size-3"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>
                       {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
                       {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;
@@ -440,9 +440,8 @@ export function DataTableDesktop<Row>({
                           ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                           : undefined}
                         className={cn(
-                          'h-[var(--table-row-min-height)] px-[var(--table-cell-inset)] py-2 align-middle',
+                          'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] py-2 align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
                           col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
-                          (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
                           alignClass(col.align),
                           col.align === 'num' && 'tabular',
                           col.colClassName

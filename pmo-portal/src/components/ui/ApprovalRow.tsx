@@ -111,9 +111,9 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
       {disclosure}
       <Avatar name={name} size="lg" decorative />
       <div className="min-w-0 flex-1">
-        <div className={cn(identityLayout === 'request' ? 'line-clamp-2 break-words' : 'truncate', 'text-sm font-medium')} title={name}>{name}</div>
+        <div className="break-words text-control font-medium" title={name}>{name}</div>
         {identityLayout === 'request' && status && <div className="mt-1">{status}</div>}
-        <div className={cn('text-xs text-muted-foreground', identityLayout === 'request' && 'mt-1')}>
+        <div className={cn('break-words text-control text-muted-foreground', identityLayout === 'request' && 'mt-1')}>
           {subtitleNode}
         </div>
       </div>

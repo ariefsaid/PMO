@@ -40,13 +40,13 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
       }}
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
-        <p className="text-center text-[13px] font-semibold tabular text-foreground">
+        <p className="text-center text-control font-semibold tabular text-foreground">
           {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
             hours: formatNumberExact(total),
           })}
         </p>
         {showSubmitHint && (
-          <p className="text-center text-[12px] text-muted-foreground">
+          <p className="text-center text-control text-muted-foreground">
             {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
           </p>
         )}

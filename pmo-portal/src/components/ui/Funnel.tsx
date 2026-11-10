@@ -114,16 +114,16 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                   className="size-[9px] shrink-0 rounded-full"
                   style={{ background: s.dotColor ?? 'hsl(var(--primary))' }}
                 />
-                <span className="text-xs font-semibold">{s.name}</span>
+                <span className="text-control font-semibold">{s.name}</span>
                 {s.prob && (
-                  <span className="ml-auto text-[11px] font-bold text-muted-foreground">{s.prob}</span>
+                  <span className="ml-auto text-control font-bold text-muted-foreground">{s.prob}</span>
                 )}
               </div>
-              <div data-funnel-stage-amount className="text-[17px] font-bold leading-none tracking-[-0.02em] tabular">
+              <div data-funnel-stage-amount className="text-section font-bold tracking-[-0.02em] tabular">
                 {s.value}
               </div>
               {s.weighted && (
-                <div data-funnel-stage-weighted className="mt-2 text-[11px] text-muted-foreground">
+                <div data-funnel-stage-weighted className="mt-2 text-control text-muted-foreground">
                   {s.weighted}
                 </div>
               )}
