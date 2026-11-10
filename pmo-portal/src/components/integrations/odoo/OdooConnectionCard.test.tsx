@@ -286,3 +286,14 @@ it('FR-ODC-110 a key that sees no companies says so instead of leaving a dead en
   expect(await screen.findByText(/can see no Odoo companies/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Activate' })).not.toBeInTheDocument();
 });
+
+/**
+ * #2092 (WIG, Forms) — the Site URL is a URL: type="url" opens the URL keyboard / lets the
+ * browser validate the shape, instead of the plain text keyboard.
+ */
+it('#2092 AC3: the connect form Site URL is typed as a URL', async () => {
+  const user = userEvent.setup();
+  mount('Admin', NONE);
+  await user.click(await screen.findByRole('button', { name: 'Connect Odoo' }));
+  expect(screen.getByLabelText(/Site URL/)).toHaveAttribute('type', 'url');
+});

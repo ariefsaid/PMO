@@ -428,6 +428,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 ref={searchRef}
                 role="searchbox"
                 type="text"
+                // #2092 (WIG, Forms): a filter box, not an identity field — the browser's saved-value
+                // dropdown must not cover the results being read.
+                autoComplete="off"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onSearchKeyDown}

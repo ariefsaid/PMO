@@ -208,7 +208,7 @@ export function OdooConnectionCard() {
           submitError={error ? { headline: error } : null}>
           <FormSection legend={t('administration:odoo.connect.legend', 'Odoo connection')}>
             <FormGrid>
-              <TextField {...form.fieldProps('siteUrl')} label={t('administration:odoo.connect.siteUrl', 'Site URL')} required placeholder="https://mycompany.odoo.com" autoComplete="off" fullWidth />
+              <TextField {...form.fieldProps('siteUrl')} label={t('administration:odoo.connect.siteUrl', 'Site URL')} required type="url" placeholder="https://mycompany.odoo.com" autoComplete="off" fullWidth />
               <TextField {...form.fieldProps('database')} label={t('administration:odoo.connect.database', 'Database')} required autoComplete="off" />
               <TextField {...form.fieldProps('apiKey')} label={t('administration:odoo.connect.apiKey', 'API key')} required type="password" autoComplete="off" fullWidth />
               <TextField {...form.fieldProps('keyExpiresOn')} label={t('administration:odoo.connect.keyExpiresOn', 'Key expires on (optional)')} type="date" helper={t('administration:odoo.connect.expiryHelp', 'If you gave the key an expiry in Odoo, enter it so PMO can warn you before it lapses.')} />

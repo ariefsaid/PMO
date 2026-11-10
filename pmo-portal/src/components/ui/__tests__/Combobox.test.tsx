@@ -409,3 +409,15 @@ describe('Combobox: dynamic popover positioning (CMP-017)', () => {
     });
   });
 });
+
+/**
+ * #2092 (WIG, Forms) — the popup's search box is a free-text FILTER, not an identity field: the
+ * browser's saved-value dropdown must not cover the results the user is trying to read.
+ */
+describe('#2092 Combobox: the search box is a filter, not an identity field', () => {
+  it('#2092 AC2: the popup search input turns browser autofill off', async () => {
+    render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Client company' }));
+    expect(await screen.findByRole('searchbox')).toHaveAttribute('autocomplete', 'off');
+  });
+});

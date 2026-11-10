@@ -463,6 +463,102 @@ describe('FormGrid / FormActions: composition', () => {
 });
 
 /**
+ * #2092 (WIG, Forms) — the shared defaults every field inherits: `autoComplete="off"` on non-auth
+ * fields (dodges password-manager / saved-value prompts), no spellcheck on codes and emails, a
+ * `name` derived from the field id, and an escape hatch so a call site can still opt in to a real
+ * autofill token. Fixing it here covers ~200 call sites at once.
+ */
+describe('#2092 shared field defaults: autoComplete, spellCheck, name', () => {
+  it('#2092 AC1: a mono code field gets no spellcheck squiggles and no autocorrect', () => {
+    render(<TextField label="ERP account" mono value="4100-01" onChange={() => {}} />);
+    const input = screen.getByLabelText('ERP account');
+    expect(input).toHaveAttribute('spellcheck', 'false');
+    expect(input).toHaveAttribute('autocomplete', 'off');
+    expect(input).toHaveAttribute('autocorrect', 'off');
+    expect(input).toHaveAttribute('autocapitalize', 'off');
+  });
+
+  it('#2092 AC2: a non-auth text field defaults autoComplete="off" (never the user\'s own saved value)', () => {
+    render(<TextField label="Contract reference" value="" onChange={() => {}} />);
+    expect(screen.getByLabelText('Contract reference')).toHaveAttribute('autocomplete', 'off');
+  });
+
+  it('#2092 AC2: an email field is typed, uncorrected and not autofilled with the signed-in admin\'s address', () => {
+    render(<TextField label="Email" type="email" value="" onChange={() => {}} />);
+    const input = screen.getByLabelText('Email');
+    expect(input).toHaveAttribute('type', 'email');
+    expect(input).toHaveAttribute('autocomplete', 'off');
+    expect(input).toHaveAttribute('spellcheck', 'false');
+  });
+
+  it('keeps the browser’s own credential autofill on a password field (auth type)', () => {
+    render(<TextField label="API Token" type="password" value="" onChange={() => {}} />);
+    expect(screen.getByLabelText('API Token')).not.toHaveAttribute('autocomplete');
+  });
+
+  it('an explicit autoComplete / spellCheck still wins over the default', () => {
+    render(
+      <TextField
+        label="Website"
+        type="url"
+        autoComplete="url"
+        spellCheck
+        value=""
+        onChange={() => {}}
+      />,
+    );
+    const input = screen.getByLabelText('Website');
+    expect(input).toHaveAttribute('autocomplete', 'url');
+    expect(input).toHaveAttribute('spellcheck', 'true');
+  });
+
+  it('derives name from the explicit id (the control is addressable by a stable name)', () => {
+    render(<TextField id="company-name" label="Name" value="" onChange={() => {}} />);
+    expect(screen.getByLabelText('Name')).toHaveAttribute('name', 'company-name');
+  });
+
+  it('derives name from the generated id when none is given, and an explicit name wins', () => {
+    const { unmount } = render(<TextField label="Short name" value="" onChange={() => {}} />);
+    const generated = screen.getByLabelText('Short name');
+    expect(generated.getAttribute('name')).toBe(generated.id);
+    unmount();
+
+    render(<TextField id="company-short-name" name="shortName" label="Short name" value="" onChange={() => {}} />);
+    expect(screen.getByLabelText('Short name')).toHaveAttribute('name', 'shortName');
+  });
+
+  it('NumberField is a named, unautofilled control (money is never a saved-profile value)', () => {
+    render(<NumberField id="invoice-amount" label="Amount" value="" onChange={() => {}} />);
+    const input = screen.getByLabelText('Amount');
+    expect(input).toHaveAttribute('name', 'invoice-amount');
+    expect(input).toHaveAttribute('autocomplete', 'off');
+    expect(input).toHaveAttribute('inputmode', 'decimal');
+  });
+
+  it('TextArea is named and never autofilled', () => {
+    render(<TextArea id="contact-notes" label="Notes" value="" onChange={() => {}} />);
+    const area = screen.getByLabelText('Notes');
+    expect(area).toHaveAttribute('name', 'contact-notes');
+    expect(area).toHaveAttribute('autocomplete', 'off');
+  });
+
+  it('SelectField is named and never autofilled', () => {
+    render(
+      <SelectField
+        id="contact-company"
+        label="Company"
+        value="c1"
+        onChange={() => {}}
+        options={[{ value: 'c1', label: 'Acme' }]}
+      />,
+    );
+    const select = screen.getByLabelText('Company');
+    expect(select).toHaveAttribute('name', 'contact-company');
+    expect(select).toHaveAttribute('autocomplete', 'off');
+  });
+});
+
+/**
  * I-4 (rendered Discover pass, 2026-07-22) — `hideLabel` on the text/number fields.
  *
  * `FieldShell` and `SelectField` already had it, for exactly this case: a control inside a table cell,

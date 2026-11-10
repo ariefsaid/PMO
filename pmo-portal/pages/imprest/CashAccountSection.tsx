@@ -38,7 +38,7 @@ export const CashAccountSection: React.FC<{ floatId: string; account: string | n
             <p className="text-muted-foreground">{t('imprest:cash.unset', 'No cash account set. This float\'s cash movements are not posted to the ERP.')}</p>
             {may('edit', 'imprestFloat') && (
               <div className="flex flex-wrap items-end gap-2">
-                <TextField label={t('imprest:cash.label', 'ERP cash account name')} value={name} onChange={setName} />
+                <TextField label={t('imprest:cash.label', 'ERP cash account name')} value={name} onChange={setName} spellCheck={false} />
                 <Button variant="primary" disabled={!value} onClick={() => setConfirming(true)}>{t('imprest:cash.set', 'Set account')}</Button>
               </div>
             )}

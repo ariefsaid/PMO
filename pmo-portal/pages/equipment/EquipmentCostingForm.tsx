@@ -103,12 +103,12 @@ export const EquipmentCostingForm: React.FC<{
             options={[{ value: 'hours', label: unitLabel(t, 'hours') }, { value: 'days', label: unitLabel(t, 'days') }]} />
         </>}
         {v.basis === 'actual_cost' && <>
-          <TextField label={t('equipment:costing.account', 'Ledger account')} value={v.account} onChange={(x) => set('account', x)}
+          <TextField label={t('equipment:costing.account', 'Ledger account')} value={v.account} onChange={(x) => set('account', x)} spellCheck={false}
             helper={t('equipment:costing.accountHelper', 'Costs posted to this account (or account group) with no project are shared across projects by usage.')} />
-          <TextField label={t('equipment:costing.accountGroup', 'Account group (instead of one account)')} value={v.accountGroup} onChange={(x) => set('accountGroup', x)} />
-          <TextField label={t('equipment:costing.costCenter', 'Cost centre (optional)')} value={v.costCenter} onChange={(x) => set('costCenter', x)} />
+          <TextField label={t('equipment:costing.accountGroup', 'Account group (instead of one account)')} value={v.accountGroup} onChange={(x) => set('accountGroup', x)} spellCheck={false} />
+          <TextField label={t('equipment:costing.costCenter', 'Cost centre (optional)')} value={v.costCenter} onChange={(x) => set('costCenter', x)} spellCheck={false} />
           <TextField label={t('equipment:costing.partyType', 'Party type (optional)')} value={v.partyType} onChange={(x) => set('partyType', x)} />
-          <TextField label={t('equipment:costing.party', 'Party (optional)')} value={v.party} onChange={(x) => set('party', x)} />
+          <TextField label={t('equipment:costing.party', 'Party (optional)')} value={v.party} onChange={(x) => set('party', x)} spellCheck={false} />
           <SelectField label={t('equipment:costing.driver', 'Share by')} value={v.driver} onChange={(x) => set('driver', x)}
             options={[{ value: 'units', label: t('equipment:driver.unitsOption', 'Logged hours or days') }, { value: 'fuel', label: t('equipment:driver.fuelOption', 'Fuel litres') }, { value: 'trips', label: t('equipment:driver.tripsOption', 'Trips') }]} />
           {v.driver === 'units' && <SelectField label={t('equipment:costing.usageUnit', 'Count usage in')} value={v.rateUnit} onChange={(x) => set('rateUnit', x)}
