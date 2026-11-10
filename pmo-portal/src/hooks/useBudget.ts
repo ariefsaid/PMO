@@ -209,6 +209,16 @@ export function useBudgetMutations(projectId: string) {
     },
   });
 
+  const returnVersion = useMutation<void, Error, { versionId: string; reason: string }>({
+    mutationFn: ({ versionId, reason }) => budgetRepository.returnVersion(versionId, reason),
+    onSuccess: invalidateBoth,
+  });
+
+  const resubmitVersion = useMutation<void, Error, string>({
+    mutationFn: (versionId) => budgetRepository.resubmitVersion(versionId),
+    onSuccess: invalidateBoth,
+  });
+
   const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
     mutationFn: ({ versionId, cancelErp }) => budgetRepository.archiveVersion(versionId, cancelErp),
     onSuccess: () => {
@@ -269,6 +279,8 @@ export function useBudgetMutations(projectId: string) {
     createVersion,
     cloneVersion,
     activate,
+    returnVersion,
+    resubmitVersion,
     archive,
     deleteDraft,
     createLineItem: createLineItemMutation,

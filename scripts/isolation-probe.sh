@@ -322,12 +322,16 @@ if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then
   c=$(rpc budget_distribution_gaps "{\"p_version\":\"$A_BUDGET\"}")
   c=$(rpc save_budget_distribution "{\"p_version\":\"$A_BUDGET\",\"p_method\":\"by_days\",\"p_inputs\":{},\"p_basis\":{},\"p_rows\":[]}")
   c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}")
+  c=$(rpc return_budget_version "{\"version_id\":\"$A_BUDGET\",\"reason\":\"probe\"}")
+  c=$(rpc resubmit_budget_version "{\"version_id\":\"$A_BUDGET\"}")
 else
   skip "switch_budget_draft_mode (budget_versions)"
   skip "get_budget_distribution_snapshot (budget_versions)"
   skip "budget_distribution_gaps (budget_versions)"
   skip "save_budget_distribution (budget_versions)"
   skip "activate_budget_version (budget_versions)"
+  skip "return_budget_version (budget_versions)"
+  skip "resubmit_budget_version (budget_versions)"
 fi
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc get_budget_comparison "{\"p_project_id\":\"$A_PROJECT\"}"); else skip "get_budget_comparison (projects)"; fi
 A_IMPREST_FLOAT=$(jq -r '.[]|select(.table=="imprest_floats")|.id' "$A_ROWS_JSON")
