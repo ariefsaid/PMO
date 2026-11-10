@@ -66,7 +66,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
     <section aria-label={basis ? `${heading} · ${basis}` : heading} className={className}>
       {!hideHeading && <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <h2 className="text-[18px] font-semibold leading-[1.3]">{heading}</h2>
-        {basis && <span className="text-[12px] text-muted-foreground">{basis}</span>}
+        {basis && <span className="text-control text-muted-foreground">{basis}</span>}
       </div>}
       <div className={figures.length === 1 ? 'grid grid-cols-1 gap-x-4' : twoUp ? 'grid grid-cols-2 gap-x-4' : 'grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4'}>
         {figures.map((figure) => {
@@ -81,7 +81,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
           );
           const content = (
             <>
-              <span className="flex min-h-11 items-center gap-1 text-[12px] text-muted-foreground">
+              <span className="flex min-h-11 items-center gap-1 text-control text-muted-foreground">
                 {figure.label}
                 {figure.help && (
                   <Tooltip content={figure.help}>
@@ -92,7 +92,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
                 )}
               </span>
               <span className="mt-1 block text-[23px] font-bold leading-tight tabular">{value}</span>
-              {figure.subline && <span className="mt-1 block text-[12px] text-muted-foreground">{figure.subline}</span>}
+              {figure.subline && <span className="mt-1 block text-control text-muted-foreground">{figure.subline}</span>}
             </>
           );
 

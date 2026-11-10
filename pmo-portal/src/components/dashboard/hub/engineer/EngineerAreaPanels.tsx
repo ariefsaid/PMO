@@ -135,7 +135,7 @@ export function EngineerReturnedCard({ claims }: { claims: ExpenseClaimWithRefs[
                 <span className="block truncate text-control font-medium">{claim.title}</span>
                 <span className="block truncate text-control text-muted-foreground">{claim.project?.short_name ?? claim.project?.name ?? t('hub.engineer.noProject', 'No project')}</span>
               </span>
-              <StatusPill record="expense" state={claim.status} />
+              <span className="shrink-0"><StatusPill record="expense" state={claim.status} /></span>
             </Link>
           </li>
         ))}

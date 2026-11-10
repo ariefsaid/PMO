@@ -55,7 +55,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
             <XAxis dataKey="name" tick={<NameTick />} stroke={chartTheme.grid} interval={0} height={44} tickLine={false} />
             <YAxis type="number" tick={axisTickStyle} stroke={chartTheme.grid} width={48} tickLine={false} axisLine={false} tickFormatter={(value: number) => formatCompactCurrency(value, currency)} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
-            <Legend verticalAlign="top" align="right" height={24} content={() => <ul className="m-0 flex list-none flex-wrap justify-end gap-x-3 p-0 text-xs text-muted-foreground">{legend.map((item) => <li key={item.label} className="inline-flex items-center gap-1.5">{item.swatch}{item.label}</li>)}</ul>} />
+            <Legend verticalAlign="top" align="right" height={24} content={() => <ul className="m-0 flex list-none flex-wrap justify-end gap-x-3 p-0 text-control text-muted-foreground">{legend.map((item) => <li key={item.label} className="inline-flex items-center gap-1.5">{item.swatch}{item.label}</li>)}</ul>} />
             <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
             <Bar dataKey="budget" name={budgetLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
             <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced}>
@@ -66,13 +66,13 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
         </ResponsiveContainer>
       </div></div>
       {noBudget > 0 && (
-        <p data-testid="plan-actual-no-budget" className="mt-1 text-xs text-muted-foreground">
+        <p data-testid="plan-actual-no-budget" className="mt-1 text-control text-muted-foreground">
           {t('hub.company.planVsActual.noBudget', { count: noBudget, defaultValue: '{{count}} projects have no active budget yet', defaultValue_one: '{{count}} project has no active budget yet' })}
           {' '}<Link to="/projects" className="font-medium text-primary-text hover:underline">{t('hub.company.planVsActual.setBudgets', 'Set budgets')}</Link>
         </p>
       )}
       {(incomplete > 0 || otherCurrency > 0) && (
-        <p data-testid="plan-actual-caption" className="mt-2 text-xs text-muted-foreground">
+        <p data-testid="plan-actual-caption" className="mt-2 text-control text-muted-foreground">
           {[
             incomplete > 0 ? t('hub.company.planVsActual.incomplete', { count: incomplete, defaultValue: '{{count}} projects have incomplete spending', defaultValue_one: '{{count}} project has incomplete spending' }) : null,
             otherCurrency > 0 ? t('hub.company.planVsActual.otherCurrency', { count: otherCurrency, defaultValue: '{{count}} projects in another currency are left out', defaultValue_one: '{{count}} project in another currency is left out' }) : null,
