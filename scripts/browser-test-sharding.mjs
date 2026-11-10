@@ -7,6 +7,7 @@ const PROJECTS = new Set(['setup', 'chromium', 'serial', 'consent']);
 const MODES = new Set(['ordinary', 'served']);
 const KNOWN_RESULT_STATUSES = new Set(['passed', 'skipped', 'failed', 'timedOut', 'interrupted', 'not_run']);
 const UNIT_RESULT_MODES = new Set(['run', 'only', 'skip', 'todo']);
+const BROWSER_SHARD_COUNT = 3;
 const UNIT_SHARD_COUNT = 4;
 const UNIT_REPORT_NAMES = Array.from({ length: UNIT_SHARD_COUNT }, (_, index) => `unit-shard-${index + 1}-of-${UNIT_SHARD_COUNT}.json`);
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -587,12 +588,12 @@ export function validatePartition({ full, selected, tail, served } = {}) {
   const fullRevision = full.revision;
   const fullConfig = full.configDigest;
   const selectedShards = Array.isArray(selected) ? selected : [];
-  if (selectedShards.length !== 2) issues.push(issue('EXPECTED_SHARD_COUNT'));
+  if (selectedShards.length !== BROWSER_SHARD_COUNT) issues.push(issue('EXPECTED_SHARD_COUNT'));
   for (const shard of selectedShards) {
     issues.push(...validateInventory(shard, { revision: fullRevision, configDigest: fullConfig, mode: 'ordinary' }));
   }
-  if (selectedShards.length < 2) {
-    for (let index = selectedShards.length; index < 2; index += 1) issues.push(issue('EMPTY_SHARD'));
+  if (selectedShards.length < BROWSER_SHARD_COUNT) {
+    for (let index = selectedShards.length; index < BROWSER_SHARD_COUNT; index += 1) issues.push(issue('EMPTY_SHARD'));
   }
 
   const fullIdentities = new Map();
@@ -742,7 +743,7 @@ function validateManifest(manifest, { requirePartition = false } = {}) {
       issues.push(...proof.issues);
       const partition = manifest.partition;
       const expected = [
-        ...(Array.isArray(partition.selected) ? partition.selected.map((inventory, index) => ({ inventory, lane: 'chromium', mode: 'ordinary', shard: { index: index + 1, total: 2 } })) : []),
+        ...(Array.isArray(partition.selected) ? partition.selected.map((inventory, index) => ({ inventory, lane: 'chromium', mode: 'ordinary', shard: { index: index + 1, total: BROWSER_SHARD_COUNT } })) : []),
         ...(partition.tail?.serial ? [{ inventory: partition.tail.serial, lane: 'serial', mode: 'ordinary', shard: null }] : []),
         ...(partition.tail?.consent ? [{ inventory: partition.tail.consent, lane: 'consent', mode: 'ordinary', shard: null }] : []),
         ...(partition.served ? [{ inventory: partition.served, lane: 'served', mode: 'served', shard: null }] : []),

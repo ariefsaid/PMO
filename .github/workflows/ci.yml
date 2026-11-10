@@ -33,8 +33,9 @@ on:
   # minutes.
   pull_request:
   # Dispatched only via scripts/ci-e2e.sh, for a PR to `dev` whose PR run already did `verify` +
-  # `pgtap` — so a dispatch runs `integration` alone and skips its pgTAP step unless `run_pgtap`
-  # (ci-e2e.sh sets it when the branch has no PR, i.e. nothing ran pgTAP on it yet).
+  # `pgtap` — so a dispatch runs the browser shards, `integration-lanes` and the `integration`
+  # aggregate, skipping the pgTAP step unless `run_pgtap` (ci-e2e.sh sets it when the branch has
+  # no PR, i.e. nothing ran pgTAP on it yet).
   workflow_dispatch:
     inputs:
       run_pgtap:
@@ -61,13 +62,15 @@ defaults:
     working-directory: pmo-portal
 
 # ─── JOB GRAPH (#2161) ──────────────────────────────────────────────────────────
-# The required `verify` context is an AGGREGATE gate; the work runs in four parallel lanes:
+# The required `verify` context aggregates the verify lanes; `integration` aggregates the
+# independent browser and integration lanes on release PRs / dispatches:
 #
-#   scope ─┬─ unit ×N  (shards; blob report + coverage each) ─→ coverage (merge + ≥80% gate) ─┐
-#          ├─ checks   (guards · typecheck · lint · audits · build · script tests) ─────────────┤
-#          ├─ deno     (edge-fn typecheck/boot/tests + M365 witness; skipped unless scope.deno)─┼─→ verify (required)
-#          └─ pgtap    (unchanged)                                                            ─┘
-#   browser-chromium → integration   (PR→main / dispatch only — unchanged)
+#   scope ─┬─ unit ×N (blob report + coverage each) ─→ coverage (merge + ≥80% gate) ─┐
+#          ├─ checks (guards · typecheck · lint · audits · build · script tests) ─────┤
+#          └─ deno (edge-fn tests + M365; conditional on scope.deno) ─────────────────┴→ verify
+#   scope ────────────────────────────────────────→ integration-lanes ──────┐
+#   browser-chromium ×3 ─────────────────────────────────────────────────────┴→ integration
+#   pgtap runs separately for PR→dev and push→dev.
 #
 # `verify` runs no tests: it fails closed unless every verify-stage job succeeded. That split is
 # what lets the ~8-min `checks`, ~9-min `deno` and ~7-min `unit` lanes overlap instead of queueing
@@ -83,13 +86,12 @@ defaults:
 #               scripts change, the `deno` job only when edge functions change.
 #               Typecheck · lint · guards · build always run. No browser. Fast lane.
 # push dev    → everything, full: unit (4 shards) · checks · coverage · verify · pgtap (#1584).
-# PR → main   → (everything full, unchanged) `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
-#               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
-#               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
-#               here — cheap, and this job must stand alone as the merge-gate proof.)
+# PR → main   → (everything full) `verify` + required `integration` aggregate; its browser shards and
+#               `integration-lanes` (Supabase + pgTAP + served smoke + consent + serial e2e) run in
+#               parallel, then `integration` checks all evidence and outcomes.
 # push main   → `verify` smoke only (pgtap/integration skipped — see their `if`); unit is full.
-# dispatch    → `integration` only, pgTAP skipped (scripts/ci-e2e.sh; the PR already ran
-#               `verify` + `pgtap`).
+# dispatch    → browser shards + `integration-lanes` + `integration` aggregate, pgTAP skipped
+#               (scripts/ci-e2e.sh; the PR already ran `verify` + `pgtap`).
 # Feature branches have no push CI (PR-gated) → no duplicate `verify` runs.
 # Integration trims: Playwright browsers cached + Supabase starts without the
 # CI-unused containers (studio/realtime/vector). `pgtap` uses the same trim.
@@ -580,9 +582,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     defaults:
       run:
         working-directory: .
@@ -659,12 +661,21 @@ jobs:
         working-directory: pmo-portal
         run: |
           if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then npx playwright install-deps chromium; else npx playwright install --with-deps chromium; fi
-      - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/2)
+      - name: Capture full Chromium inventory
+        if: matrix.shard == 1
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: npx playwright test --project=chromium --list --reporter=json > /tmp/pw-chromium-full-list.json
+      - name: Capture Chromium shard inventory (${{ matrix.shard }}/${{ strategy.job-total }})
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: npx playwright test --project=chromium --shard=${{ matrix.shard }}/${{ strategy.job-total }} --list --reporter=json > /tmp/pw-chromium-${{ matrix.shard }}-list.json
+      - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/${{ strategy.job-total }})
         id: chromium
         working-directory: pmo-portal
         run: |
           set +e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium-${{ matrix.shard }}.json npx playwright test --project=chromium --shard=${{ matrix.shard }}/2 --reporter=list,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium-${{ matrix.shard }}.json npx playwright test --project=chromium --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,json
           outcome=$?
           printf '{"schemaVersion":1,"runId":"%s","attempt":"%s","revision":"%s","shard":%s,"processOutcome":"%s"}\n' \
             "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.shard }}" \
@@ -677,6 +688,8 @@ jobs:
           name: browser-chromium-${{ matrix.shard }}
           path: |
             /tmp/pw-chromium-${{ matrix.shard }}.json
+            /tmp/pw-chromium-full-list.json
+            /tmp/pw-chromium-${{ matrix.shard }}-list.json
             /tmp/browser-shard-${{ matrix.shard }}.json
           retention-days: 1
           if-no-files-found: error
@@ -691,15 +704,20 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  integration:
-    needs: browser-chromium
-    if: ${{ always() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch') }}
+  integration-lanes:
+    needs: [scope]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success') || github.event_name == 'workflow_dispatch') }}
+    outputs:
+      serial_e2e: ${{ steps.serial_e2e.outcome }}
+      consent_e2e: ${{ steps.consent_e2e.outcome }}
+      serve_adapter_dispatch: ${{ steps.serve_adapter_dispatch.outcome }}
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant
     # gate AC-VISUAL-ICON-001, ~6 min). Run it on PRs that TARGET main only — the authoritative
     # pre-merge gate. A squash-merge carries the PR-tested content; re-running on the main push
     # is redundant. PRs targeting dev get pgTAP only via the `pgtap` job above (fast lane — see
     # tiering comment below).
-    # Make this a REQUIRED status check in branch protection so a red e2e can't be merged.
+    # This work runs independently of the browser matrix; the `integration` aggregate below keeps
+    # the branch-protection context and asserts these lane outcomes alongside browser evidence.
     # Also runnable on demand for any branch (Actions → CI → "Run workflow", or
     # `gh workflow run ci.yml --ref <branch>`), so a PR to `dev` can get its e2e proof on a
     # GitHub runner instead of the shared local stack. Trigger it once per PR, after local
@@ -725,54 +743,6 @@ jobs:
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
-      - name: Chromium shard dependency must succeed
-        continue-on-error: true
-        run: test "${{ needs.browser-chromium.result }}" = success
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: ${{ always() }}
-        with:
-          name: browser-chromium-1
-          path: /tmp/browser-shards/1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: ${{ always() }}
-        with:
-          name: browser-chromium-2
-          path: /tmp/browser-shards/2
-      - name: Stage available Chromium shard reports
-        if: ${{ always() }}
-        continue-on-error: true
-        run: |
-          for shard in 1 2; do
-            report="/tmp/browser-shards/$shard/pw-chromium-$shard.json"
-            test -s "$report" && cp "$report" "/tmp/pw-chromium-$shard.json" || true
-          done
-
-      - name: Verify Chromium shard provenance and completeness
-        id: chromium_evidence
-        if: ${{ always() }}
-        continue-on-error: true
-        env:
-          EXPECTED_RUN_ID: ${{ github.run_id }}
-          EXPECTED_ATTEMPT: ${{ github.run_attempt }}
-          EXPECTED_REVISION: ${{ github.sha }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs';
-          const expected = { runId: process.env.EXPECTED_RUN_ID, attempt: process.env.EXPECTED_ATTEMPT, revision: process.env.EXPECTED_REVISION };
-          let failed = false;
-          for (const shard of [1, 2]) {
-            try {
-              const evidence = JSON.parse(readFileSync(`/tmp/browser-shards/${shard}/browser-shard-${shard}.json`, 'utf8'));
-              if (evidence.schemaVersion !== 1 || evidence.runId !== expected.runId || evidence.attempt !== expected.attempt || evidence.revision !== expected.revision || evidence.shard !== shard || evidence.processOutcome !== 'success') throw new Error('evidence mismatch');
-              if (!readFileSync(`/tmp/browser-shards/${shard}/pw-chromium-${shard}.json`, 'utf8').trim()) throw new Error('empty report');
-            } catch {
-              console.error(`browser shard ${shard}: missing, stale, or unsuccessful evidence`);
-              failed = true;
-            }
-          }
-          if (failed) process.exitCode = 1;
-          NODE
-
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.122.1
@@ -901,19 +871,6 @@ jobs:
             npx playwright install --with-deps chromium
           fi
 
-      - name: Chromium inventory partition audit
-        id: chromium_inventory
-        continue-on-error: true
-        working-directory: pmo-portal
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          export PLAYWRIGHT_CONFIG_PROVENANCE="$(node --input-type=module -e 'import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; const lock=JSON.parse(readFileSync("package-lock.json","utf8")); console.log(JSON.stringify({sha256:createHash("sha256").update(readFileSync("playwright.config.ts")).digest("hex"),lockedPlaywrightVersion:lock.packages["node_modules/@playwright/test"].version}))')"
-          npx playwright test --project=chromium --list --reporter=json > /tmp/pw-chromium-full-list.json
-          npx playwright test --project=chromium --shard=1/2 --list --reporter=json > /tmp/pw-chromium-1-list.json
-          npx playwright test --project=chromium --shard=2/2 --list --reporter=json > /tmp/pw-chromium-2-list.json
-          node ../scripts/check-browser-shard-inventory.mjs --full /tmp/pw-chromium-full-list.json /tmp/pw-chromium-1-list.json /tmp/pw-chromium-2-list.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json
-
       # playwright.config.ts's `webServer` is an ARRAY of two servers (#1968: PRODUCTION builds
       # served via `vite build` + `vite preview` — CI defaults to E2E_SERVER=build): the ordinary
       # one (:3000, analytics disabled) and a second, analytics-ENABLED one (:3100, the `consent`
@@ -922,66 +879,14 @@ jobs:
       # time). Both are started for every project invocation below since `webServer` is a top-level
       # config, not per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle
       # for both.
-      - name: E2E tests (Playwright / serial)
-        id: serial_e2e
-        continue-on-error: true
-        working-directory: pmo-portal
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
-
-      # Playwright clears the shared outputDir at the start of each invocation. Preserve serial
-      # traces here, before the consent project starts and clears /tmp/pmo-portal-test-results.
-      - name: Upload serial Playwright diagnostics
-        if: ${{ always() && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: playwright-serial-test-results
-          path: /tmp/pmo-portal-test-results/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: E2E tests (Playwright / consent)
-        id: consent_e2e
-        if: ${{ always() && !cancelled() }}
-        continue-on-error: true
-        working-directory: pmo-portal
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
-
-      # ⚑ Green-by-absence gate. A SKIPPED test is not a passing one, and skips are invisible in a
-      # green tick — the last main run skipped 200. AC-INV-001 sat in that 200 for months (its guard
-      # polarity was inverted: it skipped in CI while being permanently 503-red locally, #386).
-      # Every skip must be an explicit, justified allowlist entry with a path back; a STALE entry
-      # fails too, so the list cannot quietly grow to cover everything.
-      - name: E2E skip audit — every skip is explained
-        id: e2e_skip_audit
-        if: ${{ always() && !cancelled() }}
-        continue-on-error: true
-        working-directory: .
-        # ALL THREE lane reports in ONE invocation — checked separately, a lane-scoped allowlist
-        # entry looks stale in another lane's report and the gate fails itself.
-        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
-
-      - name: E2E timing budget audit
-        id: e2e_timing_audit
-        if: ${{ always() && !cancelled() }}
-        continue-on-error: true
-        working-directory: .
-        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
-
-      - name: Upload E2E timing summary
-        if: ${{ always() && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-time-budget-summary
-          path: /tmp/pw-time-budget-summary.json
-          retention-days: 7
-          if-no-files-found: error
-
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
       # gate is the non-ERPNext served-fn smoke (AC-ENA-001 boundary) through real Kong, proving the
       # serve/health-gate recipe holds on an ephemeral runner. Money semantics run locally + via unit tests.
-      # Keep this AFTER the ordinary e2e lane: removing the temporary edge-runtime container leaves
-      # Kong forwarding functions/v1 requests to a vanished upstream until the stack is restarted.
+      # Run early so a served-function failure reports before the long serial lane. The script
+      # exports SUPABASE_FUNCTIONS_URL only to this child process and tears down its runtime; the
+      # later consent/serial invocations do not inherit that URL, so their served-only specs remain
+      # dependency-gated and never call the removed upstream.
       # Slice-0 fix-round finding 8: reuse the SAME trapped launch/health-gate/cleanup recipe as
       # local dev (scripts/serve-functions.sh) instead of inlining a second, untrapped copy here —
       # a bare `run:` block has no signal trap at all, so a step timeout/cancellation used to leak
@@ -1001,6 +906,58 @@ jobs:
           printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
           scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium'
 
+      # serve-functions removes its temporary runtime, while Kong may still point at it; restart
+      # the stack before later e2e lanes so they start from the ordinary functions-disabled state.
+      - name: Restore ordinary local stack after served smoke
+        if: ${{ always() && !cancelled() }}
+        run: |
+          supabase stop || true
+          supabase start -x studio,realtime,vector
+
+      - name: E2E tests (Playwright / consent)
+        id: consent_e2e
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
+
+      # Preserve consent traces before the serial project clears /tmp/pmo-portal-test-results.
+      - name: Upload consent Playwright diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-consent-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: E2E tests (Playwright / serial)
+        id: serial_e2e
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
+
+      - name: Upload serial Playwright diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-serial-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload integration JSON reports for aggregate audits
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-e2e-reports
+          path: |
+            /tmp/pw-serial.json
+            /tmp/pw-consent.json
+          retention-days: 1
+          if-no-files-found: warn
+
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1008,18 +965,6 @@ jobs:
           name: playwright-report
           path: pmo-portal/playwright-report/
           retention-days: 7
-
-      - name: Required integration result requires all browser evidence and audits
-        if: ${{ always() }}
-        run: |
-          test "${{ needs.browser-chromium.result }}" = success
-          test "${{ steps.chromium_evidence.outcome }}" = success
-          test "${{ steps.chromium_inventory.outcome }}" = success
-          test "${{ steps.serial_e2e.outcome }}" = success
-          test "${{ steps.consent_e2e.outcome }}" = success
-          test "${{ steps.e2e_skip_audit.outcome }}" = success
-          test "${{ steps.e2e_timing_audit.outcome }}" = success
-          test "${{ steps.serve_adapter_dispatch.outcome }}" = success
 
       # playwright.config.ts redirects `outputDir` to `os.tmpdir()/pmo-portal-test-results` (see
       # its comment) so local `supabase functions serve`'s file watcher doesn't restart on writes
@@ -1034,3 +979,136 @@ jobs:
           name: playwright-test-results
           path: /tmp/pmo-portal-test-results/
           retention-days: 7
+
+  # REQUIRED CONTEXT: keep this job id `integration`; main protection still requires `verify` and
+  # `integration`. It joins the independent browser and integration lanes, audits their artifacts,
+  # and fails closed on every lane whose execution uses continue-on-error.
+  integration:
+    needs: [browser-chromium, integration-lanes]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Download Chromium shard 1 artifacts
+        id: chromium_artifact_1
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-chromium-1
+          path: /tmp/browser-shards/1
+      - name: Download Chromium shard 2 artifacts
+        id: chromium_artifact_2
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-chromium-2
+          path: /tmp/browser-shards/2
+      - name: Download Chromium shard 3 artifacts
+        id: chromium_artifact_3
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-chromium-3
+          path: /tmp/browser-shards/3
+      - name: Download integration JSON reports
+        id: integration_reports
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: integration-e2e-reports
+          path: /tmp/integration-reports
+
+      - name: Verify Chromium shard provenance and completeness
+        id: chromium_evidence
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_ATTEMPT: ${{ github.run_attempt }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const expected = { runId: process.env.EXPECTED_RUN_ID, attempt: process.env.EXPECTED_ATTEMPT, revision: process.env.EXPECTED_REVISION };
+          let failed = false;
+          for (const shard of [1, 2, 3]) {
+            try {
+              const evidence = JSON.parse(readFileSync(`/tmp/browser-shards/${shard}/browser-shard-${shard}.json`, 'utf8'));
+              if (evidence.schemaVersion !== 1 || evidence.runId !== expected.runId || evidence.attempt !== expected.attempt || evidence.revision !== expected.revision || evidence.shard !== shard || evidence.processOutcome !== 'success') throw new Error('evidence mismatch');
+              if (!readFileSync(`/tmp/browser-shards/${shard}/pw-chromium-${shard}.json`, 'utf8').trim()) throw new Error('empty report');
+            } catch {
+              console.error(`browser shard ${shard}: missing, stale, or unsuccessful evidence`);
+              failed = true;
+            }
+          }
+          if (failed) process.exitCode = 1;
+          NODE
+
+      - name: Chromium inventory partition audit
+        id: chromium_inventory
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          export PLAYWRIGHT_CONFIG_PROVENANCE="$(node --input-type=module -e 'import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; const lock=JSON.parse(readFileSync("pmo-portal/package-lock.json","utf8")); console.log(JSON.stringify({sha256:createHash("sha256").update(readFileSync("pmo-portal/playwright.config.ts")).digest("hex"),lockedPlaywrightVersion:lock.packages["node_modules/@playwright/test"].version}))')"
+          node scripts/check-browser-shard-inventory.mjs --full \
+            /tmp/browser-shards/1/pw-chromium-full-list.json \
+            /tmp/browser-shards/1/pw-chromium-1-list.json \
+            /tmp/browser-shards/2/pw-chromium-2-list.json \
+            /tmp/browser-shards/3/pw-chromium-3-list.json \
+            /tmp/browser-shards/1/pw-chromium-1.json \
+            /tmp/browser-shards/2/pw-chromium-2.json \
+            /tmp/browser-shards/3/pw-chromium-3.json
+
+      # A skipped test is not a passing one. The audit sees all five reports in one invocation,
+      # after both producers finish, so allowlist entries remain lane-scoped and stale entries fail.
+      - name: E2E skip audit — every skip is explained
+        id: e2e_skip_audit
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        run: node scripts/check-e2e-skips.mjs /tmp/browser-shards/1/pw-chromium-1.json /tmp/browser-shards/2/pw-chromium-2.json /tmp/browser-shards/3/pw-chromium-3.json /tmp/integration-reports/pw-serial.json /tmp/integration-reports/pw-consent.json
+
+      - name: E2E timing budget audit
+        id: e2e_timing_audit
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/browser-shards/1/pw-chromium-1.json /tmp/browser-shards/2/pw-chromium-2.json /tmp/browser-shards/3/pw-chromium-3.json /tmp/integration-reports/pw-serial.json /tmp/integration-reports/pw-consent.json
+
+      - name: Upload E2E timing summary
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-time-budget-summary
+          path: /tmp/pw-time-budget-summary.json
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Required integration result requires all browser evidence and audits
+        if: ${{ always() }}
+        run: |
+          test "${{ needs.browser-chromium.result }}" = success
+          test "${{ needs.integration-lanes.result }}" = success
+          test "${{ needs.integration-lanes.outputs.serial_e2e }}" = success
+          test "${{ needs.integration-lanes.outputs.consent_e2e }}" = success
+          test "${{ needs.integration-lanes.outputs.serve_adapter_dispatch }}" = success
+          test "${{ steps.chromium_artifact_1.outcome }}" = success
+          test "${{ steps.chromium_artifact_2.outcome }}" = success
+          test "${{ steps.chromium_artifact_3.outcome }}" = success
+          test "${{ steps.integration_reports.outcome }}" = success
+          test "${{ steps.chromium_evidence.outcome }}" = success
+          test "${{ steps.chromium_inventory.outcome }}" = success
+          test "${{ steps.e2e_skip_audit.outcome }}" = success
+          test "${{ steps.e2e_timing_audit.outcome }}" = success

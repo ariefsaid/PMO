@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: '.',
-  testMatch: ['sharding.fixture.ts'],
+  testMatch: ['sharding-*.fixture.ts'],
   fullyParallel: true,
   retries: 0,
   timeout: 5000,

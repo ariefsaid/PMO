@@ -82,7 +82,8 @@ function validPartition() {
   const full = inv([...setup, ...chromiumTests(['A', 'B', 'C', 'D'])], { invocation: 'chromium-full' });
   const selected = [
     inv([...setup, ...chromiumTests(['A', 'B'])], { invocation: 'chromium-1' }),
-    inv([...setup, ...chromiumTests(['C', 'D'])], { invocation: 'chromium-2' }),
+    inv([...setup, ...chromiumTests(['C'])], { invocation: 'chromium-2' }),
+    inv([...setup, ...chromiumTests(['D'])], { invocation: 'chromium-3' }),
   ];
   const tail = {
     serial: inv([...setup, caseEntry('serial', 'e2e/serial/AC-BSH-001.spec.ts', ['serial', 'one'])], { invocation: 'serial' }),
@@ -102,8 +103,9 @@ function validManifest() {
     expectedJobs: ['browser-plan', 'browser-chromium', 'browser-tail'],
     partition,
     invocations: [
-      { id: 'chromium-1', lane: 'chromium', jobId: 'browser-chromium', mode: 'ordinary', shard: { index: 1, total: 2 }, inventory: partition.selected[0] },
-      { id: 'chromium-2', lane: 'chromium', jobId: 'browser-chromium', mode: 'ordinary', shard: { index: 2, total: 2 }, inventory: partition.selected[1] },
+      { id: 'chromium-1', lane: 'chromium', jobId: 'browser-chromium', mode: 'ordinary', shard: { index: 1, total: 3 }, inventory: partition.selected[0] },
+      { id: 'chromium-2', lane: 'chromium', jobId: 'browser-chromium', mode: 'ordinary', shard: { index: 2, total: 3 }, inventory: partition.selected[1] },
+      { id: 'chromium-3', lane: 'chromium', jobId: 'browser-chromium', mode: 'ordinary', shard: { index: 3, total: 3 }, inventory: partition.selected[2] },
       { id: 'serial', lane: 'serial', jobId: 'browser-tail', mode: 'ordinary', shard: null, inventory: partition.tail.serial },
       { id: 'consent', lane: 'consent', jobId: 'browser-tail', mode: 'ordinary', shard: null, inventory: partition.tail.consent },
       { id: 'served-smoke', lane: 'served', jobId: 'browser-tail', mode: 'served', shard: null, inventory: partition.served },
@@ -189,7 +191,7 @@ function validUnitShardEvidence() {
   return { full, shards, reports };
 }
 
-test('AC-BSH-004 proves native Playwright full and shard --list inventories have the same logical config', () => {
+test('AC-BSH-004 proves native Playwright full and three-shard --list inventories have the same logical config', () => {
   const selectedConfig = {
     sha256: createHash('sha256').update(readFileSync(PLAYWRIGHT_FIXTURE_CONFIG)).digest('hex'),
     lockedPlaywrightVersion: JSON.parse(readFileSync(path.join(APP_ROOT, 'package-lock.json'), 'utf8')).packages['node_modules/@playwright/test'].version,
@@ -216,15 +218,18 @@ test('AC-BSH-004 proves native Playwright full and shard --list inventories have
     });
   };
   const full = collect('fixture-full', null);
-  const first = collect('fixture-shard-1', '1/2');
-  const second = collect('fixture-shard-2', '2/2');
+  const shards = [
+    collect('fixture-shard-1', '1/3'),
+    collect('fixture-shard-2', '2/3'),
+    collect('fixture-shard-3', '3/3'),
+  ];
   const fullIds = full.tests.map((entry) => canonicalTestIdentity({ mode: 'ordinary', ...entry }));
-  const selectedIds = [...first.tests, ...second.tests].map((entry) => canonicalTestIdentity({ mode: 'ordinary', ...entry }));
+  const selectedTests = shards.flatMap((shard) => shard.tests);
+  const selectedIds = selectedTests.map((entry) => canonicalTestIdentity({ mode: 'ordinary', ...entry }));
 
-  assert.equal(new Set([...first.tests, ...second.tests].map((entry) => canonicalTestIdentity({ mode: 'ordinary', ...entry }))).size, selectedIds.length);
+  assert.equal(new Set(selectedIds).size, selectedIds.length);
   assert.deepEqual([...selectedIds].sort(), [...fullIds].sort());
-  assert.equal(full.configDigest, first.configDigest);
-  assert.equal(full.configDigest, second.configDigest);
+  for (const shard of shards) assert.equal(full.configDigest, shard.configDigest);
   assert.equal(full.configProvenance.projects[0].retries, 0);
   assert.equal(full.configProvenance.projects[0].timeout, 5000);
   assert.deepEqual(full.configProvenance.selectedConfig, { availability: 'available', ...selectedConfig });
@@ -235,14 +240,14 @@ test('AC-BSH-004 proves native Playwright full and shard --list inventories have
     viewport: { width: 800, height: 600 },
   });
   assert.deepEqual(full.invocationMetadata.nativeShard, null);
-  assert.deepEqual(first.invocationMetadata.nativeShard, { index: 1, total: 2 });
-  assert.deepEqual(second.invocationMetadata.nativeShard, { index: 2, total: 2 });
-  assert.notEqual(full.invocationMetadata.argvDigest, first.invocationMetadata.argvDigest);
+  for (const [index, shard] of shards.entries()) {
+    assert.deepEqual(shard.invocationMetadata.nativeShard, { index: index + 1, total: 3 });
+    assert.notEqual(full.invocationMetadata.argvDigest, shard.invocationMetadata.argvDigest);
+  }
 
-  const firstSerial = first.tests.some((entry) => entry.titlePath.at(-1) === 'serial-first');
-  const secondSerial = second.tests.some((entry) => entry.titlePath.at(-1) === 'serial-first');
-  assert.notEqual(firstSerial, secondSerial, 'serial dependency group must be assigned to exactly one shard');
-  const owningShard = firstSerial ? first : second;
+  const serialShards = shards.filter((shard) => shard.tests.some((entry) => entry.titlePath.at(-1) === 'serial-first'));
+  assert.equal(serialShards.length, 1, 'serial dependency group must be assigned to exactly one shard');
+  const owningShard = serialShards[0];
   assert.equal(owningShard.tests.some((entry) => entry.titlePath.at(-1) === 'serial-second'), true);
 });
 
@@ -523,17 +528,25 @@ test('AC-BSH-001 requires explicit repeat indexes when the config declares repea
   );
 });
 
-test('AC-BSH-001 accepts exact disjoint A/B and C/D shards, preserves setup multiplicity, tail lanes, and served mode', () => {
+test('AC-BSH-001 accepts exact disjoint A/B, C and D shards, preserves setup multiplicity, tail lanes, and served mode', () => {
   const result = validatePartition(validPartition());
   assert.deepEqual(result, { ok: true, issues: [] });
 });
 
-test('AC-BSH-001 reports the exact missing-case issue for a missing D', () => {
+test('AC-BSH-001 requires exactly three Chromium shards', () => {
   const fixture = validPartition();
-  fixture.selected[1] = inv(fixture.selected[1].tests.filter((entry) => entry.titlePath[1] !== 'D'), { invocation: 'chromium-2' });
+  fixture.selected.pop();
   const result = validatePartition(fixture);
   assert.equal(result.ok, false);
-  assert.deepEqual(codes(result), ['MISSING_TEST']);
+  assert.deepEqual(codes(result), ['EMPTY_SHARD', 'EXPECTED_SHARD_COUNT', 'MISSING_TEST']);
+});
+
+test('AC-BSH-001 reports the exact missing-case issue for a missing D', () => {
+  const fixture = validPartition();
+  fixture.selected[2] = inv(fixture.selected[2].tests.filter((entry) => entry.titlePath[1] !== 'D'), { invocation: 'chromium-3' });
+  const result = validatePartition(fixture);
+  assert.equal(result.ok, false);
+  assert.deepEqual(codes(result), ['EMPTY_SHARD', 'MISSING_TEST']);
 });
 
 test('AC-BSH-001 reports the exact duplicate identity issue for B in both shards', () => {
@@ -613,7 +626,7 @@ test('AC-BSH-002 accepts exact results and a represented ordinary test skip', ()
 test('plan construction binds exact execution invocations and shard inventories to the partition proof', () => {
   const manifest = validManifest();
   const plan = createPlan(manifest);
-  assert.equal(plan.invocations.length, 5);
+  assert.equal(plan.invocations.length, 6);
 
   const altered = validManifest();
   altered.invocations[0].inventory = inv(chromiumTests(['A', 'B', 'C']), { invocation: 'chromium-1' });
