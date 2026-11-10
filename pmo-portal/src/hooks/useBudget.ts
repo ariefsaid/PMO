@@ -196,12 +196,27 @@ export function useBudgetMutations(projectId: string) {
   });
 
   const activate = useMutation<ActivateVersionResult, Error, string>({
-    mutationFn: (versionId) => repositories.budget.activateVersion(versionId),
+    mutationFn: (versionId) =>
+      repositories.budget.activateVersion(versionId, () => {
+        // ADR-0062: the background push ended — re-read the per-year push status the badge renders.
+        void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
+        invalidateBoth();
+      }),
     onSuccess: () => {
       invalidateBoth();
       invalidateMoneyCollections();
       safeTrack(() => trackBudgetActivated(realRole ?? 'unknown'));
     },
+  });
+
+  const returnVersion = useMutation<void, Error, { versionId: string; reason: string }>({
+    mutationFn: ({ versionId, reason }) => repositories.budget.returnVersion(versionId, reason),
+    onSuccess: invalidateBoth,
+  });
+
+  const resubmitVersion = useMutation<void, Error, string>({
+    mutationFn: (versionId) => repositories.budget.resubmitVersion(versionId),
+    onSuccess: invalidateBoth,
   });
 
   const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
@@ -264,6 +279,8 @@ export function useBudgetMutations(projectId: string) {
     createVersion,
     cloneVersion,
     activate,
+    returnVersion,
+    resubmitVersion,
     archive,
     deleteDraft,
     createLineItem: createLineItemMutation,

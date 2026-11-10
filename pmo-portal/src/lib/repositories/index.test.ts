@@ -141,6 +141,8 @@ vi.mock('@/src/lib/db/budgets', () => ({
   createBudgetVersion: vi.fn(),
   cloneVersion: vi.fn(),
   activateVersion: vi.fn(),
+  returnVersion: vi.fn(),
+  resubmitVersion: vi.fn(),
   archiveVersion: vi.fn(),
   deleteDraftVersion: vi.fn(),
   getBudgetDistribution: vi.fn(),
@@ -384,7 +386,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['count', 'create', 'delete', 'get', 'list', 'listPage', 'transition', 'update'].sort(),
@@ -1033,7 +1035,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.cloneVersion).toHaveBeenCalledWith('v1');
 
     await repositories.budget.activateVersion('v1');
-    expect(budgetsDal.activateVersion).toHaveBeenCalledWith('v1');
+    expect(budgetsDal.activateVersion).toHaveBeenCalledWith('v1', undefined);
 
     await repositories.budget.archiveVersion('v1', true);
     expect(budgetsDal.archiveVersion).toHaveBeenCalledWith('v1', true);

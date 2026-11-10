@@ -125,10 +125,22 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   })),
   {
+    file: 'serial/AC-018-budget-whole-project.spec.ts',
+    reason: 'Whole-project budget journey needs the served functions lane and the disposable ERPNext v16 bed (its goal oracle is the ERP Budget documents); the bed is not provisioned in CI.',
+    restore: 'Run scripts/with-erpnext-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh AC-018 with the v16 bed up and its API key exported.',
+    verified: '2026-11-06',
+  },
+  {
     file: 'serial/AC-SETUP-001-project-erp-link.spec.ts',
     reason: 'ERP setup journey needs the disposable ERP bench and a prepared HTTPS binding.',
     restore: 'Run in the local served-functions lane with the disposable HTTPS ERP relay and ready binding.',
     verified: '2026-10-05',
+  },
+  {
+    file: 'serial/AC-ECA-05',
+    reason: 'ERP connect scenario journeys (S-C, S-D) need the served functions lane and the throwaway ERPNext bench (their goal oracles are bench documents and counts).',
+    restore: 'Run in the local served-functions lane with the throwaway ERPNext bench up: scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-ECA-05 . Each spec CREATES its own org, bench Company and active binding (no prepared binding is needed) and removes them again afterwards.',
+    verified: '2026-11-10',
   },
   {
     file: 'serial/AC-S09-005-project-match-review.spec.ts',

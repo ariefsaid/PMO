@@ -18,7 +18,7 @@ describe('odoo/normalise — AC-ODC-032, SD-8', () => {
     expect(row.externalId).toBe('5');
   });
   it('a partner that is a company\'s own partner is marked internal', () =>
-    expect(normaliseParty(base, new Set([5])).every((r) => r.internal)).toBe(true));
+    expect(normaliseParty(base, { company: new Set([5]), user: new Set() }).every((r) => r.internal)).toBe(true));
   it('keeps a PMO-written ref as the code and blanks a false vat', () =>
     expect(normaliseParty({ ...base, ref: 'pmo:c-1', vat: false })[0]).toMatchObject({ code: 'pmo:c-1', taxId: null }));
   it('an archived partner normalises inactive', () => expect(normaliseParty({ ...base, active: false })[0].active).toBe(false));

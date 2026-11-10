@@ -179,6 +179,18 @@ describe('the push-state notice (FR-BUD-123)', () => {
     expect(screen.queryByText(/ERPNext is enforcing this budget/)).not.toBeInTheDocument();
   });
 
+  it('rm-1472/M-3 a retry while an earlier cancellation is still settling says the push is QUEUED, never that it failed', async () => {
+    const user = userEvent.setup();
+    h.retry.mockResolvedValue({ pushState: 'pending-cancellation' });
+    h.pushStatus.mockResolvedValue([push({ pushState: 'held', pushError: 'budget-archive-cancellation-held', fiscalYear: FY })]);
+    renderNotice();
+    await user.click(await screen.findByRole('button', { name: 'Retry the push' }));
+    expect(await findToastAnnouncement('status', /queued/i)).toBeInTheDocument();
+    // Nothing is wrong behind a 202: the "may need fixing first" wording would send the operator hunting.
+    expect(screen.queryByText(/did not complete/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/may need fixing first/i)).not.toBeInTheDocument();
+  });
+
   it('I-6/NEW-3 a transport failure retry says nothing here needs fixing', async () => {
     const user = userEvent.setup();
     h.retry.mockResolvedValue({ pushState: 'failed' });
@@ -233,6 +245,8 @@ describe('the push-state notice (FR-BUD-123)', () => {
     'budget-multi-fiscal-year',
     'budget-push-attempts-exhausted',
     'budget-push-no-outbox-candidate',
+    'budget-archive-cancellation-held',
+    'budget-archive-resume-actor-unauthorized',
     'erpnext-activity-type-missing: no Activity Type on the binding',
   ])('I-5/MEDIUM-1 the push error %s never reaches the screen as a raw token', async (pushError) => {
     // No fiscal year here: a client year name such as 2025-2026 is legitimately hyphenated.

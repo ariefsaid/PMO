@@ -71,10 +71,16 @@ export function useBudgetReadiness(draftVersion: BudgetVersionWithItems | undefi
   const modeCurrent = !activationModeQuery.isPending && !activationModeQuery.isFetching && !activationModeQuery.isError;
   const soleOperator = modeCurrent && activationModeQuery.data === 'sole_operator';
   const modeAllows = modeCurrent && (activationModeQuery.data === 'allowed' || soleOperator);
-  const canActivate = !!draftVersion && modeAllows && (soleOperator || can('transition', 'budgetVersion', {
+  const returned = !!draftVersion?.returned_at;
+  const canActivate = !!draftVersion && !returned && modeAllows && (soleOperator || can('transition', 'budgetVersion', {
     currentUserId,
     record: { status: draftVersion.status, created_by: draftVersion.created_by, editor_ids: draftVersion.editor_ids },
   }));
+  // #1413 — same eligibility as activation (UX only; the RPC enforces), minus the sole-operator exception.
+  const canReturn = !!draftVersion && !returned && can('transition', 'budgetVersion', {
+    currentUserId,
+    record: { status: draftVersion.status, created_by: draftVersion.created_by, editor_ids: draftVersion.editor_ids },
+  });
   const activateBlockedReason = !draftVersion || canActivate ? null
     : activationModeQuery.isPending || activationModeQuery.isFetching
       ? t('finance:budgetActivation.eligibilityChecking', 'Checking activation eligibility…')
@@ -85,5 +91,5 @@ export function useBudgetReadiness(draftVersion: BudgetVersionWithItems | undefi
       : draftVersion.editor_ids?.includes(currentUserId ?? '') || draftVersion.created_by === currentUserId
         ? t('financeCopy.activateEditorBlocked', 'You drafted or edited this version, so someone else must activate it.')
         : t('projectDetail.budget.activationSeparationNextStep', 'The drafter and activator must be different people. Ask an eligible Admin or Finance user who did not edit this draft to activate it.');
-  return { readinessMessages, canConfirmActivation, canActivate, activateBlockedReason, soleOperator, activationPrecheckQuery };
+  return { readinessMessages, canConfirmActivation, canActivate, canReturn, activateBlockedReason, soleOperator, activationPrecheckQuery };
 }
