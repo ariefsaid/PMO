@@ -5,7 +5,7 @@ import { ERP_CUSTOM_FIELDS } from './erpCustomFields.ts';
 import { piToBody } from './bodies/purchaseInvoice.ts';
 import { siToBody } from './bodies/salesInvoice.ts';
 
-const CTX: ErpCtx = { refs: { customer: 'CUSTOMER-TEST', supplier: 'SUPPLIER-TEST' }, config: {} };
+const CTX: ErpCtx = { refs: { customer: 'CUSTOMER-TEST', supplier: 'SUPPLIER-TEST' }, config: { company: 'PMO Smoke Co' } };
 const opaqueEfakturFacts = {
   id: 'invoice-test',
   items: [{ item_code: 'ITEM-TEST', qty: 1, rate: 10 }],

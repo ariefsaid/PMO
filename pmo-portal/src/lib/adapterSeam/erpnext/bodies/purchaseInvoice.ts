@@ -1,13 +1,15 @@
 /**
- * Purchase Invoice `toBody`/`fromDoc` — R9 §1 frozen. `toBody` sends exactly `{supplier, items:
- * [{item_code, qty, rate, description?, project?}], project?, bill_no?, bill_date?, taxes_and_charges?, taxes?}` (#520). ERPNext server-defaults
+ * Purchase Invoice `toBody`/`fromDoc` — R9 §1 frozen. `toBody` sends exactly `{company, supplier, items:
+ * [{item_code, qty, rate, description?, project?}], project?, bill_no?, bill_date?, taxes_and_charges?, taxes?}` (#520). `company` is the
+ * binding's configured company, stated on the body so ERPNext cannot file the bill under the integration user's default company
+ * (MR already sends it; the sweep's purchase mirror feed scopes to the same company). ERPNext server-defaults
  * `credit_to`, `posting_date`/`due_date`, and all totals (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §1). `fromDoc` mirrors the header
  * `grand_total`/`outstanding_amount` as the money ORACLE (ADR-0048) — never a Σ of the lines.
  */
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { mirrorMoney } from '../moneyShape.ts';
-import { requireItems } from './shared.ts';
+import { requireCompany, requireItems } from './shared.ts';
 
 /** #876: adds two `mirrorMoney` decimal strings (`-?\d+\.\d{2}`) exactly, in integer cents — never a float. */
 function addMoney(a: string, b: string): string {
@@ -29,10 +31,12 @@ export function piBodyCarriesTaxes(rec: Record<string, unknown>): boolean {
 }
 
 export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  const company = requireCompany(ctx.config, 'Purchase Invoice');
   const items = requireItems(rec, 'Purchase Invoice');
   const reference = rec.referenceNumber ?? rec.reference_number;
   const date = rec.invoiceDate ?? rec.invoice_date;
   return {
+    company,
     supplier: ctx.refs.supplier,
     ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
     items: items.map((i) => ({
