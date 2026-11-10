@@ -547,7 +547,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           {/* N6: group spacing between the filter panel and the table it introduces. */}
           <h2 className="mb-2 mt-6 text-[16px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
-            <span className="ml-2 text-control font-normal text-muted-foreground">{t('managementPack.exclTax', 'excl. tax')}</span>
+            <span className="ml-2 text-control font-normal text-muted-foreground">{t('finance:managementPack.exclTax', 'excl. tax')}</span>
           </h2>
           {invoiceCountStatus === 'error' && (
             <div

@@ -50,7 +50,7 @@ export function QueueButton({
           <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <StatusPill record="procurement" state={row.status} />
-            {waitingDays > 0 && <span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('approvals.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span>}
+            {waitingDays > 0 && <span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('procurement:approvalQueue.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span>}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>

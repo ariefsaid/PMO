@@ -69,7 +69,7 @@ export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
   return (
     <EntityFormModal
       open={open}
-      title={projectName ? t('managementPack.progressModal.titleFor', 'Record progress · {{project}}', { project: projectName }) : t('managementPack.progressModal.title', 'Record progress')}
+      title={projectName ? t('finance:managementPack.progressModal.titleFor', 'Record progress · {{project}}', { project: projectName }) : t('managementPack.progressModal.title', 'Record progress')}
       submitLabel={t('managementPack.progressModal.save', 'Save progress')}
       onSubmit={onSubmit}
       onClose={onClose}

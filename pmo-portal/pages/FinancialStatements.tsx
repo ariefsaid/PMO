@@ -364,7 +364,7 @@ const FinancialStatements: React.FC = () => {
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
-        unavailableAction={may('manage', 'integration') ? { label: t('financialStatements.setUp', 'Set up accounting'), onClick: () => navigate('/administration/integrations') } : undefined}
+        unavailableAction={may('manage', 'integration') ? { label: tf('statements.setUp', 'Set up accounting'), onClick: () => navigate('/administration/integrations') } : undefined}
         refreshNow={{
           label: t('financialStatements.refreshNow', 'Refresh now'),
           pending: refreshNowMutation.isPending,

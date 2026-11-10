@@ -701,5 +701,10 @@
       "retry": "Retry",
       "clearAll": "Clear quantities and receive all open items"
     }
+  },
+  "approvalQueue": {
+    "headingAll": "Purchases and timesheets",
+    "waitingDays_one": "{{count}} day waiting",
+    "waitingDays_other": "{{count}} days waiting"
   }
 }

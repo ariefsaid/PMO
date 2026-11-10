@@ -874,10 +874,7 @@
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
-    "weekOf": "Minggu",
-    "queueHeadingAll": "Pembelian dan timesheet",
-    "waitingDays_one": "Menunggu {{count}} hari",
-    "waitingDays_other": "Menunggu {{count}} hari"
+    "weekOf": "Minggu"
   },
   "combobox": {
     "search": {
@@ -3133,8 +3130,7 @@
     "unavailableDescription": "Laporan keuangan berasal dari sistem akuntansi.",
     "updated": "Diperbarui",
     "choosePeriod": "Pilih periode",
-    "chooseScope": "Pilih cakupan",
-    "setUp": "Atur akuntansi"
+    "chooseScope": "Pilih cakupan"
   },
   "sales": {
     "accessDenied": {
@@ -4155,10 +4151,8 @@
       "pctInvalid": "Masukkan angka 0 sampai 100, maksimal dua desimal.",
       "note": "Catatan",
       "save": "Simpan progres",
-      "saved": "Progres disimpan",
-      "titleFor": "Catat progres · {{project}}"
-    },
-    "exclTax": "tanpa pajak"
+      "saved": "Progres disimpan"
+    }
   },
   "uxs34": {
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."

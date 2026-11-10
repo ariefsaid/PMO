@@ -874,10 +874,7 @@
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
-    "weekOf": "Week of",
-    "queueHeadingAll": "Purchases and timesheets",
-    "waitingDays_one": "{{count}} day waiting",
-    "waitingDays_other": "{{count}} days waiting"
+    "weekOf": "Week of"
   },
   "combobox": {
     "search": {
@@ -3133,8 +3130,7 @@
     "unavailableDescription": "Statements come from the accounting system.",
     "updated": "Updated",
     "choosePeriod": "Choose a period",
-    "chooseScope": "Choose a scope",
-    "setUp": "Set up accounting"
+    "chooseScope": "Choose a scope"
   },
   "sales": {
     "accessDenied": {
@@ -4155,10 +4151,8 @@
       "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
       "note": "Note",
       "save": "Save progress",
-      "saved": "Progress saved",
-      "titleFor": "Record progress · {{project}}"
-    },
-    "exclTax": "excl. tax"
+      "saved": "Progress saved"
+    }
   },
   "uxs34": {
     "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."

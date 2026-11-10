@@ -257,7 +257,8 @@
     "collapseGroup": "Ciutkan {{group}}",
     "expandGroup": "Bentangkan {{group}}",
     "collapseAll": "Ciutkan semua",
-    "expandAll": "Bentangkan semua"
+    "expandAll": "Bentangkan semua",
+    "setUp": "Atur akuntansi"
   },
   "erpPurchases": {
     "countedInActuals": "Sudah dihitung dalam Aktual.",
@@ -1033,5 +1034,11 @@
     "submitted": "Diajukan",
     "received": "Terkirim ke klien",
     "paid": "Dibayar"
+  },
+  "managementPack": {
+    "exclTax": "tanpa pajak",
+    "progressModal": {
+      "titleFor": "Catat progres · {{project}}"
+    }
   }
 }

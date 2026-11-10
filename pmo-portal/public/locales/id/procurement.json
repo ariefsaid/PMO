@@ -701,5 +701,10 @@
       "retry": "Coba lagi",
       "clearAll": "Kosongkan jumlah dan terima semua yang masih terbuka"
     }
+  },
+  "approvalQueue": {
+    "headingAll": "Pembelian dan timesheet",
+    "waitingDays_one": "Menunggu {{count}} hari",
+    "waitingDays_other": "Menunggu {{count}} hari"
   }
 }

@@ -257,7 +257,8 @@
     "collapseGroup": "Collapse {{group}}",
     "expandGroup": "Expand {{group}}",
     "collapseAll": "Collapse all",
-    "expandAll": "Expand all"
+    "expandAll": "Expand all",
+    "setUp": "Set up accounting"
   },
   "erpPurchases": {
     "countedInActuals": "Already counted in Actuals.",
@@ -1033,5 +1034,11 @@
     "submitted": "Submitted",
     "received": "Delivered to client",
     "paid": "Paid"
+  },
+  "managementPack": {
+    "exclTax": "excl. tax",
+    "progressModal": {
+      "titleFor": "Record progress · {{project}}"
+    }
   }
 }
