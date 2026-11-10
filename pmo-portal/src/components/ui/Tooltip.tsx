@@ -14,6 +14,13 @@ export interface TooltipProps {
 }
 
 /**
+ * Hover intent for every tooltip in the app. Base UI's default `timeout` (400ms) is the
+ * "instant neighbour" window: once one tooltip has opened, its neighbours open at once,
+ * marked `data-instant` so their entrance does not animate.
+ */
+export const TOOLTIP_OPEN_DELAY_MS = 400;
+
+/**
  * Inverse dark tooltip surface on Base UI: opens on hover AND keyboard focus, closes on Escape/blur,
  * portals out of clipping ancestors and flips/clamps to the viewport. Non-interactive; never steals focus.
  */
@@ -22,10 +29,10 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, bloc
   const id = useId();
   return (
     <BaseTooltip.Root open={open} onOpenChange={setOpen}>
-      {/* The wrapper keeps the trigger's layout box identical for every call site; focus reaches it by bubbling. */}
+      {/* The wrapper keeps the trigger's layout box identical for every call site; focus reaches it by bubbling.
+          No trigger-level delay: it overrides the app provider (delay ?? providerDelay ?? 600) and would
+          re-introduce the instant flash the provider exists to stop. */}
       <BaseTooltip.Trigger
-        delay={0}
-        closeDelay={0}
         render={<span className={block ? 'relative flex w-full' : 'relative inline-flex'} />}
       >
         {React.cloneElement(children as React.ReactElement<Record<string, unknown>>, { 'aria-describedby': open ? id : undefined })}
@@ -36,8 +43,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, bloc
             id={id}
             role="tooltip"
             className={cn(
-              'tooltip-surface pointer-events-none w-[280px] max-w-[calc(100vw-16px)] rounded-sm px-2 py-1 text-control',
-              'transition-opacity duration-100 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0',
+              'tooltip-anim tooltip-surface pointer-events-none w-[280px] max-w-[calc(100vw-16px)] rounded-sm px-2 py-1 text-control',
               className,
             )}
             style={{ boxShadow: 'var(--shadow-xs)' }}
