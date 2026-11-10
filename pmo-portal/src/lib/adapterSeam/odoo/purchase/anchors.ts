@@ -1,5 +1,7 @@
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 export const PURCHASE_KEY_RE = new RegExp(`^(?:po|bill|pay):${uuid}$|^gr:${uuid}:[a-f0-9]+$|^porev:${uuid}:[1-9][0-9]*$`, 'i');
+/** #1511 F4: one PMO register or maintenance record is one anchored Odoo record, keyed on the PMO record id. */
+export const EQUIPMENT_KEY_RE = new RegExp(`^equipment:${uuid}$`, 'i');
 export const ODOO_ANCHORS = {
   order: { model: 'ir.model.data', mutable: false },
   receipt: { model: 'ir.model.data', mutable: false },
@@ -7,7 +9,8 @@ export const ODOO_ANCHORS = {
   payment: { model: 'account.payment', field: 'memo', mutable: true },
 } as const;
 export function anchorValue(key: string): string {
-  if (!PURCHASE_KEY_RE.test(key)) throw new Error('Invalid purchase key');
+  // A purchase key or an equipment key (#1511 F4): both anchor a stock external identifier the same way.
+  if (!PURCHASE_KEY_RE.test(key) && !EQUIPMENT_KEY_RE.test(key)) throw new Error('Invalid Odoo anchor key');
   return `pmo:${key}`;
 }
 export function externalIdentifier(key: string): { module: string; name: string } {

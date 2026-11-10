@@ -888,9 +888,13 @@ jobs:
         continue-on-error: true
         env:
           SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
+        # This smoke uses Node fetch and signs in directly, so it does not need Chromium's setup
+        # dependency. Supabase CLI 2.122.1 watches the repository while serving functions; the
+        # setup dependency writes pmo-portal/e2e/.auth/*.json and triggers a runtime restart,
+        # making the following POSTs transiently return 503.
         run: |
           printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
-          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium'
+          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium --no-deps'
 
       - name: Upload Playwright report
         if: failure()

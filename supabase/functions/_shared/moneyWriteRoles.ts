@@ -24,6 +24,10 @@ const MONEY_WRITE_ROLES_BY_DOMAIN: Record<string, readonly string[]> = {
   // wider (a role that could not activate must not be able to push) nor narrower (a legitimate
   // activation would strand as a permanently failed push).
   budget: MASTER_DATA_WRITE_ROLES,
+  // #1511 D7: maintenance is every ACTIVE role — crews report breakdowns and services. The REGISTER half of this domain
+  // (a vehicle or an equipment item) is narrower on purpose and is enforced in `adapter-dispatch/odooEquipment.ts` on the
+  // caller's CURRENT role: Admin and Project Manager only, the shipped asset rule (FR-EQU-022).
+  equipment: ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'],
 };
 
 /** The roles permitted to issue a money write in `domain` (empty ⇒ nobody: fail closed). */
