@@ -60,13 +60,29 @@ defaults:
   run:
     working-directory: pmo-portal
 
+# ─── JOB GRAPH (#2161) ──────────────────────────────────────────────────────────
+# The required `verify` context is an AGGREGATE gate; the work runs in four parallel lanes:
+#
+#   scope ─┬─ unit ×N  (shards; blob report + coverage each) ─→ coverage (merge + ≥80% gate) ─┐
+#          ├─ checks   (guards · typecheck · lint · audits · build · script tests) ─────────────┤
+#          ├─ deno     (edge-fn typecheck/boot/tests + M365 witness; skipped unless scope.deno)─┼─→ verify (required)
+#          └─ pgtap    (unchanged)                                                            ─┘
+#   browser-chromium → integration   (PR→main / dispatch only — unchanged)
+#
+# `verify` runs no tests: it fails closed unless every verify-stage job succeeded. That split is
+# what lets the ~8-min `checks`, ~9-min `deno` and ~7-min `unit` lanes overlap instead of queueing
+# behind each other (a full dev push was ~34 min end-to-end; #2161 targets ≤16). The NAME is
+# preserved on purpose: `main`'s branch protection requires exactly `verify` + `integration`, and
+# protection was not touched by this change. `!cancelled()` on `verify` is load-bearing — a failed
+# shard must FAIL the required check, never skip it (a skipped required check counts as passing).
+#
 # ─── CI TIERING (resource-lean) ─────────────────────────────────────────────────
 # PR → dev    → `scope` picks what the diff can affect (scripts/ci-test-scope.mjs): the unit
 #               job runs only the AFFECTED tests (or the full suite when the diff touches
 #               anything the module graph can't see), `pgtap` only when supabase/** or its
-#               scripts change, the Deno steps of `verify` only when edge functions change.
+#               scripts change, the `deno` job only when edge functions change.
 #               Typecheck · lint · guards · build always run. No browser. Fast lane.
-# push dev    → everything, full: unit (2 shards) · verify · pgtap (#1584).
+# push dev    → everything, full: unit (4 shards) · checks · coverage · verify · pgtap (#1584).
 # PR → main   → (everything full, unchanged) `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
 #               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
 #               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
@@ -80,7 +96,7 @@ defaults:
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
-  # What can this change affect? (#1584, scripts/ci-test-scope.mjs, self-tested in `verify`.)
+  # What can this change affect? (#1584, scripts/ci-test-scope.mjs, self-tested in `checks`.)
   # Only a PR to `dev` is narrowed; a push (main, dev), a PR to `main` and any other base run
   # everything. Narrowed = `unit: affected` (module-graph selection) unless the diff touches
   # something the graph can't see, `pgtap` only for supabase/** and its scripts, `deno` only for
@@ -121,8 +137,10 @@ jobs:
           fi
           echo "$json"
           unit=$(jq -r .unit <<<"$json")
+          # The shard COUNT comes from `strategy.job-total` in the run step (4 in full mode, 1 in
+          # affected mode), so it is declared here once and never repeated as a magic number.
           if [ "$unit" = full ]; then
-            matrix='{"include":[{"shard":1,"mode":"full"},{"shard":2,"mode":"full"}]}'
+            matrix='{"include":[{"shard":1,"mode":"full"},{"shard":2,"mode":"full"},{"shard":3,"mode":"full"},{"shard":4,"mode":"full"}]}'
           else
             matrix='{"include":[{"shard":1,"mode":"affected"}]}'
           fi
@@ -136,17 +154,19 @@ jobs:
           echo "### Test scope" >> "$GITHUB_STEP_SUMMARY"
           echo "\`$json\`" >> "$GITHUB_STEP_SUMMARY"
 
-  # The Vitest suite. Full mode: split across 2 parallel runners (one runner took ~28 min; 4 cost more
-  # runner-minutes per push — owner 2026-10-20). Affected mode (PR to dev, see `scope`): ONE runner,
-  # the tests the module graph selects from the diff PLUS every test that reads repo files with fs
-  # (the graph can't see those reads). Either way each runner writes a blob report with its coverage;
-  # `verify` merges them (a single blob merges fine), so the required `verify` check still owns every
-  # selected test and the changed-lines coverage gate.
+  # The Vitest suite. Full mode: split across 4 parallel runners (#2161 — 2 shards measured ~10 and
+  # ~16 min, which is the whole critical path once `checks` runs alongside; 4 shards land ~7 min.
+  # Runner-minutes are cheaper than the wall clock here, and the owner's v0.23.0 throughput override
+  # already allows parallel dispatches). Affected mode (PR to dev, see `scope`): ONE runner, the
+  # tests the module graph selects from the diff PLUS every test that reads repo files with fs (the
+  # graph can't see those reads) — unchanged. Either way each runner writes a blob report with its
+  # coverage; the `coverage` job merges them (a single blob merges fine), so the required `verify`
+  # check still owns every selected test and the changed-lines coverage gate.
   unit:
     needs: scope
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # A hung test must not hold a runner for the 6h default (absorbs #1528). Full shards run ~17 min.
+    # A hung test must not hold a runner for the 6h default (absorbs #1528). 4-way shards run ~7 min.
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -162,9 +182,9 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
-      - name: Unit tests (shard ${{ matrix.shard }}/2, + coverage)
+      - name: Unit tests (shard ${{ matrix.shard }}/${{ strategy.job-total }}, + coverage)
         if: matrix.mode == 'full'
-        run: npx vitest run --coverage --shard=${{ matrix.shard }}/2 --reporter=default --reporter=blob
+        run: npx vitest run --coverage --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=default --reporter=blob
       - name: Select the affected unit tests
         if: matrix.mode == 'affected'
         env:
@@ -188,17 +208,25 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  verify:
-    # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran verify.
-    # `!cancelled()`: a failed shard must FAIL verify, not skip it (a skipped required check passes).
-    needs: [scope, unit]
+  # ── `checks` — the STATIC half of the old `verify` (#2161) ────────────────────────────────────
+  # Guards · typecheck · lint · supply-chain audits · build · repository script tests. None of it
+  # consumes a test report, so it needs only `scope` and now runs IN PARALLEL with `unit` instead of
+  # queueing behind it. This job is NOT a required context — the required `verify` aggregate below
+  # fails closed on its result, so a red guard still blocks a merge. The edge-function lane (Deno
+  # typecheck/boot/tests + the M365 mutation witness) lives in `deno` below: measured at ~9 min on
+  # the 2026-11-10 dev push, it was the other half of this job's ~17 min serial runtime.
+  checks:
+    # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran this.
+    # `!cancelled()`: keep reporting when a sibling job failed (see `verify`).
+    needs: [scope]
     if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history so the changed-lines coverage gate can diff against the
-          # PR base ref.
+          # Full history (5 s on this repo): repository script tests and guards shell out to git,
+          # and a shallow clone has no merge base to compare against. The changed-lines gate that
+          # used to need this now lives in `coverage`.
           fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -252,9 +280,126 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
-      - name: Unit tests all passed
-        run: test "${{ needs.unit.result }}" = success
+      - name: Build
+        run: npm run build
+      - name: Entry preload list excludes recharts/markdown/compiler
+        run: npx vitest run src/lib/build/entryPreload.test.ts
+      - name: Lock wrapper process tests
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/tests -v
 
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
+
+  # ── `deno` — the edge-function lane, split out of `checks` (#2161) ────────────────────────────
+  # Measured on the 2026-11-10 push to dev: Deno typecheck 41 s + edge-fn unit tests 6 min 21 s + the
+  # M365 mutation witness 1 min 34 s ≈ 9 min — as much again as everything else in `checks`. Kept in
+  # one job they serialised to ~17 min, which becomes the whole wall clock once `unit` runs
+  # alongside; as its own lane it overlaps `checks` and `unit` instead.
+  # `scope.deno` (#1584) still decides whether it runs at all: a PR to dev that touches no edge
+  # function (and no script this lane uses) skips the job — the same skip the old per-step `if:` did.
+  deno:
+    needs: [scope]
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' && needs.scope.outputs.deno == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Node is pinned here only because the M365 witness below is a node script (node builtins
+      # only — this lane never runs `npm ci`).
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # Restore the Deno binary into the runner tool cache first: setup-deno v2.0.5
+      # checks the tool cache (tc.find) BEFORE downloading and skips the release
+      # download on a hit — the download 504'd GitHub-side on 2026-11-08/09.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
+          # Bump the cache key above together with this version.
+          deno-version: '2.7.11'
+      # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
+      # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
+      # --lock + --frozen: each fn's committed deno.lock is checked against its pinned deno.json
+      # deps — a floating/uncommitted dependency bump fails CI instead of silently drifting.
+      # Runs the SAME script `npm run verify` runs locally (scripts/deno-typecheck-edge-fns.sh) so the
+      # local gate and CI can never disagree about which functions are typechecked — a real
+      # adapter-dispatch type break was invisible to every local gate until the script existed. The
+      # script DISCOVERS the functions (every dir with a deno.json + index.ts) instead of carrying the
+      # hand-kept list this step used to hold, which had already drifted 10 functions behind.
+      - name: Deno typecheck — edge function entry points + _shared
+        working-directory: .
+        run: bash scripts/deno-typecheck-edge-fns.sh
+      # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
+      # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
+      # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
+      # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
+      - name: Deno boot smoke — edge function entry points load without throwing
+        working-directory: .
+        run: bash scripts/deno-boot-smoke-edge-fns.sh
+
+      # ⚑ RUN THE EDGE-FUNCTION UNIT TESTS. `deno check` is type-only and boot-smoke only proves the
+      # module graph loads — NEITHER executes a single assertion. Until this step existed, all ~393
+      # edge-fn tests across 44 files were LOCAL-ONLY: every money/mirror oracle built during the P3
+      # audit rounds (outbox eligibility, never-adopt, mirror lookup columns, company scoping, the
+      # approved-only gate) was invisible to CI, so a regression in any of them merged green.
+      #
+      # Two invocation traps this step encodes (both cost real debugging time):
+      #   • `_shared/` is NOT picked up by `deno test` run from a function directory — it must be
+      #     named explicitly, which is why it gets its own line below.
+      #   • the `external-*` functions need `--allow-env --allow-net --allow-read`; without them the
+      #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
+      #     like a broken assertion but is a missing flag.
+      - name: Deno unit tests — edge functions + _shared
+        working-directory: .
+        run: bash scripts/deno-test-edge-fns.sh
+
+      # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
+      # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
+      - name: M365 folder-write mutation witness
+        working-directory: .
+        run: node scripts/m365-record-folder-write-mutation.mjs
+
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
+
+  # ── `coverage` — the test-report half of the old `verify` (#2161) ─────────────────────────────
+  # Merges the `unit` shards' blob reports and enforces the ≥80% changed-lines gate. It needs only
+  # `unit`, NOT `checks`, so it finishes while `checks` is still running; the required `verify` then
+  # needs only this job's RESULT, not its steps. A single blob merges fine, so affected mode (one
+  # shard) takes exactly the same path.
+  coverage:
+    needs: [scope, unit]
+    # Deliberately no `!cancelled()`: a failed shard leaves no reports to merge, and `verify` fails
+    # closed on `needs.unit.result` anyway. Skipping keeps the log honest instead of adding a second,
+    # confusing red for the same cause.
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history so the changed-lines coverage gate can diff against the PR base ref.
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+      - name: Install Node dependencies
+        run: npm ci
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: unit-blob-*
@@ -276,77 +421,41 @@ jobs:
             --base "origin/$BASE_REF" \
             --coverage pmo-portal/coverage/coverage-final.json \
             --min 80
-      - name: Build
-        run: npm run build
-      - name: Entry preload list excludes recharts/markdown/compiler
-        run: npx vitest run src/lib/build/entryPreload.test.ts
-      - name: Lock wrapper process tests
-        working-directory: .
-        run: python3 -m unittest discover -s scripts/tests -v
 
-      # Restore the Deno binary into the runner tool cache first: setup-deno v2.0.5
-      # checks the tool cache (tc.find) BEFORE downloading and skips the release
-      # download on a hit — the download 504'd GitHub-side on 2026-11-08/09.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+  # ── REQUIRED CHECK: `main` protection requires exactly `verify` + `integration` ───────────────
+  # The aggregate gate (#2161): no test runs here — it fails closed unless every verify-stage job
+  # succeeded. Keeping this NAME is what preserves branch protection: the WORK moved to `checks` +
+  # `coverage`, the required CONTEXT did not. (A rename would mean editing protection, which this
+  # change deliberately does not do.)
+  # `!cancelled()` is load-bearing: a failed shard must FAIL this check, never skip it — a skipped
+  # required check counts as passing, which would let a red unit test merge.
+  verify:
+    needs: [scope, checks, deno, unit, coverage]
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every verify-stage job passed
+        run: |
+          test "${{ needs.scope.result }}" = success
+          test "${{ needs.checks.result }}" = success
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.coverage.result }}" = success
+      # The edge-function lane is only scheduled when `scope.deno` says the diff can affect it
+      # (#1584), so its result is asserted under the SAME condition — a skipped-but-required lane
+      # would otherwise count as a pass, and an unconditional assertion would fail every PR that
+      # legitimately skips it.
+      - name: Edge-function lane passed (when it ran)
         if: needs.scope.outputs.deno == 'true'
+        run: test "${{ needs.deno.result }}" = success
+      # The checkout exists only for the failure annotation below (`git log` needs a repository);
+      # depth 1 is enough for the subject line.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ failure() && github.event_name == 'push' }}
         with:
-          path: /opt/hostedtoolcache/deno
-          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
-      # Deno steps run only when the diff can affect them (`scope.deno`; always on push / PR to main).
-      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        if: needs.scope.outputs.deno == 'true'
-        with:
-          # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
-          # Bump the cache key above together with this version.
-          deno-version: '2.7.11'
-      # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
-      # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
-      # --lock + --frozen: each fn's committed deno.lock is checked against its pinned deno.json
-      # deps — a floating/uncommitted dependency bump fails CI instead of silently drifting.
-      # Runs the SAME script `npm run verify` runs locally (scripts/deno-typecheck-edge-fns.sh) so the
-      # local gate and CI can never disagree about which functions are typechecked — a real
-      # adapter-dispatch type break was invisible to every local gate until the script existed. The
-      # script DISCOVERS the functions (every dir with a deno.json + index.ts) instead of carrying the
-      # hand-kept list this step used to hold, which had already drifted 10 functions behind.
-      - name: Deno typecheck — edge function entry points + _shared
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: bash scripts/deno-typecheck-edge-fns.sh
-      # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
-      # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
-      # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
-      # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
-      - name: Deno boot smoke — edge function entry points load without throwing
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: bash scripts/deno-boot-smoke-edge-fns.sh
-
-      # ⚑ RUN THE EDGE-FUNCTION UNIT TESTS. `deno check` is type-only and boot-smoke only proves the
-      # module graph loads — NEITHER executes a single assertion. Until this step existed, all ~393
-      # edge-fn tests across 44 files were LOCAL-ONLY: every money/mirror oracle built during the P3
-      # audit rounds (outbox eligibility, never-adopt, mirror lookup columns, company scoping, the
-      # approved-only gate) was invisible to CI, so a regression in any of them merged green.
-      #
-      # Two invocation traps this step encodes (both cost real debugging time):
-      #   • `_shared/` is NOT picked up by `deno test` run from a function directory — it must be
-      #     named explicitly, which is why it gets its own line below.
-      #   • the `external-*` functions need `--allow-env --allow-net --allow-read`; without them the
-      #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
-      #     like a broken assertion but is a missing flag.
-      - name: Deno unit tests — edge functions + _shared
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: bash scripts/deno-test-edge-fns.sh
-
-      # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
-      # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
-      - name: M365 folder-write mutation witness
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: node scripts/m365-record-folder-write-mutation.mjs
-
-      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
-      # which merge it ran on (a squash merge's subject ends in the PR number).
+          fetch-depth: 1
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when a shard or
+      # `checks` fails, name the merge the run tested (a squash merge's subject ends in the PR number).
       - name: Name the merged change
         if: ${{ failure() && github.event_name == 'push' }}
         working-directory: .
@@ -374,7 +483,7 @@ jobs:
 
       # Fail fast on duplicate migration prefixes — the clear one-liner version of
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
-      # (The other repo guards run once, in `verify` — see check:guards.)
+      # (The other repo guards run once, in `checks` — see check:guards.)
       - name: Migration prefix collision check
         run: bash scripts/check-migration-collisions.sh
 

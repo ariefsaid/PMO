@@ -9,11 +9,11 @@ const packageJson = JSON.parse(
 );
 
 test('repository script tests run after npm ci installs their dependencies', () => {
-  const install = workflow.indexOf('run: npm ci', workflow.indexOf('  verify:'));
+  const install = workflow.indexOf('run: npm ci', workflow.indexOf('\n  checks:'));
   const tests = workflow.indexOf('- name: Repository script tests (non-DB)');
 
-  assert.notEqual(install, -1, 'verify must install npm dependencies');
-  assert.notEqual(tests, -1, 'verify must run repository script tests');
+  assert.notEqual(install, -1, 'checks must install npm dependencies');
+  assert.notEqual(tests, -1, 'checks must run repository script tests');
   assert.ok(tests > install, 'repository script tests that spawn checked-in CLIs must run after npm ci');
 });
 
@@ -48,8 +48,8 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   assert.ok(integrationRace !== -1, 'integration (PR-to-main release gate) must run the owning nightly-intent race proof');
   assert.ok(integrationReset !== -1 && integrationRace > integrationReset,
     'the race proof needs the released schema: it must run after the reset');
-  const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  pgtap:'));
-  assert.doesNotMatch(verifyJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
+  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  assert.doesNotMatch(checksJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');
 
 });
@@ -247,9 +247,9 @@ test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
   assert.equal(packageJson.scripts['check:redirect-targets'], 'node ../scripts/check-redirect-targets.mjs');
   // The guard itself runs via check:guards (asserted to run in CI below); the self-test directly.
   assert.match(packageJson.scripts['check:guards'], /npm run check:redirect-targets(\s|$)/);
-  const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  integration:'));
-  assert.match(verifyJob, /node scripts\/check-redirect-targets\.mjs --self-test/);
-  assert.match(verifyJob, /run: npm run check:guards/);
+  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  assert.match(checksJob, /node scripts\/check-redirect-targets\.mjs --self-test/);
+  assert.match(checksJob, /run: npm run check:guards/);
 });
 
 test('every repo guard runs in CI: check:guards holds every check:* and CI verify runs it early', () => {
@@ -263,26 +263,79 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
   assert.match(scripts.verify, /^npm run check:guards && /, 'verify must start with check:guards');
   assert.deepEqual(scripts.verify.match(/\bcheck:[\w-]+/g), ['check:guards'], 'verify must reach guards only via check:guards');
 
+  const checksJob = workflow
+    .slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'))
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+  const at = (s) => checksJob.indexOf(s);
+  assert.ok(at('run: npm ci') !== -1, 'checks job has no npm ci step — slice is wrong');
+  assert.ok(at('run: npm ci') < at('CI integration-order test'), 'repository tests that spawn Playwright/Vitest must run after npm ci');
+  assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
+  assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
+
+  // #2161: the static half of the old `verify` must NOT wait for the shards — it needs `scope`
+  // only, so it overlaps `unit`. Re-adding `unit` to its `needs` silently restores the ~32-min
+  // serial run this issue removed, so it is asserted, not merely commented.
+  assert.match(checksJob, /\n    needs: \[scope\]\n/, 'checks must need scope only (runs in parallel with unit)');
+
+  // The test-report half: the shard blobs merge here, before the changed-lines gate, and it needs
+  // only `unit` so it lands while `checks` is still running.
+  const coverageJob = workflow
+    .slice(workflow.indexOf('\n  coverage:'), workflow.indexOf('\n  verify:'))
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+  assert.match(coverageJob, /\n    needs: \[scope, unit\]\n/, 'coverage must merge the unit shards');
+  const merge = coverageJob.indexOf('run: npx vitest run --merge-reports --coverage');
+  assert.ok(merge !== -1, 'coverage job must merge the shard reports');
+  assert.ok(merge < coverageJob.indexOf('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
+  assert.match(coverageJob, /node scripts\/changed-lines-coverage\.mjs/, 'the ≥80% changed-lines gate lives in coverage');
+
+  // The required context is the aggregate: it must fail (not skip) when a shard fails, and it must
+  // depend on every verify-stage job — otherwise a red unit test could merge behind a green `verify`.
   const verifyJob = workflow
     .slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'))
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
-  const at = (s) => verifyJob.indexOf(s);
-  assert.ok(at('run: npm ci') !== -1, 'verify job has no npm ci step — slice is wrong');
-  assert.ok(at('run: npm ci') < at('CI integration-order test'), 'repository tests that spawn Playwright/Vitest must run after npm ci');
-  assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
-  assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
-  // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
-  // shard fails, and merge every shard's report + coverage before the changed-lines gate.
-  const merge = at('run: npx vitest run --merge-reports --coverage');
-  assert.match(verifyJob, /\n    needs: \[scope, unit\]\n/, 'verify must need the scope and unit jobs');
-  assert.ok(at('run: test "${{ needs.unit.result }}" = success') !== -1, 'verify must fail when any shard fails');
-  assert.ok(merge !== -1 && merge < at('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
-  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  assert.match(verifyJob, /\n    needs: \[scope, checks, deno, unit, coverage\]\n/, 'verify must need every verify-stage job');
+  for (const dependency of ['scope', 'checks', 'unit', 'coverage']) {
+    assert.ok(
+      verifyJob.includes(`test "\${{ needs.${dependency}.result }}" = success`),
+      `verify must fail when ${dependency} did not succeed`,
+    );
+  }
+  // The deno lane is conditional (scope.deno), so its assertion is conditional too — under exactly
+  // the condition that scheduled it, so a skipped-but-required lane can never pass silently.
+  assert.match(
+    verifyJob,
+    /- name: Edge-function lane passed \(when it ran\)\n        if: needs\.scope\.outputs\.deno == 'true'\n        run: test "\$\{\{ needs\.deno\.result \}\}" = success/,
+    'verify must fail when the deno lane failed, and skip the assertion only when the lane was not scheduled',
+  );
+  assert.match(
+    verifyJob,
+    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/,
+    'verify must run (and fail) when a shard failed — a skipped required check passes',
+  );
+
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
   assert.match(unitJob, /fromJSON\(needs\.scope\.outputs\.unit_matrix\)/, 'unit matrix comes from the scope job');
-  assert.match(workflow, /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\}\]/, 'full mode must run both shards');
-  assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/2 .*--reporter=blob/, 'each shard must record coverage');
+  assert.match(
+    workflow,
+    /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\},\{"shard":3,"mode":"full"\},\{"shard":4,"mode":"full"\}\]/,
+    'full mode must run four shards (#2161)',
+  );
+  assert.match(
+    workflow,
+    /"include":\[\{"shard":1,"mode":"affected"\}\]/,
+    'affected mode (PR to dev) stays one runner (#1584)',
+  );
+  assert.match(
+    unitJob,
+    /--coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} .*--reporter=blob/,
+    'each shard must record coverage and derive the shard count from the matrix',
+  );
   assert.match(unitJob, /vitest run --coverage --reporter=default --reporter=blob "\$\{files\[@\]\}"/, 'affected mode must record coverage too');
   assert.match(unitJob, /timeout-minutes: 40/, 'unit job must have a timeout (#1528)');
 });
@@ -295,21 +348,29 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
   const pgtap = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
   assert.match(pgtap, /needs\.scope\.outputs\.pgtap == 'true'/);
   assert.match(pgtap, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/dev'/, 'pgTAP is part of the full run on push to dev');
-  const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
+  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  assert.match(checksJob, /node scripts\/ci-test-scope\.mjs --self-test/);
+
+  // #2161: the edge-function lane is its own job, scheduled ONLY when the diff can affect it
+  // (#1584). The gate moved from each step's `if:` to the job's, so the whole lane — and its runner
+  // — is skipped rather than started and idled; `verify` re-asserts the result under the same
+  // condition.
+  const denoJob = workflow.slice(workflow.indexOf('\n  deno:'), workflow.indexOf('\n  coverage:'));
+  assert.match(
+    denoJob,
+    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.deno == 'true' \}\}\n/,
+    'the deno job must be gated on scope.deno',
+  );
   for (const step of ['denoland/setup-deno', 'bash scripts/deno-typecheck-edge-fns.sh', 'bash scripts/deno-boot-smoke-edge-fns.sh', 'bash scripts/deno-test-edge-fns.sh']) {
-    const at = verifyJob.indexOf(step);
-    assert.ok(at !== -1, `${step} missing`);
-    const from = verifyJob.lastIndexOf('\n      - ', at);
-    const to = verifyJob.indexOf('\n      - ', at);
-    assert.match(verifyJob.slice(from, to), /if: needs\.scope\.outputs\.deno == 'true'/, `${step} must be gated on scope.deno`);
+    assert.ok(denoJob.includes(step), `${step} must live in the deno lane`);
   }
-  assert.match(verifyJob, /node scripts\/ci-test-scope\.mjs --self-test/);
+  assert.doesNotMatch(checksJob, /scripts\/deno-/, 'the Deno steps must not drift back into checks (that re-serialises ~9 min)');
 });
 
 test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
   assert.match(verifyJob, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
-  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
   assert.match(unitJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
   const integration = workflow.slice(workflow.indexOf('\n  integration:'));
   assert.match(
@@ -390,11 +451,11 @@ test('the project instructions name CI as the PR-to-main gate and verify-main-pr
 });
 
 test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the safe summary', () => {
-  const verifyStart = workflow.indexOf('\n  verify:');
-  const pgtapStart = workflow.indexOf('\n  pgtap:');
-  assert.ok(verifyStart !== -1 && pgtapStart > verifyStart, 'verify job bounds are invalid');
-  const verifyJob = workflow.slice(verifyStart, pgtapStart);
-  assert.match(verifyJob, /node scripts\/check-e2e-time-budget\.mjs --self-test/);
+  const checksStart = workflow.indexOf('\n  checks:');
+  const coverageStart = workflow.indexOf('\n  coverage:');
+  assert.ok(checksStart !== -1 && coverageStart > checksStart, 'checks job bounds are invalid');
+  const checksJob = workflow.slice(checksStart, coverageStart);
+  assert.match(checksJob, /node scripts\/check-e2e-time-budget\.mjs --self-test/);
 
   const ordinaryStart = workflow.indexOf('- name: E2E tests (Playwright / serial)');
   const skipStart = workflow.indexOf('- name: E2E skip audit — every skip is explained');

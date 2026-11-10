@@ -14,7 +14,9 @@ const HEAD = "a".repeat(40);
 const MERGE = "b".repeat(40);
 const DEV = "c".repeat(40);
 const BRANCH = "codex/topic";
-const REQUIRED_CHECKS = ["unit (1)", "unit (2)", "verify", "pgtap"];
+// The names GitHub generates for the matrix job — `unit (<shard>, <mode>)` — plus the aggregate
+// `verify` and `pgtap`. Full mode (push) is four shards (#2161); a PR to dev is one affected shard.
+const REQUIRED_CHECKS = ["unit (1, full)", "unit (2, full)", "unit (3, full)", "unit (4, full)", "verify", "pgtap"];
 const GATE_PASSES = REQUIRED_CHECKS.map((name) => ({ name, bucket: "pass", state: "SUCCESS" }));
 
 const FAKE_TOOL = String.raw`#!/usr/bin/env node
@@ -263,6 +265,23 @@ test("AC-OPS-1113-1: checks, exact squash merge, and proof-bound cleanup run in 
   assert.equal(existsSync(fixture.worktreePath), false);
   assert.equal(state.localHead, null);
   assert.equal(state.remoteOid, null);
+});
+
+test("AC-OPS-1113-2: a PR-to-dev run reports ONE affected shard and still satisfies the gate", (t) => {
+  // #1584: a PR to dev runs a single `unit (1, affected)` job. The gate must accept that shape —
+  // a fixed four-shard list would refuse every PR it is actually used for.
+  const fixture = createFixture({
+    checks: [
+      { name: "unit (1, affected)", bucket: "pass", state: "SUCCESS" },
+      { name: "verify", bucket: "pass", state: "SUCCESS" },
+      { name: "pgtap", bucket: "pass", state: "SUCCESS" },
+      { name: "integration", bucket: "skipping", state: "SKIPPED" },
+    ],
+  });
+  t.after(() => fixture.cleanup());
+  const result = fixture.run();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /VERIFIED CLEANUP COMPLETE/);
 });
 
 test("AC-OPS-1113-2: the current gates must pass once; skipped extras are allowed", (t) => {
