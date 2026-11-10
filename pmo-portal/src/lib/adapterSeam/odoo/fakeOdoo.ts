@@ -12,6 +12,7 @@ type Domain = unknown[];
 const FIELDS: Record<string, string[]> = {
   'res.partner': ['name', 'vat', 'ref', 'email', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
   'res.company': ['name', 'currency_id', 'partner_id', 'write_date'],
+  'res.users': ['partner_id', 'active', 'write_date'],
   'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
   'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
@@ -34,8 +35,14 @@ const FIELDS: Record<string, string[]> = {
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
-  'fleet.vehicle': ['name', 'write_date'],
-  'maintenance.equipment': ['name', 'write_date'],
+  // Fleet and maintenance (#1511; bed claims V-OFM-1..8). A maintenance request has no `active`: Odoo archives it with `archive`.
+  'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
+  'fleet.vehicle.model': ['name', 'brand_id', 'write_date'],
+  'maintenance.equipment': ['name', 'serial_no', 'category_id', 'model', 'location', 'company_id', 'active', 'write_date'],
+  'maintenance.request': ['name', 'equipment_id', 'maintenance_type', 'stage_id', 'request_date', 'schedule_date', 'close_date', 'duration', 'priority', 'description', 'company_id', 'archive', 'write_date'],
+  'maintenance.stage': ['name', 'sequence', 'done', 'write_date'],
+  'fleet.vehicle.log.services': ['vehicle_id', 'service_type_id', 'date', 'state', 'amount', 'odometer', 'vendor_id', 'description', 'notes', 'company_id', 'active', 'write_date'],
+  'fleet.service.type': ['name', 'category', 'write_date'],
 };
 
 const fmt = (n: number) => new Date(Date.UTC(2026, 0, 1) + n * 1000).toISOString().slice(0, 19).replace('T', ' ');
@@ -47,6 +54,7 @@ function matchLeaf(row: Row, [field, op, value]: [string, string, unknown]): boo
     case '=': return v === value;
     case '!=': return v !== value;
     case 'in': return (value as unknown[]).includes(v);
+    case 'not in': return !(value as unknown[]).includes(v);
     case '>': return (v as never) > (value as never);
     case '>=': return (v as never) >= (value as never);
     case '<': return (v as never) < (value as never);
@@ -378,6 +386,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         table(m).set(id, { ...vals, id, invoice_id: invoice.id, write_date: fmt(++clock) });
         return id;
       }
+      // Odoo's required fields on the fleet models (V-OFM-1, V-OFM-6).
+      if (m === 'fleet.vehicle' && !vals.model_id) throw rejected('The field Model is required.');
+      if (m === 'fleet.vehicle.log.services' && !vals.service_type_id) throw rejected('The field Service Type is required.');
       const id = newId(m);
       const { order_line: lines, ...rest } = vals;
       const stamp = fmt(++clock);
@@ -392,6 +403,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         const { order_line: lines, ...rest } = b.vals as Record<string, unknown>;
         table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : (b.vals as object)), id, write_date: fmt(++clock) });
         if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);
+        // Moving a request to a done stage closes it (V-OFM-5).
+        const stage = m === 'maintenance.request' ? table('maintenance.stage').get(Number(scalar((b.vals as Record<string, unknown>).stage_id))) : undefined;
+        if (stage?.done === true) table(m).get(id)!.close_date = fmt(clock);
       }
       return true;
     },

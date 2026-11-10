@@ -4,6 +4,10 @@
  * crashes 500 ... the client must pre-validate"); `requireItems` is the client-side pre-validation
  * guard shared by every `toBody` below, turning that crash into a clean `commit-rejected` BEFORE the
  * request is ever sent.
+ *
+ * `requireCompany` is the same pre-validation for the OTHER thing the binding must supply: every
+ * company-scoped ERP document STATES its company (ERPNext would otherwise file it under the
+ * integration user's default company, which the sweep's company-scoped mirror feeds never read).
  */
 import { AdapterError } from '../../contract.ts';
 import type { PmoRecord } from '../../contract.ts';
@@ -27,4 +31,22 @@ export function requireItems(rec: PmoRecord, doctypeLabel: string): PmoLineItem[
     throw new AdapterError('commit-rejected', `${doctypeLabel} requires at least one line item`);
   }
   return items as PmoLineItem[];
+}
+
+/**
+ * The org binding's configured ERP company (`external_org_bindings.config.company`), or a
+ * `commit-rejected` refusal naming the setting.
+ *
+ * Every company-scoped ERP document must STATE its company: ERPNext otherwise files the document under
+ * the integration user's default company, which on a multi-company ERP is the wrong company — and the
+ * sweep's mirror feeds read under this same company, so a misfiled document never comes back. The value
+ * is passed through EXACTLY (an ERPNext Company's name IS its primary key; trimming or casefolding would
+ * name a different, non-existent company). Same fail-closed discipline as `paymentEntry`'s account
+ * defaults: never send a body that cannot state its company.
+ */
+export function requireCompany(config: Record<string, unknown>, doctypeLabel: string): string {
+  const value = config.company;
+  if (typeof value === 'string' && value !== '') return value;
+  throw new AdapterError('commit-rejected',
+    `${doctypeLabel}: set the ERP company in Administration → Integrations before sending this document`);
 }

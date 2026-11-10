@@ -10,7 +10,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter, type ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { lookupOrgBindingSecretRef, resolveOrgSecretOrFallback } from '../_shared/perOrgSecret.ts';
+import { resolveClickUpOrgToken } from '../_shared/clickupOrgSecret.ts';
 import { resolveErpAuthPair, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
@@ -65,24 +65,7 @@ const clickUpRateLimiter = new ClickUpRateLimiter();
 // ClickUp config/member resolution stays inside its adapter factory. The dispatcher passes the
 // caller's org + command + an injected service-client seam and ClickUp client deps.
 async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
-  const connectEnabled = externalConnectEnabled();
-  if (!connectEnabled) {
-    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
-  }
-  const clickUpToken = await resolveOrgSecretOrFallback(
-    {
-      connectEnabled,
-      orgId: ctx.orgId,
-      tier: 'clickup',
-      lookupBinding: lookupOrgBindingSecretRef(ctx.serviceClient),
-      readVaultSecret: async (ref) => {
-        const { data, error } = await ctx.serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) throw new AppError(error.message, error.code);
-        return (data as string | null) ?? null;
-      },
-    },
-    Deno.env.get('CLICKUP_API_TOKEN') ?? '',
-  );
+  const clickUpToken = await resolveClickUpOrgToken(ctx.serviceClient as SupabaseClient, ctx.orgId);
 
   return resolveClickUpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,

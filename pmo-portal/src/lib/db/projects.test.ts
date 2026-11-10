@@ -423,6 +423,19 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
     expect(JSON.stringify(patch)).not.toContain('org_id');
   });
 
+  it('AC-WHA-007: updateProjectHeader writes the default receipt withholding article only when given', async () => {
+    const base = { name: 'N', code: null, client_id: null, end_client_id: null, project_manager_id: null, start_date: null, end_date: null };
+    const given = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', { ...base, receipt_withholding_article: 'pph4_2' });
+    expect(given.update[0]).toHaveProperty('receipt_withholding_article', 'pph4_2');
+    const cleared = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', { ...base, receipt_withholding_article: null });
+    expect(cleared.update[0]).toHaveProperty('receipt_withholding_article', null);
+    const omitted = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', base);
+    expect(omitted.update[0]).not.toHaveProperty('receipt_withholding_article');
+  });
+
   it('AC-001 #1325: alias header updates trim values, clear explicit blank/null, and omission preserves the column', async () => {
     const set = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
     await updateProjectHeader('p1', {

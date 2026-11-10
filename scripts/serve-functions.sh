@@ -49,8 +49,8 @@ echo "ERPNEXT_ALLOW_LOCAL_BENCH=1" >> "$MERGED_ENV_FILE"
 # sets them); absent = unset (feature simply inert).
 #   EXTERNAL_CONNECT_ENABLED — feature flag; when set to 'true' in the shell, the served ClickUp/
 #     ERPNext paths become active for the e2e run. Absent/other ⇒ inert (fail-closed legacy path).
-#   CLICKUP_WEBHOOK_SECRET   — HMAC key for the clickup-webhook handler; required by any e2e that
-#     posts to the webhook endpoint. Without it the handler 401s every request.
+#   CLICKUP_WEBHOOK_SECRET   — no longer read by the handler (ClickUp resolves its webhook secret per org
+#     from the binding); kept in the pass-through list so older harnesses stay harmless.
 for _v in ERPNEXT_ALLOW_LOCAL_BENCH ERPNEXT_LOCAL_BENCH_ORIGINS DEMO_ERP_WEBHOOK_SECRET ERPNEXT_SWEEP_SECRET EXTERNAL_CONNECT_ENABLED CLICKUP_WEBHOOK_SECRET LOCAL_BENCH_KEY LOCAL_BENCH_SECRET ERPNEXT_TEST_FAULTS ERPNEXT_TEST_FAULTS_ALLOW_HOST E2E_INLINE_KEY E2E_INLINE_SECRET AC_ENA_050_TEST_ONLY_KEY AC_ENA_050_TEST_ONLY_SECRET AC_ENA_051_TEST_ONLY_KEY AC_ENA_051_TEST_ONLY_SECRET ERPNEXT_API_KEY ERPNEXT_API_SECRET; do
   if [ -n "${!_v:-}" ]; then echo "${_v}=${!_v}" >> "$MERGED_ENV_FILE"; fi
 done

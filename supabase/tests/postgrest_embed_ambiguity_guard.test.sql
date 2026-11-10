@@ -38,7 +38,14 @@ select set_eq(
       where c.contype = 'f' and n.nspname = 'public'
       group by src.relname, tgt.relname
      having count(*) > 1 $$,
-  $$ values -- 0515 (T&M rates): contract_rate_assignees has user_id AND created_by, both -> profiles.
+  $$ values -- 0792 (#1413): budget_versions gained returned_by beside 0271's created_by, both -> profiles.
+            -- CHECKED BEFORE ADDING: no DAL, repository, edge-function or e2e code embeds profiles from
+            -- budget_versions (the returned-draft banner renders returned_at/return_reason only; the
+            -- drafter's name resolves through the profiles directory by id in pages/ProjectBudget.tsx),
+            -- so nothing broke. Whatever ships first MUST qualify it with !constraint_name
+            -- (e.g. profiles!budget_versions_returned_by_fkey).
+            ('budget_versions -> profiles'),
+            -- 0515 (T&M rates): contract_rate_assignees has user_id AND created_by, both -> profiles.
             -- Checked before adding: no DAL, repository, edge fn or e2e spec embeds profiles from
             -- it (only database.types.ts mentions the table), so no unqualified embed exists.
             ('contract_rate_assignees -> profiles'),

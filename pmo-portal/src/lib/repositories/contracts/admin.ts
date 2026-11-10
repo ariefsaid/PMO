@@ -1,5 +1,5 @@
 /** People, operator, usage, views and org-settings contracts. */
-import type { OrgVendorTaxAccounts, ProjectClassificationOptions, OrgLifecycleState, OrgLocaleDefaultsRow } from '@/src/lib/db/orgs';
+import type { OrgVendorTaxAccounts, OrgWithholdingAccounts, ProjectClassificationOptions, OrgLifecycleState, OrgLocaleDefaultsRow } from '@/src/lib/db/orgs';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -105,8 +105,8 @@ export interface OrgSettingsRepository {
   getProjectNumberTimezone(): Promise<{ timezone: string | null }>;
   /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
   setProjectNumberPattern(value: string | null): Promise<void>;
-  getWithholdingAccount(): Promise<string | null>;
-  setWithholdingAccount(account: string | null): Promise<void>;
+  getWithholdingAccounts(): Promise<OrgWithholdingAccounts>;
+  setWithholdingAccounts(input: OrgWithholdingAccounts): Promise<void>;
   /** #876 slice 2: the ERPNext accounts a vendor bill's entered VAT / PPh post to (Admin writes). */
   getVendorTaxAccounts(): Promise<OrgVendorTaxAccounts>;
   setVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void>;

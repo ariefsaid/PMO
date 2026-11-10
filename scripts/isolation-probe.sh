@@ -118,6 +118,11 @@ rpc(){
       if [ -n "$shape" ] && [ "$code" != 200 ]; then probe_error "rpc $fn unexpected shape HTTP $code"; return; fi
       if [ "$rpc_class" = read ]; then
         if [ "$shape" = must-deny ]; then flag "rpc $fn unexpectedly returned cross-tenant read data"; return; fi
+        if [ "$shape" = own-org-no-foreign-ids ]; then
+          # Own-org read: B legitimately gets a body, but it must hold no id or org id of tenant A.
+          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
+          say "  PASS  rpc $fn (own-org read, no other-tenant ids)" >&2; return
+        fi
         if [ "$shape" = null ]; then
           jq -e '.==null' "$BODY" >/dev/null && { say "  EXPECTED-DENIAL  rpc $fn (invisible tenant snapshot)" >&2; return; }
           flag "rpc $fn returned a cross-tenant snapshot"; return
@@ -317,12 +322,16 @@ if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then
   c=$(rpc budget_distribution_gaps "{\"p_version\":\"$A_BUDGET\"}")
   c=$(rpc save_budget_distribution "{\"p_version\":\"$A_BUDGET\",\"p_method\":\"by_days\",\"p_inputs\":{},\"p_basis\":{},\"p_rows\":[]}")
   c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}")
+  c=$(rpc return_budget_version "{\"version_id\":\"$A_BUDGET\",\"reason\":\"probe\"}")
+  c=$(rpc resubmit_budget_version "{\"version_id\":\"$A_BUDGET\"}")
 else
   skip "switch_budget_draft_mode (budget_versions)"
   skip "get_budget_distribution_snapshot (budget_versions)"
   skip "budget_distribution_gaps (budget_versions)"
   skip "save_budget_distribution (budget_versions)"
   skip "activate_budget_version (budget_versions)"
+  skip "return_budget_version (budget_versions)"
+  skip "resubmit_budget_version (budget_versions)"
 fi
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc get_budget_comparison "{\"p_project_id\":\"$A_PROJECT\"}"); else skip "get_budget_comparison (projects)"; fi
 A_IMPREST_FLOAT=$(jq -r '.[]|select(.table=="imprest_floats")|.id' "$A_ROWS_JSON")
