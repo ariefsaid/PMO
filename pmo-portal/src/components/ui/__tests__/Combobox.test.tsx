@@ -299,8 +299,8 @@ describe('Combobox: required + invalid wiring', () => {
   });
 });
 
-describe('Combobox: long sub-lines never hide the option label', () => {
-  it('D1 render: the sub-line yields before the label and keeps its full text as a tooltip', async () => {
+describe('Combobox: long sub-lines preserve the option text', () => {
+  it('keeps the complete sub-line and label available', async () => {
     const sub = 'VoltEdge Inverters · Purchase Order · different supplier · different currency';
     render(
       <Combobox
@@ -314,9 +314,8 @@ describe('Combobox: long sub-lines never hide the option label', () => {
     const option = await screen.findByRole('option', { name: /Central Inverters/ });
     const subEl = option.querySelector(`[title="${sub}"]`);
     expect(subEl).not.toBeNull();
-    // The sub shrinks faster than the label, so the label keeps its room.
-    expect(subEl!.className).toMatch(/shrink-\[3\]/);
-    expect(subEl!.className).toMatch(/truncate/);
+    expect(subEl).toHaveTextContent(sub);
+    expect(option).toHaveTextContent('Central Inverters & Transformers');
   });
 });
 

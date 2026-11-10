@@ -37,7 +37,7 @@ export const FieldError: React.FC<FieldErrorProps> = ({ id, children, className 
     <span
       id={id}
       role="alert"
-      className={cn('flex items-center gap-1.5 text-support font-medium text-destructive-text', className)}
+      className={cn('flex items-center gap-1.5 text-control font-medium text-destructive-text', className)}
     >
       <Icon name="alert" className="size-[13px] shrink-0" />
       {children}
@@ -117,7 +117,7 @@ export const FieldShell: React.FC<FieldShellProps> = ({
         'aria-describedby': describedby,
       })}
       {helper && !error && (
-        <span id={helpId} className="text-support text-muted-foreground">
+        <span id={helpId} className="text-control text-muted-foreground">
           {helper}
         </span>
       )}

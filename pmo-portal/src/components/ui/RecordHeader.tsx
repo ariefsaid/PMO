@@ -100,7 +100,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
       <div className="flex flex-wrap items-start gap-[var(--space-group)]">
         {icon && (
           <span
-            className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-primary-foreground [&_svg]:size-5"
+            className="grid size-11 shrink-0 place-items-center rounded-[10px] text-section font-bold text-primary-foreground [&_svg]:size-5"
             style={{ background: iconColor ?? 'hsl(var(--primary))' }}
           >
             {icon}
@@ -140,7 +140,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
         >
           {stats.map((s, i) => (
             <div key={i}>
-              <div className="mb-1 text-support text-muted-foreground">{s.label}</div>
+              <div className="mb-1 text-control font-medium text-foreground">{s.label}</div>
               <div className="text-group font-semibold tabular">{s.value}</div>
             </div>
           ))}

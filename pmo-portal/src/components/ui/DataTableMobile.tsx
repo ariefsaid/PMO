@@ -112,7 +112,7 @@ export function DataTableMobile<Row>({
         <span onClick={(event) => event.stopPropagation()}>
           <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} labelledBy={`${tableInstanceId}-select-all`} disabled={visibleSelectionIds.length === 0} />
         </span>
-        <span id={`${tableInstanceId}-select-all`} className="cursor-default select-none text-[12px] text-muted-foreground" onClick={() => { if (visibleSelectionIds.length > 0) toggleAllRows(selectAllChecked !== true); }}>{t('table.selectAllRows', 'Select all rows')}</span>
+        <span id={`${tableInstanceId}-select-all`} className="cursor-default select-none text-control text-muted-foreground" onClick={() => { if (visibleSelectionIds.length > 0) toggleAllRows(selectAllChecked !== true); }}>{t('table.selectAllRows', 'Select all rows')}</span>
       </li>}
       {state ? (
         <li className="p-0">{listStateNode}</li>
@@ -145,12 +145,8 @@ export function DataTableMobile<Row>({
             >
               {/* Title row: first column + rowMenu ⋯ pinned top-right */}
               <div className="flex items-start justify-between gap-3">
-                {/* Card title — activation button if rowLabel+onActivate supplied.
-                    [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
-                    overflow:hidden is a no-op on inline boxes — so a long title bleeds past
-                    the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
-                    descendants to block lets them clip with an ellipsis within this min-w-0
-                    column, independent of text width (no font-metric-dependent 1–6px bleed). */}
+                {/* Card title — activation button if rowLabel+onActivate supplied. Text that
+                    outgrows the card wraps so its full meaning stays visible at phone widths. */}
                 <div className="flex min-w-0 flex-1 items-start gap-2">
                   {selection && <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
                     <Checkbox
@@ -159,7 +155,7 @@ export function DataTableMobile<Row>({
                       label={selectionLabel(row, titleCol)}
                     />
                   </span>}
-                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+                  <div className="min-w-0 flex-1 break-words font-semibold [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
@@ -198,7 +194,7 @@ export function DataTableMobile<Row>({
                       <React.Fragment key={col.key}>
                         <dt
                           className={cn(
-                            'text-[12px] font-semibold text-muted-foreground self-start',
+                            'text-control font-semibold text-muted-foreground self-start',
                             stripHiddenClasses(col.colClassName)
                           )}
                         >
@@ -206,9 +202,8 @@ export function DataTableMobile<Row>({
                         </dt>
                         <dd
                           className={cn(
-                            // [&_.truncate]:block — see the title note above: inline truncate
-                            // cells (e.g. a contact email) don't clip and bleed at 360px.
-                            'min-w-0 break-words text-control text-foreground [&_.truncate]:block',
+                            // Table content wraps instead of hiding the end of an identity or label.
+                            'min-w-0 break-words text-control text-foreground [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
                             // ONE value alignment in cards: every value starts at the label
                             // column's x — money keeps its tabular figures but loses the
                             // desktop column's right alignment here (director fix).

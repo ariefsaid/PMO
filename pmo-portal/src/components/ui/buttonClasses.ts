@@ -14,7 +14,7 @@ export type ButtonSize = 'default' | 'sm' | 'icon';
 
 const base =
   'inline-flex items-center justify-center gap-2 rounded-md border ' +
-  'text-control font-normal whitespace-nowrap select-none ' +
+  'text-control font-normal break-words select-none ' +
   'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-press)] ' +
   'active:scale-[0.97] motion-reduce:active:scale-100 ' +
   'disabled:cursor-not-allowed disabled:pointer-events-none ' +
@@ -38,10 +38,10 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  default: 'touch-target h-[var(--control-height)] px-4',
+  default: 'touch-target min-h-[var(--control-height)] px-4 py-2',
   // C6 touch-target sweep (OD-W4-4 / WCAG 2.5.5): compact controls are 30px tall.
   // The `.touch-target` utility extends their hit area to 44px on coarse pointers.
-  sm: 'touch-target h-[var(--control-height-sm)] px-2 text-support',
+  sm: 'touch-target min-h-[var(--control-height-sm)] px-2 py-1 text-control',
   icon: 'touch-target size-[var(--control-height-sm)] p-0',
 };
 

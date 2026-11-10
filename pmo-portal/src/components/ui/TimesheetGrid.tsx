@@ -151,11 +151,11 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         // One delete control, one accessible name.
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium" title={r.projectLegalName ?? r.project}>
+            <div className="break-words text-control font-medium" title={r.projectLegalName ?? r.project}>
               {r.project}
             </div>
             {r.code && (
-              <div className="truncate font-mono text-[11px] text-muted-foreground">
+              <div className="break-words font-mono text-control text-muted-foreground">
                 {r.code}
               </div>
             )}
@@ -187,10 +187,10 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             projectId={r.projectId}
             name={r.project}
             legalName={r.projectLegalName}
-            className="truncate text-sm font-medium"
+            className="break-words text-control font-medium"
           />
           {r.code && (
-            <div className="truncate font-mono text-[11px] text-muted-foreground">
+            <div className="break-words font-mono text-control text-muted-foreground">
               {r.code}
             </div>
           )}
@@ -200,9 +200,9 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     ...days.map((d, i): Column<TimesheetGridRow> => ({
       key: `day-${i}`,
       header: (
-        <span className={tint(d.weekend)} style={{ height: 38 }}>
+        <span className={tint(d.weekend)} style={{ minHeight: 38 }}>
           {d.label}
-          <span className="mt-0.5 block text-[11px] font-normal tabular text-muted-foreground">{d.dateNum}</span>
+          <span className="mt-0.5 block text-control font-normal tabular text-muted-foreground">{d.dateNum}</span>
         </span>
       ),
       kind: 'number',
@@ -230,7 +230,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                 value={value}
                 onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
                 className={cn(
-                  'touch-target mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',
+                  'touch-target mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-control tabular text-foreground',
                   invalid ? 'border-destructive' : 'border-border'
                 )}
               />
@@ -240,7 +240,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                   // Darkened destructive text variant (the system's error-text value,
                   // shared with ErrBanner/ListState) — ~6.5:1 on white, clears WCAG-AA.
                   style={{ color: 'hsl(0 72% 42%)' }}
-                  className="mt-0.5 block text-center text-[11px] leading-tight"
+                  className="mt-0.5 block text-center text-control leading-tight"
                 >
                   {t('timesheets.invalidHours', '0–24 only')}
                 </span>
@@ -254,7 +254,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             <div
               aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
               className={cn(
-                'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-[13.5px] tabular',
+                'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-control tabular',
                 filled ? 'bg-primary/[0.07] font-semibold text-foreground' : 'text-muted-foreground/45'
               )}
             >
@@ -284,7 +284,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
 
   const totals = [{
     key: 'daily',
-    label: <span className="text-[11.5px] font-semibold text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
+    label: <span className="text-control font-semibold text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
     values: {
       ...Object.fromEntries(dailyTotals.map((total, i) => [
         `day-${i}`,
@@ -377,7 +377,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
               <div className="min-w-0 flex-1">
                 {editable ? (
                   // Editable mobile: plain text (no link while editing)
-                  <div className="truncate text-sm font-medium text-foreground" title={r.projectLegalName ?? r.project}>
+                  <div className="break-words text-control font-medium text-foreground" title={r.projectLegalName ?? r.project}>
                     {r.project}
                   </div>
                 ) : (
@@ -386,11 +386,11 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                     projectId={r.projectId}
                     name={r.project}
                     legalName={r.projectLegalName}
-                    className="truncate text-sm font-medium"
+                    className="break-words text-control font-medium"
                   />
                 )}
                 {r.code && (
-                  <div className="truncate font-mono text-[11px] text-muted-foreground">
+                  <div className="break-words font-mono text-control text-muted-foreground">
                     {r.code}
                   </div>
                 )}
@@ -432,7 +432,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           color-contrast, tidy sweep). The weekend reads through the row tint. */}
                       <span
                         className={cn(
-                          'w-[52px] shrink-0 text-[12px] font-semibold',
+                          'w-[52px] shrink-0 break-words text-control font-semibold',
                           'text-muted-foreground'
                         )}
                         aria-hidden="true"
@@ -450,7 +450,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           value={value}
                           onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
                           className={cn(
-                            'touch-target block h-9 w-full rounded-md border bg-card px-3 text-[13.5px] tabular text-foreground',
+                            'touch-target block h-9 w-full rounded-md border bg-card px-3 text-control tabular text-foreground',
                             invalid ? 'border-destructive' : 'border-border'
                           )}
                         />
@@ -458,7 +458,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           <span
                             role="alert"
                             style={{ color: 'hsl(0 72% 42%)' }}
-                            className="mt-0.5 block text-[11px] leading-tight"
+                            className="mt-0.5 block text-control leading-tight"
                           >
                             {t('timesheets.invalidHours', '0–24 only')}
                           </span>
@@ -483,7 +483,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                         color-contrast, tidy sweep). The weekend reads through the row tint. */}
                     <span
                       className={cn(
-                        'w-[52px] shrink-0 text-[12px] font-semibold',
+                        'w-[52px] shrink-0 break-words text-control font-semibold',
                         'text-muted-foreground'
                       )}
                       aria-hidden="true"
@@ -494,7 +494,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                     <div
                       aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
                       className={cn(
-                        'flex h-9 flex-1 items-center rounded-md px-3 text-[13.5px] tabular',
+                        'flex h-9 flex-1 items-center rounded-md px-3 text-control tabular',
                         filled
                           ? 'bg-primary/[0.07] font-semibold text-foreground'
                           : 'text-muted-foreground/45'
@@ -522,9 +522,9 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
             {/* Row total */}
             <div
               data-testid={`tsgrid-row-total-${r.id}`}
-              className="mt-2 flex items-center justify-end gap-1.5 text-[12px] font-semibold tabular text-muted-foreground"
+              className="mt-2 flex items-center justify-end gap-1.5 text-control font-semibold tabular text-muted-foreground"
             >
-              <span className="text-[11px]">{t('timesheets.rowTotal', 'Row total')}</span>
+              <span className="text-control">{t('timesheets.rowTotal', 'Row total')}</span>
               <span className="text-sm text-foreground">
                 {rowTotal > 0 ? formatNumberExact(rowTotal) : '·'}
               </span>
@@ -535,7 +535,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
 
       {/* Grand total footer */}
       <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-3.5 py-3">
-        <span className="text-[11.5px] font-semibold text-muted-foreground">
+        <span className="text-control font-semibold text-muted-foreground">
           {t('timesheets.weekTotal', 'Week total')}
         </span>
         <span
@@ -596,7 +596,7 @@ const NoteCell: React.FC<{
           focusOnExpand.current = true;
           setExpanded(true);
         }}
-        className="touch-target mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="touch-target mt-1 inline-flex items-center gap-1 text-control font-semibold text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="plus" className="size-3" />
         {t('timesheets.note', 'Note')}
@@ -614,7 +614,7 @@ const NoteCell: React.FC<{
       onChange={(e) => onNoteChange?.(rowId, e.target.value)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
-      className="touch-target mt-1 h-8 w-full rounded-none border-0 border-b border-border bg-transparent px-0 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+      className="touch-target mt-1 h-8 w-full rounded-none border-0 border-b border-border bg-transparent px-0 text-control text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
     />
   );
 };
