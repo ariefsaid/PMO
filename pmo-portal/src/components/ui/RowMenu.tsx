@@ -45,7 +45,7 @@ export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel
           )}
         </Menu.Trigger>
         <Menu.Portal>
-          {/* The fixed toast stack is z-[1000] and may overlap the bottom row; keep row actions above it. */}
+          {/* The toast stack is pinned to z-index 1000 (Toaster style) and may overlap the bottom row; keep row actions above it. */}
           <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={16} style={{ zIndex: 1010 }}>
             <Menu.Popup className={menuPopupClass} style={menuPopupOrigin}>
               {items.map((item, i) => {
