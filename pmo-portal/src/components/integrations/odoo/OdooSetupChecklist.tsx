@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, Icon, SelectField } from '@/src/components/ui';
 import { sendsFinished } from '@/src/lib/adapterSeam/odoo/sendsFinished';
 import React, { useState } from 'react';
-import { useOdooConnection, useOdooConnectStatus, useOdooEmploy, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
+import { useOdooConnection, useOdooConfigProposal, useOdooConnectStatus, useOdooEmploy, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
 import { useOdooCan } from './useOdooCan';
 import { odooErrorMessage } from './odooErrors';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
@@ -124,6 +124,7 @@ export function OdooSetupChecklist() {
   const canSet = may.setValue;
   const active = Boolean(read && read.status === 'active');
   const proposal = useOdooJournalProposal(active && read!.activated).data;
+  const mapProposal = useOdooConfigProposal(active && read!.activated).data;
   const status = useOdooConnectStatus(active && read!.activated && may.manage);
   // Unread send state (loading or failed) holds the employ off: only a read that shows nothing waiting enables it.
   const sendsPending = !status.isSuccess || status.data.waitingForSend > 0;
@@ -137,7 +138,8 @@ export function OdooSetupChecklist() {
     { name: t('administration:odoo.checklist.activated', 'Company chosen'), done: read.activated, hint: t('administration:odoo.checklist.activatedHint', 'Pick the Odoo company PMO works with.') },
     { name: t('administration:odoo.checklist.capability', 'Odoo apps available'), done: read.activated && read.capabilities !== null && missing.length === 0,
       hint: missing.length ? t('administration:odoo.checklist.capabilityMissing', 'Missing: {{missing}}', { missing: missing.join(', ') }) : t('administration:odoo.checklist.capabilityHint', 'Checked when the company is chosen and on every re-check.') },
-    { name: t('administration:odoo.checklist.mapOnce', 'Map once'), done: Boolean(cfg.account_defaults && cfg.unit_map && cfg.default_warehouse_id), hint: t('administration:odoo.checklist.mapOnceHint', 'Accounts, units and the default warehouse, proposed together and accepted in one step.') },
+    // AC-ODC-080: Done when the saved mapping covers every unit the proposal listed — an org that lists no units needs no unit map. Before the proposal read lands (or if it failed) the saved map must exist on its own.
+    { name: t('administration:odoo.checklist.mapOnce', 'Map once'), done: Boolean(cfg.account_defaults && cfg.default_warehouse_id) && (mapProposal ? mapProposal.units.every((u) => u.mapped) : Boolean(cfg.unit_map)), hint: t('administration:odoo.checklist.mapOnceHint', 'Accounts, units and the default warehouse, proposed together and accepted in one step.') },
     { name: t('administration:odoo.checklist.journal', 'Payment journal'), done: Boolean(cfg.default_payment_journal_id), hint: t('administration:odoo.checklist.journalHint', 'The bank or cash journal supplier payments are made from, unless Finance picks another.'),
       extra: <JournalDefault proposal={proposal} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.customerAdvance', 'Customer-advance account'), done: Boolean(cfg.customer_advance_account_ref), hint: t('administration:odoo.checklist.customerAdvanceHint', 'Choose the account that holds customer advances.'), extra: <AccountDefault kind="advance" value={String(cfg.customer_advance_account_ref ?? '')} canSet={canSet} /> },

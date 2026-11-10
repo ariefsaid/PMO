@@ -69,8 +69,10 @@ const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unk
 const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null), createLineItem: vi.fn() }));
 const mockRefreshBudgetQueries = vi.hoisted(() => vi.fn());
 
-const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
+const mockActivate = vi.fn().mockResolvedValue({ pushState: 'queued' });
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
+const mockReturn = vi.fn().mockResolvedValue(undefined);
+const mockResubmit = vi.fn().mockResolvedValue(undefined);
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
 const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
@@ -94,6 +96,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
     cloneVersion: { mutateAsync: mockClone, isPending: false },
     activate: { mutateAsync: mockActivate, isPending: false },
     archive: { mutateAsync: mockArchive, isPending: false },
+    returnVersion: { mutateAsync: mockReturn, isPending: false },
+    resubmitVersion: { mutateAsync: mockResubmit, isPending: false },
     deleteDraft: { mutateAsync: mockDeleteDraft, isPending: false },
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
     updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
@@ -120,6 +124,8 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
+    // #2065: a failed ledger-mode read now shows a notice, so the connection read must resolve (org not on Odoo).
+    odoo: { getConnection: () => Promise.resolve(null) },
     budget: {
       ...mockBudgetRepository,
       listArchiveTargets: (...args: unknown[]) => mockListArchiveTargets(...args),
@@ -672,38 +678,49 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  // ── HIGH-C (Luna re-audit round 2): the push is a CONSEQUENCE of activation, never its precondition
-  //    (ADR-0059 §3.2) — so activation still SUCCEEDS when the push fails. But "swallowed" must mean
-  //    "recorded and surfaced", never "lost": a dispatch that never reached the edge function writes no
-  //    mirror row at all, the sweep backstop's queue IS that mirror, and the user was shown a plain
-  //    success while ERPNext kept enforcing the previous budget.
-  it('HIGH-C activation whose ERP push failed still succeeds, but SAYS SO instead of toasting a clean success', async () => {
+  it('AC-1413-UI1: an eligible approver sees Return next to Activate; the dialog needs a reason and sends it trimmed', async () => {
     roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    const toast = await findToastAnnouncement('alert', /activated/i);
-    expect(toast).toHaveTextContent(/ERPNext/i);
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Return to drafter$/i }));
+    expect(mockReturn).not.toHaveBeenCalled();
+    const confirm = screen.getByRole('button', { name: /^Return draft$/i });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(screen.getByRole('textbox', { name: /Reason for returning/i }), '  Split labour by quarter ');
+    await userEvent.click(confirm);
+    expect(mockReturn).toHaveBeenCalledWith({ versionId: 'v-draft', reason: 'Split labour by quarter' });
     resetState();
   });
 
-  it('clears an earlier activation warning when the operator starts another budget action', async () => {
+  it('AC-1413-UI2: Return is not offered to the drafter or to a non-approver role', () => {
     roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
     budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
+    const { unmount } = renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    unmount();
+    roleState.realRole = 'Project Manager';
     versionsState.data = [draftVersion];
     renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    resetState();
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    expect(await findToastAnnouncement('alert', /activated/i)).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
-    expect(screen.queryByText('Version activated, but ERPNext was not updated')).not.toBeInTheDocument();
+  it('AC-1413-UI3: a returned draft shows its reason, drops the waiting banner and Activate, and offers Resubmit', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, returned_at: '2026-01-02T00:00:00Z', returned_by: 'u3', return_reason: 'Split labour' }];
+    renderPage();
+    expect(screen.getByTestId('budget-returned-banner')).toHaveTextContent('Split labour');
+    expect(screen.queryByTestId('budget-draft-banner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Resubmit for approval$/i }));
+    expect(mockResubmit).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Resubmit for approval$/i }));
+    expect(mockResubmit).toHaveBeenCalledWith('v-draft');
     resetState();
   });
 
@@ -732,25 +749,16 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  /**
-   * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
-   * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
-   * attempt was made and there is nothing to retry.
-   */
-  it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
-    roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
-    budgetState.data = 0;
-    versionsState.data = [draftVersion];
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    const toast = await findToastAnnouncement('alert', /activated/i);
-    expect(toast).toHaveTextContent(/no budget lines/i);
-    // …and it does NOT tell the operator to retry a push that was never attempted.
-    expect(toast).not.toHaveTextContent(/retry/i);
-    resetState();
-  });
+  // ⚑ #1030: `activateVersion` resolves `pushState: 'queued'` unconditionally (ADR-0062), so the
+  // 'nothing-to-push' / 'pending-cancellation' / 'failed' ACTIVATION toasts are unreachable and were
+  // removed by 43d0e8f2e. The #1413 merge (fb7d9b954) restored this file's pre-43d0e8f2e side along
+  // with the toasts, so its two pinning tests came back with them; they mock a result the repository
+  // seam can never return. Their goal oracles ("nothing was sent" is never announced as a push; a
+  // cancellation-pending push reads as QUEUED, never as a clean success) live on the surface that now
+  // owns the outcome — pages/project-detail/budget/BudgetErpNotice.test.tsx:172 ("a retry with nothing
+  // to push says so — never that ERPNext is enforcing the budget") and :182 ("rm-1472/M-3 a retry
+  // while an earlier cancellation is still settling says the push is QUEUED"), plus :91 for the
+  // 'pending' → "Queued" label and src/hooks/useBudget.queuedPush.test.tsx for the #1030 seed.
 
   it('requires the current mode while confirming a sole-operator activation', async () => {
     roleState.realRole = 'Finance';

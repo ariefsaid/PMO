@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +50,11 @@ import {
   stageLabelForStatus,
 } from '@/src/lib/procurement/stage';
 import { procurementMoney, type ProcurementMoneyResult } from '@/src/lib/procurement/procurementMoney';
+import {
+  deriveProcurementRow,
+  groupErpDocumentsByProcurement,
+  type ProcurementRowDerivation,
+} from '@/src/lib/procurement/rowDerivations';
 import { allowedActions, sortActions, stateMainAction } from '@/src/lib/procurement/mainAction';
 import { purchaseHasValue } from '@/src/lib/procurement/purchaseValue';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
@@ -161,54 +166,7 @@ function nextStepText(
   }
 }
 
-function moneyFor(row: ProcurementWithRefs, erpDocuments: ReturnType<typeof useErpPurchases>['data'] = []) {
-  return procurementMoney({
-    total_value: row.total_value,
-    purchase_requests: row.purchase_requests,
-    purchase_orders: row.purchase_orders,
-    procurement_invoices: row.procurement_invoices,
-    payments: row.payments,
-    erpDocuments: (erpDocuments ?? [])
-      .filter((document) => document.procurementId === row.id)
-      .map((document) => ({ doctype: document.doctype, grand_total: document.grandTotal, outstanding_amount: document.outstanding })),
-  });
-}
-
-function datesFor(row: ProcurementWithRefs, erpDocuments: ReturnType<typeof useErpPurchases>['data'] = []) {
-  const linked = (erpDocuments ?? [])
-    .filter((document) => document.procurementId === row.id)
-    .map((document) => ({ doctype: document.doctype, docDate: document.docDate }));
-  return stageDates({
-    purchase_requests: row.purchase_requests,
-    purchase_orders: row.purchase_orders,
-    receipts: row.receipts,
-    invoices: row.procurement_invoices,
-    payments: (row.payments ?? []).filter((payment) => payment.status === 'Paid'),
-  }, linked);
-}
-
-function ageInCurrentStage(row: ProcurementWithRefs, erpDocuments: ReturnType<typeof useErpPurchases>['data'] = []): number {
-  const stage = stageForStatus(row.status);
-  const dates = datesFor(row, erpDocuments);
-  const stageStatuses: Record<typeof stage, ProcurementStatus[]> = {
-    Request: row.status === 'Draft' ? [] : [row.status],
-    Order: ['Ordered'],
-    Receive: ['Received'],
-    Pay: ['Vendor Invoiced', 'Paid'],
-  };
-  const lastStageEvent = (row.status_events ?? [])
-    .filter((event) => stageStatuses[stage].includes(event.to_status))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at;
-  const stageDate = lastStageEvent ?? (stage === 'Request' ? dates.request
-    : stage === 'Order' ? dates.order
-      : stage === 'Receive' ? dates.receive
-        : dates.pay);
-  const entered = stageDate ? new Date(stageDate).getTime() : new Date(row.created_at).getTime();
-  if (!Number.isFinite(entered)) return 0;
-  return Math.max(0, Math.floor((Date.now() - entered) / 86_400_000));
-}
-
-function moneyBasisText(kind: NonNullable<ReturnType<typeof moneyFor>['mostReal']>['kind'], t: (key: string, fallback: string) => string): string {
+function moneyBasisText(kind: NonNullable<ProcurementMoneyResult['mostReal']>['kind'], t: (key: string, fallback: string) => string): string {
   switch (kind) {
     case 'paid': return t('procurement.moneyBasis.paid', 'Paid');
     case 'invoiced': return t('procurement.moneyBasis.invoiced', 'Invoiced');
@@ -233,7 +191,7 @@ function unpaidText(money: ProcurementMoneyResult, currency: string, t: (key: st
 function stageTotals(
   rows: ProcurementWithRefs[],
   canSeeMoney: boolean,
-  erpDocuments: ReturnType<typeof useErpPurchases>['data'],
+  derivationFor: (row: ProcurementWithRefs) => ProcurementRowDerivation,
   defaultCurrency?: string | null,
 ): Map<ProcurementStage, CurrencyTotal[]> {
   const values = new Map<ProcurementStage, Map<string, number>>();
@@ -241,7 +199,7 @@ function stageTotals(
   for (const row of rows) {
     const stage = stageForStatus(row.status);
     if (!canSeeMoney) continue;
-    const amount = moneyFor(row, erpDocuments).mostReal?.amount;
+    const amount = derivationFor(row).money.mostReal?.amount;
     if (amount === undefined) continue;
     const currency = row.currency || '—';
     const currencyTotals = values.get(stage)!;
@@ -350,10 +308,25 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     pendingProcurementApprovals([row], currentUser?.id, role === 'Admin').length > 0,
   [canApprove, currentUser?.id, role]);
   const erp = useErpPurchases(projectId, { enabled: canSeeMoney });
+  // #2101: one grouping pass per ERP data change, then one derivation per row — read by cells,
+  // export accessors, the value/age comparators and the stage totals instead of 17 rescans.
+  const erpDocuments = erp.data;
+  const erpByProcurement = useMemo(() => groupErpDocumentsByProcurement(erpDocuments), [erpDocuments]);
+  const derivations = useMemo(() => {
+    const byId = new Map<string, ProcurementRowDerivation>();
+    for (const row of scopedRows) byId.set(row.id, deriveProcurementRow(row, erpByProcurement.get(row.id) ?? []));
+    return byId;
+  }, [scopedRows, erpByProcurement]);
+  const derivationFor = useCallback((row: ProcurementWithRefs): ProcurementRowDerivation => (
+    derivations.get(row.id) ?? deriveProcurementRow(row, erpByProcurement.get(row.id) ?? [])
+  ), [derivations, erpByProcurement]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [selectedStage, setSelectedStage] = useState<ProcurementStage | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // The input keeps the value the user just typed; the expensive filter/derive pass reads the
+  // deferred copy, so a keystroke never waits on the 300-row recompute (#2101).
+  const deferredSearch = useDeferredValue(search);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
   const [sort, setSort] = useState<SortState>();
@@ -405,18 +378,18 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       if (categoryFilter && categoryFilter !== UNCATEGORIZED_FILTER && row.budget_category !== categoryFilter) return false;
       if (ownerFilter === UNASSIGNED_FILTER && row.requested_by_id) return false;
       if (ownerFilter && ownerFilter !== UNASSIGNED_FILTER && row.requested_by_id !== ownerFilter) return false;
-        return matchesSearch(row, search);
+        return matchesSearch(row, deferredSearch);
     });
     if (!sort) return filtered;
     const direction = sort.dir === 'asc' ? 1 : -1;
-    // #1459: money and age-in-stage are read once per row, never once per comparison.
+    // #1459/#2101: money and age-in-stage come from the row's cached derivation, never a rescan.
     const sortValue = (row: ProcurementWithRefs): number | string => {
       switch (sort.key) {
         case 'title': return row.title;
         case 'category': return categoryLabel(row.budget_category);
-        case 'value': return moneyFor(row, erp.data).mostReal?.amount ?? 0;
+        case 'value': return derivationFor(row).money.mostReal?.amount ?? 0;
         case 'stage': return statusText(row.status, t);
-        case 'age': return ageInCurrentStage(row, erp.data);
+        case 'age': return derivationFor(row).age;
         case 'owner': return row.requested_by?.full_name ?? '';
         default: return row.updated_at;
       }
@@ -430,13 +403,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         : String(left).localeCompare(String(right));
       return comparison * direction;
     });
-  }, [rows, selectedStage, categoryFilter, ownerFilter, search, sort, t, categoryLabel, erp.data]);
+  }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, t, categoryLabel, derivationFor]);
 
   const selectedRows = rows.filter((row) => selectedIds.has(row.id));
   const visibleIds = filteredRows.map((row) => row.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const projectCurrency = project?.currency ?? rows[0]?.currency ?? null;
-  const totalsByStage = useMemo(() => stageTotals(rows, canSeeMoney, erp.data, projectCurrency), [rows, canSeeMoney, erp.data, projectCurrency]);
+  const totalsByStage = useMemo(() => stageTotals(rows, canSeeMoney, derivationFor, projectCurrency), [rows, canSeeMoney, derivationFor, projectCurrency]);
 
   const toggleVisibleSelection = () => setSelectedIds((current) => {
     const next = new Set(current);
@@ -530,12 +503,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   };
 
   const stageDateTooltip = useCallback((row: ProcurementWithRefs) => {
-    const dates = datesFor(row, erp.data);
+    const dates = derivationFor(row).dates;
+    const linked = erpByProcurement.get(row.id) ?? [];
     const steps = [
       { key: 'Request' as const, date: dates.request },
       { key: 'Order' as const, date: dates.order },
       { key: 'Receive' as const, date: dates.receive },
-      { key: payStepLabel(Boolean(row.payments?.some((payment) => payment.status === 'Paid')) || (erp.data ?? []).some((document) => document.procurementId === row.id && document.doctype === 'Payment Entry')), date: dates.pay },
+      { key: payStepLabel(Boolean(row.payments?.some((payment) => payment.status === 'Paid')) || linked.some((document) => document.doctype === 'Payment Entry')), date: dates.pay },
     ];
     const done = steps.filter((step) => step.date);
     if (done.length === 0) return t('procurement.noStepDates', 'No step dates recorded yet.');
@@ -548,11 +522,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         ))}
       </div>
     );
-  }, [t, erp.data]);
+  }, [t, derivationFor, erpByProcurement]);
 
   /** One amount per row; the unpaid balance remains available in its tooltip. */
   const rowAmount = useCallback((row: ProcurementWithRefs, inline = false) => {
-    const money = moneyFor(row, erp.data);
+    const money = derivationFor(row).money;
     const amount = money.mostReal?.amount;
     const unpaid = unpaidVisibleToRole(role) ? unpaidText(money, row.currency, t) : null;
     const tip = [
@@ -571,7 +545,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         </Tooltip>
       </span>
     );
-  }, [erp.data, role, t]);
+  }, [derivationFor, role, t]);
 
   const columns = useMemo<Column<ProcurementWithRefs>[]>(() => {
     // Owner tidy ruling 2026-10-29: when every row in view is uncategorized the
@@ -586,7 +560,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       minSize: 105,
       sortKey: 'value',
       cell: (row) => rowAmount(row),
-      exportValue: (row) => moneyFor(row, erp.data).mostReal?.amount ?? '',
+      exportValue: (row) => derivationFor(row).money.mostReal?.amount ?? '',
     };
     const settlementColumn: Column<ProcurementWithRefs> = {
       key: 'settlement',
@@ -595,7 +569,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       size: 134,
       minSize: 126,
       cell: (row) => {
-        const money = moneyFor(row, erp.data);
+        const money = derivationFor(row).money;
         if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return <span className="text-muted-foreground">—</span>;
         const paid = money.paid.amount ?? 0;
         const percent = Math.max(0, Math.min(100, (paid / money.invoiced.amount) * 100));
@@ -611,7 +585,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         );
       },
       exportValue: (row) => {
-        const money = moneyFor(row, erp.data);
+        const money = derivationFor(row).money;
         return money.invoiced.unknown || money.paid.unknown ? '' : `${money.paid.amount ?? 0} / ${money.invoiced.amount ?? 0}`;
       },
     };
@@ -636,7 +610,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         sortKey: 'title',
         cell: (row) => {
           const isExpanded = expandedId === row.id;
-          const rowMoney = moneyFor(row, erp.data);
+          const rowMoney = derivationFor(row).money;
           const rowValue = rowMoney.mostReal?.amount ?? Number(row.total_value ?? 0);
           const items = detailQuery.data?.id === row.id ? detailQuery.data.items : [];
           return (
@@ -721,7 +695,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         minSize: 68,
         sortKey: 'age',
         cell: (row) => {
-          const days = ageInCurrentStage(row, erp.data);
+          const days = derivationFor(row).age;
           return (
             <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}>
               <span tabIndex={0} className={`rounded-sm tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${days > 30 && row.status !== 'Paid' ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
@@ -730,7 +704,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             </Tooltip>
           );
         },
-        exportValue: (row) => ageInCurrentStage(row, erp.data),
+        exportValue: (row) => derivationFor(row).age,
       },
       {
         key: 'owner',
@@ -755,7 +729,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount, filteredRows]);
+  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount, filteredRows]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -782,7 +756,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
 
   const drawerDetails = detailQuery.data;
   const documents = drawerDetails ? recordDocuments(drawerDetails, t) : [];
-  const drawerErpDocuments = (erp.data ?? []).filter((document) => document.procurementId === selected?.id);
+  const drawerErpDocuments = selected ? erpByProcurement.get(selected.id) ?? [] : [];
   const drawerMoney = selected ? procurementMoney({
     total_value: selected.total_value,
     purchase_requests: drawerDetails?.purchase_requests ?? selected.purchase_requests,
@@ -909,7 +883,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           // L3: a phone row reads title · stage · one amount · next step; age and raiser ride along unlabelled.
           const next = TERMINAL_STATUSES.includes(row.status) ? null : nextStepText(row.status, canDecideRow(row), t);
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
-          const days = ageInCurrentStage(row, erp.data);
+          const days = derivationFor(row).age;
           return (
             <div className="space-y-1.5">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -1105,7 +1079,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <div className="text-xs text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
                 <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}>
                   <span tabIndex={0} className="inline-flex rounded-sm tabular text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                    {t('procurement.ageInStageDays', '{{count}}d', { count: ageInCurrentStage(selected, erp.data) })}
+                    {t('procurement.ageInStageDays', '{{count}}d', { count: selected ? derivationFor(selected).age : 0 })}
                   </span>
                 </Tooltip>
               </div>

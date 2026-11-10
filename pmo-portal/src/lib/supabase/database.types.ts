@@ -1480,6 +1480,9 @@ export type Database = {
           name: string
           org_id: string
           project_id: string
+          return_reason: string | null
+          returned_at: string | null
+          returned_by: string | null
           status: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1497,6 +1500,9 @@ export type Database = {
           name: string
           org_id?: string
           project_id: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1514,6 +1520,9 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version?: number
         }
@@ -11547,6 +11556,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_equipment_asset_matches: { Args: { p_pairs: Json }; Returns: Json }
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
       apply_native_receipt: {
         Args: {
@@ -11922,6 +11932,21 @@ export type Database = {
           version: number
           work_rate: number
           work_units: number
+        }[]
+      }
+      list_equipment_asset_matches: {
+        Args: never
+        Returns: {
+          action: string
+          asset_code: string
+          asset_id: string
+          asset_name: string
+          external_id: string
+          kind: string
+          odoo_code: string
+          odoo_name: string
+          reason: string
+          ref: string
         }[]
       }
       list_equipment_costing: {
@@ -14488,6 +14513,16 @@ export type Database = {
         }
         Returns: string
       }
+      record_odoo_asset_created: {
+        Args: {
+          p_asset_id: string
+          p_default_unit: string
+          p_kind: string
+          p_org_id: string
+          p_row: Json
+        }
+        Returns: undefined
+      }
       record_outbox_ref: {
         Args: {
           p_domain: string
@@ -14597,6 +14632,14 @@ export type Database = {
       request_imprest_replenishment: {
         Args: { p_float: string; p_kind?: string }
         Returns: string
+      }
+      resubmit_budget_version: {
+        Args: { version_id: string }
+        Returns: undefined
+      }
+      return_budget_version: {
+        Args: { reason: string; version_id: string }
+        Returns: undefined
       }
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }

@@ -117,8 +117,24 @@ describe('useBudgetMutations', () => {
       await result.current.activate.mutateAsync('v-1');
     });
 
-    expect(activateVersion).toHaveBeenCalledWith('v-1');
+    expect(activateVersion).toHaveBeenCalledWith('v-1', expect.any(Function));
     expectBothKeysInvalidated(qc);
+  });
+
+  it('AC-APU-030 the background push settling re-reads the budget push status', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    qc.setQueryData(['budget-push-status', 'p-1'], []);
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.activate.mutateAsync('v-1');
+    });
+    const key = ['budget-push-status', 'p-1'];
+    qc.getQueryCache().find({ queryKey: key, exact: true })!.setState({ isInvalidated: false } as never);
+    const onPushSettled = vi.mocked(activateVersion).mock.calls[0][1] as () => void;
+    act(() => onPushSettled());
+
+    expect(qc.getQueryCache().find({ queryKey: key, exact: true })?.state.isInvalidated).toBe(true);
   });
 
   it('createVersion calls createBudgetVersion(projectId, name) and invalidates both keys (T13)', async () => {

@@ -5,7 +5,7 @@ import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({
   conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> },
-  proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true, manage: true },
+  proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true, manage: true }, cfg: { data: undefined as unknown },
   status: { isSuccess: true, data: { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} } as unknown },
   employ: vi.fn(),
   accounts: { data: { rows: [{ external_id: '210', name: 'Advance Liability', code: '210', attrs: {} }, { external_id: '88', name: 'Tax Prepayments', code: '1350', attrs: {} }], total: 2 }, isError: false },
@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooConnection: () => h.conn,
   useOdooJournalProposal: () => h.proposal,
+  useOdooConfigProposal: () => h.cfg,
   useOdooSetup: () => ({ mutateAsync: h.save, isPending: false }),
   useOdooConnectStatus: () => h.status,
   useOdooEmploy: () => ({ mutateAsync: h.employ, isPending: false }),
@@ -107,9 +108,31 @@ it('FR-ODC-110 ERPNext owning companies does not complete the Odoo employ step, 
   expect(doneOf('Map once')).toBe(false);
 });
 
+// AC-ODC-080: the map-once proposal lists the units PMO uses; a saved mapping must cover exactly those, and an org that lists none needs no unit map.
+const mapRead = { proposals: [], accounts: [], uoms: [], warehouses: [], attention: [], current: { account_defaults: {}, unit_map: {}, default_warehouse_id: null } };
+const unitsLeft = (units: Array<{ unit: string; mapped: boolean }>) => ({ ...mapRead, units });
+it('AC-ODC-080 an org that uses no units finishes Map once with the account defaults and the warehouse alone', () => {
+  h.conn.data = read({ account_defaults: { payable: 1 }, default_warehouse_id: 3 });
+  h.cfg.data = unitsLeft([]);
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Map once')).toBe(true);
+});
+it('AC-ODC-080 a unit the proposal listed but the saved map does not cover keeps Map once To do', () => {
+  h.conn.data = read({ account_defaults: { payable: 1 }, default_warehouse_id: 3 });
+  h.cfg.data = unitsLeft([{ unit: 'm', mapped: false }]);
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Map once')).toBe(false);
+});
+it('AC-ODC-080 Map once is Done when the saved map covers every listed unit', () => {
+  h.conn.data = read({ account_defaults: { payable: 1 }, unit_map: { m: 2 }, default_warehouse_id: 3 });
+  h.cfg.data = unitsLeft([{ unit: 'm', mapped: true }]);
+  render(<OdooSetupChecklist />);
+  expect(doneOf('Map once')).toBe(true);
+});
+
 describe('AC-OPP-081 / P8-T5 the payment journal default', () => {
   const cands = [{ id: '9', code: 'BNK1', name: 'Bank BCA' }, { id: '4', code: 'CSH', name: 'Petty cash' }];
-  beforeEach(() => { h.save.mockReset(); h.can.setValue = true; h.proposal.data = undefined; h.owned.data = []; });
+  beforeEach(() => { h.save.mockReset(); h.can.setValue = true; h.proposal.data = undefined; h.cfg.data = undefined; h.owned.data = []; });
 
   it('is done when the binding holds a default journal, and names it when the proposal read can', () => {
     h.conn.data = read({ default_payment_journal_id: 9 });
@@ -193,6 +216,7 @@ describe('AC-ODS-005 let Odoo manage vendors and clients', () => {
     h.owned.data = [];
     h.conn.data = read({});
     h.proposal.data = undefined;
+    h.cfg.data = undefined;
     h.status.isSuccess = true;
     h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
   });
@@ -255,6 +279,7 @@ describe('AC-ODS-006 send purchases to Odoo', () => {
     h.owned.data = [];
     h.conn.data = read({});
     h.proposal.data = undefined;
+    h.cfg.data = undefined;
     h.status.isSuccess = true;
     h.status.data = { run: { id: 'r', state: 'ready', finished_at: null, error_class: null }, census: [], waitingForSend: 0, proposalCounts: {} };
   });
