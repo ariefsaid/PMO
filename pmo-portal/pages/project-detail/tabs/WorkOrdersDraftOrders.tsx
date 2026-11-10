@@ -6,7 +6,7 @@ import {
   MenuButton,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 
 /** The draft-orders list on the work orders tab — draft rows stay out of the issued register. */
@@ -53,13 +53,13 @@ const WorkOrdersDraftOrders: React.FC<{
                 {row.wo_number ?? row.title}
               </button>
               {row.wo_number && <span className="ml-2 text-sm text-muted-foreground">{row.title}</span>}
-              {row.client_po_number && <span className="ml-3 text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
-              {row.order_date && <span className="ml-3 text-xs text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDateOnly(row.order_date)}</span>}
+              {row.client_po_number && <span className="ml-3 text-sm text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
+              {row.order_date && <span className="ml-3 text-sm text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDay(row.order_date)}</span>}
             </div>
             <div className="flex flex-wrap items-center gap-1">
               {canEdit && <Button variant="ghost" size="sm" onClick={() => onEdit(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
               {canSetValue && <Button variant="ghost" size="sm" onClick={() => onSetValue(row)}>{t('projectDetail.workOrders.action.setValue', 'Set value')}</Button>}
-              {issueBlocked && canTransition ? <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">{issueGateBody}</GateNotice>
+              {issueBlocked && canTransition ? <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-sm">{issueGateBody}</GateNotice>
                 : canTransition && <Button variant="ghost" size="sm" onClick={() => onIssue(row)}>{t('projectDetail.workOrders.action.issue', 'Issue')}</Button>}
               {canTransition && <Button variant="ghost" size="sm" className="text-destructive-text" onClick={() => onCancel(row)}>{t('projectDetail.workOrders.action.cancelGeneric', 'Cancel')}</Button>}
               <MenuButton ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} items={[

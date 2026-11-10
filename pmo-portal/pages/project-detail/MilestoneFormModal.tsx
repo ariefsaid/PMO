@@ -152,14 +152,6 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
           ? t('projectDetail.milestoneForm.editTitle', 'Edit phase')
           : t('projectDetail.milestoneForm.newTitle', 'New phase')
       }
-      subtitle={
-        isEdit
-          ? t('projectDetail.milestoneForm.editSubtitle', 'Update this phase')
-          : t(
-              'projectDetail.milestoneForm.newSubtitle',
-              'Add a delivery phase to this project',
-            )
-      }
       submitLabel={
         isEdit
           ? t('projectDetail.milestoneForm.save', 'Save phase')
@@ -237,7 +229,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
             />
           )}
           {!isEdit && (
-            <p className="col-span-full text-[12px] text-muted-foreground">
+            <p className="col-span-full text-sm text-muted-foreground">
               {t(
                 'projectDetail.milestoneForm.progressCreateHelper',
                 'Progress comes from this phase’s linked tasks. You can set an override after creating it.',

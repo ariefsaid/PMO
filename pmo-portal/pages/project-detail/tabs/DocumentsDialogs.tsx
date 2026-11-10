@@ -25,7 +25,7 @@ export function transitionActionLabel(to: DocStatus, t: TFunction): string {
     case 'Draft':
       return t('projectDetail.documents.action.reopen', 'Reopen for revision');
     default:
-      return t('projectDetail.documents.action.close', 'Close');
+      return t('projectDetail.documents.action.close', 'Close document');
   }
 }
 

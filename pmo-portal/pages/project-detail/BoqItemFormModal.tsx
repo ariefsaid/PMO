@@ -118,7 +118,6 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
       title={item
         ? t('projectDetail.billing.boqForm.titleEdit', 'Edit bill of quantities line')
         : t('projectDetail.billing.boqForm.titleNew', 'Add a bill of quantities line')}
-      subtitle={t('projectDetail.billing.boqForm.subtitle', 'Rates exclude tax. Work orders take quantities from a line when you allocate it.')}
       submitLabel={t('projectDetail.billing.boqForm.save', 'Save line')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -157,6 +156,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
             value={lineNoField.value} onChange={lineNoField.onChange} onBlur={lineNoField.onBlur} error={lineNoField.error} />
         </FormGrid>
       </FormSection>
+      <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.boqForm.subtitle', 'Rates exclude tax. Work orders take quantities from a line when you allocate it.')}</p>
     </EntityFormModal>
   );
 };

@@ -210,17 +210,6 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           ? t('projectDetail.workOrderForm.editTitle', 'Edit work order')
           : t('projectDetail.workOrderForm.newTitle', 'New work order')
       }
-      subtitle={
-        isEdit
-          ? t(
-              'projectDetail.workOrderForm.editSubtitle',
-              'Only a draft can be edited. The value and its tax basis are set separately, so the person who set them is recorded.',
-            )
-          : t(
-              'projectDetail.workOrderForm.newSubtitle',
-              'Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.',
-            )
-      }
       submitLabel={
         isEdit
           ? t('projectDetail.workOrderForm.save', 'Save work order')
@@ -342,6 +331,15 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           </FormGrid>
         </FormSection>
       )}
+      <p className="mt-3 text-sm text-muted-foreground">{isEdit
+          ? t(
+              'projectDetail.workOrderForm.editSubtitle',
+              'Only a draft can be edited. The value and its tax basis are set separately, so the person who set them is recorded.',
+            )
+          : t(
+              'projectDetail.workOrderForm.newSubtitle',
+              'Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.',
+            )}</p>
     </EntityFormModal>
   );
 };

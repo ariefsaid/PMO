@@ -17,7 +17,7 @@ import { useOptimisticMoves } from '@/src/components/kanban/useOptimisticMoves';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { BOARD_STATUSES, daysLate, isOverdue } from './taskViewModel';
 
 // ── Card menu (Base UI Menu: focus, arrow keys, Escape, positioning come from the library) ──
@@ -109,7 +109,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
       renderOverlay={(id) => (
         // The card being held, at its own width (dnd-kit sizes the overlay to the source card).
         <div className="w-full min-w-0 rounded-md border border-border bg-card px-3 py-2.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-          <span className="block whitespace-normal break-words text-[13px] font-semibold leading-snug">{byId.get(id)?.name}</span>
+          <span className="block whitespace-normal break-words text-sm font-semibold leading-snug">{byId.get(id)?.name}</span>
         </div>
       )}
     >
@@ -132,7 +132,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             {col.map((task) => <DraggableCard key={task.id} id={task.id} disabled={!canSetStatus(task)} moveState={moves.stateOf(task.id)}>
             <div onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
               <div className="flex items-start justify-between gap-2">
-                <button type="button" aria-label={t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })} onClick={(event) => { event.stopPropagation(); onActivate(task); }} className="min-w-0 text-left text-[13px] font-semibold leading-snug hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                <button type="button" aria-label={t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })} onClick={(event) => { event.stopPropagation(); onActivate(task); }} className="min-w-0 text-left text-sm font-semibold leading-snug hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                   <span className="block whitespace-normal break-words">{task.name}</span>
                 </button>
                 <div className="flex shrink-0 items-center gap-1">
@@ -140,19 +140,19 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   <TaskCardMenu items={cardMenu(task)} />
                 </div>
               </div>
-              <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <div className="mt-2 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
                 {task.assignee ? <>
                   <Avatar name={task.assignee.full_name} size="xs" decorative fallback="" />
                   <span className="truncate">{task.assignee.full_name}</span>
                 </> : t('projectDetail.tasks.unassigned', 'Unassigned')}
                 {task.end_date && <Tooltip content={t('projectDetail.tasks.dueTooltip', 'Due date from the task record. Late days compare the due date with today in the organization timezone.')}>
                   <span tabIndex={0} className={`ml-auto shrink-0 tabular ${isOverdue(task, today) ? 'text-destructive-text' : ''}`}>
-                    {isOverdue(task, today) ? t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: daysLate(task.end_date, today) }) : formatDateOnly(task.end_date)}
+                    {isOverdue(task, today) ? t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: daysLate(task.end_date, today) }) : formatDay(task.end_date)}
                   </span>
                 </Tooltip>}
               </div>
               {moves.stateOf(task.id) === 'saving' && (
-                <p className="mt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
               )}
             </div>
             </DraggableCard>)}

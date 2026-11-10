@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, ConfirmDialog, TextArea, Toolbar, useToast } from '@/src/components/ui';
+import { Button, Checkbox, ConfirmDialog, ReasonDialog, Toolbar, useToast } from '@/src/components/ui';
 import { useBudgetArchiveTargets, useBudgetMutations, useBudgetActivationPrecheck } from '@/src/hooks/useBudget';
 import { repositories } from '@/src/lib/repositories';
 import type { BudgetArchiveTarget, BudgetVersionWithItems } from '@/src/lib/db/budgets';
@@ -72,7 +72,6 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   const queryClient = useQueryClient();
   const [newVersionName, setNewVersionName] = useState('');
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
-  const [returnReason, setReturnReason] = useState('');
   const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
   const versionLabel = (id: string): string => {
     const version = versions.find((item) => item.id === id);
@@ -88,7 +87,6 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   };
   const requestReturn = (id: string) => {
     if (!canReturn || draftVersion?.id !== id) return;
-    setReturnReason('');
     setPendingConfirm({ kind: 'return', id, label: versionLabel(id) });
   };
   const requestResubmit = (id: string) => {
@@ -114,7 +112,7 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
     setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
   };
 
-  const commitBudgetConfirm = async () => {
+  const commitBudgetConfirm = async (reasonOverride?: string) => {
     const confirm = pendingConfirm;
     if (!confirm) return;
     try {
@@ -144,8 +142,8 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
           break;
         }
         case 'return':
-          if (!canReturn || draftVersion?.id !== confirm.id || !returnReason.trim()) return;
-          await mutations.returnVersion.mutateAsync({ versionId: confirm.id, reason: returnReason.trim() });
+          if (!canReturn || draftVersion?.id !== confirm.id || !(reasonOverride ?? '').trim()) return;
+          await mutations.returnVersion.mutateAsync({ versionId: confirm.id, reason: (reasonOverride ?? '').trim() });
           setPendingConfirm(null);
           toast(t('projectDetail.budget.draftReturnedToast', 'Draft returned'), confirm.label, 'success');
           break;
@@ -234,20 +232,7 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
       ...(!canActivate && activateBlockedReason ? [activateBlockedReason] : []),
       ...readinessMessages,
     ].join(' ');
-      case 'return': return (
-      <div className="flex flex-col gap-3">
-        <p>{t('projectDetail.budget.returnVersionDescription', '{{version}} goes back to its drafter and leaves the approval queue until it is resubmitted.', { version: confirm.label })}</p>
-        <TextArea
-          label={t('projectDetail.budget.returnReasonLabel', 'Reason for returning')}
-          helper={t('projectDetail.budget.returnReasonHelper', 'The drafter sees this reason. Their changes are kept and the draft stays editable.')}
-          value={returnReason}
-          onChange={setReturnReason}
-          maxLength={1000}
-          required
-          fullWidth
-        />
-      </div>
-    );
+      case 'return': return null;
       case 'resubmit': return t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.');
       case 'clone': return t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: confirm.label });
       case 'archive': return (
@@ -302,7 +287,17 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
     const exhaustive: never = confirm;
     return exhaustive;
   };
-  const budgetConfirm = pendingConfirm && (
+  const budgetConfirm = pendingConfirm && (pendingConfirm.kind === 'return' ? (
+    <ReasonDialog
+      open
+      kind="return"
+      subject={t('projectDetail.budget.returnSubject', 'draft budget')}
+      context={<p className="text-sm text-foreground">{pendingConfirm.label}</p>}
+      loading={confirmInFlight}
+      onConfirm={(reason) => void commitBudgetConfirm(reason)}
+      onCancel={() => setPendingConfirm(null)}
+    />
+  ) : (
     <ConfirmDialog
       open
       tone={confirmCopy[pendingConfirm.kind].tone}
@@ -310,12 +305,12 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
-      confirmDisabled={(pendingConfirm.kind === 'return' && !returnReason.trim()) || (pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || hasOpenLineBuffers || pendingConfirm.id !== draftVersion?.id))}
+      confirmDisabled={pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || hasOpenLineBuffers || pendingConfirm.id !== draftVersion?.id)}
       restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-primary-action, #budget-versions-trigger')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
     />
-  );
+  ));
 
   const newVersionForm = renderNewVersionForm({ onSubmit: requestCreate, onCancel: () => setShowNewVersionForm(false), value: newVersionName, onChange: setNewVersionName, t });
   return { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem };
@@ -340,7 +335,7 @@ const renderNewVersionForm = ({ onSubmit, onCancel, value, onChange, t }: {
       placeholder={t('financeCopy.versionNameEGBudgetV1', "Version name (e.g. Budget v1)")}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       autoFocus
     />
     <Button variant="primary" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}>

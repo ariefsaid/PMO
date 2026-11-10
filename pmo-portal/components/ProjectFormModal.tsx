@@ -459,7 +459,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             }}
             onBlur={shortNameField.onBlur}
             error={shortNameConflict ? shortNameDuplicate : undefined}
-            helper={t('projects:shortName.hint', 'Shown in lists. Contract name is unchanged.')}
           />
 
           <Combobox
@@ -565,7 +564,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 mono
               />
               {numberProposal.status === 'loading' && (
-                <p role="status" aria-live="polite" className="text-[12px] text-muted-foreground">
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
                   {t('projectForm.projectNumber.loading', 'Proposing a PMO Project Number…')}
                 </p>
               )}
@@ -584,7 +583,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={statusField.value}
                 onChange={(v) => statusField.onChange(v as ProjectStatus)}
                 options={originationOptions}
-                helper={t('projectForm.stage.helper', 'On-hand is reached only by winning a project in the pipeline, never created directly.')}
               />
               <NumberField
                 id={valueField.id}
@@ -596,7 +594,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 error={valueField.error}
                 localeAware
                 placeholder="0"
-                helper={t('projectForm.value.helper', 'Estimate, pre-win. Editable by Admin, Executive, and PM.')}
               />
               {/* #513: asked ONLY once a non-zero value is entered — a project originated at 0
                   states nothing and is asked nothing (migration 0197's conditional CHECK). No
@@ -632,7 +629,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   {taxIncomplete && (
                     <p
                       data-testid="project-tax-required-hint"
-                      className="col-span-full text-[12px] text-muted-foreground"
+                      className="col-span-full text-sm text-muted-foreground"
                     >
                       {t('projectForm.taxRequiredHint', CONTRACT_TAX_REQUIRED_HINT)}
                     </p>
@@ -707,7 +704,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         <PageHeader title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')} />
         <div className="rounded-lg border border-border bg-card px-5 py-4">
           {errorSummary.length > 0 && form.hasAttemptedSubmit && (
-            <div role="alert" className="mb-4 text-[12.5px] text-destructive-text">
+            <div role="alert" className="mb-4 text-sm text-destructive-text">
               {errorSummary.map((item) => (
                 <a key={item.message} href={`#${item.fieldId}`} className="block py-1 hover:underline">{item.message}</a>
               ))}
@@ -732,11 +729,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     <EntityFormModal
       open
       title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
-      subtitle={
-        isEdit
-          ? t('projectForm.subtitle.edit', 'Update the project header details')
-          : t('projectForm.subtitle.create', 'Create a project')
-      }
       submitLabel={submitLabel}
       onSubmit={handleSubmit}
       onClose={onClose}

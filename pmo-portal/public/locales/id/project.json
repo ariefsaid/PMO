@@ -333,7 +333,6 @@
         "claimError": "Tagihan gagal dimuat",
         "save": "Lampirkan",
         "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
-        "subtitle": "Pilih dokumen terbit atau disetujui dari register proyek ini, seperti laporan progres atau berita acara serah terima (BAST) klien.",
         "title": "Lampirkan bukti penagihan",
         "revision": "rev {{revision}}",
         "document": "Dokumen bukti"
@@ -477,14 +476,19 @@
       "invoicedOut": "Nilai difakturkan tidak ditampilkan sampai setiap jumlah faktur diketahui.",
       "paidOut": "Nilai dibayar tidak ditampilkan sampai setiap saldo faktur diketahui.",
       "cashIncomplete": "Kas diterima tidak ditampilkan sampai setiap penerimaan dialokasikan ke faktur.",
-      "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi."
+      "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi.",
+      "hiddenFigures": "Tidak ditampilkan: {{figures}}.",
+      "cashLead": "Diterima {{amount}}",
+      "contractLocked": "hanya baca",
+      "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
+      "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)"
     },
     "cost": {
       "estimateTitle": "Anggaran",
       "estimateTooltip": "Anggaran perkiraan dari catatan proyek; bukan versi anggaran aktif.",
       "noEstimate": "Belum ada anggaran perkiraan",
       "estimated": "Anggaran perkiraan {{amount}}",
-      "title": "Anggaran vs aktual",
+      "title": "Anggaran",
       "openBudgetArea": "Buka anggaran",
       "error": "Anggaran tidak dapat dimuat",
       "noBudget": "Belum ada anggaran aktif, jadi pengeluaran belum dapat dibandingkan.",
@@ -517,7 +521,8 @@
       "snapshotOver": "{{amount}} melebihi anggaran",
       "snapshotOverOnCommitments": "{{amount}} lebih begitu pesanan terikat masuk",
       "atRisk": "Berisiko",
-      "rowBudgetOnly": "{{budget}} dianggarkan"
+      "hiddenSpending": "pengeluaran belum terhubung",
+      "setUp": "Atur"
     },
     "milestones": {
       "currentPhaseLabel": "Fase saat ini",
@@ -526,7 +531,6 @@
     },
     "billingMilestones": {
       "title": "Milestone penagihan",
-      "subline": "Work order klien. Penagihan mengikuti tiap work order.",
       "error": "Gagal memuat milestone penagihan",
       "empty": "Belum ada work order.",
       "openContract": "Buka kontrak & penagihan",
@@ -584,8 +588,8 @@
       "contractValueReadOnlyExplanation": "Nilai kontrak yang disetujui dikunci bagi manajer proyek setelah proyek dimenangkan. Eksekutif, Finance, atau administrator dapat memperbaruinya dan perubahan tersebut akan dicatat.",
       "changeDeliveryStatus": "Ubah status pelaksanaan",
       "copyLink": "Salin tautan",
-        "previewFileFor": "Pratinjau berkas untuk {{title}}",
-        "previewFile": "Pratinjau berkas",
+      "previewFileFor": "Pratinjau berkas untuk {{title}}",
+      "previewFile": "Pratinjau berkas",
       "changeContractValue": "Ubah nilai kontrak"
     },
     "rail": {

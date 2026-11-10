@@ -12,6 +12,9 @@ import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useTasks } from '@/src/hooks/useTasks';
 import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
+// Chart ticks are the one place 12px is allowed.
+const sCurveTickStyle = { ...axisTickStyle, fontSize: 12 } as const;
+
 interface ProjectSCurveProps {
   projectId: string;
 }
@@ -117,7 +120,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 domain={['dataMin', 'dataMax']}
                 ticks={axisTicks}
                 tickFormatter={formatSCurveAxisDate}
-                tick={axisTickStyle}
+                tick={sCurveTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
                 minTickGap={32}
@@ -126,7 +129,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 domain={[0, 100]}
                 ticks={[0, 25, 50, 75, 100]}
                 tickFormatter={(v: number) => `${v}%`}
-                tick={axisTickStyle}
+                tick={sCurveTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
                 width={44}

@@ -1,9 +1,8 @@
 {
   "coverage": {
-    "readError": "Project spending could not be read.",
-    "unknown": "Actual is unknown on {{count}} of {{total}} projects.",
-    "partial": "Actual is partial on {{partial}} of {{total}} projects.",
-    "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
+    "hiddenNotLinked": "spending is not linked",
+    "hiddenReadError": "spending could not be read",
+    "setUp": "Set up"
   },
   "moneyFiguresUnavailable": "Some project financial figures are still being confirmed.",
   "actual": {
@@ -84,5 +83,13 @@
   "receiptWithholding": {
     "article": "Client withholding article",
     "articleHelper": "Pre-fills new receipts. Each receipt can change it."
-  }
+  },
+  "columns": {
+    "contractWithBasis": "Contract ({{basis}})"
+  },
+  "card": {
+    "actualInline": "{{amount}} actual"
+  },
+  "contractBasisNote": "Contract amounts are {{basis}}.",
+  "sharedManagerNote": "Project manager: {{name}}"
 }

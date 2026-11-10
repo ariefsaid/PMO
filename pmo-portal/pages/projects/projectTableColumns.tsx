@@ -1,16 +1,15 @@
 import type { TFunction } from 'i18next';
-import { Avatar } from '@/src/components/ui/Avatar';
 import { CompanyNameLink, ProgressBar, StatusPill, TaxBasisLabel, type Column } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { formatCurrency, formatInstantDate } from '@/src/lib/format';
-import { deriveActualPosition, deriveBudgetConsumption, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
+import { formatCurrency } from '@/src/lib/format';
+import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import type { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
-import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import { projectIconColor } from '../../components/projects';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 
 interface ProjectTableColumnInputs {
@@ -22,48 +21,48 @@ interface ProjectTableColumnInputs {
   moneyPending: boolean;
   moneyError: boolean;
   canViewMoney: boolean;
+  /** The signed-in user; a PM column that is only ever the viewer carries nothing and is dropped. */
+  viewerId?: string | null;
   isAtRiskActual: (project: ProjectWithRefs) => boolean;
   onOpen: (project: ProjectWithRefs) => void;
   onPrefetch?: (id: string) => void;
-  projectStatusLabel: (status: string) => string;
   t: TFunction;
 }
 
 export function projectTableColumns({ filtered, deliverySummary, deliveryPending, deliveryError, projectMoney,
-  moneyPending, moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch, projectStatusLabel, t }: ProjectTableColumnInputs) {
+  moneyPending, moneyError, canViewMoney, viewerId, isAtRiskActual, onOpen, onPrefetch, t }: ProjectTableColumnInputs) {
   const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
   const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
-  // ONE table-level coverage note (AC-RD-TBL-PROJ-001): the count of ERP rows with an unmapped or
-  // amount-less category, and the newest ERP update among the visible rows.
-  const partialRows = filtered.filter((project) => {
-    const money = projectMoney?.[project.id];
-    return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+  // #2060: the table renders the SAME Actual the Cards view does, from the same collection read.
+  const actualPosition = (project: ProjectWithRefs) => deriveCollectionActual({
+    projectCurrency: project.currency,
+    money: projectMoney?.[project.id],
+    moneyPending,
+    moneyError,
   });
-  const unknownActualRows = filtered.filter((project) => {
-    const money = projectMoney?.[project.id];
-    return money?.actuals.total == null || (money.ledgerBasis === 'pmo'
-      && (money.actuals.complete === false || money.actuals.currency !== project.currency));
-  });
-  const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
-    const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
-    return asOf && (!latest || asOf > latest) ? asOf : latest;
-  }, null);
-  const coverageReason = moneyPending
-    ? undefined
-    : moneyError
-      ? t('projects:coverage.readError', 'Project spending could not be read.')
-      : partialRows.length > 0
-      ? coverageAsOf
-        ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatInstantDate(coverageAsOf) })
-        : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length })
-      : unknownActualRows.length > 0
-        ? t('projects:coverage.unknown', 'Actual is unknown on {{count}} of {{total}} projects.', { count: unknownActualRows.length, total: filtered.length })
-        : undefined;
+  // The Actual column drops itself when no row has a figure. Say why once, on the page's hidden-figures
+  // line, instead of a sentence about a column that is not there. A role whose money read never runs
+  // (no data, no error) has nothing to set up, so it gets no line.
+  const actualHidden = !moneyPending && (moneyError || projectMoney !== undefined) && filtered.length > 0
+    && filtered.every((project) => {
+      const position = actualPosition(project);
+      return !position.text && !position.restricted;
+    });
+  const actualHiddenReason = !actualHidden ? null : moneyError
+    ? t('projects:coverage.hiddenReadError', 'spending could not be read')
+    : t('projects:coverage.hiddenNotLinked', 'spending is not linked');
+  // One tax basis across the visible contracts is said once, in the header; a mix keeps it on each figure.
+  const bases = [...new Set(filtered.map((p) => p.tax_treatment).filter((x): x is NonNullable<typeof x> => x === 'inclusive' || x === 'exclusive'))];
+  const sharedBasis = bases.length === 1
+    ? bases[0] === 'inclusive' ? t('tax.basis.inclusive', 'incl. PPN') : t('tax.basis.exclusive', 'excl. PPN')
+    : null;
   // The money-view-gated Contract column (see `canViewMoney`). A typed const — not an inline
   // conditional spread — so the surrounding array literal keeps its contextual `Column` typing.
   const contractColumn: Column<ProjectWithRefs> | null = canViewMoney ? {
     key: 'contract',
-    header: t('projects.columns.contract', 'Contract'),
+    header: sharedBasis
+      ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
+      : t('projects.columns.contract', 'Contract'),
     kind: 'money',
     size: 160,
     minSize: 152,
@@ -81,11 +80,13 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       return (
         <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
           <span>{formatCurrency(p.contract_value, p.currency)}</span>
-          <TaxBasisLabel
-            treatment={p.tax_treatment}
-            showDetails={false}
-            className="block max-w-full whitespace-normal break-words leading-tight"
-          />
+          {!sharedBasis && (
+            <TaxBasisLabel
+              treatment={p.tax_treatment}
+              showDetails={false}
+              className="block max-w-full whitespace-normal break-words leading-tight"
+            />
+          )}
           <span id={detailsId} className="sr-only">
             <TaxBasisLabel
               treatment={p.tax_treatment}
@@ -100,36 +101,12 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       );
     },
   } : null;
-  const actualProjection = (p: ProjectWithRefs): { text: string; exportText?: string; restricted?: boolean } => {
-    const money = projectMoney?.[p.id];
-    if (moneyPending || moneyError || !money) return { text: '' };
-    const actualPosition = deriveActualPosition({
-      ledgerBasis: money.ledgerBasis,
-      pmoSpent: money.ledgerBasis === 'pmo' && money.actuals.currency === p.currency ? money.actuals.total ?? undefined : undefined,
-      pmoSpentPending: moneyPending,
-      pmoSpentError: moneyError,
-      pmoSpentComplete: money.actuals.complete,
-      projectCurrency: p.currency,
-      actuals: {
-        currency: money.actuals.currency,
-        total: money.actuals.total,
-        as_of: money.actuals.asOf,
-        excludes_restricted_rows: money.actuals.excludesRestrictedRows,
-        categories: money.actuals.categories,
-      },
-    });
-    const actual = actualPosition.amount;
-    if (actual == null) {
-      // Incomplete coverage is explained once in the table caveat. Restricted rows have a
-      // distinct row-level cause, so keep that plain-language tag and omit the numeric slot.
-      return money.actuals.excludesRestrictedRows
-        ? { text: t('projects:actual.restrictedTag', 'Restricted excluded'), restricted: true }
-        : { text: '' };
-    }
-    const formatted = formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale(), { wholeUnits: true });
-    const currency = actualPosition.currency || p.currency;
-    const exact = formatExactMoney(actual, currency, getNumberLocale());
-    return { text: formatted || '', exportText: exact ? `${exact} ${currency}` : '' };
+  const actualProjection = (p: ProjectWithRefs) => {
+    const position = actualPosition(p);
+    // Restricted rows have a distinct row-level cause, so the export keeps the plain-language tag.
+    if (position.amount === null) return position.restricted ? { text: t('projects:actual.restrictedTag', 'Restricted excluded') } : { text: '', exportText: '' };
+    const exact = formatExactMoney(position.amount, position.currency, getNumberLocale());
+    return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
   };
   /**
    * #1739 / 0700: a "budget used" figure is budget CONSUMPTION, not spend. A PMO org consumes spent + open
@@ -180,13 +157,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         const ids = [p.pmo_project_number, p.code].filter(Boolean).join(' · ');
         return (
           <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
-            <CompanyNameLink companyId={p.client_id} name={p.client ? companyDisplayName(p.client) : null} className="inline max-w-[180px] align-baseline text-[12px]" />
-            {/* The ' · ' separator belongs to the desktop table's single-line cell. In the card
-                branch (<md) the client link is forced block (the truncate-to-block clip rule), so
-                the separator would lead its own wrapped line as a stray dot — hidden there; the
-                identifiers line reads clean (director fix). */}
-            {ids && <><span aria-hidden="true" className="hidden md:inline"> · </span>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
-            {p.end_client && <span className="block truncate text-[11px] text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
+            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="block max-w-full truncate" />}
+            {ids && <>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="block whitespace-nowrap font-mono" title={ids}>{ids}</span></>}
+            {p.end_client && <span className="block truncate text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
           </span>
         );
       },
@@ -196,7 +169,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
           <div className="flex min-w-0 items-start gap-2.5">
             <span
               aria-hidden
-              className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
+              className="grid size-7 shrink-0 place-items-center rounded-md text-sm font-bold text-white"
               style={{ background: projectIconColor() }}
             >
               {(projectDisplayName(p).trim().charAt(0) || '•').toUpperCase()}
@@ -233,8 +206,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
       kind: 'meta',
-      size: 112,
-      minSize: 112,
+      size: 160,
+      minSize: 128,
       maxSize: 320,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
@@ -245,35 +218,27 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         }),
-      // The compact initials avatar preserves the full PM name for assistive technology and hover.
       cell: (p) => {
-        if (p.project_manager_id == null) {
-          return <span className="text-[12px] text-muted-foreground">{t('projects.unassigned', 'Unassigned')}</span>;
-        }
-        const label = projectManagerLabel({
-          managerId: p.project_manager_id,
-          fullName: p.pm?.full_name,
-          unassignedLabel: t('projects.unassigned', 'Unassigned'),
-          unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
-        });
-        return (
-          // Left-aligned with the other card values (director fix): the avatar started at a
-          // different x than the Status pill and Contract amount inside the card's shared grid.
-          <span className="flex items-center">
-            <Avatar name={label} size="xs" />
-          </span>
-        );
+        const label = p.project_manager_id == null
+          ? t('projects.unassigned', 'Unassigned')
+          : projectManagerLabel({
+            managerId: p.project_manager_id,
+            fullName: p.pm?.full_name,
+            unassignedLabel: t('projects.unassigned', 'Unassigned'),
+            unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+          });
+        return <span className={p.project_manager_id == null ? 'text-muted-foreground' : undefined}>{label}</span>;
       },
     },
     {
       key: 'status',
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
-      size: 140,
-      minSize: 112,
-      maxSize: 220,
+      size: 190,
+      minSize: 170,
+      maxSize: 240,
       exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{projectStatusLabel(p.status as string)}</StatusPill>,
+      cell: (p) => <StatusPill record="project" state={p.status as string} />,
     },
     // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
     // money-view permission get no Contract column — and, since `withCurrencyColumn` only
@@ -283,8 +248,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     ...(contractColumn ? [contractColumn] : []),
     {
       key: 'actual',
-      // Kept while blank so a failed money read still shows its (unknown) state; the Projects sweep decides whether it may drop.
-      keepWhenBlank: true,
       header: t('projects.columns.actual', 'Actual'),
       kind: 'money',
       size: 160,
@@ -292,16 +255,21 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       maxSize: 320,
       align: 'num',
       colClassName: 'xl:pr-6',
-      caveat: coverageReason ? { reason: coverageReason } : undefined,
       exportValue: (p) => {
         const { text, exportText } = actualProjection(p);
         return exportText ?? text;
       },
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
+      // #2060: the figure is the collection read's own verdict (deriveCollectionActual), the same
+      // one the Cards view renders; where it is withheld the cell says so — the em dash — instead
+      // of a blank that reads as broken data. The table caveat carries the reason, once.
       cell: (p) => {
-        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
-        const actual = actualProjection(p);
-        return actual.text ? <span className={actual.restricted ? 'text-muted-foreground text-[11px]' : 'text-muted-foreground'}>{actual.text}</span> : null;
+        if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
+        const position = actualPosition(p);
+        if (position.text) return <span className="text-muted-foreground">{position.text}</span>;
+        // Restricted rows have a distinct row-level cause, so the tag names it and the numeric slot is omitted.
+        if (position.restricted) return <span className="text-muted-foreground text-sm">{t('projects:actual.restrictedTag', 'Restricted excluded')}</span>;
+        return '—';
       },
     },
     {
@@ -315,14 +283,14 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       exportValue: (p) => deliveryError || deliveryPending || deliverySummary?.[p.id]?.deliveryPct == null ? '' : Math.round(deliverySummary[p.id].deliveryPct!),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
-        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
+        if (deliveryError) return <span className="text-sm text-muted-foreground">—</span>;
         if (deliveryPending) {
-          return <span className="text-[12px] text-muted-foreground">…</span>;
+          return <span className="text-sm text-muted-foreground">…</span>;
         }
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
           const noPhases = t('projects.noPhasesYet', 'No phases yet');
-          return <span role="img" aria-label={noPhases} title={noPhases} className="text-[12px] text-muted-foreground">—</span>;
+          return <span role="img" aria-label={noPhases} title={noPhases} className="text-sm text-muted-foreground">—</span>;
         }
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
@@ -334,7 +302,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     },
     {
       key: 'budget-used',
-      keepWhenBlank: true, // see 'actual' above
       exportValue: budgetExport,
       header: t('projects.columns.budgetUsed', 'Budget used'),
       kind: 'money',
@@ -342,7 +309,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       minSize: 152,
       maxSize: 320,
       cell: (p) => {
-        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
+        if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
         const percent = budgetExport(p);
         if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
         const money = projectMoney![p.id]!;
@@ -366,6 +333,58 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   // Money-view-gated roles have no `contract` column at all, so this inserts no Currency column
   // either — their export carries neither the contract figure nor its currency qualifier.
   const exportColumns = withCurrencyColumn(visibleColumns, 'contract', (r) => r.currency);
-  return { visibleColumns, exportColumns };
+  // On screen, a PM column that only ever names the viewer says nothing. The download keeps it.
+  // One manager across every visible project is said once, above the list, and the column goes.
+  const pmIsViewer = viewerId != null && filtered.length > 0 && filtered.every((p) => p.project_manager_id === viewerId);
+  const pmOf = (p: ProjectWithRefs) => projectManagerLabel({
+    managerId: p.project_manager_id,
+    fullName: p.pm?.full_name,
+    unassignedLabel: t('projects.unassigned', 'Unassigned'),
+    unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
+  });
+  const onlyManagerId = filtered.length > 1 && filtered[0].project_manager_id != null && filtered.every((p) => p.project_manager_id === filtered[0].project_manager_id)
+    ? filtered[0].project_manager_id : null;
+  const sharedManager = !pmIsViewer && onlyManagerId != null ? pmOf(filtered[0]) : null;
+  const tableColumns = pmIsViewer || sharedManager ? visibleColumns.filter((column) => column.key !== 'pm') : visibleColumns;
+
+  // Phone cards: name; client · reference; status and progress; money. No repeated field labels.
+  const cellOf = (key: string, p: ProjectWithRefs) => visibleColumns.find((column) => column.key === key)?.cell(p);
+  const mobileCardTitle = (p: ProjectWithRefs) => {
+    const ids = [p.pmo_project_number, p.code].filter(Boolean).join(' · ');
+    return (
+      <div className="min-w-0">
+        {cellOf('project', p)}
+        {(p.client || ids) && (
+          <div className="mt-1 min-w-0 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="inline" />}
+            {p.client && ids && ' · '}
+            {ids && <span className="whitespace-nowrap font-mono" title={ids}>{ids}</span>}
+          </div>
+        )}
+      </div>
+    );
+  };
+  const mobileCardDetails = (p: ProjectWithRefs) => {
+    const progress = visibleColumns.some((column) => column.key === 'progress') && deliverySummary?.[p.id]?.deliveryPct != null ? cellOf('progress', p) : null;
+    const actual = visibleColumns.some((column) => column.key === 'actual') ? actualPosition(p).text : null;
+    const budgetUsed = visibleColumns.some((column) => column.key === 'budget-used') ? cellOf('budget-used', p) : null;
+    return (
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+          {cellOf('status', p)}
+          {progress && <span className="min-w-[7rem] max-w-[10rem] flex-1">{progress}</span>}
+        </div>
+        {canViewMoney && (
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span>{formatCurrency(p.contract_value, p.currency)}</span>
+            {!sharedBasis && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
+            {actual && <span className="text-muted-foreground">{t('projects:card.actualInline', '{{amount}} actual', { amount: actual })}</span>}
+            {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}
+          </div>
+        )}
+      </div>
+    );
+  };
+  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
 
 }

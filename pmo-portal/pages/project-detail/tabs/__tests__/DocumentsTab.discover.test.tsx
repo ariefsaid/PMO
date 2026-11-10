@@ -45,6 +45,7 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
 }));
 
 import DocumentsTab from '../DocumentsTab';
+import { formatDay } from '@/src/lib/format';
 
 const renderTab = () =>
   render(
@@ -83,7 +84,7 @@ describe('F1: register rows stay short', () => {
   it('F1: the Date value never wraps mid-date', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
-    expect(screen.getByText('Jun 1, 2026')).toHaveClass('whitespace-nowrap');
+    expect(screen.getByText(formatDay('2026-06-01'))).toHaveClass('whitespace-nowrap');
   });
 });
 

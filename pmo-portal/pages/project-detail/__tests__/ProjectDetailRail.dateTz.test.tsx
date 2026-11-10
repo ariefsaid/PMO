@@ -34,6 +34,7 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 
 import ProjectDetailRail from '../ProjectDetailRail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatDay } from '@/src/lib/format';
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
@@ -75,14 +76,14 @@ describe('AC-W2-3-02: ProjectDetailRail start/end dates — no UTC day-shift', (
   it('renders start_date 2026-06-14 as "Jun 14, 2026" (not Jun 13 behind UTC)', () => {
     renderRail(makeProject({ start_date: '2026-06-14', end_date: '2026-12-31' }));
 
-    expect(screen.getByText('Jun 14, 2026')).toBeInTheDocument();
+    expect(screen.getByText(formatDay('2026-06-14'))).toBeInTheDocument();
     expect(screen.queryByText('Jun 13, 2026')).not.toBeInTheDocument();
   });
 
   it('renders end_date 2026-12-31 as "Dec 31, 2026" (not Dec 30 behind UTC)', () => {
     renderRail(makeProject({ start_date: '2026-01-01', end_date: '2026-12-31' }));
 
-    expect(screen.getByText('Dec 31, 2026')).toBeInTheDocument();
+    expect(screen.getByText(formatDay('2026-12-31'))).toBeInTheDocument();
     expect(screen.queryByText('Dec 30, 2026')).not.toBeInTheDocument();
   });
 });

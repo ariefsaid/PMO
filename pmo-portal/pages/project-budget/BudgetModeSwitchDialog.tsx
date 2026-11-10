@@ -153,7 +153,7 @@ const BudgetModeSwitchDialog: React.FC<BudgetModeSwitchDialogProps> = ({
           )}
           <div className="max-h-[42vh] overflow-auto rounded-md border border-border">
             <table className="min-w-full border-collapse text-sm" aria-label={t('projectDetail.budget.modeLineReview', 'Budget line review')}>
-              <thead className="sticky top-0 bg-muted text-left text-xs text-muted-foreground">
+              <thead className="sticky top-0 bg-muted text-left text-sm text-muted-foreground">
                 <tr>
                   <th scope="col" className="px-3 py-2">{t('financeCopy.category', 'Category')}</th>
                   <th scope="col" className="px-3 py-2">{t('projectDetail.budget.description', 'Description')}</th>

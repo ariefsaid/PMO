@@ -84,7 +84,7 @@ export const ErpPurchasesSection: React.FC<{
               className="mb-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-border py-3 first-of-type:border-t-0 sm:grid-cols-6">
               {AGING_BUCKETS.map((b) => (
                 <div key={b}>
-                  <dt className="text-xs text-muted-foreground">{bucketLabel[b]}</dt>
+                  <dt className="text-sm text-muted-foreground">{bucketLabel[b]}</dt>
               <dd className="tabular-nums">
                 <Tooltip content={t('erpPurchases.aging.amountTooltip', 'Outstanding supplier invoice balances in {{currency}} grouped by due date. Includes linked and unlinked invoices; shared-project invoices are excluded.', { currency: a.currency })}>
                   <span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{formatCurrency(a.buckets[b], a.currency)}</span>
@@ -93,7 +93,7 @@ export const ErpPurchasesSection: React.FC<{
                 </div>
               ))}
               <div>
-                <dt className="text-xs text-muted-foreground">{t('erpPurchases.aging.total', 'Unpaid total')}</dt>
+                <dt className="text-sm text-muted-foreground">{t('erpPurchases.aging.total', 'Unpaid total')}</dt>
                 <dd className="font-semibold tabular-nums">
                   <Tooltip content={t('erpPurchases.aging.amountTooltip', 'Outstanding supplier invoice balances in {{currency}} grouped by due date. Includes linked and unlinked invoices; shared-project invoices are excluded.', { currency: a.currency })}>
                     <span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{formatCurrency(a.total, a.currency)}</span>

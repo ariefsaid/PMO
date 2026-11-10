@@ -47,7 +47,7 @@ export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
         role="status"
         aria-label={reason}
         title={detail}
-        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11.5px] font-semibold text-muted-foreground"
+        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-sm font-semibold text-muted-foreground"
       >
         <Icon name="info" className="size-3" />
         {t('procurement:ledger.notSent', 'Not sent')}
@@ -61,7 +61,7 @@ export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
         role="status"
         aria-label="pushing to external system"
         title="Syncing to the external system"
-        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11.5px] font-semibold text-muted-foreground"
+        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-sm font-semibold text-muted-foreground"
       >
         <Icon name="refresh" className="size-3 animate-spin" />
         Pushing…
@@ -76,7 +76,7 @@ export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
         aria-label="pushed to external system"
         title="Synced to the external system"
         style={{ color: 'hsl(var(--status-won-text))' }}
-        className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-[11.5px] font-semibold"
+        className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-sm font-semibold"
       >
         <Icon name="check" className="size-3" />
         Pushed
@@ -96,7 +96,7 @@ export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
       aria-label={ariaLabel}
       title={state.error?.detail ?? 'The push to the external system failed'}
       style={{ color: 'hsl(var(--status-lost-text))' }}
-      className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[11.5px] font-semibold"
+      className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-sm font-semibold"
     >
       <Icon name="alert" className="size-3" />
       Push failed
