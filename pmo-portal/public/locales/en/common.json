@@ -788,7 +788,7 @@
     "caughtUp": {
       "and": "and",
       "noKinds": "approvals",
-      "sub": "Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.",
+      "sub": "No {{kinds}} waiting in PMO. ERPNext documents are approved in ERPNext.",
       "title": "You’re all caught up"
     },
     "employeeLinks": {
@@ -814,19 +814,16 @@
     "entryOther": "entries",
     "group": {
       "procurement": {
-        "emptySub": "Procurement cases that need your approval will appear here.",
         "emptyTitle": "No procurement cases awaiting your decision",
         "title": "Procurement cases"
       },
       "timesheets": {
-        "emptySub": "Submitted timesheets from your reports will appear here for review.",
         "emptyTitle": "No timesheets awaiting your decision",
         "title": "Timesheets"
       }
     },
     "noProjectLinked": "No project linked",
     "previewEmpty": {
-      "sub": "When a pending procurement case is available, its preview and actions appear here.",
       "title": "Select an approval item"
     },
     "previewError": {
@@ -844,7 +841,6 @@
       "loadErrorSub": "Try again to refresh this queue."
     },
     "queueHeading": "Approvals queue",
-    "queueHint": "Select an item to preview its details and decision controls.",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
       "action": "Re-open for correction",
@@ -875,11 +871,13 @@
       "policyHelp": "Policy: a different person approves each timesheet."
     },
     "scopeToggleLabel": "Approvals scope",
-    "subtitle": "Needs my approval. Everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.",
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
-    "weekOf": "Week of"
+    "weekOf": "Week of",
+    "queueHeadingAll": "Purchases and timesheets",
+    "waitingDays_one": "{{count}} day waiting",
+    "waitingDays_other": "{{count}} days waiting"
   },
   "combobox": {
     "search": {

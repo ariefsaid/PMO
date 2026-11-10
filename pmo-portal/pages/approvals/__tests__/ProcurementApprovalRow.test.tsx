@@ -219,11 +219,11 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
     transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderAs();
     await userEvent.click(screen.getByRole('button', { name: /^Reject$/i }));
-    // tone="destructive" → role="alertdialog" (ConfirmDialog a11y contract)
+    // The shared ReasonDialog: required reason, filled confirm.
     const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: /Reject procurement/i });
+    const confirm = within(dialog).getByRole('button', { name: /^Reject$/i });
     expect(confirm).toBeDisabled();
-    const comment = within(dialog).getByRole('textbox', { name: /rejection comment/i });
+    const comment = within(dialog).getByRole('textbox', { name: /reason for rejecting/i });
     await userEvent.type(comment, '   ');
     expect(confirm).toBeDisabled();
     await userEvent.clear(comment);
@@ -256,7 +256,6 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
     const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('/procurement/pr-001');
-    expect(screen.getByText('Procurement details')).toBeInTheDocument();
   });
 
   it('AC-JR-W2-02: "Open procurement" link is in the same footer region as Approve/Reject', async () => {

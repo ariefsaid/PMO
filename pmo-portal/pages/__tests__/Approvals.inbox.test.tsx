@@ -189,12 +189,11 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       delete detailItems.south;
     }
   });
-  it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
+  it('CW-6: the page title is "Approvals" (matches the rail label)', () => {
     renderAs('Project Manager');
     // The H1 reconciles with the rail's "Approvals" nav item — one canonical name.
     expect(screen.getByRole('heading', { level: 1, name: /^Approvals$/i })).toBeInTheDocument();
-    // "Needs my approval" survives as the subtitle (clarifies whose queue this is).
-    expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Needs my approval/i)).toBeNull();
   });
 
   it('UXS-025: pending work precedes collapsed approved correction history', () => {
@@ -204,7 +203,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     }];
     renderAs('Project Manager');
 
-    const queue = screen.getByRole('heading', { name: /Approvals queue/i });
+    const queue = screen.getByRole('heading', { name: /Purchases and timesheets/i });
     const history = screen.getByText('Approved history and corrections');
     expect(queue.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(history.closest('details')).not.toHaveAttribute('open');

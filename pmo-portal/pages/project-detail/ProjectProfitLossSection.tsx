@@ -117,8 +117,8 @@ const ErpnextProjectProfitLoss: React.FC<ProjectProfitLossSectionProps> = ({ pro
   const currentColumnLabel = t('financialStatements.currentColumn', 'Current');
   const priorColumnLabel = t('financialStatements.priorColumn', 'Previous');
   const sectionLabels = {
-    unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),
-    unavailableDescription: t('financialStatements.unavailableDescription', 'Saved statements will appear here when available.'),
+    unavailable: t('financialStatements.unavailable', 'No statements yet'),
+    unavailableDescription: t('financialStatements.unavailableDescription', 'Statements come from the accounting system.'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
     error: t('financialStatements.error', "Couldn't load financial statements"),
