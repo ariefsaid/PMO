@@ -116,7 +116,7 @@ const MAX_NAV_VIEWS = 8;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
-  'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium transition-colors [&_svg]:size-5 [&_svg]:shrink-0';
+  'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium [&_svg]:size-5 [&_svg]:shrink-0';
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
