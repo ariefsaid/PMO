@@ -584,6 +584,13 @@ describe('DataTable', () => {
     await userEvent.keyboard('{Enter}');
     menu = await screen.findByRole('menu');
     await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'Download PDF' })).toHaveFocus());
+    await userEvent.keyboard('{ArrowUp}');
+    const keyboardDisabled = within(menu).getByRole('menuitem', { name: 'Preparing PDF…' });
+    await waitFor(() => expect(keyboardDisabled).toHaveFocus());
+    expect(keyboardDisabled).not.toBeDisabled();
+    await userEvent.keyboard('{Enter}');
+    expect(busyClick).not.toHaveBeenCalled();
+    await userEvent.keyboard('{ArrowDown}');
     await userEvent.keyboard('{ArrowDown}');
     await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'View PDF' })).toHaveFocus());
     await userEvent.keyboard('{ArrowUp}');
