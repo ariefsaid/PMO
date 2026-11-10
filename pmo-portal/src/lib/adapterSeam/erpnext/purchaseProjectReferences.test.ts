@@ -14,7 +14,7 @@ const CASE = { id: 'proc-1', org_id: ORG, vendor_id: 'vendor-1', project_id: 'pr
 const BINDING = {
   org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test',
   version_major: 15, activated_at: '2026-10-01',
-  config: { project_map: { 'proj-1': 'ERP-PROJ-001' } },
+  config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001' } },
 };
 
 /** Realistic PostgREST boundary: selected columns and org/id predicates are honored. */
@@ -63,7 +63,11 @@ async function push(kind: Kind, extra: Row = {}, caseRow: Row = CASE, binding: R
   let body: Row = {};
   let doc: Row = {};
   const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
-    if (new URL(String(_url)).pathname === '/api/resource/Item') return Response.json({ data: ['SYNTHETIC-ITEM', 'SYNTHETIC-ITEM-2'].map(name => ({ name, disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) });
+    const url = new URL(String(_url));
+    if (url.pathname === '/api/resource/Item') return Response.json({ data: ['SYNTHETIC-ITEM', 'SYNTHETIC-ITEM-2'].map(name => ({ name, disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) });
+    // #915: a PI create that names no tax template is checked against the ERP company's CURRENT default. This
+    // fixture company has none configured, so ERPNext answers an empty list ("nothing to apply").
+    if (decodeURIComponent(url.pathname) === '/api/resource/Purchase Taxes and Charges Template') return Response.json({ data: [] });
     if (init?.method === 'POST') {
       body = JSON.parse(String(init.body)) as Row;
       doc = { ...body, name: 'SYNTHETIC-ERP-DOC', docstatus: 0, posting_date: '2026-10-05', grand_total: 200, outstanding_amount: 200 };
@@ -87,6 +91,7 @@ describe('purchase project dimensions and vendor references', () => {
   it.each<Kind>(['purchase-order', 'purchase-invoice'])('AC-PRJ-001 %s carries the resolved project on its header and every line', async (kind) => {
     const secondItem = { item_code: 'SYNTHETIC-ITEM-2', qty: 1, rate: 50, schedule_date: '2026-10-14' };
     const { body } = await push(kind, { items: [ITEM, secondItem] });
+    expect(body.company).toBe('Synthetic Co');
     expect(body.project).toBe('ERP-PROJ-001');
     expect(body.supplier).toBe('Synthetic Supplier');
     expect(body.items).toEqual([{
@@ -144,7 +149,7 @@ describe('purchase project dimensions and vendor references', () => {
   });
 
   it('AC-PRJ-002 sends the supplier invoice reference and date independently when set', () => {
-    const ctx = { refs: { supplier: 'Synthetic Supplier' }, config: {} };
+    const ctx = { refs: { supplier: 'Synthetic Supplier' }, config: { company: 'Synthetic Co' } };
     const invoice = { id: 'pmo-1', items: [ITEM] };
     expect(piToBody({ ...invoice, referenceNumber: 'VENDOR-INV-001', invoiceDate: '2026-09-20' }, ctx))
       .toMatchObject({ bill_no: 'VENDOR-INV-001', bill_date: '2026-09-20' });
@@ -157,7 +162,7 @@ describe('purchase project dimensions and vendor references', () => {
   });
 
   it('omits blank or absent vendor reference fields, never sending empty strings', () => {
-    const ctx = { refs: { supplier: 'Synthetic Supplier' }, config: {} };
+    const ctx = { refs: { supplier: 'Synthetic Supplier' }, config: { company: 'Synthetic Co' } };
     for (const extra of [{}, { referenceNumber: null, invoiceDate: null }, { referenceNumber: '  ', invoiceDate: '' }]) {
       const body = piToBody({ id: 'pmo-1', items: [ITEM], ...extra }, ctx);
       expect(body).not.toHaveProperty('bill_no');
@@ -170,7 +175,7 @@ describe('purchase project dimensions and vendor references', () => {
     expect(PI_FROM_DOC_FIELDS).toContain('bill_date');
     const canonical = piFromDoc(first.doc);
     expect(canonical).toMatchObject({ reference_number: 'VENDOR-INV-001', invoice_date: '2026-09-20', amount: '200.00' });
-    const ctx = { refs: { supplier: 'Synthetic Supplier', project: 'ERP-PROJ-001' }, config: {} };
+    const ctx = { refs: { supplier: 'Synthetic Supplier', project: 'ERP-PROJ-001' }, config: { company: 'Synthetic Co' } };
     const before = piToBody(first.command.record, ctx);
     const after = piToBody({ ...first.command.record, referenceNumber: canonical.reference_number, invoiceDate: canonical.invoice_date }, ctx);
     expect(after).toEqual(before);
@@ -179,7 +184,7 @@ describe('purchase project dimensions and vendor references', () => {
   it('keeps the PO project body stable after canonical readback', async () => {
     const first = await push('purchase-order');
     const canonical = poFromDoc(first.doc);
-    const ctx = { refs: { supplier: 'Synthetic Supplier', project: 'ERP-PROJ-001' }, config: {} };
+    const ctx = { refs: { supplier: 'Synthetic Supplier', project: 'ERP-PROJ-001' }, config: { company: 'Synthetic Co' } };
     expect(poToBody({ ...first.command.record, ...canonical }, ctx)).toEqual(poToBody(first.command.record, ctx));
   });
 
@@ -190,13 +195,18 @@ describe('purchase project dimensions and vendor references', () => {
 
 
 describe('AC-PRJ-003 persisted procurement command recovery', () => {
-  it.each(['committed', 'confirmed'] as const)('converges a %s document after a case project change and disabled Item without another ERP call', async (state) => {
+  it.each(['committed', 'confirmed'] as const)('converges a %s document after a case project change and disabled Item without another ERP write (only the read-only #915 default-tax lookup)', async (state) => {
     const command: AdapterCommand = {
       domain: 'procurement', operation: 'create', idempotencyKey: 'synthetic-recovery-key',
       record: { id: 'pmo-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice', items: [ITEM] },
     };
     let disabled = false;
-    const fetchImpl = vi.fn(async () => Response.json({ data: [{ name: ITEM.item_code, disabled: disabled ? 1 : 0, is_sales_item: 1, is_purchase_item: 1 }] }));
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
+      // #915: with a company configured, a PI create naming no tax template asks for the company's current
+      // default first. This fixture company has none.
+      if (decodeURIComponent(new URL(String(url)).pathname) === '/api/resource/Purchase Taxes and Charges Template') return Response.json({ data: [] });
+      return Response.json({ data: [{ name: ITEM.item_code, disabled: disabled ? 1 : 0, is_sales_item: 1, is_purchase_item: 1 }] });
+    });
     await resolveErpDispatchAdapter({ serviceClient: client(), orgId: ORG, command,
       fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret' });
     const persisted = structuredClone(command);
@@ -221,6 +231,12 @@ describe('AC-PRJ-003 persisted procurement command recovery', () => {
         recordExternalRef: vi.fn(async () => {}) });
     })()).resolves.toMatchObject({ externalRecordId: 'SYNTHETIC-PI' });
     expect(writeReadModel).toHaveBeenCalledWith(row.canonical, { isReplay: true });
-    expect(fetchImpl).not.toHaveBeenCalled();
+    // Nothing is written to ERPNext on a convergent replay. The ONLY call is the #915 replay gate's
+    // validate-only read of the ERP company's current default purchase tax template (a binding that names
+    // a company is checked before the re-POST that never happens here).
+    const calls = fetchImpl.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit | undefined]>;
+    expect(calls.map(([url]) => new URL(String(url)).pathname))
+      .toEqual(['/api/resource/Purchase%20Taxes%20and%20Charges%20Template']);
+    expect(calls.every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true);
   });
 });

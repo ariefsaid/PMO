@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { isPphType } from '@/src/lib/vendorWithholding';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
@@ -38,6 +39,8 @@ export interface SalesInvoiceRow {
   tax_rate?: number | null;
   /** AC-OCI-081: the invoice project's VAT flag; null/absent = no project, treated as subject to VAT. */
   project_subject_to_vat?: boolean | null;
+  /** #1275: the invoice project's default tax article for its receipts (pre-fill only); null/absent = none. */
+  project_receipt_withholding_article?: 'pph23' | 'pph4_2' | null;
   tax_base_numerator?: number;
   tax_base_denominator?: number;
   erp_outstanding_amount: number | null;
@@ -109,6 +112,8 @@ export interface IncomingPaymentRow {
   received_amount?: number | null;
   withheld_amount?: number | null;
   withholding_slip_number?: string | null;
+  /** #1275: the tax article the client withheld under; null/absent = not stated. */
+  withholding_article?: string | null;
   /** S-06: the ERP-authored invoice allocations (null/absent = coverage unknown; [] = none reported). */
   allocation_details?: ReceiptAllocation[] | null;
   /** #1415: a PMO receipt's live allocations (the only authority for what it settles). Absent = not loaded. */
@@ -186,7 +191,7 @@ function throwWrite(error: PostgrestErrorLike): never {
  * consult the same oracle as the RPC, or it offers a "Submit" that 403s (round-6 re-audit NIT 1).
  */
 const SALES_INVOICE_SELECT =
-  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat)';
+  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)';
 
 /** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set + customer name flattened). */
 function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
@@ -198,6 +203,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
     customer_name: companies ? companyDisplayName({ name: companies.name ?? '', short_name: companies.short_name }) : null,
     author_user_ids: authors.map((a) => a.user_id),
     project_subject_to_vat: (row.project as { subject_to_vat: boolean } | null)?.subject_to_vat ?? null,
+    project_receipt_withholding_article: ((a: unknown) => (isPphType(a) ? a : null))((row.project as { receipt_withholding_article?: unknown } | null)?.receipt_withholding_article),
     erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
     received_date: (row.received_date as string | null | undefined) ?? null,
     efaktur_number: (row.efaktur_number as string | null | undefined) ?? null,

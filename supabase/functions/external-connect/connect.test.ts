@@ -353,6 +353,36 @@ describe('external-connect — ClickUp branch', () => {
     });
   });
 
+  // #654: a failed readiness read is NOT "no secret". Both refuse (nothing is activated), but with a
+  // distinct, retryable class (503 SECRET_STORE_UNAVAILABLE) instead of the 422 SYNC_NOT_READY a clean miss gets.
+  for (const failing of ['binding', 'vault'] as const) {
+    it(`#654 a ${failing} read ERROR at readiness is a retryable store error, not SYNC_NOT_READY, and activates nothing`, async () => {
+      const storeError = () => jsonResponse({ message: 'store-error-payload-sentinel', code: '57P03' }, { status: 500 });
+      await withFetchMock([
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
+        clickup('/api/v2/user', () => jsonResponse({ user: { id: 123 } })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
+        supabaseRpc('stage_vault_secret_for_org', () => jsonResponse('vault-ref-fail')),
+        supabaseSelect('external_org_bindings', failing === 'binding'
+          ? storeError
+          : () => jsonResponse({ secret_ref: 'vault-ref-fail' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('read_vault_secret', storeError),
+        supabaseRpc('finalize_external_connect', () => jsonResponse('rejected')),
+        supabaseRpc('cleanup_external_connect_attempt', () => jsonResponse(null)),
+      ], async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+        const body = await res.json();
+        assertEquals(res.status, 503);
+        assertEquals(body.error, 'SECRET_STORE_UNAVAILABLE');
+        assertEquals(JSON.stringify(body).includes('store-error-payload-sentinel'), false);
+        const finalize = rpcCall(calls, 'finalize_external_connect');
+        assertEquals(finalize.length, 1);
+        assertEquals((finalize[0].bodyJson as { p_ready: boolean }).p_ready, false);
+      });
+    });
+  }
+
   const rotateMocks = (stageRef: string, finalize: () => Response, vaultRead: string | null = 'valid-token') => [
     supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
     supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),

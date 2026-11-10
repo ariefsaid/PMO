@@ -1,15 +1,21 @@
 /**
- * Purchase Receipt (Goods Receipt) `toBody`/`fromDoc` — R9 §4 frozen. `purchase_order` +
- * `purchase_order_item` (the PO item CHILD-ROW `name`, resolved by the multi-domain ref resolver,
- * slice 5) drive PO fulfilment linkage (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §4).
+ * Purchase Receipt (Goods Receipt) `toBody`/`fromDoc` — R9 §4 frozen, plus the binding's `company`
+ * (as MR already carries): ERPNext files a company-scoped document under the company STATED on the
+ * body, else under the integration user's default company — on a multi-company ERP that is the wrong
+ * company (and the sweep's purchase mirror feed scopes to `config.company`, so the receipt would never
+ * mirror back). `purchase_order` + `purchase_order_item` (the PO item CHILD-ROW `name`, resolved by the
+ * multi-domain ref resolver, slice 5) drive PO fulfilment linkage
+ * (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §4).
  */
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
-import { requireItems } from './shared.ts';
+import { requireCompany, requireItems } from './shared.ts';
 
 export function grToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  const company = requireCompany(ctx.config, 'Purchase Receipt');
   const items = requireItems(rec, 'Purchase Receipt');
   return {
+    company,
     supplier: ctx.refs.supplier,
     items: items.map((i) => ({
       item_code: i.item_code,

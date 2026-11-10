@@ -103,8 +103,18 @@ export interface ActivateVersionResult {
    * announced a push that never happened (the per-year banner underneath simultaneously said
    * `never-pushed`); reading it as `'failed'` would invent an attempt that was never made. Nothing was
    * sent because there was nothing to send, and the surface says exactly that.
+   *
+   * ⚑ `'queued'` (ADR-0062): ACTIVATION returns this as soon as the PMO write commits — the push is
+   * started in the background and its real outcome shows on the push-status read, never on this result.
+   * Only `retryBudgetPush` (an explicit operator wait) still reports `'pushed'`/`'failed'`.
+   *
+   * ⚑ `'pending-cancellation'` (rm-1472) is the served gate's `202 { error: 'budget-cancellation-pending' }`
+   * while a predecessor's ERPNext cancellation is still settling: the activation stands, the units are
+   * queued, and NOTHING has been pushed yet. The sweep resumes the push by itself once the cancellation
+   * settles, so it is neither a success nor a failure the operator must fix. Under ADR-0062 an explicit
+   * retry is where an operator still sees it.
    */
-  pushState: 'pushed' | 'failed' | 'nothing-to-push';
+  pushState: 'pushed' | 'failed' | 'nothing-to-push' | 'queued' | 'pending-cancellation';
 }
 
 export interface ArchiveVersionResult {
@@ -219,6 +229,82 @@ export async function getBudgetActivationMode(versionId: string): Promise<Budget
   const modes: readonly BudgetActivationMode[] = ['allowed', 'sole_operator', 'blocked', 'blocked_editor', 'blocked_no_drafter'];
   if (!modes.includes(data as BudgetActivationMode)) throw new Error('Unexpected budget activation mode');
   return data as BudgetActivationMode;
+}
+
+/** One Draft budget awaiting review in the org-wide "Review and activate drafts" list (#1273). */
+export interface OrgDraftBudget {
+  id: string;
+  projectId: string;
+  projectCode: string | null;
+  projectName: string;
+  currency: string;
+  version: number;
+  name: string;
+  total: number;
+  createdBy: string | null;
+  editorIds: string[];
+  documentUrl: string | null;
+  /** What the whole-project distribution gate needs (the same inputs the Budget tab reads). */
+  budgetMode: BudgetVersionMode;
+  projectStart: string | null;
+  projectEnd: string | null;
+  lines: Pick<BudgetLineItemRow, 'category' | 'budgeted_amount'>[];
+}
+
+const DRAFT_READ_CHUNK = 100;
+
+/**
+ * Every Draft budget version in the caller's org (RLS-scoped; org_id never sent) with its project,
+ * line-item total, editors and first linked source document. Read only: activation stays the
+ * per-budget `activateVersion` path.
+ */
+export async function listOrgDraftBudgets(): Promise<OrgDraftBudget[]> {
+  const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
+    .select('id,project_id,version,name,created_by,budget_mode,projects(code,name,currency,start_date,end_date)').eq('status', 'Draft')
+    .order('id', { ascending: true }).range(from, to));
+  if (!versions.length) return [];
+  const ids = versions.map((v) => v.id);
+  const totals = new Map<string, number>();
+  const lineRows = new Map<string, OrgDraftBudget['lines']>();
+  const editors = new Map<string, string[]>();
+  const docs = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += DRAFT_READ_CHUNK) {
+    const chunk = ids.slice(i, i + DRAFT_READ_CHUNK);
+    const [lines, eds, links] = await Promise.all([
+      fetchAllPages((from, to) => supabase.from('budget_line_items').select('id,budget_version_id,category,budgeted_amount')
+        .in('budget_version_id', chunk).order('id', { ascending: true }).range(from, to)),
+      fetchAllPages((from, to) => supabase.from('budget_version_editors').select('budget_version_id,user_id')
+        .in('budget_version_id', chunk).order('budget_version_id', { ascending: true }).order('user_id', { ascending: true }).range(from, to)),
+      fetchAllPages((from, to) => supabase.from('budget_version_document_links').select('id,budget_version_id,ms_web_url')
+        .in('budget_version_id', chunk).order('ms_linked_at', { ascending: true }).order('id', { ascending: true }).range(from, to)),
+    ]);
+    for (const l of lines) {
+      totals.set(l.budget_version_id, (totals.get(l.budget_version_id) ?? 0) + Number(l.budgeted_amount));
+      lineRows.set(l.budget_version_id, [...(lineRows.get(l.budget_version_id) ?? []), { category: l.category, budgeted_amount: l.budgeted_amount }]);
+    }
+    for (const e of eds) editors.set(e.budget_version_id, [...(editors.get(e.budget_version_id) ?? []), e.user_id]);
+    for (const d of links) if (!docs.has(d.budget_version_id)) docs.set(d.budget_version_id, d.ms_web_url);
+  }
+  return versions.map((v) => {
+    const project = Array.isArray(v.projects) ? v.projects[0] : v.projects;
+    return {
+      id: v.id,
+      projectId: v.project_id,
+      projectCode: project?.code ?? null,
+      projectName: project?.name ?? '',
+      currency: project?.currency ?? '',
+      version: v.version,
+      name: v.name,
+      total: totals.get(v.id) ?? 0,
+      createdBy: v.created_by,
+      editorIds: editors.get(v.id) ?? [],
+      documentUrl: docs.get(v.id) ?? null,
+      budgetMode: v.budget_mode === 'whole_project' ? 'whole_project' : 'per_year',
+      projectStart: project?.start_date ?? null,
+      projectEnd: project?.end_date ?? null,
+      lines: lineRows.get(v.id) ?? [],
+    };
+  });
 }
 
 /** Read-only, caller-authenticated readiness check for a Draft budget activation confirmation. */
@@ -863,6 +949,18 @@ export async function cloneVersion(versionId: string): Promise<string> {
   throw new Error('Version allocation attempts exhausted');
 }
 
+/** #1413 — an approver returns a waiting Draft to the PM with a reason (server-enforced SoD). */
+export async function returnVersion(versionId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('return_budget_version', { version_id: versionId, reason });
+  if (error) throw toAppError(error);
+}
+
+/** #1413 — the PM puts a returned Draft back in front of the approvers. */
+export async function resubmitVersion(versionId: string): Promise<void> {
+  const { error } = await supabase.rpc('resubmit_budget_version', { version_id: versionId });
+  if (error) throw toAppError(error);
+}
+
 /**
  * Re-reads the version's own `activated_at` witness right after `activate_budget_version` commits — the
  * RPC itself returns void, and the ADR-0059 §4 deterministic key (`budgetPushKey`) MUST be derived from
@@ -892,35 +990,27 @@ async function readActivatedAt(versionId: string): Promise<string | null> {
  * re-thrown here: this function still only throws for a REAL activation failure (the RPC's own
  * authorization/state-machine rejection), exactly as it did before P3c.
  */
-export async function activateVersion(versionId: string): Promise<ActivateVersionResult> {
-  // ⚑ FU-2 round 2: the dispatch's own RESPONSE is kept, because "the promise resolved" and "a push
-  // happened" are not the same fact — an empty fan-out resolves 200 having sent nothing.
-  // `activateAndPush` owns only the money invariant (a push failure never fails the activation), so the
-  // outcome is refined here rather than teaching that module the budget response shape.
-  let dispatchResult: unknown = null;
+export async function activateVersion(
+  versionId: string,
+  onPushSettled?: (pushState: Exclude<ActivateVersionResult['pushState'], 'queued'>) => void,
+): Promise<ActivateVersionResult> {
+  // ⚑ ADR-0062: resolves on the PMO write; the push runs in the background (see `activateAndPush`).
+  // `onPushSettled` fires when it ends, success or failure, so the caller re-reads `get_budget_push_status`
+  // — the durable per-year truth (HIGH-C: a dispatch that never reached the function leaves no mirror row,
+  // which that read reports as `never-pushed`, with the retry beside it).
   const result = await activateAndPush({
     versionId,
     rpc: async (_fn, args) => {
       const { error } = await supabase.rpc('activate_budget_version', args as { version_id: string });
       return { error };
     },
-    dispatch: async (id) => {
-      dispatchResult = await pushActivatedBudget(id);
-      return dispatchResult;
-    },
+    dispatch: (id) => pushActivatedBudget(id),
+    // The whole fan-out is the unit (activation names no year); an empty fan-out resolves having pushed nothing.
+    onPushSettled: (state, dispatchResult) =>
+      onPushSettled?.(state === 'pushed' ? (pushStateForYear(dispatchResult, null) as 'pushed' | 'failed' | 'nothing-to-push') : 'failed'),
   });
   if (!result.activated) throw toAppError(result.error);
-  // The whole fan-out is the unit here (activation names no year), and only a RESOLVED dispatch can be
-  // refined — a rejected one already carries its own `'failed'`.
-  if (result.pushState === 'pushed') return { pushState: pushStateForYear(dispatchResult, null) };
-  // ⚑ HIGH-C (Luna re-audit round 2): the push outcome is RETURNED, not discarded. Every writer of
-  // `budget_version_erp_mirror` lives INSIDE `adapter-dispatch`, so a dispatch that never REACHES the
-  // function (a dropped connection, the tab closed mid-request, a 502 from the platform) leaves no
-  // mirror row at all — and the sweep backstop's work queue IS that mirror, so nothing ever re-drives
-  // it. Discarding this made the UI show a plain success while ERPNext kept enforcing the previous
-  // budget (or none) forever, with nobody notified. The durable half of the same fix is
-  // `get_budget_projection`'s `'never-pushed'` state (migration 0149) + the retry below.
-  return { pushState: result.pushState ?? 'failed' };
+  return { pushState: 'queued' };
 }
 
 /**
@@ -988,6 +1078,12 @@ interface BudgetFanOutResult {
  * value: it resolved, so the year the operator asked about is the year that pushed.
  */
 function pushStateForYear(result: unknown, fiscalYear: string | null): ActivateVersionResult['pushState'] {
+  // ⚑ rm-1472 — a 202 `budget-cancellation-pending` body is NOT a push that happened. The served gate
+  // parked the whole-project range's units behind an unsettled predecessor cancellation: no outbox row
+  // was written, so no ERPNext Budget exists yet. The body names no `years`, so the face-value rule
+  // below announced "pushed" about a project ERPNext is enforcing nothing for — while the sweep was
+  // already queued to resume it. Activation stands; the push is pending.
+  if ((result as { error?: unknown } | null | undefined)?.error === 'budget-cancellation-pending') return 'pending-cancellation';
   const years = (result as BudgetFanOutResult | null | undefined)?.years;
   // A pre-BFY server names no years at all — taken at face value, as before.
   if (!Array.isArray(years)) return 'pushed';
