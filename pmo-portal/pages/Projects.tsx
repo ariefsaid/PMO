@@ -25,7 +25,6 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -36,7 +35,6 @@ import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
-  const projectStatusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -65,8 +63,6 @@ const Projects: React.FC = () => {
   const [editTarget, setEditTarget] = useState<ProjectWithRefs | null>(null);
   // null = closed; project = archive confirm open.
   const [archiveTarget, setArchiveTarget] = useState<ProjectWithRefs | null>(null);
-
-  const pageDescription = t('projects.description', 'Pre-win projects live in the Pipeline.');
 
   // Row/card drill captures the current list URL + scroll as validated return context
   // via `openRecord` (AC-LRC-003) — the canonical `/projects/:id` route is unchanged
@@ -107,9 +103,9 @@ const Projects: React.FC = () => {
     }
   };
 
-  const { visibleColumns, exportColumns } = projectTableColumns({
+  const { visibleColumns, exportColumns, coverageReason } = projectTableColumns({
     filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
-    moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch: prefetchProject, projectStatusLabel, t,
+    moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
   });
 
   // ── States ──────────────────────────────────────────────────────────────
@@ -123,7 +119,6 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
@@ -137,7 +132,6 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <ListState
@@ -156,7 +150,6 @@ const Projects: React.FC = () => {
         title={t('projects.title', 'Projects')}
         count={0}
         total={0}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <ListState
@@ -200,7 +193,6 @@ const Projects: React.FC = () => {
       title={t('projects.title', 'Projects')}
       count={filtered.length}
       total={all.length}
-      description={pageDescription}
       primaryAction={primaryAction}
       {...toolbar}
     >
@@ -247,6 +239,7 @@ const Projects: React.FC = () => {
             if (tr?.id) prefetchProject(tr.id);
           }}
         >
+          {coverageReason && <p data-testid="projects-coverage" className="mb-2 text-sm text-muted-foreground">{coverageReason}</p>}
           <DataTable<ProjectWithRefs>
             rows={filtered}
             columns={visibleColumns}

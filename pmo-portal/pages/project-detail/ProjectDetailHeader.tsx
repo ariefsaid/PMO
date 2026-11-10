@@ -35,14 +35,7 @@ import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import {
-  currencySymbol,
-  formatCurrency,
-  formatDateOnly,
-  formatInstantDate,
-  formatMoneyInputValue,
-  parseMoneyInputAtScale,
-} from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -53,8 +46,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { UnknownFigure } from './UnknownFigure';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
-import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
@@ -199,7 +191,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
           )}
           {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
             <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason" onClick={onToggleLockReason}
-              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-sm font-semibold text-muted-foreground">
               <Icon name="lock" className="size-3" />
               {t('projectDetail.header.readOnly', 'Read-only')}
               <Icon name="chev" className="size-3 rotate-90" />
@@ -224,7 +216,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       : []),
     { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualFigure,
       sub: actualPosition.complete
-        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
+        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatDay(actualPosition.asOf) })}</span>}
           {attributedActual && actualPosition.currency && <span className="block" data-testid="actual-attributed-note">
             {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, getNumberLocale(), { wholeUnits: true }) ?? attributedActual.attributed })}
           </span>}
@@ -243,7 +235,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   return (
     <div className="mb-1 min-w-0">
       <details open={isDesktop} className="min-w-0">
-        <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
+        <summary className="cursor-pointer text-sm font-semibold text-muted-foreground md:hidden">
           {t('projectDetail.overview.finance.title', 'Financial summary')}
         </summary>
         <div className={`mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:gap-3 ${STRIP_COLS[tiles.length] ?? STRIP_COLS[5]}`}>
@@ -286,8 +278,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   menuContent,
 }) => {
   const { t } = useTranslation('project');
-  // #1339: the status pill names the project status in the viewer's language; the enum itself is data.
-  const projectStatusLabel = useProjectStatusLabel();
 
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -348,7 +338,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     ? project.contract_date
       ? t('projectDetail.header.poWithDate', 'PO {{ref}} ({{date}})', {
           ref: project.customer_contract_ref,
-          date: formatDateOnly(project.contract_date),
+          date: formatDay(project.contract_date),
         })
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
@@ -469,7 +459,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   };
 
   const canChangeValue = isDelivery && canEditValue && isFinanceForward;
-  const showCompactContractLock = compact && isDelivery && isOnHand && isFinanceForward && !canEditValue && !valueEditing;
   const copyProjectLink = async () => {
     const href = `${window.location.origin}/projects/${project.id}`;
     try {
@@ -512,7 +501,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               <summary className="cursor-pointer text-sm font-medium text-foreground">
                 {t('projectDetail.header.contractValueReadOnly', 'Contract value · read-only')}
               </summary>
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-sm text-muted-foreground">
                 {t('projectDetail.header.contractValueReadOnlyExplanation', 'The approved contract value is locked for project managers after the project is won. Finance or an administrator can update it, with the change recorded.')}
               </p>
             </details>
@@ -522,7 +511,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           <>
             <div id="project-menu-details" className="border-b border-border px-2 py-3">{menuContent}</div>
             {isDelivery && <div className="border-b border-border px-3 py-3">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
+              <p className="mb-2 text-sm font-medium text-muted-foreground">
                 {t('projectDetail.header.changeDeliveryStatus', 'Change delivery status')}
               </p>
               <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
@@ -542,22 +531,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       </PopoverContent>
     </Popover>
   ) : undefined;
-  const statusPill = <StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>;
+  const statusPill = <StatusPill record="project" state={status} />;
   // Phone: the status pill joins the action row (one row less above the work).
   const statusOnPhoneRow = compact && !isDesktopHeader;
   const actions = compact ? (
     <>
       {statusOnPhoneRow && statusPill}
       {secondaryAction}
-      {showCompactContractLock && (
-        <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason"
-          onClick={() => setLockReasonOpen(open => !open)}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-          <Icon name="lock" className="size-3" />
-          {t('projectDetail.header.readOnly', 'Read-only')}
-          <Icon name="chev" className="size-3 rotate-90" />
-        </button>
-      )}
       {detailsPanel}
       {primaryAction && editButton}
     </>
@@ -610,13 +590,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 />
                 <span
                   id="contract-vat-flag-label"
-                  className={`text-[13px] text-foreground ${vatLocked ? '' : 'cursor-pointer'}`}
+                  className={`text-sm text-foreground ${vatLocked ? '' : 'cursor-pointer'}`}
                   onClick={() => { if (!vatLocked) setVatDraft(!vatDraft); }}
                 >
                   {t('projectDetail.header.subjectToVat', 'Subject to VAT (PPN)')}
                 </span>
               </div>
-              <p data-testid="contract-vat-flag-hint" className="text-[12px] text-muted-foreground">
+              <p data-testid="contract-vat-flag-hint" className="text-sm text-muted-foreground">
                 {vatCheck.isPending || vatCheck.isFetching
                   ? t('projectDetail.header.vatChecking', 'Checking whether PPN can be changed…')
                   : vatCheck.isError
@@ -659,7 +639,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           {stagedValue === null && (
             <p
               data-testid="contract-tax-required-hint"
-              className="basis-full text-[12px] text-muted-foreground"
+              className="basis-full text-sm text-muted-foreground"
             >
               {CONTRACT_TAX_REQUIRED_HINT}
             </p>
@@ -667,7 +647,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         </div>
       ) : null}
       {isOnHand && canEditValue && isFinanceForward && valueEditing && (
-        <span className="basis-full text-[12px] text-muted-foreground">
+        <span className="basis-full text-sm text-muted-foreground">
           {t(
             'projectDetail.header.sodEditableNote',
             'Changing the value on a won project is a segregation-of-duties action and is recorded.',
@@ -696,14 +676,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
       />
 
-      {showCompactContractLock && (
-        <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
-          <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
-            {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
-          </p>
-        </div>
-      )}
-
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.
           The editor and its confirm remain unchanged; no finance or authority changes. */}
       {compact && valueEditing && isFinanceForward && <div className="mb-4 rounded-lg border border-border p-4">{sodRow}</div>}
@@ -728,7 +700,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           />
           {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (
             <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
-              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
+              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-sm text-muted-foreground">
                 {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
               </p>
             </div>
@@ -809,7 +781,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 components={{
                   1: <b className="tabular text-foreground" />,
                   3: <b className="tabular text-foreground" />,
-                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} taxRate={pendingValue.taxRate} taxBaseNumerator={pendingValue.taxBaseNumerator} taxBaseDenominator={pendingValue.taxBaseDenominator} className="text-[13px] text-foreground" />,
+                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} taxRate={pendingValue.taxRate} taxBaseNumerator={pendingValue.taxBaseNumerator} taxBaseDenominator={pendingValue.taxBaseDenominator} className="text-sm text-foreground" />,
                   7: <b className="tabular text-foreground" />,
                 }}
               />

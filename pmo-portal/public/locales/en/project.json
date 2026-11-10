@@ -477,7 +477,10 @@
       "invoicedOut": "Invoiced is left out until every invoice amount is known.",
       "paidOut": "Paid is left out until every invoice balance is known.",
       "cashIncomplete": "Cash received is left out until every receipt is allocated to an invoice.",
-      "cashInvalid": "Cash received is left out because the receipt reading couldn't be verified."
+      "cashInvalid": "Cash received is left out because the receipt reading couldn't be verified.",
+      "hiddenFigures": "Not shown: {{figures}}.",
+      "cashLead": "Received {{amount}}",
+      "contractLocked": "read-only"
     },
     "cost": {
       "estimateTitle": "Budget",
@@ -584,8 +587,8 @@
       "contractValueReadOnlyExplanation": "The approved contract value is locked for project managers after the project is won. An executive, Finance, or an administrator can update it, with the change recorded.",
       "changeDeliveryStatus": "Change delivery status",
       "copyLink": "Copy link",
-        "previewFileFor": "Preview file for {{title}}",
-        "previewFile": "Preview file",
+      "previewFileFor": "Preview file for {{title}}",
+      "previewFile": "Preview file",
       "changeContractValue": "Change contract value"
     },
     "rail": {

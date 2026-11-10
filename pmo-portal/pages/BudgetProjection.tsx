@@ -16,7 +16,7 @@ import {
   type BudgetProjectionScope,
 } from '@/src/lib/budget/budgetProjection';
 import type { BudgetProjectFiscalCalendar } from '@/src/lib/budget/budgetProjectFiscalCalendar';
-import { formatCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { interpretForecast } from './budget-projection/forecastInterpretation';
 import { useBudgetDistribution } from '@/src/hooks/useBudget';
@@ -59,9 +59,9 @@ function projectionTone(row: BudgetProjectionCellRow): 'neutral' | 'won' | 'warn
   const pct = utilizationPct(row);
   if (pct === null) return 'neutral';
   if (row.projectedVariance !== null && row.projectedVariance < 0) return 'lost';
-  if (pct >= 90) return 'lost';
+  if (pct >= 90) return 'warn';
   if (pct >= 70) return 'warn';
-  return 'won';
+  return 'neutral';
 }
 
 const scopeToken = (scope: BudgetProjectionScope) => JSON.stringify(scope);
@@ -251,7 +251,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       cell: (row) => <Tooltip content={row.actualsAsOf
         ? t('projectDetail.budget.forecastActualsSource', 'ERP ledger through {{date}}. Commitments are project-wide because their source does not assign a fiscal year; they are shown separately and are not included in the fiscal-year final-cost formula.', { date: row.actualsAsOf })
         : t('projectDetail.budget.forecastActualsUnknown', 'ERP ledger spending is not available for this project and fiscal year. Commitments, when available, are project-wide and not fiscal-year-attributed.')}
-      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.actualsToDate, currency)}</span><span className="text-xs font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {canReadCommitments ? moneyText(committedByCategory[row.category] ?? 0, currency) : '—'}</span></span></Tooltip>,
+      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.actualsToDate, currency)}</span><span className="text-sm font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {canReadCommitments ? moneyText(committedByCategory[row.category] ?? 0, currency) : '—'}</span></span></Tooltip>,
     },
     {
       key: 'etc',
@@ -327,9 +327,9 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       cell: (row) => <Tooltip content={row.recorded === null
         ? unavailableRecordedText(row, t)
         : row.recordedAsOf
-          ? t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatInstantDate(row.recordedAsOf) })
+          ? t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(row.recordedAsOf) })
           : t('projectDetail.budget.wholeRecordedUnknownSource', 'Source: mapped ERP ledger. The reading date is unavailable.')}
-      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.recorded, currency)}</span><span className="text-xs font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatInstantDate(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span></span></Tooltip>,
+      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.recorded, currency)}</span><span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span></span></Tooltip>,
     },
     {
       key: 'remaining',
@@ -355,7 +355,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     label: t('financeCopy.total', 'Total'),
     values: {
       budget: moneyText(totalBudget, budgetCurrency),
-      spent: <span className="inline-flex flex-col items-end"><span>{moneyText(yearSummary.actuals, currency)}</span><span className="text-xs font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
+      spent: <span className="inline-flex flex-col items-end"><span>{moneyText(yearSummary.actuals, currency)}</span><span className="text-sm font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
       etc: formatCurrency(yearSummary.etc, currency),
       final: moneyText(yearSummary.final, currency),
       remaining: moneyText(totalForecastRemaining, currency),
@@ -415,10 +415,10 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       {!compatibleBasis && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.currencyBasisNotice', 'Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency, projectCurrency: currency })}</p>}
       {hasAllYearRows && <>
         <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-border/70 py-3 text-sm sm:grid-cols-4 sm:max-w-4xl sm:gap-x-6">
-          <div className="min-w-0"><dt className="text-xs text-muted-foreground">{t('projectDetail.budget.approvedTotal', 'Approved total')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(allYearSummary.budget, budgetCurrency)}</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-muted-foreground">{t('projectDetail.budget.recordedToDate', 'Recorded to date')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(allYearSummary.recorded, currency)}</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-muted-foreground">{t('projectDetail.budget.remainingShort', 'Remaining')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(compatibleBasis ? allYearSummary.remaining : null, currency)}</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-muted-foreground">{t('projectDetail.budget.percentRecordedShort', '% recorded')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{compatibleBasis && allYearSummary.percentUsed !== null ? `${Math.round(allYearSummary.percentUsed * 100)}%` : t('projectDetail.budget.unavailable', 'Unavailable')}</dd><dd className="mt-1 text-xs text-muted-foreground">{t('projectDetail.budget.wholePercentFormula', 'Recorded spending divided by the approved project budget.')}</dd></div>
+          <div className="min-w-0"><dt className="text-sm text-muted-foreground">{t('projectDetail.budget.approvedTotal', 'Approved total')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(allYearSummary.budget, budgetCurrency)}</dd></div>
+          <div className="min-w-0"><dt className="text-sm text-muted-foreground">{t('projectDetail.budget.recordedToDate', 'Recorded to date')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(allYearSummary.recorded, currency)}</dd></div>
+          <div className="min-w-0"><dt className="text-sm text-muted-foreground">{t('projectDetail.budget.remainingShort', 'Remaining')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(compatibleBasis ? allYearSummary.remaining : null, currency)}</dd></div>
+          <div className="min-w-0"><dt className="text-sm text-muted-foreground">{t('projectDetail.budget.percentRecordedShort', '% recorded')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{compatibleBasis && allYearSummary.percentUsed !== null ? `${Math.round(allYearSummary.percentUsed * 100)}%` : t('projectDetail.budget.unavailable', 'Unavailable')}</dd><dd className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.wholePercentFormula', 'Recorded spending divided by the approved project budget.')}</dd></div>
         </dl>
         {(allYearSummary.unknownBudget.length > 0 || allYearSummary.unknownRecorded.length > 0) && <p role="status" data-testid="whole-project-unknown" className="text-sm text-muted-foreground">
           {t('projectDetail.budget.comparisonUnknownCategories', 'Some figures are unavailable: approved budget for {{budgetCategories}}; recorded spending for {{recordedCategories}}.', {
@@ -428,11 +428,11 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
         </p>}
       </>}
       {hasForecastRows && yearSummary && <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-border/70 py-3 text-sm sm:max-w-2xl sm:gap-x-6">
-        <div className="min-w-0"><dt className="text-xs text-muted-foreground">{t('financeCopy.total', 'Total')} {t('financeCopy.budget', 'Budget')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalBudget, budgetCurrency)}</dd></div>
-        <div className="min-w-0"><dt className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalForecastRemaining, currency)}</dd></div>
+        <div className="min-w-0"><dt className="text-sm text-muted-foreground">{t('financeCopy.total', 'Total')} {t('financeCopy.budget', 'Budget')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalBudget, budgetCurrency)}</dd></div>
+        <div className="min-w-0"><dt className="text-sm text-muted-foreground">{t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalForecastRemaining, currency)}</dd></div>
       </dl>}
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
-        <label className="flex min-w-44 flex-col gap-1 text-xs font-medium text-muted-foreground">
+        <label className="flex min-w-44 flex-col gap-1 text-sm font-medium text-muted-foreground">
           {t('projectDetail.budget.fiscalYear', 'Fiscal year')}
           <select aria-label={t('projectDetail.budget.fiscalYear', 'Fiscal year')} value={scopeKey} disabled={editing || saveEtc.isPending} onChange={(event) => setScopeFromToken(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
             {!scope && <option value="unresolved" disabled>{calendarIsPending || calendarIsFetching || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable')}</option>}
@@ -480,19 +480,19 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
                 embedded
                 totals={totals}
               />
-              <p className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastCommitmentScope', 'Committed amounts are project-wide; the current source does not assign them to a fiscal year. They are shown separately and are not included in the fiscal-year forecast final.')}</p>
+              <p className="text-sm text-muted-foreground">{t('projectDetail.budget.forecastCommitmentScope', 'Committed amounts are project-wide; the current source does not assign them to a fiscal year. They are shown separately and are not included in the fiscal-year forecast final.')}</p>
               {incompleteRows.length > 0 && <div role="status" data-testid="forecast-incomplete" className="space-y-1 text-sm text-muted-foreground">
                 <p>{t('projectDetail.budget.forecastIncompleteCategories', 'Incomplete categories: {{categories}}', { categories: incompleteRows.map(({ row }) => budgetCategoryLabel(row.category, t)).join(', ') })}</p>
                 {incompleteRows.map(({ row, reason }) => <p key={`reason-${row.category}`}>{budgetCategoryLabel(row.category, t)}: {reasonText(reason)}</p>)}
               </div>}
-              {rows.find((row) => row.actualsAsOf)?.actualsAsOf && <p className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastSummaryAsOf', 'Recorded spending as of {{date}}', { date: formatInstantDate(rows.find((row) => row.actualsAsOf)!.actualsAsOf!) })}</p>}
+              {rows.find((row) => row.actualsAsOf)?.actualsAsOf && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.forecastSummaryAsOf', 'Recorded spending as of {{date}}', { date: formatDay(rows.find((row) => row.actualsAsOf)!.actualsAsOf!) })}</p>}
             </> : null}
       <Drawer
         open={Boolean(selected)}
         title={selected ? budgetCategoryLabel(selected.category, t) : ''}
         icon={<Icon name="dollar" />}
         status={selectedYearRow
-          ? <StatusPill variant={projectionTone(selectedYearRow)}>{t('projectDetail.budget.forecast', 'Forecast')}</StatusPill>
+          ? <StatusPill variant="neutral">{t('projectDetail.budget.forecast', 'Forecast')}</StatusPill>
           : selectedComparisonRow
             ? <StatusPill variant="neutral">{t('projectDetail.budget.comparison', 'Budget comparison')}</StatusPill>
             : <StatusPill variant="neutral">{t('projectDetail.budget.forecast', 'Forecast')}</StatusPill>}
@@ -532,7 +532,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
             {[
               [t('projectDetail.budget.approvedTotal', 'Approved total'), moneyText(selectedComparisonRow.budgetTotal, budgetCurrency), t('projectDetail.budget.wholeBudgetSource', 'Source: the Active budget version, counted once across the project.')],
               [t('projectDetail.budget.recordedToDate', 'Recorded to date'), moneyText(selectedComparisonRow.recorded, currency), selectedComparisonRow.recordedAsOf
-                ? t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatInstantDate(selectedComparisonRow.recordedAsOf) })
+                ? t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
                 : unavailableRecordedText(selectedComparisonRow, t)],
               [t('projectDetail.budget.remainingShort', 'Remaining'), moneyText(compatibleBasis ? selectedComparisonRow.remaining : null, currency), t('projectDetail.budget.wholeRemainingFormula', 'Calculated as approved project budget minus recorded project spending. This does not include a forecast.')],
               [t('projectDetail.budget.percentRecordedShort', '% recorded'), compatibleBasis && selectedComparisonRow.percentUsed !== null ? `${Math.round(selectedComparisonRow.percentUsed * 100)}%` : t('projectDetail.budget.unavailable', 'Unavailable'), t('projectDetail.budget.wholePercentFormula', 'Recorded spending divided by the approved project budget.')],
@@ -541,7 +541,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
           <p className="text-sm text-muted-foreground">{selectedComparisonRow.recorded === null
             ? unavailableRecordedText(selectedComparisonRow, t)
             : selectedComparisonRow.recordedAsOf
-              ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatInstantDate(selectedComparisonRow.recordedAsOf) })
+              ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(selectedComparisonRow.recordedAsOf) })
               : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</p>
           <p className="text-sm text-muted-foreground">{t('projectDetail.budget.wholeComparisonScope', 'This is an approved-budget comparison with recorded spending across the project. It does not include cost to finish or a forecast final.')}</p>
         </div>}

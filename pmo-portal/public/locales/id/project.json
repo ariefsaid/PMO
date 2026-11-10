@@ -477,7 +477,10 @@
       "invoicedOut": "Nilai difakturkan tidak ditampilkan sampai setiap jumlah faktur diketahui.",
       "paidOut": "Nilai dibayar tidak ditampilkan sampai setiap saldo faktur diketahui.",
       "cashIncomplete": "Kas diterima tidak ditampilkan sampai setiap penerimaan dialokasikan ke faktur.",
-      "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi."
+      "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi.",
+      "hiddenFigures": "Tidak ditampilkan: {{figures}}.",
+      "cashLead": "Diterima {{amount}}",
+      "contractLocked": "hanya baca"
     },
     "cost": {
       "estimateTitle": "Anggaran",
@@ -584,8 +587,8 @@
       "contractValueReadOnlyExplanation": "Nilai kontrak yang disetujui dikunci bagi manajer proyek setelah proyek dimenangkan. Eksekutif, Finance, atau administrator dapat memperbaruinya dan perubahan tersebut akan dicatat.",
       "changeDeliveryStatus": "Ubah status pelaksanaan",
       "copyLink": "Salin tautan",
-        "previewFileFor": "Pratinjau berkas untuk {{title}}",
-        "previewFile": "Pratinjau berkas",
+      "previewFileFor": "Pratinjau berkas untuk {{title}}",
+      "previewFile": "Pratinjau berkas",
       "changeContractValue": "Ubah nilai kontrak"
     },
     "rail": {

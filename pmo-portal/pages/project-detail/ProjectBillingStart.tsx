@@ -38,13 +38,13 @@ const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, cl
             className={methodClassName}
           >
             <span className="text-sm font-semibold text-foreground">{t('uxs15.contractInvoice', 'Contract invoice')}</span>
-            <span className="mt-0.5 text-xs text-muted-foreground">
+            <span className="mt-0.5 text-sm text-muted-foreground">
               {t('uxs15.contractInvoiceHelp', 'Create a draft invoice for this project’s customer.')}
             </span>
           </Link>
           <button type="button" onClick={() => { setOpen(false); onWorkOrder(); }} className={methodClassName}>
             <span className="text-sm font-semibold text-foreground">{t('uxs15.customerWorkOrder', 'Customer work order')}</span>
-            <span className="mt-0.5 text-xs text-muted-foreground">
+            <span className="mt-0.5 text-sm text-muted-foreground">
               {t('uxs15.customerWorkOrderHelp', 'Choose a work order, then invoice its remaining value.')}
             </span>
           </button>
@@ -53,7 +53,7 @@ const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, cl
               <span className="text-sm font-semibold text-foreground">
                 {t('uxs15.quantityProgressClaim', 'Quantity or progress claim')}
               </span>
-              <span className="mt-0.5 text-xs text-muted-foreground">
+              <span className="mt-0.5 text-sm text-muted-foreground">
                 {t('uxs15.quantityProgressClaimHelp', 'Start a claim from measured work or a down payment.')}
               </span>
             </button>

@@ -13,7 +13,7 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { completionPct, formatCurrency, formatDateOnly, formatNumberWhole } from '@/src/lib/format';
+import { completionPct, formatDay, formatDaysOverdue, formatTableMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { deriveMargin } from '@/src/lib/projectFinances';
@@ -23,14 +23,15 @@ import { summarizeInvoiceSettlement } from './ContractCascade';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
-/** Whole units, no currency symbol: the block heading names the currency once. */
-const whole = (value: number) => formatNumberWhole(value);
+/** Full whole-unit amount with its currency, right-aligned and tabular where it sits in a column (screen rules, Numbers). */
+const moneyIn = (currency: string) => (value: number) => formatTableMoney(value, currency) ?? String(value);
 const pctOf = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
 
 /** The one style for an in-block action: a quiet text action on the heading row, 44px tap area. */
 export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children: React.ReactNode; expanded?: boolean; className?: string }> = ({ onClick, to, children, expanded, className }) => {
-  const cls = cn('touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className);
+  const cls = cn('touch-target inline-flex items-center text-sm font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className);
   return to
     ? <Link to={to} className={cls}>{children}</Link>
     : <button type="button" onClick={onClick} aria-expanded={expanded} className={cls}>{children}</button>;
@@ -52,9 +53,9 @@ const Headline: React.FC<{ tone?: 'danger'; tooltip?: string; children: React.Re
   </p>
 );
 const Sub: React.FC<{ tooltip?: string; children: React.ReactNode }> = ({ tooltip, children }) => (
-  <p className="mt-1 text-xs tabular-nums text-muted-foreground">{tooltip ? <Tooltip content={tooltip}><span tabIndex={0}>{children}</span></Tooltip> : children}</p>
+  <p className="mt-1 text-sm tabular-nums text-muted-foreground">{tooltip ? <Tooltip content={tooltip}><span tabIndex={0}>{children}</span></Tooltip> : children}</p>
 );
-const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => <p className="mt-4 text-xs text-muted-foreground">{children}</p>;
+const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => <p className="mt-4 text-sm text-muted-foreground">{children}</p>;
 const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className="font-semibold text-primary-text hover:underline">{children}</Link>
 );
@@ -64,17 +65,19 @@ type MarginReason = 'different-currencies' | 'work-unavailable' | 'restricted-ro
 
 const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
+  const whole = moneyIn(project.currency);
   const [financeDetailsOpen, setFinanceDetailsOpen] = useState(false);
   const q = useProjectFinances(project.id);
   const may = usePermission();
   const canViewMoney = may('view', 'salesInvoice');
+  const contractLocked = ON_HAND_STATUSES.includes(project.status as string) && !may('editContractValue', 'project', { record: { status: project.status as string } });
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
   const unit = (
     <>
       {project.currency}
-      {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
+      {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-sm text-muted-foreground" /></>}
     </>
   );
   const title = t('projectDetail.money.positionTitle', 'Money position');
@@ -135,6 +138,12 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
     { key: 'invoiced', label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency.') },
     { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
   ].filter((step): step is { key: string; label: string; value: number; source: string } => step.value !== null);
+  const stepLabels = { ordered: t('projectDetail.money.ordered', 'Ordered'), delivered: t('projectDetail.money.delivered', 'Delivered'), invoiced: t('projectDetail.money.invoiced', 'Invoiced'), paid: t('projectDetail.money.paid', 'Paid') };
+  const hidden = [
+    ...(['ordered', 'delivered', 'invoiced', 'paid'] as const).filter((key) => !steps.some((step) => step.key === key)).map((key) => stepLabels[key]),
+    ...(marginAmount === null ? [t('projectDetail.money.grossMargin', 'Gross margin')] : []),
+    ...(cashReceived === null ? [t('projectDetail.money.cashReceived', 'Cash received')] : []),
+  ];
   const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
   const invoicedShare = share(invoiced);
   const paidShare = share(paid);
@@ -148,6 +157,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
             t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
             'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
           {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
+          {cashReceived !== null && <span data-testid="money-lead-cash" className={cn('text-lg font-semibold tabular-nums', cashReceived === 0 ? 'text-destructive-text' : 'text-foreground')}>{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
         </p>
       )}
       <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
@@ -155,13 +165,13 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
           const percent = share(step.value);
           return (
             <div key={step.key} className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
-              <dt className="text-xs text-muted-foreground">{step.label}</dt>
+              <dt className="text-sm text-muted-foreground">{step.label}</dt>
               <dd className="min-w-0">
                 {percent !== null && <ProgressBar value={percent} tone="primary" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
               </dd>
               <dd className="text-right text-sm">
                 {step.key === 'contract'
-                  ? <span data-testid="contract-value-amount">{explain(step.source, formatCurrency(step.value, project.currency))}</span>
+                  ? <><span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>{contractLocked && <span data-testid="contract-value-locked" className="ml-2 text-muted-foreground">{t('projectDetail.money.contractLocked', 'read-only')}</span>}</>
                   : explain(step.source, whole(step.value))}
               </dd>
               {step.key === 'contract' && contractValue !== null && (
@@ -171,36 +181,21 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
           );
         })}
       </dl>
-      {(marginAmount !== null || cashReceived !== null) && (
+      {marginAmount !== null && (
         <dl className="mt-4 flex min-w-0 flex-wrap gap-x-8 gap-y-3 border-t border-border/70 pt-3">
           {marginAmount !== null && (
             <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{t('projectDetail.money.grossMargin', 'Gross margin')}</dt>
+              <dt className="text-sm text-muted-foreground">{t('projectDetail.money.grossMargin', 'Gross margin')}</dt>
               <dd className={cn('mt-0.5 text-sm', marginAmount < 0 && '[&>span]:text-destructive-text')}>{explain(t('projectDetail.money.marginSource', 'Billed-work revenue less complete recorded spending in the same currency.'), whole(marginAmount))}</dd>
-            </div>
-          )}
-          {cashReceived !== null && (
-            <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{t('projectDetail.money.cashReceived', 'Cash received')}</dt>
-              <dd className="mt-0.5 text-sm">{explain(t('projectDetail.money.cashSource', 'Receipt cash allocated to invoices for this project; separate from invoice settlement.'), whole(cashReceived))}</dd>
             </div>
           )}
         </dl>
       )}
-      {!hasBoq && <Note>{t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.')}</Note>}
-      {invoices.isPending && canViewMoney && <Note>{t('projectDetail.money.invoicesChecking', 'Checking invoices…')}</Note>}
       {invoices.isError && <Note>{t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")} <Button variant="ghost" size="sm" onClick={() => void invoices.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
-      {invoicesKnown && settlement.invoiced === null && <Note>{t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.')}</Note>}
-      {invoicesKnown && settlement.invoiced !== null && !settlement.balancesKnown && <Note>{t('projectDetail.money.paidOut', 'Paid is left out until every invoice balance is known.')}</Note>}
-      {marginNote && <Note>{marginNote}</Note>}
-      {cashReceived === null && (
+      {hidden.length > 0 && !invoices.isPending && (
         <Note>
-          {cash?.state === 'incomplete'
-            ? t('projectDetail.money.cashIncomplete', 'Cash received is left out until every receipt is allocated to an invoice.')
-            : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
-              ? t('projectDetail.money.cashInvalid', "Cash received is left out because the receipt reading couldn't be verified.")
-              : t('projectDetail.money.cashUnavailable', 'Receipt-backed cash is not available yet.')}{' '}
-          {cash?.state === 'known' ? null : <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
+          {t('projectDetail.money.hiddenFigures', 'Not shown: {{figures}}.', { figures: hidden.join(', ') })}{' '}
+          {cashReceived === null && cash?.state !== 'known' && <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
         </Note>
       )}
       {cashReceived !== null && paid !== null && paid > cashReceived && (
@@ -211,7 +206,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
       )}
       <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
-          className="touch-target inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
+          className="touch-target inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">
           <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
           {t('projectDetail.money.details', 'Details')}
         </button>
@@ -226,12 +221,13 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
 const CostUnit: React.FC<{ project: ProjectWithRefs }> = ({ project }) => (
   <>
     {project.currency}
-    {project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
+    {project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-sm text-muted-foreground" /></>}
   </>
 );
 
 const EstimatedBudgetBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
+  const whole = moneyIn(project.currency);
   const amount = project.budget;
   return (
     <Block id="pd-cost" title={t('projectDetail.cost.estimateTitle', 'Budget')} unit={<CostUnit project={project} />}>
@@ -248,6 +244,7 @@ const CostBlockView: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => v
 
 const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void }> = ({ project, onOpenBudget }) => {
   const { t } = useTranslation('project');
+  const whole = moneyIn(project.currency);
   const may = usePermission();
   const canFixSetup = may('manage', 'orgAccounting');
   const pos = useBudgetPosition(project);
@@ -377,7 +374,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     aria-label={t('projectDetail.cost.openCategory', 'Open {{category}} in Budget', { category: label(r.category) })}
                     className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(8rem,0.8fr)_minmax(5rem,auto)_minmax(5rem,1fr)]">
                     <span className="truncate text-sm font-medium text-foreground">{label(r.category)}</span>
-                    <span className={cn('text-right text-xs tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
+                    <span className={cn('text-right text-sm tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
                         ? t('projectDetail.cost.rowBudgetOnly', '{{budget}} budgeted', { budget: whole(r.budget) })
                         : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
@@ -410,10 +407,10 @@ const DeliveryBlockView: React.FC<{ projectId: string; isPipeline?: boolean; chi
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-const DAY_MS = 86_400_000;
 
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation('project');
+  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
@@ -464,14 +461,14 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
             const pct = completionPct(milestone.effective_pct);
             const started = milestone.effective_pct > 0 || milestone.task_count > 0;
             const overdue = Boolean(milestone.target_date && milestone.target_date < today && milestone.effective_pct < 100 && started);
-            const lateDays = overdue && milestone.target_date ? Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${milestone.target_date}T00:00:00Z`)) / DAY_MS) : 0;
+            const lateText = overdue ? formatDaysOverdue(milestone.target_date, tStatus) : null;
             return (
               <li key={milestone.id} className="grid min-w-0 items-center gap-x-4 gap-y-1 py-2.5 md:grid-cols-[minmax(8rem,1fr)_minmax(0,2fr)_12rem]">
                 <span className={cn('min-w-0 break-words text-sm text-foreground', milestone.id === current?.id ? 'font-semibold' : 'font-medium')}>{milestone.name}</span>
-                <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                   {milestone.target_date && (overdue
-                    ? <span className="font-medium text-destructive-text">{t('projectDetail.delivery.phaseOverdue', 'Overdue {{count}}d · target {{date}}', { count: lateDays, date: formatDateOnly(milestone.target_date) })}</span>
-                    : <span>{t('projectDetail.delivery.phaseTarget', 'Target {{date}}', { date: formatDateOnly(milestone.target_date) })}</span>)}
+                    ? <span className="font-medium text-destructive-text">{lateText} · {formatDay(milestone.target_date)}</span>
+                    : <span>{t('projectDetail.delivery.phaseTarget', 'Target {{date}}', { date: formatDay(milestone.target_date) })}</span>)}
                   <span>{t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) })}</span>
                   <span>{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
                   {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="font-semibold text-primary-text hover:underline">{task.name}</Link>)}

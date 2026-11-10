@@ -73,9 +73,9 @@ export const ProjectAttention: React.FC<{
               <Link to={item.to} className="touch-target flex items-baseline gap-x-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-semibold text-foreground">{item.what}</span>
-                  {item.size && <>{' '}<span className={cn('block text-xs font-medium tabular-nums sm:ml-3 sm:inline', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size}</span></>}
+                  {item.size && <>{' '}<span className={cn('block text-sm font-medium tabular-nums sm:ml-3 sm:inline', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size}</span></>}
                 </span>
-                <span className="shrink-0 text-xs font-semibold text-primary-text">{item.action}</span>
+                <span className="shrink-0 text-sm font-semibold text-primary-text">{item.action}</span>
               </Link>
             </Tooltip>
           </li>

@@ -55,7 +55,7 @@ export function basisNote(row: WorkOrderRow, t: TFunction): string {
 
 export const MoneyFigure: React.FC<{ label: string; value: string; detail?: string; destructive?: boolean; testId?: string }> = ({ label, value, detail, destructive = false, testId }) => (
   <div className="min-w-20" data-testid={testId}>
-    <dt className="text-xs text-muted-foreground"><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span className="cursor-help">{label}</span></Tooltip></dt>
+    <dt className="text-sm text-muted-foreground"><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span className="cursor-help">{label}</span></Tooltip></dt>
     <dd className={`cursor-help text-lg font-semibold tabular-nums ${destructive ? 'text-destructive-text' : 'text-foreground'}`}><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span>{value}</span></Tooltip></dd>
   </div>
 );

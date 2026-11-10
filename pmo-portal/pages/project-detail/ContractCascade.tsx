@@ -149,7 +149,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       {!isCascadePending && !isCascadeError && showSummary && (
         <section aria-labelledby="pd-cascade" className="panel-card min-w-0">
           <CardHead id="pd-cascade" subline={<>{project.currency}
-              {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
+              {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-sm text-muted-foreground" /></>}
             </>}>{t('projectDetail.cascade.title', 'Contract')}</CardHead>
           <CardPad className="pt-0">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
@@ -167,7 +167,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
             {(orderBilling.isError || orderBilling.isPending) ? (
-              <span className="text-xs text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
+              <span className="text-sm text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
                 {orderBilling.isError ? t('projectDetail.cascade.orderBillingError', 'Can invoice is unavailable while work-order billing is loading.') : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
               </span>
             ) : <Tooltip content={t('projectDetail.cascade.source.canInvoice', 'Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.')}>
@@ -183,7 +183,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               </span>
             </Tooltip>}
           </div>
-          {(hasReadingLayer || Boolean(billing.data && billing.data.dpBilled > 0)) && <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
+          {(hasReadingLayer || Boolean(billing.data && billing.data.dpBilled > 0)) && <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm tabular-nums text-muted-foreground">
             {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span></Tooltip>}
             {Boolean(billing.data && billing.data.dpBilled > 0) && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
               billed: formatNumberWhole(billing.data!.dpBilled),
@@ -192,7 +192,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             })}</span></Tooltip>}
           </p>}
           {invoiceFiguresMissing && !children && (
-            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
               <span>{invoices.isError
                 ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")
                 : invoices.isPending
@@ -217,7 +217,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       {hasReadingLayer && unorderedRows.length > 0 && (() => {
         const columns: Column<UnorderedLine>[] = [
           { key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
-            cell: (line) => <span>{line.item.item_code && <span className="mr-2 text-xs text-muted-foreground">{line.item.item_code}</span>}{line.item.description}</span>,
+            cell: (line) => <span>{line.item.item_code && <span className="mr-2 text-sm text-muted-foreground">{line.item.item_code}</span>}{line.item.description}</span>,
             secondaryCell: (line) => line.item.unit },
           { key: 'contract', header: t('projectDetail.cascade.colContract', 'Contract'), align: 'num', kind: 'number',
             cell: (line) => <Tooltip content={t('projectDetail.cascade.source.contractQuantity', 'Source: priced contract line quantity.') }><span className="cursor-help tabular-nums">{qty(Number(line.item.quantity))} {line.item.unit}</span></Tooltip>,
@@ -293,7 +293,7 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
     <li className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
       <div className="block">
         <Tooltip content={detail}>
-          <span className="block w-fit cursor-help text-xs text-muted-foreground">{label}</span>
+          <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
         </Tooltip>
       </div>
       <div className="mt-1 block">
@@ -302,12 +302,12 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
       {percentage !== null && <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.') }>
         <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} /></span>
       </Tooltip>}
-      {percentage === null && <span className="mt-2 block text-xs text-muted-foreground">—</span>}
+      {percentage === null && <span className="mt-2 block text-sm text-muted-foreground">—</span>}
     </li>
   );
 };
 
 const UnorderedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
-  <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd></div>
+  <div><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd></div>
 );
 

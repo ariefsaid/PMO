@@ -159,7 +159,6 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
       open
       width="lg"
       title={t('projectDetail.billing.claimForm.title', 'New billing claim')}
-      subtitle={t('projectDetail.billing.claimForm.subtitle', 'A claim becomes one ERP invoice. Attach the evidence before raising it.')}
       submitLabel={t('projectDetail.billing.claimForm.save', 'Create claim')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -204,7 +203,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
             </Button>
           )}
           {inScope.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {t('projectDetail.billing.claimForm.noLines', 'No bill of quantities lines in this scope.')}
             </p>
           ) : (
@@ -223,13 +222,14 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
           )}
           {errors.lines && <FieldError>{errors.lines}</FieldError>}
           {hasDownPayment && (
-            <label className="mt-3 flex items-center gap-2 text-[13px]">
+            <label className="mt-3 flex items-center gap-2 text-sm">
               <input type="checkbox" checked={recoverRest} onChange={(e) => setRecoverRest(e.target.checked)} />
               {t('projectDetail.billing.claimForm.recoverRest', 'Recover the rest of the down payment with this claim')}
             </label>
           )}
         </FormSection>
       )}
+      <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.claimForm.subtitle', 'A claim becomes one ERP invoice. Attach the evidence before raising it.')}</p>
     </EntityFormModal>
   );
 };

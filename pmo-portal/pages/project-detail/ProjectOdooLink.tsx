@@ -32,7 +32,7 @@ export function ProjectOdooLink({ projectId, managerId }: { projectId: string; m
     try { await m.mutateAsync(input); after?.(); } catch (err) { setError(odooErrorMessage(t, err)); }
   };
 
-  const title = <h4 className="text-xs font-medium text-muted-foreground">{t('administration:odoo.projectLink.title', 'Odoo cost account')}</h4>;
+  const title = <h4 className="text-sm font-medium text-muted-foreground">{t('administration:odoo.projectLink.title', 'Odoo cost account')}</h4>;
   if (links.isPending) return <div>{title}<ListState variant="loading" rows={1} /></div>;
   if (links.isError || !links.data) {
     return <div>{title}<ListState variant="error" title={t('administration:odoo.projectLink.loadFailed', 'The Odoo link could not be loaded')} onRetry={() => void links.refetch()} retryLabel={t('administration:odoo.projectLink.retry', 'Retry')} /></div>;

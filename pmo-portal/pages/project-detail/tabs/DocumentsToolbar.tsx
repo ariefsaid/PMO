@@ -112,7 +112,7 @@ const DocumentsToolbar: React.FC<{
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-auto min-h-0 px-0 py-0 text-xs text-primary-text underline-offset-4 hover:bg-transparent hover:underline"
+                className="h-auto min-h-0 px-0 py-0 text-sm text-primary-text underline-offset-4 hover:bg-transparent hover:underline"
                 onClick={onLinkMicrosoft}
               >
                 {t('m365Documents.link', 'Link from Microsoft 365')}

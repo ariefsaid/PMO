@@ -17,17 +17,11 @@ import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import {
-  formatCurrency,
-  formatNumberMax2,
-  formatShortMoney,
-  formatInstantDate,
-} from '@/src/lib/format';
+import { formatNumberMax2, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
 import { staleDistributionBasis } from '@/src/lib/budget/distributionStaleness';
-import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
   useToast,
@@ -44,6 +38,9 @@ import {
   Tooltip,
   KPIRow,
   KPITile,
+  FigureScope,
+  FigureHiddenLine,
+  PageHeader,
   ViewToggle,
   ProgressBar,
   Drawer,
@@ -536,7 +533,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ? t('common.you', 'You')
     : usersQuery.data?.find((user) => user.id === version.created_by)?.full_name ?? null;
   const versionMeta = (version: BudgetVersionWithItems) => [
-    version.created_at ? formatInstantDate(version.created_at) : null,
+    version.created_at ? formatDay(version.created_at) : null,
     authorName(version),
   ].filter(Boolean).join(' · ');
   /** A row's budget status, or null when spending or commitments are unknown (the page states that reason once). */
@@ -544,9 +541,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     if (row.budget === 0 && row.left !== null && row.left < 0) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
     if (row.used === null || row.left === null) return null;
     if (row.left < 0) return { variant: 'lost' as const, label: t('projectDetail.budget.overBudget', 'Over budget') };
-    if (row.used >= 90) return { variant: 'lost' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
+    if (row.used >= 90) return { variant: 'warn' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
     if (row.used >= 70) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
-    return { variant: 'won' as const, label: t('projectDetail.budget.onTrack', 'On track') };
+    return { variant: 'neutral' as const, label: t('projectDetail.budget.onTrack', 'On track') };
   };
   // C5/C6: whole units use the project heading; foreign budget figures carry their own basis.
   // C5 + money precision: no trailing .00 on whole amounts, but a real fraction (1,234.5) is never rounded away.
@@ -555,14 +552,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const formatSpent = (value: number | null) => value === null ? '—' : spendCurrency === project.currency ? formatAmount(value) : `${spendCurrency} ${formatAmount(value)}`;
   // F11: KPI tiles carry the short amount; the full amount stays on hover and for screen readers.
   const tileAmount = (value: number | null, currency = project.currency) => {
-    if (value === null) return { value: '—' };
-    const short = formatShortMoney(value, currency);
-    const exact = formatCurrency(value, currency);
-    return short === exact ? { value: short } : { value: short, exactValue: exact };
+    const tile = value === null ? null : formatTileMoney(value, currency);
+    return tile === null ? { value: null } : { value: tile, exactValue: formatTableMoney(value as number, currency) ?? undefined };
   };
-  const budgetUnit = <span className="text-xs text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></>}</span>;
+  const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
   const spentExcludedNote = spentExcluded > 0 && totalSpent !== null
-    ? t('projectDetail.budget.spentExcludes', 'Spent excludes categories with no Odoo account ({{count}})', { count: spentExcluded })
+    ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
     : undefined;
   const actualSource = odooActuals.onLedger
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
@@ -660,10 +655,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const versionColumns: Column<BudgetVersionWithItems>[] = [
     {
       key: 'version', header: t('projectDetail.budget.version', 'Version'), kind: 'primary', rowHeader: true,
-      cell: (version) => <span><span className="font-mono text-xs text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
-      secondaryCell: (version) => versionMeta(version) ? <span className="text-xs text-muted-foreground">{versionMeta(version)}</span> : null,
+      cell: (version) => <span><span className="font-mono text-sm text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
+      secondaryCell: (version) => versionMeta(version) ? <span className="text-sm text-muted-foreground">{versionMeta(version)}</span> : null,
     },
-    { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill variant={budgetVersionVariant(version.status)}>{version.status}</StatusPill> },
+    { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill record="budgetVersion" state={version.status} /> },
     { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{`${version.currency || project.currency} ${formatAmount(version.total)}`}</span></Tooltip> },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
       const index = orderedVersions.findIndex((item) => item.id === version.id);
@@ -783,14 +778,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   }
 
   return (
+    <FigureScope>
     <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
-      <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-        {/* Project currency and tax basis apply to project spending and commitments. */}
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <h2 className="text-page font-bold tracking-[-0.02em] text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
-          {budgetUnit}
-        </div>
-      </header>
+      <PageHeader headingLevel={2} title={t('projectDetail.budget.title', 'Project budget')} count={budgetUnit} className="mb-0" />
+      <FigureHiddenLine />
 
       {authoringRecoveryNotice}
 
@@ -811,7 +802,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <section aria-label={t('projectDetail.budget.draftReturned', 'Draft returned to the drafter')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-returned-banner">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
+              <StatusPill record="budgetVersion" state="Draft" />
               <h3 className="font-semibold">{t('projectDetail.budget.draftReturned', 'Draft returned to the drafter')}</h3>
               <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
             </div>
@@ -829,14 +820,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
+              <StatusPill record="budgetVersion" state="Draft" />
               <h3 className="font-semibold">{t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
               <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
             </div>
             {!canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
             {canActivate && !hasOpenLineBuffers && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
             {canActivate && hasOpenLineBuffers && <p role="status" className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.saveOrDiscardLines', 'Save or discard all open line item edits before activating.')}</p>}
-            <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-[13px] text-muted-foreground">
+            <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-sm text-muted-foreground">
               {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
             </div>
             {!canWrite && draftMode === 'whole_project' && budgetDistributionQuery.isError && (
@@ -861,9 +852,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-2 lg:grid-cols-4">
         <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, spendCurrency)} vs={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, spendCurrency)} caption={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
-        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} vs={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? (compatibleBasis ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : t('projectDetail.budget.currencyComparisonUnavailable', 'Comparison unavailable because budget and spending use different currencies.')) : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
+        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? (compatibleBasis ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : t('projectDetail.budget.currencyComparisonUnavailable', 'Comparison unavailable because budget and spending use different currencies.')) : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
       </KPIRow>
 
       <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
@@ -887,12 +878,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
                 ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
               ]}
             />
-            <span className="text-xs font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+            <span className="text-sm font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span>{t('projectDetail.budget.version', 'Version')}</span>
-              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-[30px] max-w-52 rounded-md border border-input bg-background px-2 text-xs text-foreground disabled:opacity-70">
+              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-[30px] max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
                 {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
               </select>
             </label>
@@ -1068,7 +1059,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
             <h2 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h2>
             <ul className="divide-y divide-border" aria-label={t('projectDetail.budget.budgetLineItems', 'Budget line items')}>
-              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}<span className="ml-2 text-xs">{t('financeCopy.fiscalYear', 'Fiscal year')}: {line.fiscal_year ?? t('financeCopy.unPhased', 'Un-phased')}</span></span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatBudget(Number(line.budgeted_amount))}</span></Tooltip></li>)}
+              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}<span className="ml-2 text-sm">{t('financeCopy.fiscalYear', 'Fiscal year')}: {line.fiscal_year ?? t('financeCopy.unPhased', 'Un-phased')}</span></span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatBudget(Number(line.budgeted_amount))}</span></Tooltip></li>)}
               {selectedCategory.lines.length === 0 && <li className="py-2 text-sm text-muted-foreground">{t('projectDetail.budget.noLineItems', 'No budget line items are recorded for this category.')}</li>}
             </ul>
           </section>
@@ -1088,7 +1079,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         hasDraft={Boolean(draftVersion)}
         nestedOpen={Boolean(pendingConfirm)}
         readinessSummary={draftVersion ? (
-          <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-[13px] text-muted-foreground">
+          <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-sm text-muted-foreground">
             {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
           </div>
         ) : null}
@@ -1126,6 +1117,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       )}
       {!authoringRefreshNeeded && budgetConfirm}
     </div>
+    </FigureScope>
   );
 };
 

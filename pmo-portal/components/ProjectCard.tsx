@@ -9,7 +9,6 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { deriveCollectionActual } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
@@ -91,14 +90,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           value starts at the same x (director rendered-review fix). Money rows first, then the
           delivery/usage bars as rows of the same grid; a bar row appears only when it has a figure
           and its percent denominator is explicit. Each fact once: no freshness or coverage prose. */}
-      <dl className="grid min-w-0 grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 text-[12px]">
+      <dl className="grid min-w-0 grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 text-sm">
         <div className="contents">
           <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
           <dd data-testid="project-card-contract" className="min-w-0 font-semibold tabular">
             {contract == null ? null : (
               <span className="inline-flex items-baseline gap-x-1 whitespace-nowrap">
                 {formatCurrency(contract, currency)}
-                <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-[11px] font-normal text-muted-foreground" />
+                <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm font-normal text-muted-foreground" />
               </span>
             )}
           </dd>
@@ -138,16 +137,16 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           </div>
         )}
       </dl>
-      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-xs text-muted-foreground">
+      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-sm text-muted-foreground">
         {t('projects:moneyFiguresUnavailable', 'Some project financial figures are still being confirmed.')}
       </p>}
 
       {(project.pmo_project_number || project.code || project.customer_contract_ref) && (
         <details>
-          <summary aria-label={t('uxs14.projectReferencesFor', 'More project references for {{name}}', { name: project.name })} className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <summary aria-label={t('uxs14.projectReferencesFor', 'More project references for {{name}}', { name: project.name })} className="cursor-pointer text-sm text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('uxs14.projectReferences', 'More project references')}
           </summary>
-          <div className="space-y-0.5 pt-1 font-mono text-[11px] text-muted-foreground">
+          <div className="space-y-0.5 pt-1 font-mono text-sm text-muted-foreground">
             {project.pmo_project_number && <div>{t('projects.identifiers.pmo', 'PMO Project Number')}: <span className="break-words md:truncate" title={project.pmo_project_number}>{project.pmo_project_number}</span></div>}
             {project.code && <div>{t('projects.identifiers.client', 'Client Project Code')}: <span className="break-words md:truncate" title={project.code}>{project.code}</span></div>}
             {project.customer_contract_ref && <div>{t('uxs14.contractReference', 'Customer contract reference')}: <span className="break-words md:truncate" title={project.customer_contract_ref}>{project.customer_contract_ref}</span></div>}
@@ -160,9 +159,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   // Foot: PM + the optional Edit button (stops propagation so it never triggers the card drill).
   const foot = (
     <>
-      <span className="flex min-w-0 items-center gap-2 text-[12px]">
+      <span className="flex min-w-0 items-center gap-2 text-sm">
         {project.project_manager_id != null && (
-          <span aria-hidden className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
+          <span aria-hidden className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">
             {initial}
           </span>
         )}
@@ -198,7 +197,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       clientId={project.client_id}
       status={
         <div className="flex flex-wrap items-center gap-1.5">
-          <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
+          <StatusPill record="project" state={project.status as string}>
             {projectStatusLabel(project.status as string)}
           </StatusPill>
           {atRisk && <StatusPill variant="warn">{t('uxs02.atRisk', 'At risk')}</StatusPill>}

@@ -74,7 +74,7 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
       <h3 className="text-sm font-semibold">{t('equipment:panel.title', 'Equipment · last 12 months')}</h3>
       <DataTable<AssetLine> embedded rows={lines} columns={columns} rowKey={(l) => l.assetId} tableId="project-equipment"
         accessibleName={t('equipment:panel.title', 'Equipment · last 12 months')} />
-      {charge && <p className="text-xs text-muted-foreground">{t('equipment:panel.internalCharge', 'Includes {{amount}} internal equipment charges (hire rates), not ledger cost', { amount: charge })}</p>}
+      {charge && <p className="text-sm text-muted-foreground">{t('equipment:panel.internalCharge', 'Includes {{amount}} internal equipment charges (hire rates), not ledger cost', { amount: charge })}</p>}
     </div>
   );
 };
