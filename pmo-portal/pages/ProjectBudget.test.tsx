@@ -749,6 +749,46 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  /**
+   * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
+   * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
+   * attempt was made and there is nothing to retry.
+   */
+  it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
+    roleState.realRole = 'Finance';
+    mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/no budget lines/i);
+    // …and it does NOT tell the operator to retry a push that was never attempted.
+    expect(toast).not.toHaveTextContent(/retry/i);
+    resetState();
+  });
+
+  /**
+   * ⚑ rm-1472 — a 202 `budget-cancellation-pending` is the queue, not a push. ERPNext holds nothing for
+   * the new version until the predecessor's cancellation settles (the sweep then pushes it by itself),
+   * so the activation toast must not read as a clean success — and must not tell the operator to fix
+   * something either: nothing on this screen is wrong.
+   */
+  it('rm-1472 activation queued behind an earlier cancellation says so — never a clean "Version activated"', async () => {
+    roleState.realRole = 'Finance';
+    mockActivate.mockResolvedValueOnce({ pushState: 'pending-cancellation' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/queued/i);
+    expect(toast).toHaveTextContent(/cancellation/i);
+    resetState();
+  });
+
   it('requires the current mode while confirming a sole-operator activation', async () => {
     roleState.realRole = 'Finance';
     budgetState.data = 100;

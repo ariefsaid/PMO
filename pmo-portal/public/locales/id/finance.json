@@ -717,6 +717,8 @@
     "odooDraftNumber": "Draf — Odoo memberi nomor setelah disetujui",
     "erpLineItemsStoredExternally": "Baris faktur disimpan di sistem akuntansi untuk faktur ini.",
     "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo.",
+    "versionActivatedPushQueued": "Versi diaktifkan: anggaran ERPNext dalam antrean",
+    "cancellationPendingQueuedDetail": "{{version}}. Pembatalan anggaran ERPNext sebelumnya masih dalam proses, sehingga penggantinya diantrekan dan akan dikirim otomatis setelah pembatalan itu selesai.",
     "withholdingArticle": "Pasal pemotongan",
     "withholdingArticleNone": "Tidak disebutkan",
     "withholdingArticlePph23": "PPh 23",

@@ -254,6 +254,8 @@
     "confirmLabel_other": "Aktifkan {{count}} draf",
     "activatedErpFailed": "Diaktifkan, tetapi ERPNext belum diperbarui",
     "activatedNothingSent": "Diaktifkan, tetapi tidak ada yang dikirim ke ERPNext: tidak ada baris anggaran",
-    "nothingSent": "{{count}} diaktifkan tetapi tidak ada yang dikirim ke ERPNext (tidak ada baris anggaran); tambahkan baris lalu aktifkan versi baru agar dapat diberlakukan."
+    "nothingSent": "{{count}} diaktifkan tetapi tidak ada yang dikirim ke ERPNext (tidak ada baris anggaran); tambahkan baris lalu aktifkan versi baru agar dapat diberlakukan.",
+    "activatedErpPending": "Diaktifkan, pembaruan ERPNext diantrekan setelah pembatalan sebelumnya",
+    "erpPushQueued": "{{count}} diaktifkan dengan pengiriman ERPNext diantrekan setelah pembatalan anggaran sebelumnya; pengiriman berjalan otomatis setelah pembatalan itu selesai."
   }
 }

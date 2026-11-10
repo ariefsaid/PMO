@@ -134,11 +134,34 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
         }
         case 'activate': {
           if (!canActivate || !canConfirmActivation || hasOpenLineBuffers || draftVersion?.id !== confirm.id) return;
-          // ADR-0062: resolves on the PMO write alone; the push outcome shows on the push-status read.
-          await mutations.activate.mutateAsync(confirm.id);
+          // ADR-0062: resolves on the PMO write alone (`'queued'`); the push outcome shows on the push-status read.
+          const { pushState } = await mutations.activate.mutateAsync(confirm.id);
           void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
-          toast(t('financeCopy.versionActivated', 'Version activated'), confirm.label, 'success');
+          if (pushState === 'failed') {
+            toast(
+              t('financeCopy.versionActivatedERPNotUpdated', 'Version activated, but ERPNext was not updated'),
+              t('projectDetail.budget.erpReviewHint', "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.", { version: confirm.label }),
+              'warning',
+            );
+          } else if (pushState === 'nothing-to-push') {
+            toast(
+              t('financeCopy.versionActivatedNothingSent', 'Version activated: nothing was sent to ERPNext'),
+              t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: confirm.label }),
+              'warning',
+            );
+          } else if (pushState === 'pending-cancellation') {
+            // rm-1472 — a 202 is not a push. The replacement is queued behind an earlier cancellation
+            // that is still settling; the sweep pushes it by itself once that clears, so this must not
+            // read as "activated and enforcing" (the Budget tab shows the queued unit underneath).
+            toast(
+              t('financeCopy.versionActivatedPushQueued', 'Version activated: the ERPNext budget is queued'),
+              t('financeCopy.cancellationPendingQueuedDetail', '{{version}}. An earlier ERPNext budget cancellation is still settling, so the replacement is queued and will be pushed automatically once it settles.', { version: confirm.label }),
+              'warning',
+            );
+          } else {
+            toast(t('financeCopy.versionActivated', 'Version activated'), confirm.label, 'success');
+          }
           break;
         }
         case 'return':
