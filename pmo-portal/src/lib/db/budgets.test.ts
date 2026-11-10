@@ -87,6 +87,8 @@ import {
   getBudgetDistribution,
   saveBudgetDistribution,
   switchBudgetDraftMode,
+  returnVersion,
+  resubmitVersion,
   type BudgetDistributionPlan,
 } from './budgets';
 import { AppError } from '@/src/lib/appError';
@@ -684,6 +686,29 @@ describe('activateVersion', () => {
     await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
   });
 
+  /**
+   * ⚑ rm-1472 — a 202 `budget-cancellation-pending` is NOT a push.
+   *
+   * The served gate parks a whole-project range's units behind an unsettled predecessor cancellation
+   * and answers `202 { error: 'budget-cancellation-pending' }` WITHOUT writing a single outbox row: no
+   * ERPNext Budget exists yet. The body names no `years`, and the pre-fix "absent years ⇒ face value"
+   * rule read that as success — the toast said the budget was pushed while the per-year banner said
+   * nothing was. Activation stands; the push is queued and the sweep resumes it by itself.
+   */
+  it('rm-1472 a 202 cancellation-pending answer is reported as pending, never as a push that happened', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { error: 'budget-cancellation-pending', message: 'An earlier ERPNext Budget cancellation is unresolved; range units are pending and no replacement was created.' },
+      error: null,
+    });
+    // ⚑ ADR-0062 moved the push out of the activation call: `activateVersion` now resolves on the PMO
+    // write alone (`'queued'`) and the outcome reaches the per-year push-status read. The 202 mapping
+    // this test is about still lives on the operator's retry, which reports it as its own state.
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'queued' });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pending-cancellation' });
+  });
+
   it('AC-BFY-009 activation reports nothing-to-push too — an activated version with no lines pushed nothing', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
@@ -1208,6 +1233,31 @@ describe('saveBudgetDistribution (#1472 S6A)', () => {
     await expect(saveBudgetDistribution('v-draft', expectedPlan)).rejects.toMatchObject({
       message: 'budget distribution for Labor must reconcile to its source lines', code: 'P0001',
     });
+  });
+});
+
+describe('returnVersion / resubmitVersion (#1413)', () => {
+  it('returns a draft through the RPC with the reason and no tenant fields', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(returnVersion('v-draft', 'Split labour by quarter')).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('return_budget_version', { version_id: 'v-draft', reason: 'Split labour by quarter' });
+    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
+  });
+
+  it('surfaces a separation-of-duties refusal with its code', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'separation of duties: You edited this version, so someone else must return it.', code: '42501' } });
+    await expect(returnVersion('v-draft', 'x')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('resubmits a returned draft through the RPC', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(resubmitVersion('v-draft')).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('resubmit_budget_version', { version_id: 'v-draft' });
+  });
+
+  it('throws on a resubmit RPC error', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'only a returned Draft version can be resubmitted', code: 'P0001' } });
+    await expect(resubmitVersion('v-draft')).rejects.toThrow('only a returned Draft version can be resubmitted');
   });
 });
 

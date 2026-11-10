@@ -1480,6 +1480,9 @@ export type Database = {
           name: string
           org_id: string
           project_id: string
+          return_reason: string | null
+          returned_at: string | null
+          returned_by: string | null
           status: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1497,6 +1500,9 @@ export type Database = {
           name: string
           org_id?: string
           project_id: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1514,6 +1520,9 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version?: number
         }
@@ -14614,6 +14623,14 @@ export type Database = {
       request_imprest_replenishment: {
         Args: { p_float: string; p_kind?: string }
         Returns: string
+      }
+      resubmit_budget_version: {
+        Args: { version_id: string }
+        Returns: undefined
+      }
+      return_budget_version: {
+        Args: { reason: string; version_id: string }
+        Returns: undefined
       }
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }

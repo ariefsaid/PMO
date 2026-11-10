@@ -107,8 +107,14 @@ export interface ActivateVersionResult {
    * ⚑ `'queued'` (ADR-0062): ACTIVATION returns this as soon as the PMO write commits — the push is
    * started in the background and its real outcome shows on the push-status read, never on this result.
    * Only `retryBudgetPush` (an explicit operator wait) still reports `'pushed'`/`'failed'`.
+   *
+   * ⚑ `'pending-cancellation'` (rm-1472) is the served gate's `202 { error: 'budget-cancellation-pending' }`
+   * while a predecessor's ERPNext cancellation is still settling: the activation stands, the units are
+   * queued, and NOTHING has been pushed yet. The sweep resumes the push by itself once the cancellation
+   * settles, so it is neither a success nor a failure the operator must fix. Under ADR-0062 an explicit
+   * retry is where an operator still sees it.
    */
-  pushState: 'pushed' | 'failed' | 'nothing-to-push' | 'queued';
+  pushState: 'pushed' | 'failed' | 'nothing-to-push' | 'queued' | 'pending-cancellation';
 }
 
 export interface ArchiveVersionResult {
@@ -943,6 +949,18 @@ export async function cloneVersion(versionId: string): Promise<string> {
   throw new Error('Version allocation attempts exhausted');
 }
 
+/** #1413 — an approver returns a waiting Draft to the PM with a reason (server-enforced SoD). */
+export async function returnVersion(versionId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('return_budget_version', { version_id: versionId, reason });
+  if (error) throw toAppError(error);
+}
+
+/** #1413 — the PM puts a returned Draft back in front of the approvers. */
+export async function resubmitVersion(versionId: string): Promise<void> {
+  const { error } = await supabase.rpc('resubmit_budget_version', { version_id: versionId });
+  if (error) throw toAppError(error);
+}
+
 /**
  * Re-reads the version's own `activated_at` witness right after `activate_budget_version` commits — the
  * RPC itself returns void, and the ADR-0059 §4 deterministic key (`budgetPushKey`) MUST be derived from
@@ -1060,6 +1078,12 @@ interface BudgetFanOutResult {
  * value: it resolved, so the year the operator asked about is the year that pushed.
  */
 function pushStateForYear(result: unknown, fiscalYear: string | null): ActivateVersionResult['pushState'] {
+  // ⚑ rm-1472 — a 202 `budget-cancellation-pending` body is NOT a push that happened. The served gate
+  // parked the whole-project range's units behind an unsettled predecessor cancellation: no outbox row
+  // was written, so no ERPNext Budget exists yet. The body names no `years`, so the face-value rule
+  // below announced "pushed" about a project ERPNext is enforcing nothing for — while the sweep was
+  // already queued to resume it. Activation stands; the push is pending.
+  if ((result as { error?: unknown } | null | undefined)?.error === 'budget-cancellation-pending') return 'pending-cancellation';
   const years = (result as BudgetFanOutResult | null | undefined)?.years;
   // A pre-BFY server names no years at all — taken at face value, as before.
   if (!Array.isArray(years)) return 'pushed';
