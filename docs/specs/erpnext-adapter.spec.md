@@ -557,15 +557,18 @@ are **removed** — R9 is RESOLVED (`docs/spikes/2026-07-11-erpnext-pe-mandatory
   comparison state**, not ERP truth — selection stays a PMO-side write and the unique index is preserved
   unchanged; ERP quote docs are evidence/source only.
 - **FR-ENA-113 (Purchase Order)** — A PMO `purchase_orders` command maps to stock **`Purchase Order`**.
-  **Body (R9 §3):** `{supplier, items:[{item_code, qty, rate, schedule_date}]}` — **`schedule_date` on the
-  item row is mandatory** (`417 ValidationError: Please enter Reqd by Date`; header `schedule_date`
-  cascades). **Mirror:** ERP `grand_total`/`total` → `purchase_orders.amount` (oracle); `name` →
+  **Body (R9 §3):** `{company, supplier, items:[{item_code, qty, rate, schedule_date}]}` — **`company` is the
+  binding's configured company** (an ERPNext site may host several companies; a body that omits it is filed
+  under the integration user's default company, which the sweep's `company`-scoped purchase mirror feed never
+  reads), and **`schedule_date` on the item row is mandatory** (`417 ValidationError: Please enter Reqd by
+  Date`; header `schedule_date` cascades). **Mirror:** ERP `grand_total`/`total` → `purchase_orders.amount` (oracle); `name` →
   `po_number` + `external_refs`; `docstatus`/`modified`. **Enhancement:** `status` CHECK
   (`Draft|Issued|Acknowledged|Closed`) derived. **Ref resolution:** supplier + source PR via `external_refs`
   (FR-ENA-103). **Transitions:** create draft → submit (`status:"To Receive and Bill"`).
 - **FR-ENA-114 (Purchase Receipt / Goods Receipt)** — A PMO `procurement_receipts` command maps to stock
-  **`Purchase Receipt`**. **Body (R9 §4):** `{supplier, items:[{item_code, qty, rate, purchase_order,
-  purchase_order_item}]}` — the **`purchase_order_item`** is the PO item **child-row `name`** (fetched from
+  **`Purchase Receipt`**. **Body (R9 §4):** `{company, supplier, items:[{item_code, qty, rate, purchase_order,
+  purchase_order_item}]}` — `company` is the binding's configured company (never the integration user's default),
+  and the **`purchase_order_item`** is the PO item **child-row `name`** (fetched from
   the PO doc), required per row for PO-fulfilment linkage; a standalone GR (no link fields) also works but
   loses fulfilment tracking. **Mirror:** ERP `name` → `gr_number` + `external_refs`; the `po_id` link →
   existing `procurement_receipts.po_id`; supplier delivery-note number → existing `reference_number`
@@ -574,7 +577,8 @@ are **removed** — R9 is RESOLVED (`docs/spikes/2026-07-11-erpnext-pe-mandatory
   `item_defaults` — resolve from binding `config.default_warehouse` when needed (FR-ENA-011). Submit → PO
   flips `To Bill`, `per_received:100`.
 - **FR-ENA-115 (Purchase Invoice)** — A PMO `procurement_invoices` command maps to stock **`Purchase
-  Invoice`**. **Body (R9 §1):** minimal `{supplier, items:[{item_code, qty, rate}]}`; ERP server-defaults
+  Invoice`**. **Body (R9 §1):** minimal `{company, supplier, items:[{item_code, qty, rate}]}` — `company` is
+  the binding's configured company (as for the PO/GR bodies); ERP server-defaults
   `credit_to`=`Creditors`, `posting_date`/`due_date`=today, currency/conversion, cost-center, warehouse, and
   computes `total`/`grand_total`/`outstanding_amount`. **Traps folded:** (a) missing/empty `items` →
   **`500 TypeError`** (unguarded crash) — client pre-validates non-empty items (FR-ENA-042); (b) a

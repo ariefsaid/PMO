@@ -89,6 +89,13 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `A Budget was cancelled directly in ERPNext after PMO pushed it — the push is marked failed for review. PMO's budget version is unchanged.`;
     case 'budget-push-no-outbox-candidate':
       return `An activated budget's automatic push to ERPNext never reached the queue — retry from the budget's version history, or contact support.`;
+    // ⚑ M-2 (review r8) — the two reasons a resumed budget push is held for a person. Neither leaves a
+    // `held` outbox row, so this notification IS the operator's route in: it must say what to do, not
+    // repeat the code.
+    case 'budget-archive-cancellation-held':
+      return `A replacement budget is on hold: an earlier ERPNext budget cancellation for the project still needs a person, or the person who activated this version cannot be identified. Resolve the previous version's budget in ERPNext — the replacement then pushes automatically.`;
+    case 'budget-archive-resume-actor-unauthorized':
+      return `A replacement budget is on hold: the person recorded as having activated the version is no longer allowed to push budgets to ERPNext. The cancellation itself is fine. An Admin or Finance user should retry the push from the project's Budget tab.`;
     case 'erp-actuals-undated-fiscal-year':
       return `Some ERP ledger entries carry no fiscal year, so their spend cannot appear under any year on the budget screen — set the fiscal year on those GL entries in ERPNext.`;
     case 'receipt-withholding-unconfirmed':

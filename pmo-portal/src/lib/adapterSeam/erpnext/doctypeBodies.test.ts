@@ -101,7 +101,7 @@ describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () =
   });
 });
 
-const CTX: ErpCtx = { refs: { supplier: 'Spike Supplier', po: 'PUR-ORD-2026-00001' }, config: {} };
+const CTX: ErpCtx = { refs: { supplier: 'Spike Supplier', po: 'PUR-ORD-2026-00001' }, config: { company: 'PMO Smoke Co' } };
 
 describe('erpnext/doctypeBodies — Slice 5 entries (purchase-order, goods-receipt)', () => {
   it('purchase-order is wired to the R9 §3 poToBody/poFromDoc pair', () => {
@@ -109,6 +109,7 @@ describe('erpnext/doctypeBodies — Slice 5 entries (purchase-order, goods-recei
     expect(entry).toBeDefined();
     const body = entry!.toBody({ id: 'pmo-1', items: [{ item_code: 'X', qty: 1, rate: 1, schedule_date: '2026-07-18' }] }, CTX);
     expect(body).toEqual({
+      company: 'PMO Smoke Co',
       supplier: 'Spike Supplier',
       items: [{ item_code: 'X', qty: 1, rate: 1, schedule_date: '2026-07-18' }],
     });
@@ -124,6 +125,7 @@ describe('erpnext/doctypeBodies — Slice 5 entries (purchase-order, goods-recei
       CTX,
     );
     expect(body).toEqual({
+      company: 'PMO Smoke Co',
       supplier: 'Spike Supplier',
       items: [{ item_code: 'X', qty: 1, rate: 1, purchase_order: 'PUR-ORD-2026-00001', purchase_order_item: 'i7d62dicpp' }],
     });

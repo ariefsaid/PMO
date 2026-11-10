@@ -6,9 +6,86 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => action === 'view' && entity === 'finance' && ['Finance', 'Executive', 'Admin'].includes(permissionState.role),
 }));
 
-import { preloadsForPath } from './App';
+// These tests assert WHAT a route preloads, never that a chunk really downloads. Loading the real
+// pages here starts ~30 s of module graph for no assertion — and leaves imports resolving after the
+// environment is torn down.
+vi.mock('@/src/lib/lazyWithPreload', () => {
+  const inert = () => ({ preload: async () => ({}) });
+  return { lazyWithPreload: inert };
+});
+
+import { preloadsForPath, namespacesForPath, preloadForPath } from './App';
+import { i18next } from '@/src/lib/i18n';
+import { appRouteConfig } from './App';
+import fs from 'node:fs';
+import path from 'node:path';
+import { NAMESPACES } from '@/src/lib/i18n';
 
 afterEach(cleanup);
+
+describe('#2097: route preload rules load the route namespace in parallel with its chunk', () => {
+  it.each([
+    ['/projects', ['projects']],
+    ['/', ['dashboard']],
+    ['/procurement', ['procurement', 'procurementList']],
+    ['/finance/receivables', ['finance', 'financeHub']],
+    ['/administration/users', ['administration', 'costAttribution', 'plans', 'procurement']],
+    ['/settings/profile', ['profilePreferences']],
+    ['/stock/ledger', ['stock']],
+  ])('%s preloads %j', (route, expected) => {
+    expect(namespacesForPath(route)).toEqual(expected);
+  });
+
+  it('preloadForPath asks i18next for the route namespaces (they ride with the chunk)', () => {
+    const loadNamespaces = vi.spyOn(i18next, 'loadNamespaces').mockResolvedValue({} as never);
+    preloadForPath('/projects');
+    expect(loadNamespaces).toHaveBeenCalledWith(['projects']);
+    loadNamespaces.mockRestore();
+  });
+
+  it('a route with no namespace of its own asks for none', () => {
+    const loadNamespaces = vi.spyOn(i18next, 'loadNamespaces').mockResolvedValue({} as never);
+    preloadForPath('/views');
+    expect(loadNamespaces).not.toHaveBeenCalled();
+    loadNamespaces.mockRestore();
+  });
+
+  it('every namespace a rule names is a real catalogue in en AND id', () => {
+    const routes = [
+      '/', '/projects', '/projects/new', '/projects/p1/budget', '/projects/p1/contract',
+      '/projects/p1', '/sales', '/sales/s1', '/procurement', '/procurement/new',
+      '/procurement/p1', '/procurement/p1/overview', '/timesheets', '/approvals', '/companies',
+      '/master-data/users', '/companies/c1', '/contacts', '/contacts/c1', '/incidents',
+      '/incidents/i1', '/my-tasks', '/calendar', '/meetings', '/meetings/new', '/meetings/m1',
+      '/expenses', '/expenses/new', '/expenses/e1', '/imprest', '/imprest/i1', '/equipment',
+      '/equipment/assets', '/equipment/assets/a1', '/reports', '/administration',
+      '/administration/users', '/finance', '/finance/receivables', '/finance/payables',
+      '/finance/reports', '/finance/statements', '/sales-invoices', '/sales-invoices/i1',
+      '/incoming-payments', '/incoming-payments/r1', '/revenue-by-project', '/erp-purchases',
+      '/financial-statements', '/integrations', '/views', '/views/new', '/views/v1/edit',
+      '/views/v1', '/settings/profile', '/stock', '/stock/setup', '/stock/documents',
+      '/stock/documents/d1', '/stock/documents/d1/edit', '/stock/ledger', '/stock/reorder',
+      '/stock/new/po', '/definitely/not/a/route',
+    ];
+    const named = new Set(routes.flatMap((route) => namespacesForPath(route)));
+    expect(named.size).toBeGreaterThan(10);
+    for (const namespace of named) {
+      expect(NAMESPACES as readonly string[]).toContain(namespace);
+      for (const locale of ['en', 'id']) {
+        const file = path.join(process.cwd(), 'public', 'locales', locale, `${namespace}.json`);
+        expect(fs.existsSync(file), `${locale}/${namespace}.json`).toBe(true);
+      }
+    }
+  });
+
+  it('every route the app serves has a preload rule (a raw route without one shows English chrome)', () => {
+    for (const route of appRouteConfig) {
+      const pathname = route.path?.startsWith('/') ? route.path.replace(/\/$/, '') || '/' : null;
+      if (pathname === null) continue;
+      expect(preloadsForPath(pathname).length, pathname).toBeGreaterThan(0);
+    }
+  });
+});
 
 describe('preloadsForPath (#1834 route-entry preload rules)', () => {
   it('maps static routes to their single route chunk', () => {

@@ -1480,6 +1480,9 @@ export type Database = {
           name: string
           org_id: string
           project_id: string
+          return_reason: string | null
+          returned_at: string | null
+          returned_by: string | null
           status: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1497,6 +1500,9 @@ export type Database = {
           name: string
           org_id?: string
           project_id: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version: number
         }
@@ -1514,6 +1520,9 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string
+          return_reason?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           status?: Database["public"]["Enums"]["budget_status"]
           version?: number
         }
@@ -5058,6 +5067,7 @@ export type Database = {
           sales_invoice_id: string | null
           status: string
           withheld_amount: number | null
+          withholding_article: string | null
           withholding_slip_number: string | null
         }
         Insert: {
@@ -5084,6 +5094,7 @@ export type Database = {
           sales_invoice_id?: string | null
           status?: string
           withheld_amount?: number | null
+          withholding_article?: string | null
           withholding_slip_number?: string | null
         }
         Update: {
@@ -5110,6 +5121,7 @@ export type Database = {
           sales_invoice_id?: string | null
           status?: string
           withheld_amount?: number | null
+          withholding_article?: string | null
           withholding_slip_number?: string | null
         }
         Relationships: [
@@ -5716,7 +5728,9 @@ export type Database = {
           lifecycle_state: string | null
           name: string
           pph23_payable_account: string | null
+          pph23_prepaid_account: string | null
           pph4_2_payable_account: string | null
+          pph4_2_prepaid_account: string | null
           procurement_gates: Json
           project_number_pattern: string | null
           sector_options: string[]
@@ -5736,7 +5750,9 @@ export type Database = {
           lifecycle_state?: string | null
           name: string
           pph23_payable_account?: string | null
+          pph23_prepaid_account?: string | null
           pph4_2_payable_account?: string | null
+          pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
           project_number_pattern?: string | null
           sector_options?: string[]
@@ -5756,7 +5772,9 @@ export type Database = {
           lifecycle_state?: string | null
           name?: string
           pph23_payable_account?: string | null
+          pph23_prepaid_account?: string | null
           pph4_2_payable_account?: string | null
+          pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
           project_number_pattern?: string | null
           sector_options?: string[]
@@ -8064,6 +8082,7 @@ export type Database = {
           lost_note: string | null
           lost_reason: string | null
           name: string
+          receipt_withholding_article: string | null
           short_name: string | null
           org_id: string
           pmo_project_number: string
@@ -8109,6 +8128,7 @@ export type Database = {
           lost_note?: string | null
           lost_reason?: string | null
           name: string
+          receipt_withholding_article?: string | null
           short_name?: string | null
           org_id?: string
           pmo_project_number?: string
@@ -8154,6 +8174,7 @@ export type Database = {
           lost_note?: string | null
           lost_reason?: string | null
           name?: string
+          receipt_withholding_article?: string | null
           short_name?: string | null
           org_id?: string
           pmo_project_number?: string
@@ -14585,6 +14606,14 @@ export type Database = {
       request_imprest_replenishment: {
         Args: { p_float: string; p_kind?: string }
         Returns: string
+      }
+      resubmit_budget_version: {
+        Args: { version_id: string }
+        Returns: undefined
+      }
+      return_budget_version: {
+        Args: { reason: string; version_id: string }
+        Returns: undefined
       }
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
