@@ -29,7 +29,7 @@ import {
 // Token-pure: `popover` surface, 1px `border`, shared overlay radius, and the
 // theme-aware scrim role.
 //
-// a11y: `role="dialog"` + `aria-modal` + labelled by its title; focus
+// a11y: `role="dialog"` + `aria-modal` + labelled by its title (and described by the deprecated subtitle line, if a caller still passes one); focus
 // moves to the first form field on open; Esc + scrim close (blocked while loading);
 // the error summary is `role="alert"`; the body is a real <form> so Enter submits; the
 // app background goes `inert` while open.
@@ -71,8 +71,10 @@ export interface EntityFormModalProps {
   open: boolean;
   title: string;
   /**
-   * @deprecated No sentence sits under a form title (screen rule "Words"); renders nothing. ~60 callers still
-   * pass one: `scripts/header-subtitle-allowlist.json` lists them, and the screen sweeps delete them.
+   * @deprecated No sentence sits under a form title (screen rule "Words"): it no longer renders there. ~60
+   * callers still pass one and some carry real consequences ("creates a draft for a second person to approve"),
+   * so until a caller is swept it shows as the first line of the form body instead of vanishing.
+   * `scripts/header-subtitle-allowlist.json` lists them; a new caller fails the guard.
    */
   subtitle?: string;
   /** Footer primary label, e.g. "Create deal". */
@@ -125,6 +127,7 @@ export interface EntityFormModalProps {
 export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   open,
   title,
+  subtitle,
   submitLabel,
   cancelLabel,
   hideCancel,
@@ -352,6 +355,11 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                         ))}
                       </div>
                     </div>
+                  )}
+                  {subtitle && (
+                    <Dialog.Description render={<p />} className="mb-4 text-control text-muted-foreground">
+                      {subtitle}
+                    </Dialog.Description>
                   )}
                   {children}
                 </div>
