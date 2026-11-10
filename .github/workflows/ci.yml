@@ -214,7 +214,7 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' -print | sort)
+          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' ! -name 'ux-proof.test.mjs' -print | sort)
           node --test "${tests[@]}"
       - name: CI integration-order test
         working-directory: .
@@ -550,6 +550,11 @@ jobs:
         working-directory: pmo-portal
         run: |
           if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then npx playwright install-deps chromium; else npx playwright install --with-deps chromium; fi
+      - name: Rendered proof self-test
+        working-directory: pmo-portal
+        run: |
+          npm run check:ux-proof
+          cd .. && node --test scripts/ux-proof.test.mjs
       - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/2)
         id: chromium
         working-directory: pmo-portal
