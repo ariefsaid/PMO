@@ -44,6 +44,7 @@ export const SalesInvoiceApprovalSection: React.FC = () => {
       setTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t));
+      setTarget(null);
       toast(headline, detail, 'warning');
     }
   };

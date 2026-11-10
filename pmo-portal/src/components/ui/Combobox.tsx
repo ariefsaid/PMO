@@ -401,7 +401,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                               {opt.badges.map((badge) => (
                                 <span
                                   key={badge}
-                                  className="max-w-full break-words rounded-full bg-warning/10 px-1.5 py-0.5 text-control font-medium leading-snug text-warning-foreground"
+                                  className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-1.5 py-0.5 text-control font-medium leading-snug text-warning-foreground"
                                 >
                                   {badge}
                                 </span>

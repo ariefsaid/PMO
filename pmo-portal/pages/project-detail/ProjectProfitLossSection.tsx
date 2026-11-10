@@ -198,9 +198,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
   const { odoo, error, retry } = useOdooLedgerMode();
   const { t } = useTranslation();
   if (!odoo) {
-    return error
-      ? <><LedgerModeNotice className="mt-6" onRetry={retry} /><ErpnextProjectProfitLoss projectId={projectId} /></>
-      : <ErpnextProjectProfitLoss projectId={projectId} />;
+    return <>{error && <LedgerModeNotice className="mt-6" onRetry={retry} />}<ErpnextProjectProfitLoss projectId={projectId} /></>;
   }
   return (
     <div className="mt-6 min-w-0 border-t border-border/70 pt-4">
