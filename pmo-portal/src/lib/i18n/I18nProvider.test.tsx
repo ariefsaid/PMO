@@ -6,7 +6,7 @@ import { formatCurrency, formatDateTime, formatInstantDate } from '@/src/lib/for
 import { getActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FALLBACK_TIMEZONE } from '@/src/lib/locale/resolveLocale';
 
-const { authState, orgDefaults } = vi.hoisted(() => ({
+const { authState, orgDefaults, initI18nCalls } = vi.hoisted(() => ({
   authState: { currentUser: null as Record<string, unknown> | null },
   orgDefaults: {
     current: {
@@ -15,6 +15,7 @@ const { authState, orgDefaults } = vi.hoisted(() => ({
       defaultTimezone: null as string | null,
     },
   },
+  initI18nCalls: [] as Array<string | undefined>,
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -28,7 +29,13 @@ vi.mock('@/src/lib/db/orgs', () => ({
 // The catalogue load is irrelevant to formatting and would reach for the network.
 vi.mock('./index', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./index')>();
-  return { ...actual, initI18n: () => new Promise(() => {}) };
+  return {
+    ...actual,
+    initI18n: (locale?: string) => {
+      initI18nCalls.push(locale);
+      return new Promise(() => {});
+    },
+  };
 });
 
 import { I18nProvider } from './I18nProvider';
@@ -66,8 +73,29 @@ function renderTree() {
 beforeEach(() => {
   authState.currentUser = { id: 'u1', org_id: 'org-1', locale: null, number_locale: null, timezone: null };
   orgDefaults.current = { defaultLocale: 'en', defaultNumberLocale: 'en-US', defaultTimezone: 'UTC' };
+  initI18nCalls.length = 0;
 });
 afterEach(() => resetActiveLocale());
+
+describe('I18nProvider starts i18next in the RESOLVED language (#2097)', () => {
+  it('a user whose profile resolves before the first render boots Indonesian, not English-then-switch', async () => {
+    authState.currentUser = {
+      id: 'u1', org_id: 'org-1', locale: 'id', number_locale: 'id-ID', timezone: 'Asia/Jakarta',
+    };
+    renderTree();
+    // The catalogue init is handed the resolved locale, so the FIRST namespace fetch is
+    // `/locales/id/...` — the previous shape always booted in English and re-fetched after the
+    // profile landed.
+    await waitFor(() => expect(initI18nCalls).toContain('id'));
+  });
+
+  it('an unresolved profile still boots on the fallback locale (resolveLocale is the only source)', async () => {
+    authState.currentUser = null;
+    renderTree();
+    await waitFor(() => expect(initI18nCalls.length).toBeGreaterThan(0));
+    expect(initI18nCalls[0]).toBe('en');
+  });
+});
 
 describe('I18nProvider renders date screens when a stored preference is unusable (#684)', () => {
   it('a user who inherits an unusable org timezone still sees dates, in FALLBACK_TIMEZONE', async () => {

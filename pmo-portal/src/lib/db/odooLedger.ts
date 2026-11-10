@@ -37,7 +37,8 @@ export interface OdooLedgerHealth {
 }
 
 export interface OdooLedgerLine { id: string; date: string | null; moveName: string; account: string; partner: string | null; debit: string; credit: string }
-export interface OdooLedgerLinesPage { lines: OdooLedgerLine[]; next: string | null; limit: number; linked: boolean }
+/** `total` is the size of the whole filter (every page), not of this page. */
+export interface OdooLedgerLinesPage { lines: OdooLedgerLine[]; next: string | null; limit: number; linked: boolean; total: number }
 
 export interface OdooStatementPair { kind: OdooPeriodKind; currentStart: string; currentEnd: string; priorStart: string; priorEnd: string }
 export interface OdooStatementScope { scopeKind: 'company' | 'project'; projectId: string | null; statements: OdooStatementKind[]; viewKinds: string[] }
@@ -149,6 +150,7 @@ export async function getOdooLedgerLines(input: { projectId: string; category: s
   return {
     linked: d.linked,
     limit: num(d.limit),
+    total: num(d.total),
     next: str(d.next),
     lines: d.lines.map((l) => {
       if (!isRec(l) || typeof l.id !== 'string' || typeof l.moveName !== 'string' || typeof l.account !== 'string') return bad();

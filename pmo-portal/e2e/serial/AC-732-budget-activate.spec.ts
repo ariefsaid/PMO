@@ -1,5 +1,5 @@
 // @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Locator, type Page, type Route } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { login, requireServiceRoleKey } from '../helpers';
 
@@ -23,7 +23,10 @@ import { login, requireServiceRoleKey } from '../helpers';
 // Both are PMO-only: the live ERPNext boundary is stubbed so the confirm dialog stays deterministic.
 const P001 = '40000000-0000-0000-0000-000000000001';
 
-async function mockAdapter(page: Page) {
+// AC-APU-030: `hangPush` leaves the budget `create` push unanswered (ERPNext hung), parked until teardown.
+async function mockAdapter(page: Page, opts: { hangPush?: boolean } = {}) {
+  const parked: Route[] = [];
+  page.on('close', () => { parked.length = 0; });
   await page.route('**/functions/v1/adapter-dispatch', async (route) => {
     const body = route.request().postDataJSON() as {
       action?: string;
@@ -55,6 +58,11 @@ async function mockAdapter(page: Page) {
       return;
     }
 
+    if (opts.hangPush) {
+      parked.push(route);
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -66,8 +74,8 @@ async function mockAdapter(page: Page) {
   });
 }
 
-async function createDraftWithLines(page: Page, name: string) {
-  await mockAdapter(page);
+async function createDraftWithLines(page: Page, name: string, opts: { hangPush?: boolean } = {}) {
+  await mockAdapter(page, opts);
   await login(page, 'pm@acme.test');
   await page.goto('/projects/40000000-0000-0000-0000-000000000001/budget');
   await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
@@ -124,26 +132,7 @@ async function createDraftWithLines(page: Page, name: string) {
   return { draftBanner, draftEditor };
 }
 
-// P001 has one Draft slot. A prior run that died mid-journey (or journey 2, which never activates)
-// leaves its Draft behind and hides "New version", so each journey starts and ends with none of ours.
-async function removeE2eDrafts() {
-  const key = requireServiceRoleKey();
-  if (!key) throw new Error('AC-732 cleanup needs the service role key');
-  const admin = createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '', key, { auth: { persistSession: false } });
-  const drafts = await admin.from('budget_versions').select('id')
-    .eq('project_id', P001).eq('status', 'Draft').like('name', 'E2E %').throwOnError();
-  for (const { id } of drafts.data ?? []) {
-    await admin.from('budget_line_items').delete().eq('budget_version_id', id).throwOnError();
-    await admin.from('budget_versions').delete().eq('id', id).throwOnError();
-  }
-}
-
-test.beforeEach(removeE2eDrafts);
-test.afterEach(removeE2eDrafts);
-
-test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second person activates, project shows formatCurrency(1000000)', async ({ page }) => {
-  const { draftEditor } = await createDraftWithLines(page, 'E2E Test Budget');
-
+async function saveDistributionAndSwitchToPerYear(draftEditor: Locator, page: Page) {
   // Whole-project Drafts need an explicit saved distribution before an eligible approver can
   // review them. The source lines come from the seeded project; the adapter precheck below supplies
   // a clearly controlled fiscal-year response so this journey never performs a live ERP write.
@@ -169,6 +158,29 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await activationModeDialog.getByRole('button', { name: 'Switch to per-year', exact: true }).click();
   await expect(activationModeDialog).not.toBeVisible({ timeout: 10_000 });
   await expect(draftEditor.getByTestId('budget-distribution-grid')).toHaveCount(0);
+}
+
+// P001 has one Draft slot. A prior run that died mid-journey (or journey 2, which never activates)
+// leaves its Draft behind and hides "New version", so each journey starts and ends with none of ours.
+async function removeE2eDrafts() {
+  const key = requireServiceRoleKey();
+  if (!key) throw new Error('AC-732 cleanup needs the service role key');
+  const admin = createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '', key, { auth: { persistSession: false } });
+  const drafts = await admin.from('budget_versions').select('id')
+    .eq('project_id', P001).eq('status', 'Draft').like('name', 'E2E %').throwOnError();
+  for (const { id } of drafts.data ?? []) {
+    await admin.from('budget_line_items').delete().eq('budget_version_id', id).throwOnError();
+    await admin.from('budget_versions').delete().eq('id', id).throwOnError();
+  }
+}
+
+test.beforeEach(removeE2eDrafts);
+test.afterEach(removeE2eDrafts);
+
+test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second person activates, project shows formatCurrency(1000000)', async ({ page }) => {
+  const { draftEditor } = await createDraftWithLines(page, 'E2E Test Budget');
+
+  await saveDistributionAndSwitchToPerYear(draftEditor, page);
 
   // --- Step 6: a second person (Finance) opens the same Draft and activates it (confirm-gated) ---
   await login(page, 'finance@acme.test');
@@ -219,6 +231,27 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
     .getByText('Budget', { exact: true }).locator('xpath=../..');
   await expect(budgetFigure).toBeVisible({ timeout: 10_000 });
   await expect(budgetFigure.locator('[title]')).toHaveAttribute('title', '$1,000,000');
+});
+
+test('AC-APU-030 activating with ERPNext hung keeps the app interactive: the dialog closes on the PMO write, the budget is Active', async ({ page }) => {
+  const { draftEditor } = await createDraftWithLines(page, 'E2E Hung Push Budget', { hangPush: true });
+  await saveDistributionAndSwitchToPerYear(draftEditor, page);
+
+  await login(page, 'finance@acme.test');
+  await page.goto('/projects/40000000-0000-0000-0000-000000000001/budget');
+  await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
+  const financeBanner = page.getByRole('region', { name: 'Draft waiting for approval' });
+  await expect(financeBanner).toContainText('E2E Hung Push Budget');
+  await financeBanner.getByRole('button', { name: /^Activate v\d+$/ }).click();
+
+  const activateDialog = page.getByRole('dialog');
+  await activateDialog.getByRole('button', { name: 'Activate version', exact: true }).click();
+
+  // The push request never answers; the dialog must still close and the version must read Active.
+  await expect(activateDialog).not.toBeVisible({ timeout: 10_000 });
+  const activatedVersion = page.getByRole('region', { name: 'Budget versions' })
+    .getByRole('row').filter({ hasText: 'E2E Hung Push Budget' });
+  await expect(activatedVersion.getByRole('cell', { name: 'Active', exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 test('AC-732 whole-project Draft authoring: distribution saves, goes stale on a source edit, recovers from a read failure; the drafter cannot activate', async ({ page }) => {
@@ -299,6 +332,41 @@ test('AC-732 whole-project Draft authoring: distribution saves, goes stale on a 
   await expect(draftBanner.getByRole('status')).toHaveText(
     'You drafted or edited this version, so someone else must activate it.',
   );
+});
+
+// #1413 — an approver returns the waiting Draft with a reason; the PM sees it, keeps editing, resubmits,
+// and the approver is offered Activate again.
+test('AC-1413 an approver returns a waiting Draft with a reason; the PM resubmits it and it is waiting again', async ({ page }) => {
+  await createDraftWithLines(page, 'E2E Return Budget');
+  const project = '/projects/40000000-0000-0000-0000-000000000001/budget';
+
+  await login(page, 'finance@acme.test');
+  await page.goto(project);
+  await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
+  const waiting = page.getByRole('region', { name: 'Draft waiting for approval' });
+  await expect(waiting).toContainText('E2E Return Budget');
+  await waiting.getByRole('button', { name: 'Return to drafter', exact: true }).click();
+  const returnDialog = page.getByRole('dialog');
+  await expect(returnDialog.getByRole('button', { name: 'Return draft', exact: true })).toBeDisabled();
+  await returnDialog.getByRole('textbox', { name: /Reason for returning/ }).fill('Split labour by quarter');
+  await returnDialog.getByRole('button', { name: 'Return draft', exact: true }).click();
+  await expect(returnDialog).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('region', { name: 'Draft waiting for approval' })).toHaveCount(0);
+  await expect(page.getByTestId('budget-returned-banner')).toContainText('Split labour by quarter');
+
+  await login(page, 'pm@acme.test');
+  await page.goto(project);
+  await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
+  const returned = page.getByTestId('budget-returned-banner');
+  await expect(returned).toContainText('Split labour by quarter');
+  await returned.getByRole('button', { name: 'Resubmit for approval', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Resubmit for approval', exact: true }).click();
+  await expect(page.getByTestId('budget-returned-banner')).toHaveCount(0, { timeout: 10_000 });
+
+  await login(page, 'finance@acme.test');
+  await page.goto(project);
+  await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('region', { name: 'Draft waiting for approval' }).getByRole('button', { name: 'Return to drafter', exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 test('AC-732 an Engineer\'s budget deep link falls back to the Project Overview', async ({ page }) => {

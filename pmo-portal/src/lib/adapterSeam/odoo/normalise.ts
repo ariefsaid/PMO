@@ -17,18 +17,19 @@ export const partyExternalId = (role: 'vendor' | 'client', id: number | string) 
 
 /**
  * One row per role the partner holds (supplier/customer rank > 0); a child contact yields none (FR-ODC-053); a partner
- * with no rank yields one role-less row the matcher sends to review (FR-ODC-052). `ownPartnerIds` are the partners of
- * the database's companies, PMO's own organisation.
+ * with no rank yields one role-less row the matcher sends to review (FR-ODC-052). `own` are the partners Odoo holds for
+ * itself: a company's partner is internal whatever its rank; a login user's only while it has no rank (#2048, #2049).
  */
-export function normaliseParty(r: Raw, ownPartnerIds: ReadonlySet<number> = new Set()): NormalisedMaster[] {
+export function normaliseParty(r: Raw, own: { company: ReadonlySet<number>; user: ReadonlySet<number> } = { company: new Set(), user: new Set() }): NormalisedMaster[] {
   if (r.is_company !== true && r.parent_id !== false) return [];
-  const base = {
-    kind: 'party' as const, taxId: str(r.vat), code: str(r.ref), name: String(r.name),
-    active: r.active !== false, internal: ownPartnerIds.has(Number(r.id)),
-  };
   const roles: Array<'vendor' | 'client'> = [];
   if (Number(r.supplier_rank) > 0) roles.push('vendor');
   if (Number(r.customer_rank) > 0) roles.push('client');
+  const id = Number(r.id);
+  const base = {
+    kind: 'party' as const, taxId: str(r.vat), code: str(r.ref), name: String(r.name),
+    active: r.active !== false, internal: own.company.has(id) || (own.user.has(id) && roles.length === 0),
+  };
   if (roles.length === 0) return [{ ...base, externalId: String(r.id) }];
   return roles.map((role) => ({ ...base, role, externalId: partyExternalId(role, Number(r.id)) }));
 }

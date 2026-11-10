@@ -3,6 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
 import { repositories } from '@/src/lib/repositories';
+import type { BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode, BudgetDistributionPlan, BudgetVersionMode } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -196,12 +197,40 @@ export function useBudgetMutations(projectId: string) {
   });
 
   const activate = useMutation<ActivateVersionResult, Error, string>({
-    mutationFn: (versionId) => repositories.budget.activateVersion(versionId),
+    mutationFn: async (versionId) => {
+      let settled = false;
+      const result = await repositories.budget.activateVersion(versionId, () => {
+        settled = true;
+        // ADR-0062: the background push ended — re-read the per-year push status the badge renders.
+        void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
+        invalidateBoth();
+      });
+      // #1030: the push runs in the background and writes no mirror row yet, so a re-read now says
+      // "never pushed". Seed a pending row; the settle callback above invalidates it for the durable
+      // truth. Skipped when the push already settled (a fast failure), else the seed would outlive it.
+      if (!settled) {
+        queryClient.setQueryData<BudgetPushStatusRow[]>(['budget-push-status', projectId], [{
+          pushState: 'pending', pushError: null, unmappedCategories: null, erpBudgetName: null,
+          fiscalYear: null, pushedAt: null, holdReleasable: false, staleAttribution: false,
+        }]);
+      }
+      return result;
+    },
     onSuccess: () => {
       invalidateBoth();
       invalidateMoneyCollections();
       safeTrack(() => trackBudgetActivated(realRole ?? 'unknown'));
     },
+  });
+
+  const returnVersion = useMutation<void, Error, { versionId: string; reason: string }>({
+    mutationFn: ({ versionId, reason }) => repositories.budget.returnVersion(versionId, reason),
+    onSuccess: invalidateBoth,
+  });
+
+  const resubmitVersion = useMutation<void, Error, string>({
+    mutationFn: (versionId) => repositories.budget.resubmitVersion(versionId),
+    onSuccess: invalidateBoth,
   });
 
   const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
@@ -264,6 +293,8 @@ export function useBudgetMutations(projectId: string) {
     createVersion,
     cloneVersion,
     activate,
+    returnVersion,
+    resubmitVersion,
     archive,
     deleteDraft,
     createLineItem: createLineItemMutation,

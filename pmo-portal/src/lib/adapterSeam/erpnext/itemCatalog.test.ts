@@ -4,7 +4,7 @@ import { siToBody } from './bodies/salesInvoice.ts';
 import { poToBody } from './bodies/purchaseOrder.ts';
 import { piToBody } from './bodies/purchaseInvoice.ts';
 
-const ctx = { refs: { customer: 'CUSTOMER-TEST', supplier: 'SUPPLIER-TEST' }, config: {} };
+const ctx = { refs: { customer: 'CUSTOMER-TEST', supplier: 'SUPPLIER-TEST' }, config: { company: 'PMO Smoke Co' } };
 
 describe('ERP item authoring', () => {
   it.each(['sales', 'purchase'] as const)(
