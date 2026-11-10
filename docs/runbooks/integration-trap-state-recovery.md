@@ -32,3 +32,10 @@ ownership and restore PMO editability.
 Set the switch false, stop new connects, release ownership for unrepaired orgs through the same
 operator RPC, audit affected task writes, and revert migration `0147_atomic_integration_connect_recovery.sql`.
 Do not delete binding tombstones or Vault history.
+
+## ClickUp credentials are per org
+
+ClickUp resolves its API token (`secret_ref`) and its webhook secret (`webhook_secret_ref`) from the org's
+own `external_org_bindings` row, the same shape as ERPNext. There is no deployment-wide ClickUp credential:
+an org with no usable binding is refused by dispatch, the sweep, onboarding and the webhook. To receive
+ClickUp webhooks, an org's active binding needs a `webhook_secret_ref` pointing at its Vault secret.

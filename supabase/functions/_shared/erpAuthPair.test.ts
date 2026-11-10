@@ -149,6 +149,29 @@ Deno.test('FR-ENA-019: a cache resolves once per org and re-resolves after a fai
     assert(db.rpcCalls() === 1, `expected 1 vault read, got ${db.rpcCalls()}`);
   } finally { env.restore(); }
 });
+Deno.test('#654: a store error refuses with a class and message distinct from a clean miss, and never reads the env pair', async () => {
+  const env = stubEnv({ LOCAL_BENCH_KEY: 'env-k', LOCAL_BENCH_SECRET: 'env-s' });
+  const originalError = console.error;
+  console.error = () => {};
+  const refusal = async (opts: Parameters<typeof fakeDb>[0]) => {
+    try {
+      await resolveErpAuthPair(fakeDb(opts).client, ORG);
+    } catch (e) { return e as AppError; }
+    throw new Error('should have refused or fallen to env');
+  };
+  try {
+    const binding = await refusal({ bindingError: { code: '57P01' } });
+    const vault = await refusal({ binding: { secret_ref: 'local-bench' }, vaultError: { code: 'XX000' } });
+    for (const e of [binding, vault]) {
+      assert(e instanceof AppError && e.code === 'config-rejected', `got ${e}`);
+      assert(e.message.includes('secret store unavailable'), `store error must say so, got ${e.message}`);
+    }
+    // A clean miss with the env pair present resolves from env; it is NOT a refusal. Control for the above.
+    const pair = await resolveErpAuthPair(fakeDb({ binding: { secret_ref: 'local-bench' }, vault: null }).client, ORG);
+    assert(pair.apiKey === 'env-k', 'a clean miss still licenses the env fallback');
+  } finally { console.error = originalError; env.restore(); }
+});
+
 Deno.test('NFR-ENA-SEC-005: a Vault-read store error logs its code only', async () => {
   const payloadSentinel = 'payload-sentinel-erp-store-error';
   const secretRef = 'binding-secret-ref-sentinel';
@@ -176,7 +199,7 @@ Deno.test('NFR-ENA-SEC-005: a Vault-read store error logs its code only', async 
   } finally { console.error = originalError; env.restore(); }
 
   assert(logged.length === 1, `expected one resolver log, got ${logged.length}`);
-  assert(logged[0] === JSON.stringify(['read_vault_secret failed', 'XX000']),
+  assert(logged[0] === JSON.stringify(['per-org secret read failed', 'XX000']),
     `expected the fixed label and stable error code only, got ${logged[0]}`);
   const out = logged.join('\n');
   for (const sentinel of [payloadSentinel, secretRef, environmentCoordinate, credentialValue]) {

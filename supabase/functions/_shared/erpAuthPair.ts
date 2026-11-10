@@ -7,12 +7,10 @@
  *
  * Order: kill-switch → Vault (via the shared `resolvePerOrgSecret`) → env pair → refuse.
  *
- * ⚑ THE FAIL-CLOSED RULE (FR-ENA-018). `resolvePerOrgSecret`'s seams report BOTH "no such secret" and
- * "the store errored" as `null`, and only the FIRST may license the env fallback: an unreadable store is
- * not evidence that this org has no Vault credential, and the env pair is selected by a string, not by an
- * authenticated tenancy check. The failure is recorded in a flag HERE and checked AFTER the call — not
- * thrown from inside the seam — so the refusal does not depend on whether `perOrgSecret.ts` propagates a
- * thrown seam error.
+ * ⚑ THE FAIL-CLOSED RULE (FR-ENA-018). Only a clean "no such secret" may license the env fallback: an
+ * unreadable store is not evidence that this org has no Vault credential, and the env pair is selected by
+ * a string, not by an authenticated tenancy check. The seams THROW on a store error and
+ * `resolvePerOrgSecret` reports it as its own `read-failed` kind (#654), which refuses here.
  *
  * ⚑ NO MODULE-LEVEL CACHE. The cache is an explicit object created per request / per sweep tick and
  * passed in: a long-lived isolate must not hold one tenant's credential across requests, and a rotated
@@ -71,8 +69,6 @@ async function resolveUncached(serviceClient: SupabaseClient, org: ErpAuthPairOr
     throw new AppError('ERPNext credentials unresolved: no org in scope', 'config-rejected');
   }
 
-  let storeUnavailable = false;
-
   const result = await resolvePerOrgSecret({
     connectEnabled: true,
     orgId: org.orgId,
@@ -84,25 +80,19 @@ async function resolveUncached(serviceClient: SupabaseClient, org: ErpAuthPairOr
         .eq('org_id', orgId)
         .eq('external_tier', tier)
         .maybeSingle();
-      if (error) {
-        storeUnavailable = true;
-        console.error('external_org_bindings lookup failed', error.code ?? 'unknown');
-        return null;
-      }
+      // Throw, never return null: the shared helper maps a throw to `read-failed`, which is not "no secret".
+      // (It logs the error CODE only.)
+      if (error) throw new AppError('binding read failed', error.code);
       return data as { secret_ref?: string | null } | null;
     },
     readVaultSecret: async (ref: string) => {
       const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-      if (error) {
-        storeUnavailable = true;
-        console.error('read_vault_secret failed', error.code ?? 'unknown');
-        return null;
-      }
+      if (error) throw new AppError('vault read failed', error.code);
       return (data as string | null) ?? null;
     },
   });
 
-  if (storeUnavailable) {
+  if (result.kind === 'read-failed') {
     throw new AppError(
       "could not determine this org's ERPNext credentials (secret store unavailable)",
       'config-rejected',

@@ -4,27 +4,47 @@ import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 
-export async function getOrgWithholdingAccount(): Promise<string | null> {
-  const { data, error } = await supabase.from('organizations').select('tax_prepaid_account').limit(1);
-  if (error) throw new Error(error.message);
-  return data?.[0]?.tax_prepaid_account ?? null;
+/** #1275: the receipt-withholding prepaid accounts — the default plus one per tax article (PPh 23, PPh 4(2)). */
+export interface OrgWithholdingAccounts {
+  defaultAccount: string | null;
+  pph23Account: string | null;
+  pph42Account: string | null;
 }
 
-export async function setOrgWithholdingAccount(account: string | null): Promise<void> {
-  const value = account?.trim() || null;
-  if (value && value.length > 140) throw new Error('Tax-prepaid account must be at most 140 characters.');
+export async function getOrgWithholdingAccounts(): Promise<OrgWithholdingAccounts> {
+  const { data, error } = await supabase.from('organizations')
+    .select('tax_prepaid_account,pph23_prepaid_account,pph4_2_prepaid_account').limit(1);
+  if (error) throw new Error(error.message);
+  const row = data?.[0];
+  return {
+    defaultAccount: row?.tax_prepaid_account ?? null,
+    pph23Account: row?.pph23_prepaid_account ?? null,
+    pph42Account: row?.pph4_2_prepaid_account ?? null,
+  };
+}
+
+export async function setOrgWithholdingAccounts(input: OrgWithholdingAccounts): Promise<void> {
+  const clean = (value: string | null) => value?.trim() || null;
+  const patch = {
+    tax_prepaid_account: clean(input.defaultAccount),
+    pph23_prepaid_account: clean(input.pph23Account),
+    pph4_2_prepaid_account: clean(input.pph42Account),
+  };
+  if (Object.values(patch).some((value) => value !== null && value.length > 140)) {
+    throw new Error('Tax-prepaid account must be at most 140 characters.');
+  }
   const { data, error } = await supabase.from('organizations').select('id');
   if (error) throw new Error(error.message);
-  if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax-prepaid account.');
+  if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax-prepaid accounts.');
   // The UPDATE selects the changed row and verifies it landed: PostgREST reports no error when an
   // UPDATE policy filters the target out, so a silent no-op must be surfaced as a refusal.
   const { data: changed, error: updateError } = await supabase
     .from('organizations')
-    .update({ tax_prepaid_account: value })
+    .update(patch)
     .eq('id', data[0].id)
     .select('id');
   if (updateError) throw new AppError(updateError.message, updateError.code);
-  assertWriteLanded(changed, 'You do not have permission to change the tax-prepaid account.');
+  assertWriteLanded(changed, 'You do not have permission to change the tax-prepaid accounts.');
 }
 
 /**

@@ -104,7 +104,9 @@ migration, grant or RLS policy is touched, so reversal is code-only and complete
   shared by six functions (ClickUp sweep + webhook worker, ERPNext webhook, external-connect, onboard,
   dispatch) and changing its contract puts three unrelated tiers in the blast radius of a money fix. The
   caller-side flag gets the same guarantee with a blast radius of one module. Worth revisiting as
-  follow-up hygiene once this is green.
+  follow-up hygiene once this is green. *(Annotated 2026-11-09, #654: the helper's `read-failed` kind is that
+  store-error result. The resolver's seams now throw on a store error and the caller-side flag is gone; the
+  connect-readiness check reports the same kind as a distinct retryable refusal.)*
 - **Fail closed on `binding-vault-miss` too** (what ClickUp's dispatch already does). Rejected: for ClickUp
   the fallback is a *global* token, genuinely cross-tenant; for ERPNext the fallback is keyed by the org's
   own `secret_ref`. Failing closed there would delete the local bench and the entire serial money e2e lane

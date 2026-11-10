@@ -1066,3 +1066,14 @@ Deno.test('FR-PLN-006 clickup_sync on proceeds to fetch and reconcile the queued
   assert(r.calls.some((c) => c.url.hostname === 'api.clickup.com' && c.url.pathname.endsWith('/task/task-1')),
     'the worker fetches the ClickUp task when the switch is on');
 });
+
+Deno.test("a row resolved to org-1 never applies to another org's project binding", async () => {
+  const deps: ProcessRowDeps = {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
+    getTask: async () => null,
+    resolveBinding: async () => ({ orgId: 'org-2', projectId: 'proj-2', statusMap, memberMap }),
+    buildApplyDeps: () => { throw new Error('must not build apply deps for a foreign org'); },
+  };
+  const outcome = await processInboxRow(row({ event: 'taskDeleted' }), deps);
+  assert(outcome.kind === 'no-op', `expected no-op, got ${outcome.kind}`);
+});
