@@ -219,6 +219,26 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.getByTestId('location')).toHaveTextContent('/projects/project-1');
   });
 
+  it('a status pill is neutral unless the state itself is an exception, even on a red-flagged row', () => {
+    setAttention([attention(1, { overdue_items: 3, status: 'Won, Pending KoM' })]);
+    renderPage();
+    const row = within(screen.getByTestId('project-rows')).getByRole('link', { name: /Project 1/ });
+    const pill = within(row).getByText('Won, pending kickoff').closest('span') as HTMLElement;
+    expect(pill.className).not.toMatch(/success|green|done|destructive|lost/);
+  });
+
+  it('the Sales card shares a row with the position tiles on desktop; its stage bars are neutral and Won is a plain line, not a bar', () => {
+    pipelineState.data = { stages: [{ status: 'Leads', count: 8, total_value: 2_000, weighted_value: 1_000, win_probability: 0.5 }], projects: [] };
+    renderPage();
+    const tiles = screen.getByRole('region', { name: 'Company figures' });
+    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card') as HTMLElement;
+    expect(tiles.parentElement).toBe(sales.parentElement);
+    expect(sales.parentElement?.className).toMatch(/min-\[900px\]:grid-cols-2/);
+    expect(sales.querySelectorAll('.bg-primary, .bg-success').length).toBe(0);
+    const won = within(sales).getByRole('button', { name: /Won · Year to date · 2/ });
+    expect(won.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
+
   it('says so when no project is off track, and names projects that cannot be checked against their budget', () => {
     (figureState.result?.dashboard as Record<string, unknown>).risk_unchecked_projects = 6;
     renderPage();
@@ -278,7 +298,7 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(sales).getByRole('button', { name: /Negotiation · 2/ })).toBeInTheDocument();
     expect(within(sales).queryByText(/Ongoing/)).not.toBeInTheDocument();
     expect(within(sales).queryByRole('table')).toBeNull();
-    expect(within(sales).getByRole('button', { name: /Won · 2/ })).toHaveTextContent('$14.4M');
+    expect(within(sales).getByRole('button', { name: /Won · Year to date · 2/ })).toHaveTextContent('$14.4M');
     expect(within(sales).getByText('Weighted pipeline')).toBeInTheDocument();
     await userEvent.click(within(sales).getByRole('button', { name: /Negotiation/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales?status=Negotiation');
@@ -372,6 +392,38 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?overdue=true');
   });
 
+  it('shows the invoice reference and the invoice total (known even when the outstanding balance is not)', () => {
+    financePositionState.position = {
+      ...financePositionState.position,
+      overdue: [{ invoice: { id: 'i1', customer_name: 'Client A', pmo_number: 'INV-1', currency: 'USD', amount: 2_500, tax_amount: 0, tax_treatment: 'inclusive' }, daysOverdue: 118, outstanding: null }],
+    };
+    renderPage();
+    const card = screen.getByRole('heading', { name: 'Overdue from clients' }).closest('.panel-card') as HTMLElement;
+    expect(within(card).getByRole('columnheader', { name: 'Invoice' })).toBeInTheDocument();
+    expect(within(card).getByRole('columnheader', { name: 'Invoice total' })).toBeInTheDocument();
+    expect(within(card).queryByRole('columnheader', { name: 'Outstanding' })).not.toBeInTheDocument();
+    const row = within(card).getAllByRole('row')[1];
+    expect(row).toHaveTextContent('INV-1');
+    expect(row).toHaveTextContent('$2,500');
+  });
+
+  it('unknown never reads as zero: Collected with no receipts recorded while client balances are not synced is hidden under the one page line', () => {
+    setToday('owed-clients', { value: null, amounts: null });
+    figureState.result = { ...figureState.result, period: periodFigures.map((figure) => figure.id === 'collected' ? { ...figure, amounts: [] } : figure) };
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Company figures' });
+    expect(within(figures).queryByText('Collected', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('incoming payments are not synced');
+  });
+
+  it('a recorded zero is still drawn once client balances are known', () => {
+    figureState.result = { ...figureState.result, period: periodFigures.map((figure) => figure.id === 'collected' ? { ...figure, amounts: [] } : figure) };
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Company figures' });
+    const tile = within(figures).getByText('Collected', { exact: true }).parentElement?.parentElement?.parentElement as HTMLElement;
+    expect(tile).toHaveTextContent('$0');
+  });
+
   it('C4/O12: a column that is blank on every row (unknown outstanding, no invoice number) is not drawn', () => {
     financePositionState.position = {
       ...financePositionState.position,
@@ -397,13 +449,13 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
 
-  it('F2: the budget review shows (with the unknown spending left blank, never zero) the top five active budgets in RPC order', () => {
+  it('F2: the budget review is drawn only when some spending is known, and shows the top five active budgets in RPC order', () => {
     const budget = (id: string, over: Record<string, unknown> = {}) => ({ id, name: `Budget ${id}`, client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 1_000, budget_currency: 'USD', spent: 1_500, variance: 500, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null, ...over });
     budgetReviewState.data = [budget('1', { spent: null, variance: null, actual_complete: false })];
     const { unmount } = renderPage();
-    expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
-    expect(screen.getByText('Spending not recorded')).toBeInTheDocument();
+    // Unknown spending on every row: no card, and the page's one hidden line names it.
+    expect(screen.queryByRole('heading', { name: 'Budget review' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('project spending is not recorded');
     unmount();
     budgetReviewState.data = [budget('x', { status: 'Leads' }), ...['1', '2', '3', '4', '5', '6'].map((id) => budget(id))];
     renderPage();

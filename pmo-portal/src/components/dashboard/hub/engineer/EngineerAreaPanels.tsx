@@ -90,7 +90,7 @@ export function EngineerTasksCard({
   return (
     <Card data-testid="engineer-tasks">
       <CardHead level={2} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
-      <div className="px-4 pb-2">
+      <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noTasksDue', 'No overdue tasks or tasks due this week.')}</p>
@@ -126,7 +126,7 @@ export function EngineerReturnedCard({ claims }: { claims: ExpenseClaimWithRefs[
   return (
     <Card data-testid="engineer-returned">
       <CardHead level={2} actions={<CardLink to="/expenses?status=Rejected">{t('home.eng.allReturned', 'All returned')}</CardLink>}>{t('home.eng.returnedToMe', 'Returned to me')}</CardHead>
-      <ul className="divide-y divide-border px-4 pb-2">
+      <ul className="divide-y divide-border px-[var(--panel-inset)] pb-2">
         {claims.slice(0, 5).map((claim) => (
           <li key={claim.id}>
             <Link to="/expenses?status=Rejected" className="flex min-h-11 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
@@ -157,7 +157,7 @@ export function EngineerRecentEntriesPanel({
   return (
     <Card aria-label={title}>
       <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{title}</CardHead>
-      <div className="px-4 pb-2">
+      <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
             : entries.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noRecentEntries', 'No recent time entries')}</p>

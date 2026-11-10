@@ -31,6 +31,8 @@ import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src
 import { formatTableMoney } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { ACTIVE_PROJECT_STATUSES } from '@/src/lib/db/projects';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { invoiceGross } from '@/src/lib/revenue/nativeInvoice';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
 import type { Role } from '@/src/auth/AuthContext';
 import { InvoicedTrendCard } from './InvoicedTrendCard';
@@ -39,7 +41,7 @@ import { SalesFunnel } from './SalesFunnel';
 import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBlocks';
 import { useSupplierUnpaid } from './financeData';
 
-type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string } };
+type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
   Executive: ['approvals'],
@@ -126,7 +128,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // One money tile from a figure: unknown (no amounts) draws nothing and is reported to the page's one hidden-figures line.
   const moneyTile = (figure: DashboardFigure | undefined, opts: TileOpts = {}) => {
     if (!figure) return null;
-    const money = moneyTileValue(figure.amounts, orgCurrency);
+    const money = opts.hide ? null : moneyTileValue(figure.amounts, orgCurrency);
     const label = opts.label ?? figure.label;
     const caption = opts.caption ?? (typeof figure.subline === 'string' ? figure.subline : undefined);
     return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={figures.todayPending} help={helpText[figure.id]} />;
@@ -137,7 +139,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const invoiced = periodFigure('invoiced');
   const collected = periodFigure('collected');
   const margin = todayFigure('billed-margin');
-  const ongoing = data?.active_projects;
+  // The caption counts the same projects the contract figure sums: every on-hand state, not only "ongoing".
+  const onHandCount = data ? (data.projects_by_status ?? []).filter((row) => ON_HAND_STATUSES.includes(row.status)).reduce((sum, row) => sum + row.count, 0) : undefined;
+  // Collected: no receipts recorded is not evidence of "nothing collected" while client balances are not synced.
+  const collectedUnsynced = (collected?.amounts ?? []).every((row) => row.amount === 0) && todayFigure('owed-clients')?.amounts == null;
+  const collectedOpts = { label: t('home.collected', 'Collected'), caption: periodLabel, hide: collectedUnsynced, reason: t('home.reasonCollected', 'incoming payments are not synced'), link: setUp };
   const positionTiles = figures.todayPending || figures.periodPending
     ? Array.from({ length: 4 }, (_, i) => <KPITile key={i} loading icon="grid" tone="blue" label="" value="" className="min-h-[96px]" />)
     : (finance
@@ -145,10 +151,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
-      moneyTile(collected, { label: t('home.collected', 'Collected'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
     ]
     : [
-      moneyTile(todayFigure('contract-on-hand'), { caption: ongoing === undefined || ongoing === null ? undefined : t('home.ongoing', '{{count}} ongoing', { count: ongoing }), reason: t('home.reasonContract', 'contract values are missing') }),
+      moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
@@ -169,7 +175,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         {weighted && <div><div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div><div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>{data?.pipeline_projected_margin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(data.pipeline_projected_margin * 100).toFixed(1)}%</div>}</div>}
         {pipeline.isPending ? <ListState variant="loading" shape="chart" rows={2} />
           : pipeline.isError ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={() => { void pipeline.refetch(); }} />
-            : <SalesFunnel stages={pipeline.data?.stages ?? []} currency={orgCurrency} won={won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined} />}
+            : <SalesFunnel stages={pipeline.data?.stages ?? []} currency={orgCurrency} period={periodLabel} won={won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined} />}
       </CardPad>
     </Card>
   );
@@ -202,7 +208,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
         <CardPad className="grid gap-3">
           <KPIRow className="grid-cols-2">
-            {moneyTile(collected, { label: t('home.collected', 'Collected'), caption: periodLabel })}
+            {moneyTile(collected, collectedOpts)}
             {moneyTile(todayFigure('still-to-invoice'), { label: t('home.stillToInvoice', 'Still to invoice'), caption: '' })}
           </KPIRow>
           <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
@@ -215,7 +221,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const overdueRows = financePosition.position.overdue.slice(0, 5);
   const overdueColumns: Column<(typeof overdueRows)[number]>[] = [
     { key: 'client', header: t('home.colClient', 'Client'), rowHeader: true, cell: (row) => <span className="font-medium">{row.invoice.customer_name}</span>, exportValue: (row) => row.invoice.customer_name ?? '' },
-    { key: 'invoice', header: t('home.colInvoice', 'Invoice'), cell: (row) => row.invoice.pmo_number ?? null, exportValue: (row) => row.invoice.pmo_number ?? '' },
+    { key: 'invoice', header: t('home.colInvoice', 'Invoice'), cell: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? null, exportValue: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? '' },
+    { key: 'total', header: t('home.colInvoiceTotal', 'Invoice total'), kind: 'money', align: 'num', cell: (row) => { const gross = invoiceGross(row.invoice); return gross === null ? null : formatTableMoney(gross, row.invoice.currency); }, exportValue: (row) => invoiceGross(row.invoice) ?? '' },
     { key: 'outstanding', header: t('home.colOutstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => row.outstanding === null ? null : formatTableMoney(row.outstanding / 100, row.invoice.currency), exportValue: (row) => row.outstanding === null ? '' : row.outstanding / 100 },
     { key: 'late', header: t('home.colLate', 'Overdue'), align: 'num', cell: (row) => <span className="font-semibold text-destructive-text">{t('home.daysOverdue', { count: row.daysOverdue, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</span>, exportValue: (row) => row.daysOverdue },
   ];
@@ -239,7 +246,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <>
             <Card>
               <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Overdue from clients')}</CardHead>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
                 <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={() => figures.todayRetry()} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
               </div>
             </Card>
@@ -257,14 +264,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
             footer={unchecked > 0 ? <Link to="/projects" className="text-primary-text hover:underline">{t('home.uncheckedProjects', { count: unchecked, defaultValue_one: '{{count}} project can’t be checked against its budget', defaultValue_other: '{{count}} projects can’t be checked against their budget' })}</Link> : undefined}
           />
         )}
-        {figures.todayError
-          ? <ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} />
-          : (
-            <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className="grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col">
-              {positionTiles}
-            </KPIRow>
-          )}
-        {!finance && salesCard}
+        {(() => {
+          const tiles = figures.todayError
+            ? <ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} />
+            : (
+              <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={finance ? 'grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col' : 'grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2'}>
+                {positionTiles}
+              </KPIRow>
+            );
+          // Executive: the position tiles and the Sales card share one row on desktop (Sales at half width); stacked on a phone.
+          return finance ? tiles : <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">{tiles}{salesCard}</div>;
+        })()}
         {finance && <BudgetReviewCard rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />}
         <Analysis title={t('home.analysis', 'Analysis')}>{analysis}</Analysis>
       </div>
