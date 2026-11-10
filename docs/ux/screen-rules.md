@@ -40,6 +40,19 @@ removes reading or makes the same thing identical everywhere.
 - A card heading sits 16px above its content. No empty bands.
 - Type: 14px floor for anything read; 12px only for chart ticks, count badges, shortcut hints, timestamps, version footer; nothing below 12. Figure tile: label 14 medium dark, value, one caption.
 
+## Graphics (owner, 11 Nov: a calm screen must not be a bare one)
+Remove words, never information. Where the data calls for a picture, draw it:
+- A trend over time with 3 or more points: a line or column chart.
+- A comparison across items (projects, stages, clients): bars, sorted, values labelled on the bars.
+- Parts of a whole (stages, categories, hours by project): one stacked bar.
+- A funnel (sales stages): a funnel or descending bars on ONE scale.
+- A single number stays a figure; three items or fewer stay rows. No chart without a decision behind it.
+- A chart is labelled directly (no legend to decode), 12px ticks allowed, one neutral series colour plus one
+  accent; red only marks an exception (over budget, overdue). A chart whose data is unknown is not drawn:
+  it joins the page-level hidden line. Use recharts and the `dataviz` skill.
+- A full-width card is for a table or a wide chart. A short list ("Waits on you") takes a third of the row
+  beside related content.
+
 ## Phone (390)
 - The list or the task comes first; summary figures sit behind a tap or below.
 - Touch targets 44px high minimum. Form inputs 16px text.

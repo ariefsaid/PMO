@@ -20,7 +20,7 @@ import { LIST_LIMIT, type ContractRateLineInput, type ContractRateLineRow, type 
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
@@ -307,10 +307,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     count: Number(units), amount: formatNumberExact(Number(units)),
   });
   const statusPill = (claim: TmClaimSummary) => {
-    if (claim.status === 'SignedOff') return <StatusPill variant="won">{t('claims.statusSignedOff', 'Signed off')}</StatusPill>;
-    if (claim.status === 'Withdrawn') return <StatusPill variant="lost">{t('claims.statusWithdrawn', 'Withdrawn')}</StatusPill>;
-    if (claim.signoff_prepared_by) return <StatusPill variant="warn">{t('claims.statusAwaiting', 'Awaiting confirmation')}</StatusPill>;
-    return <StatusPill variant="neutral">{t('claims.statusDraft', 'Draft')}</StatusPill>;
+    const state = claim.status === 'SignedOff' ? 'SignedOff' : claim.status === 'Withdrawn' ? 'Withdrawn' : claim.signoff_prepared_by ? 'AwaitingConfirmation' : 'Draft';
+    return <StatusPill record="tmClaim" state={state} />;
   };
 
   const reasonFor = (row: TmClaimPreviewRow) => {
@@ -344,7 +342,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                 <p className="mt-0.5 text-sm text-muted-foreground tabular">
                   {formatCurrency(Number(line.rate), currency)} <span aria-hidden>/</span> {line.unit === 'day' ? t('unit.day', 'day') : t('unit.hour', 'hour')}
                   {equipment && line.standby_rate !== null && <><span className="px-2" aria-hidden>·</span>{t('rateCard.standbyRate', 'Standby')} {formatCurrency(Number(line.standby_rate), currency)} <span aria-hidden>/</span> {line.unit === 'day' ? t('unit.day', 'day') : t('unit.hour', 'hour')}</>}
-                  {ended && <><span className="px-2" aria-hidden>·</span>{t('rateCard.endedOn', 'Ended {{date}}', { date: formatDateOnly(line.effective_to) })}</>}
+                  {ended && <><span className="px-2" aria-hidden>·</span>{t('rateCard.endedOn', 'Ended {{date}}', { date: formatDay(line.effective_to) })}</>}
                 </p>
                 {equipment ? <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
                   <span>{t('rateCard.equipmentKind', 'Equipment')}</span>
@@ -398,7 +396,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const previewTotal = Math.round(pricedRows.reduce((sum, row) => sum + Number(row.amount), 0) * 100) / 100;
 
   const claimOpenLabel = (claim: TmClaimSummary) => t('claims.open', 'Open claim for {{date}}', {
-    date: formatDateOnly(claim.period_from),
+    date: formatDay(claim.period_from),
   });
 
   const rowActions = (claim: TmClaimSummary) => {
@@ -498,7 +496,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               {claimRows.length > 0 && <ul className="divide-y divide-border">
                 {claimRows.map((claim) => <li key={claim.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <button type="button" className="min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={claimOpenLabel(claim)} onClick={() => openClaimDetail(claim)}>
-                    <span className="block font-medium text-foreground">{formatDateOnly(claim.period_from)} – {formatDateOnly(claim.period_to)}</span>
+                    <span className="block font-medium text-foreground">{formatDay(claim.period_from)} – {formatDay(claim.period_to)}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                       {statusPill(claim)}
                       <span className="tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</span>
@@ -550,7 +548,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
         description={`${t('detail.removeSourceDescription', 'Remove {{amount}} for {{person}} on {{date}} ({{line}}) from this draft claim?', {
           amount: unitCount(deselectFor.units, deselectFor.unit),
           person: deselectFor.person_name ?? deselectFor.asset_name ?? t('preview.personUnavailable', 'Person no longer active'),
-          date: deselectFor.entry_date ? formatDateOnly(deselectFor.entry_date) : t('detail.dateUnavailable', 'date unavailable'),
+          date: deselectFor.entry_date ? formatDay(deselectFor.entry_date) : t('detail.dateUnavailable', 'date unavailable'),
           line: deselectFor.line_label,
         })}${currentSelectedClaim.signoff_prepared_by ? ` ${t('detail.reprepareNote', 'The sign-off must be prepared again to match the updated hours.')}` : ''}`}
         confirmLabel={t('detail.removeSource', 'Remove')} loading={deselect.isPending} onConfirm={() => void runDeselect()} onCancel={() => setDeselectFor(null)} />}
@@ -619,7 +617,6 @@ const RateLineModal: React.FC<RateLineModalProps> = ({ projectId, currency, line
   })) : undefined;
 
   return <EntityFormModal open title={line ? t('rateCard.editTitle', 'Edit labour rate') : t('rateCard.addTitle', 'Add labour rate')}
-    subtitle={t('rateCard.modalDescription', 'The currency comes from this project. Saving a changed rate creates a new version for future claims.')}
     submitLabel={t('rateCard.save', 'Save rate')} onSubmit={onSubmit} onClose={onClose} loading={form.isSubmitting || save.isPending}
     dirty={form.isDirty} submitDisabled={!form.isComplete || save.isPending} errorSummary={fieldErrors} submitError={submitError}>
     <FormGrid>
@@ -630,6 +627,7 @@ const RateLineModal: React.FC<RateLineModalProps> = ({ projectId, currency, line
         inputMode="decimal" value={form.values.rate} onChange={(value) => form.setValue('rate', value)} onBlur={() => form.handleBlur('rate')} error={form.errors.rate} required />
       <TextField type="date" label={t('rateCard.effectiveFrom', 'Effective from')} required {...form.fieldProps('effectiveFrom')} />
     </FormGrid>
+  <p className="mt-3 text-sm text-muted-foreground">{t('rateCard.modalDescription', 'The currency comes from this project. Saving a changed rate creates a new version for future claims.')}</p>
   </EntityFormModal>;
 };
 
@@ -670,7 +668,7 @@ const AssignPersonModal: React.FC<AssignPersonModalProps> = ({ rates, profiles, 
     }).finally(() => setLoading(false));
   };
 
-  return <EntityFormModal open title={t('rateCard.assignTitle', 'Assign a person to a rate')} subtitle={t('rateCard.assignDescription', 'Only active people in this organisation can be assigned.')}
+  return <EntityFormModal open title={t('rateCard.assignTitle', 'Assign a person to a rate')}
     submitLabel={t('rateCard.assign', 'Assign person')} onSubmit={handleSubmit} onClose={onClose} loading={loading} dirty={Boolean(lineKey || personId)} submitDisabled={profilesPending || !lineKey || !personId || !from}>
     <FormGrid>
       <SelectField label={t('rateCard.line', 'Rate line')} value={lineKey} onChange={setLineKey} options={lineOptions} placeholder={t('rateCard.chooseLine', 'Choose a rate line')} required />
@@ -715,9 +713,6 @@ const PrepareSignoffModal: React.FC<PrepareSignoffModalProps> = ({ claim, docume
   const sourceError = documentsError ? t('signoff.documentsError', "Couldn't load evidence documents") : null;
 
   return <EntityFormModal open title={updating ? t('signoff.prepareAgainTitle', 'Update client sign-off') : t('signoff.prepareTitle', 'Prepare client sign-off')}
-    subtitle={updating
-      ? t('signoff.prepareAgainDescription', 'Review the updated hours against the signed project document, then prepare sign-off again.')
-      : t('signoff.prepareDescription', 'Choose an issued or approved project document with a file. A different user must confirm this sign-off.')}
     submitLabel={updating ? t('signoff.prepareAgain', 'Prepare sign-off again') : t('signoff.prepare', 'Prepare sign-off')} onSubmit={handleSubmit} onClose={onClose} loading={loading}
     dirty={Boolean(documentId || note)} submitDisabled={!documentId || loading || documentsPending || Boolean(sourceError)} submitError={error}>
     {sourceError ? <ListState variant="error" title={sourceError} onRetry={onRetry} />
@@ -728,6 +723,9 @@ const PrepareSignoffModal: React.FC<PrepareSignoffModalProps> = ({ claim, docume
               placeholder={t('signoff.chooseDocument', 'Choose a document')} required />
             <TextArea label={t('signoff.note', 'Note for the client')} value={note} onChange={setNote} rows={3} fullWidth />
           </FormGrid>}
+  <p className="mt-3 text-sm text-muted-foreground">{updating
+      ? t('signoff.prepareAgainDescription', 'Review the updated hours against the signed project document, then prepare sign-off again.')
+      : t('signoff.prepareDescription', 'Choose an issued or approved project document with a file. A different user must confirm this sign-off.')}</p>
   </EntityFormModal>;
 };
 
@@ -780,7 +778,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
   const { t } = useTranslation('timeAndMaterials');
   const sourceGroups = groupClaimSources(sources, t('preview.personUnavailable', 'Person no longer active'));
   const standbyLabel = (label: string, basis: string) => basis === 'standby' ? `${label} (${t('basis.standby', 'standby')})` : label;
-  return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={`${formatDateOnly(claim.period_from)} – ${formatDateOnly(claim.period_to)}`}
+  return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={`${formatDay(claim.period_from)} – ${formatDay(claim.period_to)}`}
     status={statusPill}
     onClose={onClose} headerActions={<div className="flex flex-wrap items-center gap-2">
       {prepareAction && <Button variant="outline" size="sm" onClick={prepareAction}>{claim.signoff_prepared_by ? t('signoff.prepareAgain', 'Prepare sign-off again') : t('signoff.prepare', 'Prepare sign-off')}</Button>}
@@ -789,7 +787,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
       {invoiceAction && <Button variant="primary" size="sm" onClick={invoiceAction}>{t('claims.createInvoice', 'Create invoice')}</Button>}
     </div>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
-      <div><dt className="text-muted-foreground">{t('claims.period', 'Period')}</dt><dd className="mt-1 font-medium">{formatDateOnly(claim.period_from)} – {formatDateOnly(claim.period_to)}</dd></div>
+      <div><dt className="text-muted-foreground">{t('claims.period', 'Period')}</dt><dd className="mt-1 font-medium">{formatDay(claim.period_from)} – {formatDay(claim.period_to)}</dd></div>
       <div><dt className="text-muted-foreground">{t('claims.total', 'Claim total')}</dt><dd className="mt-1 font-semibold tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</dd></div>
     </dl>
     {awaitingHint && <p className="px-4 pb-3 text-sm text-muted-foreground">{t('signoff.preparerHint', 'A different user must confirm this sign-off.')}</p>}
@@ -825,7 +823,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
                 </div>
                 <ul className="mt-2 divide-y divide-border/70 text-sm">
                   {group.sources.map((source) => {
-                    const date = source.entry_date ? formatDateOnly(source.entry_date) : t('detail.dateUnavailable', 'date unavailable');
+                    const date = source.entry_date ? formatDay(source.entry_date) : t('detail.dateUnavailable', 'date unavailable');
                     const amount = unitCount(source.units, source.unit);
                     return <li key={source.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2">
                       <div className="min-w-0">

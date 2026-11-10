@@ -122,7 +122,7 @@ const ProjectEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void
     aria-label={event.ariaLabel}
     title={event.contractualTitle}
     className={cn(
-      'block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium',
+      'block w-full truncate rounded px-1.5 py-0.5 text-left text-sm font-medium',
       'hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       chipClass(event.kind),
     )}
@@ -142,7 +142,7 @@ const MilestoneEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => vo
     aria-label={event.ariaLabel}
     title={event.contractualTitle}
     className={cn(
-      'block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium',
+      'block w-full truncate rounded px-1.5 py-0.5 text-left text-sm font-medium',
       'hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       chipClass('milestone'),
     )}
@@ -253,7 +253,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
             {WEEKDAYS.map((d) => (
               <div
                 key={d}
-                className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground"
+                className="px-2 py-1.5 text-sm font-semibold text-muted-foreground"
               >
                 {d}
               </div>
@@ -277,7 +277,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
                 >
                   <div
                     className={cn(
-                      'mb-1 px-1 text-[11px] font-semibold',
+                      'mb-1 px-1 text-sm font-semibold',
                       cell.isToday && cell.inMonth && 'text-primary',
                     )}
                   >
@@ -312,7 +312,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
           const heading = formatWeekdayMonthDay(date);
           return (
             <div key={iso} className="border-b border-border p-3 last:border-b-0">
-              <div className="mb-1.5 text-[13px] font-semibold">{heading}</div>
+              <div className="mb-1.5 text-sm font-semibold">{heading}</div>
               <div className="flex flex-col gap-1">
                 {(eventsByDay.get(iso) ?? []).map((ev, i) => (
                   <EventChip key={`${ev.kind}-${ev.projectId}-${i}`} event={ev} onOpen={onOpenProject} />

@@ -137,7 +137,7 @@ export default function BudgetSummary({
                       ? <span className="tabular-nums">· {formatNumberWhole(row.spent)} {t('projectDetail.budget.connectorOf', 'of')} {formatNumberMax2(row.budget)}</span>
                       : <span className="tabular-nums">· {t('financeCopy.budget', 'Budget')} {formatNumberMax2(row.budget)}</span>}
                     {remaining !== null && <span className={`tabular-nums ${remaining < 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>· {remaining < 0 ? positionCell(row.spent, row.budget, t) : `${formatNumberWhole(remaining)} ${t('projectDetail.budget.left', 'left')}`}</span>}
-                    {row.committed !== null && row.committed > 0 && <span className="basis-full pl-2 text-xs text-muted-foreground">+{formatNumberWhole(row.committed)} {t('projectDetail.budget.committed', 'committed')}</span>}
+                    {row.committed !== null && row.committed > 0 && <span className="basis-full pl-2 text-sm text-muted-foreground">+{formatNumberWhole(row.committed)} {t('projectDetail.budget.committed', 'committed')}</span>}
                   </button>
                 </li>
               );

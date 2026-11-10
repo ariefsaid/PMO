@@ -8,7 +8,7 @@ import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { useComments } from '@/src/hooks/useComments';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 type ActivityView = 'all' | 'comments' | 'changes';
 
@@ -60,7 +60,7 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
           {overdue > 0 && <Tooltip content={t('projectDetail.myTasks.overdueTooltip', 'Open tasks assigned to you with a due date before today.')}>
             <span tabIndex={0} className="ml-2 font-medium text-destructive-text">{t('projectDetail.myTasks.overdueCount', '{{count}} overdue', { count: overdue })}</span>
           </Tooltip>}
-          <Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline">
+          <Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-sm font-semibold text-primary-text hover:underline">
             {t('projectDetail.myTasks.all', 'All tasks')}
           </Link>
         </>}>
@@ -76,11 +76,11 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
               <Tooltip content={t('projectDetail.myTasks.dueTooltip', 'Task status and due date come from this task record; overdue days are calculated from today.')} block>
                 <Link to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="touch-target flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm hover:bg-accent/60">
                   <span className="min-w-0 basis-full font-medium text-foreground sm:basis-0 sm:flex-1">{task.name}</span>
-                  <StatusPill variant={task.status === 'Blocked' ? 'overdue' : task.status === 'In Progress' ? 'progress' : 'neutral'}>{task.status}</StatusPill>
-                  {task.end_date && <span className={task.end_date < today ? 'shrink-0 whitespace-nowrap text-xs font-medium text-destructive-text sm:min-w-28 sm:text-right' : 'shrink-0 whitespace-nowrap text-xs text-muted-foreground sm:min-w-28 sm:text-right'}>
+                  <StatusPill record="task" state={task.status} />
+                  {task.end_date && <span className={task.end_date < today ? 'shrink-0 whitespace-nowrap text-sm font-medium text-destructive-text sm:min-w-28 sm:text-right' : 'shrink-0 whitespace-nowrap text-sm text-muted-foreground sm:min-w-28 sm:text-right'}>
                     {task.end_date < today
                       ? t('projectDetail.myTasks.overdue', 'Overdue · {{days}} days', { days: Math.round((Date.parse(today) - Date.parse(task.end_date)) / 86_400_000) })
-                      : formatDateOnly(task.end_date)}
+                      : formatDay(task.end_date)}
                   </span>}
                 </Link>
               </Tooltip>
@@ -112,7 +112,7 @@ export const ActivityFooter: React.FC<{ projectId: string; initialOpen?: boolean
       <div className="mt-12">
         <Tooltip content={t('projectDetail.activity.countTooltip', 'Count of project comments. Open Activity to read comments and recorded changes.')}>
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog"
-            className="touch-target inline-flex items-center rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="touch-target inline-flex items-center rounded-sm text-sm text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {label} · {t('projectDetail.activity.count', '{{count}} comments', { count })}
           </button>
         </Tooltip>

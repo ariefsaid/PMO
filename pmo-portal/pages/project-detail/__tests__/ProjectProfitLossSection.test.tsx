@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { formatDay } from '@/src/lib/format';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Session } from '@supabase/supabase-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -126,7 +127,7 @@ describe('ProjectProfitLossSection host binding', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible();
     // PD-B: the context line is currency + the period shown — no capture window, no prior range.
     const captureWindow = screen.getByText(/Current period:/).textContent;
-    expect(captureWindow).toBe('IDR · Current period: Sep 1, 2026 – Sep 30, 2026');
+    expect(captureWindow).toBe(`IDR · Current period: ${formatDay('2026-09-01')} – ${formatDay('2026-09-30')}`);
     expect(screen.queryByText(/Capture window/)).not.toBeInTheDocument();
     const readsBeforeRetry = readSpy.mock.calls.length;
 

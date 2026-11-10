@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -115,7 +115,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         </WhenNearViewport>
       </div>
     ) : (
-      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+      <FigureScope><div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+        <FigureHiddenLine />
         {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
             so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
         <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
@@ -127,7 +128,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <WhenNearViewport>
           <BillingMilestonesBlock projectId={project.id} />
         </WhenNearViewport>
-      </div>
+      </div></FigureScope>
     )
   );
 };

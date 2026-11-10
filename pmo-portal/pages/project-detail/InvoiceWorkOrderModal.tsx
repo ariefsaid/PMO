@@ -183,15 +183,6 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
     <EntityFormModal
       open
       title={t('projectDetail.workOrders.billing.modal.title', 'Invoice this work order')}
-      subtitle={native
-        ? t(
-            'projectDetail.workOrders.billing.modal.subtitleNative',
-            'Creates a draft invoice in PMO for a second Finance/Admin person to approve.',
-          )
-        : t(
-            'projectDetail.workOrders.billing.modal.subtitle',
-            "Creates a draft invoice in ERPNext for the project's client. A different Finance or Admin user submits it.",
-          )}
       submitLabel={t('projectDetail.workOrders.billing.modal.submit', 'Create draft invoice')}
       cancelLabel={t('projectDetail.workOrders.billing.modal.cancel', 'Cancel')}
       onSubmit={handleSubmit}
@@ -204,7 +195,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
     >
       {/* DD-BWO-8: the work order's client PO goes on the ERP invoice. Shown, read-only, so the user knows what the client
           will see — never an input (it is the work order's, not this invoice's). */}
-      <p data-testid="invoice-wo-client-po" className="mb-3 text-[12.5px] text-muted-foreground">
+      <p data-testid="invoice-wo-client-po" className="mb-3 text-sm text-muted-foreground">
         {t('projectDetail.workOrders.billing.modal.clientPo', 'Client PO on the invoice')}
         <span className="ml-2 font-semibold tabular text-foreground">
           {workOrder.client_po_number || t('projectDetail.workOrders.billing.modal.clientPoNone', 'None on this work order')}
@@ -260,6 +251,15 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
           onChange={descriptionField.onChange}
         />
       </FormGrid>
+      <p className="mt-3 text-sm text-muted-foreground">{native
+        ? t(
+            'projectDetail.workOrders.billing.modal.subtitleNative',
+            'Creates a draft invoice in PMO for a second Finance/Admin person to approve.',
+          )
+        : t(
+            'projectDetail.workOrders.billing.modal.subtitle',
+            "Creates a draft invoice in ERPNext for the project's client. A different Finance or Admin user submits it.",
+          )}</p>
     </EntityFormModal>
   );
 };

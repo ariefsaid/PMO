@@ -59,7 +59,6 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
   it('#693: the create form renders its title, sections, labels, placeholders and submit in Bahasa', () => {
     renderForm();
     expect(screen.getByRole('dialog', { name: 'Proyek baru' })).toBeInTheDocument();
-    expect(screen.getByText('Buat proyek', { selector: 'p, div, span' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buat proyek' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Nama proyek/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('mis. Terminal Pelabuhan: Pekerjaan Sipil')).toBeInTheDocument();
@@ -107,7 +106,6 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
   it('#693: the edit-header form renders in Bahasa', () => {
     renderForm('editHeader');
     expect(screen.getByRole('dialog', { name: 'Edit proyek' })).toBeInTheDocument();
-    expect(screen.getByText('Perbarui detail header proyek')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan proyek' })).toBeInTheDocument();
     expect(screen.getByLabelText('Kode Proyek Klien')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Kode opsional yang digunakan organisasi Anda')).toBeInTheDocument();

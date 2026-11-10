@@ -53,7 +53,7 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
   const mobileToolbar = (
     <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2.5">
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x">
+      <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
         <ViewToggle<StatusFilter>
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
@@ -118,7 +118,7 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
            affordance (the project tab strip pattern). */
-        <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
+        <div data-testid="status-filter-scroll" className="min-w-0 max-w-full shrink-0 overflow-x-auto scroll-fade-x md:[mask-image:none] md:[-webkit-mask-image:none] [&_button]:whitespace-nowrap">
           <ViewToggle<StatusFilter>
             options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
             value={filter}

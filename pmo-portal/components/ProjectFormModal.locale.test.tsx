@@ -61,12 +61,6 @@ function renderInBahasa() {
 describe('ProjectFormModal — estimated-value copy in Bahasa (#684)', () => {
   afterEach(() => resetActiveLocale());
 
-  it('shows the Bahasa helper text for the estimated-value field', () => {
-    setActiveLocale(ID_LOCALE);
-    renderInBahasa();
-    expect(screen.getByText('Estimasi, sebelum menang. Dapat diedit oleh Admin, Eksekutif, dan PM.')).toBeInTheDocument();
-  });
-
   it('shows the Bahasa PRECISION error for a genuine 3-decimal amount', async () => {
     setActiveLocale(ID_LOCALE);
     renderInBahasa();
