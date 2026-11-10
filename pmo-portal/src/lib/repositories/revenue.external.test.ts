@@ -134,6 +134,14 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
       withheld_amount: 20, withholding_slip_number: 'WHT-001' });
   });
 
+  it('AC-WHA-006: the receipt command carries the stated withholding article in the durable intent', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'PE-001', canonical: { id: 'receipt-1', ip_number: 'PE-001' } });
+    await repositories.revenue.createPayment({ customerId: 'cust-1', salesInvoiceId: 'si-1',
+      paidAmount: 1000, receivedAmount: 980, withheldAmount: 20,
+      withholdingSlipNumber: 'WHT-001', withholdingArticle: 'pph4_2', date: '2026-10-05' });
+    expect(dispatchSpy.mock.calls[0][2]).toMatchObject({ withheld_amount: 20, withholding_article: 'pph4_2' });
+  });
+
   it('createPayment dispatches externally with erp_doc_kind=incoming-payment + a minted idempotencyKey', async () => {
     dispatchSpy.mockResolvedValue({
       externalRecordId: 'ACC-PE-REC-2026-00001',

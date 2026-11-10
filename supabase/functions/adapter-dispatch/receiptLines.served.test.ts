@@ -70,7 +70,7 @@ const odooPlanOf = async (cable: number, bolt = 0) => ({
 // ── ERPNext world ───────────────────────────────────────────────────────────────────────────────
 const ERP_BINDING = {
   site_url: `https://${ERP}`, secret_ref: 'test-binding', status: 'active', activated_at: '2026-01-01',
-  version_major: 15, config: {},
+  version_major: 15, config: { company: 'ACME Ltd' },
 };
 
 /** The caller commands. ERPNext gets `items`; Odoo gets `receiptLines`; inert cross-tier aliases too. */
@@ -458,6 +458,7 @@ describe('FR-PLN-006/007 every ERPNext body-building operation is gated before c
     const replacementPosts = erpCalls.filter((c) => c.method === 'POST');
     assertEquals(replacementPosts.length, 1, 'exactly one replacement POST');
     assertEquals((replacementPosts[0].bodyJson as { items?: { item_code: string; qty: number }[] }).items, [{ item_code: 'Cable', qty: 6 }]);
+    assertEquals((replacementPosts[0].bodyJson as { company?: string }).company, 'ACME Ltd', 'the replacement states the binding company');
     assert(on.calls.indexOf(cancelPut) < on.calls.indexOf(replacementPosts[0]), 'cancel precedes replacement POST');
   });
 
@@ -478,6 +479,7 @@ describe('FR-PLN-006/007 every ERPNext body-building operation is gated before c
     const replacementPosts = erpCalls.filter((c) => c.method === 'POST');
     assertEquals(replacementPosts.length, 1, 'exactly one replacement POST');
     assertEquals((replacementPosts[0].bodyJson as { items?: { item_code: string; qty: number }[] }).items, [{ item_code: 'Cable', qty: 6 }]);
+    assertEquals((replacementPosts[0].bodyJson as { company?: string }).company, 'ACME Ltd', 'the replacement states the binding company');
     assert(on.calls.indexOf(cancelPut) < on.calls.indexOf(replacementPosts[0]), 'cancel precedes replacement POST');
   });
 

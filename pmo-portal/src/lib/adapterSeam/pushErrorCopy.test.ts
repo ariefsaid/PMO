@@ -26,6 +26,9 @@ const ALL_CODES = [
   'command-held',
   'external-unreachable',
   'DISPATCH_FAILED',
+  // rm-1472 / M-2 — the two reasons a parked replacement push is held once the fence settles.
+  'budget-archive-cancellation-held',
+  'budget-archive-resume-actor-unauthorized',
 ] as const;
 
 describe('describePushError — no raw adapter token may reach the DOM (I-5/I-15)', () => {
@@ -288,3 +291,43 @@ describe('describePushError — PO revise push refusal reason codes (#1998)', ()
   });
 });
 
+describe('describePushError — the register and maintenance refusals (#1511 F4)', () => {
+  it('names an asset that is not in the Odoo register, with the route out, and no retry', () => {
+    const copy = describePushError('equipment-not-linked');
+    expect(copy.code).toBe('equipment-not-linked');
+    expect(copy.message).toBe('This asset is not linked to the Odoo register yet.');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toMatch(/match/i);
+  });
+
+  it('names a vehicle/equipment mix-up in the record kind', () => {
+    const copy = describePushError('equipment-kind-mismatch');
+    expect(copy.message).toBe('A vehicle takes a service log; equipment takes a maintenance request.');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).not.toBeNull();
+  });
+
+  it('names the register role rule, and says who can change the register', () => {
+    const copy = describePushError('register-role');
+    expect(copy.message).toBe('Only an Admin or Project Manager can change the register.');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toMatch(/Admin|Project Manager/);
+  });
+
+  it('the three codes reach the DOM as sentences, never as tokens', () => {
+    for (const code of ['equipment-not-linked', 'equipment-kind-mismatch', 'register-role']) {
+      expect(describePushError(code).message).not.toMatch(RAW_ADAPTER_TOKEN);
+    }
+  });
+
+  it('names a reused asset identity, and each unresolvable picker, as a sentence with a route out and no retry', () => {
+    for (const code of ['record-id-invalid', 'vehicle-model-invalid', 'stage-invalid', 'service-type-invalid', 'vendor-invalid']) {
+      const copy = describePushError(code);
+      expect(copy.code).toBe(code);
+      expect(copy.message).not.toMatch(/could not be classified/i);
+      expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+      expect(copy.retryable).toBe(false);
+      expect(copy.remedy).not.toBeNull();
+    }
+  });
+});

@@ -22,6 +22,7 @@ import { checkPoRevise } from './poReviseGuard.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 import { resolveOdooCompaniesMoneyOutboxDeps } from './odooCompanies.ts';
+import { resolveOdooEquipmentMoneyOutboxDeps } from './odooEquipment.ts';
 import { withOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** The PMO document kinds a purchase command names (the shared command shape) and the Odoo document each becomes. */
@@ -173,6 +174,7 @@ async function stampReceiptPlan(ctx: AdapterSelectContext, call: OdooCall, resol
 export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<DispatchMoneyOutboxDeps> {
   if (ctx.command.domain === 'revenue') return resolveOdooRevenueMoneyOutboxDeps(ctx);   // customer invoices and receipts (#1506)
   if (ctx.command.domain === 'companies') return resolveOdooCompaniesMoneyOutboxDeps(ctx);   // partners (#1504 S8)
+  if (ctx.command.domain === 'equipment') return resolveOdooEquipmentMoneyOutboxDeps(ctx);   // register + maintenance (#1511 F4)
   const operation = ctx.command.operation as string;
   if (operation === 'delete') throw new AppError('odoo adapter does not support delete', 'commit-rejected');
   const record = ctx.command.record as Record<string, unknown>;

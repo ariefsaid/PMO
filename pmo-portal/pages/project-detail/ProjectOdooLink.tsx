@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { Button, ListState, SelectField, StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useOdooProjectLinks, useOdooSetup } from '@/src/hooks/useOdoo';
+import { useOdooProjectLinks, useOdooSetup, useOdooConnection } from '@/src/hooks/useOdoo';
+import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooConnectionBanner';
 import { odooErrorMessage } from '@/src/components/integrations/odoo/odooErrors';
 
 export function ProjectOdooLink({ projectId, managerId }: { projectId: string; managerId: string | null }) {
@@ -16,6 +17,7 @@ export function ProjectOdooLink({ projectId, managerId }: { projectId: string; m
   const me = useAuth().currentUser;
   const { realRole, effectiveRole } = useEffectiveRole();
   const links = useOdooProjectLinks();
+  const conn = useOdooConnection().data;
   const link = useOdooSetup('link-project');
   const unlink = useOdooSetup('unlink-project');
   const setPlan = useOdooSetup('set-analytic-plan');
@@ -47,6 +49,8 @@ export function ProjectOdooLink({ projectId, managerId }: { projectId: string; m
 
   return (
     <div className="space-y-2" data-testid="project-odoo-link">
+      {/* FR-ODC-033: this screen shows Odoo-derived accounts, so it carries the same connection banner as the directory. */}
+      {conn && <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }} />}
       {title}
       {mine ? (
         <div className="space-y-1.5">

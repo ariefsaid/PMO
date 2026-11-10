@@ -32,6 +32,9 @@ const isRunAsMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').hre
  * after re-reading the spec; bumping the date without checking defeats the whole point.
  * @type {Array<{file: string, reason: string, restore: string, verified: string}>}
  */
+// One restore path for the bed journeys, in neutral words: the runbook and the bed script name the settings they need.
+const ODOO_BED_RESTORE = 'Run under the Odoo and DB locks with the Odoo bed up and the functions served (see odoo-client-setup and the bed script), then scripts/e2e-local.sh <fragment>.';
+
 export const ALLOWED_SKIPS = [
   {
     file: 'AC-LEG-024-mobile-account-menu.spec.ts',
@@ -91,6 +94,36 @@ export const ALLOWED_SKIPS = [
     verified: '2026-11-04',
   },
   {
+    file: 'serial/AC-ODC-093-odoo-empty-erp.spec.ts',
+    reason: 'The empty-Odoo scenario needs the Odoo bed and the served-functions lane.',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
+  },
+  {
+    file: 'AC-ODC-091-odoo-new-org-existing-erp.spec.ts',
+    reason: 'The new-org-existing-Odoo scenario needs the Odoo bed and the served-functions lane.',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
+  },
+  {
+    file: 'AC-ODC-094-odoo-both-have-data.spec.ts',
+    reason: 'The both-have-data scenario needs the Odoo bed and the served-functions lane.',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
+  },
+  {
+    file: 'AC-ODC-080-odoo-setup-journey.spec.ts',
+    reason: 'The Odoo setup journey needs the Odoo bed and the served-functions lane.',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
+  },
+  {
+    file: 'serial/AC-ODC-014-odoo-unavailable.spec.ts',
+    reason: 'The Odoo-unavailable journey stops and restarts the Odoo bed and needs the served-functions lane.',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-09',
+  },
+  {
     file: 'serial/AC-PLN-015-switch-off-journey.spec.ts',
     reason:
       'Arms (a) and (b) assert the /stock ROUTE and RAIL gates that S3 (feat/plans-s3-console) has not wired on dev, so they are test.fixme; arm (c) additionally needs the served-functions lane AND the agent-assistant capability flag. Nothing in this SERIAL-lane spec can run on dev until S3 lands.',
@@ -125,10 +158,22 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   })),
   {
+    file: 'serial/AC-018-budget-whole-project.spec.ts',
+    reason: 'Whole-project budget journey needs the served functions lane and the disposable ERPNext v16 bed (its goal oracle is the ERP Budget documents); the bed is not provisioned in CI.',
+    restore: 'Run scripts/with-erpnext-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh AC-018 with the v16 bed up and its API key exported.',
+    verified: '2026-11-06',
+  },
+  {
     file: 'serial/AC-SETUP-001-project-erp-link.spec.ts',
     reason: 'ERP setup journey needs the disposable ERP bench and a prepared HTTPS binding.',
     restore: 'Run in the local served-functions lane with the disposable HTTPS ERP relay and ready binding.',
     verified: '2026-10-05',
+  },
+  {
+    file: 'serial/AC-ECA-05',
+    reason: 'ERP connect scenario journeys (S-C, S-D) need the served functions lane and the throwaway ERPNext bench (their goal oracles are bench documents and counts).',
+    restore: 'Run in the local served-functions lane with the throwaway ERPNext bench up: scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-ECA-05 . Each spec CREATES its own org, bench Company and active binding (no prepared binding is needed) and removes them again afterwards.',
+    verified: '2026-11-10',
   },
   {
     file: 'serial/AC-S09-005-project-match-review.spec.ts',
