@@ -5,7 +5,7 @@
 -- AC-OLH-010, AC-OLH-011, AC-OLH-012 (the confirm path is the shipped `confirm_erp_employee_link`, amended here so a second
 -- confirm for one profile REPLACES the first — AC-OLH-012's last clause — instead of colliding on the 0136 partial index).
 begin;
-select plan(43);
+select plan(48);
 
 insert into organizations (id, name) values
  ('15100000-0000-0000-0000-000000000001','Labour Feed A'),
@@ -217,6 +217,34 @@ reset role;
 select is((select count(*)::int from erp_employees
             where org_id = '15100000-0000-0000-0000-000000000001' and employee_number in ('6','7')),
   0, 'FR-OLH-003 a malformed row is never partly written');
+
+-- ── J) A person number the mirror already holds TWICE never feed-fails and is never duplicated ───────────────────────
+-- The shipped ERPNext-era contract leaves a shared person number OPEN rather than guessing (`erp_connect_setup.test.sql`,
+-- "an ERP person number shared by two rows is left open, never guessed") and writes `erp_employees` with a plain insert, so
+-- `apply_odoo_employees` must mirror onto what it finds instead of relying on a unique key the table deliberately lacks.
+insert into erp_employees (id, org_id, employee_number, employee_name, work_email, erp_status, erp_modified, link_state) values
+ ('15100000-0000-0000-0000-0000000000d1','15100000-0000-0000-0000-000000000001','77','Dup One','dup@example.com',
+  'active','2026-11-01 08:00:00','unlinked'),
+ ('15100000-0000-0000-0000-0000000000d2','15100000-0000-0000-0000-000000000001','77','Dup Two','dup@example.com',
+  'active','2026-11-01 08:00:00','unlinked');
+set local role service_role;
+select is(public.apply_odoo_employees('15100000-0000-0000-0000-000000000001',
+  '[{"external_id":"77","name":"Dup Renamed","work_email":"dup@example.com","active":true,"write_date":"2026-11-09 08:00:00"}]'::jsonb),
+  1, 'AC-OLH-010 a page for a number the mirror already holds twice applies one row instead of raising 23505');
+reset role;
+select is((select count(*)::int from erp_employees
+            where org_id = '15100000-0000-0000-0000-000000000001' and employee_number = '77'),
+  2, 'AC-OLH-010 the Odoo page never adds a third row for a duplicated number');
+select is((select employee_name from erp_employees
+            where id = '15100000-0000-0000-0000-0000000000d1'),
+  'Dup Renamed', 'AC-OLH-010 the page mirrors onto the longest-standing row');
+select is((select employee_name from erp_employees
+            where id = '15100000-0000-0000-0000-0000000000d2'),
+  'Dup Two', 'AC-OLH-010 the duplicate row the shipped contract leaves open is untouched');
+select is((select count(*)::int from pg_indexes
+            where schemaname = 'public' and tablename = 'erp_employees'
+              and indexname = 'erp_employees_org_number_uq'),
+  0, 'AC-OLH-010 no unique index is imposed on (org_id, employee_number): the shipped "leaves a shared number open" contract stands');
 
 select * from finish();
 rollback;

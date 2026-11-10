@@ -2,7 +2,7 @@
 --
 -- The Odoo employee mirror for labour hours. PMO never creates an Odoo employee (D6); the Odoo sweep reads `hr.employee`
 -- and this migration supplies the two machine writers:
---   1. apply_odoo_employees          — upsert one page into the SHIPPED `erp_employees` table (0136 §2) and PROPOSE a link
+--   1. apply_odoo_employees          — mirror one page into the SHIPPED `erp_employees` table (0136 §2) and PROPOSE a link
 --                                      when the work email matches exactly one ACTIVE PMO profile. It never confirms and never
 --                                      re-points a `confirmed`/`rejected` row (FR-OLH-003/004, AC-OLH-010/011).
 --   2. finish_odoo_employee_census   — tombstone (`erp_cancelled_at`) an employee the census no longer sees; never delete,
@@ -11,31 +11,19 @@
 --                                      DEMOTES the first instead of colliding on the 0136 partial-unique index. The invariant
 --                                      (at most one `confirmed` employee per profile) is unchanged; only the mechanism is.
 --
--- `erp_employees` predates this migration: no table is created here. The one schema addition is the unique index the upsert
--- arbitrates on (`(org_id, employee_number)`), which the ERPNext-era table lacked because its writer upserted per row in TS.
+-- `erp_employees` predates this migration: no table is created here and no schema changes at all — in particular NO unique index
+-- on `(org_id, employee_number)`. The shipped ERPNext-era table leaves a duplicated person number OPEN rather than guessing
+-- (`supabase/tests/erp_connect_setup.test.sql`, "an ERP person number shared by two rows is left open, never guessed") and its
+-- feed writes rows one at a time with a plain insert, so a unique index here would turn a handled ERPNext data condition into a
+-- hard 23505 feed failure and re-point the shipped contract. The Odoo writer below therefore does an explicit SELECT-then-write
+-- per row (`claim_erp_sweep_lock` already serialises the per-org writers, so no index arbiter is needed).
 --
 -- The proposal is a PROPOSAL for a reason (OQ-TSP-10(C)): `work_email` is Desk-editable in the ERP, so auto-confirming would
 -- let anyone with Desk access silently re-point a PMO user's cost identity. Only `confirm_erp_employee_link`, called by an
 -- in-org Admin, authorizes a push (FR-OLH-005).
 --
 -- Public repo: fixtures elsewhere use invented names and `@example.com` addresses; nothing here names a client or a host.
--- Reversal: rollback/0860_odoo_labour_employee_feed_down.sql (restores 0148's confirm body, drops both new functions and the
--- index).
-
--- One Odoo employee per number per org, so the page upsert has an arbiter. NULLs (an ERPNext-era row with no number) never
--- conflict, and a genuine duplicate would be a data defect worth failing on — but it must fail with a sentence an operator can
--- act on, not a bare 23505 from an index build.
-do $$
-begin
-  if exists (select 1 from public.erp_employees
-              where employee_number is not null
-              group by org_id, employee_number
-             having count(*) > 1) then
-    raise exception 'erp_employees holds duplicate (org_id, employee_number) rows — resolve them before 0860 adds its upsert arbiter';
-  end if;
-end $$;
-create unique index if not exists erp_employees_org_number_uq
-  on public.erp_employees (org_id, employee_number);
+-- Reversal: rollback/0860_odoo_labour_employee_feed_down.sql (restores 0148's confirm body, drops both new functions).
 
 -- ── 1. The page writer + the proposal ───────────────────────────────────────────────────────────────────────────────
 -- Service-role only (the sweep). Every statement is org-filtered: service_role bypasses RLS, so this function is the tenancy
@@ -58,32 +46,62 @@ begin
   end if;
 
   -- Strict parse: a row missing the id, the name or a well-formed Odoo `write_date` is skipped WHOLE, never partly written
-  -- (the 0421 `parsePage` rule). An older page never overwrites a newer one (FR-OLH-003), and a row whose link is already
-  -- `confirmed` or `rejected` is left byte-identical — a Desk-editable email must never re-point a cost identity
-  -- (FR-OLH-004, AC-OLH-011).
-  insert into public.erp_employees as e
-    (org_id, employee_number, employee_name, work_email, erp_status, erp_modified, erp_cancelled_at)
-  select p_org_id,
-         r->>'external_id',
-         btrim(r->>'name'),
-         nullif(btrim(r->>'work_email'), ''),
-         case when r->>'active' = 'true' then 'active' else 'inactive' end,  -- no cast: a malformed value can never raise
-         r->>'write_date',
-         null
-    from jsonb_array_elements(p_rows) r
-   where r->>'external_id' ~ '^[0-9]+$'
-     and nullif(btrim(r->>'name'), '') is not null
-     and r->>'write_date' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
-     and jsonb_typeof(r->'active') = 'boolean'
-  on conflict (org_id, employee_number) do update set
-    employee_name    = excluded.employee_name,
-    work_email       = excluded.work_email,
-    erp_status       = excluded.erp_status,
-    erp_modified     = excluded.erp_modified,
-    erp_cancelled_at = null                      -- a returning id clears its tombstone (0421's rule)
-  where e.link_state in ('unlinked', 'proposed')  -- never re-point a decided link
-    and (e.erp_modified is null or excluded.erp_modified > e.erp_modified);
-  get diagnostics v_n = row_count;
+  -- (the 0421 `parsePage` rule). One row per Odoo id even if the page repeats it (the newest `write_date` wins), so one page can
+  -- never write two rows for one employee.
+  --
+  -- Then one SELECT-then-write per row:
+  --   * a row whose link is already `confirmed` or `rejected` is left byte-identical — a Desk-editable email must never
+  --     re-point a cost identity (FR-OLH-004, AC-OLH-011) — and is NEVER duplicated: an existing number is never inserted again;
+  --   * an older page never overwrites a newer one (FR-OLH-003);
+  --   * a number shared by two shipped (ERPNext-era) rows is mirrored onto the longest-standing one only, deterministic by id:
+  --     the shipped "left open, never guessed" contract stays untouched, and the row is still never deleted.
+  with page as (
+    select distinct on (r->>'external_id')
+           r->>'external_id' as employee_number,
+           btrim(r->>'name') as employee_name,
+           nullif(btrim(r->>'work_email'), '') as work_email,
+           case when r->>'active' = 'true' then 'active' else 'inactive' end as erp_status,  -- no cast: a malformed value can never raise
+           r->>'write_date' as erp_modified
+      from jsonb_array_elements(p_rows) r
+     where r->>'external_id' ~ '^[0-9]+$'
+       and nullif(btrim(r->>'name'), '') is not null
+       and r->>'write_date' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
+       and jsonb_typeof(r->'active') = 'boolean'
+     order by r->>'external_id', r->>'write_date' desc
+  ),
+  target as (
+    select p.*, e.id as existing_id
+      from page p
+      left join lateral (
+        select x.id from public.erp_employees x
+         where x.org_id = p_org_id and x.employee_number = p.employee_number
+         order by x.id
+         limit 1
+      ) e on true
+  ),
+  updated as (
+    update public.erp_employees e
+       set employee_name    = t.employee_name,
+           work_email       = t.work_email,
+           erp_status       = t.erp_status,
+           erp_modified     = t.erp_modified,
+           erp_cancelled_at = null                      -- a returning id clears its tombstone (0421's rule)
+      from target t
+     where e.id = t.existing_id
+       and e.link_state in ('unlinked', 'proposed')     -- never re-point a decided link
+       and (e.erp_modified is null or t.erp_modified > e.erp_modified)
+    returning 1
+  ),
+  inserted as (
+    insert into public.erp_employees
+      (org_id, employee_number, employee_name, work_email, erp_status, erp_modified, erp_cancelled_at)
+    select p_org_id, t.employee_number, t.employee_name, t.work_email, t.erp_status, t.erp_modified, null
+      from target t
+     where t.existing_id is null                         -- never a second row for a number the mirror already holds
+    returning 1
+  )
+  select count(*) into v_n
+    from (select * from updated union all select * from inserted) w;
 
   -- The proposal (FR-OLH-004): exactly one ACTIVE profile in the org whose email matches, and no other employee already
   -- CONFIRMED for that profile. `link_state='unlinked'` in the predicate means a proposed/confirmed/rejected row is never

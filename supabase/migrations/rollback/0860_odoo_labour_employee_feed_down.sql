@@ -1,8 +1,7 @@
 -- rollback/0860_odoo_labour_employee_feed_down.sql — reverses 0860_odoo_labour_employee_feed.sql.
--- `erp_employees` itself predates 0860 (0136 §2) and is NOT dropped: only the two machine writers this migration added, the
--- upsert's unique index, and the amended confirm body (restored to 0148's verbatim).
--- Order: confirm first (its new body references nothing this migration adds), then the census finish, then the page writer,
--- then the index.
+-- `erp_employees` itself predates 0860 (0136 §2) and is NOT dropped: only the two machine writers this migration added and the
+-- amended confirm body (restored to 0148's verbatim). 0860 creates no index and no table.
+-- Order: confirm first (its new body references nothing this migration adds), then the census finish, then the page writer.
 
 drop function if exists public.finish_odoo_employee_census(uuid, text, jsonb, text);
 drop function if exists public.apply_odoo_employees(uuid, jsonb, text);
@@ -75,5 +74,7 @@ revoke all     on function public.confirm_erp_employee_link(uuid, uuid) from pub
 grant  execute on function public.confirm_erp_employee_link(uuid, uuid) to   authenticated;
 revoke execute on function public.confirm_erp_employee_link(uuid, uuid) from anon;
 
--- Last: the arbiter index. Dropped after the writer that uses it, so the rollback never leaves a writer without its arbiter.
+-- Defensive no-op: an environment that applied an earlier draft of 0860 may still hold the withdrawn `(org_id, employee_number)`
+-- unique index (it broke the shipped "a shared person number stays open" contract — see 0860's header). 0860 itself creates no
+-- index, so on a fresh schema this drops nothing.
 drop index if exists public.erp_employees_org_number_uq;
