@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListState, PageHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
@@ -148,11 +148,10 @@ const StockDocumentDetail: React.FC = () => {
       )}
       {d && (
         <div className="space-y-4">
-          <PageHeader
+          <RecordHeader
             name={<span className="font-mono">{d.number}</span>}
             meta={`${t(`kinds.${d.kind}`)} · ${d.occurred_on}`}
             status={<StatusPill variant={statusVariant(d.status)}>{t(`documents.status.${d.status}`)}</StatusPill>}
-            statusInline
             actions={(canPost || canCancel || canEdit) && (
               <div className="flex gap-2">
                 {canEdit && <Button variant="outline" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button>}

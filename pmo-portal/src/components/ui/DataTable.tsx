@@ -59,6 +59,13 @@ export interface Column<Row> {
   stickyLeft?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
+  /**
+   * A column whose cell is blank (nothing, or the "—" empty marker) on every loaded row is not rendered.
+   * Set this to keep it anyway, e.g. a column the user expects to find even when empty. Never applied while
+   * loading, empty or failed (no rows yet), nor to the first column, a `stickyLeft`/`rowHeader` column, or one
+   * that a `totals` row fills.
+   */
+  keepWhenBlank?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
   size?: number;
   /** Minimum width when resizing is enabled. */
@@ -149,6 +156,35 @@ export interface DataTableProps<Row> {
   onOverflowChange?: (overflowing: boolean) => void;
 }
 
+const EMPTY_MARKERS = new Set(['—', '–', '-']);
+
+/** True when a cell renders nothing a person can read: null/false/''/whitespace, the "—" marker, or a list/fragment of those.
+ *  Any other element counts as content (its output cannot be inspected without rendering it). */
+export function isBlankCell(node: React.ReactNode): boolean {
+  if (node == null || typeof node === 'boolean') return true;
+  if (typeof node === 'string') return node.trim() === '' || EMPTY_MARKERS.has(node.trim());
+  if (typeof node === 'number' || typeof node === 'bigint') return false;
+  if (Array.isArray(node)) return node.every(isBlankCell);
+  if (React.isValidElement(node) && node.type === React.Fragment) return isBlankCell((node.props as { children?: React.ReactNode }).children);
+  return false;
+}
+
+/** Columns that are blank on every loaded row are dropped (see `Column.keepWhenBlank`). */
+export function dropBlankColumns<Row>(
+  columns: Column<Row>[],
+  rows: Row[],
+  totals: DataTableProps<Row>['totals'],
+  loaded: boolean,
+): Column<Row>[] {
+  if (!loaded || rows.length === 0) return columns;
+  return columns.filter((column, index) => {
+    if (index === 0 || column.keepWhenBlank || column.stickyLeft || column.rowHeader) return true;
+    if (column.kind === 'actions' || column.kind === 'select') return true;
+    if (totals?.some((total) => total.values && !isBlankCell(total.values[column.key]))) return true;
+    return rows.some((row) => !isBlankCell(column.cell(row)) || (column.secondaryCell != null && !isBlankCell(column.secondaryCell(row))));
+  });
+}
+
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
  *  width (0, e.g. no layout) reads as wide, so the table stays the default. Switching branches never changes the width
  *  (the parent column decides it), so this cannot oscillate. */
@@ -224,7 +260,10 @@ export function DataTable<Row>({
   onOverflowChange,
 }: DataTableProps<Row>) {
   const { t } = useTranslation('projects');
-  const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
+  const columns = useMemo(
+    () => dropBlankColumns(allColumns.filter((column) => !column.exportOnly), rows, totals, !state),
+    [allColumns, rows, totals, state],
+  );
   const userId = useContext(AuthContext)?.currentUser?.id;
   const { columnSizing, onColumnSizingChange } = useTableColumnSizing(
     tableId,

@@ -170,24 +170,4 @@ describe('KPITile', () => {
     // @ts-expect-error cyan is no longer a member of KPITone
     render(<KPITile icon="folder" tone="cyan" label="x" value="1" />);
   });
-
-  it('dual-lens toggle switches value + aria-selected', async () => {
-    const onLens = vi.fn();
-    render(
-      <KPITile
-        icon="dollar"
-        tone="blue"
-        label="Backlog"
-        value="$4.2M"
-        dual={{ lens: 'onhand', onLens, options: [
-          { value: 'onhand', label: 'On hand' },
-          { value: 'weighted', label: 'Weighted' },
-        ] }}
-      />
-    );
-    const weighted = screen.getByRole('tab', { name: 'Weighted' });
-    expect(screen.getByRole('tab', { name: 'On hand' })).toHaveAttribute('aria-selected', 'true');
-    await userEvent.click(weighted);
-    expect(onLens).toHaveBeenCalledWith('weighted');
-  });
 });

@@ -5,7 +5,7 @@ import { Kanban, KanbanColumn, KanbanCard } from '../Kanban';
 import { LifecycleStepper } from '../LifecycleStepper';
 import { Funnel } from '../Funnel';
 import { GateNotice } from '../GateNotice';
-import { PageHeader } from '../PageHeader';
+import { RecordHeader } from '../RecordHeader';
 import { Tabs } from '../Tabs';
 import { StatTiles } from '../StatTiles';
 
@@ -385,10 +385,10 @@ describe('GateNotice', () => {
   });
 });
 
-describe('PageHeader', () => {
+describe('RecordHeader', () => {
   it('renders icon, name, status, meta, stats, and actions', () => {
     render(
-      <PageHeader
+      <RecordHeader
         icon={<span>P</span>}
         iconColor="hsl(var(--primary))"
         name="Project Alpha"

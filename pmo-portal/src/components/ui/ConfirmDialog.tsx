@@ -36,6 +36,8 @@ export interface ConfirmDialogProps {
   /** Gate the confirm button — for a dialog that hosts a required input (e.g. an attestation reason).
    *  Cancel/Esc/scrim are NEVER blocked by this: the escape hatch stays open. */
   confirmDisabled?: boolean;
+  /** Where focus lands on open: Cancel (default, the safe choice) or a field the dialog hosts (ReasonDialog's reason box). */
+  initialFocus?: () => HTMLElement | null;
   /** Consumer-owned focus destination if the opener is removed while the dialog is open. */
   restoreFocusFallback?: () => HTMLElement | null;
   onConfirm: () => void;
@@ -52,6 +54,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   tone = 'default',
   loading = false,
   confirmDisabled = false,
+  initialFocus,
   restoreFocusFallback,
   onConfirm,
   onCancel,
@@ -120,7 +123,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           style={overlayBackdropStyle}
         />
         <Dialog.Popup
-          initialFocus={() => cancelRef.current}
+          initialFocus={initialFocus ? () => initialFocus() ?? cancelRef.current : () => cancelRef.current}
           finalFocus={false}
           onKeyDown={(event) => {
             if (event.key === 'Escape') event.stopPropagation();
