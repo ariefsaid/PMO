@@ -1,6 +1,6 @@
 -- 0771 #2039: capturing a purchase request takes the same row lock on the purchase that transition_procurement (0766, #1986)
--- takes before it adopts the earliest still-Draft capture, so a capture racing Draft -> Requested serializes with it and
--- cannot leave two requests. Lock order is purchase row only (the transition locks purchase, then the request row): no cycle.
+-- takes before it adopts the earliest still-Draft capture. It serializes capture with the transition explicitly (today the
+-- insert's foreign-key check already does; 0793 relies on this lock). Lock order is purchase row only: no cycle.
 -- Body = 0238 plus the lock. Rollback: rollback/0771_capture_pr_lock_down.sql
 create or replace function public.create_purchase_request(
   p_procurement_id uuid, p_reference_number text, p_status text, p_date date, p_amount numeric,
