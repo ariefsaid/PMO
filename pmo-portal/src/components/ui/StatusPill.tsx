@@ -1,4 +1,6 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { statusLabel, statusVariantOf, type StatusRecord } from '@/src/lib/status/statusMap';
 import { cn } from './cn';
 
 export type StatusVariant =
@@ -36,7 +38,8 @@ const STYLES: Record<StatusVariant, PillStyle> = {
   violet: { labelColor: 'hsl(var(--status-violet-text))', surfaceCls: 'bg-status-violet-surface' },
   // Warning variants use the AA amber label on the matching pale surface.
   warn: { labelCls: 'text-warning-foreground', surfaceCls: 'bg-status-warning-surface' },
-  overdue: { labelCls: 'text-warning-foreground', surfaceCls: 'bg-status-warning-surface' },
+  // Overdue is an exception: red, same as `lost` (screen rule: overdue / over budget / rejected = red).
+  overdue: { labelColor: 'hsl(var(--status-lost-text))', surfaceCls: 'bg-status-danger-surface' },
   // Neutral variants share the AA neutral label + surface pair.
   progress: { labelCls: 'text-count-foreground', surfaceCls: 'bg-status-neutral-surface' },
   neutral: { labelCls: 'text-count-foreground', surfaceCls: 'bg-status-neutral-surface' },
@@ -44,14 +47,31 @@ const STYLES: Record<StatusVariant, PillStyle> = {
   superseded: { labelCls: 'text-count-foreground', surfaceCls: 'bg-status-neutral-surface' },
 };
 
-export interface StatusPillProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant: StatusVariant;
-  children: React.ReactNode;
+interface StatusPillBase extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
   /** Let a longer translated label wrap inside a constrained card or table cell. */
   wrap?: boolean;
 }
 
-export const StatusPill: React.FC<StatusPillProps> = ({
+/** The legacy call: the caller picks the variant and supplies the words. */
+interface StatusPillByVariant extends StatusPillBase {
+  variant: StatusVariant;
+  children: React.ReactNode;
+  record?: never;
+  state?: never;
+}
+
+/** The vocabulary call: record type + stored state; label and tone come from `statusMap`. */
+interface StatusPillByState extends StatusPillBase {
+  record: StatusRecord;
+  state: string;
+  /** Only when the screen must say something other than the shared name; the tone still follows the state. */
+  children?: React.ReactNode;
+  variant?: never;
+}
+
+export type StatusPillProps = StatusPillByVariant | StatusPillByState;
+
+const PillBody: React.FC<StatusPillBase & { variant: StatusVariant; children: React.ReactNode }> = ({
   variant,
   children,
   wrap = false,
@@ -76,6 +96,21 @@ export const StatusPill: React.FC<StatusPillProps> = ({
     </span>
   );
 };
+
+/** Reads the shared map; split out so the legacy path keeps calling no hook. */
+const StateStatusPill: React.FC<StatusPillByState> = ({ record, state, children, ...rest }) => {
+  const { t } = useTranslation('status');
+  return (
+    <PillBody variant={statusVariantOf(record, state)} {...rest}>
+      {children ?? statusLabel(record, state, t)}
+    </PillBody>
+  );
+};
+
+export const StatusPill: React.FC<StatusPillProps> = (props) =>
+  props.record !== undefined
+    ? <StateStatusPill {...props} />
+    : <PillBody {...props} />;
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   /** Active context (e.g. active nav item) flips to the primary tint. */

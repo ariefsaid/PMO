@@ -540,6 +540,150 @@ export function formatInstantDateNumeric(iso: string | null | undefined): string
   }).format(parsed);
 }
 
+// ── The screen-rule vocabulary (ux/1110 F1a): ONE day shape, ONE age phrase, ONE tile / table money ──
+// "10 Nov 2026", "10 Nov" within the current year, "Nov 2026", "118 days overdue". Day-first with
+// the viewer's month names, so the SHAPE never changes with the locale and only the words do.
+// Older shapes above (`formatDate`, `formatFullDate`, ...) stay until the area sweeps retire them.
+
+/** A calendar day or an instant: `YYYY-MM-DD` (never shifted), an ISO timestamp (viewer zone), or a Date (local). */
+export type DayInput = string | Date | null | undefined;
+
+interface DayFrame { date: Date; timeZone?: string }
+
+function dayFrame(input: DayInput): DayFrame | null {
+  if (input instanceof Date) return Number.isNaN(input.getTime()) ? null : { date: input };
+  const dateOnly = parseDateOnly(input);
+  if (dateOnly) return { date: dateOnly };
+  const instant = parseInstant(input);
+  return instant ? { date: instant, timeZone: getActiveLocale().timezone } : null;
+}
+
+function dayPart(frame: DayFrame, shape: 'day' | 'month'): { day: string; month: string; year: string } {
+  const parts = dateFormatterFor(`vocab-${shape}`, getDateLocale(), {
+    ...(shape === 'day' ? { day: 'numeric' as const } : {}),
+    month: 'short', year: 'numeric',
+    ...(frame.timeZone ? { timeZone: frame.timeZone } : {}),
+  }).formatToParts(frame.date);
+  const find = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return { day: find('day'), month: find('month'), year: find('year') };
+}
+
+/** "10 Nov 2026" — always with the year. */
+export function formatDayYear(input: DayInput): string {
+  const frame = dayFrame(input);
+  if (!frame) return '—';
+  const { day, month, year } = dayPart(frame, 'day');
+  return `${day} ${month} ${year}`;
+}
+
+/** "10 Nov" within the current year, "10 Nov 2026" otherwise. `now` is for tests. */
+export function formatDay(input: DayInput, now: Date = new Date()): string {
+  const frame = dayFrame(input);
+  if (!frame) return '—';
+  const { day, month, year } = dayPart(frame, 'day');
+  const currentYear = dayPart({ date: now, timeZone: getActiveLocale().timezone }, 'day').year;
+  return year === currentYear ? `${day} ${month}` : `${day} ${month} ${year}`;
+}
+
+/** "Nov 2026" — a month, never "Nov 26" (which reads as a day). */
+export function formatMonthYearShort(input: DayInput): string {
+  const frame = dayFrame(input);
+  if (!frame) return '—';
+  const { month, year } = dayPart(frame, 'month');
+  return `${month} ${year}`;
+}
+
+/** `YYYY-MM-DD` of the calendar day the input falls on, in the same frame `dayFrame` formats it in. */
+function calendarDayKey(frame: DayFrame): string {
+  if (frame.timeZone) return formatCalendarDayInTimeZone(frame.date, frame.timeZone);
+  const d = frame.date;
+  return `${String(d.getFullYear()).padStart(4, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const DAY_MS = 86_400_000;
+const dayKeyMs = (key: string) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
+
+/** Whole calendar days past `due` (>= 1), or null when it is due today, in the future, or unreadable. */
+export function daysOverdue(due: DayInput, now: Date = new Date()): number | null {
+  const frame = dayFrame(due);
+  if (!frame) return null;
+  const today = calendarDayKey({ date: now, timeZone: frame.timeZone ?? getActiveLocale().timezone });
+  const days = Math.round((dayKeyMs(today) - dayKeyMs(calendarDayKey(frame))) / DAY_MS);
+  return days >= 1 ? days : null;
+}
+
+/** Translator contract `formatDaysOverdue` needs: `status:age.overdue` with `_one` / `_other`; `n` is the formatted number. */
+export type AgeTranslate = (
+  key: 'status:age.overdue',
+  options: { count: number; n: string; defaultValue_one: string; defaultValue_other: string },
+) => string;
+
+/** "118 days overdue" — a number with its unit, nothing relative-sounding. null when not overdue. */
+export function formatDaysOverdue(due: DayInput, t: AgeTranslate, now: Date = new Date()): string | null {
+  const days = daysOverdue(due, now);
+  if (days === null) return null;
+  return t('status:age.overdue', {
+    count: days,
+    n: formatNumberWhole(days),
+    defaultValue_one: '{{n}} day overdue',
+    defaultValue_other: '{{n}} days overdue',
+  });
+}
+
+// Money. Tiles round to 2-3 significant digits, tables print the whole amount; BOTH always carry the
+// currency, and "unknown" is null (the caller hides the tile / column, it never prints 0 or a sentence).
+// Exact-cent surfaces (reconciliation, tax, inputs, exports) keep `formatCurrencyCents` / `formatExactMoney`.
+
+const trueMinus = (text: string) => text.replace('-', '−');
+
+/** "IDR 7.7B", "$56.5K", "$856". `code`: name the currency by ISO code ("USD 5.3K") for a non-home currency. */
+export function formatTileMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
+  const value = typeof amount === 'string' ? Number(amount) : amount;
+  if (value === null || !Number.isFinite(value) || !/^[A-Z]{3}$/.test(currency)) return null;
+  const display = opts.code ? { currencyDisplay: 'code' as const } : {};
+  if (Math.abs(value) < 1_000) {
+    return trueMinus(currencyFormatterFor(opts.code ? 'tile-small-code' : 'tile-small', currency, {
+      minimumFractionDigits: 0, maximumFractionDigits: 0, ...display,
+    }).format(value));
+  }
+  return trueMinus(currencyFormatterFor(opts.code ? 'tile-code' : 'tile', currency, {
+    notation: 'compact', maximumSignificantDigits: 3, ...display,
+  }).format(value));
+}
+
+/** "IDR 1,467,628,320": the full amount in whole units, with currency. Exact strings stay exact. */
+export function formatTableMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
+  const text = typeof amount === 'number' ? (Number.isFinite(amount) ? String(amount) : null) : amount;
+  if (text === null) return null;
+  if (!opts.code) return formatExactMoney(text, currency, getNumberLocale(), { wholeUnits: true });
+  const value = Number(text);
+  if (!Number.isFinite(value) || !/^[A-Z]{3}$/.test(currency)) return null;
+  // ponytail: the ISO-code form goes through a Number (a second-line amount), exact strings use the branch above.
+  return trueMinus(currencyFormatterFor('table-code', currency, {
+    minimumFractionDigits: 0, maximumFractionDigits: 0, currencyDisplay: 'code',
+  }).format(value));
+}
+
+/**
+ * One figure per organisation currency plus second lines for the rest: `['IDR 7.7B', '+ USD 5.3K']`.
+ * Same-currency entries add up; different currencies are never summed or joined into one "A · B" string.
+ * The home line is always first and is "0" when the organisation has none.
+ */
+export function formatMoneyLines(
+  totals: ReadonlyArray<{ currency: string; amount: number }>,
+  homeCurrency: string,
+  kind: 'tile' | 'table',
+): string[] {
+  const byCurrency = new Map<string, number>([[homeCurrency, 0]]);
+  for (const { currency, amount } of totals) byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount);
+  const render = kind === 'tile' ? formatTileMoney : formatTableMoney;
+  return [...byCurrency].flatMap(([currency, amount]) => {
+    const isHome = currency === homeCurrency;
+    const text = render(amount, currency, { code: !isHome });
+    return text === null ? [] : [isHome || amount < 0 ? text : `+ ${text}`];
+  });
+}
+
 // ── Wall-clock <-> instant, for `<input type="datetime-local">` (#684, FR-PLC-006, AC-PLC-005) ──
 //
 // ⛔ Before #684 a meeting's edit form formatted its `occurred_at` with the PROCESS/BROWSER

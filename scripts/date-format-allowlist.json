@@ -1,0 +1,47 @@
+{
+  "pages/Timesheets.tsx": {
+    "date-fns-format": 1
+  },
+  "pages/admin/CostAttribution.tsx": {
+    "date-fns-format": 1
+  },
+  "pages/timesheets/timesheetWeekModel.ts": {
+    "date-fns-format": 2
+  },
+  "pages/timesheets/useTimesheetWeekEditor.ts": {
+    "date-fns-format": 2
+  },
+  "src/components/reui/event-calendar/event-calendar-agenda-view.tsx": {
+    "date-fns-format": 2
+  },
+  "src/components/reui/event-calendar/event-calendar-event.tsx": {
+    "date-fns-format": 3
+  },
+  "src/components/reui/event-calendar/event-calendar-i18n.tsx": {
+    "date-fns-format": 19
+  },
+  "src/components/reui/event-calendar/event-calendar-lib.tsx": {
+    "date-fns-format": 1
+  },
+  "src/components/reui/event-calendar/event-calendar-month-view.tsx": {
+    "date-fns-format": 6
+  },
+  "src/components/reui/event-calendar/event-calendar-time-grid.tsx": {
+    "date-fns-format": 3
+  },
+  "src/components/reui/gantt/gantt-i18n.tsx": {
+    "date-fns-format": 27
+  },
+  "src/components/reui/gantt/gantt-lib.tsx": {
+    "date-fns-format": 1
+  },
+  "src/components/reui/gantt/gantt-nav.tsx": {
+    "date-fns-format": 1
+  },
+  "src/components/reui/gantt/gantt-view.tsx": {
+    "date-fns-format": 15
+  },
+  "src/components/shadcn/calendar.tsx": {
+    "date-fns-format": 2
+  }
+}
