@@ -91,6 +91,7 @@ export const revenueRepository: RevenueRepository = {
             received_amount: input.receivedAmount ?? input.paidAmount,
             ...(input.withheldAmount !== undefined ? { withheld_amount: input.withheldAmount } : {}),
             ...(input.withholdingSlipNumber !== undefined ? { withholding_slip_number: input.withholdingSlipNumber } : {}),
+            ...(input.withholdingArticle ? { withholding_article: input.withholdingArticle } : {}),
             ...(input.journalId ? { journalId: input.journalId } : {}),
             date: input.date,
           },

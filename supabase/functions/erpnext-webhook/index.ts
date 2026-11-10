@@ -326,10 +326,7 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
       },
       readVaultSecret: async (ref) => {
         const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          throw new AppError(error.message, error.code);
-        }
+        if (error) throw new AppError(error.message, error.code); // the shared helper logs the code only
         return (data as string | null) ?? null;
       },
     });

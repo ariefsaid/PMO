@@ -464,8 +464,8 @@ select ok(
 select ok(
   (select d.description like '%create_procurement_quotation%'
      from pg_policy p join pg_description d on d.objoid = p.oid and d.classoid = 'pg_policy'::regclass
-    where p.polname = 'procurement_quotations_write'),
-  'AC-AMG-006 procurement_quotations_write is annotated as superseded, naming create_procurement_quotation');
+    where p.polname = 'procurement_quotations_write_insert'),
+  'AC-AMG-006 procurement_quotations_write_insert (split from procurement_quotations_write, 0820) is annotated as superseded, naming create_procurement_quotation');
 
 select * from finish();
 rollback;

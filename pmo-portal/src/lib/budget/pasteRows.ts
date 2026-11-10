@@ -123,6 +123,11 @@ function isValidAmountCents(cents: bigint): boolean {
   return cents > 0n && cents <= MAX_CENTS;
 }
 
+/** `12,345`: one comma, exactly three trailing digits, no other separator. Read as 12345, but an Indonesian comma decimal would mean 12.345. */
+export function isAmbiguousCommaNumber(raw: string): boolean {
+  return /^\d{1,3},\d{3}$/.test(raw.trim());
+}
+
 /** Parse a pasted amount into canonical cents precision without rounding. */
 export function parsePasteAmount(raw: string): string | null {
   const decimal = parseDecimalInput(raw);

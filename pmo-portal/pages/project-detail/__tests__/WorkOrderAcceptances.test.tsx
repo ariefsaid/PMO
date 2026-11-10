@@ -31,4 +31,23 @@ describe('WorkOrderAcceptances', () => {
     expect(open).toHaveBeenCalledTimes(1);
     expect(open.mock.calls[0][0].key).toBe('project-document:d1');
   });
+
+  /**
+   * AC-017: a linked document id the reader's register does not contain must never be reported as
+   * "no document linked" (the record DOES link one) and must never surface the raw id.
+   */
+  it('AC-017 an unreadable linked BAST says the document is unavailable, not that none is linked', () => {
+    render(
+      <DocumentViewerContext.Provider value={{ open: vi.fn(), close: vi.fn() }}>
+        <WorkOrderAcceptances workOrder={{ id: 'wo-1', status: 'Issued' }} boqItems={[]} documents={[]} acceptances={[acceptance]}
+          state="ready" onRetry={vi.fn()} currentUserId="u-fin" projectManagerId="u-pm" hasAllocations
+          onPrepare={vi.fn()} onEdit={vi.fn()} onWithdraw={vi.fn()} onConfirm={vi.fn()} />
+      </DocumentViewerContext.Provider>,
+    );
+    expect(screen.getByText('Signed BAST:')).toBeInTheDocument();
+    expect(screen.getByText('Document not available')).toBeInTheDocument();
+    expect(screen.queryByText(/No signed BAST document linked/)).toBeNull();
+    expect(screen.queryByText('d1')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Preview/ })).toBeNull();
+  });
 });

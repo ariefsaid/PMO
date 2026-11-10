@@ -1,7 +1,7 @@
 -- 0210: service-only SECURITY DEFINER functions are executable by service_role and NOT by
 -- anon/authenticated; client RPCs keep their authenticated grant (no over-revoke).
 begin;
-select plan(29);
+select plan(38);
 
 select ok(not has_function_privilege('anon', 'public.read_vault_secret(text)', 'EXECUTE'), 'AC-GRANT-0210-1 anon cannot execute read_vault_secret');
 select ok(not has_function_privilege('authenticated', 'public.read_vault_secret(text)', 'EXECUTE'), 'AC-GRANT-0210-2 authenticated cannot execute read_vault_secret');
@@ -38,6 +38,17 @@ select ok(has_function_privilege('service_role', 'public.request_erp_statement_m
 select ok(not has_function_privilege('anon', 'public._erp_statement_nightly_due_at(date, text)', 'EXECUTE'), 'AC-GRANT-0210-27 anon cannot execute the nightly scheduling helper');
 select ok(not has_function_privilege('authenticated', 'public._erp_statement_nightly_due_at(date, text)', 'EXECUTE'), 'AC-GRANT-0210-28 authenticated cannot execute the nightly scheduling helper');
 select ok(not has_function_privilege('service_role', 'public._erp_statement_nightly_due_at(date, text)', 'EXECUTE'), 'AC-GRANT-0210-29 the nightly scheduling helper stays owner-only');
+
+-- 0817 (#1017) per-org Microsoft 365 app custody: service-only definers.
+select ok(not has_function_privilege('anon', 'public.m365_set_org_app(uuid, text, text, text, uuid)', 'EXECUTE'), 'AC-GRANT-0210-30 anon cannot execute m365_set_org_app');
+select ok(not has_function_privilege('authenticated', 'public.m365_set_org_app(uuid, text, text, text, uuid)', 'EXECUTE'), 'AC-GRANT-0210-31 authenticated cannot execute m365_set_org_app');
+select ok(has_function_privilege('service_role', 'public.m365_set_org_app(uuid, text, text, text, uuid)', 'EXECUTE'), 'AC-GRANT-0210-32 service_role can execute m365_set_org_app');
+select ok(not has_function_privilege('anon', 'public.m365_org_app_resolve(uuid)', 'EXECUTE'), 'AC-GRANT-0210-33 anon cannot execute m365_org_app_resolve');
+select ok(not has_function_privilege('authenticated', 'public.m365_org_app_resolve(uuid)', 'EXECUTE'), 'AC-GRANT-0210-34 authenticated cannot execute m365_org_app_resolve');
+select ok(has_function_privilege('service_role', 'public.m365_org_app_resolve(uuid)', 'EXECUTE'), 'AC-GRANT-0210-35 service_role can execute m365_org_app_resolve');
+select ok(not has_function_privilege('anon', 'public.m365_clear_org_app(uuid, uuid)', 'EXECUTE'), 'AC-GRANT-0210-36 anon cannot execute m365_clear_org_app');
+select ok(not has_function_privilege('authenticated', 'public.m365_clear_org_app(uuid, uuid)', 'EXECUTE'), 'AC-GRANT-0210-37 authenticated cannot execute m365_clear_org_app');
+select ok(has_function_privilege('service_role', 'public.m365_clear_org_app(uuid, uuid)', 'EXECUTE'), 'AC-GRANT-0210-38 service_role can execute m365_clear_org_app');
 
 select * from finish();
 rollback;

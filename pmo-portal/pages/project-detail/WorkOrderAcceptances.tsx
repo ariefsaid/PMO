@@ -71,7 +71,6 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
       ) : (
         <ul className="flex flex-col gap-2">
           {sorted.map((a) => {
-            const document = documents.find((d) => d.id === a.document_id);
             const draft = a.status === 'Draft';
             const preparedByMe = Boolean(currentUserId) && a.prepared_by === currentUserId;
             const canEdit = draft && workOrder.status === 'Issued'
@@ -89,7 +88,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
                 </div>
                 {a.lines.length > 0 && <p className="text-[12px] tabular text-muted-foreground">{linesText(a)}</p>}
                 <p className="text-[12px] text-muted-foreground">
-                  {document
+                  {a.document_id
                     ? <>{t('projectTabs:contractQuantities.workOrders.acceptances.documentLabel', 'Signed BAST:')} <ProjectDocumentLink documentId={a.document_id} documents={documents} /></>
                     : t('projectTabs:contractQuantities.workOrders.acceptances.noDocument', 'No signed BAST document linked')}
                 </p>

@@ -1,15 +1,21 @@
 /**
- * Purchase Order `toBody`/`fromDoc` — R9 §3 frozen. `schedule_date` on the item row is the ONLY delta
- * vs. the PI item shape and is genuinely mandatory (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §3).
+ * Purchase Order `toBody`/`fromDoc` — R9 §3 frozen, plus the binding's `company` (as MR already
+ * carries): ERPNext files a company-scoped document under the company STATED on the body, else under
+ * the integration user's default company — on a multi-company ERP that is the wrong company (and the
+ * sweep's purchase mirror feed scopes to `config.company`, so the document would never mirror back).
+ * `schedule_date` on the item row is the ONLY delta vs. the PI item shape and is genuinely mandatory
+ * (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §3).
  */
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { mirrorMoney } from '../moneyShape.ts';
-import { requireItems } from './shared.ts';
+import { requireCompany, requireItems } from './shared.ts';
 
 export function poToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  const company = requireCompany(ctx.config, 'Purchase Order');
   const items = requireItems(rec, 'Purchase Order');
   return {
+    company,
     supplier: ctx.refs.supplier,
     ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
     items: items.map((i) => ({

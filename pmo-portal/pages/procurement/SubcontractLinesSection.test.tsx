@@ -189,6 +189,22 @@ describe('SubcontractLinesSection', () => {
     expect(open.mock.calls[0][0].key).toBe('project-document:d1');
   });
 
+  it('AC-017 an unreadable linked acceptance document says unavailable, not "no document"', async () => {
+    h.docs = [];
+    h.acceptances = { data: [{ id: 'a1', status: 'Confirmed', acceptance_date: '2026-10-20', document_id: 'd1', confirm_basis: 'standard', lines: [] }], isPending: false, isError: false, refetch: vi.fn() };
+    render(
+      <ToastProvider>
+        <DocumentViewerContext.Provider value={{ open: vi.fn(), close: vi.fn() }}>
+          <SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />
+        </DocumentViewerContext.Provider>
+      </ToastProvider>,
+    );
+    expect(await screen.findByText('Signed document:')).toBeInTheDocument();
+    expect(screen.getByText('Document not available')).toBeInTheDocument();
+    expect(screen.queryByText(/No signed document linked/)).toBeNull();
+    expect(screen.queryByText('d1')).toBeNull();
+  });
+
   it('FR-SCA-010 Record acceptance is gated by can(prepare, subcontractAcceptance)', async () => {
     h.may = vi.fn((a: string, e: string) => !(a === 'prepare' && e === 'subcontractAcceptance'));
     renderSection();

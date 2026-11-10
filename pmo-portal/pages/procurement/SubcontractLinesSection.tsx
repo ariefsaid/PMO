@@ -247,7 +247,6 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
               <ul className="flex flex-col gap-1.5">
                 {(acceptances.data ?? []).map((a) => {
                   const isDraft = a.status === 'Draft';
-                  const doc = (documents.data ?? []).find((d) => d.id === a.document_id);
                   return (
                     <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border p-2 text-[13px]">
                       <div className="flex flex-wrap items-center gap-2">
@@ -256,7 +255,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                           {t(`subcontract.acceptance.status.${a.status}`, a.status)}
                         </StatusPill>
                         <span className="text-[12px] text-muted-foreground">
-                          {doc ? <>{t('subcontract.acceptance.documentLabel', 'Signed document:')} <ProjectDocumentLink documentId={a.document_id} documents={documents.data ?? []} /></>
+                          {a.document_id ? <>{t('subcontract.acceptance.documentLabel', 'Signed document:')} <ProjectDocumentLink documentId={a.document_id} documents={documents.data ?? []} /></>
                             : t('subcontract.acceptance.noDocument', 'No signed document linked')}
                         </span>
                         {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (
