@@ -25,11 +25,6 @@ import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import LoginPage from '@/src/auth/LoginPage';
-import TermsPage from './pages/Terms';
-import PrivacyPage from './pages/Privacy';
-import ResetPasswordPage from '@/src/auth/ResetPasswordPage';
-import UpdatePasswordPage from '@/src/auth/UpdatePasswordPage';
-import OAuthConsentPage from '@/src/auth/OAuthConsentPage';
 import {
   AppShell,
   Rail,
@@ -65,7 +60,7 @@ import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
 import { i18next } from '@/src/lib/i18n';
 import { preloadMinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
-import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
+import { PROJECT_TAB_CHUNKS, ProjectGantt, ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -83,6 +78,11 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
 //    the chunk downloads in parallel with the route's data instead of after it) ─
 const ExecutiveDashboard = lazyWithPreload(() => import('./pages/ExecutiveDashboard'));
+const TermsPage = lazyWithPreload(() => import('./pages/Terms'));
+const PrivacyPage = lazyWithPreload(() => import('./pages/Privacy'));
+const ResetPasswordPage = lazyWithPreload(() => import('@/src/auth/ResetPasswordPage'));
+const UpdatePasswordPage = lazyWithPreload(() => import('@/src/auth/UpdatePasswordPage'));
+const OAuthConsentPage = lazyWithPreload(() => import('@/src/auth/OAuthConsentPage'));
 const Projects = lazyWithPreload(() => import('./pages/Projects'));
 const ProjectNew = lazyWithPreload(() => import('./pages/ProjectNew'));
 const ProjectDetail = lazyWithPreload(() => import('./pages/project-detail/ProjectDetail'));
@@ -192,6 +192,12 @@ interface PreloadRule {
 }
 
 const PRELOAD_RULES: PreloadRule[] = [
+  { path: '/login', chunks: [] },
+  { path: '/terms', chunks: [TermsPage] },
+  { path: '/privacy', chunks: [PrivacyPage] },
+  { path: '/reset-password', chunks: [ResetPasswordPage] },
+  { path: '/update-password', chunks: [UpdatePasswordPage] },
+  { path: '/oauth/consent', chunks: [OAuthConsentPage] },
   { path: '/', chunks: [ExecutiveDashboard], namespaces: ['dashboard'] },
   { path: '/projects', chunks: [Projects], namespaces: ['projects'] },
   { path: '/projects/new', chunks: [ProjectNew], namespaces: ['projects'] },
@@ -293,7 +299,13 @@ function normalizePath(pathname: string): string {
 }
 
 function preloadRuleForPath(pathname: string): PreloadRule | undefined {
-  return PRELOAD_RULES.find((rule) => routePatternMatches(rule.path, normalizePath(pathname)));
+  const normalized = normalizePath(pathname);
+  const rule = PRELOAD_RULES.find((candidate) => routePatternMatches(candidate.path, normalized));
+  if (!rule) return undefined;
+  const query = pathname.includes('?') ? pathname.slice(pathname.indexOf('?') + 1).split('#')[0] : '';
+  const timelineDeepLink = routePatternMatches('/projects/:projectId/tasks', normalized)
+    && new URLSearchParams(query).get('view') === 'timeline';
+  return timelineDeepLink ? { ...rule, chunks: [...rule.chunks, ProjectGantt] } : rule;
 }
 
 /**
@@ -512,8 +524,8 @@ export const ShellChrome: React.FC = () => {
   // downloading code in parallel with data instead of after it. Idempotent per
   // module (lazyWithPreload memoizes the import promise).
   useEffect(() => {
-    preloadForPath(pathname);
-  }, [pathname]);
+    preloadForPath(`${pathname}${location.search}`);
+  }, [pathname, location.search]);
 
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
   // These are stable callbacks (never change identity), safe to use here.

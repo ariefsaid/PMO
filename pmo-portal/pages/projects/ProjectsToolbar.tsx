@@ -2,7 +2,7 @@ import { ProjectFilterBuilder } from './ProjectFilterBuilder';
 import type { TFunction } from 'i18next';
 import { SearchMini, ViewToggle, MobileToolbarDisclosure, type Column } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
-import { ImportButton } from '@/src/components/import';
+import { ImportButton } from '@/src/components/import/ImportButton';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectListModel, StatusFilter } from './useProjectListModel';

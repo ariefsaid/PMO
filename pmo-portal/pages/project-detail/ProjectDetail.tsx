@@ -21,10 +21,12 @@ import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import ProjectDetailRail from './ProjectDetailRail';
-import ProjectFormModal from '../../components/ProjectFormModal';
+import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+
+const ProjectFormModal = lazyWithPreload(() => import('../../components/ProjectFormModal'));
 
 const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
@@ -154,7 +156,10 @@ const ProjectDetail: React.FC = () => {
   const { returnToList } = useListReturn({ list: 'projects' });
   const goBack = () => returnToList('projects');
 
-  const openEditProject = () => setEditOpen(true);
+  const openEditProject = () => {
+    void ProjectFormModal.preload();
+    setEditOpen(true);
+  };
   const closeEditProject = () => setEditOpen(false);
 
   const saveProjectHeader = async (id: string, input: ProjectHeaderInput) => {
@@ -241,28 +246,30 @@ const ProjectDetail: React.FC = () => {
       {pipelineGroup === 'onHand' && !isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mt-4" />}
       {primaryActionAllowed && <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} mobileBar />}
       {editOpen && (
-        <ProjectFormModal
-          mode="editHeader"
-          initial={{
-            ...pickClassification(project),
-            id: project.id,
-            name: project.name,
-            short_name: project.short_name,
-            code: project.code,
-            client_id: project.client_id,
-            project_manager_id: project.project_manager_id,
-            clientName: project.client ? companyDisplayName(project.client) : null,
-            end_client_id: project.end_client_id,
-            endClientName: project.end_client ? companyDisplayName(project.end_client) : null,
-            pmName: project.pm?.full_name ?? null,
-            start_date: project.start_date,
-            end_date: project.end_date,
-            receipt_withholding_article: project.receipt_withholding_article as 'pph23' | 'pph4_2' | null,
-          }}
-          onClose={closeEditProject}
-          onSave={saveProjectHeader}
-          onError={onProjectEditError}
-        />
+        <React.Suspense fallback={<ListState variant="loading" rows={3} className="min-h-80" testId="project-edit-loading" />}>
+          <ProjectFormModal
+            mode="editHeader"
+            initial={{
+              ...pickClassification(project),
+              id: project.id,
+              name: project.name,
+              short_name: project.short_name,
+              code: project.code,
+              client_id: project.client_id,
+              project_manager_id: project.project_manager_id,
+              clientName: project.client ? companyDisplayName(project.client) : null,
+              end_client_id: project.end_client_id,
+              endClientName: project.end_client ? companyDisplayName(project.end_client) : null,
+              pmName: project.pm?.full_name ?? null,
+              start_date: project.start_date,
+              end_date: project.end_date,
+              receipt_withholding_article: project.receipt_withholding_article as 'pph23' | 'pph4_2' | null,
+            }}
+            onClose={closeEditProject}
+            onSave={saveProjectHeader}
+            onError={onProjectEditError}
+          />
+        </React.Suspense>
       )}
     </div>
   );

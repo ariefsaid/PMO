@@ -9,6 +9,10 @@ export interface ViewOption<V extends string = string> {
   icon?: IconName;
   /** Optional trailing count badge (e.g. an Approvals queue size). */
   count?: number;
+  /** Start an expensive view's import as the pointer approaches its option. */
+  onPointerEnter?: React.PointerEventHandler<HTMLButtonElement>;
+  /** Start an expensive view's import when keyboard navigation reaches its option. */
+  onFocus?: React.FocusEventHandler<HTMLButtonElement>;
   /** Optional test id on the option's button (for AC-tagged assertions). */
   testId?: string;
   /**
@@ -111,6 +115,8 @@ export function ViewToggle<V extends string = string>({
             {...(isToggle && { 'aria-pressed': on, tabIndex: 0 })}
             data-testid={opt.testId}
             onClick={() => onChange(opt.value)}
+            onPointerEnter={opt.onPointerEnter}
+            onFocus={opt.onFocus}
             className={cn(
               // touch-target: ≥44px hit area on coarse pointers, 28px visual (WCAG 2.5.5).
               'touch-target inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',

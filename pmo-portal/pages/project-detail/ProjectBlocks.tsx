@@ -19,7 +19,7 @@ import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { deriveMargin } from '@/src/lib/projectFinances';
 import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
-import { summarizeInvoiceSettlement } from './ContractCascade';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';

@@ -23,7 +23,7 @@ import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProjectBillingSummary } from '@/src/lib/progressBilling';
 import { deriveWorkOrderBillingState, type WorkOrderBillingState } from '@/src/lib/workOrderBilling';
-import { summarizeInvoiceSettlement } from '../ContractCascade';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';

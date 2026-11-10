@@ -3,12 +3,13 @@ import { skipToken, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
-import { CommentsSection } from '@/src/components/comments/CommentsSection';
-import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { useComments } from '@/src/hooks/useComments';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatDateOnly } from '@/src/lib/format';
+
+const CommentsSection = React.lazy(() => import('@/src/components/comments/CommentsSection').then((module) => ({ default: module.CommentsSection })));
+const RecordHistory = React.lazy(() => import('@/src/components/history/RecordHistory').then((module) => ({ default: module.RecordHistory })));
 
 type ActivityView = 'all' | 'comments' | 'changes';
 
@@ -30,9 +31,15 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }>
           { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
         ]}
       />
-      {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
+      {(view === 'all' || view === 'comments') && (
+        <React.Suspense fallback={<ListState variant="loading" rows={2} />}>
+          <CommentsSection entityType="project" entityId={projectId} hideTitle />
+        </React.Suspense>
+      )}
       {(view === 'all' || view === 'changes') && (
-        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
+        <React.Suspense fallback={<ListState variant="loading" rows={2} />}>
+          <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
+        </React.Suspense>
       )}
       </CardPad>
     </Card>

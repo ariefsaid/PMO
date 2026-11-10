@@ -20,8 +20,8 @@ import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+import { ProjectGantt } from '../lazyProjectChunks';
 import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
-import ProjectGantt from '../ProjectGantt';
 
 // The ReUI calendar is ~100 KB; only the Calendar view pays for it.
 const TaskCalendarView = React.lazy(() => import('./TaskCalendarView').then((m) => ({ default: m.TaskCalendarView })));
@@ -445,6 +445,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onSearchText={(value) => { setSearchText(value); setSelectedTaskIds(new Set()); setBulkAction(null); }}
         view={view}
         setTaskView={setTaskView}
+        onPreloadTimeline={() => { void ProjectGantt.preload(); }}
         state={state}
         assignableProfiles={assignableProfiles ?? []}
         selectedCount={selectedTasks.length}
@@ -533,15 +534,17 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       )}
 
       {state === undefined && view === 'timeline' && (
-        <ProjectGantt
-          tasks={filteredTasks}
-          milestones={milestoneList}
-          onSwitchView={setTaskView}
-          onActivateTask={openTask}
-          rowMenu={rowMenu}
-          canReschedule={canEditTask}
-          onReschedule={onReschedule}
-        />
+        <React.Suspense fallback={<ListState variant="loading" rows={3} className="min-h-72" testId="project-timeline-loading" />}>
+          <ProjectGantt
+            tasks={filteredTasks}
+            milestones={milestoneList}
+            onSwitchView={setTaskView}
+            onActivateTask={openTask}
+            rowMenu={rowMenu}
+            canReschedule={canEditTask}
+            onReschedule={onReschedule}
+          />
+        </React.Suspense>
       )}
 
       {state === undefined && view === 'calendar' && (

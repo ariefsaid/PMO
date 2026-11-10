@@ -10,6 +10,7 @@ import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -22,37 +23,6 @@ interface UnorderedLine {
   item: import('@/src/lib/db/progressBilling').BoqItemRow;
   balance: number;
   allocations: import('@/src/lib/progressBilling').AllocationFacts[];
-}
-
-export interface InvoiceSettlementInput {
-  status: string;
-  amount: number | null;
-  erp_outstanding_amount: number | null;
-}
-
-export interface InvoiceSettlementSummary {
-  invoiced: number | null;
-  paid: number;
-  unpaid: number | null;
-  balancesKnown: boolean;
-}
-
-/** Submitted invoices settle from ERP balances; unknown balances contribute only fully Paid invoices. */
-// eslint-disable-next-line react-refresh/only-export-components -- shared money summary is used by WorkOrdersTab.
-export function summarizeInvoiceSettlement(invoices: readonly InvoiceSettlementInput[]): InvoiceSettlementSummary {
-  const submitted = invoices.filter((invoice) => invoice.status !== 'Draft' && invoice.status !== 'Cancelled');
-  const cents = (value: number | null): number | null => value !== null && Number.isFinite(value) ? Math.round(value * 100) : null;
-  const amounts = submitted.map((invoice) => cents(invoice.amount));
-  const balances = submitted.map((invoice) => cents(invoice.erp_outstanding_amount));
-  const balancesKnown = amounts.every((value) => value !== null) && balances.every((value) => value !== null);
-  const invoiced = amounts.every((value) => value !== null)
-    ? amounts.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100
-    : null;
-  const paidCents = balancesKnown
-    ? submitted.reduce((sum, invoice) => sum + (cents(invoice.amount) ?? 0) - (cents(invoice.erp_outstanding_amount) ?? 0), 0)
-    : submitted.reduce((sum, invoice) => invoice.status === 'Paid' ? sum + (cents(invoice.amount) ?? 0) : sum, 0);
-  const unpaid = balancesKnown ? balances.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100 : null;
-  return { invoiced, paid: paidCents / 100, unpaid, balancesKnown };
 }
 
 const qty = (n: number) => formatNumberMax2(n);

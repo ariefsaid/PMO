@@ -3,27 +3,34 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
+const activityModuleLoads = vi.hoisted(() => ({ comments: 0, history: 0 }));
+
 vi.mock('@/src/hooks/useComments', () => ({
   useComments: () => ({ data: [{ id: 'c1' }], isPending: false, isError: false }),
 }));
-vi.mock('@/src/components/comments/CommentsSection', () => ({
-  CommentsSection: () => <div>Project comments</div>,
-}));
-vi.mock('@/src/components/history/RecordHistory', () => ({
-  RecordHistory: ({ kindFilters }: { kindFilters?: boolean }) => (
+vi.mock('@/src/components/comments/CommentsSection', () => {
+  activityModuleLoads.comments += 1;
+  return { CommentsSection: () => <div>Project comments</div> };
+});
+vi.mock('@/src/components/history/RecordHistory', () => {
+  activityModuleLoads.history += 1;
+  return { RecordHistory: ({ kindFilters }: { kindFilters?: boolean }) => (
     <div data-testid="record-history" data-kind-filters={String(kindFilters)}>Change history</div>
-  ),
-}));
-
-import { ProjectActivity } from '../ProjectActivity';
+  ) };
+});
 
 describe('ProjectActivity views', () => {
-  it('switches between All, Comments, and Changes while keeping record filters on history views', async () => {
+  it('loads comments and history only when the Activity content mounts', async () => {
+    expect(activityModuleLoads).toEqual({ comments: 0, history: 0 });
+    const { ProjectActivity } = await import('../ProjectActivity');
+    expect(activityModuleLoads).toEqual({ comments: 0, history: 0 });
+
     const user = userEvent.setup();
     render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
 
-    expect(screen.getByText('Project comments')).toBeInTheDocument();
-    expect(screen.getByText('Change history')).toBeInTheDocument();
+    expect(await screen.findByText('Project comments')).toBeInTheDocument();
+    expect(await screen.findByText('Change history')).toBeInTheDocument();
+    expect(activityModuleLoads).toEqual({ comments: 1, history: 1 });
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'true');
 
     await user.click(screen.getByRole('tab', { name: /Comments/ }));

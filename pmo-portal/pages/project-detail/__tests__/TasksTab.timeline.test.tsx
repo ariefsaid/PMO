@@ -4,7 +4,7 @@ import '@/test/stubGetAnimations';
  * Mirrors the setup in TasksTab.test.tsx.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -35,6 +35,12 @@ const { listState, milestoneState, mutations } = vi.hoisted(() => ({
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
+
+const ganttModuleLoads = vi.hoisted(() => ({ count: 0 }));
+vi.mock('../ProjectGantt', async () => {
+  ganttModuleLoads.count += 1;
+  return await vi.importActual('../ProjectGantt');
+});
 
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => listState,
@@ -123,6 +129,16 @@ beforeEach(() => {
 // ── AC-GANTT-009 ──────────────────────────────────────────────────────────────
 
 describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the list', () => {
+  it('keeps Gantt unloaded in List and preloads it when Timeline receives keyboard focus', async () => {
+    renderTab();
+    expect(ganttModuleLoads.count).toBe(0);
+
+    fireEvent.focus(screen.getByRole('tab', { name: /timeline/i }));
+    await waitFor(() => expect(ganttModuleLoads.count).toBe(1));
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('figure')).not.toBeInTheDocument();
+  });
+
   it('Timeline toggle is visible when tasks exist', () => {
     renderTab();
     expect(screen.getByRole('tab', { name: /timeline/i })).toBeInTheDocument();
@@ -140,7 +156,7 @@ describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the li
     await waitFor(() => {
       // Gantt is now rendered
       expect(screen.getByRole('figure')).toBeInTheDocument();
-    });
+    }, { timeout: 10_000 });
 
     // The list table row for task names should no longer be present (DataTable unmounted)
     // Note: task names still appear inside the Gantt bars — but there's no DataTable row
@@ -153,7 +169,7 @@ describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the li
 
     // Go to Timeline
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument(), { timeout: 10_000 });
 
     // Go back to List
     await userEvent.click(screen.getByRole('tab', { name: /list/i }));

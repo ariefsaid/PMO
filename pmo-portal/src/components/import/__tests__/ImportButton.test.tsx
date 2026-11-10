@@ -5,6 +5,12 @@ import React from 'react';
 import { ImportButton } from '../ImportButton';
 import type { ImportDescriptor } from '@/src/lib/import';
 
+const wizardLoad = vi.hoisted(() => ({ count: 0 }));
+vi.mock('../ImportWizard', async () => {
+  wizardLoad.count += 1;
+  return await vi.importActual('../ImportWizard');
+});
+
 const may = vi.fn();
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => may }));
 
@@ -42,8 +48,10 @@ describe('ImportButton', () => {
     const onImported = vi.fn();
     render(<ImportButton entity="company" descriptor={descriptor} onImported={onImported} />);
 
+    expect(wizardLoad.count).toBe(0);
     await user.click(screen.getByRole('button', { name: /import/i }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(wizardLoad.count).toBe(1);
 
     // Cancel on the upload step closes without a write → onImported NOT called.
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));

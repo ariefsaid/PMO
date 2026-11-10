@@ -34,6 +34,7 @@ const TasksToolbar: React.FC<{
   onSearchText: (value: string) => void;
   view: ViewMode;
   setTaskView: (view: ViewMode) => void;
+  onPreloadTimeline: () => void;
   state: 'loading' | 'empty' | 'error' | undefined;
   assignableProfiles: ProfileRow[];
   selectedCount: number;
@@ -74,6 +75,7 @@ const TasksToolbar: React.FC<{
   onSearchText,
   view,
   setTaskView,
+  onPreloadTimeline,
   state,
   assignableProfiles,
   selectedCount,
@@ -163,7 +165,12 @@ const TasksToolbar: React.FC<{
             options={[
               { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
               { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
-              { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
+              {
+                value: 'timeline',
+                label: t('projectDetail.tasks.view.timeline', 'Timeline'),
+                onPointerEnter: onPreloadTimeline,
+                onFocus: onPreloadTimeline,
+              },
               { value: 'calendar', label: t('projectDetail.tasks.view.calendar', 'Calendar') },
             ]}
             value={view}

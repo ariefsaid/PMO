@@ -38,7 +38,8 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: h.orgDay, isPending: false, isError: false, retry: vi.fn() }),
 }));
 
-import { ContractCascade, summarizeInvoiceSettlement } from '../ContractCascade';
+import { ContractCascade } from '../ContractCascade';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';

@@ -24,6 +24,7 @@ const routeChunkState = vi.hoisted(() => {
       billing: 0,
       contract: 0,
       documents: 0,
+      projectForm: 0,
     },
     tasksContent,
     isTasksReady: () => tasksReady,
@@ -132,6 +133,7 @@ vi.mock('@/src/hooks/useProjectPosition', () => ({
 }));
 vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
 vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
 vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
@@ -162,9 +164,10 @@ vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => null }));
-vi.mock('../../../components/ProjectFormModal', () => ({
-  default: () => <div role="dialog" aria-label="Edit project form" />,
-}));
+vi.mock('../../../components/ProjectFormModal', () => {
+  routeChunkState.loads.projectForm += 1;
+  return { default: () => <div role="dialog" aria-label="Edit project form" /> };
+});
 
 describe('ProjectDetail route panel loading', () => {
   it('keeps the project header and task action usable while loading only the selected panel', async () => {
@@ -209,11 +212,15 @@ describe('ProjectDetail route panel loading', () => {
       procurement: 0,
       workOrders: 0,
       billing: 0,
+      contract: 0,
       documents: 0,
+      projectForm: 0,
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit project' }));
     expect(await screen.findByRole('dialog', { name: 'Edit project form' })).toBeInTheDocument();
+    expect(routeChunkState.loads.projectForm).toBe(1);
+    expect(routeChunkState.loads.contract).toBe(0);
     expect(header).toBeInTheDocument();
     expect(screen.queryByTestId('whole-route-loading')).not.toBeInTheDocument();
 

@@ -88,6 +88,12 @@ describe('#2097: route preload rules load the route namespace in parallel with i
 });
 
 describe('preloadsForPath (#1834 route-entry preload rules)', () => {
+  it.each(['/terms', '/privacy', '/reset-password', '/update-password', '/oauth/consent'])(
+    'uses a dedicated lazy route chunk for %s', (path) => {
+      expect(preloadsForPath(path)[0]).not.toBe(preloadsForPath('/definitely/not/a/route')[0]);
+    },
+  );
+
   it('maps static routes to their single route chunk', () => {
     expect(preloadsForPath('/procurement')).toHaveLength(1);
     expect(preloadsForPath('/timesheets')).toHaveLength(1);
@@ -119,6 +125,14 @@ describe('preloadsForPath (#1834 route-entry preload rules)', () => {
     expect(preloadsForPath('/projects/p1/budget')).toHaveLength(3);
     // Contract renders cascade + billing tools + work orders together.
     expect(preloadsForPath('/projects/p1/contract')).toHaveLength(5);
+  });
+
+  it('preloads the Gantt only for a deep link that selects Timeline', () => {
+    const list = preloadsForPath('/projects/p1/tasks');
+    const timeline = preloadsForPath('/projects/p1/tasks?view=timeline');
+    expect(list).toHaveLength(3);
+    expect(timeline).toHaveLength(4);
+    expect(timeline.slice(0, 3)).toEqual(list);
   });
 
   it('literal routes beat params: /projects/new is the create page, not the detail bundle', () => {

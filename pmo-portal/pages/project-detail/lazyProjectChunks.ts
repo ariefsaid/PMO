@@ -31,6 +31,7 @@ export const ContractCascade = lazyWithPreload(() =>
   import('./ContractCascade').then((module) => ({ default: module.ContractCascade })),
 );
 export const ProjectSCurve = lazyWithPreload(() => import('./ProjectSCurve'));
+export const ProjectGantt = lazyWithPreload(() => import('./ProjectGantt'));
 
 /**
  * The contract tab renders ContractCascade around BillingTab (contract tools)

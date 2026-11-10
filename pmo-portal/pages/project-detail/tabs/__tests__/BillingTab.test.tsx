@@ -77,7 +77,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useInvoiceTmClaimNative: () => ({ mutateAsync: h.tmInvoice, isPending: false }),
 }));
 import BillingTab from '../BillingTab';
-import { summarizeInvoiceSettlement } from '../../ContractCascade';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 200_000, dpRecovered: 40_000, notSubmitted: 40_000,
