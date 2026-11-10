@@ -50,14 +50,14 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   <div data-testid={dataTestId} className={cn('mb-4 flex flex-wrap items-center justify-between gap-3', className)}>
     <div className="flex min-w-0 items-center gap-2.5">
       {headingLevel === 2 ? (
-        <h2 className="text-[18px] font-semibold">{title}</h2>
+        <h2 className="text-section font-semibold">{title}</h2>
       ) : (
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+        <h1 className="text-page font-bold tracking-[-0.02em]">{title}</h1>
       )}
       {count != null && count !== false && (
         <span
           data-testid="list-page-count"
-          className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-[12.5px] font-semibold tabular text-muted-foreground"
+          className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-control font-semibold tabular text-muted-foreground"
         >
           {count}
         </span>

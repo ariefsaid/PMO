@@ -116,7 +116,7 @@ export const ApprovalsNavCount: React.FC = () => {
 
   return (
     <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-      <span className="tabular text-xs text-muted-foreground" aria-hidden="true">
+      <span className="tabular text-support text-muted-foreground" aria-hidden="true">
         {count}
       </span>
       <span className="sr-only">

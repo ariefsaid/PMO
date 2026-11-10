@@ -27,10 +27,10 @@ export const ErrBanner: React.FC<ErrBannerProps> = ({ title, sub, action, classN
   >
     <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
     <div className="min-w-0 flex-1">
-      <div className="text-[13.5px] font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
+      <div className="text-control font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
         {title}
       </div>
-      {sub && <div className="mt-px text-[12.5px] text-muted-foreground">{sub}</div>}
+      {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}
     </div>
     {action && (
       <Button variant="outline" size="sm" onClick={action.onClick} disabled={action.disabled} className="shrink-0">

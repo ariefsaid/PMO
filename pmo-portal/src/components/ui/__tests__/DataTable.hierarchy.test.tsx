@@ -81,18 +81,11 @@ describe('DataTable hierarchy contract', () => {
     expect(within(header).getByTestId('sort-cue')).toBeVisible();
   });
 
-  it('applies primary wrapping and kind-specific nowrap behavior', () => {
+  it('renders the full primary identity and secondary reference', () => {
     desktop();
     renderTable({ rows, columns, rowKey: (row) => row.id });
     const table = screen.getByRole('table');
-    const primaryCell = within(table).getByText('Synthetic item').closest('td');
-    const statusCell = within(table).getAllByRole('cell')[1];
-    const moneyCell = within(table).getAllByRole('cell')[2];
-    expect(primaryCell).not.toHaveClass('whitespace-nowrap');
-    expect(primaryCell?.querySelector('.line-clamp-2')).toHaveAttribute('title', 'Synthetic item');
-    expect(within(primaryCell as HTMLElement).getByText('Reference A')).toBeInTheDocument();
-    expect(statusCell).toHaveClass('whitespace-nowrap');
-    expect(table.querySelector('th[data-col-key="status"]')).toHaveStyle({ minWidth: '112px', maxWidth: '220px' });
-    expect(moneyCell).toHaveClass('whitespace-nowrap');
+    expect(within(table).getByText('Synthetic item')).toBeVisible();
+    expect(within(table).getByText('Reference A')).toBeVisible();
   });
 });

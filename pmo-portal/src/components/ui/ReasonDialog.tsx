@@ -91,7 +91,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
       onCancel={onCancel}
       description={(
         <div ref={wrapRef} className="space-y-3">
-          {context != null && <div className="text-support text-muted-foreground">{context}</div>}
+          {context != null && <div className="text-control text-muted-foreground">{context}</div>}
           <TextArea
             id={fieldId}
             label={words.label}
@@ -106,7 +106,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
             onBlur={() => setTouched(true)}
             error={touched && missing ? t('reasonDialog.reasonRequired', 'Enter a reason.') : undefined}
           />
-          {error != null && <div role="alert" className="text-support text-destructive-text">{error}</div>}
+          {error != null && <div role="alert" className="text-control text-destructive-text">{error}</div>}
         </div>
       )}
     />

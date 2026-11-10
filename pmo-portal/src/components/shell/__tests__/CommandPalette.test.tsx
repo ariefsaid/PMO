@@ -442,7 +442,7 @@ describe('CommandPalette', () => {
     expect(rows[0]).toHaveTextContent('Project · Pipeline');
   });
 
-  it('AC-S40-004: wraps long reference labels at word boundaries so identifiers stay readable', async () => {
+  it('AC-S40-004: keeps all parts of long reference labels readable when they wrap', async () => {
     setReferenceResult({
       data: referencePage({
         kind: 'invoice', id: 'invoice-mobile', title: 'SI-420', context: 'Northwind Field Services · Harbor renewal',
@@ -455,7 +455,7 @@ describe('CommandPalette', () => {
     const invoice = await screen.findByRole('option', { name: /SI-420/ });
     const code = within(invoice).getByTitle('Reference: PO-420 · SI-420 · CX-420');
     expect(code).toHaveTextContent('Reference: PO-420 · SI-420 · CX-420');
-    // each identifier is its own element so it never splits across lines
+    // every identifier remains present as complete text as the label wraps
     for (const identifier of ['PO-420', 'SI-420', 'CX-420']) {
       expect(within(code).getByText(identifier, { exact: true })).toBeInTheDocument();
     }

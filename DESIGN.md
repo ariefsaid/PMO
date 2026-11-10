@@ -64,9 +64,8 @@ typography:
   page-title: { size: "24px", weight: 600, lineHeight: 1.34 }
   heading: { size: "20px", weight: 600, lineHeight: 1.43 }
   group: { size: "16px", weight: 600, lineHeight: 1.5 }
-  control: { size: "14px", weight: 400, lineHeight: 1.43 }
-  supporting: { size: "12px", weight: 400, lineHeight: 1.34 }
-  micro: { size: "10px", weight: 400, lineHeight: 1.2, use: "nonessential metadata only" }
+  control: { size: "14px", weight: 400, lineHeight: 1.43, floor: "job text" }
+  supporting: { size: "12px", weight: 400, lineHeight: 1.34, use: "chart ticks and legends, count badges, keyboard hints, timestamps, app-version footer" }
   metric: { size: "24px", weight: 600, lineHeight: 1.34, numeric: "tabular" }
   mono: "Tailwind v4 font-mono stack — identifiers only"
 rounded:
@@ -216,11 +215,10 @@ Hanken Grotesk remains self-hosted and is used without stylistic alternates. The
 | Section | 20px / 28.6px | 600 |
 | Group | 16px / 24px | 600 |
 | Control/body | 14px / 20.02px | 400 |
-| Supporting | 12px / 16.08px | 400 |
-| Micro metadata | 10px / 12px | 400 |
+| Supporting (restricted) | 12px / 16.08px | 400 |
 | Metric | 24px / 32.16px | 600, tabular |
 
-10px text is limited to nonessential metadata; labels and status copy use at least 12px. Mono remains for identifiers only.
+14px is the floor for job text. 12px is limited to chart ticks and legends, count badges, keyboard hints, timestamps, and the app-version footer; nothing renders below 12px. Mono remains for identifiers only.
 
 ## 4. Geometry, motion, and elevation
 
@@ -267,8 +265,8 @@ Status text applies them as `hsl(var(--token))`. See §6 for the verified contra
 - **Border:** use a panel only to group one question; never put a panel inside another panel. `bare` content belongs inside a panel, not as a replacement for section grouping.
 - **Padding:** 24px desktop / 16px phone for panel headers and content. Tables remain flush against the panel edge, with the header row using `surface-table-head`.
 - **CardHead:** a 16px/600 real heading (default `h2`), optional subline, and right-aligned action slot. Keep the page outline gap-free and keep card titles in heading navigation. `CardFoot` is an optional footer separated by a divider.
-- **KPI Tile** (signature): `card` surface, 16px padding, [30px tinted icon tile] + [label, `muted-foreground`
-  12.5px] + [help `?`], a ~23px/700 tabular value, and a foot row with a tinted delta chip + `muted`
+- **KPI Tile** (signature): `card` surface, 16px padding, [30px tinted icon tile] + [14px medium, `foreground`
+  label] + [help `?`], a 24px/600 tabular metric, and at most one 14px caption row with a tinted delta chip + `muted`
   "vs." comparison. **ONE treatment app-wide** (`KPITile`); the in-header metric strip is `StatTiles`.
 
 ### Inputs / Fields
@@ -304,7 +302,7 @@ Header and row geometry follow the shared table tokens. Header cells use a 52px 
 - **Column budget:** a new column must not push the row `⋯` trigger out of the 1440 view — merge related
   facts into one cell first (a primary value over a `muted` second line, as the e-Faktur number + date
   cell does, #893) before adding a column.
-- **Column kinds:** `primary` is a two-line-clamped, wrapping identity title with an optional muted secondary line; its full title remains in `title`. `text`/`meta` wrap. `status` keeps the 12px StatusPill readable (112–220px, default 140px); money/date/status stay nowrap. No blanket body-cell nowrap.
+- **Column kinds:** `primary` is a wrapping identity title with an optional 14px muted secondary line; its full title remains visible. `text`/`meta`, money, dates and statuses wrap when needed. `status` keeps the 14px StatusPill readable (112–220px, default 140px). No blanket body-cell nowrap.
 - **Body cells:** 14px, 52px minimum height (wrapped content may grow), 16px inset, horizontal `border` dividers. Row hover uses `surface-hover`; selected rows use `surface-selected`.
 - **Sort / grouping / caveats:** sortable headers show a quiet two-direction cue before activation; `aria-sort` remains authoritative. Group headers and per-currency subtotal/total rows stay aligned inside the table, with totals in `<tfoot>` and never summed across currencies. A caveated column marks its header and points to one table-level footnote/remedy.
 - **Saved widths:** every production `DataTable` has a stable, unique, page-scoped kebab-case `tableId`; widths persist by table and authenticated user on that device, with unknown columns ignored and restored sizes clamped.
