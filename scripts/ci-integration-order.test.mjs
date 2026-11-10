@@ -42,10 +42,10 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
     /financial-statements-rollback\.test\.mjs is missing from CI/);
   // The release path must run the two-session interleaving proof too, not only the PR-to-dev job:
   // a harness that only runs before a dev merge would never gate a promote to main.
-  const integrationJob = workflow.slice(workflow.indexOf('\n  integration-lanes:'));
-  const integrationReset = integrationJob.indexOf('supabase db reset');
-  const integrationRace = integrationJob.indexOf('scripts/financial-statements-nightly-intent-race.test.mjs');
-  assert.ok(integrationRace !== -1, 'integration (PR-to-main release gate) must run the owning nightly-intent race proof');
+  const integrationLanesJob = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
+  const integrationReset = integrationLanesJob.indexOf('supabase db reset');
+  const integrationRace = integrationLanesJob.indexOf('scripts/financial-statements-nightly-intent-race.test.mjs');
+  assert.ok(integrationRace !== -1, 'integration-lanes (PR-to-main release work) must run the owning nightly-intent race proof');
   assert.ok(integrationReset !== -1 && integrationRace > integrationReset,
     'the race proof needs the released schema: it must run after the reset');
   const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
@@ -391,16 +391,16 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
   assert.doesNotMatch(checksJob, /scripts\/deno-/, 'the Deno steps must not drift back into checks (that re-serialises ~9 min)');
 });
 
-test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
+test('a dispatched e2e run skips verify and pgTAP; PR-to-main integration-lanes keeps pgTAP', () => {
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
   assert.match(verifyJob, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
   assert.match(unitJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
-  const integration = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
+  const integrationLanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
   assert.match(
-    integration,
+    integrationLanes,
     /if: github\.event_name != 'workflow_dispatch' \|\| inputs\.run_pgtap\n\s+run: supabase test db/,
-    'pgTAP in integration must be skipped ONLY on a dispatch (never on the PR-to-main gate)',
+    'pgTAP in integration-lanes must be skipped only on a dispatch, never on the PR-to-main gate',
   );
   const dispatcher = readFileSync(new URL('./ci-e2e.sh', import.meta.url), 'utf8');
   assert.match(
@@ -419,6 +419,15 @@ test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration ga
     /function dispatchArgs\(repo, workflow, branch, pr\) \{\s*const runPgtap = pr === null \? 'true' : 'false';\s*return \['workflow', 'run', workflow, '-R', repo, '--ref', branch, '-f', `run_pgtap=\$\{runPgtap\}`\];\s*\}/,
     'the coordinator must pass branch as one argv value and preserve run_pgtap for absent/present PRs',
   );
+});
+
+test('aggregate gates run from the repository root when they have no unconditional checkout', () => {
+  const verify = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
+  const integration = workflow.slice(workflow.indexOf('\n  integration:'));
+  const rootRunDirectory = /\n    defaults:\n      run:\n        working-directory: \.\n/;
+
+  assert.match(verify, rootRunDirectory, 'verify runs before its push-only checkout and must override the workflow app directory');
+  assert.match(integration, rootRunDirectory, 'the main-release aggregate must run from the checked-out repository root');
 });
 
 test('the full verify gate enforces edge-function test binding', () => {

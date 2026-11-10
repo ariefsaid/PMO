@@ -436,6 +436,9 @@ jobs:
     if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: .
     steps:
       - name: Every verify-stage job passed
         run: |
