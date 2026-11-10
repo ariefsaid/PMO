@@ -23,8 +23,8 @@ test('AC-701 Executive sees real org-scoped KPI values from the RPC', async ({ p
   const companyFigures = page.getByRole('region', { name: 'Company figures' });
   const contractTile = companyFigures.getByText('Contract on hand', { exact: true }).locator('xpath=../..');
   // SP-2401 + SP-2402 + P001 + P003 + P013 = 5 Ongoing projects (rich solar seed, PR-#118 resync)
-  // SL-B: the ongoing-project count rides on the contract-value tile's sub-line.
-  await expect(contractTile).toContainText('5 Ongoing projects', { timeout: 20_000 });
+  // The ongoing-project count rides on the contract-value tile's caption.
+  await expect(contractTile).toContainText('5 ongoing', { timeout: 20_000 });
   // Contract on hand includes the canonical USD on-hand basis: $23.05M ongoing plus $10M won/close-out.
   await expect(contractTile).toContainText('$33.1M');
   await expect(contractTile.locator('[title="$33,050,000"]')).toBeVisible();

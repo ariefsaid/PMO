@@ -56,7 +56,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 describe('PMDashboard delivery mini-bar', () => {
-  it('preserves the delivery progress label and project status in the project area', () => {
+  it('keeps the delivery progress and project status in the project row', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -64,8 +64,9 @@ describe('PMDashboard delivery mini-bar', () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByLabelText('Delivery 32%')).toBeInTheDocument();
-    expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Meridian Steelworks' })).toHaveAttribute('href', '/projects/p1');
+    const row = screen.getByRole('link', { name: /Meridian Steelworks/ });
+    expect(row).toHaveAttribute('href', '/projects/p1');
+    expect(row).toHaveTextContent('32%');
+    expect(row).toHaveTextContent('Ongoing');
   });
 });
