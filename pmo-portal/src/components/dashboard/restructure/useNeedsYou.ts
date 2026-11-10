@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { createElement, Fragment, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
@@ -20,9 +20,9 @@ import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatTileMoney } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { orderByCurrency } from './currencyOrder';
+import { tileMoneyLines } from './currencyOrder';
 import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
@@ -39,6 +39,8 @@ export interface NeedsItem {
   countLabel?: string;
   label: string;
   amount?: ReactNode;
+  /** One short fact after the label ("oldest 118 days overdue"). */
+  detail?: string;
   href: string;
   tone: NeedsTone;
 }
@@ -86,11 +88,11 @@ type Translate = (key: string, defaultValue: string, options?: Record<string, un
 const counted = (t: Translate, key: string, singular: string, plural: string, count: number) =>
   t(key, count === 1 ? singular : plural, { count });
 
-/** One joined amounts figure per known currency, in the shared dashboard currency order (issue 1973):
- *  the facts read orders rows by id, so first-encountered order is load-dependent — sort it. */
-const amountsText = (totals: CurrencyTotal[], t: Translate, orgCurrency: string): string | undefined => {
+/** One amount line per known currency: the organisation's first, another currency on its own second line (never "A · B"). */
+const amountsText = (totals: CurrencyTotal[], _t: Translate, orgCurrency: string): ReactNode | undefined => {
   if (totals.length === 0) return undefined;
-  return orderByCurrency(totals, orgCurrency).map(({ currency, amount }) => moneyFigure(amount, currency, t('needs.amountUnavailable', 'Amount unavailable'), { code: true }).value).join(' · ');
+  const lines = tileMoneyLines(totals, orgCurrency, formatTileMoney);
+  return lines.length === 1 ? lines[0] : createElement(Fragment, null, ...lines.map((line) => createElement('span', { key: line, className: 'block' }, line)));
 };
 
 /** Pure role adapter for the shared needs list; every zero count is intentionally omitted. */
@@ -111,7 +113,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     });
     if (facts.riskUncheckedProjects !== undefined) add({
       id: 'risk-unchecked', count: facts.riskUncheckedProjects,
-      label: counted(t, 'needs.riskUnchecked', "project without an active budget; risk can't be checked yet", "projects without an active budget; risk can't be checked yet", facts.riskUncheckedProjects),
+      label: counted(t, 'needs.riskUnchecked', "project can't be checked against its budget", "projects can't be checked against their budget", facts.riskUncheckedProjects),
       href: '/projects', tone: 'neutral',
     });
     if (facts.procurementsAwaitingApproval !== undefined) add({
@@ -125,15 +127,17 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     const overdue = facts.overdueInvoices;
     if (overdue) {
       const base = counted(t, 'needs.overdueInvoice', 'client invoice overdue', 'client invoices overdue', overdue.count);
-      const unknown = overdue.unknownBalances > 0
-        ? ` · ${t('needs.unknownBalanceDays', '{{count}} balance unknown; {{days}} days overdue', { count: overdue.unknownBalances, days: overdue.oldestDays ?? '—' })}`
-        : '';
-      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
+      const detail = [
+        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'oldest {{days}} days overdue', { days: overdue.oldestDays }) : null,
+        overdue.unknownBalances > 0 ? t('needs.balancesNotSynced', '{{count}} balance not synced', { count: overdue.unknownBalances }) : null,
+      ].filter(Boolean).join(' · ');
+      add({ id: 'overdue-invoices', count: overdue.count, label: base, detail: detail || undefined, amount: overdue.unknownBalances > 0 ? undefined : amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
-      label: [counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count), facts.supplierInvoices.unknownBalances > 0 ? t('needs.unknownBalanceCount', 'Unknown balances: {{count}}', { count: facts.supplierInvoices.unknownBalances }) : null].filter(Boolean).join(' · '),
-      amount: amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
+      label: counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count),
+      detail: facts.supplierInvoices.unknownBalances > 0 ? t('needs.amountsMissing', '{{count}} amount missing', { count: facts.supplierInvoices.unknownBalances }) : undefined,
+      amount: facts.supplierInvoices.unknownBalances > 0 ? undefined : amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });
     if (facts.readyToBill !== undefined) add({
       id: 'ready-to-bill', count: facts.readyToBill,

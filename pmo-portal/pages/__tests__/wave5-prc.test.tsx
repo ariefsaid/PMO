@@ -171,39 +171,32 @@ describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', 
     projState.isError = false;
   });
 
-  it('C2C-PM-1: at-risk project areas appear before safe areas', () => {
-    renderPMDashboard();
-    const projectNames = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
-    const highBurnIdx = projectNames.indexOf('High Burn Project');
-    const thresholdIdx = projectNames.indexOf('At Threshold Project');
-    const safeIdx = projectNames.indexOf('Safe Project');
+  const rowHrefs = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/projects/'));
+  const atRiskRows = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').filter((link) => /budget at 90% or more/.test(link.textContent ?? ''));
 
-    expect(highBurnIdx).toBeGreaterThanOrEqual(0);
-    expect(thresholdIdx).toBeGreaterThanOrEqual(0);
-    expect(safeIdx).toBeGreaterThanOrEqual(0);
-    expect(highBurnIdx).toBeLessThan(safeIdx);
-    expect(thresholdIdx).toBeLessThan(safeIdx);
+  it('C2C-PM-1: at-risk projects appear before safe ones', () => {
+    renderPMDashboard();
+    const hrefs = rowHrefs();
+    expect(hrefs.indexOf('/projects/p2')).toBeGreaterThanOrEqual(0);
+    expect(hrefs.indexOf('/projects/p2')).toBeLessThan(hrefs.indexOf('/projects/p1'));
+    expect(hrefs.indexOf('/projects/p3')).toBeLessThan(hrefs.indexOf('/projects/p1'));
   });
 
-  it('C2C-PM-2: each at-risk project exposes a descriptive link to its owning page', () => {
+  it('C2C-PM-2: each at-risk project is a row that says why (budget at 90% or more) and links to its page', () => {
     renderPMDashboard();
-    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
-    expect(riskLinks).toHaveLength(2);
-    expect(riskLinks.map((link) => link.getAttribute('href'))).toEqual(['/projects/p2', '/projects/p3']);
-    expect(riskLinks.every((link) => (link.getAttribute('aria-label') ?? link.textContent ?? '').trim().length > 10)).toBe(true);
+    const rows = atRiskRows();
+    expect(rows.map((row) => row.getAttribute('href'))).toEqual(['/projects/p2', '/projects/p3']);
   });
 
-  it('C2C-PM-3: safe project has no budget-risk attention link', () => {
+  it('C2C-PM-3: a safe project is not flagged', () => {
     renderPMDashboard();
-    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
-    expect(riskLinks.some((link) => link.getAttribute('href') === '/projects/p1')).toBe(false);
+    expect(atRiskRows().some((row) => row.getAttribute('href') === '/projects/p1')).toBe(false);
   });
 
-  it('C2C-PM-4: completed project is NOT flagged at-risk even when high utilization', () => {
+  it('C2C-PM-4: a completed project is NOT flagged at-risk even when utilization is high', () => {
     renderPMDashboard();
-    expect(screen.getByRole('heading', { name: 'Completed High Burn' })).toBeInTheDocument();
-    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
-    expect(riskLinks.some((link) => link.getAttribute('href') === '/projects/p4')).toBe(false);
+    expect(rowHrefs()).toContain('/projects/p4');
+    expect(atRiskRows().some((row) => row.getAttribute('href') === '/projects/p4')).toBe(false);
   });
 });
 
@@ -354,7 +347,7 @@ describe('AC-IXD-DASH-W5-C2C — D4: Engineer dashboard log-hours link', () => {
   });
 
   const expectLogHoursLinkWithoutPrimaryButton = () => {
-    const logHoursLinks = screen.getAllByRole('link', { name: /log hours/i });
+    const logHoursLinks = screen.getAllByRole('link', { name: /log time/i });
     expect(logHoursLinks.some((link) => link.getAttribute('href') === '/timesheets')).toBe(true);
     const filledPrimaryButtons = screen.getAllByRole('button')
       .filter((button) => button.className.split(/\s+/).includes('bg-primary'));

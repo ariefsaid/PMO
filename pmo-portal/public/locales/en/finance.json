@@ -858,7 +858,8 @@
     "amountsIn": "Amounts in {{currency}}",
     "mode": {
       "loadFailed": "We could not check where these figures come from",
-      "loadFailedSub": "They follow either PMO documents or the Odoo ledger. Try again before relying on them."
+      "loadFailedSub": "They follow either PMO documents or the Odoo ledger. Try again before relying on them.",
+      "retry": "Retry ledger mode"
     },
     "budget": {
       "title": "Actuals from Odoo",

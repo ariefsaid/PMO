@@ -213,7 +213,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
         className={detail ? 'mb-1' : 'mb-2.5'}
       />
     )}
-    {first && detail && <p className="mb-2.5 text-[11px] text-muted-foreground">{detail}</p>}
+    {first && detail && <p className="mb-2.5 text-control text-muted-foreground">{detail}</p>}
     {isError ? (
       <ListState variant="error" title={errorLabel} onRetry={onRetry} />
     ) : pending ? (
@@ -229,7 +229,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
       <details>
         <summary className="flex cursor-pointer items-center gap-2.5 px-4 py-3 text-sm font-semibold">
           <h2 className="text-sm font-semibold">{title}</h2>
-          <span className="text-[13px] font-normal text-muted-foreground">{collapsedSummary}</span>
+          <span className="text-control font-normal text-muted-foreground">{collapsedSummary}</span>
         </summary>
         <div className="border-t border-border px-4 pb-4 pt-2">{content}</div>
       </details>

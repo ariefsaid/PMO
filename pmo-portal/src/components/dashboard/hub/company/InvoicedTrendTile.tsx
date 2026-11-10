@@ -1,12 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { FigureContent } from '@/src/components/ui/FigureContent';
-import { Icon } from '@/src/components/ui/icons';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { cn } from '@/src/components/ui/cn';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { formatUtcMonthYearFull } from '@/src/lib/format';
-import { TREND_MONTHS, type InvoicedTrend, type TrendDirection } from '@/src/lib/dashboardTrend';
+import { TREND_MONTHS, type InvoicedTrend } from '@/src/lib/dashboardTrend';
 
 const W = 400;
 const H = 88;
@@ -14,7 +13,7 @@ const PAD = 6;
 const monthText = (iso: string) => formatUtcMonthYearFull(new Date(`${iso}T00:00:00Z`));
 
 /** Named as one image; the text summary beside it carries the same facts (AC-DTR-003). Scaled from zero so a fall to nothing reads as one. */
-const Line: React.FC<{ points: InvoicedTrend['points']; name: string }> = ({ points, name }) => {
+const Line: React.FC<{ points: InvoicedTrend['points']; name: string; className?: string }> = ({ points, name, className }) => {
   const values = points.map((p) => p.amount);
   const lo = Math.min(0, ...values);
   const span = Math.max(0, ...values) - lo;
@@ -25,7 +24,7 @@ const Line: React.FC<{ points: InvoicedTrend['points']; name: string }> = ({ poi
   const [lx, ly] = xy[xy.length - 1];
   const primary = chartTheme.series.primary;
   return (
-    <svg role="img" aria-label={name} focusable="false" viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
+    <svg role="img" aria-label={name} focusable="false" viewBox={`0 0 ${W} ${H}`} className={className ?? 'h-auto w-full'} preserveAspectRatio={className ? 'none' : undefined}>
       <line x1={PAD} x2={W - PAD} y1={y(0)} y2={y(0)} stroke={chartTheme.grid} strokeWidth="1" />
       <polygon points={`${PAD},${y(0)} ${path} ${W - PAD},${y(0)}`} fill={primary} fillOpacity="0.1" />
       <polyline points={path} fill="none" stroke={primary} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
@@ -35,18 +34,12 @@ const Line: React.FC<{ points: InvoicedTrend['points']; name: string }> = ({ poi
   );
 };
 
-const DIRECTION_CLASS: Record<TrendDirection, string> = {
-  up: 'text-success',
-  down: 'text-destructive-text',
-  flat: 'text-muted-foreground',
-};
-
 /**
  * #1597: the headline money figure with its trend. Every number is the management pack's own monthly
  * total (see selectInvoicedTrend); this tile only lays it out. Fewer than three months of history
  * keeps the figure and drops the line.
  */
-export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a card: no frame of its own. */ bare?: boolean }> = ({ trend, bare = false }) => {
+export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a card: no frame of its own. */ bare?: boolean; /** Small line only: the card above already shows the figure, so no second headline. */ compact?: boolean }> = ({ trend, bare = false, compact = false }) => {
   const { t } = useTranslation('dashboard');
   const reason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   const money = (amount: number) => moneyFigure(amount, trend.currency, reason);
@@ -55,25 +48,23 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a ca
   const { first, last } = { first: trend.points[0], last: trend.points[trend.points.length - 1] };
   const firstText = `${monthText(first.month)} · ${money(trend.first).value}`;
   const lastText = `${monthText(last.month)} · ${money(trend.last).value}`;
-  const direction = {
-    up: t('trend.rising', 'Rising'),
-    down: t('trend.falling', 'Falling'),
-    flat: t('trend.steady', 'Steady'),
-  }[trend.direction];
 
+  if (compact) return (
+    <section aria-label={label} data-testid="invoiced-trend" className="grid min-w-0 gap-1">
+      <p data-testid="invoiced-trend-summary" className="text-control text-muted-foreground">{t('trend.compactLabel', 'Invoiced, last {{months}} months', { months: TREND_MONTHS })}</p>
+      <Line points={trend.points} className="h-14 w-full" name={t('trend.chartName', 'Invoiced trend, {{first}} to {{last}}', { first: monthText(first.month), last: monthText(last.month), })} />
+      <div aria-hidden="true" className="flex justify-between gap-3 text-control text-muted-foreground tabular"><span>{firstText}</span><span>{lastText}</span></div>
+    </section>
+  );
   return (
     <section aria-label={label} data-testid="invoiced-trend" className={cn('flex min-w-0 flex-wrap items-center justify-between gap-x-8 gap-y-4', !bare && 'rounded-lg border border-border bg-card px-4 pb-3.5 pt-4')}>
       <div className="flex min-w-0 flex-col gap-2.5">
-        <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
+        <span className="text-control font-medium text-muted-foreground">{label}</span>
         <div className="min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular">
           <FigureContent value={total.value} exactValue={total.exactValue} unavailableReason={total.unavailableReason} />
         </div>
         {trend.hasLine && (
-          <p data-testid="invoiced-trend-summary" className="flex flex-wrap items-center gap-x-1.5 text-[12px] text-muted-foreground">
-            <span className={cn('inline-flex items-center gap-[3px] font-semibold [&_svg]:size-3', DIRECTION_CLASS[trend.direction])}>
-              {trend.direction !== 'flat' && <Icon name={trend.direction} />}
-              {direction}
-            </span>
+          <p data-testid="invoiced-trend-summary" className="text-control text-muted-foreground">
             <span className="tabular">{t('trend.latest', 'Latest month, {{month}}: {{amount}}', { month: monthText(last.month), amount: money(trend.last).value })}</span>
             <span className="sr-only">{t('trend.since', 'from {{month}}: {{amount}}', { month: monthText(first.month), amount: money(trend.first).value })}</span>
           </p>
@@ -81,8 +72,8 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a ca
       </div>
       {trend.hasLine && (
         <div className="flex min-w-0 basis-72 flex-1 flex-col gap-1.5 sm:max-w-lg">
-          <Line points={trend.points} name={t('trend.chartName', 'Invoiced trend, {{first}} to {{last}}: {{direction}}', { first: monthText(first.month), last: monthText(last.month), direction })} />
-          <div aria-hidden="true" className="flex justify-between gap-3 text-[12px] text-muted-foreground tabular">
+          <Line points={trend.points} name={t('trend.chartName', 'Invoiced trend, {{first}} to {{last}}', { first: monthText(first.month), last: monthText(last.month), })} />
+          <div aria-hidden="true" className="flex justify-between gap-3 text-control text-muted-foreground tabular">
             <span>{firstText}</span>
             <span>{lastText}</span>
           </div>

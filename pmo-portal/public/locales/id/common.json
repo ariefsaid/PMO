@@ -1373,8 +1373,7 @@
         "many": "{{count}} item menunggu",
         "linkUnavailable": "{{label}}: tidak tersedia",
         "linkOne": "{{label}}: {{count}} item menunggu",
-        "linkMany": "{{label}}: {{count}} item menunggu",
-        "review": "Tinjau"
+        "linkMany": "{{label}}: {{count}} item menunggu"
       },
       "helpLabel": "Bantuan: {{label}}"
     },

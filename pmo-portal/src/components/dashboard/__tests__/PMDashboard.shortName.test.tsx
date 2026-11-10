@@ -60,7 +60,7 @@ describe('PMDashboard short names (AC-002 #1325)', () => {
   it('uses the short name for the project link while retaining the contractual name as its title', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><MemoryRouter><PMDashboard /></MemoryRouter></QueryClientProvider>);
-    const projectLink = screen.getByRole('link', { name: 'Steelworks' });
+    const projectLink = screen.getByRole('link', { name: /^Steelworks/ });
     expect(projectLink).toHaveAttribute('href', '/projects/p1');
     expect(projectLink).toHaveAttribute('title', 'Meridian Steelworks');
     expect(screen.queryByRole('heading', { name: 'Meridian Steelworks' })).toBeNull();

@@ -4,7 +4,6 @@ import { ListState } from '@/src/components/ui';
 
 export function LedgerModeNotice({ onRetry, className }: { onRetry: () => void; className?: string }) {
   const { t } = useTranslation('finance');
-  const { t: tc } = useTranslation();
   return (
     <ListState
       variant="error"
@@ -12,7 +11,7 @@ export function LedgerModeNotice({ onRetry, className }: { onRetry: () => void; 
       title={t('odooLedger.mode.loadFailed', 'We could not check where these figures come from')}
       sub={t('odooLedger.mode.loadFailedSub', 'They follow either PMO documents or the Odoo ledger. Try again before relying on them.')}
       onRetry={onRetry}
-      retryLabel={tc('common.retry', 'Retry')}
+      retryLabel={t('odooLedger.mode.retry', 'Retry ledger mode')}
     />
   );
 }

@@ -1373,8 +1373,7 @@
         "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable",
         "linkOne": "{{label}}: {{count}} item awaiting",
-        "linkMany": "{{label}}: {{count}} items awaiting",
-        "review": "Review"
+        "linkMany": "{{label}}: {{count}} items awaiting"
       },
       "helpLabel": "Help: {{label}}"
     },

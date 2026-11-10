@@ -98,8 +98,8 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
   it('fetches the org procurement list once, routed, and renders the company figures', async () => {
     renderExec();
     const figures = await screen.findByRole('region', { name: /Company figures|Angka perusahaan/ });
-    const label = await within(figures).findByText('Contract on hand', { exact: true });
-    expect(label.parentElement?.parentElement?.parentElement).toHaveTextContent('$8M');
+    const label = await within(figures).findByText('Invoiced', { exact: true });
+    expect(label.parentElement?.parentElement?.parentElement).toHaveTextContent('$0');
     await waitFor(() => expect(h.procurementList).toHaveBeenCalled());
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
         expect(h.procurementList).toHaveBeenCalledTimes(1);
@@ -111,7 +111,7 @@ describe('company dashboard layout stability (CLS)', () => {
   it('holds each figure tile and the approvals line at their loaded height while loading', () => {
     renderExec();
     const tiles = screen.getAllByTestId('kpi-skeleton').map((bar) => bar.parentElement as HTMLElement);
-    expect(tiles).toHaveLength(6);
+    expect(tiles).toHaveLength(4);
     tiles.forEach((tile) => expect(tile.className).toMatch(/min-h-\[/));
     const approvals = screen.getAllByTestId('liststate-loading')[0];
     expect(approvals.className).toMatch(/\bh-11\b/);

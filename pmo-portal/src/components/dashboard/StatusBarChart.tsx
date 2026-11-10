@@ -134,7 +134,7 @@ export function StatusBarChart<S extends string>({
             );
           })}
         </div>
-        <figcaption role="group" aria-label={label} className="flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+        <figcaption role="group" aria-label={label} className="flex flex-wrap gap-x-4 gap-y-1.5 text-control text-muted-foreground">
           {data.map((datum) => {
             const name = labelFor?.(datum.status) ?? datum.status;
             const entry = <><span aria-hidden="true" data-testid="legend-dot" className="size-1.5 shrink-0 rounded-full" style={{ background: toneFor(datum.status) }} />{name}<span className="tabular font-semibold text-foreground">{datum.count}</span></>;
@@ -202,7 +202,7 @@ export function StatusBarChart<S extends string>({
       <p id={descriptionId} className="sr-only">{chartDataDescription}</p>
       {chartDataTable}
 
-      <figcaption role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+      <figcaption role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-control text-muted-foreground">
         {data.map((d) => {
           const inner = (
             <>

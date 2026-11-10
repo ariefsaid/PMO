@@ -4,6 +4,14 @@ import { join } from 'node:path';
 import i18next from 'i18next';
 import { buildNeedsItems, selectSupplierInvoices, type NeedsYouFacts } from './useNeedsYou';
 
+/** The text of each money line a needs row carries. */
+const textOf = (amount: unknown): string[] => {
+  const plain = (text: string) => text.replace(/\u00a0/g, ' ');
+  if (typeof amount === 'string') return [plain(amount)];
+  const children = (amount as { props: { children: Array<{ props: { children: string } }> } }).props.children;
+  return children.map((child) => plain(child.props.children));
+};
+
 const translate = (key: string, fallback: string, options?: Record<string, unknown>) =>
   fallback.replace('{{count}}', String(options?.count ?? ''));
 
@@ -54,9 +62,13 @@ describe('needs-you dashboard selectors', () => {
       [4, '/procurement?status=Vendor+Invoiced'],
       [1, '/projects'],
     ]);
-    expect(items[0].label).toContain('1 balance unknown');
-    expect(items[1].label).toContain('Unknown balances: 1');
-    expect(items[1].label).not.toContain('4 supplier invoices to pay');
+    // The label names the kind; the one fact after it names what is missing. Unknown balances never become a partial sum.
+    expect(items[0].label).toBe('client invoices overdue');
+    expect(items[0].detail).toContain('1 balance not synced');
+    expect(items[0].amount).toBeUndefined();
+    expect(items[1].label).toBe('supplier invoices to pay');
+    expect(items[1].detail).toContain('1 amount missing');
+    expect(items[1].amount).toBeUndefined();
   });
 
   it('shows the Project Manager queue and links it to the owning work areas', () => {
@@ -91,7 +103,7 @@ describe('needs-you dashboard selectors', () => {
   it('AC-RD-RISK-001: a zero at-risk count with unbudgeted active projects still says risk cannot be checked', () => {
     const items = buildNeedsItems('Executive', { atRiskProjects: 0, riskUncheckedProjects: 2 }, translate, 'USD');
     expect(items.map((item) => item.id)).toEqual(['risk-unchecked']);
-    expect(items[0]!.label).toMatch(/without an active budget; risk can't be checked yet/);
+    expect(items[0]!.label).toMatch(/can't be checked against/);
     expect(items[0]!.label).not.toMatch(/on track/i);
   });
 
@@ -124,7 +136,8 @@ describe('needs-you dashboard selectors', () => {
         oldestDays: 3,
       },
     }, translate, 'USD');
-    expect(String(overdue?.amount).match(/[A-Z]{3}/g)).toEqual(['USD', 'AUD', 'IDR']);
+    // One currency per line: the organisation's first (a bare symbol), the others as "+ CODE …" in alphabetical order.
+    expect(textOf(overdue?.amount)).toEqual(['$2.5M', '+ AUD 1.25M', '+ IDR 5M']);
   });
 
   it('issue 1973: with the org currency absent from the totals, the amounts stay alphabetical', () => {
@@ -135,7 +148,7 @@ describe('needs-you dashboard selectors', () => {
         unknownBalances: 0,
       },
     }, translate, 'EUR');
-    expect(String(supplier?.amount).match(/[A-Z]{3}/g)).toEqual(['IDR', 'USD']);
+    expect(textOf(supplier?.amount)).toEqual(['IDR 5M', '+ USD 2.5M']);
   });
 
   it('keeps supplier totals limited to known unpaid invoice balances and counts unknown balances', () => {

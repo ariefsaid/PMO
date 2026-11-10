@@ -43,39 +43,27 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   await expect(billedMarginAmount).toHaveAttribute('title', '$500,000');
   await expect(contractOnHandAmount).toHaveText('$33.1M');
   await expect(contractOnHandAmount).toHaveAttribute('title', '$33,050,000');
-  await expect(contractOnHandTile).toContainText('$4.1M');
-  await expect(contractOnHandTile).toContainText('Partial');
 
-  // ── Exec Dashboard: pipeline weighted value tile ──────────────────────────────
-  // pipeline_weighted_value = 800,000
-  const pipelineWeightedTile = companyFigures.getByText('Pipeline (weighted)', { exact: true }).locator('xpath=../..');
-  await expect(pipelineWeightedTile).toBeVisible();
-  await expect(pipelineWeightedTile).toContainText('$');
 
-  // ── Exec Dashboard: pipeline projected margin tile ────────────────────────────
-  // pipeline_projected_margin = 0.200 → 20.0%
-  // SL-B: the tile exists only when the margin is computable (it needs active budgets); otherwise the
-  // pipeline card still renders, titled by the weighted value, and no tile claims a margin.
+  // ── Exec Dashboard: the Sales card — weighted pipeline, forecast margin, open stages as one funnel ────
+  // pipeline_weighted_value = 800,000; the forecast margin is drawn only when it is computable.
+  const salesHeading = page.getByRole('heading', { name: 'Sales', exact: true });
+  await expect(salesHeading).toBeVisible();
+  const salesCard = page.getByText('Weighted pipeline', { exact: true }).locator('xpath=..');
+  await expect(salesCard).toContainText('$');
   // #2055: the pipeline reads as a funnel of open stages (count on each), not a stage table.
-  await expect(page.getByRole('heading', { name: 'Sales funnel' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Tender Submitted/ })).toBeVisible();
-  const projectedMarginTile = page.getByTestId('kpi-pipeline-projected-margin');
-  if (await projectedMarginTile.count() > 0) await expect(projectedMarginTile).toContainText('%');
+  const forecastMargin = page.getByText(/Forecast margin/);
+  if (await forecastMargin.count() > 0) await expect(forecastMargin).toContainText('%');
 
-  // ── Exec Dashboard: win-rate tile (default count mode) ───────────────────────
+  // ── Exec Dashboard: win rate lives in the Analysis disclosure (default count mode) ──────────────────
+  await page.getByText('Analysis', { exact: true }).click();
   const winRateTile = page.getByTestId('kpi-win-rate');
   await expect(winRateTile).toBeVisible();
   await expect(winRateTile).toContainText('%');
 
-  // ── Drill into the Sales Pipeline VIA the weighted-pipeline KPI tile ──────────
-  // Wave-5 Cluster-2 PR-A: the Pipeline KPI is now itself the doorway (drill-through),
-  // so the natural journey is to click the tile. (Also disambiguates from the nav-rail
-  // "Sales Pipeline" link.) Goal-oracle below — weighted stages render — is unchanged.
-  // #1404: KPITile's full-surface link is a sibling of the text content wrapper.
-  await pipelineWeightedTile.locator('..').getByRole('link', {
-    name: 'Open related records for Pipeline (weighted).',
-    exact: true,
-  }).click();
+  // ── Drill into the Sales Pipeline via the Sales card's "Open sales" link ──────────────────────────────
+  await page.getByRole('link', { name: 'Open sales' }).click();
   await page.waitForURL('**/sales');
 
   // pipeline-weighted-total KPI renders
@@ -90,41 +78,45 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   await expect(tenderCol).toContainText('$');
 });
 
-// #1461 — dashboard drill-through lands on exactly the set the figure counts: click a figure and
-// the list it opens must show exactly the counted records (the list-page count equals the figure).
-test('AC-1461: overdue and supplier-payable figures drill to lists whose count equals the figure', async ({ page }) => {
+// #1461 — dashboard drill-through lands on exactly the set the figure counts: open a "waits on you" row
+// and the list it opens must show exactly the counted records (the list-page count equals the number).
+test('AC-1461: overdue and supplier-payable rows drill to lists whose count equals the number', async ({ page }) => {
   await pinViewerLocale(page);
-  await signIn(page, 'exec@acme.test');
-  const companyFigures = page.getByRole('region', { name: 'Company figures' });
+  await signIn(page, 'finance@acme.test');
+  const waits = page.getByTestId('waits-on-you');
   const countFromBadge = async () => {
     const text = (await page.getByTestId('list-page-count').textContent())?.trim() ?? '';
     // "3" or "Showing 3 of 5" — the counted rows are the first number either way.
     return text.match(/\d+/)?.[0] ?? '';
   };
+  const rowCount = async (name: RegExp) => {
+    const row = waits.getByRole('link', { name });
+    await expect(row).toBeVisible();
+    return { row, count: (await row.textContent())?.match(/^\s*(\d+)/)?.[1] ?? '' };
+  };
 
-  // ── Owed by clients · overdue → the receivables overdue filter ──────────────
-  const overdueTile = companyFigures.getByText('Owed by clients · overdue', { exact: true }).locator('xpath=../..');
-  await expect(overdueTile).toBeVisible();
-  const overdueFigure = (await overdueTile.getByText(/^\d+$/).textContent())?.trim() ?? '';
-  await companyFigures.getByRole('link', { name: 'Open related records for Owed by clients · overdue.', exact: true }).click();
+  // ── Client invoices overdue → the receivables overdue filter ────────────────
+  const overdue = await rowCount(/client invoices? overdue/);
+  expect(overdue.count, 'seed has overdue client invoices').not.toBe('');
+  await overdue.row.click();
   await expect(page).toHaveURL(/\/finance\/receivables\?overdue=true/);
-  expect(await countFromBadge()).toBe(overdueFigure);
+  expect(await countFromBadge()).toBe(overdue.count);
 
-  // ── Owed to suppliers → the exact Vendor Invoiced procurement segment ─────────
+  // ── Supplier invoices to pay → the exact Vendor Invoiced procurement segment ──
   await page.goto('/');
-  const supplierTile = companyFigures.getByText('Owed to suppliers', { exact: true }).locator('xpath=../..');
-  await expect(supplierTile).toBeVisible();
-  const supplierSubline = await supplierTile.getByText(/supplier invoices? awaiting payment/).textContent();
-  const supplierFigure = supplierSubline?.match(/(\d+)/)?.[1] ?? '';
-  expect(supplierFigure, 'seed has awaiting-payment supplier invoices').not.toBe('');
-  await companyFigures.getByRole('link', { name: 'Open related records for Owed to suppliers.', exact: true }).click();
+  const supplier = await rowCount(/supplier invoices? to pay/);
+  expect(supplier.count, 'seed has awaiting-payment supplier invoices').not.toBe('');
+  await supplier.row.click();
   await expect(page).toHaveURL(/[?&]status=Vendor\+Invoiced/);
-  expect(await countFromBadge()).toBe(supplierFigure);
+  expect(await countFromBadge()).toBe(supplier.count);
 
-  // ── Contract on hand → the on-hand set the figure sums (Close Out included) ───
-  await page.goto('/');
-  const contractTile = companyFigures.getByText('Contract on hand', { exact: true }).locator('xpath=../..');
-  await expect(contractTile).toBeVisible();
-  await companyFigures.getByRole('link', { name: 'Open related records for Contract on hand.', exact: true }).click();
+});
+
+test('AC-1461: Contract on hand drills to the on-hand set the figure sums (Close Out included)', async ({ page }) => {
+  await pinViewerLocale(page);
+  await signIn(page, 'exec@acme.test');
+  const companyFigures = page.getByRole('region', { name: 'Company figures' });
+  await expect(companyFigures.getByText('Contract on hand', { exact: true })).toBeVisible();
+  await companyFigures.getByRole('link', { name: 'Contract on hand', exact: true }).click();
   await expect(page).toHaveURL(/[?&]filter=on-hand/);
 });

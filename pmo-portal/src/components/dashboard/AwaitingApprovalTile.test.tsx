@@ -73,7 +73,6 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
       expect(tile).toHaveTextContent('—');
       expect(tile.textContent).not.toMatch(/\b0\b/);
       expect(within(tile).getByRole('link', { name: 'Menunggu persetujuan Anda: tidak tersedia' })).toHaveAttribute('href', '/approvals');
-      expect(tile).toHaveTextContent('Tinjau');
 
       cleanup();
       procState.data = []; procState.isPending = false; procState.isError = false;
@@ -98,7 +97,6 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
       const total = includeTimesheets ? '4' : '2';
       expect(tile).toHaveTextContent(total);
       expect(within(tile).getByRole('link', { name: `Menunggu persetujuan Anda: ${total} item menunggu` })).toHaveAttribute('href', '/approvals');
-      expect(tile).toHaveTextContent('Tinjau');
 
       cleanup();
       procState.data = procRows; procState.isPending = false; procState.isError = false;
@@ -144,11 +142,10 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
     expect(screen.getByTestId('kpi-awaiting-approval')).toHaveTextContent('2');
   });
 
-  it('routes to /approvals as a single link and surfaces a visible Review CTA', () => {
+  it('routes to /approvals as a single link and draws no separate Review button', () => {
     renderTile(true);
     const tile = screen.getByTestId('kpi-awaiting-approval');
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
-    expect(tile).toHaveTextContent(/Review/i);
   });
 
   it('a non-approver role (Engineer) contributes zero PRs even if rows exist', () => {
