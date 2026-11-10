@@ -23,6 +23,7 @@ removes reading or makes the same thing identical everywhere.
 - A count never sits in a row of money figures. Counts go in the "waits on you" rows.
 - Unknown is never a sentence in a tile and never "0": the tile or column is hidden, and ONE page-level line says what is missing and links to the fix ("3 figures hidden: accounting is not connected · Set up").
 - A column that is blank on every row is not rendered.
+- Two different quantities never share a name, and one quantity never has two. Where two screens show different figures under one word (two populations, two clocks), give each its own short name ("Invoice age" / "Waiting to pay") or show the same one on both; do not explain the difference in a sentence.
 - No verdict words from thin data: a trend needs 3+ data points, else no chart and no "Rising/Falling".
 
 ## One name, one look
