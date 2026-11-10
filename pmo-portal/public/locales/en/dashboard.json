@@ -699,6 +699,11 @@
     "colNeeds": "Needs you",
     "colOutstanding": "Outstanding",
     "colProject": "Project",
+    "colStatus": "Status",
+    "colReview": "Review",
+    "reviewOverBudget": "Over budget",
+    "reviewSpendUnknown": "Spending not recorded",
+    "reviewWithin": "Within budget",
     "collected": "Collected",
     "days_one": "{{count}} day",
     "days_other": "{{count}} days",
@@ -761,7 +766,6 @@
     "waits": "Waits on you",
     "waitsError": "Couldn't load what waits on you",
     "waitsNone": "Nothing waits on you.",
-    "wonThisYear": "Won",
-    "recordedReceipts": "Recorded receipts"
+    "wonThisYear": "Won"
   }
 }

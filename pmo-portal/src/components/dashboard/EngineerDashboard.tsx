@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -43,7 +42,6 @@ function activeTask(status: string): boolean {
 
 export const EngineerDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
-  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const timesheets = useTimesheets();
   const tasks = useMyTasks();
@@ -146,7 +144,6 @@ export const EngineerDashboard: React.FC = () => {
         loading={timeLoading}
         error={recentError}
         onRetry={refresh}
-        onOpenTimesheets={() => navigate('/timesheets')}
       />
     </div>
   );

@@ -8,7 +8,6 @@ import type { ExpenseClaimWithRefs } from '@/src/lib/db/expenseClaims';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
-import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { StatusPill } from '@/src/components/ui/StatusPill';
@@ -135,7 +134,6 @@ export function EngineerReturnedCard({ claims }: { claims: ExpenseClaimWithRefs[
                 <span className="block truncate text-control font-medium">{claim.title}</span>
                 <span className="block truncate text-control text-muted-foreground">{claim.project?.short_name ?? claim.project?.name ?? t('hub.engineer.noProject', 'No project')}</span>
               </span>
-              <span className="shrink-0"><StatusPill record="expense" state={claim.status} /></span>
             </Link>
           </li>
         ))}
@@ -150,57 +148,43 @@ export function EngineerRecentEntriesPanel({
   loading,
   error,
   onRetry,
-  onOpenTimesheets,
 }: PanelState & {
   entries: TimesheetEntryWithProject[];
   statusBySheet: Map<string, string>;
-  onOpenTimesheets: () => void;
 }) {
   const { t } = useTranslation('dashboard');
-  const columns: Column<TimesheetEntryWithProject>[] = [
-    { key: 'day', header: t('hub.engineer.day', 'Day'), kind: 'date', cell: (entry) => formatDay(entry.entry_date) },
-    {
-      key: 'project',
-      header: t('hub.engineer.projectAndDescription', 'Project and description'),
-      cell: (entry) => (
-        <span className="block min-w-0">
-          <span className="block truncate font-medium">{entry.project?.name ?? null}</span>
-          <span className="block truncate text-control text-muted-foreground">{entry.notes || null}</span>
-        </span>
-      ),
-    },
-    { key: 'hours', header: t('hub.engineer.hours', 'Hours'), kind: 'number', align: 'num', cell: (entry) => `${formatNumberExact(entry.hours)} ${t('hub.engineer.hourUnit', 'h')}` },
-    {
-      key: 'status',
-      header: t('hub.engineer.statusLabel', 'Status'),
-      kind: 'status',
-      cell: (entry) => {
-        const status = statusBySheet.get(entry.timesheet_id);
-        return status ? <StatusPill record="timesheet" state={status} /> : null;
-      },
-    },
-  ];
-  const tableState: 'loading' | 'error' | 'empty' | undefined = loading ? 'loading' : error ? 'error' : entries.length === 0 ? 'empty' : undefined;
+  const title = t('hub.engineer.recentEntries', 'Recent entries');
   return (
-    <Card>
-      <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{t('hub.engineer.recentEntries', 'Recent entries')}</CardHead>
-      <DataTable
-        rows={entries}
-        columns={columns}
-        rowKey={(entry) => entry.id}
-        onActivate={onOpenTimesheets}
-        rowLabel={(entry) => t('hub.engineer.openEntry', 'Open timesheet entry for {{project}}: {{description}}', {
-          project: entry.project?.name ?? t('hub.engineer.projectUnavailable', 'project unavailable'),
-          description: entry.notes?.trim() || formatDay(entry.entry_date),
-        })}
-        accessibleName={t('hub.engineer.recentEntries', 'Recent entries')}
-        embedded
-        state={tableState}
-        emptyTitle={t('hub.engineer.noRecentEntries', 'No recent time entries')}
-        errorTitle={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")}
-        onRetry={onRetry}
-        tableId="components-dashboard-engineer-recent-entries"
-      />
+    <Card aria-label={title}>
+      <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{title}</CardHead>
+      <div className="px-4 pb-2">
+        {loading ? <ListState variant="loading" rows={3} />
+          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
+            : entries.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noRecentEntries', 'No recent time entries')}</p>
+              : (
+                <ul className="divide-y divide-border">
+                  {entries.map((entry) => {
+                    const status = statusBySheet.get(entry.timesheet_id);
+                    const project = entry.project?.name ?? t('hub.engineer.projectUnavailable', 'project unavailable');
+                    return (
+                      <li key={entry.id}>
+                        <Link
+                          to="/timesheets"
+                          aria-label={t('hub.engineer.openEntry', 'Open timesheet entry for {{project}}: {{description}}', { project, description: entry.notes?.trim() || formatDay(entry.entry_date) })}
+                          className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-control font-medium tabular">{formatDay(entry.entry_date)} · {formatNumberExact(entry.hours)} {t('hub.engineer.hourUnit', 'h')}</span>
+                            <span className="block truncate text-control text-muted-foreground">{project}{entry.notes ? ` · ${entry.notes}` : ''}</span>
+                          </span>
+                          {status && <span className="shrink-0"><StatusPill record="timesheet" state={status} /></span>}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+      </div>
     </Card>
   );
 }

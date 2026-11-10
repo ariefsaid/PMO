@@ -192,6 +192,8 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(within(returned).queryByText('Open draft')).not.toBeInTheDocument();
     expect(within(returned).queryByText('Another person’s claim')).not.toBeInTheDocument();
     expect(within(returned).queryByText('Cash advance')).not.toBeInTheDocument();
+    // The heading already says "returned": no second name for the same thing.
+    expect(within(returned).queryByText('Rejected')).not.toBeInTheDocument();
     withClaims.unmount();
 
     state.expenses.data = { rows: [], truncated: false };
@@ -202,16 +204,21 @@ describe('Engineer home (one question: is my week on track?)', () => {
   it('T9: shows up to 5 recent entries, opens Timesheets from one, with its description and status', () => {
     renderDashboard();
     expect(screen.getByRole('heading', { name: 'Recent entries' })).toBeInTheDocument();
-    expect(screen.getByText('Design review')).toBeInTheDocument();
+    const row = screen.getByRole('link', { name: /Open timesheet entry for Cedar Works: Site handover/ });
+    // One compact row: date and hours, then project and description; no repeated field labels.
+    expect(row).toHaveTextContent(/2 Jun · 7\.5 h/);
+    expect(row).toHaveTextContent('Cedar Works · Site handover');
+    expect(row).toHaveTextContent('Rejected');
+    expect(screen.queryByText('Project and description')).not.toBeInTheDocument();
     expect(screen.queryByText('Future week')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Open timesheet entry for Cedar Works: Site handover/ }));
+    fireEvent.click(row);
     expect(screen.getByLabelText('Current path')).toHaveTextContent('/timesheets');
     cleanup();
 
     const many = Array.from({ length: 10 }, (_, index) => entry(`old-${index}`, `2026-05-${String(20 + index).padStart(2, '0')}`, 1, `Task ${index}`, 'previous'));
     state.timesheets.data = [{ ...sheets[2], entries: many }];
     renderDashboard();
-    expect(screen.getAllByRole('button', { name: /^Open timesheet entry for/ })).toHaveLength(5);
+    expect(screen.getAllByRole('link', { name: /^Open timesheet entry for/ })).toHaveLength(5);
   });
 
   it('refreshes the owned sources, and keeps loading and error states retryable', () => {

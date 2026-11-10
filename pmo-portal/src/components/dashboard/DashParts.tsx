@@ -6,7 +6,6 @@ import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { cn } from '@/src/components/ui/cn';
-import { statusLabel } from '@/src/lib/status/statusMap';
 
 /** Colour means exception only: overdue / over budget = red (`lost`), waiting on someone = amber (`warn`), the rest grey. */
 export type DashTone = 'lost' | 'warn' | 'neutral';
@@ -114,7 +113,6 @@ export const ProjectRows: React.FC<{
   testId?: string;
 }> = ({ title, rows, pending = false, error = false, onRetry, allLink, emptyLabel, footer, testId = 'project-rows' }) => {
   const { t } = useTranslation('dashboard');
-  const { t: ts } = useTranslation('status');
   const showDelivery = rows.some((row) => row.delivery !== null);
   const showBudget = rows.some((row) => row.budgetUsed !== null);
   const showReason = rows.some((row) => row.reason);
@@ -133,7 +131,7 @@ export const ProjectRows: React.FC<{
                     <span>{t('home.colProject', 'Project')}</span>{showReason && <span>{t('home.colNeeds', 'Needs you')}</span>}
                     {showDelivery && <span className="text-right">{t('home.colDelivery', 'Delivery')}</span>}
                     {showBudget && <span className="text-right">{t('home.colBudget', 'Budget used')}</span>}
-                    <span />
+                    <span className="text-right">{t('home.colStatus', 'Status')}</span>
                   </div>
                   <ul className="divide-y divide-border">
                     {sorted.map((row) => {
@@ -147,7 +145,7 @@ export const ProjectRows: React.FC<{
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
                             <span className={cn('min-w-0 text-control', quiet ? 'font-normal' : 'font-semibold')}>{row.name}</span>
-                            <span className="min-[900px]:order-5 min-[900px]:justify-self-end">{row.offTrack ? <StatusPill variant="lost">{statusLabel('project', row.status, ts)}</StatusPill> : <StatusPill record="project" state={row.status} />}</span>
+                            <span className="min-[900px]:order-5 min-[900px]:justify-self-end"><StatusPill record="project" state={row.status} /></span>
                             {showReason && <span className={cn('col-span-2 min-w-0 text-control min-[900px]:order-2 min-[900px]:col-span-1', row.offTrack ? 'text-destructive-text' : 'text-muted-foreground')}>{row.reason ?? ''}</span>}
                             {(showDelivery || showBudget) && (
                               <span className="col-span-2 flex gap-4 text-control tabular text-muted-foreground min-[900px]:contents">

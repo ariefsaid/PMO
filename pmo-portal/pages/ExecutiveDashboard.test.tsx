@@ -206,6 +206,9 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(row).toHaveTextContent('4 overdue · 2 awaiting approval · over budget');
     expect(row).toHaveTextContent('40%');
     expect(row).toHaveTextContent('150%');
+    // A status pill takes its tone from the status map, not from being off track (red already means overdue).
+    expect(within(row).getByText('Ongoing').closest('span')?.className ?? '').not.toMatch(/destructive|lost/);
+    expect(within(list).getByText('Status')).toBeInTheDocument();
     expect(within(list).getByRole('link', { name: 'All 7 projects' })).toHaveAttribute('href', '/projects');
   });
 
@@ -400,6 +403,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     const { unmount } = renderPage();
     expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
+    expect(screen.getByText('Spending not recorded')).toBeInTheDocument();
     unmount();
     budgetReviewState.data = [budget('x', { status: 'Leads' }), ...['1', '2', '3', '4', '5', '6'].map((id) => budget(id))];
     renderPage();
@@ -407,6 +411,16 @@ describe('company home — finance (one question: what must I collect, pay and i
     for (const id of ['1', '2', '3', '4', '5']) expect(screen.getByText(`Budget ${id}`)).toBeInTheDocument();
     expect(screen.queryByText('Budget 6')).not.toBeInTheDocument();
     expect(screen.queryByText('Budget x')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Over budget').length).toBeGreaterThan(0);
+  });
+
+  it('a period-bound figure names its period: Invoiced and Collected carry the picker\'s period as their caption', () => {
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Company figures' });
+    for (const label of ['Invoiced', 'Collected']) {
+      const tile = within(figures).getByText(label, { exact: true }).parentElement?.parentElement?.parentElement as HTMLElement;
+      expect(tile).toHaveTextContent('Year to date');
+    }
   });
 
   it('L12: with no accounting ageing synced, the analysis shows the same PMO client and supplier ageing as the finance hub', async () => {

@@ -67,6 +67,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
+  const { period } = periodState;
+  const periodLabel = period.key === 'custom'
+    ? [period.from, period.to].filter(Boolean).join(' – ')
+    : ({ month: t('period.month', 'This month'), quarter: t('period.quarter', 'This quarter'), ytd: t('period.ytd', 'Year to date'), '12m': t('period.12m', 'Last 12 months') } as Record<string, string>)[period.key];
   const periodFigure = (id: string) => figures.period.find((figure) => figure.id === id);
   const setUp = canOpenAccounting ? { to: '/administration/accounting', label: t('home.setUp', 'Set up') } : undefined;
 
@@ -140,12 +144,12 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     ? [
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
-      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: '' }),
-      moneyTile(collected, { label: t('home.collected', 'Collected'), caption: t('home.recordedReceipts', 'Recorded receipts') }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, { label: t('home.collected', 'Collected'), caption: periodLabel }),
     ]
     : [
       moneyTile(todayFigure('contract-on-hand'), { caption: ongoing === undefined || ongoing === null ? undefined : t('home.ongoing', '{{count}} ongoing', { count: ongoing }), reason: t('home.reasonContract', 'contract values are missing') }),
-      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: '' }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
@@ -198,7 +202,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
         <CardPad className="grid gap-3">
           <KPIRow className="grid-cols-2">
-            {moneyTile(collected, { label: t('home.collected', 'Collected'), caption: t('home.recordedReceipts', 'Recorded receipts') })}
+            {moneyTile(collected, { label: t('home.collected', 'Collected'), caption: periodLabel })}
             {moneyTile(todayFigure('still-to-invoice'), { label: t('home.stillToInvoice', 'Still to invoice'), caption: '' })}
           </KPIRow>
           <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />

@@ -699,6 +699,11 @@
     "colNeeds": "Perlu Anda",
     "colOutstanding": "Sisa tagihan",
     "colProject": "Proyek",
+    "colStatus": "Status",
+    "colReview": "Tinjauan",
+    "reviewOverBudget": "Melebihi anggaran",
+    "reviewSpendUnknown": "Pengeluaran belum tercatat",
+    "reviewWithin": "Dalam anggaran",
     "collected": "Diterima",
     "days_one": "{{count}} hari",
     "days_other": "{{count}} hari",
@@ -761,7 +766,6 @@
     "waits": "Menunggu Anda",
     "waitsError": "Daftar yang menunggu Anda tidak dapat dimuat",
     "waitsNone": "Tidak ada yang menunggu Anda.",
-    "wonThisYear": "Menang",
-    "recordedReceipts": "Penerimaan tercatat"
+    "wonThisYear": "Menang"
   }
 }

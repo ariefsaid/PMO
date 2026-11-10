@@ -53,6 +53,12 @@ export function BudgetReviewCard({ rows, pending, error, retry }: { rows: Budget
   const spentHeader = rows.some((row) => row.ledger_owned === false) ? t('dashboard:hub.company.committedSpent', 'Committed + spent') : t('dashboard:hub.company.spent', 'Spent');
   const columns: Column<BudgetReviewRow>[] = [
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), rowHeader: true, cell: (row) => <span className="font-medium">{projectDisplayName(row)}</span>, exportValue: (row) => projectDisplayName(row) },
+    { key: 'review', header: t('home.colReview', 'Review'), cell: (row) => !budgetSpendKnown(row)
+      ? <span className="text-muted-foreground">{t('home.reviewSpendUnknown', 'Spending not recorded')}</span>
+      : row.variance !== null && row.variance > 0
+        ? <span className="font-semibold text-destructive-text">{t('home.reviewOverBudget', 'Over budget')}</span>
+        : <span className="text-muted-foreground">{t('home.reviewWithin', 'Within budget')}</span>,
+      exportValue: (row) => !budgetSpendKnown(row) ? 'Spending not recorded' : row.variance !== null && row.variance > 0 ? 'Over budget' : 'Within budget' },
     { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), kind: 'money', align: 'num', cell: (row) => formatTableMoney(row.budget, row.currency), exportValue: (row) => row.budget },
     { key: 'spent', header: spentHeader, kind: 'money', align: 'num', cell: (row) => budgetSpendKnown(row) ? formatTableMoney(row.spent!, row.currency) : null, exportValue: (row) => row.spent ?? '' },
     { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => { const pct = usedPercent(row); return pct === null ? null : <div className="flex min-w-24 items-center gap-2"><ProgressBar value={pct} widthless className="min-w-10 flex-1" aria-label={t('dashboard:hub.company.usedAria', '{{percent}}% of contract used', { percent: pct })} /><span>{pct}%</span></div>; }, exportValue: (row) => usedPercent(row) ?? '' },
