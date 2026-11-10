@@ -749,6 +749,17 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  // ⚑ #1030: `activateVersion` resolves `pushState: 'queued'` unconditionally (ADR-0062), so the
+  // 'nothing-to-push' / 'pending-cancellation' / 'failed' ACTIVATION toasts are unreachable and were
+  // removed by 43d0e8f2e. The #1413 merge (fb7d9b954) restored this file's pre-43d0e8f2e side along
+  // with the toasts, so its two pinning tests came back with them; they mock a result the repository
+  // seam can never return. Their goal oracles ("nothing was sent" is never announced as a push; a
+  // cancellation-pending push reads as QUEUED, never as a clean success) live on the surface that now
+  // owns the outcome — pages/project-detail/budget/BudgetErpNotice.test.tsx:172 ("a retry with nothing
+  // to push says so — never that ERPNext is enforcing the budget") and :182 ("rm-1472/M-3 a retry
+  // while an earlier cancellation is still settling says the push is QUEUED"), plus :91 for the
+  // 'pending' → "Queued" label and src/hooks/useBudget.queuedPush.test.tsx for the #1030 seed.
+
   it('requires the current mode while confirming a sole-operator activation', async () => {
     roleState.realRole = 'Finance';
     budgetState.data = 100;

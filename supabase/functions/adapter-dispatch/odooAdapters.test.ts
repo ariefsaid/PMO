@@ -6,6 +6,7 @@ import { assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import { resolveOdooProcurementAdapter, resolveOdooRevenueAdapter, ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
+import { resolveOdooEquipmentAdapter } from './odooEquipment.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import { resolveOdooPaymentFacts } from '../_shared/odooPurchaseRefs.ts';
 import { reservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
@@ -52,10 +53,11 @@ const world = (config?: Record<string, unknown>, { caseCurrency = 'IDR', odooCur
 ];
 
 describe('P3 the Odoo adapter factory', () => {
-  it('is the procurement, revenue (#1506 C2) and companies (#1504 S8) domains\' Odoo factories', () => {
-    assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement', 'revenue', 'companies']);
+  it('is the procurement, revenue (#1506 C2), companies (#1504 S8) and equipment (#1511 F4) domains\' Odoo factories', () => {
+    assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement', 'revenue', 'companies', 'equipment']);
     assertEquals(ODOO_ADAPTER_REGISTRY.procurement, resolveOdooProcurementAdapter);
     assertEquals(ODOO_ADAPTER_REGISTRY.revenue, resolveOdooRevenueAdapter);
+    assertEquals(ODOO_ADAPTER_REGISTRY.equipment, resolveOdooEquipmentAdapter);
   });
 
   for (const [kind, operation] of [['purchase-order', 'create'], ['purchase-order', 'revise']] as const) {

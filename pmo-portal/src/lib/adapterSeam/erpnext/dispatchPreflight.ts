@@ -18,7 +18,7 @@ import { resolveErpProjectName } from './dispatchRefs.ts';
  *
  *  Round-7 B10 added the `procurement` half: only the three revenue links were pre-flighted, so a
  *  direct command carrying another tenant's known `procurementId` was accepted. */
-type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'workOrderId' | 'procurementId' | 'vendorId' | 'invoiceId';
+type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'workOrderId' | 'procurementId' | 'vendorId' | 'invoiceId' | 'asset_id';
 
 const LINK_TABLE: Readonly<Record<LinkField, string>> = {
   customerId: 'companies',
@@ -28,6 +28,8 @@ const LINK_TABLE: Readonly<Record<LinkField, string>> = {
   procurementId: 'procurements',
   vendorId: 'companies',
   invoiceId: 'procurement_invoices',
+  // #1511 F4: a maintenance record hangs off one PMO asset, and that asset must be the caller's org's row.
+  asset_id: 'equipment_assets',
 };
 
 /** The links each ERPNext domain's commands can carry (the fields `readModelWriters` copies into the
@@ -38,6 +40,9 @@ const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
   // P3c: a budget push is scoped to ONE project. A cross-org `projectId` would push this org's figures
   // onto another tenant's ERP project dimension — refused here, before the adapter exists.
   budget: ['projectId'],
+  // #1511 F4: the register link a maintenance command carries (`asset_id`). A register create has no PMO row yet — its id is
+  // reserved by the command, and the dispatch refuses one the book already holds before any outbox row (0854 §4 records it at finalize).
+  equipment: ['asset_id'],
 };
 
 /** Assert one linked row exists AND belongs to `orgId`. Fails CLOSED: a missing row (no row, or an id

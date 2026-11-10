@@ -134,9 +134,11 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
         }
         case 'activate': {
           if (!canActivate || !canConfirmActivation || hasOpenLineBuffers || draftVersion?.id !== confirm.id) return;
-          // ADR-0062: resolves on the PMO write alone; the push outcome shows on the push-status read.
+          // ADR-0062: resolves on the PMO write alone (`'queued'`) — the push outcome can never ride on
+          // this result, so it shows on the push-status read instead. The hook seeds a pending push
+          // status and invalidates it when the push settles (#1030); that is why the dead
+          // failed/nothing-to-push/pending-cancellation toast branches are gone.
           await mutations.activate.mutateAsync(confirm.id);
-          void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
           toast(t('financeCopy.versionActivated', 'Version activated'), confirm.label, 'success');
           break;

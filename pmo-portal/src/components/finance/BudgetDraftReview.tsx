@@ -17,7 +17,7 @@ import { Button, Checkbox, ConfirmDialog } from '@/src/components/ui';
 /** Readiness reads (an eligibility RPC and a live ERPNext precheck per draft) run for at most this many drafts at a time. */
 const CHECK_CAP = 10;
 
-type Outcome = 'activated' | 'erp-failed' | 'nothing-sent';
+type Outcome = 'activated' | 'erp-failed' | 'nothing-sent' | 'erp-pending';
 /** Snapshot taken at activation time, so the outcome does not depend on the draft rows still being on the list. */
 type RowResult = { id: string; label: string } & ({ ok: true; outcome: Outcome } | { ok: false; message: string });
 const draftLabel = (r: OrgDraftBudget) => `${r.projectCode ? `${r.projectCode} ` : ''}${r.projectName} v${r.version}`;
@@ -116,7 +116,9 @@ export function BudgetDraftReview() {
       try {
         const { pushState } = await repositories.budget.activateVersion(row.id);
         // The activation stands; a failed or empty ERP push is a consequence the operator must still hear about (as on the Budget tab).
-        next.push({ ...base, ok: true, outcome: pushState === 'failed' ? 'erp-failed' : pushState === 'nothing-to-push' ? 'nothing-sent' : 'activated' });
+        // rm-1472 — `pending-cancellation` is the 202 queue (an earlier cancellation is still settling): the
+        // push is neither done nor broken, so it is reported as its own pending outcome.
+        next.push({ ...base, ok: true, outcome: pushState === 'failed' ? 'erp-failed' : pushState === 'nothing-to-push' ? 'nothing-sent' : pushState === 'pending-cancellation' ? 'erp-pending' : 'activated' });
         safeTrack(() => trackBudgetActivated(realRole ?? 'unknown'));
       } catch (error) {
         next.push({ ...base, ok: false, message: classifyMutationError(error).detail || t('draftReview.failed', 'Could not activate') });
@@ -136,10 +138,12 @@ export function BudgetDraftReview() {
   const failCount = results.length - okCount;
   const erpCount = results.filter((r) => r.ok && r.outcome === 'erp-failed').length;
   const emptyCount = results.filter((r) => r.ok && r.outcome === 'nothing-sent').length;
+  const pendingErpCount = results.filter((r) => r.ok && r.outcome === 'erp-pending').length;
   const outcomeText: Record<Outcome, string> = {
     activated: t('draftReview.activated', 'Activated'),
     'erp-failed': t('draftReview.activatedErpFailed', 'Activated, but ERPNext was not updated'),
     'nothing-sent': t('draftReview.activatedNothingSent', 'Activated, but nothing was sent to ERPNext: no budget lines'),
+    'erp-pending': t('draftReview.activatedErpPending', 'Activated, ERPNext update queued behind an earlier cancellation'),
   };
 
   return (
@@ -168,6 +172,7 @@ export function BudgetDraftReview() {
             {t('draftReview.summary', { ok: okCount, failed: failCount, defaultValue: '{{ok}} activated, {{failed}} failed' })}
             {erpCount > 0 && <span className="block font-medium">{t('draftReview.erpNotUpdated', { count: erpCount, defaultValue: '{{count}} activated but ERPNext was not updated; ask Finance or an administrator to review it.' })}</span>}
             {emptyCount > 0 && <span className="block font-medium">{t('draftReview.nothingSent', { count: emptyCount, defaultValue: '{{count}} activated but nothing was sent to ERPNext (no budget lines); add lines and activate a new version to enforce one.' })}</span>}
+            {pendingErpCount > 0 && <span className="block font-medium">{t('draftReview.erpPushQueued', { count: pendingErpCount, defaultValue: '{{count}} activated with the ERPNext push queued behind an earlier budget cancellation; it is pushed automatically once that settles.' })}</span>}
           </p>
           <ul className="mt-1 space-y-0.5">
             {results.map((r) => (

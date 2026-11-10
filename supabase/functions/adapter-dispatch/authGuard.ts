@@ -11,6 +11,7 @@
 //     IN THAT DOMAIN → public.actor_authorization_state(orgId, userId) + moneyWriteRolesForDomain(domain)
 // (c) command.domain matches KIND_DOMAIN[erp_doc_kind] → rejects cross-domain kinds (e.g. domain:'procurement' with erp_doc_kind:'incoming-payment')
 import { KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { EQUIPMENT_KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -55,7 +56,14 @@ const BINDING_GATED_DOMAINS = new Set(['budget']);
  * to ask about. A domain not listed is the ERPNext tier's alone (byte for byte). One ERP per domain is enforced where it is
  * employed (`admin_change_domain_ownership`, 0505 and 0510 for revenue), so at most one answer is true; ERPNext is asked first and wins a tie.
  */
-const OWNING_TIERS: Readonly<Record<string, readonly string[]>> = { procurement: [ERPNEXT_TIER, ODOO_TIER], revenue: [ERPNEXT_TIER, ODOO_TIER], companies: [ERPNEXT_TIER, ODOO_TIER] };
+const OWNING_TIERS: Readonly<Record<string, readonly string[]>> = {
+  procurement: [ERPNEXT_TIER, ODOO_TIER], revenue: [ERPNEXT_TIER, ODOO_TIER], companies: [ERPNEXT_TIER, ODOO_TIER],
+  // #1511 D5/D7: the equipment register exists under Odoo only (FR-OFM-002), so ERPNext is never asked about it.
+  equipment: [ODOO_TIER],
+};
+
+/** Every ERP document kind a command may name, and the domain it belongs to: the ERPNext feed's kinds plus the register's (#1511). */
+const KIND_DOMAINS: Readonly<Record<string, string>> = { ...KIND_DOMAIN, ...EQUIPMENT_KIND_DOMAIN };
 
 /** Structural client for the two authorization RPCs (`domain_owned_by_tier`,
  *  `actor_authorization_state` — mig 0117). Satisfied by the deputy (caller-JWT) client on the
@@ -142,10 +150,10 @@ export async function checkCommandAuthorization(
 
   // (c) Domain-kind consistency: the command's domain must match the kind's canonical domain.
   const kind = command.record.erp_doc_kind;
-  if (typeof kind !== 'string' || !(kind in KIND_DOMAIN)) {
+  if (typeof kind !== 'string' || !(kind in KIND_DOMAINS)) {
     return { ok: false, status: 422, message: `missing or unknown erp_doc_kind on record: ${String(kind)}` };
   }
-  const expectedDomain = KIND_DOMAIN[kind as keyof typeof KIND_DOMAIN];
+  const expectedDomain = KIND_DOMAINS[kind];
   if (command.domain !== expectedDomain) {
     return {
       ok: false,
