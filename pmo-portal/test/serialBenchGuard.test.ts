@@ -154,6 +154,18 @@ describe('_benchGuard — the helpers actually consult the guard', () => {
     expect(calls).toEqual([]);
   });
 
+  it('AC-VPAY-001 refuses a remote served-function destination before seeding the org', () => {
+    const source = readFileSync(resolve(__dirname, '../e2e/serial/AC-VPAY-001-vendor-payment-form.spec.ts'), 'utf8');
+    const seedStart = source.indexOf('async function seed(');
+    const seedEnd = source.indexOf('\nasync function cleanup(', seedStart);
+    const seedBody = source.slice(seedStart, seedEnd);
+    const siteGuard = seedBody.indexOf('assertLocalBenchUrl(SITE_URL)');
+    const firstWrite = seedBody.indexOf("admin.from('organizations').update");
+
+    expect(siteGuard, 'seed must reject a remote SITE_URL before writing org-global state').toBeGreaterThanOrEqual(0);
+    expect(siteGuard, 'the site guard must run before the currency write').toBeLessThan(firstWrite);
+  });
+
   it('the opt-in really lets the helpers write: _tspHelpers.benchPost reaches the bench', async () => {
     const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => ({
       ok: true,
