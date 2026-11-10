@@ -199,7 +199,7 @@ const FinanceHub: React.FC = () => {
         <div className="min-w-0">
           <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('financeHub:hub.title', 'Finance')}</h1>
         </div>
-        {canAct && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button></div>}
+        {canAct && <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button></div>}
       </header>
       {/* ECA-5: Finance accepts invoice pairs here. Receivables is hidden while an ERP owns revenue, so this is the page Finance can always reach; self-hides when there is nothing to review. */}
       <InvoicePairReview orgId={currentUser?.org_id} />

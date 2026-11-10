@@ -370,6 +370,7 @@
     "loadErrorTitle": "Couldn't load procurement details"
   },
   "procurementDetail": {
+    "decisionBar": "Procurement decisions",
     "readyHint": {
       "draftOther": "Ready to submit this procurement for approval.",
       "requested": "You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.",

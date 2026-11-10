@@ -865,7 +865,7 @@ const ProcurementDetails: React.FC = () => {
       />}
 
       {mainAction && isNarrow && <>
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
+        <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
             <RecordMenu items={moreMenuItems} side="top" ariaLabel={t('procurementRecord:moreActions', 'More procurement actions')} triggerClassName="min-h-11" />

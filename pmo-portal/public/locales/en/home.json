@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "label": "Phone navigation",
+    "home": "Home",
+    "approvals": "Approvals",
+    "search": "Search",
+    "more": "More"
+  },
+  "queue": {
+    "title": "My queue",
+    "subtitle": "Your tasks and everything waiting on your decision.",
+    "approvalsTitle": "Awaiting your approval",
+    "approvalsCount": "{{count}} waiting",
+    "openApprovals": "Open approvals",
+    "approvalsEmpty": "Nothing is waiting on your decision.",
+    "approvalsError": {
+      "title": "Couldn't load your approvals",
+      "sub": "Open approvals to retry the queue."
+    },
+    "tasksTitle": "Your tasks",
+    "tasksCount": "{{count}} open tasks",
+    "viewAllTasks": "View all tasks",
+    "tasksEmpty": "No tasks are assigned to you right now.",
+    "tasksError": {
+      "title": "Couldn't load your tasks",
+      "sub": "Retry to refresh your assigned work."
+    },
+    "noProject": "No project",
+    "due": "Due {{date}}",
+    "overdue": "Overdue",
+    "moreTasks": "Show all {{count}} open tasks",
+    "hours": "{{hours}} h",
+    "timesheetTitle": "Timesheet week of {{date}}",
+    "invoiceUntitled": "Draft invoice",
+    "context": {
+      "procurement": "Procurement · {{vendor}}",
+      "noVendor": "No vendor",
+      "timesheet": "Timesheet · {{name}}",
+      "noName": "Team member",
+      "expense": "Expense claim · {{number}}",
+      "noNumber": "No number",
+      "invoice": "Customer invoice · {{customer}}",
+      "noCustomer": "No customer"
+    }
+  }
+}
