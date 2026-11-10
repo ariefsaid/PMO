@@ -14,5 +14,13 @@
   "/companies@390@exec@acme.test": 150,
   "/companies@1440@exec@acme.test": 132,
   "/timesheets@390@exec@acme.test": 89,
-  "/timesheets@1440@exec@acme.test": 84
+  "/timesheets@1440@exec@acme.test": 84,
+  "/@390@pm@acme.test": 227,
+  "/@1440@pm@acme.test": 227,
+  "/@390@finance@acme.test": 792,
+  "/@1440@finance@acme.test": 766,
+  "/@390@engineer@acme.test": 321,
+  "/@1440@engineer@acme.test": 302,
+  "/@390@admin@acme.test": 472,
+  "/@1440@admin@acme.test": 474
 }

@@ -115,67 +115,63 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe('Engineer area hub', () => {
-  it('shows four linked KPIs, refresh, and no company money data', () => {
+const timesheetCard = () => screen.getByTestId('engineer-timesheet');
+const tasksCard = () => screen.getByTestId('engineer-tasks');
+
+describe('Engineer home (one question: is my week on track?)', () => {
+  it('shows this week\'s timesheet first, then my tasks, then returned claims and recent entries; no company money', () => {
     renderDashboard();
 
-    expect(screen.getByRole('heading', { name: 'My dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Your week and what needs you')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('15.5');
-    expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Returned');
-    expect(screen.getByTestId('kpi-tasks-due')).toHaveTextContent('2');
-    expect(screen.getByTestId('kpi-expenses-returned')).toHaveTextContent('1');
-    expect(screen.getAllByRole('button', { name: /^Help:/ })).toHaveLength(4);
-    expect(screen.getByRole('link', { name: 'Open timesheets for this week' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.getByRole('link', { name: 'Open timesheet status' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks?due=week');
-    expect(screen.getByRole('link', { name: 'Open returned expense claims' })).toHaveAttribute('href', '/expenses?status=Rejected');
+    const card = timesheetCard();
+    expect(card).toHaveTextContent('15.5 h');
+    expect(card).not.toHaveTextContent('99');
+    expect(card).toHaveTextContent('Rejected');
+    expect(card).toHaveTextContent('Sent back for correction.');
+    expect(timesheetCard().compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tasksCard().compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);
   });
 
-  it('uses the current week for hours, attention panels, and a week-only basis when expected hours are unknown', () => {
+  it('draws the week as one Mon–Sun strip of hours with a dash for empty days', () => {
     renderDashboard();
-
-    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('15.5');
-    expect(screen.getByTestId('kpi-hours-week')).not.toHaveTextContent('99');
-    expect(screen.getByText('Hours by day this week')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Mon: 8 h' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Tue: 7.5 h' })).toBeInTheDocument();
-    expect(screen.getByText('This week by project')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: /Cedar Works: 15.5 h/ })).toBeInTheDocument();
-    expect(screen.getByText(/Due Fri/)).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('Week of');
-    expect(screen.getByTestId('kpi-hours-week')).not.toHaveTextContent(/expected hours/i);
-
-    fireEvent.focus(screen.getByRole('button', { name: 'Help: Hours this week' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Expected weekly hours are not provided by the timesheet data.');
-    fireEvent.blur(screen.getByRole('button', { name: 'Help: Hours this week' }));
-    fireEvent.focus(screen.getByRole('button', { name: 'Help: Timesheet status' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Status comes from this week’s timesheet. If none exists yet, it is marked Not started. Timesheets are due Friday.');
+    const strip = within(timesheetCard()).getByRole('list', { name: 'Hours by day this week' });
+    const items = within(strip).getAllByRole('listitem').map((item) => item.textContent);
+    expect(items).toEqual(['Mon8', 'Tue7.5', 'Wed—', 'Thu—', 'Fri—', 'Sat—', 'Sun—']);
   });
 
-  it('lists overdue and this-week tasks, and only the signed-in engineer’s rejected claims', () => {
-    renderDashboard();
+  it('AC-IXD-DASH-W5-C2C-D4: one filled action into the timesheet — "Submit week" once there are hours, "Log time" when there are none, none once submitted', () => {
+    state.timesheets.data = [{ ...sheets[1], status: 'Draft' }];
+    const draft = renderDashboard();
+    expect(within(timesheetCard()).getByRole('link', { name: 'Submit week' })).toHaveAttribute('href', '/timesheets');
+    draft.unmount();
 
-    expect(screen.getByRole('heading', { name: 'Overdue' })).toBeInTheDocument();
-    // N15: each task opens in its project's task drawer, not the My Tasks list.
-    expect(screen.getByRole('link', { name: /Finalize drawings/ })).toHaveAttribute('href', '/projects/p1/tasks?open=overdue');
-    expect(screen.getByRole('heading', { name: 'Due this week' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Prepare handover/ })).toHaveAttribute('href', '/projects/p1/tasks?open=due');
-    expect(screen.queryByText('Close punch list')).not.toBeInTheDocument();
-    expect(screen.queryByText('Plan next phase')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Travel receipt/ })).toHaveAttribute('href', '/expenses');
-    expect(screen.queryByText('Open draft')).not.toBeInTheDocument();
-    expect(screen.queryByText('Another person’s claim')).not.toBeInTheDocument();
-    expect(screen.queryByText('Cash advance')).not.toBeInTheDocument();
+    state.timesheets.data = [{ ...sheets[1], status: 'Draft', entries: [] }];
+    const empty = renderDashboard();
+    expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toHaveAttribute('href', '/timesheets');
+    expect(within(timesheetCard()).getByText('0 h')).toBeInTheDocument();
+    empty.unmount();
+
+    state.timesheets.data = [{ ...sheets[1], status: 'Submitted' }];
+    renderDashboard();
+    expect(within(timesheetCard()).queryByRole('link', { name: /Submit week|Log time/ })).not.toBeInTheDocument();
+    expect(within(timesheetCard()).getByRole('link', { name: 'Open timesheet' })).toHaveAttribute('href', '/timesheets');
+  });
+
+  it('lists overdue then this-week tasks (never done or later ones), each opening its project task drawer', () => {
+    renderDashboard();
+    const links = within(tasksCard()).getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/projects/'));
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/projects/p1/tasks?open=overdue', '/projects/p1/tasks?open=due']);
+    expect(within(tasksCard()).queryByText('Close punch list')).not.toBeInTheDocument();
+    expect(within(tasksCard()).queryByText('Plan next phase')).not.toBeInTheDocument();
+    expect(within(tasksCard()).getByRole('link', { name: 'All tasks' })).toHaveAttribute('href', '/my-tasks');
   });
 
   it('N15: an overdue task says how late it is in red; a task due this week says its date', () => {
     renderDashboard();
-
     const overdue = screen.getByRole('link', { name: /Finalize drawings/ });
     const late = within(overdue).getByText('3 days late');
     expect(late).toHaveClass('text-destructive-text');
@@ -189,37 +185,42 @@ describe('Engineer area hub', () => {
     expect(screen.getByRole('link', { name: /Finalize drawings/ })).toHaveAttribute('href', '/my-tasks');
   });
 
-  it('L6: the Tasks panel lists rows; the count lives in the Tasks due tile, not repeated as a doorway row', () => {
+  it('shows only the signed-in engineer\'s returned claims, and nothing at all when there are none', () => {
+    const withClaims = renderDashboard();
+    const returned = screen.getByTestId('engineer-returned');
+    expect(within(returned).getByRole('link', { name: /Travel receipt/ })).toHaveAttribute('href', '/expenses?status=Rejected');
+    expect(within(returned).queryByText('Open draft')).not.toBeInTheDocument();
+    expect(within(returned).queryByText('Another person’s claim')).not.toBeInTheDocument();
+    expect(within(returned).queryByText('Cash advance')).not.toBeInTheDocument();
+    withClaims.unmount();
+
+    state.expenses.data = { rows: [], truncated: false };
     renderDashboard();
-    const panel = screen.getByRole('heading', { name: 'Tasks', level: 2 }).closest('.panel-card') as HTMLElement;
-    expect(within(panel).queryByRole('link', { name: /tasks overdue or due this week/i })).not.toBeInTheDocument();
-    expect(screen.getByTestId('kpi-tasks-due')).toHaveTextContent('2');
-    expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks?due=week');
+    expect(screen.queryByTestId('engineer-returned')).not.toBeInTheDocument();
   });
 
-  it('opens a recent entry in Timesheets and includes its description and status', () => {
+  it('T9: shows up to 5 recent entries, opens Timesheets from one, with its description and status', () => {
     renderDashboard();
-
     expect(screen.getByRole('heading', { name: 'Recent entries' })).toBeInTheDocument();
     expect(screen.getByText('Design review')).toBeInTheDocument();
     expect(screen.queryByText('Future week')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Cedar Works').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('8 h').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Returned').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Approved').length).toBeGreaterThan(0);
-
     fireEvent.click(screen.getByRole('button', { name: /Open timesheet entry for Cedar Works: Site handover/ }));
     expect(screen.getByLabelText('Current path')).toHaveTextContent('/timesheets');
+    cleanup();
+
+    const many = Array.from({ length: 10 }, (_, index) => entry(`old-${index}`, `2026-05-${String(20 + index).padStart(2, '0')}`, 1, `Task ${index}`, 'previous'));
+    state.timesheets.data = [{ ...sheets[2], entries: many }];
+    renderDashboard();
+    expect(screen.getAllByRole('button', { name: /^Open timesheet entry for/ })).toHaveLength(5);
   });
 
-  it('refreshes the owned sources and keeps the loading and error states retryable', () => {
+  it('refreshes the owned sources, and keeps loading and error states retryable', () => {
     const refresh = renderDashboard();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(state.timesheets.refetch).toHaveBeenCalledOnce();
     expect(state.tasks.refetch).toHaveBeenCalledOnce();
     expect(state.expenses.refetch).toHaveBeenCalledOnce();
     expect(state.orgDay.retry).toHaveBeenCalledOnce();
-    expect(state.needs.refetch).toHaveBeenCalledOnce();
     refresh.unmount();
 
     state.timesheets.data = undefined;
@@ -230,7 +231,8 @@ describe('Engineer area hub', () => {
     state.expenses.isPending = true;
     const loading = renderDashboard();
     expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
-    expect(screen.queryByText('0 overdue · 0 due this week')).not.toBeInTheDocument();
+    // The way into the timesheet is there even while the data loads.
+    expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toHaveAttribute('href', '/timesheets');
     loading.unmount();
 
     state.timesheets.isPending = false;
@@ -243,183 +245,52 @@ describe('Engineer area hub', () => {
     state.orgDay.isError = true;
     renderDashboard();
     expect(screen.getAllByRole('button', { name: /Retry|Try again/ }).length).toBeGreaterThan(0);
+    expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toHaveAttribute('href', '/timesheets');
   });
 
-  it('shows a genuine zero and a Timesheets link when no hours are logged this week', () => {
+  it('shows a genuine zero, not a dash, when no hours are logged; and no week figure when the source is unavailable', () => {
     state.timesheets.data = [{ ...sheets[1], entries: [] }];
-    state.tasks.data = [];
-    state.expenses.data = { rows: [], truncated: false };
-    state.needs.items = [];
-    renderDashboard();
+    const zero = renderDashboard();
+    expect(timesheetCard()).toHaveTextContent('0 h');
+    zero.unmount();
 
-    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('0');
-    // N18 / L6: no hours is ONE line with its doorway, not an empty chart plus a repeated sentence.
-    expect(screen.getAllByText('No hours this week')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Log hours' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.queryByRole('group', { name: 'Hours by day this week' })).not.toBeInTheDocument();
+    state.timesheets.data = undefined;
+    renderDashboard();
+    expect(timesheetCard()).not.toHaveTextContent('0 h');
     expect(screen.queryByText('Mon')).not.toBeInTheDocument();
-    expect(screen.queryByText('No hours logged this week')).not.toBeInTheDocument();
   });
 
-  it('keeps Recent entries table content inside the area panel without a second frame', () => {
-    renderDashboard();
-    const heading = screen.getByRole('heading', { name: 'Recent entries' });
-    const panel = heading.closest('.panel-card');
-    expect(panel).not.toBeNull();
-    expect(panel?.querySelector('.rounded-b-lg.border')).toBeNull();
-  });
-
-  it('shows Not started and Friday due date when this week has no timesheet', () => {
+  it('with no timesheet this week there is no status pill and the action is Log time', () => {
     state.timesheets.data = sheets.filter((sheet) => sheet.week_start_date !== '2026-06-01');
     renderDashboard();
-
-    const timesheet = screen.getByTestId('kpi-timesheet-status');
-    expect(timesheet).toHaveTextContent('Not started');
-    expect(timesheet).toHaveTextContent('Due Fri');
-    expect(timesheet).not.toHaveTextContent('—');
-    expect(screen.getByRole('link', { name: 'Open timesheet status' })).toHaveAttribute('href', '/timesheets');
+    expect(timesheetCard()).not.toHaveTextContent('Rejected');
+    expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toBeInTheDocument();
   });
 
-  it('shows unknown values when a source has no loaded data', () => {
-    state.timesheets.data = undefined;
-    state.timesheets.isPending = false;
-    state.tasks.data = undefined;
-    state.tasks.isPending = false;
-    state.expenses.data = undefined;
-    state.expenses.isPending = false;
-    renderDashboard();
-
-    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('—');
-    expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('—');
-    expect(screen.getByTestId('kpi-tasks-due')).toHaveTextContent('—');
-    expect(screen.getByTestId('kpi-expenses-returned')).toHaveTextContent('—');
-    expect(screen.queryByRole('heading', { name: 'Overdue' })).not.toBeInTheDocument();
-  });
-
-  it('localizes Engineer labels and empty copy in Indonesian', () => {
-    state.timesheets.data = [{ ...sheets[1], entries: [] }];
+  it('AC-UXA-002: localizes the title, cards, week strip, statuses and actions while retaining data', () => {
     renderDashboard('id');
-
-    expect(screen.getByRole('heading', { name: 'Dasbor saya' })).toBeInTheDocument();
-    expect(screen.getByText('Minggu Anda dan hal yang perlu diperhatikan')).toBeInTheDocument();
-    expect(screen.getAllByText('Belum ada jam minggu ini').length).toBeGreaterThan(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Ported from the pre-restructure EngineerDashboard.test.tsx (baseline fa511c382): Bahasa, per-project
-// bars, the recent-entries cap, the single Log-hours CTA, a11y-labelled breakdowns and neutral data bars.
-// ---------------------------------------------------------------------------
-
-describe('Engineer area hub — ported baseline cases', () => {
-  it('AC-UXA-002: localizes the week, status, day summaries and actions while retaining data', () => {
-    renderDashboard('id');
-    expect(screen.getByRole('heading', { name: 'Dasbor saya' })).toBeInTheDocument();
-    const hours = screen.getByTestId('kpi-hours-week');
-    expect(hours).toHaveTextContent('Jam minggu ini');
-    expect(hours).toHaveTextContent('15.5');
-    fireEvent.focus(screen.getByRole('button', { name: 'Bantuan: Jam minggu ini' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Jam kerja adalah jumlah entri timesheet Anda untuk minggu ini.');
-    expect(screen.getByRole('link', { name: 'Buka Timesheets minggu ini' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Dikembalikan');
-    expect(screen.getByRole('group', { name: 'Jam kerja per hari minggu ini' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Minggu ini berdasarkan proyek' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Dasbor saya' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lembar waktu minggu ini' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tugas saya' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Dikembalikan ke saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Entri terbaru' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Sen: 8 jam' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: /Cedar Works: 15.5 jam/ })).toBeInTheDocument();
+    expect(timesheetCard()).toHaveTextContent('Ditolak');
+    expect(within(timesheetCard()).getByRole('list', { name: 'Jam per hari minggu ini' })).toHaveTextContent('Sen8');
     // Data is translated for display only.
     expect(sheets[1].entries[0].hours).toBe(8);
     expect(sheets[1].status).toBe('Rejected');
 
-    cleanup();
-    const days = ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-06', '2026-06-07'];
-    state.timesheets.data = [{ ...sheets[1], entries: days.map((entryDate, index) => entry(`day-${index}`, entryDate, index + 1, null)) }];
-    renderDashboard('id');
-    for (const [name, value] of [['Sen', 1], ['Sel', 2], ['Rab', 3], ['Kam', 4], ['Jum', 5], ['Sab', 6], ['Min', 7]] as const) {
-      expect(screen.getByRole('progressbar', { name: `${name}: ${value} jam` })).toBeInTheDocument();
-    }
-
-    for (const [status, label] of [['Draft', 'Draf'], ['Submitted', 'Dikirim'], ['Approved', 'Disetujui']] as const) {
+    for (const [status, label] of [['Draft', 'Draf'], ['Submitted', 'Diajukan'], ['Approved', 'Disetujui']] as const) {
       cleanup();
       state.timesheets.data = [{ ...sheets[1], status }];
       renderDashboard('id');
-      expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent(label);
+      expect(timesheetCard()).toHaveTextContent(label);
     }
 
     cleanup();
-    state.timesheets.data = undefined;
-    state.timesheets.isPending = true;
-    renderDashboard('id');
-    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThanOrEqual(3);
-    expect(screen.getAllByText('Memuat…').length).toBeGreaterThanOrEqual(1);
-
-    cleanup();
-    state.timesheets.isPending = false;
-    state.timesheets.isError = true;
-    renderDashboard('id');
-    expect(screen.getAllByText('Tidak dapat memuat timesheet Anda').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: 'Coba lagi' }).length).toBeGreaterThan(0);
-
-    cleanup();
-    state.timesheets.isError = false;
     state.timesheets.data = [];
     renderDashboard('id');
-    expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Belum dimulai');
-    expect(screen.getByTestId('kpi-timesheet-status')).not.toHaveTextContent('—');
-    expect(screen.getAllByText('Belum ada jam minggu ini').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Catat jam' })).toHaveAttribute('href', '/timesheets');
+    expect(within(timesheetCard()).getByRole('link', { name: 'Catat waktu' })).toHaveAttribute('href', '/timesheets');
     expect(screen.getByText('Belum ada entri waktu terbaru')).toBeInTheDocument();
-  });
-
-  it('T7: renders a "This week by project" group with one hours bar per distinct project, named', () => {
-    state.timesheets.data = [{
-      ...sheets[1],
-      entries: [
-        ...sheets[1].entries,
-        { ...entry('e3', '2026-06-03', 2, 'Survey'), project_id: 'p2', project: { name: 'Birch Plant', code: 'PRJ-2' } },
-      ],
-    }];
-    renderDashboard();
-    const group = screen.getByRole('group', { name: 'This week by project' });
-    expect(within(group).getAllByRole('progressbar')).toHaveLength(2);
-    expect(within(group).getByRole('progressbar', { name: /Cedar Works: 15.5 h/ })).toBeInTheDocument();
-    expect(within(group).getByRole('progressbar', { name: /Birch Plant: 2 h/ })).toBeInTheDocument();
-  });
-
-  it('T9: shows up to 8 recent entries under the "Recent entries" heading', () => {
-    const many = Array.from({ length: 10 }, (_, index) => entry(`old-${index}`, `2026-05-${String(20 + index).padStart(2, '0')}`, 1, `Task ${index}`, 'previous'));
-    state.timesheets.data = [{ ...sheets[2], entries: many }];
-    renderDashboard();
-    expect(screen.getByRole('heading', { name: 'Recent entries' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^Open timesheet entry for/ })).toHaveLength(8);
-  });
-
-  it('T10: with no entries the page offers one Log-hours action — the empty Recent entries adds no competing CTA', () => {
-    state.timesheets.data = [];
-    state.needs.items = [];
-    renderDashboard();
-    expect(screen.getByText('No recent time entries')).toBeInTheDocument();
-    const logHours = [
-      ...screen.queryAllByRole('link', { name: /log hours/i }),
-      ...screen.queryAllByRole('button', { name: /log hours/i }),
-    ];
-    expect(logHours).toHaveLength(1);
-    expect(logHours[0]).toHaveAttribute('href', '/timesheets');
-  });
-
-  it('renders the weekly-hours breakdown labelled for a11y, and no tasks coming-soon placeholder', () => {
-    renderDashboard();
-    expect(screen.getByRole('group', { name: 'Hours by day this week' })).toBeInTheDocument();
-    expect(screen.queryByText(/Task tracking is coming soon/i)).not.toBeInTheDocument();
-  });
-
-  it('M-1: hours bars stay neutral data bars, not blue action bars', () => {
-    renderDashboard();
-    const dayFill = screen.getByRole('progressbar', { name: 'Mon: 8 h' }).querySelector('span') as HTMLElement;
-    expect(dayFill.className).toContain('bg-muted-foreground');
-    expect(dayFill.className).not.toContain('bg-primary');
-    const projectFill = screen.getByRole('progressbar', { name: /Cedar Works: 15.5 h/ }).querySelector('span') as HTMLElement;
-    expect(projectFill.className).toContain('bg-muted-foreground');
-    expect(projectFill.className).not.toContain('bg-primary');
   });
 });
