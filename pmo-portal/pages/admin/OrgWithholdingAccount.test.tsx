@@ -113,8 +113,9 @@ it('AC-S11-002: a saved value missing from the catalogue stays visible until an 
   expect(field).toHaveTextContent('Legacy Account - DEMO');
   expect(screen.getByRole('button', { name: 'Save account' })).toBeDisabled();
   await user.click(field);
+  const replacement = await screen.findByRole('option', { name: /Tax Prepaid - DEMO/ });
   expect(screen.queryByRole('option', { name: /Legacy Account - DEMO/ })).not.toBeInTheDocument();
-  await user.click(screen.getByRole('option', { name: /Tax Prepaid - DEMO/ }));
+  await user.click(replacement);
   expect(h.set).not.toHaveBeenCalled();
 
   await user.click(screen.getByRole('button', { name: 'Save account' }));

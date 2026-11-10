@@ -1,6 +1,6 @@
 import React from 'react';
 import type { TFunction } from 'i18next';
-import { Tooltip, StatusPill } from '@/src/components/ui';
+import { Avatar, Tooltip, StatusPill } from '@/src/components/ui';
 import { formatDateOnly } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
@@ -29,10 +29,6 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
     const name = ownerId ? profileNames.get(ownerId)?.trim() : '';
     return name || (ownerId && ownerId === currentUserId ? t('project:projectDetail.documents.owner.you', 'You') : '');
   };
-  const ownerInitials = (label: string) => {
-    const words = label.split(/\s+/).filter(Boolean);
-    return words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase() : (words[0]?.slice(0, 2) ?? '?').toUpperCase();
-  };
   const sourceName = (doc: ProjectDocumentRow) =>
     doc.source === 'onedrive'
       ? t('project:projectDetail.documents.source.sharePoint', 'SharePoint')
@@ -58,9 +54,7 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
         content={t('project:projectDetail.documents.tooltip.owner', 'Document author from the organization profile.')}
       >
         <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-foreground" aria-label={label}>
-          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
-            {ownerInitials(label)}
-          </span>
+          <Avatar name={label} decorative />
           <span className="truncate">{label}</span>
         </span>
       </Tooltip>
@@ -94,5 +88,5 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
     Superseded: t('project:projectDetail.documents.action.close', 'Close'),
   };
 
-  return { ownerLabel, ownerInitials, sourceName, sourceCell, ownerCell, statusCell, documentDateCell, documentHasFile, statusLabels, fileCell };
+  return { ownerLabel, sourceName, sourceCell, ownerCell, statusCell, documentDateCell, documentHasFile, statusLabels, fileCell };
 }

@@ -262,8 +262,7 @@
     "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia."
   },
   "toast": {
-    "dismiss": "Tutup notifikasi",
-    "more": "+{{count}} lainnya"
+    "dismiss": "Tutup notifikasi"
   },
   "efaktur": {
     "title": "Catat detail e-Faktur",
@@ -893,6 +892,7 @@
       "retry": "Coba lagi"
     },
     "listLabel": "{{noun}}",
+    "moreHidden": "Ketik untuk mempersempit ({{count}} lagi)",
     "empty": {
       "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\".",
       "bare": "Tidak ada {{noun}} yang cocok."
@@ -3308,6 +3308,7 @@
         "referenceLabel": "Referensi: {{reference}}",
         "salesInvoice": "Faktur penjualan"
       },
+      "askAiRow": "Tanya AI: \"{{query}}\"",
       "askAiSub": "Buka asisten dengan draf ini",
       "dialogLabel": "Palet perintah",
       "inputLabel": "Cari proyek, data, atau jalankan perintah",
@@ -3325,6 +3326,8 @@
       "recordIncident": "Insiden",
       "noResults": "Tidak ada hasil untuk “{{query}}”",
       "moreResults": "+{{count}} lainnya: persempit pencarian",
+      "resultCount_one": "{{count}} hasil",
+      "resultCount_other": "{{count}} hasil",
       "resultsLabel": "Hasil perintah",
       "retry": "Coba lagi"
     },

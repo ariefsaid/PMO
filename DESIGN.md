@@ -90,7 +90,7 @@ motion:
   dialog: "150ms in / 120ms out"
   sheet: "220ms in / 176ms out"
   drawer: "200ms in / 160ms out"
-  toast: "200ms in / 160ms out"
+  toast: "library-owned (Sonner); reduced-motion off"
   menu-in: "120ms (grows from its trigger)"
   icon-swap: "180ms crossfade, scale 0.25 + blur 4px"
   save-pulse: "450ms"
@@ -420,13 +420,19 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
     token; AC-A11Y-FIELD-001 binds it to the component and proves AA contrast on background/popover.
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
-- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary` for info, `success` for ok,
-  `warning` for warning, `destructive` for error), bottom-right, slide-in (`.toast-anim`).
-  **Toast timing (DD-TOAST-1):** warning and error messages persist until dismissed because they
-  carry remedies. Info and success auto-dismiss after `max(4s, 60ms × displayed characters)`, capped
-  at 10s. Hover or keyboard focus pauses that timer. Every toast has a visible, keyboard-reachable
-  dismiss control. The provider mounts its polite `role="status"` and assertive `role="alert"` live
-  regions once, empty, then inserts each announcement into the existing region.
+- **Toast:** the library owns behaviour — Sonner stacks, swipes away, pauses on hover/focus, expands
+  via the alt+T hotkey, and turns off under reduced motion. Look is DESIGN.md tokens only: `popover`-
+  tier surface (`bg-card`, `border-border`, `rounded-overlay`, `--shadow-lg`), `text-control` type,
+  kind shown by the icon tone (`success`/`warning-foreground`/`destructive`, muted for info); a
+  success toast keeps the one `save-pulse` ring. Bottom-right (20px offsets), clearing the mobile
+  action bar.
+  **Toast timing (DD-TOAST-1):** warning and error messages persist until dismissed (duration
+  ∞) because they carry remedies; info and success auto-dismiss after `max(4s, 60ms × characters)`,
+  capped at 10s, paused by hover (keyboard users reach the close control within the lifetime; alt+T lifts
+  the stack). Every toast carries a visible, keyboard-reachable close control
+  (`toast.dismiss` label). The provider mounts its polite `role="status"` and assertive
+  `role="alert"` live regions once, empty, then mirrors the newest routine and newest urgent
+  notice into them (each region keeps its slot while a notice of that severity remains).
 - **Persistent toast + blocking dialog:** when a modal opens, keep persistent warning/error toasts
   visible but move them to the safe top edge; never dismiss a remedy or cover the modal's actions.
   Confirmations with context-dependent decisions restate the current record identity and caller-supplied,

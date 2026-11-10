@@ -6,7 +6,7 @@
  * (`listUnreadCount`/`listNotifications`/`markNotificationRead`) — no DB access in this test.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -144,6 +144,22 @@ describe('NotificationBell', () => {
     const bell = await screen.findByRole('button', { name: /notifications/i });
     await userEvent.click(bell);
     expect(await screen.findByText(/no notifications/i)).toBeInTheDocument();
+  });
+
+  it('#2122 a keyboard-opened inbox appears instantly; a pointer-open keeps the pop', async () => {
+    listUnreadCount.mockResolvedValue(0);
+    listNotifications.mockResolvedValue([]);
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+
+    fireEvent.click(bell, { detail: 0 });
+    const keyboardPopup = (await screen.findByText(/no notifications/i)).closest('.menu-pop-anim');
+    expect(keyboardPopup).toHaveAttribute('data-instant');
+
+    fireEvent.click(bell, { detail: 1 }); // close
+    fireEvent.click(bell, { detail: 1 }); // reopen with a pointer
+    const pointerPopup = (await screen.findByText(/no notifications/i)).closest('.menu-pop-anim');
+    expect(pointerPopup).not.toHaveAttribute('data-instant');
   });
 
   it('error state: a failed inbox load shows an error message, not a crash', async () => {

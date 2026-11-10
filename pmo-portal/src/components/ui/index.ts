@@ -7,6 +7,7 @@ export { chartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
 export { buttonClasses } from './buttonClasses';
+export { Avatar, type AvatarProps, type AvatarSize } from './Avatar';
 export { Checkbox, type CheckboxProps } from './Checkbox';
 export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
@@ -30,8 +31,8 @@ export { ViewToggle, type ViewOption, type ViewToggleProps } from './ViewToggle'
 export { ProgressBar, type ProgressBarProps, type ProgressTone } from './ProgressBar';
 export { ListState, type ListStateProps } from './ListState';
 export { WhenNearViewport, type WhenNearViewportProps } from './WhenNearViewport';
-export { Tooltip, type TooltipProps } from './Tooltip';
-export { ToastProvider, ToastView, useToast, type ToastKind } from './Toast';
+export { Tooltip, TOOLTIP_OPEN_DELAY_MS, type TooltipProps } from './Tooltip';
+export { ToastProvider, useToast, type ToastKind } from './Toast';
 export {
   ConfirmDialog,
   type ConfirmDialogProps,

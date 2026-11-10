@@ -21,7 +21,7 @@ export const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId
   const primary = data[0];
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+      <dt className="text-[11px] font-semibold text-muted-foreground">
         {t('companyDetail.field.primaryContact', 'Primary contact')}
       </dt>
       <dd className="text-[13.5px] text-foreground">

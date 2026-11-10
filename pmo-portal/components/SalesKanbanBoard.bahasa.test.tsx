@@ -39,9 +39,9 @@ describe('SalesKanbanBoard in Bahasa (#693 F-2)', () => {
     expect(screen.getByRole('button', { name: 'Prospek' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pra-kualifikasi' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Leads' })).toBeNull();
-    // the card's pill names the STATUS in full, in Bahasa
+    // a single-stage column does not repeat its stage on the card, and no English enum leaks onto it
     const card = screen.getByTestId('project-card');
-    expect(within(card).getByText('Penawaran diajukan')).toBeInTheDocument();
+    expect(within(card).queryByText('Penawaran diajukan')).toBeNull();
     expect(within(card).queryByText('Quotation Submitted')).toBeNull();
   });
 

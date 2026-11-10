@@ -175,7 +175,7 @@ beforeEach(() => {
 const headerActions = () => within(screen.getByTestId('record-header-actions'));
 async function recordFromMenu(name: string) {
   await userEvent.click(headerActions().getByRole('button', { name: 'Record another document' }));
-  await userEvent.click(headerActions().getByRole('menuitem', { name }));
+  await userEvent.click(await screen.findByRole('menuitem', { name }));
 }
 
 describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons', () => {
@@ -193,9 +193,10 @@ describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons'
     detailState.data = { ...base, status };
     renderPage();
     const trigger = headerActions().queryByRole('button', { name: 'Record another document' });
-    if (trigger) await userEvent.click(trigger);
+    if (trigger) { await userEvent.click(trigger); await screen.findByRole('menu'); }
     for (const name of ['Purchase request', 'Quote request', 'Purchase order', 'Receipt', 'Supplier invoice', 'Payment']) {
-      expect(screen.queryByRole('menuitem', { name })).toBeNull();
+      await screen.findByRole('menu');
+    expect(screen.queryByRole('menuitem', { name })).toBeNull();
     }
   });
 
@@ -231,8 +232,9 @@ describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons'
     detailState.data = { ...base, status: 'Vendor Invoiced', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record another document' }));
-    expect(headerActions().queryByRole('menuitem', { name: 'Receipt' })).toBeNull();
-    await userEvent.click(headerActions().getByRole('menuitem', { name: 'Supplier invoice' }));
+    await screen.findByRole('menu');
+    expect(screen.queryByRole('menuitem', { name: 'Receipt' })).toBeNull();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Supplier invoice' }));
     expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
     expect(screen.queryByTestId('form-create-gr')).toBeNull();
   });

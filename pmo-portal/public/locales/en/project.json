@@ -583,6 +583,8 @@
       "contractValueReadOnlyExplanation": "The approved contract value is locked for project managers after the project is won. An executive, Finance, or an administrator can update it, with the change recorded.",
       "changeDeliveryStatus": "Change delivery status",
       "copyLink": "Copy link",
+        "previewFileFor": "Preview file for {{title}}",
+        "previewFile": "Preview file",
       "changeContractValue": "Change contract value"
     },
     "rail": {
@@ -763,8 +765,7 @@
         "preview": "Preview",
         "download": "Download",
         "copyLink": "Copy link",
-        "openSharePoint": "Open in SharePoint",
-        "closePreview": "Close preview"
+        "openSharePoint": "Open in SharePoint"
       },
       "bulk": {
         "statusUpdated": "Status updated for {{count}} documents",
@@ -846,6 +847,7 @@
         "progress": "Progress"
       },
       "noTaskProgress": "Task-level progress is not stored. Phase progress is calculated from the phase task statuses or its manual override.",
+      "moveTo": "Move to {{status}}",
       "moreOptions": "More task options",
       "clickUpSettings": "ClickUp list and sync",
       "scope": {

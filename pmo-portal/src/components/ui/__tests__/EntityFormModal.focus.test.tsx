@@ -134,6 +134,7 @@ describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1
     const onClose = vi.fn();
     render(<Harness onClose={onClose} />);
     await flushMount();
+    await waitFor(() => expect(screen.getByLabelText(/^Full name/)).toHaveFocus());
     const name = screen.getByLabelText(/^Full name/);
     const company = screen.getByLabelText(/^Company/);
     expect(name).toHaveFocus();
@@ -165,6 +166,7 @@ describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1
     const user = userEvent.setup();
     render(<Harness />);
     await flushMount();
+    await waitFor(() => expect(screen.getByLabelText(/^Full name/)).toHaveFocus());
 
     const name = screen.getByLabelText(/^Full name/);
     const company = screen.getByLabelText(/^Company/);
@@ -179,6 +181,7 @@ describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1
     const user = userEvent.setup();
     render(<Harness />);
     await flushMount();
+    await waitFor(() => expect(screen.getByLabelText(/^Full name/)).toHaveFocus());
 
     await user.tab(); // name → company (company_id is required + empty → its error surfaces too)
     await user.tab(); // company → title
@@ -189,6 +192,7 @@ describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1
     const user = userEvent.setup();
     render(<Harness />);
     await flushMount();
+    await waitFor(() => expect(screen.getByLabelText(/^Full name/)).toHaveFocus());
 
     const name = screen.getByLabelText(/^Full name/);
     await user.tab({ shift: true });
@@ -200,6 +204,7 @@ describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1
     const user = userEvent.setup();
     render(<Harness />);
     await flushMount();
+    await waitFor(() => expect(screen.getByLabelText(/^Full name/)).toHaveFocus());
 
     // Leave both required fields empty and submit via the footer button.
     await user.click(screen.getByRole('button', { name: 'Create contact' }));

@@ -166,7 +166,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
     expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('90,000');
     await userEvent.hover(stillToInvoice);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
+    // #2123: hover intent is a deliberate 400ms step (600ms without a provider in tests), so the
+    // journey waits for the tooltip; the goal assertion is unchanged.
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
   });
 
   it('AC-CQ-020 Finance can read a closed work order’s closing value on its row', () => {

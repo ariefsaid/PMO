@@ -1,3 +1,4 @@
+import { Avatar } from './Avatar';
 import React from 'react';
 import { cn } from './cn';
 
@@ -20,7 +21,7 @@ export interface ApprovalRowProps {
    * in the unified shell without being tied to the timesheet format.
    */
   subtitle?: React.ReactNode;
-  /** Legacy request-layout hint; identity text wraps in every layout. */
+  /** Request titles wrap ahead of status/meta; omitted keeps existing timesheet/invoice anatomy. */
   identityLayout?: 'request';
   /** Status pill node. */
   status?: React.ReactNode;
@@ -76,7 +77,6 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
   className,
   onActivate,
 }) => {
-  const initial = (name.trim().charAt(0) || '?').toUpperCase();
   const subtitleNode = subtitle ?? (
     <span>
       {week} · <span className="tabular">{hours !== undefined ? hours.toFixed(1) : '0.0'}</span> h
@@ -109,16 +109,11 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
       )}
     >
       {disclosure}
-      <span
-        aria-hidden="true"
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-control font-bold text-muted-foreground"
-      >
-        {initial}
-      </span>
+      <Avatar name={name} size="lg" decorative />
       <div className="min-w-0 flex-1">
-        <div className="break-words text-sm font-medium" title={name}>{name}</div>
+        <div className="break-words text-control font-medium" title={name}>{name}</div>
         {identityLayout === 'request' && status && <div className="mt-1">{status}</div>}
-        <div className={cn('text-control text-muted-foreground', identityLayout === 'request' && 'mt-1')}>
+        <div className={cn('break-words text-control text-muted-foreground', identityLayout === 'request' && 'mt-1')}>
           {subtitleNode}
         </div>
       </div>

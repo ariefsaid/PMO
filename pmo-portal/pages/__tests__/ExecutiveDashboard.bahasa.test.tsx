@@ -39,7 +39,8 @@ describe('AC-UXA-003 redesigned company dashboard Bahasa coverage', () => {
 
     expect(screen.getByRole('button', { name: 'Menurut jumlah' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '12 bulan terakhir' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Nilai pipeline tertimbang per tahap' })).toBeInTheDocument();
+    const stage = screen.getByRole('button', { name: /Prospek/ });
+    expect(stage).toHaveTextContent(/tertimbang/);
     const chart = render(
       <BahasaProvider locale="id">
         <MemoryRouter><ProjectedMarginBars stages={[{ status: 'Leads', count: 1, total_value: 1_000, win_probability: 0.5, weighted_value: 500 }]} currency="USD" /></MemoryRouter>

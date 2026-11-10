@@ -125,7 +125,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           </button>
         )}
         {legal && <span id={legalId} className="sr-only">{legal}</span>}
-        {isKanban && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
+        {isKanban && status && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
         {isKanban ? (
           // Board: values only, one line — the labelled identities stay in the card's accessible name.
           <div className="mt-1 flex min-w-0 items-baseline gap-1 text-[12px] text-muted-foreground">

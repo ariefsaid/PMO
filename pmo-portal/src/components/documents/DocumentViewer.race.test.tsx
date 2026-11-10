@@ -65,7 +65,8 @@ describe('document-preview AC-006 the viewer state machine', () => {
     const b = target({ key: 'b', name: 'B.png', result: { mode: 'image', url: 'https://signed.test/b.png' } });
     renderViewer(<Harness targets={[a, b]} />);
     await userEvent.click(screen.getByRole('button', { name: 'Preview A.png' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Preview B.png' }));
+    // The panel is modal, so the opener behind it is out of the a11y tree; reach it by text as a programmatic re-open.
+    await userEvent.click(screen.getByText('Preview B.png'));
     expect(await screen.findByRole('img', { name: 'B.png' })).toBeInTheDocument();
     expect(firstSignal.aborted).toBe(true);
     await act(async () => { first.resolve({ mode: 'image', url: 'https://signed.test/a.png' }); });
@@ -79,7 +80,8 @@ describe('document-preview AC-006 the viewer state machine', () => {
     const b = target({ key: 'b', name: 'B.png' });
     renderViewer(<Harness targets={[a, b]} />);
     await userEvent.click(screen.getByRole('button', { name: 'Preview A.png' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Preview B.png' }));
+    // The panel is modal, so the opener behind it is out of the a11y tree; reach it by text as a programmatic re-open.
+    await userEvent.click(screen.getByText('Preview B.png'));
     await screen.findByRole('img', { name: 'B.png' });
     await act(async () => { first.reject(new PreviewFailure('access_denied')); });
     expect(screen.getByRole('img', { name: 'B.png' })).toBeInTheDocument();

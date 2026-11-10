@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -65,7 +65,7 @@ beforeEach(() => {
 
 const rowOpenStillWorks = async () => {
   await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-  expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
+  expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
   expect(h.unlink).not.toHaveBeenCalled();
 };
 
@@ -86,7 +86,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     h.getItem.mockRejectedValue(Object.assign(new Error('synthetic-raw-secret token=abc'), { code: 'GRAPH_ERROR' }));
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision from updated file' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New revision from updated file' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/synthetic-raw-secret/)).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /New revision/ })).not.toBeInTheDocument();
@@ -98,10 +98,12 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     h.getItem.mockRejectedValue(new TypeError('Failed to fetch'));
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision from updated file' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New revision from updated file' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    expect(within(screen.getByRole('complementary')).getByText(/Checked/)).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText(/Checked/)).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await rowOpenStillWorks();
   });
 
@@ -109,7 +111,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     h.getItem.mockResolvedValue({ drive_id: 'd', item_id: 'i', web_url: 'https://contoso.sharepoint.com/x', name: 'Folder', item_kind: 'folder' });
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision from updated file' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New revision from updated file' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
     expect(h.createRevision).not.toHaveBeenCalled();
   });

@@ -13,6 +13,19 @@ Render and look. Start the app (`npm run dev` from `pmo-portal/`), drive a real 
 - **`agent-browser` CLI (substrate-agnostic — works from Bash, so this is the path when dispatched to pi):** run `agent-browser skills get core --full` first for the snapshot-and-ref workflow, then `open` / `snapshot -i` / `screenshot <path>` / interact. For a structured exploratory pass, `agent-browser skills get dogfood`. Resize for breakpoints via the core skill's viewport commands. Save screenshots to a known path so the Director (or a vision-capable model) judges the visual/taste lens (a) from the files — text models verify the a11y-tree/DOM lenses (b)/(c) directly.
 - **Browser/preview MCP** (Claude sessions only): `mcp__Claude_Preview__preview_*` / `mcp__playwright__browser_*`.
 
+## Look the way a person looks (before any lens)
+Reviews here have passed screens where most text rendered below 14px and every tile carried a footnote.
+1. Judge from screenshots at actual size (device scale 1): crop regions and view them at 100%. A full
+   page shrunk to fit is not evidence of what a person can see.
+2. First glance, before reading: write what you noticed first, second and third, and what the screen is
+   for. Then view it at 25% and note what still stands out. If the first thing is not what waits on the
+   person, that is the first finding.
+3. Read the numbers `scripts/ux-proof.sh` prints for the route (smallest text, share under 14px, word
+   count against the budget). A failing number is a Critical issue, whatever the screen looks like.
+4. Count what the change REMOVED from the screen (words, tiles, icons, columns). A change that only adds
+   is sent back unless the plan says why.
+5. Check the screen against `docs/ux/screen-rules.md`.
+
 ## The four-lens battery (run all four, explicitly directed, on every UI review)
 
 Run all four lenses on **both** rounds (mockup round 1 §1a + built-UI round 2 §2.3). A single generic "UX review" prompt reliably hits only Lens A and misses the rest — direct each lens explicitly.

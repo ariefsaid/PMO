@@ -125,7 +125,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(within(dialog).getByText('Pilih akun ERP tujuan pengiriman kategori ini')).toBeInTheDocument();
     expect(within(dialog).getByRole('combobox', { name: /Akun ERP/ })).toHaveTextContent('mis. 5100 - Biaya Langsung');
     await userEvent.click(within(dialog).getByRole('combobox', { name: /Akun ERP/ }));
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await userEvent.type(search, '5100 - Direct Costs');
     expect(screen.queryByRole('option', { name: /5100 - Direct Costs/i })).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Simpan pemetaan' })).toBeDisabled();

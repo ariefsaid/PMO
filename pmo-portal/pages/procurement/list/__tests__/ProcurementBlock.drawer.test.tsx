@@ -95,7 +95,7 @@ describe('Procurement drawer header (B4)', () => {
   it('QM-9 removes the duplicate Next action row-menu item', async () => {
     renderBlock('/procurement');
     await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
-    expect(screen.getByRole('menuitem', { name: 'Open procurement' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Open procurement' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Next action' })).not.toBeInTheDocument();
   });
 
@@ -131,7 +131,7 @@ describe('Procurement drawer header (B4)', () => {
     procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
     renderBlock('/procurement');
     await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Return' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Return' }));
     const confirm = await screen.findByRole('dialog', { name: 'Return this procurement?' });
     const send = within(confirm).getByRole('button', { name: 'Return' });
     expect(send).toBeDisabled();

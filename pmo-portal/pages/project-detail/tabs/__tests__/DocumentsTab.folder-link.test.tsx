@@ -95,7 +95,7 @@ describe('DocumentsTab — linking a SharePoint folder (#1320 AC-1)', () => {
     h.docs.data = [makeLinkedDoc({ title: 'Site folder', category: 'Reference', ms_item_kind: 'folder', ms_web_url: FOLDER.web_url })];
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Site folder' }));
-    const drawer = screen.getByRole('complementary');
+    const drawer = screen.getByRole('dialog');
     expect(within(drawer).queryByText('Draft')).not.toBeInTheDocument();
     for (const label of ['Status', 'Category', 'Code', 'Revision']) {
       expect(within(drawer).queryByText(label)).not.toBeInTheDocument();

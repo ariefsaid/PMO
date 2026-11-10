@@ -241,7 +241,7 @@ const MyTasks: React.FC = () => {
         <div className="space-y-6">
           {grouped.map((group) => (
             <section key={group.projectId} aria-label={group.projectName}>
-              <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              <h2 className="mb-2 text-[13px] font-semibold text-muted-foreground">
                 {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
                     explicitly (/projects/:id/tasks) — the project URL default is role-invariant
                     Overview, so this link carries the intent rather than mutating the default. */}

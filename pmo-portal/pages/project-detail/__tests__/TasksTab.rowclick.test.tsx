@@ -120,8 +120,8 @@ describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => 
     expect(within(dialog).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/projects/p1/tasks#task-t1');
     // Rare actions sit in the drawer header's ⋯ menu, like every record drawer.
     await userEvent.click(within(dialog).getByRole('button', { name: 'More task actions' }));
-    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-TASKROW: the drawer Edit action opens the edit form pre-filled with that task', async () => {
@@ -164,7 +164,7 @@ describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => 
     renderTab('Admin');
     const row = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /delete/i }));
     // A destructive confirm appears, not the edit dialog.
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Survey the site' })).not.toBeInTheDocument();

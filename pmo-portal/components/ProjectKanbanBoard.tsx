@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 /**
  * ProjectKanbanBoard — Projects index kanban view grouped by lifecycle status.
@@ -145,12 +146,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       foot={
         <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
           {project.project_manager_id != null && (
-            <span
-              aria-hidden
-              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
-            >
-              {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
-            </span>
+            <Avatar name={pmLabel} size="xs" decorative />
           )}
           <span className={project.project_manager_id == null ? undefined : 'max-w-[14ch] truncate'}>{pmLabel}</span>
         </span>

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { Dialog } from '@base-ui/react/dialog';
 import { Button, DataTable, Icon, StatusPill, type Column, type StatusVariant } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
+import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components/ui/OverlaySurface';
 import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import type { ImportDescriptor, ImportField } from '@/src/lib/import';
 import { MAX_IMPORT_ROWS } from '@/src/lib/import';
@@ -10,9 +11,9 @@ import { useImportWizard, type WizardStep } from './useImportWizard';
 
 /**
  * ImportWizard (ADR-0027) — a dedicated multi-step dialog: upload → mapping → preview
- * (dry-run, ZERO writes) → committing → result. Built as its own portal + focus-trap shell
+ * (dry-run, ZERO writes) → committing → result. Built on Base UI Dialog (library owns portal, focus trap, Esc, scrim)
  * (NOT EntityFormModal): the wizard needs a per-step footer + a wide body, which fights
- * EntityFormModal's single-`<form>`-submit contract. It reuses the SAME token shell
+ * EntityFormModal's single-`<form>`-submit contract. Same token shell
  * (rounded-lg border bg-popover, the Overlay shadow, the desaturated scrim) + the same
  * focus-trap/ESC posture, so the app's dialog conventions hold (documented in the test).
  *
@@ -48,10 +49,8 @@ export interface ImportWizardProps<Input> {
 
 export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<Input>) {
   const wiz = useImportWizard(descriptor);
-  const titleId = useId();
   const subId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
 
   // A close from result after a successful import refetches the parent list.
   const requestClose = useCallback(() => {
@@ -59,154 +58,125 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
     onClose((wiz.result?.created ?? 0) > 0);
   }, [wiz.step, wiz.result, onClose]);
 
-  // ESC to close (blocked while committing).
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        requestClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [requestClose]);
-
-  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Kept ALONGSIDE the library's
+  // `modal="trap-focus"`: that mode traps Tab and Esc but does NOT inert the app shell behind
+  // the dialog, so a pointer/screen-reader user could still reach it without this.
   useEffect(() => {
     return acquireBackgroundInert();
   }, []);
 
-  // Focus in on open, restore to the trigger on unmount (mirrors EntityFormModal).
-  useEffect(() => {
-    triggerRef.current = document.activeElement as HTMLElement | null;
+  // Initial focus: the step's first real CONTROL (the upload drop zone / a mapping select).
+  // Form controls are preferred over buttons so focus lands on the work, not the header's
+  // Close X (which is first in DOM order). Base UI restores focus to the opener on close.
+  const initialFocus = useCallback(() => {
     const root = dialogRef.current;
-    const firstField = root?.querySelector<HTMLElement>(
-      'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-    );
-    (firstField ?? root)?.focus();
-    return () => {
-      triggerRef.current?.focus();
-      triggerRef.current = null;
-    };
+    const firstField =
+      root?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ??
+      root?.querySelector<HTMLElement>('button:not([disabled])');
+    return firstField ?? root ?? true;
   }, []);
 
-  // Focus trap.
-  const onTrapKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const root = dialogRef.current;
-    if (!root) return;
-    const f = root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (f.length === 0) return;
-    const first = f[0];
-    const last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, []);
-
-  return createPortal(
-    <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
-      <div
-        data-testid="import-scrim"
-        aria-hidden
-        onClick={requestClose}
-        className="confirm-scrim-anim absolute inset-0 bg-foreground/40"
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={subId}
-        tabIndex={-1}
-        onKeyDown={onTrapKeyDown}
-        className={cn(
-          'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
-          'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
-          'origin-center motion-reduce:animate-none',
-        )}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
-          <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
-              {wiz.step === 'upload'
-                ? `Import ${descriptor.entity.toLowerCase()}`
-                : STEP_TITLE[wiz.step]}
-            </h2>
-            <p id={subId} className="mt-px text-[12.5px] text-muted-foreground">
-              {STEP_SUBTITLE[wiz.step]}
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            iconOnly
-            aria-label="Close"
-            onClick={requestClose}
-            disabled={wiz.step === 'committing'}
+  return (
+    <Dialog.Root
+      open
+      modal="trap-focus"
+      onOpenChange={(next, details) => {
+        if (next) return;
+        // The parent owns mount: Esc / scrim only ASK to close (blocked while committing).
+        details.cancel();
+        requestClose();
+      }}
+    >
+      <Dialog.Portal>
+        <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
+          <Dialog.Backdrop data-testid="import-scrim" className={overlayBackdropClassName} style={overlayBackdropStyle} />
+          <Dialog.Popup
+            ref={dialogRef}
+            initialFocus={initialFocus}
+            aria-modal="true"
+            aria-describedby={subId}
+            className={cn(
+              'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
+              'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
+              'origin-center motion-reduce:animate-none',
+            )}
           >
-            <Icon name="x" />
-          </Button>
-        </div>
-
-        {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
-          {wiz.step === 'upload' && <UploadStep wiz={wiz} />}
-          {wiz.step === 'mapping' && <MappingStep wiz={wiz} descriptor={descriptor} />}
-          {wiz.step === 'preview' && <PreviewStep wiz={wiz} descriptor={descriptor} />}
-          {wiz.step === 'committing' && <CommittingStep wiz={wiz} />}
-          {wiz.step === 'result' && <ResultStep wiz={wiz} descriptor={descriptor} />}
-        </div>
-
-        {/* Footer — per-step actions. */}
-        <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
-          {(wiz.step === 'mapping' || wiz.step === 'preview') && (
-            <Button variant="ghost" size="sm" onClick={wiz.back}>
-              Back
-            </Button>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            {wiz.step === 'upload' && (
-              <Button variant="ghost" size="sm" onClick={requestClose}>
-                Cancel
-              </Button>
-            )}
-            {wiz.step === 'mapping' && (
+            {/* Header */}
+            <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
+              <div className="min-w-0 flex-1">
+                <Dialog.Title className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
+                  {wiz.step === 'upload'
+                    ? `Import ${descriptor.entity.toLowerCase()}`
+                    : STEP_TITLE[wiz.step]}
+                </Dialog.Title>
+                <Dialog.Description render={<p />} id={subId} className="mt-px text-[12.5px] text-muted-foreground">
+                  {STEP_SUBTITLE[wiz.step]}
+                </Dialog.Description>
+              </div>
               <Button
-                variant="primary"
-                size="sm"
-                onClick={wiz.goPreview}
-                disabled={!wiz.allRequiredMapped}
+                variant="ghost"
+                iconOnly
+                aria-label="Close"
+                onClick={requestClose}
+                disabled={wiz.step === 'committing'}
               >
-                Next
+                <Icon name="x" />
               </Button>
-            )}
-            {wiz.step === 'preview' && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void wiz.commit()}
-                disabled={wiz.counts.valid === 0}
-              >
-                Import {wiz.counts.valid} {descriptor.entity.toLowerCase()}
-              </Button>
-            )}
-            {wiz.step === 'result' && (
-              <Button variant="primary" size="sm" onClick={requestClose}>
-                Done
-              </Button>
-            )}
-          </div>
+            </div>
+
+            {/* Body */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
+              {wiz.step === 'upload' && <UploadStep wiz={wiz} />}
+              {wiz.step === 'mapping' && <MappingStep wiz={wiz} descriptor={descriptor} />}
+              {wiz.step === 'preview' && <PreviewStep wiz={wiz} descriptor={descriptor} />}
+              {wiz.step === 'committing' && <CommittingStep wiz={wiz} />}
+              {wiz.step === 'result' && <ResultStep wiz={wiz} descriptor={descriptor} />}
+            </div>
+
+            {/* Footer — per-step actions. */}
+            <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
+              {(wiz.step === 'mapping' || wiz.step === 'preview') && (
+                <Button variant="ghost" size="sm" onClick={wiz.back}>
+                  Back
+                </Button>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                {wiz.step === 'upload' && (
+                  <Button variant="ghost" size="sm" onClick={requestClose}>
+                    Cancel
+                  </Button>
+                )}
+                {wiz.step === 'mapping' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={wiz.goPreview}
+                    disabled={!wiz.allRequiredMapped}
+                  >
+                    Next
+                  </Button>
+                )}
+                {wiz.step === 'preview' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void wiz.commit()}
+                    disabled={wiz.counts.valid === 0}
+                  >
+                    Import {wiz.counts.valid} {descriptor.entity.toLowerCase()}
+                  </Button>
+                )}
+                {wiz.step === 'result' && (
+                  <Button variant="primary" size="sm" onClick={requestClose}>
+                    Done
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Dialog.Popup>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
