@@ -219,9 +219,10 @@ No scheduled CI runs: agent evals run manually and locally (the `agent-evals` wo
   *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
   request, not a gate. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
-- **Design/UI:** `DESIGN.md` = tokens only; composition = rendered owner approval;
+- **Design/UI:** `DESIGN.md` = tokens only; screens follow `docs/ux/screen-rules.md`; composition = rendered owner approval;
   tests assert user actions, never looks. Delete look-pinning tests when recomposing; keep behaviour, a11y,
-  money and role tests. Done = `scripts/ux-proof.sh` clean on touched routes.
+  money and role tests. Done = `scripts/ux-proof.sh` clean on touched routes (it fails small text and a
+  screen that gained words).
 
 ## Read-before-you-touch (context triggers — do NOT read these by default)
 Durable subsystem gotchas live with their subsystem, not in this file and not in the backlog. Read the

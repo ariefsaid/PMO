@@ -29,5 +29,12 @@ at contract- and project-based organizations; the product is not industry-specif
 - Preserve task context across screens and reduce repeated selection and confirmation.
 - Earn trust through legible, consistent behavior rather than decorative AI styling.
 
+## How a screen is judged
+People work by sight and habit: position, size, colour and icon first, words last.
+A screen passes when a person can see what waits on them without reading. The checkable rules
+(order, words, numbers, one name and one look, layout, phone) are `docs/ux/screen-rules.md`.
+`scripts/ux-proof.sh` measures the two things reviews keep missing: text a person cannot read
+(nothing under 12px, at most 15% under 14px) and screens that gain words (a tracked budget).
+
 ## Visual authority
 DESIGN.md is the visual-system authority. Preserve its established identity and tokens.
