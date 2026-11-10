@@ -38,7 +38,7 @@
     "nothingWaiting": "Nothing overdue or waiting.",
     "attention": "Finance attention",
     "attentionLoadError": "Couldn't load finance activity",
-    "receivablesAgeingTitle": "Client balances by age · tax included",
+    "receivablesAgeingTitle": "Client balances by age",
     "payablesAgeingTitle": "Supplier invoices by age · since invoice date",
     "notDue": "Not yet due",
     "days0to30": "0–30 days",
@@ -72,12 +72,13 @@
     "periodTrialBalance": "Trial balance",
     "latestStatement": "Latest period {{period}}",
     "back": "Back",
-    "payablesAgeingBasis": "Supplier invoices by age · since invoiced status or last update",
+    "payablesAgeingBasis": "Waiting to pay, by days",
     "ageingUnknown_one": "No known balances to group · {{count}} balance unknown",
     "ageingUnknown_other": "No known balances to group · {{count}} balances unknown",
     "ageingUnknownCount_one": "{{count}} balance unknown",
     "ageingUnknownCount_other": "{{count}} balances unknown",
-    "ageingEmpty": "No balances to group by age"
+    "ageingEmpty": "No balances to group by age",
+    "partlyPaidShort": "Partly paid"
   },
   "table": {
     "selectRow": "Select {{name}}"

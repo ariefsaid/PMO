@@ -30,7 +30,6 @@
     "unknownClient": "klien tidak diketahui",
     "noSupplierBalance": "tidak ada saldo pemasok",
     "overdueCount": "{{count}} faktur terlambat",
-    "overdueHint": "Jumlah faktur terbuka yang melewati tanggal jatuh tempo hasil perhitungan; total menjumlahkan saldo tertunggak yang diketahui, termasuk pajak, per mata uang.",
     "invoiceBalanceHint": "Jumlah terutang ERP yang diketahui dalam mata uang faktur, termasuk pajak.",
     "draftsApproveHint": "Jumlah faktur draf yang dapat Anda setujui.",
     "draftsSecondHint": "Jumlah faktur draf Anda yang menunggu persetujuan kedua.",
@@ -86,7 +85,9 @@
         "netProfit": "laba bersih {{month}}",
         "source": "Laporan keuangan berasal dari sistem akuntansi.",
         "openIntegrations": "Buka integrasi",
-        "askAdmin": "Laporan keuangan berasal dari sistem akuntansi; Admin mengaturnya di Integrasi."
+        "askAdmin": "Laporan keuangan berasal dari sistem akuntansi; Admin mengaturnya di Integrasi.",
+        "notConnected": "akuntansi belum terhubung",
+        "setUp": "Atur"
       },
       "finding": {
         "unknownBalance": "Saldo tidak diketahui"
@@ -99,8 +100,6 @@
         "openInvoice": "Buka faktur {{client}} {{number}}",
         "unknownProject": "Proyek tidak tersedia",
         "due": "Jatuh tempo {{date}}",
-        "partlyPaid": "Dibayar sebagian · terlambat {{days}} hari",
-        "overdue": "Terlambat · {{days}} hari",
         "ofGross": "dari {{amount}}",
         "headingCount_one": "Jatuh tempo · {{count}} faktur",
         "headingCount_other": "Jatuh tempo · {{count}} faktur"
@@ -108,25 +107,17 @@
       "waiting": {
         "draftsApprove_one": "{{count}} draf untuk disetujui",
         "draftsApprove_other": "{{count}} draf untuk disetujui",
-        "draftsApproveDetail": "Faktur menunggu persetujuan Anda",
-        "draftsApproveHint": "Draf faktur yang dapat Anda setujui.",
         "draftsSecond_one": "{{count}} draf menunggu penyetuju kedua",
         "draftsSecond_other": "{{count}} draf menunggu penyetuju kedua",
-        "draftsSecondDetail": "Faktur Anda memerlukan penyetuju lain",
-        "draftsSecondHint": "Draf faktur Anda yang memerlukan penyetuju lain.",
-        "toSend_one": "{{count}} faktur disetujui untuk ditandai diterima",
-        "toSend_other": "{{count}} faktur disetujui untuk ditandai diterima",
-        "toSendDetail": "Faktur disetujui tanpa tanggal penerimaan",
-        "toSendHint": "Faktur aktif tanpa tanggal penerimaan.",
+        "toSend_one": "{{count}} faktur disetujui untuk dicatat pengirimannya",
+        "toSend_other": "{{count}} faktur disetujui untuk dicatat pengirimannya",
         "unapplied_one": "{{count}} pembayaran belum diterapkan",
         "unapplied_other": "{{count}} pembayaran belum diterapkan",
-        "unappliedHint": "Jumlah pembayaran aktif yang belum diterapkan dan diketahui.",
         "payables_one": "{{count}} faktur pemasok menunggu pembayaran",
         "payables_other": "{{count}} faktur pemasok menunggu pembayaran",
         "payablesDetail": "{{amount}} · terlama {{days}} hari",
-        "payablesHint": "Faktur pemasok tercatat yang masih menunggu pembayaran.",
         "review": "Tinjau",
-        "markReceived": "Tandai diterima",
+        "markReceived": "Catat pengiriman",
         "apply": "Terapkan",
         "openPayables": "Buka utang pemasok",
         "payablesOldest": "Terlama {{days}} hari"
@@ -158,7 +149,21 @@
         "plusUnknown": "+ {{label}}"
       }
     },
-    "payableBucketBasis": "Hari kalender sejak status ditagih dicatat, atau pembaruan terakhir jika tidak tersedia. Saldo tidak diketahui dihitung, tidak dijumlahkan."
+    "payableBucketBasis": "Hari kalender sejak status ditagih dicatat, atau pembaruan terakhir jika tidak tersedia. Saldo tidak diketahui dihitung, tidak dijumlahkan.",
+    "owed": "Piutang Anda",
+    "taxIncluded": "termasuk pajak",
+    "owedUnknown": "saldo faktur belum diketahui",
+    "seeInvoices": "Lihat faktur",
+    "toPay": "Utang ke pemasok",
+    "waitingToPay": "menunggu dibayar",
+    "payablesUnknown": "saldo pemasok belum diketahui",
+    "seePayables": "Lihat utang",
+    "toInvoice": "Dihasilkan, belum difaktur",
+    "through": "sampai {{month}}",
+    "reportsUnknown": "angka laporan belum tersedia",
+    "openReports": "Buka laporan",
+    "netProfit": "Laba bersih",
+    "helpAges": "Saldo klien menurut umur dihitung dari hari lewat jatuh tempo, termasuk pajak. Menunggu dibayar dihitung dari hari sejak faktur pemasok dicatat, atau terakhir diubah."
   },
   "nav": {
     "finance": "Keuangan",

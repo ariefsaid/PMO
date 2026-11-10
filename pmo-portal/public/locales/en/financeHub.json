@@ -30,7 +30,6 @@
     "unknownClient": "unknown client",
     "noSupplierBalance": "no supplier balance",
     "overdueCount": "{{count}} overdue invoices",
-    "overdueHint": "Count of open invoices past their derived due date; total sums known outstanding balances, including tax, by currency.",
     "invoiceBalanceHint": "Known ERP outstanding amount in the invoice currency, including tax.",
     "draftsApproveHint": "Count of draft invoices that you can approve.",
     "draftsSecondHint": "Count of your draft invoices that need another approver.",
@@ -86,7 +85,9 @@
         "netProfit": "net profit {{month}}",
         "source": "Statements come from the accounting system.",
         "openIntegrations": "Open integrations",
-        "askAdmin": "Statements come from the accounting system; an Admin sets this up in Integrations."
+        "askAdmin": "Statements come from the accounting system; an Admin sets this up in Integrations.",
+        "notConnected": "accounting is not connected",
+        "setUp": "Set up"
       },
       "finding": {
         "unknownBalance": "Balance unknown"
@@ -99,8 +100,6 @@
         "openInvoice": "Open {{client}} invoice {{number}}",
         "unknownProject": "Project unavailable",
         "due": "Due {{date}}",
-        "partlyPaid": "Partly paid · {{days}} days late",
-        "overdue": "Overdue · {{days}} days",
         "ofGross": "of {{amount}}",
         "headingCount_one": "Overdue · {{count}} invoice",
         "headingCount_other": "Overdue · {{count}} invoices"
@@ -108,25 +107,17 @@
       "waiting": {
         "draftsApprove_one": "{{count}} draft to approve",
         "draftsApprove_other": "{{count}} drafts to approve",
-        "draftsApproveDetail": "Invoices waiting for your approval",
-        "draftsApproveHint": "Draft invoices that you can approve.",
         "draftsSecond_one": "{{count}} draft waiting for a second approver",
         "draftsSecond_other": "{{count}} drafts waiting for a second approver",
-        "draftsSecondDetail": "Your invoices need another approver",
-        "draftsSecondHint": "Your draft invoices that need another approver.",
-        "toSend_one": "{{count}} approved invoice to mark received",
-        "toSend_other": "{{count}} approved invoices to mark received",
-        "toSendDetail": "Approved invoices without a received date",
-        "toSendHint": "Active invoices with no received date recorded.",
+        "toSend_one": "{{count}} approved invoice to record delivery",
+        "toSend_other": "{{count}} approved invoices to record delivery",
         "unapplied_one": "{{count}} payment not yet applied",
         "unapplied_other": "{{count}} payments not yet applied",
-        "unappliedHint": "Known unapplied amounts for active receipts.",
         "payables_one": "{{count}} supplier invoice waiting to be paid",
         "payables_other": "{{count}} supplier invoices waiting to be paid",
         "payablesDetail": "{{amount}} · oldest {{days}} days",
-        "payablesHint": "Recorded supplier invoices still waiting to be paid.",
         "review": "Review",
-        "markReceived": "Mark received",
+        "markReceived": "Record delivery",
         "apply": "Apply",
         "openPayables": "Open payables",
         "payablesOldest": "Oldest {{days}} days"
@@ -158,7 +149,21 @@
         "plusUnknown": "+ {{label}}"
       }
     },
-    "payableBucketBasis": "Calendar days since invoiced status was recorded, or last update if unavailable. Unknown balances are counted, not added."
+    "payableBucketBasis": "Calendar days since invoiced status was recorded, or last update if unavailable. Unknown balances are counted, not added.",
+    "owed": "Owed to you",
+    "taxIncluded": "tax included",
+    "owedUnknown": "invoice balances are unknown",
+    "seeInvoices": "See invoices",
+    "toPay": "To pay suppliers",
+    "waitingToPay": "waiting to pay",
+    "payablesUnknown": "supplier balances are unknown",
+    "seePayables": "See payables",
+    "toInvoice": "Earned, not invoiced",
+    "through": "through {{month}}",
+    "reportsUnknown": "report figures are not available",
+    "openReports": "Open reports",
+    "netProfit": "Net profit",
+    "helpAges": "Client balances by age count days past due, tax included. Waiting to pay counts days since the supplier invoice was recorded, or last updated."
   },
   "nav": {
     "finance": "Finance",

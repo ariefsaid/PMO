@@ -112,27 +112,28 @@ describe('Finance hub', () => {
   it('shows unknown receivables instead of no balance and explains empty ageing', () => {
     state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    const card = screen.getByRole('link', { name: 'Open Receivables' }).closest('article')!;
-    expect(card).toHaveTextContent('1 balance unknown');
-    expect(card).not.toHaveTextContent('No balance');
+    // Unknown is not a sentence in a tile and not "0": the tile is hidden and one page line says why.
+    expect(screen.queryByRole('link', { name: 'Open Receivables' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoice balances are unknown');
+    expect(screen.getByRole('link', { name: 'See invoices' })).toHaveAttribute('href', '/finance/receivables');
+    expect(screen.queryByText('No balance')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
   });
 
-  it('AC-1405-HUB-001: shows whole-unit figures and four area cards with their meaning lines', () => {
+  it('AC-1405-HUB-001: shows whole-unit figures and four linked figure tiles with one caption each', () => {
     renderHub();
 
     expect(screen.getByRole('heading', { name: 'Finance', level: 1 })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Overdue · IDR\s45,000,000 from 5 invoices/ })).toBeInTheDocument();
     expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Receivables/ })).toHaveAttribute('href', '/finance/receivables');
-    expect(screen.getByRole('link', { name: /Payables/ })).toHaveAttribute('href', '/finance/payables');
-    expect(screen.getByRole('link', { name: /Reports/ })).toHaveAttribute('href', '/finance/reports');
-    expect(screen.getByRole('link', { name: /Statements/ })).toHaveAttribute('href', '/finance/statements');
-    expect(screen.getByText(/owed to you/)).toBeInTheDocument();
-    expect(screen.getByText(/to pay 1 supplier/)).toBeInTheDocument();
-    expect(screen.getByText(/earned, not yet invoiced · through Oct/)).toBeInTheDocument();
-    expect(screen.getByText('No progress recorded on 2 projects')).toBeInTheDocument();
-    expect(screen.getByText('+ USD 5K in other currencies')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Receivables' })).toHaveAttribute('href', '/finance/receivables');
+    expect(screen.getByRole('link', { name: 'Open Payables' })).toHaveAttribute('href', '/finance/payables');
+    expect(screen.getByRole('link', { name: 'Open Reports' })).toHaveAttribute('href', '/finance/reports');
+    expect(screen.getByText('Owed to you')).toBeInTheDocument();
+    expect(screen.getByText('To pay suppliers')).toBeInTheDocument();
+    expect(screen.getByText('through Oct 2026')).toBeInTheDocument();
+    // One currency per figure: the other currency is its own second line, never "A · B".
+    expect(screen.getByText('+ USD 5K')).toBeInTheDocument();
   });
 
   it('L6: each overdue and supplier figure is shown once on the hub', () => {
@@ -140,13 +141,13 @@ describe('Finance hub', () => {
     // Overdue is owned by the attention block; payables by the Payables area card.
     expect(screen.getAllByText(/45,000,000/)).toHaveLength(1);
     expect(screen.getAllByText(/62,400,000/)).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Open Payables' }).closest('article')).toHaveTextContent('IDR 62.4M');
+    expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent('IDR 62.4M');
     expect(screen.getByText(/1 supplier invoices? waiting to be paid/)).toBeInTheDocument();
   });
 
-  it('F11: area cards show short amounts with the exact amount kept for hover and screen readers', () => {
+  it('F11: figure tiles show short amounts with the exact amount kept for hover and screen readers', () => {
     renderHub();
-    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).closest('article') as HTMLElement;
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
     expect(within(receivables).getByText('IDR 83.2M').getAttribute('title')).toMatch(/^IDR\s83,200,000$/);
     expect(within(receivables).getByText('IDR 83,200,000')).toHaveClass('sr-only');
   });
@@ -180,25 +181,22 @@ describe('Finance hub', () => {
   it('AC-1405-HUB-006: no statement catalogue states the reason once, shows no placeholder value, and does not spin', () => {
     renderHub();
 
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
-    // C4: "Not available yet" is never shown as a value; the reason is said once and the card links to Statements.
-    expect(statements).not.toHaveTextContent('Not available yet');
-    expect(statements).toHaveTextContent('Net profit is not available for a period yet');
-    expect(within(statements).queryByRole('status')).not.toBeInTheDocument();
+    // C4: "Not available yet" is never a value: the tile is hidden and ONE page line says why, once.
+    expect(screen.queryByRole('link', { name: 'Open Statements' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
+    const hidden = screen.getByTestId('figures-hidden');
+    expect(hidden).toHaveTextContent('1 figure hidden: accounting is not connected');
+    expect(screen.getAllByText(/accounting is not connected/)).toHaveLength(1);
   });
 
   it('C4: with no statement yet, an Admin gets the link to where statements are set up', () => {
     renderHub('Admin');
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
-    expect(statements).toHaveTextContent('Statements come from the accounting system.');
-    expect(within(statements).getByRole('link', { name: 'Open integrations' })).toHaveAttribute('href', '/administration/integrations');
+    expect(within(screen.getByTestId('figures-hidden')).getByRole('link', { name: 'Set up' })).toHaveAttribute('href', '/administration/integrations');
   });
 
-  it('C4: with no statement yet, Finance is told who sets statements up, with no link it cannot open', () => {
+  it('C4: with no statement yet, Finance gets no link to a setup page it cannot open', () => {
     renderHub('Finance');
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
-    expect(statements).toHaveTextContent('an Admin sets this up in Integrations');
-    expect(within(statements).queryByRole('link', { name: 'Open integrations' })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('figures-hidden')).queryByRole('link', { name: 'Set up' })).not.toBeInTheDocument();
   });
 
   it('L12(b): the hub ageing counts a supplier invoice with an unknown balance in its age group', () => {
@@ -208,7 +206,7 @@ describe('Finance hub', () => {
     position.payablesUnknownCount = 1;
     state.position = position;
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    const ageing = screen.getByRole('region', { name: /Supplier invoices by age/ });
+    const ageing = screen.getByRole('region', { name: /Waiting to pay/ });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
   });
 

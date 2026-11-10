@@ -38,7 +38,7 @@
     "nothingWaiting": "Tidak ada yang terlambat atau menunggu.",
     "attention": "Perhatian keuangan",
     "attentionLoadError": "Tidak dapat memuat aktivitas keuangan",
-    "receivablesAgeingTitle": "Saldo klien berdasarkan usia · termasuk pajak",
+    "receivablesAgeingTitle": "Saldo klien menurut umur",
     "payablesAgeingTitle": "Faktur pemasok berdasarkan usia · sejak tanggal faktur",
     "notDue": "Belum jatuh tempo",
     "days0to30": "0–30 hari",
@@ -72,12 +72,13 @@
     "periodTrialBalance": "Neraca saldo",
     "latestStatement": "Periode terbaru {{period}}",
     "back": "Kembali",
-    "payablesAgeingBasis": "Faktur pemasok berdasarkan usia · sejak status ditagih atau pembaruan terakhir",
+    "payablesAgeingBasis": "Menunggu dibayar, menurut hari",
     "ageingUnknown_one": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
     "ageingUnknown_other": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
     "ageingUnknownCount_one": "{{count}} saldo tidak diketahui",
     "ageingUnknownCount_other": "{{count}} saldo tidak diketahui",
-    "ageingEmpty": "Tidak ada saldo untuk dikelompokkan berdasarkan usia"
+    "ageingEmpty": "Tidak ada saldo untuk dikelompokkan berdasarkan usia",
+    "partlyPaidShort": "Dibayar sebagian"
   },
   "table": {
     "selectRow": "Pilih {{name}}"

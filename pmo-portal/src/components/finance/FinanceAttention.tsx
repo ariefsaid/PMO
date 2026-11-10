@@ -3,10 +3,10 @@ import React from 'react';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, StatusPill, Tooltip } from '@/src/components/ui';
+import { Button, ListState, StatusPill } from '@/src/components/ui';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { currencyLines } from '@/src/lib/finance/currencyFigures';
 import { invoiceGross, invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -28,7 +28,6 @@ interface WaitingItem {
   count: number;
   label: string;
   detail: string[];
-  hint: string;
   to: string;
   action?: string;
 }
@@ -43,26 +42,26 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     ...(draftsToApprove > 0 ? [{
       key: 'approve', count: draftsToApprove,
       label: t('financeHub:hub.fix.waiting.draftsApprove', { defaultValue: '{{count}} draft to approve', count: draftsToApprove }),
-      detail: [t('financeHub:hub.fix.waiting.draftsApproveDetail', 'Invoices waiting for your approval')],
-      hint: t('financeHub:hub.fix.waiting.draftsApproveHint', 'Draft invoices that you can approve.'), to: '/finance/receivables?todo=approve', action: t('financeHub:hub.fix.waiting.review', 'Review'),
+      detail: [],
+      to: '/finance/receivables?todo=approve', action: t('financeHub:hub.fix.waiting.review', 'Review'),
     }] : []),
     ...(canAct && position.drafts.awaitingOther.length > 0 ? [{
       key: 'second', count: position.drafts.awaitingOther.length,
       label: t('financeHub:hub.fix.waiting.draftsSecond', { defaultValue: '{{count}} draft waiting for a second approver', count: position.drafts.awaitingOther.length }),
-      detail: [t('financeHub:hub.fix.waiting.draftsSecondDetail', 'Your invoices need another approver')],
-      hint: t('financeHub:hub.fix.waiting.draftsSecondHint', 'Your draft invoices that need another approver.'), to: '/finance/receivables?todo=second', action: t('financeHub:hub.fix.waiting.review', 'Review'),
+      detail: [],
+      to: '/finance/receivables?todo=second', action: t('financeHub:hub.fix.waiting.review', 'Review'),
     }] : []),
     ...(position.toSend.length > 0 ? [{
       key: 'send', count: position.toSend.length,
-      label: t('financeHub:hub.fix.waiting.toSend', { defaultValue: '{{count}} approved invoices to mark received', count: position.toSend.length }),
-      detail: [t('financeHub:hub.fix.waiting.toSendDetail', 'Approved invoices without a received date')],
-      hint: t('financeHub:hub.fix.waiting.toSendHint', 'Active invoices with no received date recorded.'), to: '/finance/receivables?todo=send', action: t('financeHub:hub.fix.waiting.markReceived', 'Mark received'),
+      label: t('financeHub:hub.fix.waiting.toSend', { defaultValue: '{{count}} approved invoices to record delivery', count: position.toSend.length }),
+      detail: [],
+      to: '/finance/receivables?todo=send', action: t('financeHub:hub.fix.waiting.markReceived', 'Record delivery'),
     }] : []),
     ...(position.unappliedPayments.length > 0 ? [{
       key: 'unapplied', count: position.unappliedPayments.length,
       label: t('financeHub:hub.fix.waiting.unapplied', { defaultValue: '{{count}} payments not yet applied', count: position.unappliedPayments.length }),
       detail: currencyLines(position.unappliedTotals, orgCurrency),
-      hint: t('financeHub:hub.fix.waiting.unappliedHint', 'Known unapplied amounts for active receipts.'), to: '/finance/receivables?view=payments&todo=unapplied', action: t('financeHub:hub.fix.waiting.apply', 'Apply'),
+      to: '/finance/receivables?view=payments&todo=unapplied', action: t('financeHub:hub.fix.waiting.apply', 'Apply'),
     }] : []),
     ...(scope === 'all' && position.payables.length > 0 ? [{
       key: 'payables', count: position.payables.length,
@@ -71,7 +70,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
       detail: currencyLines(position.payablesTotals, orgCurrency).length > 0
         ? [t('financeHub:hub.fix.waiting.payablesOldest', { defaultValue: 'Oldest {{days}} days', days: position.payables[0]?.ageDays ?? 0 })]
         : [t('financeHub:hub.fix.waiting.payablesDetail', { defaultValue: '{{amount}} · oldest {{days}} days', amount: t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown'), days: position.payables[0]?.ageDays ?? 0 })],
-      hint: t('financeHub:hub.fix.waiting.payablesHint', 'Recorded supplier invoices still waiting to be paid.'), to: '/finance/payables', action: t('financeHub:hub.fix.waiting.openPayables', 'Open payables'),
+      to: '/finance/payables', action: t('financeHub:hub.fix.waiting.openPayables', 'Open payables'),
     }] : []),
   ];
 
@@ -88,16 +87,14 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     <section aria-label={t('finance:area.attention', 'Finance attention')} className="grid min-w-0 grid-cols-1 gap-6">
       {overdueCount > 0 && (
         <div>
-          <Tooltip content={t('financeHub:hub.overdueHint', 'Count of open invoices past their derived due date; total sums known outstanding balances, including tax, by currency.')}>
-            <h2 tabIndex={0} className="mb-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+          <h2 className="mb-2 text-sm font-semibold">
               {overdueCurrencyLines[0]
                 ? t('financeHub:hub.fix.overdue.heading', { defaultValue: overdueCount === 1 ? 'Overdue · {{amount}} from {{count}} invoice' : 'Overdue · {{amount}} from {{count}} invoices', count: overdueCount, amount: overdueCurrencyLines[0] })
                 : t('financeHub:hub.fix.overdue.headingCount', { defaultValue: overdueCount === 1 ? 'Overdue · {{count}} invoice' : 'Overdue · {{count}} invoices', count: overdueCount })}
               {/* C4: the one place an unknown overdue balance is said; the rows carry no placeholder. */}
               {position.overdueUnknownCount > 0 && <span className="font-normal text-muted-foreground">{t('financeHub:hub.fix.overdue.unknownCount', { defaultValue: position.overdueUnknownCount === 1 ? ' · {{count}} balance unknown' : ' · {{count}} balances unknown', count: position.overdueUnknownCount })}</span>}
-            </h2>
-          </Tooltip>
-          {overdueCurrencyLines.slice(1).map((amount) => <p key={amount} className="mb-2 text-xs text-muted-foreground">{amount}</p>)}
+          </h2>
+          {overdueCurrencyLines.slice(1).map((amount) => <p key={amount} className="mb-2 text-sm text-muted-foreground">{amount}</p>)}
           <div className="divide-y divide-border">
             {position.overdue.slice(0, 5).map(({ invoice, daysOverdue, outstanding }) => {
               const project = invoice.project_id ? projects.get(invoice.project_id) : undefined;
@@ -118,17 +115,17 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   <Avatar name={avatarLabel} size="lg" />
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{client}</span>
-                    <span className="block truncate font-mono text-xs text-muted-foreground">{invoiceNumber(invoice) ?? '—'}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')}</span>
-                    <span className="block text-xs text-muted-foreground">{t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDateOnly(dueDate) : '—' })}</span>
+                    <span className="block truncate font-mono text-sm text-muted-foreground">{invoiceNumber(invoice) ?? '—'}</span>
+                    <span className="block truncate text-sm text-muted-foreground">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')}</span>
+                    <span className="block text-sm text-muted-foreground">{t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
                   </span>
                   <span className="min-w-0 text-right">
-                    <StatusPill variant={partlyPaid ? 'warn' : 'lost'}>{partlyPaid ? t('financeHub:hub.fix.overdue.partlyPaid', { defaultValue: 'Partly paid · {{days}} days late', days: daysOverdue }) : t('financeHub:hub.fix.overdue.overdue', { defaultValue: 'Overdue · {{days}} days', days: daysOverdue })}</StatusPill>
+                    <StatusPill record="salesInvoice" state="Overdue">{t('status:age.overdue', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' })}</StatusPill>
                     {/* C4: an unknown balance is left out here; the heading counts it once ("· 1 balance unknown"). */}
                     {outstanding != null && (
                       <>
                         <span className="mt-1 block whitespace-nowrap tabular text-sm font-semibold">{formatCurrency(outstanding / 100, invoice.currency)}</span>
-                        {gross != null && <span className="block whitespace-nowrap tabular text-xs text-muted-foreground">{t('financeHub:hub.fix.overdue.ofGross', { defaultValue: 'of {{amount}}', amount: formatCurrency(gross, invoice.currency) })}</span>}
+                        {gross != null && <span className="block whitespace-nowrap tabular text-sm text-muted-foreground">{partlyPaid ? `${t('finance:area.partlyPaidShort', 'Partly paid')} · ` : ''}{t('financeHub:hub.fix.overdue.ofGross', { defaultValue: 'of {{amount}}', amount: formatCurrency(gross, invoice.currency) })}</span>}
                       </>
                     )}
                   </span>
@@ -149,8 +146,8 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
             {waiting.map((item) => (
               <div key={item.key} className="flex min-w-0 items-center gap-3 py-2.5">
                 <span className="min-w-0 flex-1">
-                  <Tooltip content={item.hint}><span tabIndex={0} className="block text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{item.label}</span></Tooltip>
-                  {item.detail.map((line, index) => <span key={`${item.key}-${index}`} className="block truncate text-xs text-muted-foreground">{line}</span>)}
+                  <span className="block text-sm font-medium">{item.label}</span>
+                  {item.detail.map((line, index) => <span key={`${item.key}-${index}`} className="block truncate text-sm text-muted-foreground">{line}</span>)}
                 </span>
                 {item.key === 'payables' ? (
                   <Link to={withLayout(item.to)} className={buttonClasses('outline', 'sm', 'shrink-0')}>{item.action}</Link>
