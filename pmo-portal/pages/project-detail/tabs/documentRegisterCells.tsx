@@ -83,8 +83,8 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
     Issued: t('project:projectDetail.documents.action.issue', 'Issue'),
     Approved: t('project:projectDetail.documents.action.approve', 'Approve'),
     Rejected: t('project:projectDetail.documents.action.reject', 'Reject'),
-    Closed: t('project:projectDetail.documents.action.close', 'Close'),
-    Superseded: t('project:projectDetail.documents.action.close', 'Close'),
+    Closed: t('project:projectDetail.documents.action.close', 'Close document'),
+    Superseded: t('project:projectDetail.documents.action.close', 'Close document'),
   };
 
   return { ownerLabel, sourceName, sourceCell, ownerCell, statusCell, documentDateCell, documentHasFile, statusLabels, fileCell };

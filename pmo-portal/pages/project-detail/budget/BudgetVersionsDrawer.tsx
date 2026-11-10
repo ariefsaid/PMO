@@ -21,15 +21,6 @@ interface BudgetVersionsDrawerProps {
   onDeleteDraft: (id: string) => void;
 }
 
-const statusLabel = (status: BudgetVersionWithItems['status'], t: (key: string, fallback: string) => string) => {
-  const labels: Record<BudgetVersionWithItems['status'], string> = {
-    Draft: t('financeCopy.statusDraft', 'Draft'),
-    Active: t('financeCopy.statusActive', 'Active'),
-    Archived: t('financeCopy.statusArchived', 'Archived'),
-  };
-  return labels[status];
-};
-
 export default function BudgetVersionsDrawer({
   open,
   onClose,

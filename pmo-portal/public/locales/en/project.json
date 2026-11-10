@@ -333,7 +333,6 @@
         "claimError": "Couldn't load the claim",
         "save": "Attach",
         "none": "No issued or approved document with a file on this project.",
-        "subtitle": "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.",
         "title": "Attach billing evidence",
         "revision": "rev {{revision}}",
         "document": "Evidence document"

@@ -106,7 +106,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   } : null;
   const actualProjection = (p: ProjectWithRefs) => {
     const position = actualPosition(p);
-    if (position.amount === null) return { text: '', exportText: '' };
+    // Restricted rows have a distinct row-level cause, so the export keeps the plain-language tag.
+    if (position.amount === null) return position.restricted ? { text: t('projects:actual.restrictedTag', 'Restricted excluded') } : { text: '', exportText: '' };
     const exact = formatExactMoney(position.amount, position.currency, getNumberLocale());
     return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
   };

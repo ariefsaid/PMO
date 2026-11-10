@@ -170,7 +170,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(title.className).toContain('col-span-2');
     expect(title.parentElement).toContainElement(status);
     expect(header.querySelector('.row-start-2')).toBeInTheDocument();
-    expect(status.parentElement?.className).toContain('row-start-3');
+    expect(status.closest('.row-start-3')).not.toBeNull();
     expect(title.parentElement?.className).toContain('sm:flex');
   });
 

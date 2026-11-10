@@ -61,7 +61,6 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
 );
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
-type MarginReason = 'different-currencies' | 'work-unavailable' | 'restricted-rows' | 'actuals-unavailable';
 
 const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
@@ -116,15 +115,6 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
   const marginBucket = data.invoices.find((bucket) => bucket.currency === project.currency);
   const margin = marginBucket && data.actuals ? deriveMargin(marginBucket, data.actuals) : null;
   const marginAmount = margin && margin.reason === null && margin.amount !== null ? Number(margin.amount) : null;
-  const marginLeftOut: Record<MarginReason, string> = {
-    'different-currencies': t('projectDetail.money.marginOutCurrency', 'Gross margin is left out because spending and billed work use different currencies.'),
-    'work-unavailable': t('projectDetail.money.marginOutWork', 'Gross margin is left out until billed-work revenue is complete.'),
-    'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.'),
-    'actuals-unavailable': t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.'),
-  };
-  const marginNote = !marginBucket
-    ? t('projectDetail.money.marginOutNoInvoices', 'Gross margin starts with the first invoice in the project currency.')
-    : margin?.reason ? marginLeftOut[margin.reason as MarginReason] : null;
   const explain = (content: string, value: React.ReactNode, className = 'font-semibold tabular-nums text-foreground') => (
     <Tooltip content={content}><span tabIndex={0} className={className}>{value}</span></Tooltip>
   );

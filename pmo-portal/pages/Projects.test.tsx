@@ -271,7 +271,7 @@ describe('Projects index — IA-3 (real data)', () => {
 
   it('renders status as a StatusPill (paired surface + text), not a legacy badge (AC-C)', () => {
     renderPage();
-    const pill = screen.getAllByText('Ongoing').find((el) => el.className.includes('rounded-full'))!;
+    const pill = screen.getAllByText('Ongoing').map((el) => el.closest('[class*="rounded-full"]')).find(Boolean)!;
     // The StatusPill carries the pill chrome + the paired neutral status surface
     // (owner ban 2026-10-29: the former decorative leading dot is gone; the label
     // + surface carry the status).
@@ -744,7 +744,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
   });
 
   it('#2060: an unknown Actual is an em dash when other rows have one, and the column is dropped when none does', () => {
-    const unknown = { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '7200000.00', asOf: '2026-10-01T00:00:00Z',
+    const unknown = { ledgerBasis: 'erp' as const, actuals: { currency: 'USD', total: '7200000.00', asOf: '2026-10-01T00:00:00Z',
       excludesRestrictedRows: false, complete: false, categories: [{ category: 'Labor', mapped: false, amount: null }] },
     activeBudgetAmount: '6900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true };
     projectMoneyState.data = { p1: unknown };

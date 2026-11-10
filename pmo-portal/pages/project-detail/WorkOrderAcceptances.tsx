@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, StatusPill, type StatusVariant } from '@/src/components/ui';
+import { Button, ListState, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatDay, formatNumberExact } from '@/src/lib/format';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
@@ -41,11 +41,6 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   const canPrepare = workOrder.status === 'Issued' && hasAllocations
     && may('create', 'workOrderAcceptance', { currentUserId, record: { status: workOrder.status, project_manager_id: projectManagerId } });
   const sorted = [...acceptances].sort((a, b) => b.acceptance_date.localeCompare(a.acceptance_date) || b.prepared_at.localeCompare(a.prepared_at));
-
-  const statusLabel = (status: WorkOrderAcceptanceWithLines['status']): string =>
-    status === 'Draft' ? t('projectTabs:contractQuantities.workOrders.acceptances.status.draft', 'Draft')
-      : status === 'Confirmed' ? t('projectTabs:contractQuantities.workOrders.acceptances.status.confirmed', 'Confirmed')
-        : t('projectTabs:contractQuantities.workOrders.acceptances.status.withdrawn', 'Withdrawn');
 
   const linesText = (a: WorkOrderAcceptanceWithLines): string => a.lines.map((line) => {
     const item = itemOf.get(line.boq_item_id);

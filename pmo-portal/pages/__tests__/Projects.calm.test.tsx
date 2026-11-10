@@ -85,9 +85,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
-  it('help text is the single Pipeline pointer', () => {
+  it('carries no subtitle sentence under the title', () => {
     renderPage();
-    expect(screen.getByText('Pre-win projects live in the Pipeline.')).toBeInTheDocument();
+    expect(screen.queryByText('Pre-win projects live in the Pipeline.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Track your active and completed projects/)).not.toBeInTheDocument();
   });
 
@@ -126,14 +126,14 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     const notes = screen.getAllByText(/Actual is partial on/);
     expect(notes).toHaveLength(1);
     expect(notes[0]).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
-    // Null Actual leaves the amount cell blank; the shared note explains the partial coverage.
+    // Null Actual is the em dash; the shared note explains the partial coverage.
     const table = screen.getByRole('table');
     const partialRow = [...table.querySelectorAll<HTMLTableRowElement>('tbody tr')].find((row) => row.textContent?.includes('Synthetic project 1'))!;
     const actualColumn = [...table.querySelectorAll('thead th')].findIndex((header) => (header as HTMLElement).dataset.colKey === 'actual');
     const actualCell = partialRow.cells.item(actualColumn);
     expect(actualColumn).toBeGreaterThanOrEqual(0);
     expect(actualCell).not.toBeNull();
-    expect(actualCell?.textContent?.trim()).toBe('');
+    expect(actualCell?.textContent?.trim()).toBe('—');
     expect(within(partialRow).queryByText('$0.00')).not.toBeInTheDocument();
   });
 

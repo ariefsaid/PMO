@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, type StatusVariant } from '@/src/components/ui';
+import { ListState, StatusPill } from '@/src/components/ui';
 import { useWorkOrderCostVariations } from '@/src/hooks/useSubcontract';
 import { formatCurrency } from '@/src/lib/format';
 

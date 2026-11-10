@@ -153,7 +153,7 @@ describe('Projects delivery progress + budget used', () => {
     // dot ban): on-hand "Ongoing Project" is the neutral grey `progress` treatment —
     // a muted label on the pale neutral surface, NO tint slab and NOT the action-blue
     // (the LABEL carries identity).
-    const ongoingStatus = screen.getByText('Ongoing Project').closest('span');
+    const ongoingStatus = within(document.querySelector('tbody')!).getByText('Ongoing').closest('[class*="rounded-full"]');
     expect(ongoingStatus?.className).not.toContain('bg-primary');
     expect(ongoingStatus?.className).toContain('text-count-foreground');
     expect(ongoingStatus?.className).toContain('bg-status-neutral-surface');
