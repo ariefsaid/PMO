@@ -74,13 +74,13 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownC
       {currencies.length === 0 && <p className="text-sm text-muted-foreground">{unknownTotal > 0
         ? t('finance:area.ageingUnknown', { defaultValue: 'No known balances to group · {{count}} balance unknown', count: unknownTotal })
         : t('finance:area.ageingEmpty', 'No balances to group by age')}</p>}
-      {currencies.length > 0 && unknownTotal > 0 && <p className="mb-2 text-xs text-muted-foreground">{t('finance:area.ageingUnknownCount', { defaultValue: '{{count}} balance unknown', count: unknownTotal })}</p>}
+      {currencies.length > 0 && unknownTotal > 0 && <p className="mb-2 text-control text-muted-foreground">{t('finance:area.ageingUnknownCount', { defaultValue: '{{count}} balance unknown', count: unknownTotal })}</p>}
       {currencies.map(([currency, buckets]) => {
         const amounts = bucketKeys.map((key) => amountFor(buckets, key));
         const total = amounts.reduce((sum, amount) => sum + Math.max(amount, 0), 0);
         return (
           <div key={currency} className="mb-4 min-w-0 last:mb-0">
-            <div className="mb-1 text-xs font-medium text-muted-foreground">{currency}</div>
+            <div className="mb-1 text-control font-medium text-muted-foreground">{currency}</div>
             <div
               role="img"
               aria-label={t('financeHub:hub.fix.ageingBarLabel', '{{currency}} balance distribution by age', { currency })}
@@ -109,11 +109,11 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownC
                 return (
                   <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
                     <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKET_COLORS[key]}`} />
-                    <span className="min-w-0 break-words text-xs text-muted-foreground">{labels[key]}</span>
+                    <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
-                      ? <span className="text-right text-xs text-muted-foreground">{unknownLabel}</span>
+                      ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
                       : <span className="max-w-full break-all text-right tabular text-sm font-semibold">{formatCurrency(amount / 100, currency)}</span>}
-                    {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-xs text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
+                    {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
                   </div>
                 );
               })}

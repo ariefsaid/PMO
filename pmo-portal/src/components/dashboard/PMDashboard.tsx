@@ -1,11 +1,9 @@
 import React, { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
-import { useProjectNumbers } from '@/src/hooks/useProjects';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
@@ -13,20 +11,19 @@ import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval'
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useNeedsYou } from './restructure/useNeedsYou';
+import { Button } from '@/src/components/ui/Button';
+import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
-import { ListState } from '@/src/components/ui/ListState';
+import { PageHeader } from '@/src/components/ui/PageHeader';
 import { Icon } from '@/src/components/ui/icons';
-import { ApprovalStrip } from './hub/ApprovalStrip';
-import { HubGrid } from './hub/HubGrid';
-import { DashPageHead } from './layout';
-import { PMProjectArea } from './hub/pm/PMProjectArea';
+import { moneyTileValue } from './dashMoney';
+import { ProjectRows, WaitsOnYou, type ProjectRow, type WaitRow } from './DashParts';
 import {
   formatHours,
   projectAtRisk,
-  projectMoneyFigure,
-  atRiskCount,
-  projectSpendOfContractPct,
+  projectBudgetUsagePct,
   sumAwaitingTimesheetHours,
 } from './hub/pm/metrics';
 
@@ -37,7 +34,7 @@ const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STAT
 const projectsHref = (userId: string | null | undefined) =>
   userId ? `/projects?filter=delivery&pm=${encodeURIComponent(userId)}` : '/projects?filter=delivery';
 
-/** Role-specific project index for Project Managers. Every figure drills into its owning page. */
+/** Project Manager home: what waits on me, my projects worst first, my contract value. */
 export const PMDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
   const queryClient = useQueryClient();
@@ -63,68 +60,53 @@ export const PMDashboard: React.FC = () => {
       .filter((procurement) => procurement.project_id !== null && projectIds.has(procurement.project_id)),
     [procurementsQuery.data, projectIds, realRole, userId],
   );
-  const procurementsByProject = useMemo(() => {
-    const grouped = new Map<string, typeof procurementsAwaiting>();
+  const purchasesByProject = useMemo(() => {
+    const grouped = new Map<string, number>();
     for (const procurement of procurementsAwaiting) {
-      if (!procurement.project_id) continue;
-      const current = grouped.get(procurement.project_id) ?? [];
-      current.push(procurement);
-      grouped.set(procurement.project_id, current);
+      if (procurement.project_id) grouped.set(procurement.project_id, (grouped.get(procurement.project_id) ?? 0) + 1);
     }
     return grouped;
   }, [procurementsAwaiting]);
 
-  const orderedProjects = useMemo(() => [...projects].sort((a, b) => {
+  // Worst first: at risk, then most overdue tasks, then most purchases to approve. Projects that need nothing sort last.
+  const rows = useMemo<ProjectRow[]>(() => {
     const score = (projectId: string, atRisk: boolean) =>
-      (atRisk ? 1_000 : 0)
-      + (needs.pmOverdueTasksByProject[projectId] ?? 0) * 10
-      + (procurementsByProject.get(projectId)?.length ?? 0);
-    return score(b.id, projectAtRisk(b)) - score(a.id, projectAtRisk(a));
-  }), [needs.pmOverdueTasksByProject, procurementsByProject, projects]);
-  const visibleProjects = orderedProjects.slice(0, 6);
-  const visibleProjectIds = useMemo(() => new Set(visibleProjects.map((project) => project.id)), [visibleProjects]);
-  const projectNumbersQuery = useProjectNumbers(visibleProjects.map((project) => project.id));
+      (atRisk ? 1_000 : 0) + (needs.pmOverdueTasksByProject[projectId] ?? 0) * 10 + (purchasesByProject.get(projectId) ?? 0);
+    return [...projects].sort((a, b) => score(b.id, projectAtRisk(b)) - score(a.id, projectAtRisk(a))).map((project) => {
+      const overdue = needs.pmOverdueTasksByProject[project.id] ?? 0;
+      const purchases = purchasesByProject.get(project.id) ?? 0;
+      const atRisk = projectAtRisk(project);
+      const reason = [
+        overdue > 0 ? t('home.overdueTasks', { count: overdue, defaultValue_one: '{{count}} overdue task', defaultValue_other: '{{count}} overdue tasks' }) : null,
+        purchases > 0 ? t('home.purchasesToApprove', { count: purchases, defaultValue_one: '{{count}} purchase to approve', defaultValue_other: '{{count}} purchases to approve' }) : null,
+        atRisk ? t('home.budgetNinety', 'budget at 90% or more') : null,
+      ].filter(Boolean).join(' · ');
+      const delivery = deliveryQuery.data?.[project.id];
+      return {
+        id: project.id,
+        name: projectDisplayName(project),
+        title: projectDisplayName(project) !== project.name ? project.name : undefined,
+        reason: reason || null,
+        delivery: delivery !== undefined && Number.isFinite(delivery) ? delivery : null,
+        budgetUsed: projectBudgetUsagePct(project),
+        status: project.status,
+        offTrack: atRisk || overdue > 0,
+        href: `/projects/${project.id}`,
+      };
+    });
+  }, [deliveryQuery.data, needs.pmOverdueTasksByProject, projects, purchasesByProject, t]);
 
-  const contractFigure = projectMoneyFigure(
-    projects,
-    'contract_value',
-    orgCurrency,
-    t('hub.pm.contractUnavailable', 'One or more project contract values are unavailable.'),
-  );
-  const contractLeftFigure = projectMoneyFigure(
-    projects,
-    'contract_remaining',
-    orgCurrency,
-    t('hub.pm.contractLeftUnavailable', 'Contract remaining is unavailable until project spending is complete.'),
-  );
-  const marginFigure = projectMoneyFigure(
-    projects,
-    'realized_margin',
-    orgCurrency,
-    t('hub.pm.marginUnavailable', 'Billed-work margin is unavailable for one or more projects.'),
-  );
-  // C4: figures the system cannot know are left out of the band, and the reason is said once under it.
-  const marginKnown = marginFigure.unavailableReason === undefined;
-  const contractLeftKnown = contractLeftFigure.value !== '—';
-  const spendingIncomplete = !marginKnown || !contractLeftKnown || projects.some((project) => projectSpendOfContractPct(project) === null);
-  const atRisk = atRiskCount(projects);
-  const atRiskValue = atRisk === null
-    ? '—'
-    : atRisk.partial
-      ? t('hub.pm.atRiskAtLeast', 'At least {{count}}', { count: atRisk.count })
-      : String(atRisk.count);
-  const atRiskReason = atRisk === null
-    ? t('hub.pm.riskUnavailable', 'Budget risk is unknown because one or more projects have incomplete actual spending or budget data.')
-    : undefined;
+  // Position: my contract value. Any contract missing draws nothing and is reported once under the title.
+  const contractTotals = useMemo(() => {
+    const byCurrency = new Map<string, number>();
+    for (const project of projects) {
+      if (project.contract_value === null || !Number.isFinite(project.contract_value) || !project.currency) return null;
+      byCurrency.set(project.currency, (byCurrency.get(project.currency) ?? 0) + project.contract_value);
+    }
+    return [...byCurrency].map(([currency, amount]) => ({ currency, amount }));
+  }, [projects]);
+  const contract = moneyTileValue(projects.length === 0 ? null : contractTotals, orgCurrency);
   const approvedHours = sumAwaitingTimesheetHours(timesheetsQuery.data);
-  const hoursReason = timesheetsQuery.isError
-    ? t('hub.pm.hoursLoadError', 'Team hours are unavailable because the approval queue could not be loaded.')
-    : approvedHours === null
-      ? t('hub.pm.hoursUnavailable', 'Team hours are unavailable because one or more timesheet entries are missing.')
-      : undefined;
-  const projectsErrorReason = projectsQuery.isError
-    ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.')
-    : undefined;
 
   const refresh = useCallback(() => {
     void projectsQuery.refetch();
@@ -136,166 +118,66 @@ export const PMDashboard: React.FC = () => {
         const [key, queryOrgId, recordId] = query.queryKey;
         if (queryOrgId !== orgId) return false;
         if (key === 'fx-context' || key === 'fx-org-day') return true;
-        return typeof recordId === 'string'
-          && ((key === 'tasks' && assignedProjectIds.has(recordId))
-            || (key === 'project' && visibleProjectIds.has(recordId)));
+        return typeof recordId === 'string' && key === 'tasks' && assignedProjectIds.has(recordId);
       },
     });
     void queryClient.invalidateQueries({ queryKey: expenseClaimsAwaitingKey(orgId) });
     void queryClient.invalidateQueries({ queryKey: ['timesheets-awaiting', orgId, userId] });
-  }, [assignedProjectIds, deliveryQuery, orgId, projectIds, projectsQuery, procurementsQuery, queryClient, timesheetsQuery, userId, visibleProjectIds]);
+  }, [assignedProjectIds, deliveryQuery, orgId, projectIds, projectsQuery, procurementsQuery, queryClient, timesheetsQuery, userId]);
 
-  const approvalItems = needs.items
-    .filter((item) => ['approvals', 'team-timesheets', 'projects-over-budget', 'projects-risk-unchecked'].includes(item.id))
+  const waitRows: WaitRow[] = needs.items
+    .filter((item) => ['approvals', 'team-timesheets'].includes(item.id))
     .map((item) => ({
-      ...item,
-      tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
-      icon: item.id === 'team-timesheets' ? 'clock' as const : item.id.startsWith('projects-') ? 'alert' as const : 'check' as const,
+      id: item.id,
       count: item.countLabel ?? item.count,
+      label: item.label,
+      amount: item.id === 'team-timesheets' && approvedHours !== null ? `${formatHours(approvedHours)} ${t('home.hoursUnit', 'h')}` : undefined,
+      href: item.href,
+      tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
     }));
-  const primaryError = projectsQuery.isError || needs.isError || procurementsQuery.isError;
-  const primaryLoading = projectsQuery.isPending || needs.isPending || procurementsQuery.isPending;
+  const projectsError = projectsQuery.isError || procurementsQuery.isError;
+  const projectsPending = projectsQuery.isPending || procurementsQuery.isPending;
 
   return (
-    <div className="space-y-[var(--space-panel-gap)]">
-      <DashPageHead
-        title={t('hub.pm.title', 'My dashboard')}
-        sub={projectsQuery.data === undefined
-          ? t('hub.pm.subtitleLoading', 'Your projects and what needs you')
-          : t('hub.pm.subtitle', 'Your {{count}} projects and what needs you', { count: projects.length })}
-        actions={(
-          <button
-            type="button"
-            onClick={refresh}
-            aria-label={t('hub.pm.refresh', 'Refresh')}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <Icon name="refresh" className="size-4" />
-            {t('hub.pm.refresh', 'Refresh')}
-          </button>
-        )}
-      />
-
-      {needs.isPending ? <div data-testid="approvals-reserve" aria-hidden="true" className="min-h-11" /> : <ApprovalStrip items={approvalItems} />}
-
-      <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className={marginKnown || projectsErrorReason ? 'grid-cols-2 min-[1280px]:grid-cols-5' : 'grid-cols-2 min-[1280px]:grid-cols-4'}>
-        <KPITile
-          testId="kpi-my-projects"
-          tone="violet"
-          icon="folder"
-          label={t('hub.pm.myProjects', 'My projects')}
-          value={projectsErrorReason ? '—' : String(projects.length)}
-          unavailableReason={projectsErrorReason}
-          loading={projectsQuery.isPending}
-          to={projectsHref(userId)}
-          linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
-          help={t('hub.pm.myProjectsHelp', 'Delivery projects assigned to you as the project manager.')}
+    <FigureScope>
+      <div className="space-y-[var(--space-panel-gap)]">
+        <div>
+          <PageHeader
+            className="mb-2"
+            title={t('hub.pm.title', 'My dashboard')}
+            help={t('home.pm.help', 'Delivery projects assigned to you. Budget used compares recorded spending with the active budget; it is hidden where spending or budget is incomplete.')}
+            action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.pm.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.pm.refresh', 'Refresh')}</span></Button>}
+          />
+          <FigureHiddenLine />
+        </div>
+        <WaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
+        <ProjectRows
+          title={t('home.myProjects', 'My projects')}
+          rows={rows}
+          pending={projectsPending}
+          error={projectsError}
+          onRetry={refresh}
+          allLink={{ to: projectsHref(userId), label: t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
+          emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
+          testId="pm-projects"
         />
-        <KPITile
-          testId="kpi-my-contract-value"
-          tone="green"
-          icon="dollar"
-          label={t('hub.pm.myContractValue', 'My contract value')}
-          value={projectsErrorReason ? '—' : contractFigure.value}
-          exactValue={projectsErrorReason ? undefined : contractFigure.exactValue}
-          unavailableReason={projectsErrorReason ?? contractFigure.unavailableReason}
-          vs={!projectsErrorReason && contractLeftKnown
-            ? t('hub.pm.contractLeft', '{{value}} left after spending', { value: contractLeftFigure.value })
-            : undefined}
-          loading={projectsQuery.isPending}
-          to={projectsHref(userId)}
-          linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
-          help={t('hub.pm.contractHelp', 'Contract value for your delivery projects. The line below shows the remaining contract value after recorded spending; the two use the project currency and do not convert between currencies.')}
-        />
-        <KPITile
-          testId="kpi-at-risk"
-          tone="amber"
-          icon="alert"
-          label={t('hub.pm.atRisk', 'At risk')}
-          value={projectsErrorReason ? '—' : atRiskValue}
-          unavailableReason={projectsErrorReason ?? atRiskReason}
-          vs={atRisk?.partial
-            ? t('hub.pm.riskPartial', 'At 90% or more of budget; other projects have incomplete budget or spending data')
-            : t('hub.pm.riskDefinition', 'Projects at 90% or more of budget')}
-          loading={projectsQuery.isPending}
-          to={userId ? `/projects?filter=at-risk&pm=${encodeURIComponent(userId)}` : '/projects?filter=at-risk'}
-          linkLabel={t('hub.pm.openAtRisk', 'Open at-risk projects')}
-          help={t('hub.pm.atRiskHelp', 'Counts your delivery projects when actual spending is at least 90% of a positive budget in the same currency. Unknown spending or budget data makes the total unavailable.')}
-        />
-        {(marginKnown || projectsErrorReason) && (
+        <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:max-w-sm">
           <KPITile
-            testId="kpi-margin-to-date"
-            tone="blue"
-            icon="chart-column"
-            label={t('hub.pm.marginToDate', 'Margin to date')}
-            value={projectsErrorReason ? '—' : marginFigure.value}
-            exactValue={projectsErrorReason ? undefined : marginFigure.exactValue}
-            unavailableReason={projectsErrorReason ?? marginFigure.unavailableReason}
+            testId="kpi-my-contract-value"
+            tone="green"
+            icon="dollar"
+            label={t('hub.pm.myContractValue', 'My contract value')}
+            value={contract?.value ?? null}
+            exactValue={contract?.exact}
+            unavailableReason={contract ? undefined : projectsError || projectsQuery.isError ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.') : t('home.reasonMyContract', 'a project contract value is missing')}
+            caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : undefined}
             loading={projectsQuery.isPending}
             to={projectsHref(userId)}
-            linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}
-            help={t('hub.pm.marginHelp', 'Margin on billed work to date: billed-work revenue less recorded actual spending, grouped by project currency.')}
+            linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
+            help={t('hub.pm.contractHelp', 'Contract value for your delivery projects, in each project currency; currencies are not converted or added together.')}
           />
-        )}
-        <KPITile
-          testId="kpi-team-hours"
-          tone="violet"
-          icon="clock"
-          label={t('hub.pm.teamHours', 'Team hours to approve')}
-          value={timesheetsQuery.isError || approvedHours === null ? '—' : `${formatHours(approvedHours)} h`}
-          unavailableReason={hoursReason}
-          loading={timesheetsQuery.isPending}
-          to="/approvals?scope=timesheets"
-          linkLabel={t('hub.pm.openTimesheets', 'Open team timesheets to approve')}
-          help={t('hub.pm.teamHoursHelp', 'Sum of hours in team timesheets currently waiting for your approval.')}
-        />
-      </KPIRow>
-      {spendingIncomplete && !projectsErrorReason && !primaryLoading && projects.length > 0 && (
-        <p className="-mt-2 text-xs text-muted-foreground">{t('hub.pm.spendingIncompleteNote', 'Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known.')}</p>
-      )}
-
-      {primaryLoading ? (
-        <ListState variant="loading" shape="cards" rows={6} />
-      ) : primaryError ? (
-        <ListState
-          variant="error"
-          title={t('hub.pm.loadError', "Couldn't load your projects and attention items")}
-          onRetry={refresh}
-        />
-      ) : projects.length === 0 ? (
-        <ListState
-          variant="empty"
-          icon="folder"
-          title={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
-        />
-      ) : (
-        <>
-          <HubGrid>
-            {visibleProjects.map((project) => (
-              <PMProjectArea
-                key={project.id}
-                project={project}
-                projectNumber={projectNumbersQuery.data?.[project.id] ?? null}
-                deliveryPct={deliveryQuery.data?.[project.id]}
-                overdueTaskCount={needs.pmOverdueTasksByProject[project.id] ?? 0}
-                procurements={procurementsByProject.get(project.id) ?? []}
-                orgCurrency={orgCurrency}
-              />
-            ))}
-          </HubGrid>
-          {orderedProjects.length > 6 && (
-            <div className="flex justify-center">
-              <Link
-                to={projectsHref(userId)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              >
-                {t('hub.pm.viewAllProjects', 'View all {{count}} projects', { count: orderedProjects.length })}
-                <Icon name="chev" className="size-4" />
-              </Link>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+        </KPIRow>
+      </div>
+    </FigureScope>
   );
 };

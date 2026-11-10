@@ -854,7 +854,8 @@
     "amountsIn": "Jumlah dalam {{currency}}",
     "mode": {
       "loadFailed": "Kami tidak dapat memeriksa dari mana angka-angka ini berasal",
-      "loadFailedSub": "Angka mengikuti dokumen PMO atau buku besar Odoo. Coba lagi sebelum mengandalkannya."
+      "loadFailedSub": "Angka mengikuti dokumen PMO atau buku besar Odoo. Coba lagi sebelum mengandalkannya.",
+      "retry": "Coba lagi mode buku besar"
     },
     "budget": {
       "title": "Biaya aktual dari Odoo",

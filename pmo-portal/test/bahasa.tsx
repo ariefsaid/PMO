@@ -26,6 +26,8 @@ const EN_ASSISTANT_PANEL = JSON.parse(readFileSync(join(process.cwd(), 'public/l
 const ID_ASSISTANT_PANEL = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/assistantPanel.json'), 'utf8'));
 const EN_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/project.json'), 'utf8'));
 const ID_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/project.json'), 'utf8'));
+const EN_STATUS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/status.json'), 'utf8'));
+const ID_STATUS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/status.json'), 'utf8'));
 const EN_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/lostReason.json'), 'utf8'));
 const ID_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/lostReason.json'), 'utf8'));
 

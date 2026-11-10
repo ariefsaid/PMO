@@ -9,6 +9,8 @@ import type { FinancialStatementCatalogue, FinancialStatementRead } from '@/src/
 import { repositories } from '@/src/lib/repositories';
 import ProjectProfitLossSection from '../ProjectProfitLossSection';
 
+vi.mock('@/src/hooks/useOdooLedger', () => ({ useOdooLedgerMode: () => ({ odoo: false, error: false, pending: false, retry: vi.fn() }) }));
+
 const projectId = '33333333-3333-4333-8333-333333333333';
 const period = {
   kind: 'month' as const,

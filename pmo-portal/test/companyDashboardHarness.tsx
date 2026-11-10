@@ -59,8 +59,9 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ok([]) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ok([]) }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }), useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({ useActualsSnapshot: () => ok([]), useApAgingSnapshot: () => ok([]), useArAgingSnapshot: () => ok([]) }));
-vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ position: { receivablesAgeing: {}, payablesAgeing: {} }, isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ position: { receivablesAgeing: {}, payablesAgeing: {}, overdue: [] }, isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
 
@@ -88,7 +89,7 @@ export function resetCompanyDashboardHarness() {
       waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
     }],
   };
-  dashboardHarness.today = [{ id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', href: '/projects?filter=Ongoing' }];
+  dashboardHarness.today = [{ id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', amounts: [{ currency: 'USD', amount: 1_000 }], href: '/projects?filter=Ongoing' }];
   dashboardHarness.period = [];
   dashboardHarness.needsItems = [];
   dashboardHarness.areaItems = [{ id: 'at-risk', count: 1, label: 'project at risk', href: '/projects?filter=at-risk', tone: 'warn' }];
