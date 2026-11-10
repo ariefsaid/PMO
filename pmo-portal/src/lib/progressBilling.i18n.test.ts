@@ -20,6 +20,11 @@ const usedQuantityKeys = (files: string[]) =>
   files.flatMap((file) => [...readFileSync(join(process.cwd(), file), 'utf8').matchAll(KEY)].map((match) => match[1]));
 const WORK_ORDER_SCREENS = [
   'pages/project-detail/tabs/WorkOrdersTab.tsx',
+  'pages/project-detail/tabs/WorkOrderCustomerOrderCard.tsx',
+  'pages/project-detail/tabs/WorkOrdersClaimsCard.tsx',
+  'pages/project-detail/tabs/WorkOrdersDraftOrders.tsx',
+  'pages/project-detail/tabs/WorkOrdersDrawers.tsx',
+  'pages/project-detail/tabs/WorkOrdersModals.tsx',
   'pages/project-detail/WorkOrderLinesModal.tsx',
   'pages/project-detail/WorkOrderAcceptanceModal.tsx',
   'pages/project-detail/WorkOrderAcceptances.tsx',

@@ -19,6 +19,10 @@ import { buildTaskRenderOrder } from '@/src/lib/tasks/taskTree';
 // <StatusPill>{task.status}</StatusPill>, so translating one side alone would show the same
 // status in two languages side by side. Status vocabulary is one cross-cutting decision
 // (it also covers doc status, procurement stages and pipeline stages) -- not this file's.
+export type ViewMode = 'list' | 'board' | 'timeline' | 'calendar';
+export type TaskScope = 'mine' | 'all';
+export type BulkAction = 'status' | 'assignee' | 'due' | 'archive' | null;
+
 export const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 export const BOARD_STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Blocked', 'Done'];
 export const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
