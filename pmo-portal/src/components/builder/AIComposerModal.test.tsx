@@ -119,11 +119,11 @@ describe('AIComposerModal — accessibility (AC-AS-013)', () => {
     }
   });
 
-  it('AC-AS-013 focus moves into the dialog on open', () => {
+  it('AC-AS-013 focus moves into the dialog on open', async () => {
     renderModal();
-    // Some focusable element within the dialog should have focus
     const dialog = screen.getByRole('dialog');
-    expect(dialog.contains(document.activeElement)).toBe(true);
+    // Base UI applies the popup's initial focus (the prompt textarea) on the NEXT FRAME.
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
   });
 
   it('AC-AS-013 Escape key calls onClose', async () => {

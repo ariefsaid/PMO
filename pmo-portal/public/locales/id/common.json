@@ -892,6 +892,7 @@
       "retry": "Coba lagi"
     },
     "listLabel": "{{noun}}",
+    "moreHidden": "Ketik untuk mempersempit ({{count}} lagi)",
     "empty": {
       "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\".",
       "bare": "Tidak ada {{noun}} yang cocok."

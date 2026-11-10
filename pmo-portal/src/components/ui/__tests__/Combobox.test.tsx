@@ -320,6 +320,62 @@ describe('Combobox: long sub-lines never hide the option label', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// #2044 perf acceptance: "1,000 options → ≤~100 in DOM". The library filters the
+// FULL set and renders at most MAX_RENDERED_OPTIONS matches, so a big FK list
+// stays cheap without losing reachability: typing still finds option #1000.
+// ---------------------------------------------------------------------------
+const MANY_OPTIONS: ComboboxOption[] = Array.from({ length: 1000 }, (_, i) => ({
+  value: `o${i}`,
+  label: `Option ${String(i).padStart(4, '0')}`,
+}));
+// The match sits far beyond the rendered cap.
+const FAR_OPTION: ComboboxOption = { value: 'z1', label: 'Zebra Holdings' };
+const THOUSAND: ComboboxOption[] = [...MANY_OPTIONS, FAR_OPTION];
+
+describe('Combobox: large lists render a capped page of options (#2044 perf acceptance)', () => {
+  it('renders at most 100 of 1,000 options and tells the user how many more there are', async () => {
+    render(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={() => Promise.resolve(MANY_OPTIONS)} />,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findByRole('listbox');
+
+    const rendered = await screen.findAllByRole('option');
+    expect(rendered.length).toBeLessThanOrEqual(100);
+    expect(rendered.length).toBe(100);
+    // The user is told the list continues, so a capped page never reads as "this is all".
+    expect(screen.getByText(/type to narrow \(900 more\)/i)).toBeInTheDocument();
+  });
+
+  it('the cap never truncates the SEARCH: an option past the cap is still found by typing', async () => {
+    const onChange = vi.fn();
+    render(
+      <Combobox label="Client company" value={null} onChange={onChange} loadOptions={() => Promise.resolve(THOUSAND)} />,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findAllByRole('option');
+
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'zebra');
+    const matches = await screen.findAllByRole('option');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toHaveTextContent('Zebra Holdings');
+    // Narrowing below the cap drops the "more" note.
+    expect(screen.queryByText(/type to narrow/i)).not.toBeInTheDocument();
+
+    await userEvent.click(matches[0]);
+    expect(onChange).toHaveBeenCalledWith('z1', FAR_OPTION);
+  });
+
+  it('a list at or under the cap renders every option with no "more" note', async () => {
+    render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findByRole('listbox');
+    expect(await screen.findAllByRole('option')).toHaveLength(OPTIONS.length);
+    expect(screen.queryByText(/type to narrow/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('short-name project picker disclosure (AC-002 #1325)', () => {
   it('keeps the contractual title on the selected trigger when the alias is visible', () => {
     render(<Combobox label="Project" value="p1" selectedOption={{ value: 'p1', label: 'Depot', sub: 'Contractual Project Name' }} onChange={() => {}} loadOptions={loadOk} />);
