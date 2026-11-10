@@ -69,6 +69,15 @@ export default function BudgetErpNotice({
         toast(t('financeCopy.budgetPushedToERP', 'Budget pushed to ERPNext'), t('financeCopy.erpEnforcingBudget', 'ERPNext is enforcing this budget.'), 'success');
       } else if (result.pushState === 'nothing-to-push') {
         toast(t('financeCopy.noBudgetLinesToPushTitle', 'There was nothing to push'), t('financeCopy.noBudgetLinesToPushDetail', 'The active budget version has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version.'), 'warning');
+      } else if (result.pushState === 'pending-cancellation') {
+        // ⚑ rm-1472 / M-3 (review r8) — nothing is wrong here, so this must NOT read as a failed push.
+        // The server parked the units behind an earlier ERPNext budget cancellation that is still
+        // settling; the sweep pushes them by itself once it settles.
+        toast(
+          t('financeCopy.budgetPushQueued', 'The push is queued'),
+          t('financeCopy.budgetPushQueuedBehindCancellation', 'An earlier ERPNext budget cancellation is still settling, so this budget is queued and is pushed automatically once it settles.'),
+          'info',
+        );
       } else {
         const copy = describePushError(row.pushError);
         toast(

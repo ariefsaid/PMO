@@ -71,6 +71,8 @@ const mockRefreshBudgetQueries = vi.hoisted(() => vi.fn());
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'queued' });
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
+const mockReturn = vi.fn().mockResolvedValue(undefined);
+const mockResubmit = vi.fn().mockResolvedValue(undefined);
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
 const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
@@ -94,6 +96,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
     cloneVersion: { mutateAsync: mockClone, isPending: false },
     activate: { mutateAsync: mockActivate, isPending: false },
     archive: { mutateAsync: mockArchive, isPending: false },
+    returnVersion: { mutateAsync: mockReturn, isPending: false },
+    resubmitVersion: { mutateAsync: mockResubmit, isPending: false },
     deleteDraft: { mutateAsync: mockDeleteDraft, isPending: false },
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
     updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
@@ -674,6 +678,52 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  it('AC-1413-UI1: an eligible approver sees Return next to Activate; the dialog needs a reason and sends it trimmed', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Return to drafter$/i }));
+    expect(mockReturn).not.toHaveBeenCalled();
+    const confirm = screen.getByRole('button', { name: /^Return draft$/i });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(screen.getByRole('textbox', { name: /Reason for returning/i }), '  Split labour by quarter ');
+    await userEvent.click(confirm);
+    expect(mockReturn).toHaveBeenCalledWith({ versionId: 'v-draft', reason: 'Split labour by quarter' });
+    resetState();
+  });
+
+  it('AC-1413-UI2: Return is not offered to the drafter or to a non-approver role', () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
+    const { unmount } = renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    unmount();
+    roleState.realRole = 'Project Manager';
+    versionsState.data = [draftVersion];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    resetState();
+  });
+
+  it('AC-1413-UI3: a returned draft shows its reason, drops the waiting banner and Activate, and offers Resubmit', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, returned_at: '2026-01-02T00:00:00Z', returned_by: 'u3', return_reason: 'Split labour' }];
+    renderPage();
+    expect(screen.getByTestId('budget-returned-banner')).toHaveTextContent('Split labour');
+    expect(screen.queryByTestId('budget-draft-banner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Resubmit for approval$/i }));
+    expect(mockResubmit).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Resubmit for approval$/i }));
+    expect(mockResubmit).toHaveBeenCalledWith('v-draft');
+    resetState();
+  });
+
   it('keeps an unresolved error when New version is opened and cancelled', async () => {
     budgetState.data = 0;
     versionsState.data = [activeVersion];
@@ -696,6 +746,46 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
+    resetState();
+  });
+
+  /**
+   * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
+   * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
+   * attempt was made and there is nothing to retry.
+   */
+  it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
+    roleState.realRole = 'Finance';
+    mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/no budget lines/i);
+    // …and it does NOT tell the operator to retry a push that was never attempted.
+    expect(toast).not.toHaveTextContent(/retry/i);
+    resetState();
+  });
+
+  /**
+   * ⚑ rm-1472 — a 202 `budget-cancellation-pending` is the queue, not a push. ERPNext holds nothing for
+   * the new version until the predecessor's cancellation settles (the sweep then pushes it by itself),
+   * so the activation toast must not read as a clean success — and must not tell the operator to fix
+   * something either: nothing on this screen is wrong.
+   */
+  it('rm-1472 activation queued behind an earlier cancellation says so — never a clean "Version activated"', async () => {
+    roleState.realRole = 'Finance';
+    mockActivate.mockResolvedValueOnce({ pushState: 'pending-cancellation' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    const toast = await findToastAnnouncement('alert', /activated/i);
+    expect(toast).toHaveTextContent(/queued/i);
+    expect(toast).toHaveTextContent(/cancellation/i);
     resetState();
   });
 
