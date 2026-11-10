@@ -1,6 +1,67 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash } from './projectFinances';
+import { deriveActualPosition, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash } from './projectFinances';
+import type { ProjectMoneyRead } from './db/projectMoney';
+import { getNumberLocale } from './locale/activeLocale';
 import { isMoneyAtRisk } from './dashboardConstants';
+
+// #2060: the collection Actual is the same derivation for the Cards view, the Table view and any
+// other list surface. Its coverage verdict is the collection read's own `complete`; the category
+// list it also carries enumerates the whole budget_category enum, so it can never be a coverage test.
+describe('deriveCollectionActual (#2060 — one Actual for every collection surface)', () => {
+  const money = (over: Partial<ProjectMoneyRead['actuals']> = {}, rest: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
+    ledgerBasis: 'erp',
+    actuals: {
+      currency: 'USD',
+      total: '7200000.00',
+      asOf: '2026-10-01T00:00:00Z',
+      excludesRestrictedRows: false,
+      complete: true,
+      // The seeded shape: the org maps six of the enum's ten categories, so the list always carries
+      // unmapped, amount-less rows even when the Active budget is fully covered.
+      categories: [
+        { category: 'Labor', mapped: true, amount: '7200000.00' },
+        { category: 'Overheads', mapped: false, amount: null },
+      ],
+      ...over,
+    },
+    activeBudgetAmount: '6900000.00',
+    activeBudgetCurrency: 'USD',
+    hasActiveBudget: true,
+    ...rest,
+  });
+
+  it('shows the figure when the collection read is complete, whatever the unmapped enum rows say', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'USD', money: money() });
+    expect(position.state).toBe('available');
+    expect(position.amount).toBe('7200000.00');
+    expect(position.currency).toBe('USD');
+    expect(position.text).toBe(formatExactMoney('7200000.00', 'USD', getNumberLocale(), { wholeUnits: true }));
+  });
+
+  it('withholds an incomplete reading and names the partial cause', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'USD', money: money({ complete: false }) });
+    expect(position.state).toBe('partial');
+    expect(position.text).toBeNull();
+  });
+
+  it('reports unknown, not partial, when nothing names a category gap', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'USD', money: money({ complete: false, categories: [] }) });
+    expect(position.state).toBe('unknown');
+    expect(position.text).toBeNull();
+  });
+
+  it('keeps a PMO position in another currency unknown rather than relabelling it', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'EUR', money: money({ currency: 'USD' }, { ledgerBasis: 'pmo' }) });
+    expect(position.state).toBe('unknown');
+    expect(position.text).toBeNull();
+  });
+
+  it('says nothing about a row whose collection read is pending or failed', () => {
+    expect(deriveCollectionActual({ projectCurrency: 'USD', money: money(), moneyPending: true }).state).toBe('unavailable');
+    expect(deriveCollectionActual({ projectCurrency: 'USD', money: money(), moneyError: true }).state).toBe('unavailable');
+    expect(deriveCollectionActual({ projectCurrency: 'USD', money: undefined }).state).toBe('unavailable');
+  });
+});
 
 describe('project receipt cash parser', () => {
   it('AC-UWC-009 preserves exact known zero and separate source-currency buckets', () => {

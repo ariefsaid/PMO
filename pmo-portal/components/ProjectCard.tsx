@@ -7,8 +7,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
-import { formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { deriveCollectionActual } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
@@ -49,7 +48,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const currency = project.currency;
   const contract = project.contract_value;
   const moneyAvailable = !moneyPending && !moneyError && Boolean(projectMoney);
-  const actual = moneyAvailable && projectMoney?.actuals.total != null ? Number(projectMoney.actuals.total) : null;
+  // #2060: the ONE Actual derivation, shared with the Projects table, so the two views can never
+  // disagree about the figure or about whether there is one.
+  const actualPosition = deriveCollectionActual({ projectCurrency: currency, money: projectMoney, moneyPending, moneyError });
+  const actual = actualPosition.amount === null ? null : Number(actualPosition.amount);
   const activeBudget = moneyAvailable && projectMoney?.hasActiveBudget && projectMoney.activeBudgetAmount != null
     ? Number(projectMoney.activeBudgetAmount)
     : null;
@@ -61,9 +63,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       : t('uxs02.noActiveBudget', 'No active budget');
   const budgetCurrencyMatches = projectMoney?.activeBudgetCurrency === projectMoney?.actuals.currency
     && projectMoney?.actuals.currency === project.currency;
-  const actualIsComplete = isActualComplete({ basis: projectMoney?.ledgerBasis ?? (projectMoney ? 'erp' : 'unavailable'),
-    readSucceeded: moneyAvailable && (projectMoney?.ledgerBasis !== 'pmo' || projectMoney.actuals.currency === currency), complete: projectMoney?.actuals.complete,
-    categories: projectMoney?.actuals.categories, excludesRestrictedRows: projectMoney?.actuals.excludesRestrictedRows });
+  const actualIsComplete = actualPosition.state === 'available';
   const budgetUsedPct = actual != null && actualIsComplete && activeBudget != null && activeBudget > 0 && budgetCurrencyMatches
     ? Math.round((actual / activeBudget) * 100)
     : null;
@@ -82,10 +82,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const initial = (pmLabel.trim().charAt(0) || '?').toUpperCase();
 
   // Actual is shown only when complete — the same rule as the table: unknown is never a partial total.
-  const showActual = actual != null && actualIsComplete;
-  const actualFigure = showActual
-    ? formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale(), { wholeUnits: true })
-    : null;
+  const showActual = actualPosition.state === 'available';
+  const actualFigure = showActual ? actualPosition.text : null;
   const hasUnknownMoney = contract == null || activeBudgetUnknown || actualFigure === null;
   const body = (
     <>
