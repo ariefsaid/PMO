@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from '@std/assert';
 import { describe, it } from '@std/testing/bdd';
-import { hasUnsettledBudgetArchiveCancellation } from './budgetDispatch.ts';
+import { budgetArchiveCancelState, hasUnsettledBudgetArchiveCancellation } from './budgetDispatch.ts';
 
 type Row = Record<string, unknown>;
 
@@ -91,5 +91,39 @@ describe('range budget cancellation fence', () => {
       budget_archive_cancel_intents: [{ id: 'intent-1', state: 'superseded' }],
       external_command_outbox: [],
     }, 'external_command_outbox'), 'org-1', 'project-1'));
+  });
+});
+
+// ⚑ rm-1472 — the fence is not a boolean to the RESUME driver: "still in flight" must keep waiting,
+// while "a human must resolve this" must stop the wait with a reason a person can see, and only
+// "settled" may release the parked units. One classifier, so the gate and the sweep cannot disagree.
+describe('range budget cancellation state (resume conjunction)', () => {
+  it('is settled only when every intent completed (or superseded with no issued command)', async () => {
+    assertEquals(await budgetArchiveCancelState(client({
+      budget_archive_cancel_intents: [
+        { id: 'intent-1', state: 'complete' },
+        { id: 'intent-2', state: 'superseded' },
+      ],
+      external_command_outbox: [],
+    }), 'org-1', 'project-1'), 'settled');
+  });
+
+  it('is pending while any intent is still in flight, even alongside a held one', async () => {
+    assertEquals(await budgetArchiveCancelState(client({
+      budget_archive_cancel_intents: [
+        { id: 'intent-1', state: 'held' },
+        { id: 'intent-2', state: 'pending' },
+      ],
+    }), 'org-1', 'project-1'), 'pending');
+    assertEquals(await budgetArchiveCancelState(client({
+      budget_archive_cancel_intents: [{ id: 'intent-1', state: 'superseded' }],
+      external_command_outbox: [{ id: 'outbox-1', budget_archive_cancel_job_id: 'intent-1' }],
+    }), 'org-1', 'project-1'), 'pending');
+  });
+
+  it('is held (never settled) when the only outstanding intent is one a person must resolve', async () => {
+    assertEquals(await budgetArchiveCancelState(client({
+      budget_archive_cancel_intents: [{ id: 'intent-1', state: 'held' }],
+    }), 'org-1', 'project-1'), 'held');
   });
 });

@@ -8,7 +8,7 @@ const labels: ManagementPackExportLabels = {
   taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoiced: 'Invoiced',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Unbilled',
   backlog: 'Backlog', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
-  basisInvoiced: 'Invoiced', basisProgress: 'Progress',
+  basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
 };
 
 const contractProject = {

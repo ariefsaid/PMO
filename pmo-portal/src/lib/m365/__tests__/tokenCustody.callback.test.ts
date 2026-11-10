@@ -382,12 +382,29 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
     expect(evJson).not.toMatch(/ACCESS|REFRESH|verifier-abc/i);
   });
 
+  it('AC-M365SS-001: the callback stores tokens when the plan resolves M365 on without an override row', async () => {
+    const service = mockClient({ // no org_features row seeded: entitlement comes from the resolved plan switch
+      m365_pkce_states: [{ data: pkceRow(), error: null }],
+      profiles: [{ data: { status: 'active' }, error: null }],
+      ms_graph_connections: [{ data: null, error: null }, { data: { id: 'conn-1' }, error: null }],
+    });
+    const fetch = fetchOk({
+      access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
+      id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),
+    });
+
+    const result = await handleCallback(callbackReq({ code: 'auth-code', state: 'state-xyz' }), deps({ service, fetch }));
+
+    expect(result.headers?.Location).not.toContain('m365_error=');
+    expect(service.rpc).toHaveBeenCalledWith('service_feature_enabled', { p_org_id: 'org-1', p_key: 'm365_integration' });
+    expect(service.writes.some((w) => w.kind === 'upsert' && w.table === 'ms_graph_connections')).toBe(true);
+  });
+
   it('AC-M365-103 (C1c): a disentitled org (pre-check) is rejected before the upsert — error_event, no store', async () => {
     const service = mockClient({
       m365_pkce_states: [{ data: pkceRow(), error: null }],
       profiles: [{ data: { status: 'active' }, error: null }],
-      org_features: [{ data: { enabled: false }, error: null }],
-    });
+    }, { featureEnabled: false }); // plan resolves M365 off
     const fetch = fetchOk({
       access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
       id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),

@@ -16,7 +16,7 @@ const ORG = '00000000-0000-4000-8000-000000000083';
 const PROJECT = '00000000-0000-4000-8000-000000000086';
 const TASK = '00000000-0000-4000-8000-000000000085';
 
-Deno.test('FN2-006 a failed org-binding read fails closed: no ClickUp request carries the global token', async () => {
+for (const failing of ['binding', 'vault'] as const) Deno.test(`FN2-006 #654 a failed org ${failing} read fails closed: no ClickUp request carries the global token`, async () => {
   const jwt = await auth.mintJwt({ sub: '00000000-0000-4000-8000-000000000084' });
   await withFetchMock([{
     label: 'authorized task update, binding read fails',
@@ -27,7 +27,10 @@ Deno.test('FN2-006 a failed org-binding read fails closed: no ClickUp request ca
       if (path.startsWith('/rest/v1/tasks')) return jsonResponse({ id: TASK, org_id: ORG, project_id: PROJECT, created_by: null, assignee_id: null });
       if (path.startsWith('/rest/v1/rpc/task_domain_externally_owned')) return jsonResponse(false);
       if (path.startsWith('/rest/v1/external_project_bindings')) return jsonResponse({ id: 'b1' });
-      if (path.startsWith('/rest/v1/external_org_bindings')) return jsonResponse({ message: 'db blip', code: '57P03' }, { status: 500 });
+      if (path.startsWith('/rest/v1/external_org_bindings')) {
+        return failing === 'binding' ? jsonResponse({ message: 'db blip', code: '57P03' }, { status: 500 }) : jsonResponse({ secret_ref: 'synthetic-vault-ref' });
+      }
+      if (path.startsWith('/rest/v1/rpc/read_vault_secret')) return jsonResponse({ message: 'db blip', code: '57P03' }, { status: 500 });
       // any other request is a tripwire: it must not be reached on the fail-closed path
       return jsonResponse([]);
     },
@@ -38,7 +41,7 @@ Deno.test('FN2-006 a failed org-binding read fails closed: no ClickUp request ca
       body: JSON.stringify({ domain: 'tasks', operation: 'update', record: { id: TASK, project_id: PROJECT, name: 'Updated task' } }),
     }));
     await res.text();
-    assert(calls.some((c) => c.url.pathname.includes('external_org_bindings')), 'binding read must be reached');
+    assert(calls.some((c) => c.url.pathname.includes(failing === 'binding' ? 'external_org_bindings' : 'read_vault_secret')), `${failing} read must be reached`);
     assertEquals(calls.filter((c) => c.url.hostname === 'api.clickup.com').length, 0);
     assert(res.status >= 400, `expected failure, got ${res.status}`);
   });

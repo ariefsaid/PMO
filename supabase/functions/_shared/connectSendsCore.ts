@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendMasterOnce, type SendKind } from '../../../pmo-portal/src/lib/adapterSeam/connect/sendViaOutbox.ts';
-import type { ConnectAdapter, PmoMaster } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
+import type { ConnectAdapter, PmoMaster, PmoProjectCodeField } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
 import { COMMAND_IN_FLIGHT_FOR_RECORD } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { EMPLOYEE_SEND_UNAVAILABLE_REASON } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/workflowDeclarations.ts';
 import { createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
@@ -39,15 +39,17 @@ async function check<T>(q: PromiseLike<{ data: T; error: { code?: string } | nul
 }
 
 /** The master as PMO holds it now, scoped to the org; null when it is gone, archived, or (an item) no longer on an open purchase. */
-export async function pmoMasterOf(sc: SupabaseClient, orgId: string, kind: SendKind, pmoId: string, openStatuses: () => Promise<string[]>): Promise<PmoMaster | null> {
+export async function pmoMasterOf(sc: SupabaseClient, orgId: string, kind: SendKind, pmoId: string, openStatuses: () => Promise<string[]>,
+  projectCodeField: PmoProjectCodeField = 'code'): Promise<PmoMaster | null> {
   if (kind === 'party') {
     const r = await check(sc.from('companies').select('id, name, type, erp_tax_id').eq('org_id', orgId).eq('id', pmoId)
       .in('type', ['Client', 'Vendor']).is('archived_at', null).maybeSingle(), 'company read') as { id: string; name: string; type: string; erp_tax_id: string | null } | null;
     return r ? { id: r.id, name: r.name, role: r.type === 'Client' ? 'client' : 'vendor', taxId: r.erp_tax_id } : null;
   }
   if (kind === 'project') {
-    const r = await check(sc.from('projects').select('id, name, code').eq('org_id', orgId).eq('id', pmoId).is('archived_at', null).maybeSingle(), 'project read') as { id: string; name: string; code: string | null } | null;
-    return r ? { id: r.id, name: r.name, code: r.code } : null;
+    // the field the ERP's project code matches on (FR-ODC-072: Odoo names the account with the PMO project number, not the client code)
+    const r = await check(sc.from('projects').select(`id, name, ${projectCodeField}`).eq('org_id', orgId).eq('id', pmoId).is('archived_at', null).maybeSingle(), 'project read') as Record<string, string | null> | null;
+    return r ? { id: r.id as string, name: r.name as string, code: r[projectCodeField] ?? null } : null;
   }
   if (kind === 'item') {
     // #1736: the same definition the queue calls (connect_open_purchase_statuses, 0703) — never a second list here
@@ -74,7 +76,7 @@ export interface SendTier {
   /** Short plain-words reason from a refusal, or null. */
   reasonOf(err: unknown): string | null;
   /** Plain words when this tier cannot send a record of this kind right now (checked before anything is written); null when it can. */
-  refuse?(kind: SendKind): string | null;
+  refuse?(kind: SendKind, master: PmoMaster): string | null;
   /** Runs after the ERP confirmed a send and before PMO links it (the Odoo project link needs the new account mirrored first). A failure leaves the send waiting: the next look finds the confirmed outbox row and runs this again. */
   afterSent?(kind: SendKind, master: PmoMaster, externalId: string): Promise<void>;
   /** Why this ERP cannot be sent a person; defaults to the ERPNext sentence. */
@@ -127,12 +129,12 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
       // C1: a record that already has its link is never sent again (a second send makes a second ERP record); the result writer treats the same id as reconciled
       const linked = await check(sc.rpc('connect_send_existing_link', { p_org_id: org.orgId, p_tier: t.tier, p_kind: kind, p_pmo: c.pmo_ids[0] }), 'link read') as string | null;
       if (linked) { await record(c, linked, null); continue; }
-      const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0], statuses);
+      const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0], statuses, adapter.projectCodeField);
       if (!master) { await reject(c, CONNECT_SEND_REJECTION_TEXT.gone); continue; }
       // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
       const queuedBySweep = c.kind === 'item' && c.decided_by === null && c.snapshot?.auto === true;
       if (!queuedBySweep && !(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
-      const refusal = t.refuse?.(kind) ?? null;
+      const refusal = t.refuse?.(kind, master) ?? null;
       if (refusal) { await reject(c, refusal); continue; }
       let ambiguous = false;
       const money = createDbMoneyOutboxDeps({

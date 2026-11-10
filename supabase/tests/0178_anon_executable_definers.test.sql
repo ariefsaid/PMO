@@ -119,9 +119,10 @@
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
 -- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
--- Current retained set: 162 names after #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3) and 0704 (#1817, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
+-- Current retained set: 165 names after #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
 -- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
 -- Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/tm_native_invoice.test.sql.
+-- ⚑ AMENDED BY 0792 (#1413): `return_budget_version` and `resubmit_budget_version` join (+2, count 164). Member-JWT definers; re-assert org, active membership, the four budget roles and (return) the activation SoD; proved by supabase/tests/budget_return_to_pm.test.sql.
 --
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
@@ -253,7 +254,7 @@ select plan(7);
 -- re-derived by hand from the 146 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
 -- org; prepare also the project's progress authority, confirm Admin / Finance and preparer ≠ confirmer unless the sole active member. Proven by
 -- supabase/tests/tm_signoff.test.sql.
--- ⚑ AMENDED BY 0854 (#1511 F3): `accept_equipment_asset_matches` joins the retained set (+1, count 163, re-derived by
+-- ⚑ AMENDED BY 0854 (#1511 F3): `accept_equipment_asset_matches` joins the retained set (+1, count 165, re-derived by
 -- hand from the list). SECURITY DEFINER writer under a member's JWT that re-asserts active membership, the Admin role,
 -- the caller's org, the employment of `equipment` under Odoo and each row's org before it writes; proven by
 -- supabase/tests/odoo_equipment_adoption.test.sql (AC-OFM-021). `list_equipment_asset_matches` is SECURITY INVOKER and
@@ -263,6 +264,8 @@ insert into client_callable_rpc_names (proname) values
   ('accept_connect_proposals'),
   ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
   ('activate_budget_version'),
+  ('return_budget_version'),
+  ('resubmit_budget_version'),
   ('add_skipped_stage_entry'),
   ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
@@ -444,9 +447,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  163,
-  'AC-ACL-002 all 163 retained client-callable RPC names still have a public function');
-
+  165,
+  'AC-ACL-002 all 165 retained client-callable RPC names still have a public function');
 select is(
   (select count(*)::int
      from pg_proc p
@@ -454,8 +456,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  163,
-  'AC-ACL-003 all 163 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  165,
+  'AC-ACL-003 all 165 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

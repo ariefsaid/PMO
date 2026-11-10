@@ -90,8 +90,8 @@ describe('orgFeatureRepository and credits', () => {
 
 describe('orgSettingsRepository', () => {
   itDelegates(orgSettingsRepository as never, { ...orgs, ...spend }, [
-    ['getWithholdingAccount', 'getOrgWithholdingAccount', []],
-    ['setWithholdingAccount', 'setOrgWithholdingAccount', ['2100 - WHT']],
+    ['getWithholdingAccounts', 'getOrgWithholdingAccounts', []],
+    ['setWithholdingAccounts', 'setOrgWithholdingAccounts', [{ defaultAccount: '2100 - WHT', pph23Account: null, pph42Account: null }]],
     ['getVendorTaxAccounts', 'getOrgVendorTaxAccounts', []],
     ['setVendorTaxAccounts', 'setOrgVendorTaxAccounts', [{ ppn: 'A' }]],
     ['getDownPaymentItem', 'getOrgDownPaymentItem', []],
