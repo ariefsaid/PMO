@@ -195,6 +195,42 @@ describe('project money position', () => {
     expect(result.current.unknown).toBe(1);
   });
 
+  it('#2066 actuals in another currency stay readable in their own currency but are never compared', () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }, { category: 'Materials', budgeted_amount: '100' }])];
+    state.finances = actuals([
+      { category: 'Labor', mapped: true, amount: '90' },
+      { category: 'Materials', mapped: false, amount: null },
+    ], 'IDR');
+
+    const { result } = renderHook(() => useBudgetPosition(project()));
+    expect(result.current.spendCurrency).toBe('IDR');
+    expect(result.current.currencyDiffers).toBe(true);
+    expect(result.current.spendRows).toEqual([{ category: 'Labor', actual: 90 }, { category: 'Materials', actual: null }]);
+    expect(result.current.rows.map((row) => row.actual)).toEqual([null, null]);
+    expect(result.current.spent).toBeNull();
+  });
+
+  it('#2066 actuals in the project currency compare as before and are not flagged as a different currency', () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = actuals([{ category: 'Labor', mapped: true, amount: '90' }]);
+
+    const { result } = renderHook(() => useBudgetPosition(project()));
+    expect(result.current.currencyDiffers).toBe(false);
+    expect(result.current.spendRows).toEqual([{ category: 'Labor', actual: 90 }]);
+    expect(result.current.rows[0]?.actual).toBe(90);
+  });
+
+  it('#2066 the Overview cost block says spending is in another currency, not that it is unlinked', () => {
+    state.role = 'Admin';
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = actuals([{ category: 'Labor', mapped: true, amount: '90' }], 'IDR');
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText('Budget 100')).toBeInTheDocument();
+    expect(screen.getByText('Spending is recorded in IDR, not the project currency, so it is not compared with the budget.')).toBeInTheDocument();
+    expect(screen.queryByText("Spending isn't linked yet.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/% used|within budget|over budget/i)).not.toBeInTheDocument();
+  });
+
   it('sorts known over-budget categories by the largest overrun first', () => {
     state.versions = [budgetVersion([
       { category: 'Labor', budgeted_amount: '100' },

@@ -42,6 +42,9 @@ export const WORKFLOWS = {
   'timesheet.push': { version: 1, summary: 'send an approved timesheet to the ERP' },
   'imprest.transfer': { version: 1, summary: 'move cash between two of the company\'s own accounts once, by key' },
   'purchase-order.revise': { version: 1, summary: 'send the effective lines of one PO revision to the ERP once, never cancelling a billed order' },
+  // The asset register and its maintenance (#1511): PMO is the only interface, the ERP holds the records.
+  'equipment.push': { version: 1, summary: 'create or update a register asset or maintenance record in the ERP once, by key' },
+  'equipment.read': { version: 1, summary: 'read the ERP asset register and maintenance records into PMO' },
 } as const satisfies Record<string, { version: number; summary: string }>;
 
 export type WorkflowId = keyof typeof WORKFLOWS;

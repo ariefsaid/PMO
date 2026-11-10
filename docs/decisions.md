@@ -465,7 +465,7 @@ billing) and spine 8 (asset registry) and is sequenced after them. Defined in
 
 ## OD-DOC — Document file storage (grill-with-docs session, owner-locked 2026-06-12)
 
-First issue of the KANNA gap-closing series (`review/kanna-gap-analysis.md`). Grilled per the
+First issue of the KANNA gap-closing series (a competitor review, kept private). Grilled per the
 new playbook §2 step-1b gate.
 
 ### OD-DOC-1 — Issue scope: infra + Documents tab only; procurement next; photos out
@@ -1098,7 +1098,7 @@ deferred under this single-org decision.
 
 ## OD-CR-1..6 — RIS-parity + CRM-v2 candidate program (owner grill 2026-07-22)
 
-Candidate program, **not scheduled**. Analysis: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md).
+Candidate program, **not scheduled**. Analysis: (a competitor review, kept private).
 Full decision text (batches A–D + the resulting sequence) lives in the **CANDIDATE PROGRAM** section of
 [`docs/backlog.md`](backlog.md) — indexed here so `OD-CR-*` resolves by id:
 
@@ -3728,3 +3728,6 @@ trigger finds the claim. The work-order fence refuses any insert that reuses a c
 with a transaction-local marker that names the claim. Defaults taken from the plan (owner questions open): the approval
 rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
 line, no item code; no re-invoice after a cancel.
+
+### DD-1413-RESUBMIT — any approver-role member may resubmit a returned budget draft (#1413)
+Resubmit is open to every approver-role member, including the one who returned it. Nothing breaks: activation separation of duties still runs in full on the resubmitted draft.

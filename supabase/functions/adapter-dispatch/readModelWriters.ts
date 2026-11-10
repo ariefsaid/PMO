@@ -12,6 +12,7 @@
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { budgetWriter } from './readModel/budget.ts';
 import { companiesWriter } from './readModel/companies.ts';
+import { equipmentWriter } from './readModel/equipment.ts';
 import { expensesWriter } from './readModel/expenses.ts';
 import { procurementWriter } from './readModel/procurement.ts';
 import { referenceWriter } from './readModel/reference.ts';
@@ -33,6 +34,7 @@ export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
   companies: companiesWriter,
+  equipment: equipmentWriter,
   procurement: procurementWriter,
   revenue: revenueWriter,
   budget: budgetWriter,

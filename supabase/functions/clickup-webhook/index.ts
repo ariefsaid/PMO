@@ -10,7 +10,7 @@
  * never safe here. A separate worker (`clickup-webhook-worker`, `../_shared` queue table
  * `clickup_webhook_inbox`) re-GETs the task and applies the full current state.
  *
- * The `X-Signature` HMAC-SHA256 of the raw body (keyed by CLICKUP_WEBHOOK_SECRET) is the SOLE trust
+ * The `X-Signature` HMAC-SHA256 of the raw body (keyed by the org's own webhook secret) is the SOLE trust
  * boundary (FR-CUA-041, NFR-CUA-SEC-002): an absent/invalid signature ⇒ 401 with NO side effect, before
  * any parse/enqueue (STRIDE spoofing/tampering). `verify_jwt = false` (supabase/config.toml) — the HMAC
  * replaces the JWT gate.
@@ -27,6 +27,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyClickUpSignature } from '../../../pmo-portal/src/lib/adapterSeam/clickup/signature.ts';
 import { parseWebhookEnvelope, type ClickUpWebhookPayload } from '../../../pmo-portal/src/lib/adapterSeam/clickup/types.ts';
 import { readBodyBounded } from '../_shared/readBodyBounded.ts';
+import { resolveClickUpWebhookSecrets, type ClickUpWebhookOrgSecret } from '../_shared/clickupOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // 256 KiB body cap (review fix #7b): reject an oversized payload BEFORE req.text() so a huge body
@@ -45,6 +46,10 @@ function json(body: unknown, status = 200): Response {
  *  unit-testable (index.test.ts) without a live Supabase stack. The Deno.serve wrapper wires the real
  *  `clickup_webhook_inbox` insert. */
 export interface ClickUpWebhookHandlerDeps {
+  /** Every org's resolved webhook secret. A delivery verifies only against exactly one org's secret. */
+  resolveWebhookSecrets: () => Promise<ClickUpWebhookOrgSecret[]>;
+  /** The org bound to a ClickUp team, resolved exactly as the worker resolves it; `null` when unbound. */
+  orgForTeam: (teamId: string) => Promise<string | null>;
   /** Durably enqueue one verified event; the worker (clickup-webhook-worker) claims + applies it. */
   enqueue: (payload: ClickUpWebhookPayload, rawBodySha256: string) => Promise<void>;
 }
@@ -66,13 +71,25 @@ export async function handleClickUpWebhook(req: Request, deps: ClickUpWebhookHan
 
   // ── 1. The HMAC is the sole trust boundary: read the RAW body + the X-Signature header BEFORE any
   //    parse/enqueue. An absent/invalid signature ⇒ 401 with NO side effect (FR-CUA-041, NFR-CUA-SEC-002). ──
-  const secret = Deno.env.get('CLICKUP_WEBHOOK_SECRET') ?? '';
   const rawBody = await readBodyBounded(req, MAX_WEBHOOK_BODY_BYTES);
   if (rawBody === null) return json({ error: 'PAYLOAD_TOO_LARGE' }, 413);
   const signatureHeader = req.headers.get('X-Signature') ?? '';
-  if (!secret || !(await verifyClickUpSignature(rawBody, signatureHeader, secret))) {
-    return json({ error: 'UNAUTHORIZED' }, 401);
+  let orgSecrets: ClickUpWebhookOrgSecret[];
+  try {
+    orgSecrets = await deps.resolveWebhookSecrets();
+  } catch (err) {
+    console.error(`[clickup-webhook] resolveWebhookSecrets failed: ${err instanceof Error ? err.message : 'unknown'}`);
+    return json({ error: 'INTERNAL_ERROR', message: 'could not resolve the webhook secret' }, 500);
   }
+  // Check EVERY org (no first-wins): a signature must identify exactly one org. No match, or a secret
+  // shared by several orgs, is rejected with no side effect.
+  const matchedOrgIds: string[] = [];
+  if (signatureHeader) {
+    for (const org of orgSecrets) {
+      if (org.secret && (await verifyClickUpSignature(rawBody, signatureHeader, org.secret))) matchedOrgIds.push(org.orgId);
+    }
+  }
+  if (matchedOrgIds.length !== 1) return json({ error: 'UNAUTHORIZED' }, 401);
 
   // ── 2. Parse the verified body — the REAL envelope (2026-07-20 live-verified): {event, task_id,
   //    team_id, webhook_id, history_items}. No task/date_updated/list_id ever crosses this boundary. ──
@@ -86,6 +103,16 @@ export async function handleClickUpWebhook(req: Request, deps: ClickUpWebhookHan
   if (!payload) {
     return json({ error: 'BAD_REQUEST', message: 'event and task_id are required' }, 400);
   }
+  // The worker picks the org from the delivery's team, so the team must belong to the org whose secret
+  // signed it: one org's secret never acts on another org's workspace.
+  let teamOrgId: string | null;
+  try {
+    teamOrgId = payload.team_id ? await deps.orgForTeam(payload.team_id) : null;
+  } catch (err) {
+    console.error(`[clickup-webhook] orgForTeam failed: ${err instanceof Error ? err.message : 'unknown'}`);
+    return json({ error: 'INTERNAL_ERROR', message: 'could not resolve the webhook secret' }, 500);
+  }
+  if (teamOrgId !== matchedOrgIds[0]) return json({ error: 'UNAUTHORIZED' }, 401);
 
   // ── 3. Enqueue + ack. Never applies inline — the worker re-GETs + applies (OD-INT-11). ──
   const digestBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody));
@@ -107,6 +134,20 @@ export async function handleClickUpWebhook(req: Request, deps: ClickUpWebhookHan
 }
 
 // ── The real wiring the Deno.serve wrapper uses (DB insert into clickup_webhook_inbox). ──────────
+
+/** Mirrors the worker's `resolveOrgForTeam` binding lookup, so both sides agree on the team's org. */
+function orgForTeamLive(serviceClient: SupabaseClient): ClickUpWebhookHandlerDeps['orgForTeam'] {
+  return async (teamId) => {
+    const { data, error } = await serviceClient
+      .from('external_org_bindings')
+      .select('org_id')
+      .eq('external_tier', 'clickup')
+      .eq('config->>clickup_team_id', teamId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as { org_id?: string } | null)?.org_id ?? null;
+  };
+}
 
 function enqueueLive(serviceClient: SupabaseClient): ClickUpWebhookHandlerDeps['enqueue'] {
   return async (payload, rawBodySha256) => {
@@ -135,6 +176,10 @@ if (import.meta.main) {
       return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
     }
     const serviceClient = createClient(supabaseUrl, serviceRoleKey);
-    return handleClickUpWebhook(req, { enqueue: enqueueLive(serviceClient) });
+    return handleClickUpWebhook(req, {
+      resolveWebhookSecrets: () => resolveClickUpWebhookSecrets(serviceClient),
+      orgForTeam: orgForTeamLive(serviceClient),
+      enqueue: enqueueLive(serviceClient),
+    });
   });
 }

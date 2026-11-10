@@ -243,16 +243,56 @@ describe('external-set-company — Odoo gates', () => {
 describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () => {
   const ACTIVATED = { site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
     config: { database: 'db1', odoo_company_id: 1, connection: { state: 'healthy', failures: 0, last_ok_at: null, last_checked_at: null, error_class: null, missing: [] } } };
+  // A healthy stored snapshot: the only case where the card's Re-check is the one-call path.
+  const WITH_SNAPSHOT = { ...ACTIVATED, config: { ...ACTIVATED.config, capabilities: { version_major: 20, missing: [] } } };
   const merged = (calls: FetchCall[]) => rpcCall(calls, 'merge_external_org_binding_config').map((c) => c.bodyJson as { p_org_id: string; p_external_tier: string; p_patch: { connection: ConnectionRecord; capabilities?: CapabilitySnapshot } });
 
-  it('FR-ODC-031 an Admin recheck probes now and stores a healthy state with the snapshot', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED });
+  it('FR-ODC-031 an Admin full recheck probes now and stores a healthy state with the snapshot', async () => {
+    const r = await call({ setupAction: 'recheck', full: true }, { binding: ACTIVATED });
     assertEquals([r.res.status, r.json.state], [200, 'healthy']);
     const m = merged(r.calls);
     assertEquals(m.length, 1);
     assertEquals([m[0].p_org_id, m[0].p_external_tier, m[0].p_patch.connection.state, m[0].p_patch.capabilities?.missing], ['org-1', 'odoo', 'healthy', []]);
     assertEquals(r.text.includes(KEY), false);
     assertEquals(JSON.stringify(m).includes(KEY), false);
+  });
+
+  it('#2051 the card Re-check on a healthy snapshot is one authenticated read: no version probe, no discovery, no snapshot rewrite', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: WITH_SNAPSHOT });
+    assertEquals([r.res.status, r.json.state], [200, 'healthy']);
+    assertEquals(r.fake.calls, [{ model: 'res.company', method: 'search_count' }]);
+    assertEquals(odooCalls(r.calls).length, 1);
+    const m = merged(r.calls);
+    assertEquals([m.length, m[0].p_patch.connection.state, 'capabilities' in m[0].p_patch], [1, 'healthy', false]);
+    assertEquals(r.text.includes(KEY), false);
+  });
+
+  it('FR-ODC-020 a Re-check on a degraded snapshot runs discovery, so a fixed permission clears the state now', async () => {
+    const config = { ...ACTIVATED.config, connection: { ...ACTIVATED.config.connection, state: 'degraded', missing: ['uom.uom'] }, capabilities: { version_major: 20, missing: ['uom.uom'] } };
+    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config } });
+    assertEquals([r.res.status, r.json.state, r.json.missing], [200, 'healthy', []]);
+    assertEquals(r.fake.calls.length > 1, true);
+    const m = merged(r.calls);
+    assertEquals([m.length, m[0].p_patch.connection.state, m[0].p_patch.capabilities?.missing], [1, 'healthy', []]);
+  });
+
+  it('FR-ODC-020 a Re-check on a degraded snapshot whose item is still missing stays degraded naming it', async () => {
+    const config = { ...ACTIVATED.config, capabilities: { version_major: 20, missing: ['uom.uom'] } };
+    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config }, prepare: (f) => f.dropModel('uom.uom') });
+    assertEquals([r.json.state, r.json.missing], ['degraded', ['uom.uom']]);
+  });
+
+  it('FR-ODC-020 a Re-check with no stored snapshot runs discovery and stores one', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED });
+    assertEquals(r.res.status, 200);
+    assertEquals(r.fake.calls.length > 1, true);
+    assertEquals('capabilities' in merged(r.calls)[0].p_patch, true);
+  });
+
+  it('#2051 the light Re-check with Odoo unreachable answers 200 with the failure class, one failure counted', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: WITH_SNAPSHOT, prepare: (f) => f.failNext('transport') });
+    assertEquals([r.res.status, r.json.errorClass], [200, 'unreachable']);
+    assertEquals(merged(r.calls)[0].p_patch.connection.failures, 1);
   });
 
   it('FR-ODC-031 Odoo rejecting the key → 200 credential-rejected (the probe ran), stored with the class', async () => {
@@ -268,13 +308,13 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
   });
 
   it('FR-ODC-031 a network failure counts once; the previous state is kept until the third', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, prepare: (f) => f.failNext('transport') });
+    const r = await call({ setupAction: 'recheck' }, { binding: WITH_SNAPSHOT, prepare: (f) => f.failNext('transport') });
     assertEquals([r.res.status, r.json.state], [200, 'healthy']);
     assertEquals(merged(r.calls)[0].p_patch.connection.failures, 1);
   });
 
-  it('FR-ODC-020 a missing model on recheck → degraded naming it', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, prepare: (f) => f.dropModel('uom.uom') });
+  it('FR-ODC-020 a missing model on a full recheck → degraded naming it', async () => {
+    const r = await call({ setupAction: 'recheck', full: true }, { binding: ACTIVATED, prepare: (f) => f.dropModel('uom.uom') });
     assertEquals([r.res.status, r.json.state, r.json.missing], [200, 'degraded', ['uom.uom']]);
   });
 
@@ -307,15 +347,15 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
     assertEquals((rpcCall(r.calls, 'rate_limit_hit')[0].bodyJson as { p_key: string }).p_key, 'odoo-recheck:org-1');
   });
 
-  it('FR-ODC-020 a discovery that outlasts its budget → 200 timeout, one failure counted, no snapshot stored', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, skewAfterCalls: 4 });
+  it('FR-ODC-020 a full discovery that outlasts its budget → 200 timeout, one failure counted, no snapshot stored', async () => {
+    const r = await call({ setupAction: 'recheck', full: true }, { binding: ACTIVATED, skewAfterCalls: 4 });
     assertEquals([r.res.status, r.json.errorClass], [200, 'timeout']);
     const m = merged(r.calls);
     assertEquals([m[0].p_patch.connection.failures, 'capabilities' in m[0].p_patch], [1, false]);
   });
 
   it('FR-ODC-021 a failed version probe with no earlier snapshot is a failure, never healthy', async () => {
-    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config: { ...ACTIVATED.config, connection: { ...ACTIVATED.config.connection, state: 'degraded' } } }, version: null });
+    const r = await call({ setupAction: 'recheck', full: true }, { binding: { ...ACTIVATED, config: { ...ACTIVATED.config, connection: { ...ACTIVATED.config.connection, state: 'degraded' } } }, version: null });
     assertEquals(r.json.state, 'degraded');
     const m = merged(r.calls);
     assertEquals([m[0].p_patch.connection.failures, 'capabilities' in m[0].p_patch], [1, false]);
@@ -323,7 +363,7 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
 
   it('FR-ODC-021 a failed version probe keeps the earlier snapshot version', async () => {
     const config = { ...ACTIVATED.config, capabilities: { version_major: 20, missing: [] } };
-    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config }, version: null });
+    const r = await call({ setupAction: 'recheck', full: true }, { binding: { ...ACTIVATED, config }, version: null });
     assertEquals([r.json.state, merged(r.calls)[0].p_patch.capabilities?.version_major], ['healthy', 20]);
   });
 });
@@ -427,6 +467,11 @@ describe('external-set-company — Odoo refresh and reset-kind (FR-ODC-047, FR-O
     const r = await run([{ setupAction: 'reset-kind', kind: 'product' }], { role: 'Admin' });
     assertEquals([r.out[0].status, r.out[0].json], [200, { reset: 'product' }]);
     assertEquals(rpcCall(r.calls, 'reset_odoo_sync_kind')[0].bodyJson, { p_org_id: 'org-1', p_kind: 'product', p_actor_id: 'user-1' });
+  });
+
+  it('AC-OFM-011 an Admin may reset an asset kind', async () => {
+    const r = await run([{ setupAction: 'reset-kind', kind: 'vehicle' }], { role: 'Admin' });
+    assertEquals([r.out[0].status, r.out[0].json], [200, { reset: 'vehicle' }]);
   });
 
   it('FR-ODC-048 a reset while the sync runs → 409, nothing reset, the running sync\'s lock untouched', async () => {

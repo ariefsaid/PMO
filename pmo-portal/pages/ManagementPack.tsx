@@ -170,6 +170,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     total: t('managementPack.total', 'Total'),
     basisInvoiced: t('managementPack.basis.invoiced', 'Invoiced'),
     basisProgress: t('managementPack.basis.progressShort', 'Progress'),
+    basisEarned: t('financeHub:managementPack.basisEarned', 'Earned value'),
   };
   // One Export (long-format CSV, one row per project × month with its currency and tax basis).
   const packRef = useRef(pack);

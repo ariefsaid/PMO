@@ -1,6 +1,11 @@
-// @e2e-isolation: read-only — pure nav/assert; reads dashboard KPIs and pipeline board; no DB writes.
+// @e2e-isolation: serial — the journey asserts the org's COMPANY-WIDE figures (contract on hand, known
+// margin, weighted pipeline, the board's decided counts), an org-global aggregate that only equals the
+// seed's portfolio while no other spec is creating projects. Every parallel-lane spec that creates an
+// on-hand project shifts those figures: in the v0.35 release run AC-009's live IDR fixture turned the
+// margin tile's exact text into "$500,000 · IDR amount unknown" (shown honestly — a second currency
+// really was on the book), so the run has to read a quiescent org, apart from the parallel batch.
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn } from '../helpers';
 
 async function pinViewerLocale(page: import('@playwright/test').Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {

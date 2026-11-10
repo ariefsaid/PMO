@@ -1,5 +1,5 @@
 /**
- * Capability discovery against the real Odoo bed through the shipped recheck verb (#1504 S3-T8, layer B). Gated on the
+ * Capability discovery against the real Odoo bed through the shipped recheck verb (full) (#1504 S3-T8, layer B). Gated on the
  * dependency, never on CI: ODOO_BED_URL, ODOO_BED_DB and ODOO_BED_MIN_KEY (the least-privilege user's key; falls back to
  * ODOO_BED_KEY), sourced from the bed's untracked env file, never printed. Supabase is mocked; Odoo is the bed.
  */
@@ -44,7 +44,7 @@ Deno.test({
         { label: 'odoo-bed', host: bed.host, response: (c: FetchCall) => realFetch(c.url, { method: c.method, headers: c.headers, body: c.bodyText, redirect: 'manual' }) },
       ];
       await withFetchMock(routes, async ({ calls }) => {
-        const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', setupAction: 'recheck' }, await auth.mintJwt({ sub: 'user-1' })));
+        const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', setupAction: 'recheck', full: true }, await auth.mintJwt({ sub: 'user-1' })));
         const text = await res.text();
         assertEquals(res.status, 200, text);
         const patch = (rpcCall(calls, 'merge_external_org_binding_config')[0].bodyJson as { p_patch: { capabilities: CapabilitySnapshot; connection: ConnectionRecord } }).p_patch;
