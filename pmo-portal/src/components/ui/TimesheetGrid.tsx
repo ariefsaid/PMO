@@ -608,6 +608,8 @@ const NoteCell: React.FC<{
     <input
       ref={inputRef}
       type="text"
+      // #2092 (WIG, Forms): free-text note, never an identity field — no browser saved-value dropdown.
+      autoComplete="off"
       aria-label={t('timesheets.noteForProject', '{{project}} note', { project })}
       placeholder={t('timesheets.addNotePlaceholder', 'Add a note')}
       value={value}

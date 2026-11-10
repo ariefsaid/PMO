@@ -214,6 +214,21 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
       new RegExp(`Booking\\s*${formatted.replace(/[$,]/g, '\\$&')}\\s*to contract value on win`, 'i'),
     );
   });
+
+  /**
+   * #2092 (WIG, Forms) AC1: the contract reference is a CODE (e.g. `CPO-2026-0042`), so no spellcheck
+   * squiggle, no iOS autocorrect/autocapitalisation rewriting it, and no browser saved-value dropdown.
+   */
+  it('#2092 AC1: the won-panel contract reference is a code field, not prose', async () => {
+    renderLens();
+    await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
+
+    const refInput = screen.getByLabelText(/Customer contract reference/i);
+    expect(refInput).toHaveAttribute('spellcheck', 'false');
+    expect(refInput).toHaveAttribute('autocorrect', 'off');
+    expect(refInput).toHaveAttribute('autocapitalize', 'off');
+    expect(refInput).toHaveAttribute('autocomplete', 'off');
+  });
 });
 
 describe('DealBand — a transition refreshes the detail page (AC-OVERFETCH-001)', () => {

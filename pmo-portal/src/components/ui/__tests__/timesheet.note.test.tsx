@@ -84,3 +84,15 @@ describe('TimesheetGrid — note demotion (AC-W6-IXD-NOTE)', () => {
     expect(onNoteChange).toHaveBeenCalledWith('r1', 'x');
   });
 });
+
+/**
+ * #2092 (WIG, Forms) — the per-row note is free text, never an identity field: the browser must
+ * not offer to autofill it with the user's own saved values.
+ */
+describe('#2092 TimesheetGrid note: no browser autofill', () => {
+  it('#2092 AC2: the revealed note input turns autocomplete off', async () => {
+    render(<TimesheetGrid days={days} rows={rows} editable notes={{}} onNoteChange={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: /Add note to Eastfield Logistics Park/i }));
+    expect(screen.getByLabelText('Eastfield Logistics Park note')).toHaveAttribute('autocomplete', 'off');
+  });
+});
