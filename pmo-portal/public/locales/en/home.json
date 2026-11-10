@@ -3,8 +3,14 @@
     "label": "Phone navigation",
     "home": "Home",
     "approvals": "Approvals",
-    "search": "Search",
-    "more": "More"
+    "more": "More",
+    "projects": "Projects",
+    "finance": "Finance",
+    "receivables": "Receivables",
+    "payables": "Payables",
+    "timesheets": "Timesheets",
+    "expenses": "Expenses",
+    "administration": "Admin"
   },
   "queue": {
     "title": "My queue",

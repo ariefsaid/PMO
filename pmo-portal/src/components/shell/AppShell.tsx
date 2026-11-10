@@ -3,6 +3,7 @@ import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
+import { RailDrawerContext } from './railDrawerContext';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import {
@@ -380,7 +381,9 @@ export const AppShell: React.FC<AppShellProps> = ({
             </div>
 
             {/* Rail nav content — same node as the persistent rail. */}
-            <div className="flex-1 overflow-y-auto">{rail}</div>
+            <RailDrawerContext.Provider value>
+              <div className="flex-1 overflow-y-auto">{rail}</div>
+            </RailDrawerContext.Provider>
           </div>
         </div>
       )}

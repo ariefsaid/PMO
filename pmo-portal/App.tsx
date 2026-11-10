@@ -754,7 +754,6 @@ export const ShellChrome: React.FC = () => {
       <AppShell
         phoneNav={
           <PhoneNavBar
-            onOpenSearch={openPalette}
             onOpenMore={toggleRail}
             moreOpen={railOpen}
           />

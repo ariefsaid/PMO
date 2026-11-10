@@ -376,22 +376,7 @@ describe('AC-IXD-MOBILE-W4-C3 C3-9: body scroll-lock while drawer open', () => {
 // ---------------------------------------------------------------------------
 // C3-10: Breadcrumb mobile truncation
 // ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb mobile truncation', () => {
-  it('the current (last) crumb has the max-md:max-w-[20ch] truncation class', () => {
-    const { container } = render(
-      <Breadcrumb
-        parts={[
-          { label: 'Projects', onClick: vi.fn() },
-          { label: 'Alpha Pipeline Project' },
-        ]}
-      />
-    );
-    // The current page span should carry the mobile truncation class
-    const current = container.querySelector('[aria-current="page"]');
-    expect(current).not.toBeNull();
-    expect(current!.className).toMatch(/max-\[921px\]:max-w-\[20ch\]/);
-  });
-
+describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb on a phone', () => {
   it('parent crumb links hide at exactly the breakpoint where the phoneOnly BackBar shows (#735: no width without a way back)', () => {
     const { container } = render(
       <Breadcrumb

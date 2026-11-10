@@ -3,8 +3,14 @@
     "label": "Navigasi ponsel",
     "home": "Beranda",
     "approvals": "Persetujuan",
-    "search": "Cari",
-    "more": "Lainnya"
+    "more": "Lainnya",
+    "projects": "Proyek",
+    "finance": "Keuangan",
+    "receivables": "Piutang",
+    "payables": "Utang",
+    "timesheets": "Lembar waktu",
+    "expenses": "Biaya",
+    "administration": "Admin"
   },
   "queue": {
     "title": "Antrean saya",

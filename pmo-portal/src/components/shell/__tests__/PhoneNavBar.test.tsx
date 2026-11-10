@@ -1,13 +1,13 @@
 /**
- * #2061 — phone bottom navigation (Home · Approvals · Search · More).
+ * #2061 — phone bottom navigation: the role's three jobs and "More".
  *
- * Behaviour under test (not looks): the bar exists only below the phone breakpoint, it names the
- * SAME destinations the app already has (no new data path), role-hidden items stay hidden, the
- * active destination carries `aria-current="page"`, and the two button items open the existing
- * command palette / rail drawer through the callbacks the shell already owns.
+ * Behaviour under test (not looks): the bar exists only below the phone breakpoint, each role gets
+ * ITS jobs (destinations the sidebar already offers that role), entitlement-gated jobs stay hidden
+ * when the entitlement is off, the active destination carries `aria-current="page"`, and More opens
+ * the existing rail drawer through the callback the shell owns.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -15,47 +15,68 @@ import { PhoneNavBar } from '../PhoneNavBar';
 
 const state = vi.hoisted(() => ({
   narrow: true,
-  canApprove: true,
   role: 'Project Manager' as string,
+  features: {} as Record<string, boolean>,
 }));
 
 vi.mock('@/src/components/ui/useIsNarrow', () => ({ useIsNarrow: () => state.narrow }));
-vi.mock('@/src/auth/usePermission', () => ({
-  usePermission: () => (action: string, entity: string) =>
-    state.canApprove && (entity === 'procurement' || entity === 'approval' || entity === 'salesInvoice'),
-}));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: state.role, realRole: state.role }),
 }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({ data: state.features, isPending: false, isError: false }),
+}));
 
 const renderBar = (entry = '/home', moreOpen = false) => {
-  const onOpenSearch = vi.fn();
   const onOpenMore = vi.fn();
   const view = render(
     <MemoryRouter initialEntries={[entry]}>
-      <PhoneNavBar onOpenSearch={onOpenSearch} onOpenMore={onOpenMore} moreOpen={moreOpen} />
+      <PhoneNavBar onOpenMore={onOpenMore} moreOpen={moreOpen} />
     </MemoryRouter>,
   );
-  return { ...view, onOpenSearch, onOpenMore };
+  return { ...view, onOpenMore };
 };
+
+const linkNames = () =>
+  within(screen.getByRole('navigation', { name: 'Phone navigation' }))
+    .getAllByRole('link')
+    .map((a) => a.textContent);
 
 beforeEach(() => {
   state.narrow = true;
-  state.canApprove = true;
   state.role = 'Project Manager';
+  state.features = { revenue: true, procurement: true, timesheets: true };
 });
 
 afterEach(() => vi.clearAllMocks());
 
 describe('#2061 phone bottom navigation', () => {
-  it('renders a labelled nav landmark with the four destinations on a phone', () => {
+  it.each([
+    ['Executive', ['Home', 'Projects', 'Finance']],
+    ['Project Manager', ['Home', 'Projects', 'Approvals']],
+    ['Finance', ['Home', 'Receivables', 'Payables']],
+    ['Engineer', ['Home', 'Timesheets', 'Expenses']],
+    ['Admin', ['Home', 'Approvals', 'Admin']],
+  ])('%s gets its own three jobs plus More', (role, expected) => {
+    state.role = role;
     renderBar();
-    const nav = screen.getByRole('navigation', { name: 'Phone navigation' });
-    expect(nav).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/home');
-    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
-    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
+    expect(linkNames()).toEqual(expected);
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
+  });
+
+  it('points each job at the destination the sidebar already offers', () => {
+    state.role = 'Finance';
+    renderBar();
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: 'Receivables' })).toHaveAttribute('href', '/finance/receivables');
+    expect(screen.getByRole('link', { name: 'Payables' })).toHaveAttribute('href', '/finance/payables');
+  });
+
+  it('drops a job whose entitlement is off (same gate as the sidebar)', () => {
+    state.role = 'Engineer';
+    state.features = { timesheets: false };
+    renderBar();
+    expect(linkNames()).toEqual(['Home', 'Expenses']);
   });
 
   it('is absent above the phone breakpoint (desktop keeps the rail + header)', () => {
@@ -68,33 +89,12 @@ describe('#2061 phone bottom navigation', () => {
     renderBar('/home');
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Approvals' })).not.toHaveAttribute('aria-current');
-
-    renderBar('/approvals');
-    const approvals = screen.getAllByRole('link', { name: 'Approvals' })[1];
-    expect(approvals).toHaveAttribute('aria-current', 'page');
   });
 
-  it('leaves no item current on an unrelated screen (e.g. a project record)', () => {
+  it('keeps a job current on its child pages', () => {
     renderBar('/projects/p-1');
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByRole('link', { name: 'Approvals' })).not.toHaveAttribute('aria-current');
-  });
-
-  it('hides Approvals for a role that cannot approve anything (same gate as the sidebar)', () => {
-    state.canApprove = false;
-    state.role = 'Engineer';
-    renderBar();
-    expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
-    // Search + More stay available to every role.
-    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
-  });
-
-  it('Search opens the existing command palette through the shell callback', async () => {
-    const { onOpenSearch } = renderBar();
-    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
-    expect(onOpenSearch).toHaveBeenCalledTimes(1);
   });
 
   it('More opens the existing full navigation and reports its open state', async () => {
@@ -107,12 +107,7 @@ describe('#2061 phone bottom navigation', () => {
 
   it('every item clears the 44px touch target', () => {
     renderBar();
-    for (const el of [
-      screen.getByRole('link', { name: 'Home' }),
-      screen.getByRole('link', { name: 'Approvals' }),
-      screen.getByRole('button', { name: 'Search' }),
-      screen.getByRole('button', { name: 'More' }),
-    ]) {
+    for (const el of [...screen.getAllByRole('link'), screen.getByRole('button', { name: 'More' })]) {
       expect(el.className).toContain('min-h-11');
       expect(el.className).toContain('touch-target');
     }
