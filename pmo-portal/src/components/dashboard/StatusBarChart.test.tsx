@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import i18next from 'i18next';
 import { chartTheme, tintStatusFill } from '@/src/components/ui/chartTheme';
 import { procurementStatusTone } from './procurementStatusTone';
+import { StageSegments } from './StageSegments';
 import { StatusBarChart } from './StatusBarChart';
 import idDashboard from '../../../public/locales/id/dashboard.json';
 
@@ -51,7 +52,7 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
 
   it('renders compact proportional stage links with counts in a legend instead of a tall chart', () => {
     const { container } = render(
-      <MemoryRouter><StatusBarChart data={data} toneFor={procurementStatusTone} label="Purchasing by stage" noun="procurements" hrefFor={(status) => `/procurement?status=${status}`} compactSegments /></MemoryRouter>,
+      <MemoryRouter><StageSegments data={data} toneFor={procurementStatusTone} label="Purchasing by stage" noun="procurements" hrefFor={(status) => `/procurement?status=${status}`} /></MemoryRouter>,
     );
     expect(container.querySelector('svg')).toBeNull();
     expect(screen.getByRole('link', { name: 'Draft: 1' })).toHaveAttribute('href', '/procurement?status=Draft');
@@ -66,14 +67,13 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     await act(async () => { await i18next.changeLanguage('id'); });
     render(
       <MemoryRouter>
-        <StatusBarChart
+        <StageSegments
           data={[{ status: 'Requested', count: 2 }, { status: 'Approved', count: 1 }]}
           toneFor={() => chartTheme.series.neutral}
           label="Pembelian berdasarkan tahap"
           labelFor={(status) => status === 'Requested' ? 'Permintaan Pembelian' : 'Disetujui'}
           noun="pengadaan"
           hrefFor={(status) => `/procurement?status=${status}`}
-          compactSegments
         />
       </MemoryRouter>,
     );

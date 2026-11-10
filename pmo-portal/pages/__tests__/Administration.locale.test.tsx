@@ -106,15 +106,15 @@ const renderPage = (section: 'users' | 'credits') =>
   );
 
 describe('FR-L10N — embedded Users & Credits headings agree with the shell in Bahasa', () => {
-  it('renders the Users embedded section heading as "Pengguna"', () => {
+  it('renders the Users embedded section heading as "Pengguna"', async () => {
     renderPage('users');
-    expect(screen.getByRole('heading', { level: 2, name: 'Pengguna' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Pengguna' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Users' })).not.toBeInTheDocument();
   });
 
-  it('renders the Credits embedded section heading as "Kredit"', () => {
+  it('renders the Credits embedded section heading as "Kredit"', async () => {
     renderPage('credits');
-    expect(screen.getByRole('heading', { level: 2, name: 'Kredit' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Kredit' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Credits' })).not.toBeInTheDocument();
   });
 });

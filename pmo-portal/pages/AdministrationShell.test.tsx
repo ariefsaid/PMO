@@ -275,6 +275,7 @@ describe('Administration route-backed shell', () => {
     // The Administration chunk now also carries the read-only Your plan page (S3), so the first
     // navigation under a loaded machine needs more than the 1s default.
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'), { timeout: 5000 });
+    await screen.findByTestId('administration-panel-users');
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
     // Seven organisation sections + Your plan (S3) for an Admin viewer.
     expect(screen.getAllByRole('link')).toHaveLength(8);
@@ -296,7 +297,7 @@ describe('Administration route-backed shell', () => {
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
     await userEvent.click(screen.getByRole('link', { name: 'Usage' }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/usage'));
-    expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument();
+    expect(await screen.findByTestId('administration-panel-usage')).toBeInTheDocument();
   });
 
   it('AC-CAT-018: an Admin can open Cost attribution from the Administration section navigation', async () => {
@@ -304,14 +305,14 @@ describe('Administration route-backed shell', () => {
     const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
     const link = within(nav).getByRole('link', { name: 'Cost attribution' });
     expect(link).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
+    expect(await screen.findByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
   });
 
   it('AC-CAT-019: an Executive sees Cost attribution as the current Administration destination', async () => {
     renderShell('/administration/cost-attribution', 'Executive');
     const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
     expect(within(nav).getByRole('link', { name: 'Cost attribution' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
+    expect(await screen.findByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
   });
 
   it('Finance entering Administration still lands on Exchange rates', async () => {
@@ -319,7 +320,7 @@ describe('Administration route-backed shell', () => {
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/exchange-rates'));
     expect(screen.getByRole('link', { name: 'Exchange rates' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('administration-panel-exchange-rates')).toHaveTextContent('Exchange rates panel');
+    expect(await screen.findByTestId('administration-panel-exchange-rates')).toHaveTextContent('Exchange rates panel');
   });
 
   it('AC-CAT-017: Finance sees Cost attribution beside Exchange rates, can open it, and sees no other Accounting setup', async () => {
@@ -422,7 +423,7 @@ describe('Administration route-backed shell', () => {
 
   it('UX-074: Accounting setup exposes direct links to its focused setup sections', async () => {
     renderShell('/administration/accounting');
-    const nav = screen.getByRole('navigation', { name: 'Accounting setup sections' });
+    const nav = await screen.findByRole('navigation', { name: 'Accounting setup sections' });
 
     const destinations = [
       ['Default tax treatment', 'org-tax-default'],
@@ -470,19 +471,19 @@ describe('Administration route-backed shell', () => {
     renderShell('/administration/users');
 
     await user.click(screen.getByRole('link', { name: 'Credits' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/administration/credits');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/credits'));
     expect(screen.getByRole('link', { name: 'Credits' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('administration-panel-credits')).toBeInTheDocument();
+    expect(await screen.findByTestId('administration-panel-credits')).toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Browser back' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/administration/users');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument();
+    expect(await screen.findByTestId('administration-panel-users')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Browser forward' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/administration/credits');
-    expect(screen.getByTestId('administration-panel-credits')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/credits'));
+    expect(await screen.findByTestId('administration-panel-credits')).toBeInTheDocument();
   });
 
   it('AC-ADMIA-002: an Operator-only direct URL stays pending while membership resolves', async () => {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -95,12 +95,16 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-function renderPage(initial = '/') {
-  return render(<MemoryRouter initialEntries={[initial]}><ToastProvider><LocationProbe /><ExecutiveDashboard /></ToastProvider></MemoryRouter>);
+async function renderPage(initial = '/') {
+  const view = render(<MemoryRouter initialEntries={[initial]}><ToastProvider><LocationProbe /><ExecutiveDashboard /></ToastProvider></MemoryRouter>);
+  await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading page' })).not.toBeInTheDocument(), { timeout: 10000 });
+  return view;
 }
 
-function renderBahasaPage() {
-  return render(<BahasaProvider locale="id"><MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter></BahasaProvider>);
+async function renderBahasaPage() {
+  const view = render(<BahasaProvider locale="id"><MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter></BahasaProvider>);
+  await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading page' })).not.toBeInTheDocument(), { timeout: 10000 });
+  return view;
 }
 
 beforeEach(() => {
@@ -136,8 +140,8 @@ beforeEach(() => {
 });
 
 describe('company area hub (#1403)', () => {
-  it('AC-DASH-1403-01: Executive sees all four company work areas and six index figures', () => {
-    renderPage();
+  it('AC-DASH-1403-01: Executive sees all four company work areas and six index figures', async () => {
+    await renderPage();
     for (const area of ['Delivery', 'Sales', 'Billing and collections', 'Purchasing']) {
       expect(screen.getByRole('heading', { name: area })).toBeInTheDocument();
     }
@@ -153,14 +157,14 @@ describe('company area hub (#1403)', () => {
     expect(screen.queryByText(/Percent of billed work/)).not.toBeInTheDocument();
   });
 
-  it('L6: overdue and supplier amounts appear once, in their tiles, not again in the area panels', () => {
+  it('L6: overdue and supplier amounts appear once, in their tiles, not again in the area panels', async () => {
     state.role = 'Finance';
     needsState.areaItems = [
       { id: 'overdue-invoices', count: 2, label: 'client invoices overdue', amount: '$400', href: '/finance/receivables?overdue=true', tone: 'lost' },
       { id: 'supplier-invoices', count: 1, label: 'supplier invoice to pay', amount: '$100', href: '/procurement?status=Vendor+Invoiced', tone: 'warn' },
       { id: 'procurement-approvals', count: 3, label: 'procurements awaiting approval', href: '/procurement?status=Requested', tone: 'warn' },
     ] as typeof needsState.areaItems;
-    renderPage();
+    await renderPage();
     expect(screen.getAllByText(/\$400/)).toHaveLength(1);
     expect(screen.getAllByText(/\$100/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Open related records for Owed by clients · overdue.' })).toHaveAttribute('href', '/finance/receivables?overdue=true');
@@ -168,14 +172,14 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByRole('link', { name: /3 procurements awaiting approval/ })).toHaveAttribute('href', '/procurement?status=Requested');
   });
 
-  it('L2: the position basis is said once for the page, not repeated in each panel', () => {
-    renderPage();
+  it('L2: the position basis is said once for the page, not repeated in each panel', async () => {
+    await renderPage();
     expect(screen.getAllByText(/record currency/i)).toHaveLength(1);
     expect(screen.queryByText(/Selected period:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Invoice amounts exclude tax/)).not.toBeInTheDocument();
   });
 
-  it('F10/L2: pipeline by stage is a table with its column headers above the rows and no always-empty column', () => {
+  it('F10/L2: pipeline by stage is a table with its column headers above the rows and no always-empty column', async () => {
     pipelineState.data = {
       stages: [{ status: 'Tender', count: 2 }, { status: 'Negotiation', count: 1 }],
       projects: [
@@ -184,7 +188,7 @@ describe('company area hub (#1403)', () => {
         { status: 'Negotiation', currency: 'USD', contract_value: 2_000 },
       ],
     };
-    renderPage();
+    await renderPage();
     const table = screen.getByRole('table', { name: 'Pipeline by stage' });
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual(expect.arrayContaining(['Stage', 'Count', 'Gross']));
@@ -196,14 +200,14 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/sales?status=Tender');
   });
 
-  it('F2: keeps mixed-currency figures visible once in the KPI band and removes position repeats from panels', () => {
+  it('F2: keeps mixed-currency figures visible once in the KPI band and removes position repeats from panels', async () => {
     const current = figureState.result;
     if (current) {
       current.today = defaultToday.map((figure) => figure.id === 'contract-on-hand'
         ? { ...figure, value: 'IDR 269M · $33.1M' }
         : figure);
     }
-    renderPage();
+    await renderPage();
 
     expect(screen.getByRole('region', { name: 'Company figures' })).toHaveTextContent('IDR 269M · $33.1M');
     expect(screen.getAllByText('IDR 269M · $33.1M')).toHaveLength(1);
@@ -212,7 +216,7 @@ describe('company area hub (#1403)', () => {
     }
   });
 
-  it('F2: embeds pipeline, win-rate, purchasing and project spend content in their area panels', () => {
+  it('F2: embeds pipeline, win-rate, purchasing and project spend content in their area panels', async () => {
     const dashboard = figureState.result?.dashboard as Record<string, unknown>;
     dashboard.attention_projects = [{
       id: 'project-1', name: 'Project North', contract_value: 500, currency: 'USD', spent: 200,
@@ -221,7 +225,7 @@ describe('company area hub (#1403)', () => {
       waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
     }];
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
-    renderPage();
+    await renderPage();
 
     const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card');
     const delivery = screen.getByRole('heading', { name: 'Delivery' }).closest('.panel-card');
@@ -251,7 +255,7 @@ describe('company area hub (#1403)', () => {
     const dashboard = figureState.result?.dashboard as Record<string, unknown>;
     dashboard.attention_projects = ranked;
     projectsState.data = ranked.map((project) => ({ id: project.id, pm: { full_name: `Manager ${project.id.slice(-1)}` } }));
-    renderPage();
+    await renderPage();
 
     const projectList = screen.getByRole('list', { name: 'Spending vs contract' });
     const order = within(projectList).getAllByRole('link').map((link) => link.textContent).filter((text) => /^Project \d$/.test(text ?? ''));
@@ -272,21 +276,21 @@ describe('company area hub (#1403)', () => {
     ]);
   });
 
-  it('F2: keeps review accounting mappings on its own line below the margin subline', () => {
+  it('F2: keeps review accounting mappings on its own line below the margin subline', async () => {
     const dashboard = figureState.result?.dashboard as Record<string, unknown>;
     dashboard.on_hand_actual_coverage_count = 0;
     dashboard.on_hand_actual_coverage_total = 1;
-    renderPage();
+    await renderPage();
 
     const review = screen.getByRole('link', { name: 'Review accounting mappings' });
     expect(review).not.toHaveClass('absolute');
   });
 
-  it('AC-DASH-1403-02: a missing position value stays an explained dash with a working page link', () => {
+  it('AC-DASH-1403-02: a missing position value stays an explained dash with a working page link', async () => {
     state.unknownContract = true;
     const current = figureState.result;
     if (current) current.today = defaultToday.map((figure) => figure.id === 'contract-on-hand' ? { ...figure, value: null } : figure);
-    renderPage();
+    await renderPage();
     const link = screen.getByRole('link', { name: 'Open related records for Contract on hand.' });
     expect(link).toHaveAttribute('href', '/projects');
     const unknownContract = screen.getByText('Contract amount is not available.', { exact: true });
@@ -294,15 +298,15 @@ describe('company area hub (#1403)', () => {
     expect(unknownContract).not.toHaveTextContent(/\$|\d|—/);
   });
 
-  it('AC-DASH-1403-03: the period picker writes the selected period into the URL', () => {
-    renderPage();
+  it('AC-DASH-1403-03: the period picker writes the selected period into the URL', async () => {
+    await renderPage();
     fireEvent.change(screen.getByRole('combobox', { name: 'Period' }), { target: { value: 'month' } });
     expect(screen.getByTestId('location')).toHaveTextContent('/?period=month');
   });
 
   it('AC-A11Y-DASH-1403-01: keyboard focus opens metric help without navigating', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     const help = screen.getByRole('button', { name: 'Help: Contract on hand' });
     expect(help.closest('a')).toBeNull();
     for (let index = 0; index < 12 && document.activeElement !== help; index += 1) await user.tab();
@@ -311,7 +315,7 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/');
   });
 
-  it('AC-DASH-1403-10: a delivery project row opens its owning project page', () => {
+  it('AC-DASH-1403-10: a delivery project row opens its owning project page', async () => {
     const current = figureState.result;
     if (current) (current.dashboard as Record<string, unknown>).attention_projects = [{
       id: 'project-1', name: 'Project North', contract_value: 500, currency: 'USD', spent: 200,
@@ -320,20 +324,20 @@ describe('company area hub (#1403)', () => {
       waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
     }];
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
-    renderPage();
+    await renderPage();
     fireEvent.click(screen.getByRole('link', { name: /^Open Project North; recorded spending \$200 to date\.$/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/projects/project-1');
   });
 
-  it('AC-DASH-1403-04: Finance sees billing first and the two review tables', () => {
+  it('AC-DASH-1403-04: Finance sees billing first and the two review tables', async () => {
     state.role = 'Finance';
-    renderPage();
+    await renderPage();
     expect(screen.getAllByRole('heading', { name: 'Billing and collections' })[0]).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Ready to pay' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument();
   });
 
-  it('C4/O12: finance review tables carry no always-empty column and name the status they show', () => {
+  it('C4/O12: finance review tables carry no always-empty column and name the status they show', async () => {
     state.role = 'Finance';
     procurementsState.data = [{
       id: 'procurement-1', title: 'Supplier invoice 42', status: 'Vendor Invoiced', total_value: 250,
@@ -341,18 +345,18 @@ describe('company area hub (#1403)', () => {
       project: { name: 'Project North' }, vendor: { name: 'Supplier One' },
     }];
     budgetReviewState.data = [{ id: 'budget-1', name: 'Budget 1', client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 1_000, budget_currency: 'USD', spent: 500, variance: -500, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null }];
-    renderPage();
+    await renderPage();
     expect(screen.queryByRole('columnheader', { name: 'Due state' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Project status' })).toBeInTheDocument();
   });
 
-  it('L12: with no accounting ageing synced, Finance sees the same PMO client and supplier ageing as the finance hub', () => {
+  it('L12: with no accounting ageing synced, Finance sees the same PMO client and supplier ageing as the finance hub', async () => {
     state.role = 'Finance';
     financePositionState.position = {
       receivablesAgeing: { USD: { notDue: 100_00, d1_30: 50_00, d31_60: 0, d61_90: 0, over90: 0 } },
       payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } },
     };
-    renderPage();
+    await renderPage();
     expect(screen.queryByText('No aging data to show yet.')).not.toBeInTheDocument();
     const billing = screen.getAllByRole('heading', { name: 'Billing and collections' })[0]?.closest('.panel-card');
     const clientAgeing = screen.getByRole('region', { name: 'Client balances by age · tax included' });
@@ -361,7 +365,7 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoiced status or last update' })).toBeInTheDocument();
   });
 
-  it('F2: Finance budget review shows the top five active budgets by RPC variance order', () => {
+  it('F2: Finance budget review shows the top five active budgets by RPC variance order', async () => {
     state.role = 'Finance';
     budgetReviewState.data = [
       { id: 'pipeline', name: 'Pipeline Deal', client_name: null, status: 'Leads', currency: 'USD', budget: 900, budget_currency: 'USD', spent: 1_800, variance: 900, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null },
@@ -371,7 +375,7 @@ describe('company area hub (#1403)', () => {
         actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null,
       })),
     ];
-    renderPage();
+    await renderPage();
 
     for (const number of [1, 2, 3, 4, 5]) expect(screen.getByText(`Budget ${number}`)).toBeInTheDocument();
     expect(screen.queryByText('Budget 6')).not.toBeInTheDocument();
@@ -380,30 +384,30 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByRole('link', { name: 'View all' })).toHaveAttribute('href', '/projects');
   });
 
-  it('F2: embeds client receivables aging in the Billing area panel', () => {
+  it('F2: embeds client receivables aging in the Billing area panel', async () => {
     state.role = 'Finance';
-    renderPage();
+    await renderPage();
 
     const billing = screen.getAllByRole('heading', { name: 'Billing and collections' })[0]?.closest('.panel-card');
     expect(billing).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Client receivables (AR)' }).closest('.panel-card')).toBe(billing);
   });
 
-  it('AC-DASH-1403-11: a ready-to-pay row opens its procurement record page', () => {
+  it('AC-DASH-1403-11: a ready-to-pay row opens its procurement record page', async () => {
     state.role = 'Finance';
     procurementsState.data = [{
       id: 'procurement-1', title: 'Supplier invoice 42', status: 'Vendor Invoiced', total_value: 250,
       currency: 'USD', updated_at: '2026-10-20T00:00:00.000Z', vendor_invoiced_at: '2026-10-20T00:00:00.000Z',
       project: { name: 'Project North' }, vendor: { name: 'Supplier One' },
     }];
-    renderPage();
+    await renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'Open Supplier invoice 42' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
 
-  it('AC-DASH-1403-06: Admin sees the same company hub as Executive', () => {
+  it('AC-DASH-1403-06: Admin sees the same company hub as Executive', async () => {
     state.role = 'Admin';
-    renderPage();
+    await renderPage();
     expect(screen.getByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sales' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Billing and collections' })).toBeInTheDocument();
@@ -411,17 +415,17 @@ describe('company area hub (#1403)', () => {
     expect(screen.queryByRole('heading', { name: 'Ready to pay' })).not.toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-07: a failed attention query leaves the other company areas usable and offers retry', () => {
+  it('AC-DASH-1403-07: a failed attention query leaves the other company areas usable and offers retry', async () => {
     needsState.isError = true;
-    renderPage();
+    await renderPage();
     expect(screen.getByText("Couldn't load approvals and attention items")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Purchasing' })).toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-08: dashboard headings use the Bahasa catalogue', () => {
-    renderBahasaPage();
+  it('AC-DASH-1403-08: dashboard headings use the Bahasa catalogue', async () => {
+    await renderBahasaPage();
     expect(screen.getByRole('heading', { name: 'Dasbor' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Pekerjaan' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Penjualan' })).toBeInTheDocument();
@@ -429,17 +433,17 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByRole('heading', { name: 'Pembelian' })).toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-05: Engineer is routed to the personal dashboard with no company money figures', () => {
+  it('AC-DASH-1403-05: Engineer is routed to the personal dashboard with no company money figures', async () => {
     state.role = 'Engineer';
-    renderPage();
+    await renderPage();
     expect(screen.getByTestId('engineer-dashboard')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
     expect(screen.queryByText('$1,000')).not.toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-09: Project Manager remains routed to the personal projects dashboard', () => {
+  it('AC-DASH-1403-09: Project Manager remains routed to the personal projects dashboard', async () => {
     state.role = 'Project Manager';
-    renderPage();
+    await renderPage();
     expect(screen.getByTestId('pm-dashboard')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
   });
@@ -448,45 +452,45 @@ describe('company area hub (#1403)', () => {
 // Ported from the deleted ExecutiveDashboard.{atRiskLink,bahasa,honesty}.test.tsx: the behaviours
 // those files pinned, re-asserted against the company hub.
 describe('company hub — behaviour carried over from the previous dashboard', () => {
-  it('AC-IFW-DASH-02: the at-risk doorway is its own link, not nested inside another link or button', () => {
-    renderPage();
+  it('AC-IFW-DASH-02: the at-risk doorway is its own link, not nested inside another link or button', async () => {
+    await renderPage();
     const atRisk = screen.getByRole('link', { name: '2 projects at risk' });
     expect(atRisk.parentElement?.closest('a, button')).toBeNull();
     expect(atRisk.querySelector('a, button')).toBeNull();
   });
 
-  it('AC-FAA-006: a pipeline-only portfolio keeps the company figures and says there is no delivery project to compare', () => {
+  it('AC-FAA-006: a pipeline-only portfolio keeps the company figures and says there is no delivery project to compare', async () => {
     const current = figureState.result!;
     current.isEmpty = false;
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], attention_projects: [], projects_by_status: [{ status: 'Tender Submitted', count: 2 }], procurements_by_status: [] };
-    renderPage();
+    await renderPage();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
     expect(screen.getByText('No delivery projects to compare yet')).toBeInTheDocument();
   });
 
-  it('AC-FAA-006: the company empty state appears only when there is no project or procurement evidence at all', () => {
+  it('AC-FAA-006: the company empty state appears only when there is no project or procurement evidence at all', async () => {
     const current = figureState.result!;
     current.isEmpty = true;
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], attention_projects: [], projects_by_status: [{ status: 'Lost', count: 2 }], procurements_by_status: [] };
-    const withEvidence = renderPage();
+    const withEvidence = await renderPage();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
     withEvidence.unmount();
 
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), projects_by_status: [], procurements_by_status: [] };
     needsState.areaItems = [];
-    renderPage();
+    await renderPage();
     expect(screen.getByText('No company activity yet')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
   });
 
-  it('keeps loading and error ahead of any empty or value state for the company figures', () => {
+  it('keeps loading and error ahead of any empty or value state for the company figures', async () => {
     const current = figureState.result!;
     current.todayPending = true;
     current.isEmpty = true;
     current.dashboard = undefined;
-    const pending = renderPage();
+    const pending = await renderPage();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).not.toHaveTextContent('$1,000');
     pending.unmount();
@@ -494,17 +498,17 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     current.todayPending = false;
     current.todayError = true;
     current.dashboardError = true;
-    renderPage();
+    await renderPage();
     expect(screen.getByText("Couldn't load company position figures")).toBeInTheDocument();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
     expect(screen.queryByText('No delivery projects to compare yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).not.toHaveTextContent('$1,000');
   });
 
-  it('AC-UXA-003 / L12(g): Bahasa labels the four purchasing stages while each stage link keeps its stage destination', () => {
+  it('AC-UXA-003 / L12(g): Bahasa labels the four purchasing stages while each stage link keeps its stage destination', async () => {
     const current = figureState.result!;
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), procurements_by_status: [{ status: 'Approved', count: 1 }, { status: 'Vendor Invoiced', count: 2 }] };
-    renderBahasaPage();
+    await renderBahasaPage();
     expect(screen.getByRole('group', { name: 'Nilai pipeline tertimbang per tahap' })).toBeInTheDocument();
     const pay = screen.getAllByRole('link', { name: /Pembayaran/ });
     expect(pay.length).toBeGreaterThan(0);
@@ -513,11 +517,11 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     expect(screen.queryByText('Supplier invoiced')).not.toBeInTheDocument();
   });
 
-  it('AC-UXA-003: Bahasa error and empty states read in Bahasa, never the English fallback', () => {
+  it('AC-UXA-003: Bahasa error and empty states read in Bahasa, never the English fallback', async () => {
     needsState.isError = true;
     const current = figureState.result!;
     current.todayError = true;
-    const failed = renderBahasaPage();
+    const failed = await renderBahasaPage();
     expect(screen.getByText('Tidak dapat memuat persetujuan dan item perhatian')).toBeInTheDocument();
     expect(screen.getByText('Tidak dapat memuat angka posisi perusahaan')).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load approvals and attention items")).not.toBeInTheDocument();
@@ -529,7 +533,7 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     current.todayError = false;
     current.isEmpty = true;
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), projects_by_status: [], procurements_by_status: [] };
-    renderBahasaPage();
+    await renderBahasaPage();
     expect(screen.getByText('Belum ada aktivitas perusahaan')).toBeInTheDocument();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
   });
@@ -544,27 +548,27 @@ describe('company hub — ported baseline cases', () => {
     return panel as HTMLElement;
   };
 
-  it('AC-UX-016 / batch-3: the actionable approvals doorway precedes the passive company figures and opens /approvals', () => {
-    renderPage();
+  it('AC-UX-016 / batch-3: the actionable approvals doorway precedes the passive company figures and opens /approvals', async () => {
+    await renderPage();
     const approvals = screen.getByRole('link', { name: '2 approvals waiting for you' });
     expect(approvals).toHaveAttribute('href', '/approvals');
     const figures = screen.getByRole('region', { name: 'Company figures' });
     expect(approvals.compareDocumentPosition(figures) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('AC-SL-A-001: nothing waiting → no approvals doorway and no Review action', () => {
+  it('AC-SL-A-001: nothing waiting → no approvals doorway and no Review action', async () => {
     needsState.items = [];
-    renderPage();
+    await renderPage();
     expect(screen.queryByRole('link', { name: /approvals? waiting for you/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Review')).not.toBeInTheDocument();
   });
 
-  it('AC-RF-007: the purchasing stages say purchases made directly in the accounting system are outside this PMO view', () => {
+  it('AC-RF-007: the purchasing stages say purchases made directly in the accounting system are outside this PMO view', async () => {
     (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [
       { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
       { status: 'Ordered', count: 1 }, { status: 'Paid', count: 1 },
     ];
-    renderPage();
+    await renderPage();
     const panel = purchasingPanel();
     expect(panel).toHaveTextContent('Purchases made directly in the accounting system are not counted.');
     expect(within(panel).getAllByRole('group', { name: 'Purchasing by stage' }).length).toBeGreaterThan(0);
@@ -572,13 +576,13 @@ describe('company hub — ported baseline cases', () => {
     expect(within(panel).getAllByRole('link', { name: /: \d+$/ }).map((link) => link.getAttribute('aria-label'))).toEqual(['Request: 3', 'Order: 1', 'Receive: 0', 'Pay: 1']);
   });
 
-  it('AC-S19-004 / AC-JR-W1-10 / L12(g): the four stage links carry the stage drill-down filter the procurement list reads', () => {
+  it('AC-S19-004 / AC-JR-W1-10 / L12(g): the four stage links carry the stage drill-down filter the procurement list reads', async () => {
     (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [
       { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
       { status: 'Ordered', count: 1 }, { status: 'Received', count: 1 }, { status: 'Vendor Invoiced', count: 1 },
       { status: 'Paid', count: 1 },
     ];
-    renderPage();
+    await renderPage();
     const panel = purchasingPanel();
     const expected: Array<[string, string]> = [
       ['Request: 3', '/procurement?stage=request'],
@@ -593,56 +597,56 @@ describe('company hub — ported baseline cases', () => {
     }
   });
 
-  it('AC-S19-004: no PMO procurements is said plainly while the accounting-system scope copy stays', () => {
+  it('AC-S19-004: no PMO procurements is said plainly while the accounting-system scope copy stays', async () => {
     (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [];
-    renderPage();
+    await renderPage();
     const panel = purchasingPanel();
     expect(within(panel).getByText('No procurements to show')).toBeInTheDocument();
     expect(panel).toHaveTextContent('Purchases made directly in the accounting system are not counted.');
   });
 
-  it('AC-JR-W4-05: the Pipeline (weighted) help says "project value", never "opportunity value"', () => {
-    renderPage();
+  it('AC-JR-W4-05: the Pipeline (weighted) help says "project value", never "opportunity value"', async () => {
+    await renderPage();
     fireEvent.focus(screen.getByRole('button', { name: 'Help: Pipeline (weighted)' }));
     expect(screen.getByRole('tooltip')).toHaveTextContent('project value');
     expect(screen.getByRole('tooltip')).not.toHaveTextContent('opportunity value');
     expect(document.body.textContent).not.toContain('opportunity value');
   });
 
-  it('DA-1: the at-risk doorway text uses the readable foreground token; the warning hue is only its marker', () => {
-    renderPage();
+  it('DA-1: the at-risk doorway text uses the readable foreground token; the warning hue is only its marker', async () => {
+    await renderPage();
     const atRisk = screen.getByRole('link', { name: '2 projects at risk' });
     expect(atRisk).toHaveClass('text-foreground');
     expect(atRisk).not.toHaveClass('text-warning');
   });
 
-  it('AC-706: company figures show loading skeletons while pending, never values', () => {
+  it('AC-706: company figures show loading skeletons while pending, never values', async () => {
     figureState.result!.todayPending = true;
-    renderPage();
+    await renderPage();
     const figures = screen.getByRole('region', { name: 'Company figures' });
     expect(within(figures).getAllByTestId('kpi-skeleton').length).toBeGreaterThan(0);
     expect(figures).not.toHaveTextContent('$1,000');
   });
 
-  it('AC-707: a failed figures load shows the error with a working retry', () => {
+  it('AC-707: a failed figures load shows the error with a working retry', async () => {
     figureState.result!.todayError = true;
-    renderPage();
+    await renderPage();
     const figures = screen.getByRole('region', { name: 'Company figures' });
     expect(within(figures).getByText("Couldn't load company position figures")).toBeInTheDocument();
     fireEvent.click(within(figures).getByRole('button', { name: 'Retry' }));
     expect(figureState.result!.todayRetry).toHaveBeenCalledOnce();
   });
 
-  it('incomplete actuals: the review-mappings action opens the accounting budget-account map', () => {
+  it('incomplete actuals: the review-mappings action opens the accounting budget-account map', async () => {
     const dashboard = figureState.result!.dashboard as Record<string, unknown>;
     dashboard.on_hand_actual_coverage_count = 144;
     dashboard.on_hand_actual_coverage_total = 150;
-    renderPage();
+    await renderPage();
     expect(screen.getByRole('link', { name: 'Review accounting mappings' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
   });
 
-  it('C1: the company figure band reflows with arbitrary breakpoints only, no named sm: tier mixed in', () => {
-    renderPage();
+  it('C1: the company figure band reflows with arbitrary breakpoints only, no named sm: tier mixed in', async () => {
+    await renderPage();
     const band = screen.getByRole('region', { name: 'Company figures' });
     expect(band.className).toMatch(/min-\[\d+px\]:grid-cols-\d/);
     expect(band.className).not.toContain('sm:grid-cols');

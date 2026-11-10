@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
@@ -93,11 +93,15 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [
 
 import ExecutiveDashboard from '../ExecutiveDashboard';
 
-const renderPage = () => render(
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter>
-  </QueryClientProvider>,
-);
+const renderPage = async () => {
+  const view = render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading page' })).not.toBeInTheDocument(), { timeout: 10000 });
+  return view;
+};
 
 const figures = () => screen.getByRole('region', { name: 'Company figures' });
 const tile = (label: string) => {
@@ -113,16 +117,16 @@ beforeEach(() => {
 });
 
 describe('company figures — ported money oracles', () => {
-  it('AC-701: contract on hand is the $8,000,000 delivery contract — short on the tile, exact on hover and for screen readers', () => {
-    renderPage();
+  it('AC-701: contract on hand is the $8,000,000 delivery contract — short on the tile, exact on hover and for screen readers', async () => {
+    await renderPage();
     const contract = tile('Contract on hand');
     expect(contract).toHaveTextContent('$8M');
     expect(contract.querySelector('[title="$8,000,000"]')).not.toBeNull();
     expect(within(contract).getByText('$8,000,000')).toHaveClass('sr-only');
   });
 
-  it('AC-1114 / AC-UX-017: billed-work margin is the margin amount, never the contract remainder dressed as profit', () => {
-    renderPage();
+  it('AC-1114 / AC-UX-017: billed-work margin is the margin amount, never the contract remainder dressed as profit', async () => {
+    await renderPage();
     const margin = tile('Margin on billed work');
     expect(margin).toHaveTextContent('$1.2M');
     expect(margin.querySelector('[title="$1,200,000"]')).not.toBeNull();
@@ -132,24 +136,24 @@ describe('company figures — ported money oracles', () => {
     expect(tile('Contract on hand')).toHaveTextContent('Left after spending: $7.6M');
   });
 
-  it('AC-1114: the weighted pipeline shows short $800K with the exact $800,000 kept', () => {
-    renderPage();
+  it('AC-1114: the weighted pipeline shows short $800K with the exact $800,000 kept', async () => {
+    await renderPage();
     const pipeline = tile('Pipeline (weighted)');
     expect(pipeline).toHaveTextContent('$800K');
     expect(pipeline.querySelector('[title="$800,000"]')).not.toBeNull();
   });
 
-  it('AC-IXD-DASH-002: forecast margin is the one weighted-pipeline percentage, with no on-hand/weighted lens toggle', () => {
-    renderPage();
+  it('AC-IXD-DASH-002: forecast margin is the one weighted-pipeline percentage, with no on-hand/weighted lens toggle', async () => {
+    await renderPage();
     expect(within(figures()).getAllByText(/Forecast margin/)).toHaveLength(1);
     expect(tile('Pipeline (weighted)')).toHaveTextContent('Forecast margin: 20.0%');
     expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
 
-  it('SL-B / AC-RD-UNAVAIL-001: an uncomputable forecast margin and weighted value show no margin and an explained figure, never prose', () => {
+  it('SL-B / AC-RD-UNAVAIL-001: an uncomputable forecast margin and weighted value show no margin and an explained figure, never prose', async () => {
     h.dash = { ...populated, pipeline_projected_margin: null, pipeline_weighted_value: null, pipeline_total_value: 0, pipeline_total_value_by_currency: [] };
-    renderPage();
+    await renderPage();
     expect(screen.queryByText(/Forecast margin/)).not.toBeInTheDocument();
     const pipeline = tile('Pipeline (weighted)');
     const unavailable = within(pipeline).getByRole('status');
@@ -157,7 +161,7 @@ describe('company figures — ported money oracles', () => {
     expect(unavailable).not.toHaveTextContent(/\$|\d/);
   });
 
-  it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
+  it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', async () => {
     h.orgCurrency = 'IDR';
     h.dash = {
       ...populated,
@@ -167,7 +171,7 @@ describe('company figures — ported money oracles', () => {
         { currency: 'USD', contract_value: 3_400_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
       ],
     };
-    renderPage();
+    await renderPage();
     const contract = tile('Contract on hand');
     expect(contract).toHaveTextContent('USD 3.4M');
     expect(contract).not.toHaveTextContent(/\$3\.4M/);
@@ -175,8 +179,8 @@ describe('company figures — ported money oracles', () => {
 });
 
 describe('company win rate — ported AC-1115 / FR-SPD-013', () => {
-  it('AC-1115: the win-rate card toggles count ↔ value and the page period re-queries it with a new range', () => {
-    renderPage();
+  it('AC-1115: the win-rate card toggles count ↔ value and the page period re-queries it with a new range', async () => {
+    await renderPage();
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(within(screen.getByTestId('win-rate-currency-USD')).getByRole('progressbar', { name: /USD win rate on decided bids/i }))
