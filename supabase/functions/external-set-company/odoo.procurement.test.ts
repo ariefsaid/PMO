@@ -60,7 +60,7 @@ describe('Odoo router — employ-domain (P2-T9)', () => {
     }
   });
 
-  it('only procurement and companies are employable under odoo here: another domain is a bad request and reaches no verb', async () => {
+  it('only procurement, companies and equipment are employable under odoo here: another domain is a bad request and reaches no verb', async () => {
     for (const domain of ['revenue', 'timesheets', 'budget', 42, undefined]) {
       const r = await call({ setupAction: 'employ-domain', domain });
       assertEquals(r.res.status, 400, String(domain));
@@ -73,6 +73,19 @@ describe('Odoo router — employ-domain (P2-T9)', () => {
     assertEquals([r.res.status, r.json], [200, { ok: true }]);
     assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').map((c) => c.bodyJson),
       [{ p_org_id: 'org-1', p_external_tier: 'odoo', p_domain: 'companies', p_action: 'employ', p_actor_id: 'user-1' }]);
+  });
+
+  it('AC-OFM-001 an Admin employs equipment under odoo through the same guarded verb, as the verified actor', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'equipment' });
+    assertEquals([r.res.status, r.json], [200, { ok: true }]);
+    assertEquals(rpcCall(r.calls, 'admin_change_domain_ownership').map((c) => c.bodyJson),
+      [{ p_org_id: 'org-1', p_external_tier: 'odoo', p_domain: 'equipment', p_action: 'employ', p_actor_id: 'user-1' }]);
+  });
+
+  it('AC-OFM-001 an equipment employ refused for a missing model: 422 with the check-again hint', async () => {
+    const r = await call({ setupAction: 'employ-domain', domain: 'equipment' }, { rpc: { admin_change_domain_ownership: () => pgError('P0001', 'Odoo is missing fleet.vehicle') } });
+    assertEquals(r.res.status, 422);
+    assertEquals(JSON.stringify(r.json).includes('Odoo is missing fleet.vehicle. Check the connection again, then retry.'), true);
   });
 
   it('FR-ODC-055 a companies employ refused by the database because partner sends are still waiting: 409 sends-pending', async () => {

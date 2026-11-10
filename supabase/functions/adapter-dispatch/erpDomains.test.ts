@@ -30,8 +30,17 @@ Deno.test('an unsupported domain is not an ERP domain anywhere (fail closed)', a
   }
 });
 
-Deno.test('the money role map only names ERP dispatch domains', () => {
-  const withRoles = ['companies', 'procurement', 'revenue', 'budget', 'timesheets', 'expenses', 'tasks', 'reference']
+/**
+ * #1511 F4: the equipment register is an externally-owned domain whose tier is Odoo ONLY (D5/D7) — it is deliberately not in
+ * `ERPNEXT_DISPATCH_DOMAINS` (ERPNext must never own it, FR-OFM-002), yet it does have a write-role set. It is the ONE named
+ * exception; a new domain with writers must still be an ERP dispatch domain or be added here with its own reason.
+ */
+const ODOO_ONLY_DOMAINS = new Set(['equipment']);
+
+Deno.test('the money role map only names ERP dispatch domains, plus the Odoo-only register', () => {
+  const withRoles = ['companies', 'procurement', 'revenue', 'budget', 'timesheets', 'expenses', 'tasks', 'reference', 'equipment']
     .filter((domain) => moneyWriteRolesForDomain(domain).length > 0);
-  for (const domain of withRoles) assert(isErpDispatchDomain(domain), `${domain} has writers but is not an ERP dispatch domain`);
+  for (const domain of withRoles) {
+    assert(isErpDispatchDomain(domain) || ODOO_ONLY_DOMAINS.has(domain), `${domain} has writers but is neither an ERP dispatch domain nor a named Odoo-only one`);
+  }
 });
