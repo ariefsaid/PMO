@@ -1,4 +1,5 @@
 import React from 'react';
+import { scrollBehavior } from '@/src/lib/motion';
 import { Menu } from '@base-ui/react/menu';
 import { cn } from '@/src/components/ui/cn';
 import { menuItemClass, menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
@@ -115,7 +116,7 @@ const TasksToolbar: React.FC<{
                     <Menu.CheckboxItem checked={showArchived} closeOnClick onCheckedChange={() => { setShowArchived((value) => !value); onClearSelection(); }} className={menuItemClass}>
                       {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
                     </Menu.CheckboxItem>
-                    <Menu.Item onClick={() => integrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className={menuItemClass}>
+                    <Menu.Item onClick={() => integrationsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })} className={menuItemClass}>
                       {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}
                     </Menu.Item>
                   </Menu.Popup>

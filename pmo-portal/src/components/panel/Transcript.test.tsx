@@ -77,6 +77,25 @@ describe('Transcript — NFR-AP-PERF-003 entry cap', () => {
   });
 });
 
+describe('Transcript — #2126 pin-to-bottom', () => {
+  it('auto-scroll pins with behavior instant (streaming must not tween)', () => {
+    const calls: ScrollIntoViewOptions[] = [];
+    const original = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = function spy(arg?: ScrollIntoViewOptions) {
+      calls.push(arg ?? {});
+    } as typeof window.HTMLElement.prototype.scrollIntoView;
+    try {
+      render(<Transcript transcript={makeEntries(3)} />);
+      // Deliberate #2126 behaviour change: the pin is instant so a new chunk never
+      // interrupts the previous chunk's smooth tween (the panel kept moving for the
+      // whole response). The scroll-to-bottom itself still happens.
+      expect(calls.some((c) => c.behavior === 'instant' && c.block === 'end')).toBe(true);
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+});
+
 describe('Transcript — AC-AGP-022 thumbs feedback persists', () => {
   function makeAssistantEntry(id: string, text: string): TranscriptEntry {
     return {

@@ -3,9 +3,6 @@ import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Menu } from '@base-ui/react/menu';
-import { cn } from '@/src/components/ui/cn';
-import { menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {

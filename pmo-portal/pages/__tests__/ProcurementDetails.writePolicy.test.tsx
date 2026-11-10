@@ -219,8 +219,8 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
     // At Approved the header's primary is "Record order"; requesting quotations is in the More menu (#1404).
-    const header = await openMoreActions();
-    await userEvent.click(header.getByRole('menuitem', { name: 'Request quotations' }));
+    await openMoreActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Request quotations' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -287,8 +287,8 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
   it('AC-IXD-WP-003: a routine single-click forward step fires a quiet success toast', async () => {
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
-    const header = await openMoreActions();
-    await userEvent.click(header.getByRole('menuitem', { name: 'Request quotations' }));
+    await openMoreActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Request quotations' }));
     // AC-IXD-PROC-001: the toast names the CANONICAL state ("Supplier quote") — the
     // same noun the badge shows — not the raw enum value ("Vendor Quoted"). The
     // quiet-success-toast goal-oracle is unchanged; only the canonical label is asserted.
@@ -313,8 +313,8 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
   it('AC-IXD-WP-003: Reject opens a destructive confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const header = await openMoreActions();
-    await userEvent.click(header.getByRole('menuitem', { name: /^reject$/i }));
+    await openMoreActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^reject$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -322,8 +322,8 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
   it('AC-IXD-WP-003: Cancel procurement opens a destructive confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    const header = await openMoreActions();
-    await userEvent.click(header.getByRole('menuitem', { name: /^cancel procurement$/i }));
+    await openMoreActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^cancel procurement$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });

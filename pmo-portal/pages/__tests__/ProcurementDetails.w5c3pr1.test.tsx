@@ -487,9 +487,9 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing action-area behaviors uncha
   it('non-regression: Reject is never a loud destructive fill (a quiet menu item)', async () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const header = await openMoreActions();
-    const rejectItem = header.getByRole('menuitem', { name: /^reject$/i });
-    expect(rejectItem.className).not.toMatch(/(^|\s)bg-destructive(\s|$)/);
+    await openMoreActions();
+    const rejectItem = screen.getByRole('menuitem', { name: /^reject$/i });
+    expect(rejectItem.className).not.toContain('bg-destructive');
     expect(rejectItem.className).not.toContain('bg-primary');
   });
 
