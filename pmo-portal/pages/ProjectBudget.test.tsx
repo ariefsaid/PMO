@@ -749,45 +749,16 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  /**
-   * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
-   * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
-   * attempt was made and there is nothing to retry.
-   */
-  it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
-    roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
-    budgetState.data = 0;
-    versionsState.data = [draftVersion];
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    const toast = await findToastAnnouncement('alert', /activated/i);
-    expect(toast).toHaveTextContent(/no budget lines/i);
-    // …and it does NOT tell the operator to retry a push that was never attempted.
-    expect(toast).not.toHaveTextContent(/retry/i);
-    resetState();
-  });
-
-  /**
-   * ⚑ rm-1472 — a 202 `budget-cancellation-pending` is the queue, not a push. ERPNext holds nothing for
-   * the new version until the predecessor's cancellation settles (the sweep then pushes it by itself),
-   * so the activation toast must not read as a clean success — and must not tell the operator to fix
-   * something either: nothing on this screen is wrong.
-   */
-  it('rm-1472 activation queued behind an earlier cancellation says so — never a clean "Version activated"', async () => {
-    roleState.realRole = 'Finance';
-    mockActivate.mockResolvedValueOnce({ pushState: 'pending-cancellation' });
-    budgetState.data = 0;
-    versionsState.data = [draftVersion];
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
-    const toast = await findToastAnnouncement('alert', /activated/i);
-    expect(toast).toHaveTextContent(/queued/i);
-    expect(toast).toHaveTextContent(/cancellation/i);
-    resetState();
-  });
+  // ⚑ #1030: `activateVersion` resolves `pushState: 'queued'` unconditionally (ADR-0062), so the
+  // 'nothing-to-push' / 'pending-cancellation' / 'failed' ACTIVATION toasts are unreachable and were
+  // removed by 43d0e8f2e. The #1413 merge (fb7d9b954) restored this file's pre-43d0e8f2e side along
+  // with the toasts, so its two pinning tests came back with them; they mock a result the repository
+  // seam can never return. Their goal oracles ("nothing was sent" is never announced as a push; a
+  // cancellation-pending push reads as QUEUED, never as a clean success) live on the surface that now
+  // owns the outcome — pages/project-detail/budget/BudgetErpNotice.test.tsx:172 ("a retry with nothing
+  // to push says so — never that ERPNext is enforcing the budget") and :182 ("rm-1472/M-3 a retry
+  // while an earlier cancellation is still settling says the push is QUEUED"), plus :91 for the
+  // 'pending' → "Queued" label and src/hooks/useBudget.queuedPush.test.tsx for the #1030 seed.
 
   it('requires the current mode while confirming a sole-operator activation', async () => {
     roleState.realRole = 'Finance';
