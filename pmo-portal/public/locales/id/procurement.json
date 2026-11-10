@@ -430,6 +430,7 @@
       "loadError": "Penerimaan tidak dapat dimuat.",
       "empty": "Belum ada penerimaan tercatat",
       "document": "Dokumen bertanda tangan: {{title}}",
+      "documentLabel": "Dokumen bertanda tangan:",
       "noDocument": "Belum ada dokumen bertanda tangan",
       "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
       "review": "Tinjau draf",

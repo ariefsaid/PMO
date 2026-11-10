@@ -12,7 +12,9 @@ import { formatCurrency, formatDateOnly, formatNumberExact } from '@/src/lib/for
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import type { ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
+import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { claimNet } from '@/src/lib/progressBilling';
+import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 import { invoiceBalanceFigures, QuantityFigure, type InvoiceWithWorkOrder, type OrderLineView, basisNote } from './workOrdersTabFigures';
 
 /** The delivery-selector drawer picks the work order a new BAST is recorded against. */
@@ -155,10 +157,12 @@ export const WorkOrderClaimDrawer: React.FC<{
   canBill: boolean;
   currency: string;
   projectId: string;
+  /** The project's readable register rows — an evidence document is shown by name and opens the viewer. */
+  documents: ProjectDocumentRow[];
   onClose: () => void;
   onRaise: (claim: ProgressClaimWithInvoice) => void;
   onAttachEvidence: (claimId: string) => void;
-}> = ({ claim, canBill, currency, projectId, onClose, onRaise, onAttachEvidence }) => {
+}> = ({ claim, canBill, currency, projectId, documents, onClose, onRaise, onAttachEvidence }) => {
   const { t } = useTranslation('project');
   return <Drawer open title={claim.kind === 'down_payment'
     ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
@@ -181,7 +185,7 @@ export const WorkOrderClaimDrawer: React.FC<{
     <section className="border-t border-border px-4 py-3">
       <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
       {(claim.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
-        {(claim.evidence ?? []).map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
+        {(claim.evidence ?? []).map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><ProjectDocumentLink documentId={evidence.document_id} documents={documents} /><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
       </ul>}
     </section>
   </Drawer>;

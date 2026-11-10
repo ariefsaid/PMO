@@ -4,6 +4,7 @@ import { Button, ListState, StatusPill, type StatusVariant } from '@/src/compone
 import { usePermission } from '@/src/auth/usePermission';
 import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
+import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
@@ -70,7 +71,6 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
       ) : (
         <ul className="flex flex-col gap-2">
           {sorted.map((a) => {
-            const document = documents.find((d) => d.id === a.document_id);
             const draft = a.status === 'Draft';
             const preparedByMe = Boolean(currentUserId) && a.prepared_by === currentUserId;
             const canEdit = draft && workOrder.status === 'Issued'
@@ -88,8 +88,8 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
                 </div>
                 {a.lines.length > 0 && <p className="text-[12px] tabular text-muted-foreground">{linesText(a)}</p>}
                 <p className="text-[12px] text-muted-foreground">
-                  {document
-                    ? t('projectTabs:contractQuantities.workOrders.acceptances.document', 'Signed BAST: {{title}}', { title: document.title })
+                  {a.document_id
+                    ? <>{t('projectTabs:contractQuantities.workOrders.acceptances.documentLabel', 'Signed BAST:')} <ProjectDocumentLink documentId={a.document_id} documents={documents} /></>
                     : t('projectTabs:contractQuantities.workOrders.acceptances.noDocument', 'No signed BAST document linked')}
                 </p>
                 {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (

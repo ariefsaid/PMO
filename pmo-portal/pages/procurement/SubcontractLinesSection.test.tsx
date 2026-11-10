@@ -5,6 +5,7 @@ import React from 'react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext } from '@/src/components/documents';
 import { formatCurrency } from '@/src/lib/format';
 import type { SubcontractPoPositionRow, SubcontractCapExceptionRow } from '@/src/lib/db/subcontracts';
 import enProcurement from '@/public/locales/en/procurement.json';
@@ -15,6 +16,7 @@ const h = vi.hoisted(() => ({
   draft: { data: [] as unknown[], isPending: false },
   acceptances: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   exceptions: { data: [] as unknown[], isError: false },
+  docs: [] as unknown[],
   issue: vi.fn(),
   requestVariation: vi.fn(),
   variations: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
@@ -40,7 +42,7 @@ vi.mock('@/src/hooks/useSubcontract', () => ({
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u1', status: 'active' }, { id: 'u2', status: 'active' }] }) }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs }) }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 
@@ -75,6 +77,7 @@ beforeEach(() => {
   h.draft = { data: [], isPending: false };
   h.acceptances = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.exceptions = { data: [], isError: false };
+  h.docs = [];
   h.variations = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.may = vi.fn(() => true);
   h.issue.mockReset().mockResolvedValue(undefined);
@@ -168,6 +171,38 @@ describe('SubcontractLinesSection', () => {
     renderSection();
     await screen.findByTestId('subcontract-cap-exceptions');
     expect(screen.queryByRole('button', { name: /attribute lines/i })).toBeNull();
+  });
+
+  it('AC-016 the signed acceptance document opens the viewer', async () => {
+    const open = vi.fn();
+    h.docs = [{ id: 'd1', title: 'Signed memo', status: 'Issued', file_path: 'org/prj1/d1/m.pdf', source: 'upload' }];
+    h.acceptances = { data: [{ id: 'a1', status: 'Confirmed', acceptance_date: '2026-10-20', document_id: 'd1', confirm_basis: 'standard', lines: [] }], isPending: false, isError: false, refetch: vi.fn() };
+    render(
+      <ToastProvider>
+        <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>
+          <SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />
+        </DocumentViewerContext.Provider>
+      </ToastProvider>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Preview Signed memo' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].key).toBe('project-document:d1');
+  });
+
+  it('AC-017 an unreadable linked acceptance document says unavailable, not "no document"', async () => {
+    h.docs = [];
+    h.acceptances = { data: [{ id: 'a1', status: 'Confirmed', acceptance_date: '2026-10-20', document_id: 'd1', confirm_basis: 'standard', lines: [] }], isPending: false, isError: false, refetch: vi.fn() };
+    render(
+      <ToastProvider>
+        <DocumentViewerContext.Provider value={{ open: vi.fn(), close: vi.fn() }}>
+          <SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />
+        </DocumentViewerContext.Provider>
+      </ToastProvider>,
+    );
+    expect(await screen.findByText('Signed document:')).toBeInTheDocument();
+    expect(screen.getByText('Document not available')).toBeInTheDocument();
+    expect(screen.queryByText(/No signed document linked/)).toBeNull();
+    expect(screen.queryByText('d1')).toBeNull();
   });
 
   it('FR-SCA-010 Record acceptance is gated by can(prepare, subcontractAcceptance)', async () => {

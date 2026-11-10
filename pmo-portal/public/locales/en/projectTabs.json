@@ -72,6 +72,7 @@
           "title": "Withdraw this BAST draft?"
         },
         "document": "Signed BAST: {{title}}",
+        "documentLabel": "Signed BAST:",
         "edit": "Edit",
         "editLabel": "Edit draft BAST of {{date}}",
         "empty": "No BASTs yet",

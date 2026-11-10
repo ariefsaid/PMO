@@ -28,6 +28,7 @@ import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useInvoiceTmClaimNative } from '@/src/hooks/useTimeAndMaterials';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
+import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 
 /**
  * The project's Billing tab (#766). Three things on one page, kept visibly apart (DD-PBL-2):
@@ -561,7 +562,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     <section className="border-t border-border px-4 py-3">
       <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
       {claimDetailFor.evidence.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
-        {claimDetailFor.evidence.map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
+        {claimDetailFor.evidence.map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><ProjectDocumentLink documentId={evidence.document_id} documents={documents.data ?? []} /><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
       </ul>}
     </section>
   </Drawer>;

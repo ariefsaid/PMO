@@ -62,7 +62,8 @@ Reconnaissance ran `scripts/prior-art.sh document-preview`,
 
 One viewer serves project document rows and their quick view, purchase document
 references and phase-file attachments, budget evidence links, and files listed
-inside linked record folders. Existing receipt/evidence preview entry points also
+inside linked record folders, and project documents linked as evidence on billing
+claims, work-order acceptances, subcontract acceptances and T&M sign-offs. Existing receipt/evidence preview entry points also
 reuse the viewer rather than retaining a second viewer. Additional record surfaces
 that expose these same document references use the same adapter.
 
@@ -161,6 +162,9 @@ repository-wide journey IDs. Each row has exactly one owning layer.
 | AC-012 | Given an issued/approved document with a pin and drift state, when latest content is previewed or pinned content is unavailable, then the version/source labels are accurate, the historical action is retained, and no status, approval or financial/evidence value changes. | Unit | FR-012 |
 | AC-013 | Given the panel in loading, ready, denied and unsupported states in either language, when keyboard users open, traverse and close it at desktop and narrow viewport sizes, then controls are reachable, content is named, focus returns and the rendered panel has no axe violations. | Unit (RTL, axe and responsive component fixtures) | FR-002, NFR-005/008 |
 | AC-014 | Given an unauthorized or unreadable typed record identity, when the preview/upload handler is invoked directly, then it returns a sanitized refusal before any Microsoft or signed-link operation, irrespective of client UI state. | Unit (shipped handler boundary; mutation-check authorization branch) | NFR-001/003 |
+| AC-015 | Given a register row with a stored file or a valid Microsoft reference, when the shared project-document target helper builds a target, then it equals what the Documents tab opens (storage key `project-document:<id>` / `project_document` Graph request); given neither, it returns null. | Unit | FR-001/005 |
+| AC-016 | Given a billing claim, work-order claim, BAST, subcontract acceptance or T&M sign-off that links a readable project document, when the user selects the document's name, then the common viewer opens for that document without leaving the record. | Unit (parameterized RTL, extends `entryPoints.test.tsx`) | FR-001/015 |
+| AC-017 | Given a linked document id that is not in the user's readable register, when the evidence list renders, then it shows a plain "Document not available" label, never a raw id, and offers no Preview. | Unit | FR-013 |
 
 Provider-internal Office rendering is not a deterministic local-test oracle. The
 build plan must retain a bounded provider proof with non-sensitive fixtures for

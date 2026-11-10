@@ -7,10 +7,9 @@ import { useUploadDestination } from '@/src/hooks/useUploadDestination';
 import { validateFile } from '@/src/lib/validateFile';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { projectOwner, projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
+import { projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
-import { storageTarget } from '@/src/components/documents/targets/storage';
-import { referenceTarget } from '@/src/components/documents/targets/reference';
+import { projectRegisterTarget } from '@/src/components/documents/targets/projectRegister';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 
 export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], canEditDoc: (doc: ProjectDocumentRow) => boolean) {
@@ -107,22 +106,11 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
 
   /** FR-001: one side-panel viewer for a stored file and for a Microsoft reference alike. */
   const openPreview = (doc: ProjectDocumentRow) => {
-    const reference = projectReference(doc);
-    if (reference?.web_url) {
-      if (!validMicrosoftBrowserUrl(reference.web_url)) {
-        toast(t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.'), undefined, 'warning');
-        return;
-      }
-      viewer.open(referenceTarget({ reference, owner: projectOwner(doc), title: doc.title }));
-      return;
+    const target = projectRegisterTarget(doc, (path, opts) => repositories.document.getSignedUrl(path, opts));
+    if (target) { viewer.open(target); return; }
+    if (projectReference(doc)?.web_url) {
+      toast(t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.'), undefined, 'warning');
     }
-    if (!doc.file_path) return;
-    viewer.open(storageTarget({
-      key: `project-document:${doc.id}`,
-      name: doc.title,
-      filePath: doc.file_path,
-      getSignedUrl: (path, opts) => repositories.document.getSignedUrl(path, opts),
-    }));
   };
 
   const downloadSelected = async (selectedDocuments: ProjectDocumentRow[]) => {

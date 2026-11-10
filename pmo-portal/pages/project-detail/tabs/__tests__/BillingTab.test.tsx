@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatNumberMax2 } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
@@ -276,6 +277,25 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
     expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it('AC-016 claim evidence shows the document title and opens the viewer', async () => {
+    const open = vi.fn();
+    render(<MemoryRouter><ToastProvider><DocumentViewerContext.Provider value={{ open, close: vi.fn() }}><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" mode="full" /></DocumentViewerContext.Provider></ToastProvider></MemoryRouter>);
+    await userEvent.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[1]);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Preview Progress report' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].key).toBe('project-document:doc-1');
+  });
+
+  it('AC-017 claim evidence never renders the raw document id', async () => {
+    h.docs = [];
+    const user = renderTab();
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[1]);
+    const drawer = within(screen.getByRole('dialog'));
+    expect(drawer.getByText('Document not available')).toBeInTheDocument();
+    expect(drawer.queryByText('doc-1')).toBeNull();
+    expect(drawer.queryByRole('button', { name: /Preview/ })).toBeNull();
   });
 
   it.each(['full', 'contract-tools'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {

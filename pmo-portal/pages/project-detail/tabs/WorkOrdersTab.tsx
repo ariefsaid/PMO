@@ -740,6 +740,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         canBill={canBill}
         currency={currency}
         projectId={projectId}
+        documents={documents.data ?? []}
         onClose={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}
         onRaise={(claim) => { closeOpenRecord(claim.id, 'workOrderClaim'); setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }); }}
         onAttachEvidence={(claimId) => { closeOpenRecord(claimId, 'workOrderClaim'); setEvidenceFor(claimId); }}

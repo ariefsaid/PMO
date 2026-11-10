@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
@@ -18,6 +19,7 @@ const h = vi.hoisted(() => ({
   projectBilling: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   orderLines: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   claims: [] as unknown[],
+  docs: [] as unknown[],
   mode: 'erp' as 'erp' | 'native' | undefined,
   routeReady: true,
   synced: true,
@@ -50,7 +52,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
@@ -109,6 +111,7 @@ beforeEach(() => {
   h.projectBilling = { data: null, isPending: false, isError: false, refetch: vi.fn() };
   h.orderLines = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.claims = [];
+  h.docs = [];
   h.mode = 'erp';
   h.routeReady = true;
   h.synced = true;
@@ -286,6 +289,36 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.getByRole('heading', { name: 'Claims & down payment' })).toBeInTheDocument();
     expect(screen.getByText('Down payment held')).toBeInTheDocument();
     expect(within(screen.getByText('Down payment held').parentElement!).getByText('330,000')).toBeInTheDocument();
+  });
+
+  describe('claim drawer evidence', () => {
+    const evidenceClaim = () => [{ id: 'cl-1', work_order_id: 'wo-1', kind: 'progress', withdrawn_at: null, created_at: '2026-10-01T00:00:00Z',
+      down_payment_amount: null, gross_amount: 100_000, dp_recovery_amount: 0, invoice: null,
+      evidence: [{ id: 'ev-1', document_id: 'doc-9', document_status: 'active', document_revision: 'A' }] }];
+    const renderOpen = () => {
+      const open = vi.fn();
+      h.role = 'Finance';
+      render(<MemoryRouter initialEntries={['/?open=cl-1&openType=workOrderClaim']}><ToastProvider><DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>
+        <WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId={null} autoInvoiceWorkOrderId={null} /><RouteSearch />
+      </DocumentViewerContext.Provider></ToastProvider></MemoryRouter>);
+      return open;
+    };
+
+    it('AC-016 work-order claim evidence opens the viewer, not a raw id', async () => {
+      h.claims = evidenceClaim();
+      h.docs = [{ id: 'doc-9', title: 'Site report', status: 'Issued', file_path: 'org/p/doc-9/r.pdf', source: 'upload' }];
+      const open = renderOpen();
+      expect(screen.queryByText('doc-9')).toBeNull();
+      await userEvent.click(await screen.findByRole('button', { name: 'Preview Site report' }));
+      expect(open.mock.calls[0][0].key).toBe('project-document:doc-9');
+    });
+
+    it('AC-017 an unreadable evidence document shows no raw id and no Preview', async () => {
+      h.claims = evidenceClaim();
+      renderOpen();
+      expect(await screen.findByText('Document not available')).toBeInTheDocument();
+      expect(screen.queryByText('doc-9')).toBeNull();
+    });
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
