@@ -3131,11 +3131,12 @@
     "scope": "Scope",
     "statement": "Statement",
     "trialBalance": "Trial balance",
-    "unavailable": "Statements are not available yet",
-    "unavailableDescription": "Saved statements will appear here when available.",
+    "unavailable": "No statements yet",
+    "unavailableDescription": "Statements come from the accounting system.",
     "updated": "Updated",
     "choosePeriod": "Choose a period",
-    "chooseScope": "Choose a scope"
+    "chooseScope": "Choose a scope",
+    "setUp": "Set up accounting"
   },
   "sales": {
     "accessDenied": {

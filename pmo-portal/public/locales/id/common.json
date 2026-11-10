@@ -3131,11 +3131,12 @@
     "scope": "Cakupan",
     "statement": "Laporan",
     "trialBalance": "Neraca saldo",
-    "unavailable": "Laporan keuangan belum tersedia",
-    "unavailableDescription": "Laporan tersimpan akan muncul di sini saat tersedia.",
+    "unavailable": "Belum ada laporan keuangan",
+    "unavailableDescription": "Laporan keuangan berasal dari sistem akuntansi.",
     "updated": "Diperbarui",
     "choosePeriod": "Pilih periode",
-    "chooseScope": "Pilih cakupan"
+    "chooseScope": "Pilih cakupan",
+    "setUp": "Atur akuntansi"
   },
   "sales": {
     "accessDenied": {
