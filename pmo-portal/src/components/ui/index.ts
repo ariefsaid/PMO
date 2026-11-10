@@ -13,7 +13,7 @@ export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, CardFoot, type CardProps, type CardHeadingLevel } from './Card';
-export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
+export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta } from './KPITile';
 export {
   DataTable,
   MenuButton,
@@ -52,8 +52,12 @@ export {
 export { Funnel, type FunnelStage, type FunnelProps } from './Funnel';
 export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
-export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
-export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
+export { PageHeader, type PageHeaderProps } from './PageHeader';
+export { RecordHeader, type RecordHeaderProps, type PageStat } from './RecordHeader';
+export { ReasonDialog, type ReasonDialogProps, type ReasonKind } from './ReasonDialog';
+export { FigureScope, FigureHiddenLine, FigureHelpList } from './FigureScope';
+export { useFigureScope, useFigureReport, type HiddenFigure, type FigureHelpEntry } from './useFigureScope';
+export { RecordMenu, type RecordMenuItem, type RecordMenuProps } from './RecordMenu';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';
 export { MobileToolbarDisclosure, type MobileToolbarDisclosureProps } from './MobileToolbarDisclosure';

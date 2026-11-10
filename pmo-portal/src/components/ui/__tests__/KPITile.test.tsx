@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -71,15 +71,14 @@ describe('KPITile', () => {
     expect(screen.getByText('-$120K').className).toContain('text-destructive');
   });
 
-  it('delta direction maps to the right chip tone', () => {
-    const { rerender } = render(
-      <KPITile icon="up" tone="green" label="x" value="1" delta={{ dir: 'up', text: '+12%' }} />
-    );
-    expect(screen.getByTestId('kpi-delta').className).toContain('text-success');
-    rerender(
-      <KPITile icon="down" tone="red" label="x" value="1" delta={{ dir: 'down', text: '-4%' }} />
-    );
-    expect(screen.getByTestId('kpi-delta').className).toContain('text-destructive');
+  it('one caption: caption wins, and the deprecated vs / delta text fall back to it', () => {
+    const { rerender } = render(<KPITile icon="up" tone="green" label="x" value="1" caption="vs last month" vs="old" delta={{ dir: 'up', text: '+12%' }} />);
+    expect(screen.getByText('vs last month')).toBeInTheDocument();
+    expect(screen.queryByText('old')).not.toBeInTheDocument();
+    expect(screen.queryByText('+12%')).not.toBeInTheDocument();
+    rerender(<KPITile icon="up" tone="green" label="x" value="1" delta={{ dir: 'up', text: '+12%' }} />);
+    expect(screen.getByText('+12%')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-delta')).not.toBeInTheDocument();
   });
 
   it('help is a native keyboard-focusable button with an accessible name', () => {
@@ -169,25 +168,5 @@ describe('KPITile', () => {
   it('AC-W6-H1: KPITone no longer accepts cyan (off-palette literal removed)', () => {
     // @ts-expect-error cyan is no longer a member of KPITone
     render(<KPITile icon="folder" tone="cyan" label="x" value="1" />);
-  });
-
-  it('dual-lens toggle switches value + aria-selected', async () => {
-    const onLens = vi.fn();
-    render(
-      <KPITile
-        icon="dollar"
-        tone="blue"
-        label="Backlog"
-        value="$4.2M"
-        dual={{ lens: 'onhand', onLens, options: [
-          { value: 'onhand', label: 'On hand' },
-          { value: 'weighted', label: 'Weighted' },
-        ] }}
-      />
-    );
-    const weighted = screen.getByRole('tab', { name: 'Weighted' });
-    expect(screen.getByRole('tab', { name: 'On hand' })).toHaveAttribute('aria-selected', 'true');
-    await userEvent.click(weighted);
-    expect(onLens).toHaveBeenCalledWith('weighted');
   });
 });

@@ -283,6 +283,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     ...(contractColumn ? [contractColumn] : []),
     {
       key: 'actual',
+      // Kept while blank so a failed money read still shows its (unknown) state; the Projects sweep decides whether it may drop.
+      keepWhenBlank: true,
       header: t('projects.columns.actual', 'Actual'),
       kind: 'money',
       size: 160,
@@ -332,6 +334,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     },
     {
       key: 'budget-used',
+      keepWhenBlank: true, // see 'actual' above
       exportValue: budgetExport,
       header: t('projects.columns.budgetUsed', 'Budget used'),
       kind: 'money',

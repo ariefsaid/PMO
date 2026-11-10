@@ -215,6 +215,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         {...(overlay.drawerInset !== null ? { 'data-overlay-drawer': 'true' } : {})}
         {...(overlay.drawerInset !== null ? { style: { '--toast-top-inset': `${overlay.drawerInset}px` } as React.CSSProperties } : {})}
       />
+      <div aria-live="off">
       <Toaster
         // The two regions above own announcements; the library's own polite region would
         // read every toast a second time.
@@ -225,10 +226,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         gap={10}
         visibleToasts={4}
         theme="light"
+        // Sonner defaults to a 999999999 stack; menus/popovers sit at 1010 and must stay above it.
+        style={{ zIndex: 1000 } as React.CSSProperties}
         closeButton
         toastOptions={{ unstyled: true, classNames: TOAST_CLASSNAMES, closeButtonAriaLabel: t('toast.dismiss', 'Dismiss notification') }}
         icons={TOAST_ICONS}
       />
+      </div>
     </ToastCtx.Provider>
   );
 };

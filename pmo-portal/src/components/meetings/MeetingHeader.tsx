@@ -106,8 +106,6 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
     }
   };
 
-  const hasHeaderActions = canEdit || canArchive || canDelete;
-
   return (
     <RecordHeader
       name={canEdit ? (headerDraft.title || meeting.title) : meeting.title}
@@ -167,52 +165,43 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
           )}
         </span>
       )}
-      actions={hasHeaderActions ? (
+      primaryAction={canEdit && headerDirty ? (
         <>
-          {canEdit && headerDirty && <>
-            <Button
-              variant="primary"
-              size="sm"
-              data-testid="meeting-header-save"
-              disabled={update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)}
-              onClick={() => void saveHeader()}
-            >
-              {tMeetingCreate('save', 'Save meeting')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="meeting-header-cancel"
-              onClick={() => setHeaderDraft(serverDraft)}
-            >
-              {tMeetingCreate('cancel', 'Cancel')}
-            </Button>
-          </>}
-          {canArchive && !meeting.archived_at && (
-            <Button variant="ghost" size="sm" data-testid="meeting-archive" onClick={onArchive}>
-              {t('meetingDetail.archive', 'Archive')}
-            </Button>
-          )}
-          {canArchive && meeting.archived_at && (
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="meeting-restore"
-              disabled={restorePending}
-              onClick={onRestore}
-            >
-              {restorePending
-                ? tMeetings('actions.restoring', 'Restoring…')
-                : tMeetings('actions.restore', 'Restore')}
-            </Button>
-          )}
-          {canDelete && (
-            <Button variant="ghost" size="sm" data-testid="meeting-delete" onClick={onDelete}>
-              {t('meetingDetail.delete', 'Delete')}
-            </Button>
-          )}
+          <Button
+            variant="primary"
+            size="sm"
+            data-testid="meeting-header-save"
+            disabled={update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)}
+            onClick={() => void saveHeader()}
+          >
+            {tMeetingCreate('save', 'Save meeting')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="meeting-header-cancel"
+            onClick={() => setHeaderDraft(serverDraft)}
+          >
+            {tMeetingCreate('cancel', 'Cancel')}
+          </Button>
         </>
+      ) : canArchive && meeting.archived_at ? (
+        <Button
+          variant="primary"
+          size="sm"
+          data-testid="meeting-restore"
+          disabled={restorePending}
+          onClick={onRestore}
+        >
+          {restorePending
+            ? tMeetings('actions.restoring', 'Restoring…')
+            : tMeetings('actions.restore', 'Restore')}
+        </Button>
       ) : undefined}
+      menuItems={[
+        ...(canArchive && !meeting.archived_at ? [{ key: 'archive', testId: 'meeting-archive', label: t('meetingDetail.archive', 'Archive'), onSelect: onArchive }] : []),
+        ...(canDelete ? [{ key: 'delete', testId: 'meeting-delete', label: t('meetingDetail.delete', 'Delete'), onSelect: onDelete, danger: true }] : []),
+      ]}
     />
   );
 };

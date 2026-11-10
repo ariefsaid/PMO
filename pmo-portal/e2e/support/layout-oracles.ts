@@ -1276,9 +1276,6 @@ export async function assertCompactProjectHeader(page: Page) {
   await expect(moneyPosition.getByTestId('contract-value-amount')).toBeVisible();
   // Net fewer always-visible elements: the header's own disclosure is gone, the rail owns the codes.
   await expect(page.getByText('More project details', { exact: true })).toHaveCount(0);
-  const moreActions = page.locator('summary[aria-label="More actions"]');
-  await expect(moreActions).toHaveCount(1);
-  await moreActions.click();
   const projectDetails = page.getByRole('button', { name: 'Project details', exact: true });
   await expect(projectDetails).toHaveCount(1);
   await projectDetails.click();

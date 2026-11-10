@@ -946,7 +946,7 @@ describe('Action bar covers mid-flow transitions', () => {
     renderPage();
     const newHeader = screen.getByTestId('record-header');
     await userEvent.click(within(newHeader).getByRole('button', { name: /more procurement actions/i }));
-    expect(within(newHeader).queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('a Draft purchase with no payment recorded has no secondary paid transition', async () => {
@@ -981,7 +981,7 @@ describe('Action bar covers mid-flow transitions', () => {
       'Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment',
       'Add quotation', 'Link from accounting system',
     ]);
-    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Supplier invoice' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Supplier invoice' }));
     expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
   });
 
@@ -1580,7 +1580,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(within(header).queryByTestId('edit-header')).toBeNull();
+    expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
   it('AC-PROC-004: the Select-quote action shows at Vendor Quoted for a sourcing role', () => {
@@ -1669,7 +1669,8 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const header = screen.getByTestId('record-header');
-    await userEvent.click(within(header).getByRole('button', { name: /^Reject$/ }));
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Reject$/ }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByRole('button', { name: /^Reject$/ })).toBeVisible();
     expect(mockTransition).not.toHaveBeenCalled();
@@ -1846,7 +1847,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.any(String), expect.anything(), 'warning'));
   });
 
-  it('AC-SEC-220: within the approved amount there is no ceiling message', () => {
+  it('AC-SEC-220: within the approved amount there is no ceiling message', async () => {
     detailState.data = { ...invoicedOver, paymentCeiling: { ok: true, reason: null, billedNet: 900, approvedAmount: 1000 } };
     renderPage();
     expect(screen.queryByTestId('payment-ceiling-note')).toBeNull();

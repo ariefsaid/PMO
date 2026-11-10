@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { cn } from './cn';
 import { tabId, tabPanelId } from './tabIds';
+import { scrollBehavior } from '@/src/lib/motion';
 
 export interface TabItem<V extends string = string> {
   value: V;
@@ -75,8 +76,7 @@ export function Tabs<V extends string = string>({
     const right = tab.right + (parseFloat(style.scrollMarginRight) || 0);
     const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
     if (!offset) return;
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    list.scrollBy({ left: offset, behavior: prefersReduced ? 'instant' : 'smooth' });
+    list.scrollBy({ left: offset, behavior: scrollBehavior() });
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   return (

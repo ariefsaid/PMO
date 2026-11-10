@@ -704,7 +704,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   if (variant === 'page') {
     return (
       <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[880px]">
-        <PageHeader name={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')} meta={t('projectForm.subtitle.create', 'Create a project')} />
+        <PageHeader title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')} />
         <div className="rounded-lg border border-border bg-card px-5 py-4">
           {errorSummary.length > 0 && form.hasAttemptedSubmit && (
             <div role="alert" className="mb-4 text-[12.5px] text-destructive-text">

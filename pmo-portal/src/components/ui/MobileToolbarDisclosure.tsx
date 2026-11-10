@@ -8,6 +8,9 @@ import { Icon } from './icons';
  * A compact inline disclosure for a mobile list toolbar (FR-PRJUX-003), on Base UI Collapsible
  * (trigger `aria-expanded`/`aria-controls`, panel mount and height animation come from the library).
  *
+ * Accepted exception (#2044): Collapsible has no dismissal API, so Escape, outside-pointer close,
+ * first-focus and focus restore stay hand-rolled below; it is a disclosure, not a popup.
+ *
  * Unlike a popover, this is a real labelled `region` in normal document flow —
  * no portal, no absolute positioning, no focus trap. It opens beneath its trigger
  * and pushes the page content down (it never overlaps anything, so it can't clip

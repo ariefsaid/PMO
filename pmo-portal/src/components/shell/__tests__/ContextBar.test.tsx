@@ -53,11 +53,6 @@ const renderBar = () =>
     </MemoryRouter>
   );
 
-const openAccountMenu = async () => {
-  await userEvent.click(screen.getByRole('button', { name: /account menu|menu akun/i }));
-  return screen.findByRole('menu');
-};
-
 beforeEach(() => {
   displayName = 'Ada Lovelace';
   viewAs.mockClear();
@@ -107,15 +102,16 @@ describe('ContextBar — unified account menu', () => {
   it('AC-ACCT-005 applies and selects a text size in the account menu', async () => {
     delete document.documentElement.dataset.textSize;
     renderBar();
-    await openAccountMenu();
-    await userEvent.click(await screen.findByRole('menuitemradio', { name: /^larger$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /^larger$/i }));
     expect(screen.getByRole('menuitemradio', { name: /^larger$/i })).toHaveAttribute('aria-checked', 'true');
     expect(document.documentElement.dataset.textSize).toBe('larger');
     expect(localStorage.getItem('text-size')).toBe('larger');
   });
   it('keeps legal and support links out of the account menu', async () => {
     renderBar();
-    const menu = await openAccountMenu();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    const menu = screen.getByRole('menu');
     expect(within(menu).queryByText(/legal & support/i)).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /^(terms|privacy|help)$/i })).not.toBeInTheDocument();
   });
@@ -128,7 +124,6 @@ describe('ContextBar — unified account menu', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
 
     await userEvent.click(trigger);
-    await screen.findByRole('menu');
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
     const menu = screen.getByRole('menu');
@@ -151,8 +146,8 @@ describe('ContextBar — unified account menu', () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
-    await openAccountMenu();
-    await userEvent.click(await screen.findByRole('menuitemradio', { name: /^dark$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /^dark$/i }));
 
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(localStorage.getItem('theme')).toBe('dark');
@@ -168,8 +163,8 @@ describe('ContextBar — unified account menu', () => {
     document.documentElement.classList.add('dark');
     localStorage.setItem('theme', 'dark');
     renderBar();
-    await openAccountMenu();
-    await userEvent.click(await screen.findByRole('menuitemradio', { name: /^light$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /^light$/i }));
 
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(localStorage.getItem('theme')).toBe('light');
@@ -181,8 +176,8 @@ describe('ContextBar — unified account menu', () => {
     canImpersonate = true;
     effectiveRole = 'Admin';
     renderBar();
-    await openAccountMenu();
-    expect(await screen.findByText('View as role')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.getByText('View as role')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('menuitemradio', { name: 'Engineer' }));
     expect(viewAs).toHaveBeenCalledWith('Engineer');
   });
@@ -191,7 +186,7 @@ describe('ContextBar — unified account menu', () => {
     canImpersonate = true;
     effectiveRole = 'Finance';
     renderBar();
-    await openAccountMenu();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
 
     const menu = screen.getByRole('menu');
     expect(within(menu).getByRole('menuitem', { name: /return to admin/i })).toBeInTheDocument();
@@ -206,39 +201,39 @@ describe('ContextBar — unified account menu', () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
-    await openAccountMenu();
+    // Keyboard open: the library lands focus on the first item (a pointer open leaves it on the popup).
+    screen.getByRole('button', { name: /account menu/i }).focus();
+    await userEvent.keyboard('{Enter}');
 
-    const profile = screen.getByRole('menuitem', { name: /profile & preferences/i });
+    const profile = await screen.findByRole('menuitem', { name: /profile & preferences/i });
     const light = screen.getByRole('menuitemradio', { name: /^light$/i });
     const signOutItem = screen.getByRole('menuitem', { name: /sign out/i });
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{ArrowDown}');
-    await waitFor(() => expect(profile).toHaveFocus());
-    await userEvent.keyboard('{ArrowDown}');
-    expect(light).toHaveFocus();
+    await waitFor(() => expect(light).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{ArrowUp}');
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{End}');
-    expect(signOutItem).toHaveFocus();
+    await waitFor(() => expect(signOutItem).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{Home}');
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.tab();
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus();
-    await openAccountMenu();
-    const reopenedProfile = await screen.findByRole('menuitem', { name: /profile & preferences/i });
-    await userEvent.keyboard('{ArrowDown}');
-    await waitFor(() => expect(reopenedProfile).toHaveFocus());
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus());
+    screen.getByRole('button', { name: /account menu/i }).focus();
+    await userEvent.keyboard('{Enter}');
+    await screen.findByRole('menu');
     await userEvent.tab({ shift: true });
-    expect(screen.getByRole('button', { name: /account menu/i })).toHaveFocus();
-    await userEvent.tab({ shift: true });
-    expect(screen.getByRole('button', { name: /command palette/i })).toHaveFocus();
+    // Shift+Tab leaves the menu without a trap: it closes and the library returns focus to its trigger.
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /account menu/i })).toHaveFocus());
   });
 
   it('AC-ACCT-004: an ordinary Admin (or non-admin) sees NO View as role section or choices', async () => {
     canImpersonate = false;
     effectiveRole = 'Admin'; // displayed role stays Admin; only the affordance is gone
     renderBar();
-    await openAccountMenu();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
     expect(screen.queryByText('View as role')).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitemradio', { name: 'Engineer' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitemradio', { name: 'Project Manager' })).not.toBeInTheDocument();
@@ -258,7 +253,7 @@ describe('ContextBar — unified account menu', () => {
     await userEvent.tab();
     expect(trigger).toHaveFocus();
     await userEvent.keyboard('{Enter}');
-    await screen.findByRole('menu');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
   });
 
   it('AC-ACCT-001: a long signed-in name is constrained within the header trigger', () => {
@@ -266,7 +261,10 @@ describe('ContextBar — unified account menu', () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /account menu/i });
     expect(trigger).toHaveClass('max-w-[220px]');
-    expect(screen.getByText(displayName)).toBeVisible();
+    const name = screen.getByText(displayName);
+    expect(name).toHaveClass('break-words');
+    expect(name).not.toHaveClass('truncate');
+    expect(name).toHaveTextContent(displayName);
   });
 
   it('AC-ACCT-003: Escape closes the menu and restores focus to the trigger', async () => {
@@ -275,9 +273,9 @@ describe('ContextBar — unified account menu', () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /account menu/i });
     await userEvent.click(trigger);
-    await screen.findByRole('menu');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
 
@@ -285,20 +283,21 @@ describe('ContextBar — unified account menu', () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
-    await openAccountMenu();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
     // Click a top-bar control outside the account menu wrapper.
     await userEvent.click(screen.getByRole('button', { name: /command palette/i }));
-    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   it('AC-ACCT-003: signing out closes the menu and calls signOut exactly once', async () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
-    await openAccountMenu();
-    await userEvent.click(await screen.findByRole('menuitem', { name: /sign out/i }));
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /sign out/i }));
     expect(signOut).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   it('AC-ACCT-001: the personal-sign-out/theme no longer occupy separate top-bar slots', () => {
@@ -343,7 +342,6 @@ describe('ContextBar — catalogue-backed account-menu labels (AC-ACCT-006)', ()
       </I18nextProvider>,
     );
     await userEvent.click(screen.getByRole('button', { name: /account menu|menu akun/i }));
-    await screen.findByRole('menu');
   }
 
   it('English catalogue: Profile & preferences and Light/Dark labels render from the catalogue', async () => {

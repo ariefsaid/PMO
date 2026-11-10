@@ -11,7 +11,6 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
   const deal = `Classification deal ${suffix}`;
   const internal = `Classification internal ${suffix}`;
   const openProjectDetails = async () => {
-    await page.getByLabel('More actions', { exact: true }).click();
     await page.getByRole('button', { name: 'Project details', exact: true }).click();
   };
   await login(page, 'admin@acme.test');
@@ -91,8 +90,8 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
       await page.goto(name === deal ? '/sales?view=table' : '/projects?view=table');
       await page.getByText(name, { exact: true }).click();
       if (name === deal) await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
-      await page.getByLabel('More actions', { exact: true }).click();
-      await page.getByRole('button', { name: 'Archive', exact: true }).click();
+      await page.getByRole('button', { name: 'More actions', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Archive', exact: true }).click();
       await page.getByRole('alertdialog').getByRole('button', { name: /archive project/i }).click();
       await expect(page.getByRole('alertdialog')).not.toBeVisible();
     }

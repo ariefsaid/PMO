@@ -72,7 +72,9 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   const Heading = `h${level}` as const;
   return (
     <div
-      className={cn('flex items-start gap-2 px-[var(--panel-inset)] py-4', className)}
+      // The heading sits 16px above its content: this row's own bottom padding is the whole gap, so the
+      // next sibling (usually CardPad) drops its top inset instead of stacking 16 + inset (a 40px band).
+      className={cn('flex items-start gap-2 px-[var(--panel-inset)] py-4 [&+*]:pt-0', className)}
     >
       <div className="min-w-0 flex-1">
         <Heading

@@ -152,7 +152,7 @@ describe('DataTable RowMenu — clip escape + a11y (AC-W6-IXD-MENU)', () => {
     await userEvent.keyboard('{ArrowDown}');
     expect(items[2]).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}'); // wrap to first
-    await waitFor(() => expect(items[0]).toHaveFocus());
+    await waitFor(() => expect(items[0]).toHaveFocus()); // Base UI moves focus next frame
     await userEvent.keyboard('{ArrowUp}'); // wrap to last
     await waitFor(() => expect(items[2]).toHaveFocus());
   });

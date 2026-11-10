@@ -1,113 +1,77 @@
 import React from 'react';
+import { HelpPopover } from './HelpPopover';
+import { FigureHelpList } from './FigureScope';
+import { useFigureScope } from './useFigureScope';
 import { cn } from './cn';
 
-export interface PageStat {
-  label: string;
-  value: React.ReactNode;
-}
-
 export interface PageHeaderProps {
-  /** Optional leading icon tile (color via iconColor). */
-  icon?: React.ReactNode;
-  iconColor?: string;
-  name: React.ReactNode;
-  meta?: React.ReactNode;
-  metaId?: string;
-  /** Status pill or other badge node. */
-  status?: React.ReactNode;
-  /** Keep a record's status in the title row at every width. */
-  statusInline?: boolean;
-  /** Place status below metadata on narrow screens, then beside the title from sm up. */
-  statusBelowMetaOnMobile?: boolean;
-  /** Optional stat strip below the title. */
-  stats?: PageStat[];
-  /** Trailing action buttons. */
-  actions?: React.ReactNode;
-  className?: string;
-  /** Optional test hook forwarded to the header root. */
-  'data-testid'?: string;
+  /** The page title. */
+  title: React.ReactNode;
+  /** 1 for a route's own page (default), 2 for a page embedded inside another. */
+  headingLevel?: 1 | 2;
+  /** Quiet figure beside the title, e.g. a count chip. */
+  count?: React.ReactNode;
+  /** The ONE filled primary action of the page ("New project"), top right. */
+  action?: React.ReactNode;
   /**
-   * `card` (default) wraps the header in the bordered `card` chrome used on detail pages.
-   * `bare` drops that chrome so a host surface (e.g. a Drawer with its own border seam)
-   * supplies the framing — the inner icon + name + status + actions anatomy is unchanged.
+   * The ONE help control of the page: what a definition or caveat on this screen means. Opens from a
+   * "?" beside the title. Per-tile and per-column "?" icons do not exist: inside a `FigureScope`, the
+   * help text of the figure tiles is appended to this popover automatically.
    */
-  surface?: 'card' | 'bare';
-  /** Put the actions on their own row under the name (narrow hosts such as a drawer), so the name is never truncated by them. */
-  actionsBelow?: boolean;
+  help?: React.ReactNode;
+  /** Names the help button ("About {{subject}}"); defaults to a string title. */
+  helpSubject?: string;
+  /**
+   * @deprecated Removed: no sentence sits under a page title (screen rule "Words"). Kept as a typed no-op
+   * because ~80 callers still pass one; `scripts/check-date-formatting.mjs` lists them and blocks new ones.
+   */
+  subtitle?: React.ReactNode;
+  className?: string;
+  'data-testid'?: string;
 }
 
-/** Detail-page header card (`phead`): icon + name + status + meta + stats + actions. */
+/**
+ * The page title row: title, the one primary action, at most one help control. Nothing else:
+ * no subtitle, no stats, no status (a record's status lives in `RecordHeader`).
+ */
 export const PageHeader: React.FC<PageHeaderProps> = ({
-  icon,
-  iconColor,
-  name,
-  meta,
-  metaId,
-  status,
-  statusInline = false,
-  statusBelowMetaOnMobile = false,
-  stats,
-  actions,
+  title,
+  headingLevel = 1,
+  count,
+  action,
+  help,
+  helpSubject,
   className,
-  'data-testid': dataTestId,
-  surface = 'card',
-  actionsBelow = false,
-}) => (
-  <div
-    data-testid={dataTestId}
-    className={cn(
-      surface === 'card' && 'mb-[var(--space-section)] rounded-lg border border-border bg-card px-[var(--space-content-inset)] py-[var(--space-content-inset)]',
-      className,
-    )}
-  >
-    {/* Narrow widths: the record name gets width priority; the action zone can wrap below. */}
-    <div className="flex flex-wrap items-start gap-[var(--space-group)]">
-      {icon && (
+  'data-testid': dataTestId = 'page-header',
+}) => {
+  const hasFigureHelp = (useFigureScope()?.help.length ?? 0) > 0;
+  const hasHelp = (help != null && help !== false) || hasFigureHelp;
+  return (
+  <div data-testid={dataTestId} className={cn('mb-4 flex flex-wrap items-center justify-between gap-3', className)}>
+    <div className="flex min-w-0 items-center gap-2.5">
+      {headingLevel === 2 ? (
+        <h2 className="text-section font-semibold">{title}</h2>
+      ) : (
+        <h1 className="text-page font-bold tracking-[-0.02em]">{title}</h1>
+      )}
+      {count != null && count !== false && (
         <span
-          className="grid size-11 shrink-0 place-items-center rounded-[10px] text-section font-bold text-primary-foreground [&_svg]:size-5"
-          style={{ background: iconColor ?? 'hsl(var(--primary))' }}
+          data-testid="list-page-count"
+          className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-control font-semibold tabular text-muted-foreground"
         >
-          {icon}
+          {count}
         </span>
       )}
-      <div className="min-w-0 flex-1">
-        <div className={cn(
-          'min-w-0 gap-2',
-          statusBelowMetaOnMobile
-            ? 'grid grid-cols-[minmax(0,1fr)_auto] items-baseline sm:flex sm:flex-wrap'
-            : cn('flex items-baseline', statusInline ? 'flex-nowrap' : 'flex-wrap'),
-        )}>
-          <h1 className={cn(
-            'min-w-0 text-page font-semibold',
-            statusBelowMetaOnMobile
-              ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
-              : statusInline ? 'flex-[0_1_auto] break-words' : 'flex-1 break-words',
-          )}>{name}</h1>
-          {status && <span className={cn(
-            'self-baseline',
-            statusInline && 'shrink-0',
-            statusBelowMetaOnMobile && 'col-span-2 row-start-3 justify-self-start sm:col-span-1 sm:row-start-auto',
-          )}>{status}</span>}
-        </div>
-        {meta && <div id={metaId} className={cn(
-          'mt-1 text-control font-normal text-muted-foreground',
-          statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
-        )}>{meta}</div>}
-      </div>
-      {actions && <div className={cn('flex w-full shrink-0 items-center gap-2', !actionsBelow && 'ml-auto sm:w-auto')}>{actions}</div>}
+      {hasHelp && (
+        <HelpPopover subject={helpSubject ?? (typeof title === 'string' ? title : '')}>
+          {help}
+          <FigureHelpList />
+        </HelpPopover>
+      )}
     </div>
-    {stats && stats.length > 0 && (
-      <div
-        className="mt-4 grid gap-4 border-t border-border pt-4"
-        style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}
-      >
-        {stats.map((s, i) => (
-          <div key={i}>
-            <div className="mb-1 text-control font-medium text-foreground">{s.label}</div>
-            <div className="text-group font-semibold tabular">{s.value}</div>
-          </div>
-        ))}
-      </div>
-    )}
+    {action}
   </div>
-);
+  );
+};
+
+PageHeader.displayName = 'PageHeader';

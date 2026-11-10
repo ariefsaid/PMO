@@ -70,12 +70,12 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
-  { to: '/equipment', text: 'Equipment', icon: 'clock', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
-  { to: '/imprest', text: 'Site cash', icon: 'expenses', group: 'Workforce', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'Workforce', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Ordinary role access is supplemented by record-scoped timesheet eligibility below.
   { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
@@ -90,7 +90,7 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are
   // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all roles.
-  { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/meetings', text: 'Meetings', icon: 'meetings', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
   // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
   // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
@@ -104,9 +104,9 @@ export const ALL_ITEMS: NavItem[] = [
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
   { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/payables', text: 'Payables', icon: 'procurement', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/statements', text: 'Statements', icon: 'reports', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/statements', text: 'Statements', icon: 'statements', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
 ];
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];

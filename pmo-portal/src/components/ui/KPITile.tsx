@@ -5,7 +5,7 @@ import { cn } from './cn';
 import { FigureContent } from './FigureContent';
 import { Icon, type IconName } from './icons';
 import { Tooltip } from './Tooltip';
-import { ViewToggle, type ViewOption } from './ViewToggle';
+import { useFigureReport, type HiddenFigure } from './useFigureScope';
 import type { KPITone } from './KPITile.types';
 
 // Re-exported (not duplicated) from the pure sibling file (see KPITile.types.ts doc comment) —
@@ -21,41 +21,46 @@ const TONE_CLASS: Record<KPITone, string> = {
   green: 'bg-success/[0.13] text-success',
 };
 
+/** @deprecated A second line on a tile. A tile has ONE caption: pass `caption`. */
 export interface KPIDelta {
   dir: 'up' | 'down' | 'neutral';
   text: string;
 }
 
-export interface KPIDualLens<L extends string = string> {
-  lens: L;
-  options: ViewOption<L>[];
-  onLens: (lens: L) => void;
-}
-
-export interface KPITileProps<L extends string = string> {
+export interface KPITileProps {
   icon: IconName;
   tone: KPITone;
   label: string;
   value: React.ReactNode;
   /** Full whole-unit amount metadata for compact money figures. */
   exactValue?: string;
-  /** Why the metric is unknown; omit the numeric figure and show this message once. */
+  /**
+   * Why the metric is unknown. The tile is then NOT drawn: inside a `FigureScope` it reports itself to the
+   * page's one "N figures hidden: <reason>" line (`FigureHiddenLine`); outside one it shows the reason in place.
+   * A tile with no `value` (null/undefined) is unknown too.
+   */
   unavailableReason?: string;
+  /** Where the unknown figure is fixed ("Set up"); shown as the link in the hidden-figures line. */
+  hiddenLink?: { to: string; label: string };
   /** Negative values turn destructive (DESIGN.md). */
   negative?: boolean;
-  /** Help tooltip — exposed as a keyboard-focusable `?`. */
+  /**
+   * Definition of the figure. Inside a `FigureScope` it is not drawn on the tile: it is collected into the page's one
+   * help control. Outside one it is still the old per-tile "?" (until the page adopts the scope).
+   */
   help?: string;
-  /** Optional localized title/name for the metric explanation. */
+  /** Names this figure in that help list; defaults to `label`. */
   helpLabel?: string;
-  /** Foot delta chip + vs-comparison. */
-  delta?: KPIDelta;
+  /** The tile's ONE caption (at most 6 words, truncated to one line). */
+  caption?: string;
+  /** @deprecated Use `caption`. */
   vs?: string;
+  /** @deprecated A tile has one caption; the text is used as `caption` when none is given. */
+  delta?: KPIDelta;
   /** Skeleton while the metric query loads. */
   loading?: boolean;
   /** When true, omits the value (fetch error state); the surrounding block carries the error. */
   error?: boolean;
-  /** Replaces the foot with a segmented on-hand/weighted lens toggle. */
-  dual?: KPIDualLens<L>;
   /**
    * When set, the tile has a full-surface router `<Link>` doorway (Wave-5 N15).
    * Help remains an independent button above the link, never nested in the anchor.
@@ -65,12 +70,17 @@ export interface KPITileProps<L extends string = string> {
   linkLabel?: string;
   /** Test id on the tile root (for AC-tagged smoke assertions). */
   testId?: string;
-  /** Optional visible CTA text rendered inside the link variant (still one focus target). */
+  /** @deprecated Not drawn: a figure tile is label, value and one caption. */
   ctaLabel?: string;
   className?: string;
 }
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
+/** The tile's one caption: a single truncated line. */
+const Caption: React.FC<{ children: string }> = ({ children }) => (
+  <div className="break-words text-control text-muted-foreground">{children}</div>
+);
+
 const KPIRowContext = React.createContext(false);
 
 export interface KPIRowProps {
@@ -97,13 +107,7 @@ export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label
   </section>
 );
 
-const DELTA_CLASS: Record<KPIDelta['dir'], string> = {
-  up: 'text-success bg-success/12',
-  down: 'text-destructive-text bg-destructive/10',
-  neutral: 'text-muted-foreground bg-secondary',
-};
-
-export function KPITile<L extends string = string>({
+export function KPITile({
   icon,
   tone,
   label,
@@ -111,21 +115,28 @@ export function KPITile<L extends string = string>({
   exactValue,
   unavailableReason,
   negative = false,
+  hiddenLink,
   help,
   helpLabel,
-  delta,
+  caption: captionProp,
   vs,
+  delta,
   loading = false,
   error = false,
-  dual,
   to,
   linkLabel,
   testId,
-  ctaLabel,
   className,
-}: KPITileProps<L>) {
+}: KPITileProps) {
   const { t } = useTranslation();
   const inRow = React.useContext(KPIRowContext);
+  const caption = captionProp ?? vs ?? delta?.text;
+  const unknown = !loading && !error && (unavailableReason != null || value == null);
+  const hiddenEntry: HiddenFigure[] = unknown
+    ? [{ label, reason: unavailableReason ?? '', ...(hiddenLink ? { link: hiddenLink } : {}) }]
+    : [];
+  const inScope = useFigureReport(hiddenEntry, help && !unknown ? [{ label: helpLabel ?? label, text: help }] : []);
+  if (unknown && inScope) return null;
   const isLink = to != null;
   const rootClass = cn(
     'relative flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4',
@@ -147,8 +158,9 @@ export function KPITile<L extends string = string>({
       >
         <Icon name={icon} />
       </span>}
-      <span className="text-control font-medium text-foreground">{label}</span>
-      {help && (
+      <span className="break-words text-control font-medium text-foreground">{label}</span>
+      {/* Legacy: outside a FigureScope the help stays a per-tile "?" until the page adopts the scope. */}
+      {help && !inScope && (
         <Tooltip content={help} title={helpLabel}>
           <button
             type="button"
@@ -175,31 +187,18 @@ export function KPITile<L extends string = string>({
         <div className="relative z-10 flex min-w-0 flex-col gap-2.5 pointer-events-none">
           {head}
           {loading ? (
-            <div data-testid="kpi-skeleton" className="skel h-8 w-2/3" />
+            <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
           ) : error ? null : (
             <div
               className={cn(
-                'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
+                'min-w-0 break-words text-metric font-bold leading-none tracking-[-0.02em] tabular',
                 negative && 'text-destructive'
               )}
             >
               <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
             </div>
           )}
-          {(vs || ctaLabel) && (
-            <div className="flex items-center gap-2 text-control">
-              {vs && <span className="text-muted-foreground">{vs}</span>}
-              {ctaLabel && (
-                <span
-                  aria-hidden="true"
-                  className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1 text-control font-semibold text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)]"
-                >
-                  {ctaLabel}
-                  <Icon name="chev" />
-                </span>
-              )}
-            </div>
-          )}
+          {caption && <Caption>{caption}</Caption>}
         </div>
       </div>
     );
@@ -210,11 +209,11 @@ export function KPITile<L extends string = string>({
       {head}
 
       {loading ? (
-        <div data-testid="kpi-skeleton" className="skel h-8 w-2/3" />
+        <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
       ) : error ? null : (
         <div
           className={cn(
-            'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
+            'min-w-0 break-words text-metric font-bold leading-none tracking-[-0.02em] tabular',
             negative && 'text-destructive'
           )}
         >
@@ -222,33 +221,7 @@ export function KPITile<L extends string = string>({
         </div>
       )}
 
-      {dual ? (
-        <ViewToggle
-          options={dual.options}
-          value={dual.lens}
-          onChange={dual.onLens}
-          ariaLabel={`${label} lens`}
-          className="mt-auto h-[22px] self-start p-px"
-        />
-      ) : (
-        (delta || vs) && (
-          <div className="flex items-center gap-2 text-control">
-            {delta && (
-              <span
-                data-testid="kpi-delta"
-                className={cn(
-                  'inline-flex items-center gap-[3px] rounded-full px-1.5 py-px font-semibold [&_svg]:size-3',
-                  DELTA_CLASS[delta.dir]
-                )}
-              >
-                {delta.dir !== 'neutral' && <Icon name={delta.dir} />}
-                {delta.text}
-              </span>
-            )}
-            {vs && <span className="text-muted-foreground">{vs}</span>}
-          </div>
-        )
-      )}
+      {caption && <Caption>{caption}</Caption>}
     </div>
   );
 }

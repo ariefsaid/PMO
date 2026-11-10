@@ -3,14 +3,21 @@ import { useTranslation } from 'react-i18next';
 import { Toolbar } from './DataTable';
 import { useIsDesktop } from './useIsDesktop';
 import { Card } from './Card';
+import { PageHeader } from './PageHeader';
 
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
   title: React.ReactNode;
   /** Embedded pages use a compact h2 while standalone list routes remain h1. */
   headingLevel?: 1 | 2;
-  /** One-line page subtitle below the title. */
+  /**
+   * @deprecated No sentence sits under a page title (screen rule "Words"). Callers still passing one are
+   * listed in `scripts/header-subtitle-allowlist.json`; the screen sweeps delete the prop (some carry a basis
+   * statement that needs a home first), and a new caller fails the guard.
+   */
   description?: React.ReactNode;
+  /** The page's ONE help control (what a definition on this screen means). */
+  help?: React.ReactNode;
   /**
    * Optional result count chip riding alongside the title. Rendered only when a
    * number is supplied (0 still renders, so an empty list reads "0").
@@ -71,6 +78,7 @@ export interface ListPageProps {
 export const ListPage: React.FC<ListPageProps> = ({
   title,
   headingLevel = 1,
+  help,
   description,
   count,
   total,
@@ -101,34 +109,17 @@ export const ListPage: React.FC<ListPageProps> = ({
 
   return (
     <div className={className}>
-      <div
+      <PageHeader
         data-testid="list-page-header"
-        className="mb-4 flex flex-wrap items-start justify-between gap-3"
-      >
-        <div>
-          <div className="flex items-center gap-2.5">
-            {headingLevel === 2 ? (
-              <h2 className="text-section font-semibold">{title}</h2>
-            ) : (
-              <h1 className="text-page font-bold tracking-[-0.02em]">{title}</h1>
-            )}
-            {count !== undefined && (
-              <span
-                data-testid="list-page-count"
-                className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-control font-semibold tabular text-muted-foreground"
-              >
-                {total !== undefined && count < total
-                  ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
-                  : count}
-              </span>
-            )}
-          </div>
-          {description && (
-            <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">{description}</p>
-          )}
-        </div>
-        {primaryAction}
-      </div>
+        title={title}
+        headingLevel={headingLevel}
+        help={help}
+        action={primaryAction}
+        count={count === undefined ? undefined : total !== undefined && count < total
+          ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
+          : count}
+      />
+      {description && <p className="-mt-2 mb-4 max-w-[68ch] text-sm text-muted-foreground">{description}</p>}
 
       {banner}
 

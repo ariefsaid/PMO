@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { Badge } from '../StatusPill';
 import { Card } from '../Card';
-import { PageHeader } from '../PageHeader';
+import { RecordHeader } from '../RecordHeader';
 import { SectionHeader } from '../SectionHeader';
 import { StatTiles } from '../StatTiles';
 import { Toolbar } from '../DataTable';
@@ -17,8 +17,8 @@ describe('DS spacing normalization', () => {
     expect(b.className).not.toContain('px-[7px]');
   });
 
-  it('PageHeader uses shared page rhythm and content inset tokens', () => {
-    const { container } = render(<PageHeader name="Project" />);
+  it('RecordHeader uses shared page rhythm and content inset tokens', () => {
+    const { container } = render(<RecordHeader name="Project" status="Active" />);
     const header = container.firstElementChild;
 
     expect(header?.className).toContain('mb-[var(--space-section)]');
