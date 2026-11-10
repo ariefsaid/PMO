@@ -1,0 +1,200 @@
+{
+  "project": {
+    "leads": "Leads",
+    "pqSubmitted": "PQ submitted",
+    "quotationSubmitted": "Quotation submitted",
+    "tenderSubmitted": "Tender submitted",
+    "negotiation": "Negotiation",
+    "wonPendingKom": "Won, pending kickoff",
+    "ongoing": "Ongoing",
+    "internal": "Internal",
+    "onHold": "On hold",
+    "closeOut": "Close-out",
+    "lost": "Lost",
+    "declined": "Declined"
+  },
+  "procurement": {
+    "draft": "Draft",
+    "requested": "Requested",
+    "approved": "Approved",
+    "vendorQuoted": "Supplier quote",
+    "quoteSelected": "Quote selected",
+    "ordered": "Purchase order",
+    "received": "Goods receipt",
+    "vendorInvoiced": "Supplier invoice",
+    "paid": "Paid",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled"
+  },
+  "expense": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "paid": "Paid",
+    "cancelled": "Cancelled"
+  },
+  "imprest": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "requested": "Requested",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "paid": "Paid",
+    "cancelled": "Cancelled",
+    "active": "Active"
+  },
+  "timesheet": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "equipmentUsage": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "task": {
+    "toDo": "To do",
+    "inProgress": "In progress",
+    "blocked": "Blocked",
+    "done": "Done"
+  },
+  "incident": {
+    "open": "Open",
+    "investigating": "Investigating",
+    "closed": "Closed"
+  },
+  "document": {
+    "draft": "Draft",
+    "issued": "Issued",
+    "approved": "Approved",
+    "superseded": "Superseded",
+    "archived": "Archived"
+  },
+  "salesInvoice": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "unpaid": "Unpaid",
+    "partlyPaid": "Partly paid",
+    "overdue": "Overdue",
+    "paid": "Paid",
+    "cancelled": "Cancelled"
+  },
+  "receipt": {
+    "expected": "Expected",
+    "received": "Received",
+    "cancelled": "Cancelled"
+  },
+  "budgetVersion": {
+    "draft": "Draft",
+    "active": "Active",
+    "archived": "Archived"
+  },
+  "stockDocument": {
+    "draft": "Draft",
+    "posted": "Posted",
+    "cancelled": "Cancelled"
+  },
+  "workOrder": {
+    "draft": "Draft",
+    "issued": "Issued",
+    "closed": "Closed",
+    "cancelled": "Cancelled"
+  },
+  "acceptance": {
+    "draft": "Draft",
+    "confirmed": "Confirmed",
+    "withdrawn": "Withdrawn"
+  },
+  "costVariation": {
+    "requested": "Requested",
+    "approved": "Approved",
+    "revised": "Revised",
+    "rejected": "Rejected",
+    "disputed": "Disputed"
+  },
+  "tmClaim": {
+    "draft": "Draft",
+    "awaiting": "Awaiting confirmation",
+    "signedOff": "Signed off",
+    "withdrawn": "Withdrawn"
+  },
+  "billingMilestone": {
+    "unknown": "Date unknown",
+    "planned": "Planned",
+    "inProgress": "In progress",
+    "invoiced": "Invoiced",
+    "paid": "Paid",
+    "overInvoiced": "Over-invoiced"
+  },
+  "push": {
+    "pending": "Queued",
+    "pushing": "Sending",
+    "pushed": "Posted",
+    "failed": "Failed",
+    "held": "Needs a decision",
+    "neverPushed": "Never sent",
+    "unstamped": "Not sent at activation",
+    "cancelledInErp": "Cancelled in the accounting system"
+  },
+  "connection": {
+    "connected": "Connected",
+    "disconnected": "Not connected",
+    "unverified": "Not checked recently",
+    "unknown": "Connection state unavailable",
+    "notActivated": "Choose a company",
+    "degraded": "Needs attention",
+    "expiring": "Key expires soon",
+    "unreachable": "Unreachable",
+    "keyRejected": "Key rejected"
+  },
+  "odooOutcome": {
+    "confirmed": "In Odoo",
+    "pending": "Sent, waiting for Odoo",
+    "held": "Needs a decision",
+    "needsAttention": "Check in Odoo",
+    "refused": "Odoo did not accept it"
+  },
+  "ledgerFreshness": {
+    "fresh": "Up to date",
+    "stale": "Not updated for over 30 minutes",
+    "catchingUp": "Still reading Odoo history",
+    "unavailable": "Odoo not reachable, showing the last data"
+  },
+  "ledgerCheck": {
+    "matches": "Matches Odoo",
+    "notChecked": "Not checked against Odoo",
+    "outOfDate": "Check is out of date",
+    "differs": "Differs from Odoo"
+  },
+  "budgetHealth": {
+    "onTrack": "On track",
+    "unavailable": "Unavailable",
+    "atRisk": "At risk",
+    "overBudget": "Over budget"
+  },
+  "due": {
+    "dueSoon": "Due soon",
+    "overdue": "Overdue"
+  },
+  "importRow": {
+    "valid": "Valid",
+    "skipped": "Skipped"
+  },
+  "user": {
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "masterRecord": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "deletedInOdoo": "Deleted in Odoo"
+  },
+  "age": {
+    "overdue_one": "{{n}} day overdue",
+    "overdue_other": "{{n}} days overdue"
+  }
+}

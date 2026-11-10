@@ -1,0 +1,200 @@
+{
+  "project": {
+    "leads": "Prospek",
+    "pqSubmitted": "Pra-kualifikasi diajukan",
+    "quotationSubmitted": "Penawaran diajukan",
+    "tenderSubmitted": "Tender diajukan",
+    "negotiation": "Negosiasi",
+    "wonPendingKom": "Menang, menunggu rapat awal",
+    "ongoing": "Berjalan",
+    "internal": "Internal",
+    "onHold": "Ditunda",
+    "closeOut": "Penutupan",
+    "lost": "Kalah",
+    "declined": "Tidak ikut tender"
+  },
+  "procurement": {
+    "draft": "Draf",
+    "requested": "Diminta",
+    "approved": "Disetujui",
+    "vendorQuoted": "Penawaran pemasok",
+    "quoteSelected": "Penawaran dipilih",
+    "ordered": "Pesanan pembelian",
+    "received": "Penerimaan barang",
+    "vendorInvoiced": "Faktur pemasok",
+    "paid": "Dibayar",
+    "rejected": "Ditolak",
+    "cancelled": "Dibatalkan"
+  },
+  "expense": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "approved": "Disetujui",
+    "rejected": "Ditolak",
+    "paid": "Dibayar",
+    "cancelled": "Dibatalkan"
+  },
+  "imprest": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "requested": "Diminta",
+    "approved": "Disetujui",
+    "rejected": "Ditolak",
+    "paid": "Dibayar",
+    "cancelled": "Dibatalkan",
+    "active": "Aktif"
+  },
+  "timesheet": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "approved": "Disetujui",
+    "rejected": "Ditolak"
+  },
+  "equipmentUsage": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "approved": "Disetujui",
+    "rejected": "Ditolak"
+  },
+  "task": {
+    "toDo": "Akan dikerjakan",
+    "inProgress": "Sedang dikerjakan",
+    "blocked": "Terhambat",
+    "done": "Selesai"
+  },
+  "incident": {
+    "open": "Terbuka",
+    "investigating": "Diselidiki",
+    "closed": "Ditutup"
+  },
+  "document": {
+    "draft": "Draf",
+    "issued": "Diterbitkan",
+    "approved": "Disetujui",
+    "superseded": "Digantikan",
+    "archived": "Diarsipkan"
+  },
+  "salesInvoice": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "unpaid": "Belum dibayar",
+    "partlyPaid": "Dibayar sebagian",
+    "overdue": "Terlambat",
+    "paid": "Dibayar",
+    "cancelled": "Dibatalkan"
+  },
+  "receipt": {
+    "expected": "Diharapkan",
+    "received": "Diterima",
+    "cancelled": "Dibatalkan"
+  },
+  "budgetVersion": {
+    "draft": "Draf",
+    "active": "Aktif",
+    "archived": "Diarsipkan"
+  },
+  "stockDocument": {
+    "draft": "Draf",
+    "posted": "Diposting",
+    "cancelled": "Dibatalkan"
+  },
+  "workOrder": {
+    "draft": "Draf",
+    "issued": "Diterbitkan",
+    "closed": "Ditutup",
+    "cancelled": "Dibatalkan"
+  },
+  "acceptance": {
+    "draft": "Draf",
+    "confirmed": "Dikonfirmasi",
+    "withdrawn": "Ditarik"
+  },
+  "costVariation": {
+    "requested": "Diminta",
+    "approved": "Disetujui",
+    "revised": "Direvisi",
+    "rejected": "Ditolak",
+    "disputed": "Disengketakan"
+  },
+  "tmClaim": {
+    "draft": "Draf",
+    "awaiting": "Menunggu konfirmasi",
+    "signedOff": "Disetujui klien",
+    "withdrawn": "Ditarik"
+  },
+  "billingMilestone": {
+    "unknown": "Tanggal belum diketahui",
+    "planned": "Direncanakan",
+    "inProgress": "Sedang berjalan",
+    "invoiced": "Ditagih",
+    "paid": "Dibayar",
+    "overInvoiced": "Tagihan berlebih"
+  },
+  "push": {
+    "pending": "Dalam antrean",
+    "pushing": "Sedang dikirim",
+    "pushed": "Terposting",
+    "failed": "Gagal",
+    "held": "Perlu keputusan",
+    "neverPushed": "Belum pernah dikirim",
+    "unstamped": "Tidak terkirim saat aktivasi",
+    "cancelledInErp": "Dibatalkan di sistem akuntansi"
+  },
+  "connection": {
+    "connected": "Tersambung",
+    "disconnected": "Tidak tersambung",
+    "unverified": "Belum diperiksa baru-baru ini",
+    "unknown": "Status sambungan tidak tersedia",
+    "notActivated": "Pilih perusahaan",
+    "degraded": "Perlu perhatian",
+    "expiring": "Kunci segera kedaluwarsa",
+    "unreachable": "Tidak terjangkau",
+    "keyRejected": "Kunci ditolak"
+  },
+  "odooOutcome": {
+    "confirmed": "Ada di Odoo",
+    "pending": "Terkirim, menunggu Odoo",
+    "held": "Perlu keputusan",
+    "needsAttention": "Periksa di Odoo",
+    "refused": "Odoo tidak menerimanya"
+  },
+  "ledgerFreshness": {
+    "fresh": "Terbaru",
+    "stale": "Belum diperbarui lebih dari 30 menit",
+    "catchingUp": "Masih membaca riwayat Odoo",
+    "unavailable": "Odoo tidak terjangkau, menampilkan data terakhir"
+  },
+  "ledgerCheck": {
+    "matches": "Cocok dengan Odoo",
+    "notChecked": "Belum dicocokkan dengan Odoo",
+    "outOfDate": "Pemeriksaan sudah usang",
+    "differs": "Berbeda dari Odoo"
+  },
+  "budgetHealth": {
+    "onTrack": "Sesuai rencana",
+    "unavailable": "Tidak tersedia",
+    "atRisk": "Berisiko",
+    "overBudget": "Melebihi anggaran"
+  },
+  "due": {
+    "dueSoon": "Segera jatuh tempo",
+    "overdue": "Terlambat"
+  },
+  "importRow": {
+    "valid": "Valid",
+    "skipped": "Dilewati"
+  },
+  "user": {
+    "active": "Aktif",
+    "disabled": "Nonaktif"
+  },
+  "masterRecord": {
+    "active": "Aktif",
+    "inactive": "Tidak aktif",
+    "deletedInOdoo": "Dihapus di Odoo"
+  },
+  "age": {
+    "overdue_one": "Terlambat {{n}} hari",
+    "overdue_other": "Terlambat {{n}} hari"
+  }
+}
