@@ -51,6 +51,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
     nativeButton
     render={<button type="button" />}
     disabled={disabled}
+    aria-disabled={disabled || undefined}
     aria-label={labelledBy ? undefined : label}
     aria-labelledby={labelledBy}
     aria-describedby={describedBy}
