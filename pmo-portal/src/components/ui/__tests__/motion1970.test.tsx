@@ -22,6 +22,16 @@ describe('#1970 motion', () => {
     }
   });
 
+  it('#2122 keyboard-opened menus and the command palette do not animate', () => {
+    // A keyboard action appears instantly. Menus keep their pointer pop; the palette — opened from
+    // ⌘K / Ctrl+K many times a day — has no entrance animation at all.
+    expect(css).toContain('.menu-pop-anim[data-instant] { animation: none; }');
+    // Built by composition: the retired class name must not reappear anywhere under src/
+    // (the removal check greps for it), yet the stylesheet must still not carry it.
+    expect(css).not.toContain(['cmdk', 'anim'].join('-'));
+    expect(css).not.toContain('@keyframes cmdkin');
+  });
+
   it('exit tokens are about 20% shorter than their entrances', () => {
     const ms = (n: string) => Number(new RegExp(`--motion-${n}:\\s*(\\d+)ms`).exec(css)?.[1]);
     // Toast motion moved to the library (Sonner owns entrance/exit and reduced-motion).

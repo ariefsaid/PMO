@@ -636,9 +636,12 @@
 @keyframes confirmSheetOut { to { opacity: 0; transform: translateY(100%); } }
 
 /* ---------- Menus/popovers grow from their trigger: --menu-origin is set inline per
-   placement (e.g. "top right" under the trigger, "bottom left" when flipped up). ---------- */
+   placement (e.g. "top right" under the trigger, "bottom left" when flipped up).
+   A menu opened from the keyboard appears instantly (#2122): Base UI marks such an open with
+   data-instant (the Combobox and the hand-rolled NotificationBell set it themselves). ---------- */
 .menu-pop-anim { transform-origin: var(--menu-origin, top left); animation: menuPopIn var(--motion-menu-in) var(--ease-out); }
 @keyframes menuPopIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.menu-pop-anim[data-instant] { animation: none; }
 
 /* ---------- Save pulse: one short ring on the saved element/toast (box-shadow-free:
    a pseudo-element's opacity/transform only). ---------- */
@@ -666,10 +669,6 @@
   .save-pulse::after { display: none; }
   .icon-swap-out { display: none; }
 }
-
-/* ---------- Command palette panel entrance ---------- */
-.cmdk-anim { animation: cmdkin 0.14s ease; }
-@keyframes cmdkin { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
 
 /* Palette rows: drop the 300ms tap delay; grow padding (not visual weight) so
    the row clears the 44px touch target on a coarse pointer. */

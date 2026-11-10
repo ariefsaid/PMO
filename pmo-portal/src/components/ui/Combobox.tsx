@@ -124,6 +124,10 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const errId = `${baseId}-err`;
 
   const [open, setOpen] = useState(false);
+  // #2122: a keyboard-activated open appears instantly (no 120ms menuPopIn). Base UI's Menu derives
+  // this itself; its Combobox does not, so read it off the open event: a keyboard / AT activation
+  // arrives as a click with `detail === 0` (or a keyboard event), a pointer click has `detail >= 1`.
+  const [instant, setInstant] = useState(false);
   const [query, setQuery] = useState('');
   const [localState, setState] = useState<LoadState>('idle');
   const [localOptions, setOptions] = useState<ComboboxOption[]>([]);
@@ -241,8 +245,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
         isItemEqualToValue={(a, b) => a.value === b.value}
         itemToStringLabel={(o) => o.label}
         open={open && !disabled}
-        onOpenChange={(next) => {
+        onOpenChange={(next, details) => {
           if (disabledRef.current) return;
+          if (next) {
+            const event = details.event;
+            setInstant(event instanceof KeyboardEvent || (event instanceof MouseEvent && event.detail === 0));
+          }
           setOpen(next);
           if (!next) setQuery('');
         }}
@@ -316,6 +324,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
           <BaseCombobox.Positioner sideOffset={5} collisionPadding={8} className="z-[820]">
             <BaseCombobox.Popup
               aria-labelledby={labelId}
+              data-instant={instant || undefined}
               style={{ '--menu-origin': 'var(--transform-origin)' } as React.CSSProperties}
               className="menu-pop-anim motion-reduce:animate-none w-[var(--anchor-width)] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
             >
