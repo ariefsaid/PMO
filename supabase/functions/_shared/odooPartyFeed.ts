@@ -78,7 +78,7 @@ export async function matchNewPartners(sc: SupabaseClient, orgId: string, rows: 
     // never by the name, which a real vendor may share. A failure to read it skips the tick's matching (fail closed);
     // the next overlap read repeats the decision.
     const own = await odooOwnPartnerIds(call);
-    const fresh = await withoutRef(sc, orgId, mine.filter((x) => !own.has(x.partnerId)).map((x) => x.p));
+    const fresh = await withoutRef(sc, orgId, mine.filter((x) => !own.company.has(x.partnerId)).map((x) => x.p));
     const byId = new Map(fresh.map((p) => [p.externalId, p]));
     const snapshot = (id: string) => { const p = byId.get(id)!; return { name: p.name, taxId: p.taxId ?? null, code: p.code ?? null, role: p.role }; };
     // The database work is bounded by the tick's deadline, checked between chunks of CHUNK partners. A partner left over keeps no

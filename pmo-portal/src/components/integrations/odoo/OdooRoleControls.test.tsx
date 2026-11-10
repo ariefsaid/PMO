@@ -11,7 +11,9 @@ const h = vi.hoisted(() => ({
 // The global setup stubs the section for the Integrations view suites; this suite tests the real one.
 vi.unmock('@/src/components/integrations/odoo/OdooIntegrationSection');
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { odoo: h, integrations: {} } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { odoo: h, integrations: { getConnectStatus: vi.fn().mockResolvedValue({ run: null, census: [], waitingForSend: 0 }) } } }));
+// The record review's gate is owned by OdooRecordsSetup.test.tsx (AC-ODS-001); this suite owns the card, steps and map-once gates, and that the section mounts it.
+vi.mock('./OdooRecordsSetup', () => ({ OdooRecordsSetup: () => <div data-testid="records-setup" /> }));
 vi.mock('@/src/lib/db/externalDomainOwnership', () => ({ listOwnExternalDomainOwnership: h.listOwn }));
 
 import { OdooIntegrationSection } from './OdooIntegrationSection';
@@ -60,6 +62,12 @@ it.each(CARD)('AC-ODC-082 card and steps for %s (view-as %s)', async (role, view
   expect(await screen.findByText('PT Contoh')).toBeInTheDocument();
   const has = (name: string) => screen.queryByRole('button', { name }) !== null;
   expect([has('Re-check'), has('Disconnect Odoo'), has('Refresh now'), screen.queryByTestId('odoo-checklist') !== null]).toEqual([recheck, disconnect, refresh, steps]);
+});
+
+it('AC-ODS-001 the integration section mounts the record review screen', async () => {
+  mount('Admin', <OdooIntegrationSection />);
+  expect(await screen.findByText('PT Contoh')).toBeInTheDocument();
+  expect(await screen.findByTestId('records-setup')).toBeInTheDocument();
 });
 
 const DIRECTORY: Array<[string, boolean, boolean]> = [

@@ -501,6 +501,7 @@
       "spendingChecking": "Checking spending…",
       "spendingError": "Couldn't check spending",
       "spendingUnlinked": "Spending isn't linked yet.",
+      "currencyDiffers": "Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.",
       "finishSetup": "Finish spending setup",
       "askAdmin": "An administrator can finish the setup.",
       "committedTooltip": "Ordered, received, supplier-invoiced and paid procurements in the project currency, including those with no budget category; the same total as the Budget tab.",
@@ -712,6 +713,14 @@
         "outbox-finalize-refused": {
           "message": "ERPNext accepted the budget, but PMO could not record its reference after several tries.",
           "remedy": "Retrying repeats the same refusal. Ask an administrator to check the ERPNext connection and the budget's saved reference."
+        },
+        "budget-archive-cancellation-held": {
+          "message": "Nothing was sent for this budget yet: an earlier ERPNext budget cancellation for the project still needs a person, or the person who activated this version can no longer be identified.",
+          "remedy": "Resolve the previous version's budget in ERPNext, then retry the push."
+        },
+        "budget-archive-resume-actor-unauthorized": {
+          "message": "Nothing was sent for this budget: the person recorded as having activated this version is no longer allowed to push budgets to ERPNext. The earlier cancellation is not the problem.",
+          "remedy": "Restore that person's access, or have an Admin or Finance user retry the push."
         }
       }
     },
@@ -993,7 +1002,9 @@
     "export": "Export"
   },
   "financeCopy": {
-    "budget": "Budget"
+    "budget": "Budget",
+    "budgetPushQueued": "The push is queued",
+    "budgetPushQueuedBehindCancellation": "An earlier ERPNext budget cancellation is still settling, so this budget is queued and is pushed automatically once it settles."
   },
   "moneyDisplay": {
     "contractUnavailable": "The contract value hasn't been entered.",

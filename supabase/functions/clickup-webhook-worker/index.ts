@@ -107,7 +107,8 @@ export async function processInboxRow(row: InboxRow, deps: ProcessRowDeps): Prom
   const task = row.event === 'taskDeleted' ? null : await deps.getTask(row.task_id, org.token);
   const listId = task?.list?.id ?? null;
   const binding = await deps.resolveBinding(row.task_id, listId);
-  if (!binding) return { kind: 'no-op' };
+  // A delivery for one org's team never writes another org's project.
+  if (!binding || binding.orgId !== org.orgId) return { kind: 'no-op' };
   const applyDeps = deps.buildApplyDeps(binding);
   return applyWebhookEvent({ event: row.event, taskId: row.task_id, historyItems: row.history_items, task }, applyDeps);
 }

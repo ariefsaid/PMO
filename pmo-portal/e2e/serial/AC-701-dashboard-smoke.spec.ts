@@ -1,6 +1,7 @@
-// @e2e-isolation: read-only — pure nav/assert; login + dashboard KPI assertions on seeded data; no DB writes.
+// @e2e-isolation: serial — same reason as AC-1117: it asserts the org's company-wide on-hand figures,
+// which any parallel-lane spec that creates a project shifts (confirmed on the v0.35 release run).
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login } from '../helpers';
 
 async function pinViewerLocale(page: import('@playwright/test').Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {

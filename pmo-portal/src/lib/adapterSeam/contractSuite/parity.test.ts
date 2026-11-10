@@ -160,3 +160,24 @@ describe('AC-ECA-040 a workflow added to the registry breaks typecheck until eve
     expect(extra).toBeDefined();
   });
 });
+
+describe('AC-OFM-030/031 the register workflows are declared by every tier (#1511 F4)', () => {
+  it('registers equipment.push and equipment.read at version 1', () => {
+    expect(WORKFLOWS['equipment.push']).toEqual({ version: 1, summary: 'create or update a register asset or maintenance record in the ERP once, by key' });
+    expect(WORKFLOWS['equipment.read']).toEqual({ version: 1, summary: 'read the ERP asset register and maintenance records into PMO' });
+  });
+
+  it('ERPNext declares both unavailable, with the Odoo-only reason a person reads', () => {
+    for (const id of ['equipment.push', 'equipment.read'] as const) {
+      const declared = ERPNEXT_WORKFLOWS[id];
+      expect(declared.status).toBe('unavailable');
+      expect(declared.status === 'unavailable' && declared.reason).toBe('ERPNext asset and maintenance screens are not built; the equipment register is available with Odoo only');
+    }
+  });
+
+  it('Odoo declares both pending on the issue that ships their shared suite', () => {
+    for (const id of ['equipment.push', 'equipment.read'] as const) {
+      expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'pending', version: WORKFLOWS[id].version, issue: 1511 });
+    }
+  });
+});

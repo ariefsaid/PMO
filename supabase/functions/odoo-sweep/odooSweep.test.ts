@@ -30,7 +30,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; reconcileError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>>; ledgerLines?: number; failLedgerApply?: boolean; unswitched?: boolean; failCompanyYearRead?: boolean }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; reconcileError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void; claimed?: Array<Record<string, unknown>>; sendOutbox?: Array<Record<string, unknown>>; ledgerLines?: number; failLedgerApply?: boolean; unswitched?: boolean; failCompanyYearRead?: boolean; equipment?: boolean | 'error' }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -145,6 +145,8 @@ function harness(o: Opts = {}) {
     supabaseRpc('apply_odoo_revenue_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; if (b.p_domain === o.failRevenueDomain) return jsonResponse({ code: '22023', message: 'x' }, { status: 400 }); cursors.set(`revenue:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
     supabaseRpc('mark_odoo_revenue_census_seen', () => jsonResponse(null)),
     supabaseRpc('finish_odoo_revenue_census', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string }; cursors.set(`revenue:${b.p_domain}`, b.p_cursor); return jsonResponse(0); }),
+    // #1511 F2: whether the org employs `equipment` under Odoo (0852); off unless a case turns it on.
+    supabaseRpc('org_employs_odoo_equipment', () => (o.equipment === 'error' ? jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) : jsonResponse(o.equipment === true))),
     supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
     supabaseRpc('finish_odoo_census', (c) => { const b = c.bodyJson as { p_kind: string; p_cursor: string }; cursors.set(`master:${b.p_kind}`, b.p_cursor); return jsonResponse(0); }),
     supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
@@ -865,3 +867,51 @@ describe('odooSweep — #1507 S3 ledger feed', () => {
   });
 });
 
+
+
+const ASSET_MODEL_LIST = ['fleet.vehicle.model', 'fleet.vehicle', 'maintenance.equipment', 'maintenance.stage', 'maintenance.request', 'fleet.service.type', 'fleet.vehicle.log.services'];
+const probe = (over: Record<string, unknown> = {}) => ({ exists: true, read: true, create: true, write: true, unlink: false, fields_missing: [], ...over });
+const assetBinding = (unreadable: string[] = []) => binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: {
+  observed_at: FRESH, missing: [], models: {}, assets: Object.fromEntries([...ASSET_MODEL_LIST, 'ir.model.data'].map((m) => [m, probe(unreadable.includes(m) ? { read: false } : {})])) } } });
+const assetRequests = (calls: FetchCall[]) => odooRequests(calls).filter((r) => ASSET_MODEL_LIST.includes(r.model));
+const assetPages = (calls: FetchCall[]) => rpcCall(calls, 'apply_odoo_master_page').map((c) => (c.bodyJson as { p_kind: string }).p_kind).filter((k) => ['vehicle_model', 'vehicle', 'equipment', 'maintenance_stage', 'maintenance_request', 'service_type', 'vehicle_service'].includes(k));
+
+describe('odoo-sweep — fleet and maintenance kinds (#1511 F2, FR-OFM-010/011)', () => {
+  it('AC-OFM-011 an org that does not employ equipment reads no asset kind, and the tick costs what it did without the asset snapshot', async () => {
+    const plain = await sweep();
+    const r = await sweep({ binding: assetBinding(), equipment: false });
+    assertEquals(assetRequests(r.calls).length, 0);
+    assertEquals(assetPages(r.calls), []);
+    assertEquals('ok' in r.result && r.result.calls, 'ok' in plain.result && plain.result.calls);
+  });
+
+  it('AC-OFM-011 an employing org reads the seven kinds after the directory, in order, each page to apply_odoo_master_page', async () => {
+    const r = await sweep({ binding: assetBinding(), equipment: true });
+    const requests = odooRequests(r.calls);
+    const firstOf = (model: string) => requests.findIndex((x) => x.model === model);
+    const order = ASSET_MODEL_LIST.map(firstOf);
+    assert(order.every((i) => i >= 0), `every asset model read: ${order}`);
+    assertEquals([...order].sort((a, b) => a - b), order);
+    assert(firstOf('res.partner') < order[0], 'directory first');
+    assertEquals(assetPages(r.calls), ['vehicle_model', 'vehicle', 'equipment', 'maintenance_stage', 'maintenance_request', 'service_type', 'vehicle_service']);
+  });
+
+  it('AC-OFM-011 an asset model the snapshot shows unreadable is skipped, and the tick does not fail', async () => {
+    const r = await sweep({ binding: assetBinding(['maintenance.request']), equipment: true });
+    assert('ok' in r.result);
+    assertEquals(assetRequests(r.calls).some((x) => x.model === 'maintenance.request'), false);
+    assertEquals(assetRequests(r.calls).some((x) => x.model === 'maintenance.equipment'), true);
+  });
+
+  it('AC-OFM-011 an old snapshot with no asset block reads no asset kind even when employed', async () => {
+    const r = await sweep({ equipment: true });
+    assertEquals(assetRequests(r.calls).length, 0);
+    assert('ok' in r.result);
+  });
+
+  it('AC-OFM-011 an unreadable ownership answer reads no asset kind and does not fail the tick', async () => {
+    const r = await sweep({ binding: assetBinding(), equipment: 'error' });
+    assertEquals(assetRequests(r.calls).length, 0);
+    assert('ok' in r.result);
+  });
+});

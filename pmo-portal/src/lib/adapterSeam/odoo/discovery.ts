@@ -34,6 +34,22 @@ export const O1_MODELS: Record<string, readonly string[]> = {
 /** Present and readable by the key, so O2..O8 read the snapshot instead of probing again. */
 export const LATER_MODELS = ['purchase.order', 'purchase.order.line', 'account.move', 'account.move.line', 'account.payment', 'stock.picking', 'stock.move', 'account.analytic.line', 'fleet.vehicle', 'maintenance.equipment'] as const;
 
+/**
+ * The fleet and maintenance models (assets/kinds.ts, bed claims V-OFM-1..8) plus the anchor model. Probed apart from
+ * O1_MODELS so an org with no fleet app is recorded as absent, never degraded (FR-OFM-011). Keep the first key
+ * `fleet.vehicle`: `equipmentCapabilityGap` walks this order and fails closed on it.
+ */
+export const ASSET_MODELS: Record<string, readonly string[]> = {
+  'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
+  'fleet.vehicle.model': ['name', 'brand_id', 'write_date'],
+  'maintenance.equipment': ['name', 'serial_no', 'category_id', 'model', 'location', 'company_id', 'active', 'write_date'],
+  'maintenance.request': ['name', 'equipment_id', 'maintenance_type', 'stage_id', 'request_date', 'schedule_date', 'close_date', 'duration', 'priority', 'description', 'company_id', 'archive', 'write_date'],
+  'maintenance.stage': ['name', 'sequence', 'done', 'write_date'],
+  'fleet.vehicle.log.services': ['vehicle_id', 'service_type_id', 'date', 'state', 'amount', 'odometer', 'vendor_id', 'description', 'notes', 'company_id', 'active', 'write_date'],
+  'fleet.service.type': ['name', 'category', 'write_date'],
+  'ir.model.data': ['module', 'name', 'model', 'res_id'],
+};
+
 /** A send declared supported needs `create` on its model; without it the connection is degraded with the reason. */
 const SEND_MODELS = { 'party.send': 'res.partner', 'project.send': 'account.analytic.account', 'item.send': 'product.product' } as const;
 
@@ -47,6 +63,8 @@ export interface CapabilitySnapshot {
   companies: { id: number; name: string }[];
   models: Record<string, ModelProbe>;
   later: Record<string, boolean>;
+  /** The fleet and maintenance models; absent on a snapshot taken before #1511. Never part of `missing`. */
+  assets?: Record<string, ModelProbe>;
   missing: string[];
 }
 
@@ -84,6 +102,8 @@ export async function discoverCapabilities(
     const p = await probeModel(call, model, [], false);
     later[model] = p.exists && (await call<boolean>(model, 'has_access', { operation: 'read' })) === true;
   }
+  const assets: Record<string, ModelProbe> = {};
+  for (const [model, fields] of Object.entries(ASSET_MODELS)) assets[model] = await probeModel(call, model, fields, true);
 
   const missing = Object.entries(models).flatMap(([m, p]) => (!p.exists ? [m] : !p.read ? [`${m}:read`] : p.fields_missing.map((f) => `${m}:${f}`)));
   for (const [workflow, model] of Object.entries(SEND_MODELS)) {
@@ -99,5 +119,5 @@ export async function discoverCapabilities(
     ? (await call<{ id: number; name: string }[]>('res.company', 'search_read', { domain: [], fields: ['id', 'name'] })).map(({ id, name }) => ({ id, name }))
     : [];
   const v = versionPolicy(ctx.versionMajor, true);
-  return { observed_at: ctx.now.toISOString(), version_major: ctx.versionMajor, untested_version: v.ok && v.untested, companies, models, later, missing };
+  return { observed_at: ctx.now.toISOString(), version_major: ctx.versionMajor, untested_version: v.ok && v.untested, companies, models, later, assets, missing };
 }
