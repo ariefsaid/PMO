@@ -24,9 +24,6 @@
   "pages/Incidents.tsx": {
     "ListPage-description": 1
   },
-  "pages/ManagementPack.tsx": {
-    "ListPage-description": 1
-  },
   "pages/MasterData.tsx": {
     "ListPage-description": 1
   },

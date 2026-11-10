@@ -116,7 +116,7 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
     expect(alphaRows).toHaveLength(2);
     expect(within(alphaRows[0]).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/IDR\s?62,400,000/);
     expect(within(alphaRows[1]).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/\$1,250/);
-    expect(screen.getByText(/All figures exclude tax/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Projects as at/ })).toHaveTextContent('excl. tax');
     expect(screen.queryByText(/\$63,401,250/)).not.toBeInTheDocument();
   });
 

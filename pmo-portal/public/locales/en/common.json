@@ -4118,7 +4118,6 @@
     "errorSub": "The request failed. Check your connection and try again.",
     "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
     "emptyTitle": "No projects to report",
-    "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
     "projectsAsAt": "Projects as at {{month}}",
     "monthlyTotals": "Monthly totals",
     "unassigned": "Unassigned",
@@ -4159,7 +4158,8 @@
       "save": "Save progress",
       "saved": "Progress saved",
       "titleFor": "Record progress · {{project}}"
-    }
+    },
+    "exclTax": "excl. tax"
   },
   "uxs34": {
     "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."

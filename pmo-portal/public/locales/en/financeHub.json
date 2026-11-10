@@ -186,25 +186,27 @@
     "figures": {
       "title": "Report figures",
       "calculationHelp": "How this figure is calculated",
-      "earnedNotInvoiced": "Earned, not yet invoiced",
+      "earnedNotInvoiced": "Earned, not invoiced",
       "earnedNotInvoicedHelp": "Earned to date minus invoiced to date, using the report’s revenue recognition basis.",
       "earnedToDate": "Earned to date",
-      "earnedToDateHelp": "Cumulative recognized revenue through the as-at month; the subline shows this month’s change.",
+      "earnedToDateHelp": "Cumulative recognized revenue through the as-at month; the caption shows this month’s change.",
       "invoicedToDate": "Invoiced to date",
-      "invoicedToDateHelp": "Cumulative dated invoice value and invoice count through the as-at month.",
+      "invoicedToDateHelp": "Cumulative dated invoice value through the as-at month, before tax. The table lists the invoice count per project.",
       "invoiceCount": "{{count}} invoices",
       "invoiceCount_one": "{{count}} invoice",
       "invoiceCount_other": "{{count}} invoices",
       "thisMonthDelta": "This month {{amount}}",
-      "backlog": "Backlog of contract total",
-      "backlogHelp": "Contract total minus revenue earned to date; unavailable if a foreign-currency invoice needs reconciliation."
+      "backlog": "Backlog",
+      "backlogHelp": "Contract total minus revenue earned to date; unavailable if a foreign-currency invoice needs reconciliation.",
+      "unknownReason": "a foreign-currency invoice needs reconciliation",
+      "reconcile": "Open invoices"
     },
     "col": {
       "progress": "Progress",
       "earned": "Earned",
       "invoices": "Invoices"
     },
-    "noProgressNote": "No progress is recorded yet, so earned revenue follows what has been invoiced.",
+    "noProgressNote": "No progress assessments recorded, so earned revenue follows what has been invoiced.",
     "backlogUnknownNote": "Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known.",
     "reviewInvoices": "Review invoices",
     "invoiceCountsUnavailable": "Unavailable",

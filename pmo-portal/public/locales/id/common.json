@@ -4118,7 +4118,6 @@
     "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
     "invalidRange": "Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan.",
     "emptyTitle": "Tidak ada proyek untuk dilaporkan",
-    "emptySub": "Proyek yang dimenangkan dan berjalan, serta proyek yang ditagih pada periode ini, tampil di sini.",
     "projectsAsAt": "Proyek per {{month}}",
     "monthlyTotals": "Total bulanan",
     "unassigned": "Tanpa proyek",
@@ -4159,7 +4158,8 @@
       "save": "Simpan progres",
       "saved": "Progres disimpan",
       "titleFor": "Catat progres · {{project}}"
-    }
+    },
+    "exclTax": "tanpa pajak"
   },
   "uxs34": {
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."

@@ -186,25 +186,27 @@
     "figures": {
       "title": "Angka laporan",
       "calculationHelp": "Cara angka ini dihitung",
-      "earnedNotInvoiced": "Pendapatan yang diperoleh, belum ditagih",
+      "earnedNotInvoiced": "Dihasilkan, belum difaktur",
       "earnedNotInvoicedHelp": "Pendapatan sampai saat ini dikurangi nilai yang telah ditagih, berdasarkan metode pengakuan pendapatan laporan.",
       "earnedToDate": "Pendapatan sampai saat ini",
-      "earnedToDateHelp": "Pendapatan yang diakui secara kumulatif hingga bulan laporan; baris bawah menunjukkan perubahan bulan ini.",
+      "earnedToDateHelp": "Pendapatan kumulatif yang diakui sampai bulan acuan; keterangan menunjukkan perubahan bulan ini.",
       "invoicedToDate": "Ditagih sampai saat ini",
-      "invoicedToDateHelp": "Nilai faktur bertanggal kumulatif dan jumlah faktur hingga bulan laporan.",
+      "invoicedToDateHelp": "Nilai faktur bertanggal kumulatif sampai bulan acuan, sebelum pajak. Tabel mencantumkan jumlah faktur per proyek.",
       "invoiceCount": "{{count}} faktur",
       "invoiceCount_one": "{{count}} faktur",
       "invoiceCount_other": "{{count}} faktur",
       "thisMonthDelta": "Bulan ini {{amount}}",
-      "backlog": "Sisa nilai kontrak",
-      "backlogHelp": "Nilai kontrak dikurangi pendapatan yang diperoleh; belum tersedia jika faktur mata uang asing perlu direkonsiliasi."
+      "backlog": "Sisa kontrak",
+      "backlogHelp": "Nilai kontrak dikurangi pendapatan yang diperoleh; belum tersedia jika faktur mata uang asing perlu direkonsiliasi.",
+      "unknownReason": "faktur mata uang asing perlu direkonsiliasi",
+      "reconcile": "Buka faktur"
     },
     "col": {
       "progress": "Progres",
       "earned": "Diperoleh",
       "invoices": "Faktur"
     },
-    "noProgressNote": "Belum ada progres tercatat, jadi pendapatan yang diperoleh mengikuti nilai yang sudah ditagih.",
+    "noProgressNote": "Belum ada penilaian progres, jadi pendapatan yang dihasilkan mengikuti faktur.",
     "backlogUnknownNote": "Sisa nilai kontrak tidak ditampilkan jika faktur mata uang asing perlu direkonsiliasi sebelum saldonya dapat diketahui.",
     "reviewInvoices": "Tinjau faktur",
     "invoiceCountsUnavailable": "Jumlah faktur tidak tersedia",
