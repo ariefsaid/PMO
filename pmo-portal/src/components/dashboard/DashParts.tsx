@@ -6,6 +6,7 @@ import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { cn } from '@/src/components/ui/cn';
+import { statusLabel, statusTone, toneVariant } from '@/src/lib/status/statusMap';
 
 /** Colour means exception only: overdue / over budget = red (`lost`), waiting on someone = amber (`warn`), the rest grey. */
 export type DashTone = 'lost' | 'warn' | 'neutral';
@@ -49,18 +50,18 @@ export const WaitsOnYou: React.FC<{
   return (
     <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')}>
       <CardHead level={2}>{title ?? t('home.waits', 'Waits on you')}</CardHead>
-      {pending ? <div className="px-4 pb-4"><ListState variant="loading" rows={1} className="h-11 overflow-hidden" /></div>
-        : error ? <div className="px-4 pb-4"><ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} /></div>
-          : rows.length === 0 ? <p className="px-4 pb-4 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
+      {pending ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="loading" rows={1} className="h-11 overflow-hidden" /></div>
+        : error ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} /></div>
+          : rows.length === 0 ? <p className="px-[var(--panel-inset)] pb-4 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
             : (
-              <ul className="divide-y divide-border px-4 pb-1">
+              <ul className="divide-y divide-border px-[var(--panel-inset)] pb-1">
                 {rows.map((row, index) => (
                   <li key={row.id}>
                     <Link
                       to={row.href}
-                      className="grid min-h-11 grid-cols-[3.25rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      className="grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
-                      <span className={cn('whitespace-nowrap text-right font-bold tabular', index === 0 ? 'text-[23px] leading-none' : 'text-[18px] leading-none', COUNT_TONE[row.tone])}>{row.count}</span>
+                      <span className={cn('whitespace-nowrap text-left font-bold tabular', index === 0 ? 'text-[23px] leading-none' : 'text-[18px] leading-none', COUNT_TONE[row.tone])}>{row.count}</span>
                       <span className="min-w-0">
                         <span className={cn('block text-control', index === 0 ? 'font-semibold' : 'font-medium')}>{row.label}</span>
                         {row.detail && <span className="block text-control text-muted-foreground">{row.detail}</span>}
@@ -113,6 +114,7 @@ export const ProjectRows: React.FC<{
   testId?: string;
 }> = ({ title, rows, pending = false, error = false, onRetry, allLink, emptyLabel, footer, testId = 'project-rows' }) => {
   const { t } = useTranslation('dashboard');
+  const { t: ts } = useTranslation('status');
   const showDelivery = rows.some((row) => row.delivery !== null);
   const showBudget = rows.some((row) => row.budgetUsed !== null);
   const showReason = rows.some((row) => row.reason);
@@ -121,7 +123,7 @@ export const ProjectRows: React.FC<{
   return (
     <Card data-testid={testId}>
       <CardHead level={2} actions={allLink ? <Link to={allLink.to} className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{allLink.label}<Icon name="chev" className="size-4" /></Link> : undefined}>{title}</CardHead>
-      <div className="px-4 pb-2">
+      <div className="px-[var(--panel-inset)] pb-2">
         {pending ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={onRetry} />
             : sorted.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel}</p>
@@ -145,7 +147,7 @@ export const ProjectRows: React.FC<{
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
                             <span className={cn('min-w-0 text-control', quiet ? 'font-normal' : 'font-semibold')}>{row.name}</span>
-                            <span className="min-[900px]:order-5 min-[900px]:justify-self-end"><StatusPill record="project" state={row.status} /></span>
+                            <span className="min-[900px]:order-5 min-[900px]:justify-self-end"><StatusPill variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill></span>
                             {showReason && <span className={cn('col-span-2 min-w-0 text-control min-[900px]:order-2 min-[900px]:col-span-1', row.offTrack ? 'text-destructive-text' : 'text-muted-foreground')}>{row.reason ?? ''}</span>}
                             {(showDelivery || showBudget) && (
                               <span className="col-span-2 flex gap-4 text-control tabular text-muted-foreground min-[900px]:contents">
@@ -172,10 +174,10 @@ export const Analysis: React.FC<{ title: string; children: React.ReactNode }> = 
   return (
     <Card data-testid="dashboard-analysis">
       <details onToggle={(event) => setOpen(event.currentTarget.open)}>
-        <summary className="flex min-h-11 cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center justify-between gap-2 px-4 text-group font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <summary className="flex min-h-11 cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center justify-between gap-2 px-[var(--panel-inset)] text-group font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           {title}<Icon name="chev" className={cn('size-4 text-muted-foreground transition-transform', open && 'rotate-90')} />
         </summary>
-        {open && <div className="grid gap-[var(--space-panel-gap)] p-4 pt-2">{children}</div>}
+        {open && <div className="grid gap-[var(--space-panel-gap)] p-[var(--panel-inset)] pt-2">{children}</div>}
       </details>
     </Card>
   );

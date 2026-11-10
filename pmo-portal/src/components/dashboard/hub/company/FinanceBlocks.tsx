@@ -16,6 +16,7 @@ import { AccountingSnapshotsSection } from '@/src/components/dashboard/Accountin
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { formatTableMoney } from '@/src/lib/format';
 import { budgetSpendKnown } from './financeData';
+import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -36,7 +37,7 @@ export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf }: { rows
   return (
     <Card>
       <CardHead level={2} actions={<ExportButton rows={ready} columns={columns} entity={t('dashboard:hub.company.readyToPay', 'Ready to pay')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.readyToPay', 'Ready to pay')}</CardHead>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
         <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} state={pending ? 'loading' : error ? 'error' : ready.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} errorTitle={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} tableId="dashboard-company-ready-to-pay" embedded />
       </div>
     </Card>
@@ -64,11 +65,14 @@ export function BudgetReviewCard({ rows, pending, error, retry }: { rows: Budget
     { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => { const pct = usedPercent(row); return pct === null ? null : <div className="flex min-w-24 items-center gap-2"><ProgressBar value={pct} widthless className="min-w-10 flex-1" aria-label={t('dashboard:hub.company.usedAria', '{{percent}}% of contract used', { percent: pct })} /><span>{pct}%</span></div>; }, exportValue: (row) => usedPercent(row) ?? '' },
     { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), kind: 'money', align: 'num', cell: (row) => row.variance === null ? null : formatTableMoney(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
   ];
-  if (!pending && !error && rows.length === 0) return null;
+  // No row has spending to review: the card is not drawn, and the page's one hidden line says so.
+  const noFigures = !pending && !error && rows.length > 0 && !rows.some(budgetSpendKnown);
+  useFigureReport(noFigures ? [{ label: t('dashboard:hub.company.budgetReview', 'Budget review'), reason: t('home.reasonBudgetSpend', 'project spending is not recorded') }] : []);
+  if (!pending && !error && (rows.length === 0 || noFigures)) return null;
   return (
     <Card>
       <CardHead level={2} actions={<ExportButton rows={rows} columns={columns} entity={t('dashboard:hub.company.budgetReview', 'Budget review')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.budgetReview', 'Budget review')}</CardHead>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
         <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/projects/${row.id}/budget`)} rowLabel={(row) => t('dashboard:hub.company.openBudgetFor', 'Open budget for {{name}}', { name: projectDisplayName(row) })} rowMenu={(row) => [
           { label: t('dashboard:hub.company.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.id}`) },
           { label: t('dashboard:hub.company.openBudget', 'Open budget'), onClick: () => navigate(`/projects/${row.id}/budget`) },
