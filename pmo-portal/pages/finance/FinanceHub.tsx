@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
