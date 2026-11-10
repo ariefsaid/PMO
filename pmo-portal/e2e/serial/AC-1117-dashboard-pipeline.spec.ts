@@ -56,7 +56,9 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   // pipeline_projected_margin = 0.200 → 20.0%
   // SL-B: the tile exists only when the margin is computable (it needs active budgets); otherwise the
   // pipeline card still renders, titled by the weighted value, and no tile claims a margin.
-  await expect(page.getByRole('group', { name: 'Weighted pipeline value by stage' })).toBeVisible();
+  // #2055: the pipeline reads as a funnel of open stages (count on each), not a stage table.
+  await expect(page.getByRole('heading', { name: 'Sales funnel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Tender Submitted/ })).toBeVisible();
   const projectedMarginTile = page.getByTestId('kpi-pipeline-projected-margin');
   if (await projectedMarginTile.count() > 0) await expect(projectedMarginTile).toContainText('%');
 

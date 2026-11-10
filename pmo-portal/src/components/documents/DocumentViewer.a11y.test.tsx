@@ -82,10 +82,11 @@ describe('document-preview AC-013 accessibility', () => {
     const buttons = within(dialog).getAllByRole('button');
     const last = buttons[buttons.length - 1]!;
     last.focus();
+    // The library parks focus on a guard for a tick, then moves it back inside the panel.
     await userEvent.tab();
-    expect(dialog.contains(document.activeElement)).toBe(true);
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     await userEvent.tab({ shift: true });
-    expect(dialog.contains(document.activeElement)).toBe(true);
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(opener).toHaveFocus());

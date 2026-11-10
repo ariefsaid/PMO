@@ -43,7 +43,7 @@ const ResetPasswordPage: React.FC = () => {
     <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="mb-5 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <p className="text-[11px] font-semibold text-muted-foreground">
             PMO Portal
           </p>
           <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">

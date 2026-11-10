@@ -103,7 +103,7 @@ describe('DocumentsTab — visible workflow verbs (B-4, AC-W2-IXD-007)', () => {
     // Open the row menu via click.
     await user.click(screen.getByRole('button', { name: /row actions/i }));
     // The menu must show Approve and Reject verbs for an Issued doc (non-author reviewer).
-    expect(screen.getByRole('menuitem', { name: /^Approve$/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /^Reject$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /^Approve$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /^Reject$/i })).toBeInTheDocument();
   });
 });

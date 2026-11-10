@@ -56,7 +56,7 @@ export const AuthInput: React.FC<{
   <div className="flex flex-col gap-1.5">
     <label
       htmlFor={id}
-      className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+      className="text-[12px] font-semibold text-muted-foreground"
     >
       {label}
     </label>

@@ -1,4 +1,5 @@
 import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { Avatar } from '@/src/components/ui/Avatar';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -35,7 +36,6 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { initials } from '@/src/lib/initials';
 import { formatCurrency, formatDate, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -719,7 +719,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           return (
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
               <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-[12px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials(owner)}</span>
+                <Avatar name={owner} decorative />
                 <span className="truncate">{owner}</span>
               </span>
             </Tooltip>
@@ -904,7 +904,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 ) : <span />}
                 <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
-                  <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-foreground">{initials(owner)}</span>
+                  <Avatar name={owner} size="xs" decorative />
                   <span className="truncate">{owner}</span>
                 </span>
               </div>
@@ -1069,9 +1069,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
                 <div className="inline-flex min-w-0 items-center gap-2 font-medium">
-                  <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">
-                    {initials(selected.requested_by?.full_name)}
-                  </span>
+                  <Avatar name={selected.requested_by?.full_name} decorative />
                   <span className="truncate">{selected.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>
                 </div>
               </div>

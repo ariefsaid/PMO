@@ -7,7 +7,7 @@
  * English-only "s" entirely rather than inheriting it.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
@@ -49,16 +49,16 @@ describe('Combobox — translatable scaffold text (#684)', () => {
   it("under 'id', the searchbox is named \"Cari zona waktu\" — no English \"s\" appended", async () => {
     renderIdCombobox();
     await userEvent.click(screen.getByRole('combobox'));
-    expect(await screen.findByRole('searchbox', { name: 'Cari zona waktu' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Cari zona waktu' })).toBeInTheDocument();
   });
 
   it("under 'id', the empty-state message never reads \"zona waktus\"", async () => {
     renderIdCombobox();
     await userEvent.click(screen.getByRole('combobox'));
-    const listbox = await screen.findByRole('listbox');
-    await userEvent.type(screen.getByRole('searchbox'), 'zzzzz-nope');
-    const empty = await within(listbox).findByText(/zona waktu/i);
-    expect(empty.textContent).not.toMatch(/zona waktus/i);
+    await screen.findByRole('listbox');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'zzzzz-nope');
+    const empties = await screen.findAllByText(/zona waktu/i);
+    for (const empty of empties) expect(empty.textContent).not.toMatch(/zona waktus/i);
   });
 
   it("under 'id', a load failure names the noun without an English \"s\"", async () => {
@@ -95,7 +95,7 @@ describe('Combobox — timezone-style search: spaces and underscores match the c
     );
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /America\/New_York/i });
-    await userEvent.type(screen.getByRole('searchbox'), 'new york');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'new york');
     expect(screen.getByRole('option', { name: /America\/New_York/i })).toBeInTheDocument();
   });
 });
@@ -113,7 +113,7 @@ describe('Combobox — keyboard: focus return + single-match Enter (#684)', () =
     );
     const trigger = screen.getByRole('combobox');
     await userEvent.click(trigger);
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await userEvent.keyboard('{ArrowDown}{Enter}');
 
     expect(onChange).toHaveBeenCalledWith('c1', { value: 'c1', label: 'Cascade Port Authority' });
@@ -133,7 +133,7 @@ describe('Combobox — keyboard: focus return + single-match Enter (#684)', () =
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /Cascade Port Authority/ });
     // Narrows to exactly one match — no ArrowDown was pressed.
-    await userEvent.type(screen.getByRole('searchbox'), 'cascade');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cascade');
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1));
     await userEvent.keyboard('{Enter}');
 

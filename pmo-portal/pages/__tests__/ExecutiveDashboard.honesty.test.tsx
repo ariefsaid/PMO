@@ -11,19 +11,20 @@ beforeEach(() => {
 });
 afterEach(resetActiveLocale);
 
-describe('AC-RD-UNAVAIL-002 redesigned project-spend link names', () => {
-  it('announces a small known amount, zero, and the reason when the amount is unavailable', () => {
-    dashboardHarness.dashboard!.attention_projects = [
+describe('AC-RD-UNAVAIL-002 plan vs actual leaves an unavailable amount out, never zero', () => {
+  it('lists a known amount and zero, and shows the dash for incomplete or other-currency spending', () => {
+    dashboardHarness.dashboard!.top_projects = [
       { id: 'small', name: 'Small', contract_value: 1_000, currency: 'USD', spent: 500, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
-      { id: 'zero', name: 'Zero', contract_value: 1_000, currency: 'USD', spent: 0, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
-      { id: 'unknown', name: 'Unknown', contract_value: 1_000, currency: 'USD', spent: null, actual_complete: false, actual_currency: 'USD', status: 'Ongoing Project' },
-      { id: 'mismatch', name: 'Mismatch', contract_value: 1_000, currency: 'USD', spent: 500, actual_complete: true, actual_currency: 'EUR', status: 'Ongoing Project' },
+      { id: 'zero', name: 'Zero', contract_value: 900, currency: 'USD', spent: 0, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
+      { id: 'unknown', name: 'Unknown', contract_value: 800, currency: 'USD', spent: null, actual_complete: false, actual_currency: 'USD', status: 'Ongoing Project' },
+      { id: 'mismatch', name: 'Mismatch', contract_value: 700, currency: 'USD', spent: 500, actual_complete: true, actual_currency: 'EUR', status: 'Ongoing Project' },
     ];
     renderCompanyDashboard();
-    const spendList = screen.getByRole('list', { name: 'Spending vs contract' });
-    expect(within(spendList).getByRole('link', { name: /Small.*recorded spending.*\$500/ })).toHaveAttribute('href', '/projects/small');
-    expect(within(spendList).getByRole('link', { name: /Zero.*recorded spending.*\$0/ })).toHaveAttribute('href', '/projects/zero');
-    expect(within(spendList).getByRole('link', { name: /Unknown.*spending unavailable.*actuals are incomplete/i })).toHaveAttribute('href', '/projects/unknown');
-    expect(within(spendList).getByRole('link', { name: /Mismatch.*recorded spending.*different currency from the contract/i })).toHaveAttribute('href', '/projects/mismatch');
+    const table = screen.getByRole('table', { name: 'Plan vs actual by project' });
+    const cells = (name: string) => within(within(table).getByRole('rowheader', { name }).closest('tr') as HTMLElement).getAllByRole('cell').map((cell) => cell.textContent);
+    expect(cells('Small')).toEqual(['$1,000', 'No active budget', '$500', '50%']);
+    expect(cells('Zero')).toEqual(['$900', 'No active budget', '$0', '0%']);
+    expect(cells('Unknown')).toEqual(['$800', 'No active budget', '—', '—']);
+    expect(cells('Mismatch')).toEqual(['$700', 'No active budget', '—', '—']);
   });
 });

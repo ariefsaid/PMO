@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
@@ -152,6 +153,12 @@ import ProjectBudget from './ProjectBudget';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
@@ -2323,7 +2330,7 @@ describe('budget paste rows dialog (#1473 C)', () => {
     setup();
     const dialog = await openPaste();
     await paste(dialog, tsv(['Labor', 'x', '5']));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Version' }), { target: { value: 'v-active' } });
+    fireEvent.change(screen.getByLabelText('Version', { selector: 'select' }), { target: { value: 'v-active' } });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste rows' })).not.toBeInTheDocument());
     expect(mockBudgetRepository.createLineItem).not.toHaveBeenCalled();
   });

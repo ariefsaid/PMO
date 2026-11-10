@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation, useNavigationType } from 'react-router';
@@ -76,6 +77,12 @@ vi.mock('@/src/auth/useAuth', () => ({
 import TasksTab from '../tabs/TasksTab';
 import { clearOwnershipCache, setTaskOwnership, setProjectBindings, setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
 import { act } from '@testing-library/react';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const profiles = [
   { id: 'eng-1', full_name: 'Dana Engineer', role: 'Engineer' },
@@ -231,39 +238,39 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     renderTab();
     expect(screen.queryByText('Archived obsolete work')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'More task options' }));
-    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Show archived' }));
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Show archived' }));
     expect(screen.getByText('Archived obsolete work')).toBeInTheDocument();
   });
 
   it('AC-CUA-099: Admin gets Archive then Unarchive in the row menu', async () => {
     renderTab('Admin');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
-    expect(screen.getByText('Archive')).toBeInTheDocument();
+    expect(await screen.findByText('Archive')).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'More task options' }));
-    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Show archived' }));
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Show archived' }));
     const archivedRow = screen.getByText('Archived obsolete work').closest('tr')!;
     await userEvent.click(within(archivedRow).getByRole('button', { name: /Row actions/i }));
-    expect(screen.getByText('Unarchive')).toBeInTheDocument();
+    expect(await screen.findByText('Unarchive')).toBeInTheDocument();
   });
 
   it('AC-CUA-099: a permitted Project Manager gets Archive then Unarchive in the row menu', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
-    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'More task options' }));
-    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Show archived' }));
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Show archived' }));
     const archivedRow = screen.getByText('Archived obsolete work').closest('tr')!;
     await userEvent.click(within(archivedRow).getByRole('button', { name: /Row actions/i }));
-    expect(screen.getByRole('menuitem', { name: 'Unarchive' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Unarchive' })).toBeInTheDocument();
   });
 
   it('AC-1402: PM receives the existing task archive and delete actions', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
-    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
   it.each(['Finance', 'Engineer'] as const)('%s updates creator actions when ownership becomes known and bindings change', async (role) => {
@@ -275,7 +282,7 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     expect(screen.queryByRole('button', { name: /status for survey the site/i })).not.toBeInTheDocument();
     act(() => { setTaskOwnership([]); setProjectBindings([]); });
     expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
     act(() => setProjectBinding('p1', true));
     expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
     act(() => clearOwnershipCache());
@@ -310,7 +317,7 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     renderTab('Project Manager', 'pm-1');
     expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
   });
 
   it('AC-CUA-100: archive action is absent while tasks are externally owned', async () => {
@@ -399,7 +406,7 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
     expect(screen.getByRole('button', { name: /new task/i })).toBeInTheDocument();
     const own = screen.getByText('Mobilise crew').closest('tr')!;
     await userEvent.click(within(own).getByRole('button', { name: /row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /edit/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /edit/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /delete/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /archive/i })).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
@@ -437,14 +444,14 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
     // Their own creation (t2, created_by eng-1, assigned pm-1): menu opens, Edit yes, Delete no.
     const own = screen.getByText('Mobilise crew').closest('tr')!;
     await userEvent.click(within(own).getByRole('button', { name: /row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /edit/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /edit/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /delete/i })).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     // A row they merely EXECUTE (t1, assignee eng-1, created by the PM): Comments remain available,
     // while Edit is absent (RLS carries no assignee edit path).
     const assigned = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(assigned).getByRole('button', { name: /row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /comments/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /comments/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /edit/i })).not.toBeInTheDocument();
   });
 });
@@ -510,14 +517,14 @@ describe('TasksTab — inbound ClickUp change (AC-CUA-091)', () => {
     listState.data = [demolition];
     const first = renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
-    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('Done');
+    expect(within(screen.getByTestId('task-col-Done')).getByText('Demolition')).toBeInTheDocument();
     first.unmount();
 
     // The signed webhook has been applied server-side: the read model now says In Progress.
     listState.data = [{ ...demolition, status: 'In Progress' }];
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
-    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('In Progress');
+    expect(within(screen.getByTestId('task-col-In Progress')).getByText('Demolition')).toBeInTheDocument();
   });
 });
 
@@ -597,10 +604,8 @@ describe('TasksTab — Mine / All list scope', () => {
   it('AC-1402 keeps Comments reachable from a Board card menu', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
-    const rowActions = screen.getAllByRole('button', { name: /Row actions/i })[0];
-    await userEvent.click(rowActions);
-    const menu = rowActions.closest('details')?.querySelector('[role="menu"]') as HTMLElement;
-    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Comments' }));
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Comments' }));
     expect(await screen.findByRole('dialog', { name: 'Survey the site' })).toBeInTheDocument();
   });
 
@@ -664,7 +669,7 @@ describe('TasksTab — delete (AC-TASK-006)', () => {
     renderTab('Project Manager');
     const row = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /delete/i }));
     const confirm = await screen.findByRole('alertdialog');
     expect(mutations.remove.mutateAsync).not.toHaveBeenCalled();
     await userEvent.click(within(confirm).getByRole('button', { name: /delete task/i }));
@@ -675,7 +680,7 @@ describe('TasksTab — delete (AC-TASK-006)', () => {
     renderTab('Admin');
     const row = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /delete/i }));
     const confirm = await screen.findByRole('alertdialog');
     await userEvent.click(within(confirm).getByRole('button', { name: /delete task/i }));
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('t1'));
@@ -686,7 +691,7 @@ describe('TasksTab — edit structure (AC-TASK-004)', () => {
   const openEditFor = async (taskName: string) => {
     const row = screen.getByText(taskName).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /edit/i }));
     return screen.findByRole('dialog');
   };
 
@@ -710,7 +715,7 @@ describe('TasksTab — dependency add/remove (AC-TASK-004)', () => {
   const openEditFor = async (taskName: string) => {
     const row = screen.getByText(taskName).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /edit/i }));
     return screen.findByRole('dialog');
   };
 

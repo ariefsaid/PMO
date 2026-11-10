@@ -136,8 +136,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const [bulkDueDate, setBulkDueDate] = useState('');
   const [bulkClearDueDate, setBulkClearDueDate] = useState(false);
   const [bulkPending, setBulkPending] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
   const [toolbarMenuOpen, setToolbarMenuOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [searchText, setSearchText] = useState('');
@@ -424,7 +424,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
   return (
     <div>
-      <Card className="min-w-0 overflow-hidden">
+      <Card variant={view === 'board' ? 'bare' : undefined} className="min-w-0 overflow-hidden">
       <TasksToolbar
         heading={t('projectDetail.tasks.heading', 'Tasks')}
         toolbarMenuOpen={toolbarMenuOpen}

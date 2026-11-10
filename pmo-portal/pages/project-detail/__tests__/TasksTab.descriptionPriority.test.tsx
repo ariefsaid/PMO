@@ -100,7 +100,7 @@ const openNewTaskModal = async () => {
 const openEditFor = async (taskName: string) => {
   const row = screen.getByText(taskName).closest('tr')!;
   await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-  await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: /edit/i }));
   return screen.findByRole('dialog');
 };
 

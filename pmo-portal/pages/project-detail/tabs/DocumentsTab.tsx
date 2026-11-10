@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useDocumentWorkflow } from './useDocumentWorkflow';
 import { useDocumentFiles } from './useDocumentFiles';
 import { useDocumentMicrosoft } from './useDocumentMicrosoft';
-import { DocumentDrawer, DocumentPreviewPanel } from './DocumentDrawer';
+import { DocumentDrawer } from './DocumentDrawer';
 import {
   ListState,
   DataTable,
@@ -32,7 +32,6 @@ import type {
   ProjectDocumentRow,
   DocStatus,
 } from '@/src/lib/db/documents';
-import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { toCsv } from '@/src/lib/export/toCsv';
 import { createDocumentRegisterCells } from './documentRegisterCells';
 import { buildDocumentRegisterColumns } from './documentRegisterColumns';
@@ -66,7 +65,6 @@ interface DocumentsTabProps {
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation('project');
-  const isDesktop = useIsDesktop();
   const may = usePermission();
   const documentLinkPermissions = useDocumentLinkPermissions();
   const { currentUser } = useAuth();
@@ -533,55 +531,26 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       )}
 
       {state === undefined && (
-        <div className={drawerDoc && isDesktop ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]' : ''}>
-          <div className="min-w-0">
-            <DataTable<ProjectDocumentRow>
-              rows={sortedFiltered}
-              columns={columns}
-              rowKey={(d) => d.id}
-              selection={documentSelection}
-              onActivate={(d) => setDrawerDoc(d)}
-              rowMenu={rowMenu}
-              selectedKey={drawerDoc?.id}
-              sort={sort}
-              onSort={setSortBy}
-              groupBy={documentsView === 'grouped' ? categoryName : undefined}
-              state={filtered.length === 0 ? 'empty' : undefined}
-              emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
-              emptySub={t(
-                'projectDetail.documents.noSearchMatchSub',
-                'Try a different title, code, or category.',
-              )}
-              className="!overflow-visible !rounded-none !border-0 !bg-transparent"
-              tableId="project-detail-tabs-documentstab-table"
-            />
-          </div>
-          {drawerDoc && isDesktop && (
-            <DocumentPreviewPanel
-              doc={drawerDoc}
-              parentDoc={previewParentDoc}
-              childDocs={previewChildDocs}
-              transitions={previewTransitions}
-              sodBlocked={previewSodBlocked}
-              fileContent={drawerFileContent(drawerDoc)}
-              microsoftFile={microsoftCell(drawerDoc)}
-              hasFile={Boolean(drawerDoc.file_path)}
-              sharePointUrl={safePreviewSharePointUrl}
-              fullRecordHref={`/projects/${projectId}/documents`}
-              canEdit={previewCanEdit}
-              canDelete={canDelete}
-              nestedOpen={!!pending}
-              onClose={() => setDrawerDoc(null)}
-              onEdit={editPreview}
-              onDelete={deletePreview}
-              onDownload={() => void handleDownload(drawerDoc)}
-              onViewDocument={setDrawerDoc}
-            />
-          )}
-        </div>
+        <DataTable<ProjectDocumentRow>
+          rows={sortedFiltered}
+          columns={columns}
+          rowKey={(d) => d.id}
+          selection={documentSelection}
+          onActivate={(d) => setDrawerDoc(d)}
+          rowMenu={rowMenu}
+          selectedKey={drawerDoc?.id}
+          sort={sort}
+          onSort={setSortBy}
+          groupBy={documentsView === 'grouped' ? categoryName : undefined}
+          state={filtered.length === 0 ? 'empty' : undefined}
+          emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
+          emptySub={t('projectDetail.documents.noSearchMatchSub', 'Try a different title, code, or category.')}
+          className="!overflow-visible !rounded-none !border-0 !bg-transparent"
+          tableId="project-detail-tabs-documentstab-table"
+        />
       )}
 
-      {drawerDoc && !isDesktop && (
+      {drawerDoc && (
         <DocumentDrawer
           doc={drawerDoc}
           parentDoc={previewParentDoc}

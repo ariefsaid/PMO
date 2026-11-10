@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { cn } from './cn';
 import { tabId, tabPanelId } from './tabIds';
 
@@ -28,7 +29,8 @@ export interface TabsProps<V extends string = string> {
 }
 
 /**
- * In-page tabs (`ptabs`): underlined active tab, arrow-key navigation.
+ * In-page tabs (`ptabs`) on Base UI Tabs: underlined active tab; arrow/Home/End roving focus with
+ * activation on focus (WAI-ARIA automatic activation) comes from the library.
  *
  * Mobile (PR-3, AC-IXD-MOBILE-W4-PR3-C2): at narrow widths the tab list becomes a
  * horizontally-scrollable scroll-snap strip — `overflow-x-auto snap-x snap-mandatory`
@@ -77,49 +79,12 @@ export function Tabs<V extends string = string>({
     list.scrollBy({ left: offset, behavior: prefersReduced ? 'instant' : 'smooth' });
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
-  // Roving focus (WAI-ARIA tabs pattern): DOM focus moves to the newly-activated tab
-  // (synchronously, before onChange → navigate commits). #879: the AppShell route-focus
-  // effect runs after commit; tab-switch navigations carry the `pmoTabSwitch` marker so
-  // it skips its <main> yank and this focus survives (WCAG 2.4.3).
-  const focusTab = (v: V) => {
-    const root = listRef.current;
-    if (!root) return;
-    const id = tabId(idBase, v);
-    const tabs = root.querySelectorAll<HTMLElement>('[role="tab"]');
-    for (const t of tabs) {
-      if (t.id === id) {
-        t.focus();
-        return;
-      }
-    }
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.altKey || e.metaKey || e.ctrlKey) return;
-    const isNext = e.key === 'ArrowRight';
-    const isPrev = e.key === 'ArrowLeft';
-    const isHome = e.key === 'Home';
-    const isEnd = e.key === 'End';
-    if (!isNext && !isPrev && !isHome && !isEnd) return;
-    e.preventDefault();
-    const idx = items.findIndex((t) => t.value === value);
-    const next = isNext
-      ? items[(idx + 1) % items.length]
-      : isPrev
-        ? items[(idx - 1 + items.length) % items.length]
-        : isHome
-          ? items[0]
-          : items[items.length - 1];
-    focusTab(next.value);
-    onChange(next.value);
-  };
-
   return (
-    <div
+    <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
+    <BaseTabs.List
       ref={listRef}
-      role="tablist"
       aria-label={ariaLabel}
-      onKeyDown={onKeyDown}
+      activateOnFocus
       className={cn(
         // Layout: flex strip, no wrap, gap between tabs
         'mb-4 flex whitespace-nowrap gap-0.5 border-b border-border',
@@ -140,18 +105,14 @@ export function Tabs<V extends string = string>({
       {items.map((t) => {
         const active = t.value === value;
         return (
-          <button
+          <BaseTabs.Tab
             key={t.value}
-            type="button"
-            role="tab"
+            value={t.value}
             id={tabId(idBase, t.value)}
             aria-label={t.count != null && t.countPresentation === 'inline'
               ? [t.label, t.count, t.detail].filter((part) => part != null && part !== '').join(' ')
               : undefined}
-            aria-selected={active}
             aria-controls={active ? tabPanelId(idBase, t.value) : undefined}
-            tabIndex={active ? 0 : -1}
-            onClick={() => onChange(t.value)}
             className={cn(
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
@@ -180,9 +141,10 @@ export function Tabs<V extends string = string>({
               </span>
             )}
             {t.detail && <span className="ml-1.5 tabular text-[12px] font-normal text-muted-foreground">{t.detail}</span>}
-          </button>
+          </BaseTabs.Tab>
         );
       })}
-    </div>
+    </BaseTabs.List>
+    </BaseTabs.Root>
   );
 }

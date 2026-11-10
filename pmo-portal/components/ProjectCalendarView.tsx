@@ -253,7 +253,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
             {WEEKDAYS.map((d) => (
               <div
                 key={d}
-                className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground"
               >
                 {d}
               </div>

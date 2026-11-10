@@ -262,8 +262,7 @@
     "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia."
   },
   "toast": {
-    "dismiss": "Tutup notifikasi",
-    "more": "+{{count}} lainnya"
+    "dismiss": "Tutup notifikasi"
   },
   "efaktur": {
     "title": "Catat detail e-Faktur",

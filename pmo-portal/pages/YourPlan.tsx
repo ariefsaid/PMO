@@ -36,7 +36,7 @@ const LimitTile: React.FC<{
   const { t } = useTranslation('plans');
   return (
     <Card className="px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <div className="text-[11px] font-semibold text-muted-foreground">
         {label}
       </div>
       <div className="mt-1 text-[20px] font-semibold tabular-nums">
@@ -136,7 +136,7 @@ export const YourPlan: React.FC = () => {
       <Card className="px-4 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <div className="text-[11px] font-semibold text-muted-foreground">
               {t('yourPlan.currentPlan', 'Current plan')}
             </div>
             <div className="mt-1 text-[24px] font-bold tracking-[-0.02em]">{row.name}</div>
@@ -165,7 +165,7 @@ export const YourPlan: React.FC = () => {
           <ul className="divide-y divide-border">
             {grouped.map((group) => (
               <React.Fragment key={group.id}>
-                <li className="bg-secondary/40 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <li className="bg-secondary/40 px-4 py-1.5 text-[11px] font-semibold text-muted-foreground">
                   {planGroupLabel(t, group.id)}
                 </li>
                 {group.keys.map((feature) => (

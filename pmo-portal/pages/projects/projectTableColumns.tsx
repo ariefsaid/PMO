@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { Avatar } from '@/src/components/ui/Avatar';
 import { CompanyNameLink, ProgressBar, StatusPill, TaxBasisLabel, type Column } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
@@ -10,7 +11,6 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import type { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
-import { initials } from '@/src/lib/initials';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 
 interface ProjectTableColumnInputs {
@@ -256,20 +256,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
-        const avatarInitials = initials(label);
         return (
           // Left-aligned with the other card values (director fix): the avatar started at a
           // different x than the Status pill and Contract amount inside the card's shared grid.
           <span className="flex items-center">
-            <span
-              role="img"
-              aria-label={label}
-              title={label}
-              className="grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
-              style={{ background: 'hsl(var(--avatar-2))' }}
-            >
-              {avatarInitials}
-            </span>
+            <Avatar name={label} size="xs" />
           </span>
         );
       },

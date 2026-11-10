@@ -16,14 +16,16 @@ describe('#1970 motion', () => {
 
   it('every new animation is switched off under prefers-reduced-motion', () => {
     const block = css.slice(css.indexOf('Every #1970 animation is off'));
-    for (const cls of ['.menu-pop-anim', '.save-pulse::after', '.icon-swap-in', '.icon-swap-out', '.drawer-anim[data-closing]', '.confirm-anim[data-ending-style]']) {
+    for (const cls of ['.menu-pop-anim', '.save-pulse::after', '.icon-swap-in', '.icon-swap-out', '.confirm-anim[data-ending-style]']) {
+      // The drawer is a Base UI transition now; the global reduced-motion rule zeroes it.
       expect(block).toContain(cls);
     }
   });
 
   it('exit tokens are about 20% shorter than their entrances', () => {
     const ms = (n: string) => Number(new RegExp(`--motion-${n}:\\s*(\\d+)ms`).exec(css)?.[1]);
-    for (const k of ['dialog', 'sheet', 'drawer', 'toast']) {
+    // Toast motion moved to the library (Sonner owns entrance/exit and reduced-motion).
+    for (const k of ['dialog', 'sheet', 'drawer']) {
       const ratio = ms(`${k}-out`) / ms(`${k}-in`);
       expect(ratio).toBeGreaterThan(0.75);
       expect(ratio).toBeLessThan(0.85);

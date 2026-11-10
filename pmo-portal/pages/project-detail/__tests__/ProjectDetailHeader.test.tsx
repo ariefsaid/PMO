@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -11,6 +12,12 @@ import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
 import { BahasaProvider } from '@/test/bahasa';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 vi.mock('@/src/components/fx/FxEquivalent', () => ({
   default: () => (
@@ -882,7 +889,7 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
   it('AC-PPNC-013 a live invoice disables the VAT flag with a clear reason', async () => {
     vatBox.data = { eligible: false, reason: 'vat-live-invoice', hasInvoices: true };
     await openEditor('Finance');
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/invoice that is not cancelled/i);
   });
 
@@ -906,7 +913,7 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
   it('AC-PPNC-013 loading and unavailable reader states fail closed while preserving the stored flag', async () => {
     vatBox.isPending = true;
     await openEditor('Finance');
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/checking whether PPN can be changed/i);
   });
 });
