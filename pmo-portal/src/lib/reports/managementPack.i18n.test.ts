@@ -37,6 +37,7 @@ const KEYS = [
   'managementPack.emptySub', 'managementPack.projectsAsAt', 'managementPack.monthlyTotals', 'managementPack.unassigned',
   'managementPack.otherCurrency', 'managementPack.recordProgress', 'managementPack.billedAhead', 'managementPack.undated',
   'managementPack.total', 'managementPack.basis.invoiced', 'managementPack.basis.progressShort',
+  'managementPack.basisEarned', 'managementPack.basisProgress',
   'managementPack.col.month', 'managementPack.col.projectNumber', 'managementPack.col.project', 'managementPack.col.progress',
   'managementPack.col.earned', 'managementPack.col.invoices', 'managementPack.col.client',
   'managementPack.col.currency', 'managementPack.col.taxBasis', 'managementPack.col.contract', 'managementPack.col.planned',

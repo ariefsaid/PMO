@@ -217,6 +217,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-[13px]">
         {key === 'backlog' && row.kind === 'contract' && value === null ? backlogUnknown : money(value, row.currency)}
+        {key === 'recognisedToDate' && row.kind === 'contract' && m && m.basis !== 'invoiced' && (
+          <span className="block text-xs text-muted-foreground">
+            {m.basis === 'earned' ? t('financeHub:managementPack.basisEarned', 'Earned value') : t('financeHub:managementPack.basisProgress', 'Percent complete')}
+          </span>
+        )}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-xs text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
         )}

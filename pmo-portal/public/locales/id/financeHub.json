@@ -166,6 +166,7 @@
   },
   "managementPack": {
     "basisEarned": "Nilai terealisasi",
+    "basisProgress": "Persen selesai",
     "search": "Cari proyek",
     "projectManager": "Manajer proyek",
     "progressValue": "Progres {{percent}}%",

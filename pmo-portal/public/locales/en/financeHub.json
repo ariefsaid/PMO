@@ -166,6 +166,7 @@
   },
   "managementPack": {
     "basisEarned": "Earned value",
+    "basisProgress": "Percent complete",
     "search": "Search projects",
     "projectManager": "Project manager",
     "progressValue": "Progress {{percent}}%",
