@@ -156,8 +156,7 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
   it('AC-CONFIRM-005: on open, focus lands on Cancel (safe default, not the destructive confirm)', async () => {
     render(<ConfirmDialog {...baseProps} tone="destructive" />);
     // focus moves on the next frame; assert it settled on Cancel
-    await screen.findByRole('alertdialog');
-    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus());
   });
 
   it('SH-3: restores focus to a still-connected trigger after conditional unmount', async () => {
@@ -222,7 +221,7 @@ describe('AC-CONFIRM-005: focus trap', () => {
     render(<ConfirmDialog {...baseProps} description={<textarea aria-label="Reason" />} />);
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     const reason = screen.getByRole('textbox', { name: 'Reason' });
-    cancel.focus();
+    await waitFor(() => expect(cancel).toHaveFocus());
     await userEvent.tab({ shift: true });
     expect(reason).toHaveFocus();
   });
