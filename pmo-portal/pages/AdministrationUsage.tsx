@@ -83,6 +83,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           {
             key: 'providerCost',
             header: 'Provider cost',
+            keepWhenBlank: true,
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
             // The RPC returns null when provider pricing is unconfigured, and formatting null
             // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
