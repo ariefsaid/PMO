@@ -248,7 +248,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).not.toContain('ACC-SINV-2026-00002');
-    expect(table).toContain('Partly paid · 77 days late');
+    expect(table).toContain('Partly paid · 77 days overdue');
   });
 
   it('FIN-S1 search finds an invoice by its project label', async () => {
@@ -433,7 +433,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
     expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
   });
 
@@ -524,12 +524,12 @@ it('records the selected invoice receipt from detail', async () => {
   salesInvoicesState.data[0] = { ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1, received_date: null };
   hoisted.received.mockRejectedValueOnce(new Error('Save failed'));
   renderAt('/sales-invoices/inv-1');
-  await userEvent.click(screen.getByRole('button', { name: 'Mark received' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Record delivery' }));
   const dialog = screen.getByRole('dialog');
-  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.type(within(dialog).getByLabelText('Delivered'), '2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(hoisted.received).toHaveBeenCalledWith({ siId: 'inv-1', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

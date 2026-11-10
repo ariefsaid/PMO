@@ -208,9 +208,9 @@ describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
     expect(screen.getAllByRole('button', { name: 'Overdue only' })).toHaveLength(1);
   });
 
-  it('describes the page in one short line and offers no Browse Projects button to a project manager', () => {
+  it('has no sentence under the title and offers no Browse Projects button to a project manager', () => {
     renderAt('/sales-invoices', 'Project Manager');
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Browse Projects' })).not.toBeInTheDocument();
   });
 });
@@ -322,12 +322,12 @@ it('records the selected invoice receipt from the list', async () => {
   h.received.mockRejectedValueOnce(new Error('Save failed'));
   renderAt('/sales-invoices');
   await userEvent.click(within(screen.getByRole('row', { name: /INV-002/ })).getByRole('button', { name: /row actions/i }));
-  await userEvent.click(screen.getByRole('menuitem', { name: /record received date/i }));
+  await userEvent.click(screen.getByRole('menuitem', { name: /record delivery date/i }));
   const dialog = screen.getByRole('dialog');
-  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.type(within(dialog).getByLabelText('Delivered'), '2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(h.received).toHaveBeenCalledWith({ siId: 'INV-002', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

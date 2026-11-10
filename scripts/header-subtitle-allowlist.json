@@ -42,9 +42,6 @@
   "pages/Projects.tsx": {
     "ListPage-description": 4
   },
-  "pages/SalesInvoices.tsx": {
-    "ListPage-description": 1
-  },
   "pages/activity/EditActivityModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
@@ -81,9 +78,6 @@
   },
   "pages/expenses/ExpenseClaimFormModal.tsx": {
     "EntityFormModal-subtitle": 1
-  },
-  "pages/finance/PayablesPage.tsx": {
-    "ListPage-description": 1
   },
   "pages/incoming-payments/ApplyReceiptForm.tsx": {
     "EntityFormModal-subtitle": 1
@@ -152,9 +146,6 @@
     "EntityFormModal-subtitle": 1
   },
   "pages/project-detail/tabs/TaskFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/sales-invoices/SalesInvoiceDialogs.tsx": {
     "EntityFormModal-subtitle": 1
   },
   "pages/sales-invoices/SalesInvoiceFormModal.tsx": {

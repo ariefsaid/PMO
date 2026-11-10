@@ -175,7 +175,7 @@ describe('Finance hub', () => {
     renderHub('Executive');
 
     expect(screen.getByRole('heading', { name: 'Waiting on Finance' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /New invoice|Review|Mark received|Apply|Open payables/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New invoice|Review|Record delivery|Apply|Open payables/ })).not.toBeInTheDocument();
   });
 
   it('AC-1405-HUB-006: no statement catalogue states the reason once, shows no placeholder value, and does not spin', () => {

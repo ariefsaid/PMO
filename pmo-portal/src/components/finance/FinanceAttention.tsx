@@ -120,12 +120,14 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                     <span className="block text-sm text-muted-foreground">{t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
                   </span>
                   <span className="min-w-0 text-right">
-                    <StatusPill record="salesInvoice" state="Overdue">{t('status:age.overdue', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' })}</StatusPill>
+                    <StatusPill variant="overdue">{partlyPaid
+                      ? t('finance:receivables.statusPartlyPaidLate', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: 'Partly paid · {{n}} day overdue', defaultValue_other: 'Partly paid · {{n}} days overdue' })
+                      : t('status:age.overdue', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' })}</StatusPill>
                     {/* C4: an unknown balance is left out here; the heading counts it once ("· 1 balance unknown"). */}
                     {outstanding != null && (
                       <>
                         <span className="mt-1 block whitespace-nowrap tabular text-sm font-semibold">{formatCurrency(outstanding / 100, invoice.currency)}</span>
-                        {gross != null && <span className="block whitespace-nowrap tabular text-sm text-muted-foreground">{partlyPaid ? `${t('finance:area.partlyPaidShort', 'Partly paid')} · ` : ''}{t('financeHub:hub.fix.overdue.ofGross', { defaultValue: 'of {{amount}}', amount: formatCurrency(gross, invoice.currency) })}</span>}
+                        {gross != null && <span className="block whitespace-nowrap tabular text-sm text-muted-foreground">{t('financeHub:hub.fix.overdue.ofGross', { defaultValue: 'of {{amount}}', amount: formatCurrency(gross, invoice.currency) })}</span>}
                       </>
                     )}
                   </span>

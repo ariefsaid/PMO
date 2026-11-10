@@ -203,9 +203,9 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await financeTestI18n.changeLanguage('en');
   });
 
-  it('AC-NAR-001 FIN-S1 the page describes itself in one short line', () => {
+  it('AC-NAR-001 FIN-S1 no sentence sits under the page title', () => {
     renderPage();
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
   });
 
   it('embedded receivables uses a compact Invoices heading and lets the Finance shell start creation', () => {
@@ -226,7 +226,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&open=si-n1');
     const headerActions = within(drawer).getByTestId('record-header-actions');
     expect(within(headerActions).getByRole('button', { name: 'Open full page' })).toBeInTheDocument();
-    expect(within(headerActions).getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+    expect(within(headerActions).getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
     expect(within(headerActions).getByRole('button', { name: 'Invoice actions' })).toBeInTheDocument();
     expect(within(drawer).getAllByText('INV-2610070001')).toHaveLength(1);
   });
@@ -248,9 +248,9 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const expected = [
       ['DRAFT-APPROVE', 'Draft · to approve'],
       ['DRAFT-OWN', 'Draft · needs a second approver'],
-      ['UNPAID', 'Unpaid · not yet due'],
-      ['PARTIAL', 'Partly paid · 12 days late'],
-      ['OVERDUE', 'Overdue · 104 days'],
+      ['UNPAID', 'Unpaid'],
+      ['PARTIAL', 'Partly paid · 12 days overdue'],
+      ['OVERDUE', '104 days overdue'],
       ['SETTLED', 'Paid'],
       ['CANCELLED', 'Cancelled'],
       ['ERP-SUBMITTED', 'Submitted'],
@@ -265,7 +265,8 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
       expect(row.querySelectorAll('span[class*="bg-status-"]')).toHaveLength(1);
     }
     const partlyPaid = rowFor('PARTIAL');
-    expect(partlyPaid.textContent).not.toContain('12 days overdue');
+    // One age text, once: the partly paid pill carries it, nothing else in the row repeats it.
+    expect(partlyPaid.textContent?.match(/12 days overdue/g)).toHaveLength(1);
   });
 
   it('AC-1405 uses a single unboxed toolbar row and the merged client/project column in receivables', () => {
@@ -297,8 +298,8 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const card = rowFor('INV-MOBILE');
     expect(card).toHaveTextContent('Acme Energy');
     expect(card).toHaveTextContent('INV-MOBILE');
-    expect(card).toHaveTextContent('Partly paid · not yet due');
-    expect(card).toHaveTextContent('Oct 30, 2026');
+    expect(card).toHaveTextContent('Partly paid');
+    expect(card).toHaveTextContent('30 Oct');
     expect(card).toHaveTextContent(/of/);
     expect(card.querySelector('dl')).toBeNull();
   });
@@ -341,8 +342,8 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const steps = within(timeline).getAllByRole('listitem');
     expect(steps.map((step) => step.getAttribute('data-stage'))).toEqual(['drafted', 'approved', 'received', 'payment', 'payment', 'paid']);
     expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'done', 'done', 'done', 'done', 'current']);
-    expect(steps[3]).toHaveTextContent('Oct 6, 2026');
-    expect(steps[4]).toHaveTextContent('Oct 8, 2026');
+    expect(steps[3]).toHaveTextContent('6 Oct');
+    expect(steps[4]).toHaveTextContent('8 Oct');
   });
 
   it('AC-1405 replaces a hung local evidence request with its unavailable state', async () => {
@@ -363,7 +364,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: null, erp_outstanding_amount: 500_000 })];
     renderPage('/sales-invoices/si-n1');
 
-    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
   });
@@ -405,7 +406,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     renderPage('/finance/receivables?open=si-n1', true);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open full page' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Approve|Mark received|Record payment/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Approve|Record delivery|Record payment/ })).not.toBeInTheDocument();
   });
 
   it('AC-1405 exports only the selected invoice rows from the embedded bulk bar', async () => {
@@ -603,7 +604,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await openMenu(user, row);
     expect(screen.queryByRole('menuitem', { name: 'Approve' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Cancel' })).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: 'Record received date' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Record delivery date' })).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
   });
   it('AC-NAR-003 (DD-NAR-17) a PMO invoice paid beyond its gross reads Paid and shows the overpaid excess', () => {
@@ -637,7 +638,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.route = 'external';
     const user = userEvent.setup();
     renderPage();
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
     await pick(user, 'Customer', 'Acme Energy');
     await user.type(screen.getByLabelText(/Item code/), 'SVC');
@@ -651,7 +652,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.queryByRole('button', { name: /New Invoice/i })).toBeNull();
     h.ownershipLoaded = true;
     rerender(page());
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /New Invoice/i }).length).toBeGreaterThan(0);
   });
 
   it('FR-NAR-002 (I-3) a PMO line needs an item code OR a description — a description alone is enough', async () => {
@@ -843,21 +844,21 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(within(screen.getByRole('tablist', { name: 'Filter by status' })).getByRole('tab', { name: 'Submitted' })).toBeInTheDocument();
   });
 
-  it('#767 (M-7) a Draft offers no "Record received date" — the client cannot have received an unissued invoice', async () => {
+  it('#767 (M-7) a Draft offers no "Record delivery date" — the client cannot have received an unissued invoice', async () => {
     h.userId = 'u-fin1';
     h.invoices.data = [nativeInvoice()];
     const user = userEvent.setup();
     renderPage();
     await openMenu(user, rowFor('Acme Energy'));
-    expect(screen.queryByRole('menuitem', { name: 'Record received date' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Record delivery date' })).toBeNull();
   });
 
-  it('AC-NAR-003 while PMO owns revenue a PMO invoice still offers "Record received date"', async () => {
+  it('AC-NAR-003 while PMO owns revenue a PMO invoice still offers "Record delivery date"', async () => {
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
     const user = userEvent.setup();
     renderPage();
     await openMenu(user, rowFor('INV-2610070001'));
-    expect(screen.getByRole('menuitem', { name: 'Record received date' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Record delivery date' })).toBeInTheDocument();
   });
 
   it('#953 keeps a rejected received-date save in the modal, preserves the date, and does not emit a trapped toast', async () => {
@@ -866,9 +867,9 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const user = userEvent.setup();
     renderPage();
     await openMenu(user, rowFor('INV-2610070001'));
-    await user.click(screen.getByRole('menuitem', { name: 'Record received date' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Record delivery date' }));
 
-    const receivedDate = screen.getByLabelText('Received');
+    const receivedDate = screen.getByLabelText('Delivered');
     await user.type(receivedDate, '2026-10-08');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -881,7 +882,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(h.toast).not.toHaveBeenCalled();
   });
 
-  it('AC-NAR-004 (DD-NAR-11) a frozen PMO invoice offers no "Record received date" once the ERP owns revenue', async () => {
+  it('AC-NAR-004 (DD-NAR-11) a frozen PMO invoice offers no "Record delivery date" once the ERP owns revenue', async () => {
     h.route = 'external';
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
     renderPage();
@@ -890,7 +891,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     // e-Faktur is still a PMO-owned fact and remains editable.
     const user = userEvent.setup();
     await openMenu(user, row);
-    expect(screen.queryByRole('menuitem', { name: 'Record received date' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Record delivery date' })).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
   });
 

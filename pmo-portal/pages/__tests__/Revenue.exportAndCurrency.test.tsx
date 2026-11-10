@@ -164,7 +164,7 @@ describe('#731 the money lists are exportable', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
     const { ws, col } = await exportedSheet();
 
-    for (const [header, expected] of [['Date', '2026-07-01'], ['Received', '2026-07-02'], ['e-Faktur date', '2026-07-03']]) {
+    for (const [header, expected] of [['Date', '2026-07-01'], ['Delivered', '2026-07-02'], ['e-Faktur date', '2026-07-03']]) {
       const cell = ws.getRow(2).getCell(col(header));
       expect(cell.value).toBeInstanceOf(Date);
       expect((cell.value as Date).toISOString().slice(0, 10)).toBe(expected);

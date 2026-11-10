@@ -296,7 +296,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     ? canApproveDraft(viewTarget)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(viewTarget) }
       : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
-        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(viewTarget) }
+        ? { label: t('finance:receivables.markReceived', 'Record delivery'), onClick: () => setReceiptTarget(viewTarget) }
         : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && (viewTarget.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
           ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => navigate(`/finance/receivables?view=payments&invoice=${encodeURIComponent(viewTarget.id)}&create=1`) }
           : null
@@ -423,7 +423,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     ? canApproveDraft(panelInvoice)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(panelInvoice) }
       : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && !panelInvoice.received_date && canRecordReceipt && !(panelInvoice.pmo_native && !native)
-        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(panelInvoice) }
+        ? { label: t('finance:receivables.markReceived', 'Record delivery'), onClick: () => setReceiptTarget(panelInvoice) }
         : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && (panelInvoice.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
           ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => onRecordPayment?.(panelInvoice) }
           : null
@@ -445,7 +445,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       count={data ? filtered.length : undefined}
       total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}
-      description={embedded ? undefined : t('finance:invoices.description', 'Client invoices.')}
       banner={odooOffline ? <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
       primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
         <Button variant="primary" onClick={openNewInvoice}>
