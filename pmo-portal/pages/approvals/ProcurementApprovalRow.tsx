@@ -72,10 +72,10 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           toast(
             pending === 'Approved'
               ? t('approvalRow.approved', 'Procurement approved')
-              : t('approvalRow.rejected', 'Procurement rejected'),
+              : t('approvalRow.returned', 'Procurement returned'),
             pending === 'Approved'
               ? t('approvalRow.approvedDetail', '{{title}} has been approved', { title: row.title })
-              : t('approvalRow.rejectedDetail', '{{title}} has been rejected', { title: row.title }),
+              : t('approvalRow.returnedDetail', '{{title}} has been returned', { title: row.title }),
             'success',
           );
         },
@@ -105,7 +105,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         onClick={() => setPending('Rejected')}
         loading={transition.isPending}
       >
-        {t('approvalRow.rejectShort', 'Reject')}
+        {t('approvalRow.returnShort', 'Return')}
       </Button>
     </>
   ) : null;
@@ -233,10 +233,10 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           onConfirm={() => handleConfirm()}
         />
       )}
-      {/* The one Return / Reject dialog. A purchase that is refused can still be revised and resubmitted, but its stored state is "Rejected", so the verb here is Reject until the state itself is renamed. */}
+      {/* The one Return dialog. A refused purchase can be revised and resubmitted, so it reads "Return"; the stored state and the transition payload stay "Rejected". */}
       <ReasonDialog
         open={pending === 'Rejected'}
-        kind="reject"
+        kind="return"
         subject={t('approvalRow.rejectSubject', 'purchase request')}
         context={`${row.title} · ${money(row.total_value)}`}
         loading={transition.isPending}

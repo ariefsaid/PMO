@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Checkbox, ListState, StatusPill } from '@/src/components/ui';
+import { Badge, Checkbox, ListState } from '@/src/components/ui';
 import { formatTableMoney } from '@/src/lib/format';
 import { ageInDays, urgencyOf } from '@/src/lib/selectors/approvalUrgency';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
@@ -48,10 +48,8 @@ export function QueueButton({
       >
         <div className="min-w-0">
           <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <StatusPill record="procurement" state={row.status} />
-            {waitingDays > 0 && <span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('procurement:approvalQueue.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span>}
-          </div>
+          {/* Every row here is awaiting a decision, so no status pill repeats it; only the wait is shown. */}
+          {waitingDays > 0 && <div className="mt-1"><span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('procurement:approvalQueue.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span></div>}
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
             <span>·</span>
@@ -100,7 +98,6 @@ export function QueueButton({
             <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
           </div>
         </div>
-        <StatusPill record="timesheet" state={row.status} className="py-1" />
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control text-muted-foreground">
         <span>

@@ -3849,7 +3849,7 @@
     "payment": "No. Pembayaran",
     "reference": "Referensi",
     "incomingPayments": "Pembayaran Masuk",
-    "receivePayment": "Terima Pembayaran",
+    "receivePayment": "Terima pembayaran",
     "searchPayments": "Cari pembayaran…",
     "searchIncomingPayments": "Cari pembayaran masuk",
     "noIncomingPaymentsYet": "Belum ada pembayaran diterima",
@@ -3985,7 +3985,7 @@
     "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
     "activateEditorBlocked": "Anda menyusun draf atau mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
-    "recordYourFirstPaymentReceivedFromAClient": "Gunakan Terima Pembayaran saat klien membayar.",
+    "recordYourFirstPaymentReceivedFromAClient": "Gunakan Terima pembayaran saat klien membayar.",
     "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih."
   },
   "viewBuilder": {

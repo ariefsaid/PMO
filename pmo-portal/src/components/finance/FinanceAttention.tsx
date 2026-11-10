@@ -1,6 +1,5 @@
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React from 'react';
-import { Avatar } from '@/src/components/ui/Avatar';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, StatusPill } from '@/src/components/ui';
@@ -98,9 +97,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
           <div className="divide-y divide-border">
             {position.overdue.slice(0, 5).map(({ invoice, daysOverdue, outstanding }) => {
               const project = invoice.project_id ? projects.get(invoice.project_id) : undefined;
-              const pm = project?.pm?.full_name?.trim();
               const client = invoice.customer_name ?? t('finance:area.unknownClient', 'Unknown client');
-              const avatarLabel = pm || client;
               const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
               const partlyPaid = isPartlyPaid(invoice);
               const gross = invoiceGross(invoice);
@@ -110,14 +107,11 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   key={invoice.id}
                   to={href}
                   aria-label={t('financeHub:hub.fix.overdue.openInvoice', { defaultValue: 'Open {{client}} invoice {{number}}', client, number: invoiceNumber(invoice) ?? '—' })}
-                  className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <Avatar name={avatarLabel} size="lg" />
                   <span className="min-w-0">
-                    <span className="block truncate font-medium">{client}</span>
-                    <span className="block truncate font-mono text-sm text-muted-foreground">{invoiceNumber(invoice) ?? '—'}</span>
-                    <span className="block truncate text-sm text-muted-foreground">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')}</span>
-                    <span className="block text-sm text-muted-foreground">{t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
+                    <span className="flex min-w-0 items-baseline gap-1"><span className="min-w-0 truncate font-medium">{client}</span><span className="shrink-0 font-mono text-muted-foreground">· {invoiceNumber(invoice) ?? '—'}</span></span>
+                    <span className="flex min-w-0 items-baseline gap-1 text-sm text-muted-foreground"><span className="min-w-0 truncate">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')}</span><span className="shrink-0">· {t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span></span>
                   </span>
                   <span className="min-w-0 text-right">
                     <StatusPill variant="overdue">{partlyPaid
@@ -135,9 +129,11 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
               );
             })}
           </div>
-          <Link className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline-offset-2 hover:underline" to={withLayout('/finance/receivables?overdue=true')}>
-            {t('finance:area.showAllOverdue', 'Show all {{count}} overdue', { count: overdueCount })}
-          </Link>
+          {overdueCount > 5 && (
+            <Link className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline-offset-2 hover:underline" to={withLayout('/finance/receivables?overdue=true')}>
+              {t('finance:area.showAllOverdue', 'Show all {{count}} overdue', { count: overdueCount })}
+            </Link>
+          )}
         </div>
       )}
 

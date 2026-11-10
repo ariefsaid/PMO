@@ -328,21 +328,21 @@
   },
   "approvalRow": {
     "approve": "Setujui",
-    "rejectShort": "Tolak",
     "unknownRequester": "Pemohon tidak diketahui",
     "loadErrorSub": "Dampak anggaran dan rincian barang gagal dimuat.",
     "lineItems": "Rincian barang",
     "approveTitle": "Setujui {{title}}?",
     "approvedDetail": "{{title}} telah disetujui",
-    "rejectedDetail": "{{title}} telah ditolak",
     "open": "Buka pengadaan",
     "loadError": "Rincian pengadaan gagal dimuat",
     "approved": "Pengadaan disetujui",
-    "rejected": "Pengadaan ditolak",
     "approveDescription": "Setujui {{title}} ({{amount}})? Pengadaan ini akan dilanjutkan ke tahap pemesanan.",
     "rejectionComment": "Komentar penolakan",
     "rejectionCommentHelp": "Tambahkan komentar untuk pemohon sebelum menolak pengadaan ini.",
-    "rejectSubject": "permintaan pembelian"
+    "rejectSubject": "permintaan pembelian",
+    "returnShort": "Kembalikan",
+    "returned": "Pengadaan dikembalikan",
+    "returnedDetail": "{{title}} telah dikembalikan"
   },
   "decisionSupport": {
     "thisProcurement": "Pengadaan ini",

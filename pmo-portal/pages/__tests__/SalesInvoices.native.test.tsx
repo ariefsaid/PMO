@@ -208,10 +208,10 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
   });
 
-  it('embedded receivables uses a compact Invoices heading and lets the Finance shell start creation', () => {
+  it('embedded receivables adds no second heading and lets the Finance shell start creation', () => {
     renderPage('/finance/receivables?layout=a&create=1', true);
     // The create dialog is open on mount, so the page behind it is hidden from assistive tech (modal).
-    expect(screen.getByRole('heading', { level: 2, name: 'Invoices', hidden: true })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Invoices', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New Invoice', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -959,10 +959,13 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     expect(within(drawer).queryByText(/outstanding balance is not known yet/)).not.toBeInTheDocument();
   });
 
-  it('P5: on a phone the receivables filters wrap, so Group by stays on screen', () => {
+  it('P5: on a phone search and one Filters control share the first row; status, overdue and Group by open from it', async () => {
     mockPhoneViewport();
     h.invoices.data = [nativeInvoice({ pmo_number: 'INV-1', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 500_000 })];
+    const user = userEvent.setup();
     renderPage('/finance/receivables', true);
+    expect(screen.queryByRole('tablist', { name: 'Group by' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
     const filters = screen.getByRole('region', { name: 'Filter by status' });
     expect(within(filters).getByRole('tablist', { name: 'Group by' })).toBeInTheDocument();
     // jsdom has no layout: wrapping (not a clipped horizontal scroller) is the contract.
@@ -990,6 +993,7 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     const user = userEvent.setup();
     renderPage('/finance/receivables', true);
     expect(screen.queryByRole('tablist', { name: 'Filter by status' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by status' }), 'Cancelled');
     expect(screen.getByTestId('location')).toHaveTextContent('status=Cancelled');
   });

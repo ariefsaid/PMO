@@ -3849,7 +3849,7 @@
     "payment": "Payment #",
     "reference": "Reference",
     "incomingPayments": "Incoming Payments",
-    "receivePayment": "Receive Payment",
+    "receivePayment": "Receive payment",
     "searchPayments": "Search payments…",
     "searchIncomingPayments": "Search incoming payments",
     "noIncomingPaymentsYet": "No payments received yet",
@@ -3985,7 +3985,7 @@
     "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
-    "recordYourFirstPaymentReceivedFromAClient": "Use Receive Payment when a client pays.",
+    "recordYourFirstPaymentReceivedFromAClient": "Use Receive payment when a client pays.",
     "createYourFirstInvoiceToStartBillingClients": "Use New Invoice to start billing."
   },
   "viewBuilder": {

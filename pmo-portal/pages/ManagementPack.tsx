@@ -312,7 +312,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       header: t('financeHub:managementPack.col.invoices', 'Invoices'),
       kind: 'number',
       align: 'num',
-      size: 70,
+      size: 96,
       cell: (row) => (
         <span data-testid="pack-cell-invoices" className="tabular">
           {invoiceCountStatus === 'error' ? (

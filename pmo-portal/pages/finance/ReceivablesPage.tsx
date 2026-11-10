@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, PageHeader, ViewToggle } from '@/src/components/ui';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
@@ -13,7 +13,6 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import type { CurrencyTotals } from '@/src/lib/finance/financePosition';
 import { formatDay, formatTileMoney } from '@/src/lib/format';
-import { StatusPill } from '@/src/components/ui';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
 import SalesInvoices from '@/pages/SalesInvoices';
@@ -108,7 +107,6 @@ export default function ReceivablesPage() {
   })();
   const owedTile = dataPending || (owedUnknown > 0 && !owed[orgCurrency]) ? null : moneyTileProps(owed, orgCurrency);
   const overdueTile = dataPending || (overdueUnknown > 0 && !finance.position.overdueTotals[orgCurrency]) ? null : moneyTileProps(finance.position.overdueTotals, orgCurrency);
-  const overdueCount = finance.position.overdue.length;
 
   const changeView = (nextView: ReceivablesView) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
@@ -146,31 +144,27 @@ export default function ReceivablesPage() {
 
   return (
     <FigureScope>
-    <div className="flex min-w-0 flex-col pb-24 sm:pb-0">
+    <div className="flex min-w-0 flex-col">
       <PageHeader
         title={t('finance:receivables.title', 'Receivables')}
         help={<p>{t('finance:receivables.helpAges', 'Client balances by age count days past due, tax included. Overdue shows known balances only; invoices with an unknown balance are listed, not added.')}</p>}
         helpSubject={t('finance:receivables.title', 'Receivables')}
         className="order-1"
         action={<div className="flex flex-wrap items-center gap-2">
-          {canCreatePayment && <Button type="button" variant={view === 'payments' ? 'primary' : 'outline'} onClick={openNewPayment}>
-            <Icon name="plus" />{t('financeCopy.receivePayment', 'Receive Payment')}
-          </Button>}
-          {/* B4: on a phone the sticky bar owns New invoice. The wrapper hides it: Button's own inline-flex would beat `hidden`. */}
-          {canCreateInvoice && <div data-testid="receivables-header-new-invoice" className="hidden sm:block">
-            <Button type="button" variant={view === 'payments' ? 'outline' : 'primary'} onClick={openNewInvoice}>
-              <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
-            </Button>
-          </div>}
+          {/* One filled primary (by view). The other create action is an outline button on large screens and in the list's ⋯ menu on a phone. */}
+          {view === 'payments'
+            ? <>
+              {canCreateInvoice && <div className="hidden sm:block"><Button type="button" variant="outline" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
+              {canCreatePayment && <Button type="button" variant="primary" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button>}
+            </>
+            : <>
+              {canCreatePayment && <div className="hidden sm:block"><Button type="button" variant="outline" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button></div>}
+              {canCreateInvoice && <div data-testid="receivables-header-new-invoice"><Button type="button" variant="primary" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
+            </>}
         </div>}
       />
 
-      {overdueCount > 0 && <div role="status" data-testid="receivables-overdue-row" className="order-2 mb-4 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <StatusPill record="salesInvoice" state="Overdue">{t('finance:receivables.overdueCount', { defaultValue: '{{count}} overdue', count: overdueCount })}</StatusPill>
-        <Link to="/finance/receivables?overdue=true" onClick={() => { if (view !== 'invoices') changeView('invoices'); }} className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-2 hover:underline">{t('finance:area.showAllOverdue', 'Show all {{count}} overdue', { count: overdueCount })}</Link>
-      </div>}
-
-      <div className="order-3 max-sm:order-4 mb-3"><FigureHiddenLine /></div>
+      <div className="order-2 mb-3"><FigureHiddenLine /></div>
 
       <div className="order-4 max-sm:order-5 min-w-0">
         <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || dataPending ? 1 : 0) + (overdueTile || dataPending ? 1 : 0) + 2)}`}>
@@ -222,16 +216,10 @@ export default function ReceivablesPage() {
         </div>
         <div>
           {view === 'invoices'
-            ? <SalesInvoices embedded onRecordPayment={recordPayment} />
-            : <IncomingPayments embedded />}
+            ? <SalesInvoices embedded onRecordPayment={recordPayment} secondaryAction={canCreatePayment ? { label: t('financeCopy.receivePayment', 'Receive payment'), onSelect: openNewPayment } : undefined} />
+            : <IncomingPayments embedded secondaryAction={canCreateInvoice ? { label: t('finance:area.newInvoice', 'New invoice'), onSelect: openNewInvoice } : undefined} />}
         </div>
       </section>
-
-      {canCreateInvoice && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
-        <Button type="button" variant="primary" onClick={openNewInvoice} className="w-full">
-          <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
-        </Button>
-      </div>}
     </div>
     </FigureScope>
   );

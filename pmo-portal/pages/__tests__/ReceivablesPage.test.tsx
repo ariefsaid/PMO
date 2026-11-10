@@ -109,8 +109,9 @@ describe('Receivables page', () => {
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden: 1 balance unknown');
     expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
-    // The overdue invoice is still a "waits on you" row, with its count and a link to the fix.
-    expect(screen.getByTestId('receivables-overdue-row')).toHaveTextContent('1 overdue');
+    // The overdue filter in the list is the one way in; no second "N overdue" line sits above it.
+    expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
+    expect(screen.queryByText(/Show all \d+ overdue/)).toBeNull();
   });
 
   it('uses the shared ageing and overdue totals; counts stay out of the money tiles', () => {
@@ -120,7 +121,7 @@ describe('Receivables page', () => {
     expect(tile('Owed to you')).not.toHaveTextContent(/invoices?\b/);
     expect(tile('Overdue')).toHaveTextContent(/^Overdue.*IDR/);
     expect(tile('Overdue')).toHaveTextContent('10% of owed');
-    expect(screen.getByTestId('receivables-overdue-row')).toHaveTextContent('1 overdue');
+    expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
   });
 
   it('shows whole-unit money for upcoming invoices and puts another currency on its own second line', () => {
@@ -173,9 +174,9 @@ describe('Receivables page', () => {
     expect(within(strip).getByText(/^IDR\s62,400,000$/)).toHaveClass('sr-only');
   });
 
-  it('offers Receive Payment from both the invoices and the payments view', () => {
+  it('offers Receive payment from both the invoices and the payments view', () => {
     renderPage();
-    expect(screen.getByRole('button', { name: 'Receive Payment' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Receive payment' })).toBeInTheDocument();
   });
 
   it('keeps the invoices and payments view in the URL', async () => {
@@ -186,15 +187,15 @@ describe('Receivables page', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?todo=unapplied');
   });
 
-  it('B4: one filled New invoice per width — the header one is hidden below sm, the phone bar is hidden from sm up', async () => {
+  it('B4: one filled primary in the header; the other create action is outline from sm up and in the list menu on a phone', async () => {
     const user = userEvent.setup();
     renderPage();
-    const buttons = screen.getAllByRole('button', { name: /New invoice/i });
-    expect(buttons).toHaveLength(2);
-    // jsdom has no media queries: the wrapper classes are the contract (Button's own inline-flex would beat `hidden`).
-    expect(screen.getByTestId('receivables-header-new-invoice')).toHaveClass('hidden', 'sm:block');
-    expect(buttons[1]!.parentElement).toHaveClass('sm:hidden');
-    await user.click(buttons[0]!);
+    const newInvoice = screen.getAllByRole('button', { name: /New invoice/i });
+    expect(newInvoice).toHaveLength(1);
+    expect(screen.getByTestId('receivables-header-new-invoice')).toBeInTheDocument();
+    // Receive payment is the quiet header button on larger screens (hidden below sm).
+    expect(screen.getByRole('button', { name: 'Receive payment' }).parentElement).toHaveClass('hidden', 'sm:block');
+    await user.click(newInvoice[0]!);
     expect(screen.getByTestId('location')).toHaveTextContent('create=1');
   });
 

@@ -5,7 +5,7 @@ import { Button } from '@/src/components/ui';
 export interface BulkBarProps {
   count: number;
   onClear: () => void;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 /** Replaces the list's export control while one or more visible records are selected. */

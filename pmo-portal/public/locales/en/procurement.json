@@ -328,21 +328,21 @@
   },
   "approvalRow": {
     "approve": "Approve",
-    "rejectShort": "Reject",
     "unknownRequester": "Unknown requester",
     "loadErrorSub": "Something went wrong fetching the budget impact and line items.",
     "lineItems": "Line items",
     "approveTitle": "Approve {{title}}?",
     "approvedDetail": "{{title}} has been approved",
-    "rejectedDetail": "{{title}} has been rejected",
     "open": "Open procurement",
     "loadError": "Couldn't load procurement details",
     "approved": "Procurement approved",
-    "rejected": "Procurement rejected",
     "approveDescription": "Approve {{title}} ({{amount}})? This will advance the procurement to the ordering stage.",
     "rejectionComment": "Rejection comment",
     "rejectionCommentHelp": "Add a comment for the requester before rejecting this purchase.",
-    "rejectSubject": "purchase request"
+    "rejectSubject": "purchase request",
+    "returnShort": "Return",
+    "returned": "Procurement returned",
+    "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
     "thisProcurement": "This procurement",

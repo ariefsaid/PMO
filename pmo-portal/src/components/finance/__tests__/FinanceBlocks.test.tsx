@@ -91,11 +91,12 @@ describe('Finance blocks', () => {
     );
 
     expect(screen.getByRole('link', { name: /Northstar Client.*INV-104/ })).toHaveAttribute('href', '/finance/receivables?open=invoice-1');
+    // Client · number on the first line; project · due date on the second; no initials avatar.
     expect(screen.getByText('North delivery')).toBeInTheDocument();
-    expect(screen.getByText(/Due/)).toBeInTheDocument();
+    expect(screen.getByText(/Due /)).toBeInTheDocument();
     expect(screen.getByText('Partly paid · 104 days overdue')).toBeInTheDocument();
     expect(screen.getByText(/of IDR/)).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Alex Rivera' })).toHaveTextContent('AR');
+    expect(screen.queryByRole('img', { name: 'Alex Rivera' })).toBeNull();
   });
 
   it('gives Finance compact actions for each waiting count and keeps executives read-only', async () => {

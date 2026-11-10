@@ -144,7 +144,7 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
-  it('UIP-008: desktop queue reserves two lines for request identity ahead of status and metadata', async () => {
+  it('UIP-008: desktop queue reserves two lines for request identity ahead of the metadata; no status pill repeats on every row', async () => {
     const title = 'Cable supply for extended commissioning — northern distribution boards';
     procState.data = [{ ...procRows[0], title }];
     renderAs('Finance');
@@ -152,7 +152,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const identity = within(button).getByText(title);
     expect(identity.className).toContain('line-clamp-2');
     expect(identity.className).not.toContain('truncate');
-    expect(identity.parentElement).toContainElement(within(button).getByText('Requested'));
+    expect(within(button).queryByText('Requested')).toBeNull();
     expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
     await userEvent.tab();
     await userEvent.click(button);
@@ -180,8 +180,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       expect(within(preview).getAllByText('$48,000').length).toBeGreaterThan(0);
       expect(within(preview).queryByText('North hall switchgear evidence')).toBeNull();
       expect(within(preview).getByRole('button', { name: 'Approve' })).toBeVisible();
-      expect(within(preview).getByRole('button', { name: 'Reject' })).toBeVisible();
-      expect(control).toHaveTextContent('Requested');
+      expect(within(preview).getByRole('button', { name: 'Return' })).toBeVisible();
+      expect(control).not.toHaveTextContent('Requested');
       expect(navigateMock).not.toHaveBeenCalled();
     } finally {
       window.matchMedia = realMatchMedia;
@@ -305,7 +305,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const queueRow = screen.getByRole('button', { name: /Steel beams/i });
     await userEvent.click(queueRow);
     expect(within(preview).getByRole('button', { name: /Approve/i })).toBeInTheDocument();
-    expect(within(preview).getByRole('button', { name: /Reject/i })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Return/i })).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 

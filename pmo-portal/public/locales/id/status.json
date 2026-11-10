@@ -23,7 +23,7 @@
     "received": "Penerimaan barang",
     "vendorInvoiced": "Faktur pemasok",
     "paid": "Dibayar",
-    "rejected": "Ditolak",
+    "rejected": "Dikembalikan",
     "cancelled": "Dibatalkan"
   },
   "expense": {

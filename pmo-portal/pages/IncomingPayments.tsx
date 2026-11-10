@@ -17,6 +17,9 @@ import {
 } from '@/src/components/ui';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton } from '@/src/components/export';
+import { useExport } from '@/src/components/export/useExport';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { PhoneListToolbar } from './sales-invoices/PhoneListToolbar';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
@@ -49,11 +52,15 @@ import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 
 interface IncomingPaymentsProps {
   embedded?: boolean;
+  /** The page's other create action; on a phone it sits in the toolbar ⋯ menu. */
+  secondaryAction?: { label: string; onSelect: () => void };
   selectedKeys?: Set<string>;
   onSelectionChange?: (keys: Set<string>) => void;
 }
 
-const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, selectedKeys, onSelectionChange }) => {
+const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, secondaryAction, selectedKeys, onSelectionChange }) => {
+  const isDesktop = useIsDesktop();
+  const { exportXlsx, busy: exporting } = useExport();
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -271,20 +278,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
     }
   };
 
-  return (
-    <ListPage
-      title={embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
-      count={data ? filtered.length : undefined}
-      total={data ? all.length : undefined}
-      headingLevel={embedded ? 2 : 1}
-      banner={!embedded && odooOffline ? <p role="status" className="mb-3 text-control text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
-      primaryAction={!embedded && mode !== undefined && canCreate && !odooOffline ? (
-        <Button variant="primary" onClick={() => { setInitialInvoiceId(undefined); setFormOpen(true); }}>
-          <Icon name="plus" />
-          {t('financeCopy.receivePayment', "Receive Payment")}</Button>
-      ) : undefined}
-      filters={
-        state !== 'loading' && (
+  const filtersNode = state !== 'loading' && (
           <ViewToggle<StatusFilter>
             options={statusFilters.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
             value={statusFilter}
@@ -294,11 +288,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             }}
             ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
           />
-        )
-      }
-      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
-      search={
-        state !== 'loading' && (
+        );
+  const searchNode = state !== 'loading' && (
           <SearchMini
             placeholder={t('financeCopy.searchPayments', "Search payments…")}
             aria-label={t('financeCopy.searchIncomingPayments', "Search incoming payments")}
@@ -309,10 +300,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             resultCount={filtered.length}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
+        );
+  const exportNode = state !== 'loading' && (
           embedded && effectiveSelectedKeys.size > 0
             ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
               <ExportButton
@@ -323,8 +312,39 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               />
             </BulkBar>
             : <ExportButton rows={filtered} columns={exportColumns} entity="Incoming Payments" />
-        )
-      }
+        );
+  const exportRows = embedded && effectiveSelectedKeys.size > 0 ? all.filter((payment) => effectiveSelectedKeys.has(payment.id)) : filtered;
+  const phoneToolbar = embedded && state !== 'loading' && !isDesktop ? (
+    <PhoneListToolbar
+      search={searchNode}
+      filters={filtersNode}
+      activeFilters={statusFilter === 'All' ? 0 : 1}
+      menuItems={[
+        { key: 'export', label: effectiveSelectedKeys.size > 0 ? t('finance:bulk.exportSelected', 'Export selected') : t('finance:receivables.exportList', 'Export'), disabled: exporting || exportRows.length === 0, onSelect: () => void exportXlsx(exportRows, exportColumns, 'Incoming Payments') },
+        ...(secondaryAction ? [{ key: 'secondary', label: secondaryAction.label, onSelect: secondaryAction.onSelect }] : []),
+      ]}
+      selectionBar={effectiveSelectedKeys.size > 0 ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())} /> : undefined}
+    />
+  ) : undefined;
+
+  return (
+    <ListPage
+      title={embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
+      headingLevel={embedded ? 2 : 1}
+      hideHeader={embedded}
+      mobileToolbar={phoneToolbar}
+      filters={filtersNode}
+      search={searchNode}
+      exportAction={exportNode}
+      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
+      banner={!embedded && odooOffline ? <p role="status" className="mb-3 text-control text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
+      primaryAction={!embedded && mode !== undefined && canCreate && !odooOffline ? (
+        <Button variant="primary" onClick={() => { setInitialInvoiceId(undefined); setFormOpen(true); }}>
+          <Icon name="plus" />
+          {t('financeCopy.receivePayment', "Receive payment")}</Button>
+      ) : undefined}
     >
       {/* Body */}
       {state === 'loading' && (
@@ -347,7 +367,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           variant="empty"
           icon="dollar"
           title={t('financeCopy.noIncomingPaymentsYet', "No payments received yet")}
-          sub={canCreate ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'Use Receive Payment when a client pays.') : t('uxs26.receiptsEmptyProjectManager', 'Finance records client payments.')}
+          sub={canCreate ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'Use Receive payment when a client pays.') : t('uxs26.receiptsEmptyProjectManager', 'Finance records client payments.')}
           stateId="incoming-payments-empty"
           role={realRole ?? undefined}
           module="incomingPayments"
@@ -387,6 +407,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           selection={embedded ? {
             selectedIds: effectiveSelectedKeys,
             onChange: handleSelectionChange,
+            selectAllAfterFirst: true,
             rowLabel: (payment) => t('finance:table.selectRow', 'Select {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }),
           } : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}

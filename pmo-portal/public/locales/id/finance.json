@@ -184,7 +184,6 @@
     "amount": "Jumlah",
     "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini.",
     "mobileInvoiceAmount": "Total faktur tidak termasuk PPN",
-    "mobileOutstandingUnknown": "Saldo terutang tidak diketahui",
     "mobileInvoiceAmountInclusive": "Total faktur termasuk PPN",
     "mobileInvoiceAmountUnspecified": "Jumlah faktur",
     "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}.",
@@ -196,7 +195,10 @@
     "nextDue": "jatuh tempo berikutnya {{date}}",
     "vsLastMonth": "{{delta}} dibanding bulan lalu",
     "statusPartlyPaidLate_one": "Dibayar sebagian · terlambat {{n}} hari",
-    "statusPartlyPaidLate_other": "Dibayar sebagian · terlambat {{n}} hari"
+    "statusPartlyPaidLate_other": "Dibayar sebagian · terlambat {{n}} hari",
+    "filters": "Filter",
+    "moreActions": "Aksi lainnya",
+    "exportList": "Ekspor"
   },
   "invoices": {
     "clearProject": "Hapus filter proyek"

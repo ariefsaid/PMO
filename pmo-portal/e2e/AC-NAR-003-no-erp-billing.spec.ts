@@ -88,7 +88,7 @@ async function invoiceRow(page: Page) {
 /** Records a receipt against this run's invoice; `startsAt` is the balance the form must start at (DD-NAR-17). */
 async function recordReceipt(page: Page, amount: string, startsAt?: RegExp) {
   await page.goto('/finance/receivables?view=payments');
-  await page.getByRole('button', { name: localized('Receive Payment', 'Terima Pembayaran') }).click();
+  await page.getByRole('button', { name: localized('Receive payment', 'Terima pembayaran') }).click();
   const form = page.getByRole('dialog');
   await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
   await pickComboboxOption(form, page, /^(?:Sales Invoice|Faktur Penjualan)/, /INV-\d{10}/);

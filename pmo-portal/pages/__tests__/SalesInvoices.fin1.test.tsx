@@ -137,12 +137,12 @@ beforeEach(() => {
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
-  it('labels the mobile invoice amount and reports an unknown outstanding balance', () => {
+  it('labels the mobile invoice amount; an unknown balance is said once at page level, not on the card', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
     h.invoices.data = [invoice('INV-001', { amount: 1000, tax_amount: 100, erp_outstanding_amount: null })];
     renderAt('/sales-invoices', 'Finance', undefined, true);
     expect(screen.getByText(/Invoice total excl. PPN:.*1,000/)).toBeInTheDocument();
-    expect(screen.getByText('Outstanding balance unknown')).toBeInTheDocument();
+    expect(screen.queryByText('Outstanding balance unknown')).not.toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 

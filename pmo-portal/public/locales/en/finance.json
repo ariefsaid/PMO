@@ -184,7 +184,6 @@
     "amount": "Amount",
     "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice.",
     "mobileInvoiceAmount": "Invoice total excl. PPN",
-    "mobileOutstandingUnknown": "Outstanding balance unknown",
     "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
     "mobileInvoiceAmountUnspecified": "Invoice amount",
     "pairedCountedOnce": "Counted once with the ERP invoice {{number}}.",
@@ -196,7 +195,10 @@
     "nextDue": "next due {{date}}",
     "vsLastMonth": "{{delta}} vs last month",
     "statusPartlyPaidLate_one": "Partly paid · {{n}} day overdue",
-    "statusPartlyPaidLate_other": "Partly paid · {{n}} days overdue"
+    "statusPartlyPaidLate_other": "Partly paid · {{n}} days overdue",
+    "filters": "Filters",
+    "moreActions": "More actions",
+    "exportList": "Export"
   },
   "invoices": {
     "clearProject": "Clear project filter"
