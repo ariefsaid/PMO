@@ -3728,3 +3728,6 @@ trigger finds the claim. The work-order fence refuses any insert that reuses a c
 with a transaction-local marker that names the claim. Defaults taken from the plan (owner questions open): the approval
 rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
 line, no item code; no re-invoice after a cancel.
+
+### DD-1413-RESUBMIT — any approver-role member may resubmit a returned budget draft (#1413)
+Resubmit is open to every approver-role member, including the one who returned it. Nothing breaks: activation separation of duties still runs in full on the resubmitted draft.

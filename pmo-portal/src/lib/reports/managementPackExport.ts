@@ -23,6 +23,7 @@ export interface ManagementPackExportLabels {
   total: string;
   basisInvoiced: string;
   basisProgress: string;
+  basisEarned: string;
 }
 
 const money = (cents: number | null): CellValue => (cents === null ? '' : fromCents(cents));
@@ -42,7 +43,7 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
         m.month.slice(0, 7), row.projectNumber ?? '', rowName(row, l), row.clientName ?? '', row.currency,
         l.taxBasisValue, money(m.planned), money(m.recognised), money(m.invoiced), money(m.recognisedToDate),
         money(m.invoicedToDate), money(m.unbilled), money(m.backlog),
-        m.basis === 'progress' ? l.basisProgress : l.basisInvoiced,
+        m.basis === 'progress' ? l.basisProgress : m.basis === 'earned' ? l.basisEarned : l.basisInvoiced,
       ]);
     });
   }

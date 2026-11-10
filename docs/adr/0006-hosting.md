@@ -16,7 +16,8 @@
 - **Secrets via 1Password (service account)**: the cloud DB URL is fetched at runtime by `op-get.sh` (vault `AS`),
   NEVER committed; the **anon key is public-safe** and lives in CF Pages env vars. No service-role key client-side.
   Connection string is the **Direct/Session-pooler URI (port 5432)**, never the transaction pooler (6543).
-- **CI gates unchanged** (typecheck/lint/Vitest/pgTAP/Playwright; integration job PR-only); supabase CLI pinned 2.105.0.
+- **CI gates unchanged** (typecheck/lint/Vitest/pgTAP/Playwright; integration job PR-only); supabase CLI pinned 2.105.0
+  *(Amended 2026-11-09: CI pin bumped to 2.122.1 — fixes a CLI-side stale-DNS flake that could end `supabase db reset` with storage HTTP 502, supabase/cli#6324.)*.
 - **Demo/observability:** `VITE_APP_ENV` env badge; `VITE_DEMO_MODE` login-credential panel (demo builds only).
   Monitoring (Sentry/uptime) still deferred.
 

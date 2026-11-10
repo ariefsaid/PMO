@@ -104,7 +104,12 @@ export interface MockClient {
 // edge fn loads connection rows). The RPC handlers below synthesize the SAME `writes` entries the
 // existing assertions check, so routing through the RPCs is transparent to every behavioral
 // assertion while a direct write fails the test immediately.
-export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
+export function mockClient(
+  seeded: Record<string, unknown[]> = {},
+  // `featureEnabled` is the RESOLVED plan switch (`service_feature_enabled`) — the single
+  // entitlement source for the M365 gates (AC-M365SS-001/002); no `org_features` row is needed.
+  opts: { featureEnabled?: boolean } = {},
+): MockClient {
   const queues: Record<string, unknown[]> = {};
   for (const [t, rs] of Object.entries(seeded)) queues[t] = [...rs];
   const writes: RecordedWrite[] = [];
@@ -219,10 +224,10 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
   };
 
   const rpc = vi.fn((fn: string, args?: Record<string, unknown>) => {
-    // Handler behavior tests use the enabled plan by default; the feature-off contract is covered
-    // by the edge-function enforcement suite.
+    // Handler behavior tests use the enabled plan by default; `opts.featureEnabled: false` models a
+    // plan that resolves M365 off. Entitlement is read ONLY through this rpc, never `org_features`.
     if (fn === 'service_feature_enabled') {
-      return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: opts.featureEnabled ?? true, error: null });
     }
     if (fn === 'm365_membership_state' && args) {
       return Promise.resolve({

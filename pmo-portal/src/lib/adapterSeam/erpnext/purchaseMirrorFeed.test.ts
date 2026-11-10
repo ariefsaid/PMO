@@ -292,7 +292,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
     const rpc = vi.fn(async (_n: string, args: { p_rows: unknown[] }) => ({ data: args.p_rows.length, error: null }));
     const fetchImpl = vi.fn(async (url: string) => new Response(JSON.stringify({
-      data: decodeURIComponent(url).includes('Purchase Invoice Item') ? [] : [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 })) as unknown as typeof fetch;
+      data: decodeURIComponent(url).includes(' Item') ? [] : [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 })) as unknown as typeof fetch;
     const from = (table: string) => {
       const builder = fake.from(table) as Record<string, (...args: unknown[]) => unknown>;
       return { ...builder, update: (...args: unknown[]) => {
@@ -317,7 +317,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
       lists += 1;
       if (lists > 1) throw new Error('later read failed');
       return new Response(JSON.stringify({ data: rows }), { status: 200 });
-    });
+    }) as unknown as typeof fetch;
     const sc = { from: (t: string) => fake.from(t), rpc } as never;
     const client = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 };
 
@@ -372,6 +372,26 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(h.rpc.mock.calls.every((call) => call[1].p_rows.length <= 500)).toBe(true);
   });
 
+  it('does not start an order unit whose item read cannot finish in the pass, and ends the pass without an error', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const h = harness({});
+      let reads = 0;
+      const fetchImpl = vi.fn(async (_url?: string) => {
+        reads += 1;
+        if (reads === 1) vi.setSystemTime(21000); // 4s left, under one request timeout
+        return new Response(JSON.stringify({ data: reads === 1 ? [PO] : [] }), { status: 200 });
+      });
+      const result = await feedPurchaseMirror(h.sc, { client: { ...h.client, fetchImpl: fetchImpl as unknown as typeof fetch }, orgId: 'org-1', company: 'Example Co' });
+      expect(result.caughtUp).toBe(false);
+      expect(fetchImpl.mock.calls.some(([url]) => decodeURIComponent(String(url)).includes('Purchase Order Item'))).toBe(false);
+      expect(mirroredNames(h.rpc, 'Purchase Order').size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('bounds a stalled item read to the remaining pass time, writing nothing for the unit', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
@@ -383,9 +403,11 @@ describe('erpnext/purchaseMirrorFeed', () => {
       let pendingSignal: AbortSignal | undefined;
       const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
         reads += 1;
-        if (reads === 1) {
+        if (reads === 1) return new Response(JSON.stringify({ data: rows }), { status: 200 });
+        if (reads === 2) {
+          // A full first item page (more may follow) that leaves 500ms of the pass; the next page stalls.
           vi.setSystemTime(24500);
-          return new Response(JSON.stringify({ data: rows }), { status: 200 });
+          return new Response(JSON.stringify({ data: Array.from({ length: 1000 }, () => ({ parent: 'PO-000', project: 'ERP-A' })) }), { status: 200 });
         }
         pendingSignal = init?.signal ?? undefined;
         return new Promise<Response>((_resolve, reject) => pendingSignal?.addEventListener('abort', () => reject(pendingSignal?.reason), { once: true }));
@@ -393,12 +415,12 @@ describe('erpnext/purchaseMirrorFeed', () => {
       const promise = feedPurchaseMirror(h.sc, { client: { ...h.client, maxRetries: 3, fetchImpl: fetchImpl as unknown as typeof fetch }, orgId: 'org-1', company: 'Example Co' });
       const rejected = expect(promise).rejects.toThrow('500ms deadline');
       await vi.advanceTimersByTimeAsync(0);
-      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
       await vi.advanceTimersByTimeAsync(499);
       expect(pendingSignal?.aborted).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
       await rejected;
-      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
       expect(h.rpc).not.toHaveBeenCalled(); // item lines come before the write, so nothing was written or re-stamped
       expect(h.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
     } finally {
@@ -437,9 +459,11 @@ describe('erpnext/purchaseMirrorFeed', () => {
     vi.setSystemTime(0);
     try {
       const h = harness({});
-      h.client.fetchImpl = vi.fn(async () => {
-        vi.setSystemTime(25000);
-        return new Response(JSON.stringify({ data: [PO] }), { status: 200 });
+      h.client.fetchImpl = vi.fn(async (url: string) => {
+        // the item read (after the list, before the write) is what burns the budget
+        const isItems = decodeURIComponent(url).includes('Purchase Order Item');
+        if (isItems) vi.setSystemTime(25000);
+        return new Response(JSON.stringify({ data: isItems ? [] : [PO] }), { status: 200 });
       }) as unknown as typeof fetch;
       await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('Purchase mirror pass deadline exceeded');
       expect(h.rpc).not.toHaveBeenCalled();

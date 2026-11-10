@@ -20,24 +20,24 @@ export interface DirectoryRow {
 type Raw = Record<string, unknown>;
 const WRITE_DATE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 /** A many2one is `false` or `[id, name]`; anything else is malformed (`undefined`). */
-const m2o = (v: unknown): string | null | undefined =>
+export const m2o = (v: unknown): string | null | undefined =>
   v === false || v == null ? null : Array.isArray(v) && typeof v[0] === 'number' ? String(v[0]) : undefined;
 /** A many2many is a list of ids; anything else is malformed (`undefined`). */
 const m2m = (v: unknown): string[] | undefined =>
   Array.isArray(v) && v.every((x) => typeof x === 'number') ? v.map(String) : undefined;
 /** The display name of a many2one, `null` when empty; anything else is malformed (`undefined`). */
-const m2oName = (v: unknown): string | null | undefined =>
+export const m2oName = (v: unknown): string | null | undefined =>
   v === false || v == null ? null : Array.isArray(v) && typeof v[0] === 'number' && typeof v[1] === 'string' ? v[1] : undefined;
-const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+export const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 
-function base(r: Raw, name: unknown, code: unknown, parent: unknown): DirectoryRow | null {
+export function base(r: Raw, name: unknown, code: unknown, parent: unknown): DirectoryRow | null {
   const p = m2o(parent);
   if (typeof r.id !== 'number' || typeof name !== 'string' || !name || typeof r.write_date !== 'string' || !WRITE_DATE.test(r.write_date) || p === undefined) return null;
   return { external_id: String(r.id), code: str(code), name, parent_external_id: p, active: r.active !== false, attrs: {}, source_write_date: r.write_date };
 }
 
 /** Attributes holding a many2one id reject the whole row when the value is malformed. */
-function withAttrs(row: DirectoryRow | null, attrs: Record<string, unknown>): DirectoryRow | null {
+export function withAttrs(row: DirectoryRow | null, attrs: Record<string, unknown>): DirectoryRow | null {
   return row && !Object.values(attrs).includes(undefined) ? { ...row, attrs } : null;
 }
 

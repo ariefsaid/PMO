@@ -352,7 +352,10 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       {commitmentsUnavailable && procurements.isError && <Note>{t('projectDetail.cost.commitmentsError', "Couldn't check commitments")} <Button variant="ghost" size="sm" onClick={() => void procurements.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
-      {pos.canSeeActual && pos.spent === null && !pos.actualsPending && !pos.actualsError && (
+      {pos.canSeeActual && pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
+        <Note>{t('projectDetail.cost.currencyDiffers', 'Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.', { currency: pos.spendCurrency })}</Note>
+      )}
+      {pos.canSeeActual && pos.spent === null && !pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
         <Note>
           {t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")}{' '}
           {canFixSetup

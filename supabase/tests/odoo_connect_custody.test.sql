@@ -1,7 +1,7 @@
 -- Odoo connect custody (#1504 S2, migration 0420): the atomic stage → finalize commit, set-once activation,
 -- reconnect/discard, disconnect, and the reference column hidden from every signed-in reader.
 begin;
-select plan(72);
+select plan(75);
 
 insert into organizations (id, name) values
  ('a4200000-0000-0000-0000-000000000001','Odoo Org A'),
@@ -181,6 +181,8 @@ select public.activate_odoo_binding('a4200000-0000-0000-0000-000000000001',20,1,
 reset role;
 insert into external_domain_ownership (org_id, external_tier, domain) values ('a4200000-0000-0000-0000-000000000001','odoo','companies');
 set local role service_role;
+-- AC-ODC-092 positive control: while the binding holds companies, the same function says Odoo owns them, so an always-false function cannot pass the two no-ownership asserts at the end.
+select is(public.domain_owned_by_tier('a4200000-0000-0000-0000-000000000001','companies','odoo'), true, 'AC-ODC-092 while Odoo owns companies the function says so');
 -- An attempt stranded after stage (finalize never ran): the prior key a420_s7 is named only by the marker.
 select public.stage_vault_secret_for_org('a4200000-0000-0000-0000-000000000001','odoo','k8','a420_s8','a4200000-0000-0000-0000-0000000000a1');
 select throws_ok($$select public.disconnect_external_integration('a4200000-0000-0000-0000-000000000001','odoo','a4200000-0000-0000-0000-0000000000f1')$$,
@@ -211,6 +213,13 @@ select lives_ok($$select status, config from public.external_org_bindings$$, 'AC
 set local request.jwt.claims = '{"sub":"a4200000-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select throws_ok($$select webhook_secret_ref from public.external_org_bindings$$, '42501', null, 'AC-ODC-009 an Engineer JWT cannot read webhook_secret_ref');
 select is((select count(*)::int from public.external_org_bindings where external_tier='odoo'), 1, 'AC-ODC-009 an Engineer JWT still sees the org''s binding rows');
+reset role;
+
+-- AC-ODC-092 (scenario S-B, the P half): a connected org that has employed nothing leaves company writes in PMO.
+-- Org B holds no Odoo binding; org A's was disconnected above, which released its ownership.
+set local role service_role;
+select is(public.domain_owned_by_tier('a4200000-0000-0000-0000-000000000002','companies','odoo'), false, 'AC-ODC-092 with no Odoo binding Odoo does not own companies');
+select is(public.domain_owned_by_tier('a4200000-0000-0000-0000-000000000001','companies','odoo'), false, 'AC-ODC-092 with no companies ownership row company writes stay PMO-local');
 reset role;
 
 select * from finish();

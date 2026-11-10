@@ -7,7 +7,7 @@ import { afterAll, describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import type { ConnectAdapter } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
+import type { ConnectAdapter, PmoMaster, PmoProjectCodeField } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
 import { CONNECT_SEND_REJECTION_TEXT, drainSends, type SendTier } from './connectSendsCore.ts';
 import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from './testing/edgeTestKit.ts';
 
@@ -20,13 +20,15 @@ const none = () => new Response('null', { status: 200, headers: { 'content-type'
 const body = (c: FetchCall) => c.bodyJson as Record<string, unknown>;
 const P = (id: string, kind: string, pmo: string) => ({ id, kind, pmo_ids: [pmo], decided_by: 'admin-1', snapshot: {} });
 
-function run(claimed: unknown[], tier: Partial<SendTier> & { send?: ConnectAdapter['sendMaster'] }, outbox: Array<Record<string, unknown>> = []) {
+function run(claimed: unknown[], tier: Partial<SendTier> & { send?: ConnectAdapter['sendMaster']; projectCodeField?: PmoProjectCodeField }, outbox: Array<Record<string, unknown>> = []) {
   const sends: string[] = [];
+  const records: PmoMaster[] = [];
   const t: SendTier = {
     tier: 'stub',
     open: async () => ({
-      connect: { tier: 'stub', listMasters: async () => ({ rows: [], nextCursor: null }), countDomain: async () => 0,
-        sendMaster: tier.send ?? (async (kind, rec) => { sends.push(`${kind}:${rec.id}`); return { externalId: `X-${rec.id}` }; }) },
+      connect: { tier: 'stub', ...(tier.projectCodeField ? { projectCodeField: tier.projectCodeField } : {}),
+        listMasters: async () => ({ rows: [], nextCursor: null }), countDomain: async () => 0,
+        sendMaster: tier.send ?? (async (kind, rec) => { sends.push(`${kind}:${rec.id}`); records.push(rec); return { externalId: `X-${rec.id}` }; }) },
       probe: async () => null,
     }),
     reissueOnInconclusiveAbsence: () => false,
@@ -39,6 +41,12 @@ function run(claimed: unknown[], tier: Partial<SendTier> & { send?: ConnectAdapt
     supabaseRpc('claim_connect_sends', () => jsonResponse(claimed)),
     supabaseRpc('connect_send_existing_link', () => jsonResponse(null)),
     supabaseSelect('companies', () => one({ id: 'c-1', name: 'PT Sinar Baja', type: 'Vendor', erp_tax_id: null })),
+    // PostgREST answers only the selected columns, and the two project columns differ so a read of the wrong one shows
+    supabaseSelect('projects', (c) => {
+      const row: Record<string, unknown> = { id: f(c, 'id'), name: 'Jembatan', code: 'CLIENT-9', pmo_project_number: 'PRJ-26-0007' };
+      const cols = (c.url.searchParams.get('select') ?? '').split(',').map((x) => x.trim());
+      return one(Object.fromEntries(Object.entries(row).filter(([k]) => cols.includes(k))));
+    }),
     supabaseSelect('profiles', () => one({ id: 'admin-1' })),
     supabaseRpc('record_connect_send_result', () => jsonResponse(null)),
     supabaseRpc('record_connect_send_held', () => jsonResponse(null)),
@@ -71,7 +79,7 @@ function run(claimed: unknown[], tier: Partial<SendTier> & { send?: ConnectAdapt
     supabaseRpc('mark_outbox_held', (c) => { outbox.find((x) => x.id === body(c).p_id)!.state = 'held'; return jsonResponse(1); }),
   ];
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-  return withFetchMock(routes, async ({ calls }) => ({ result: await drainSends(sc, org, t), calls, sends, outbox }));
+  return withFetchMock(routes, async ({ calls }) => ({ result: await drainSends(sc, org, t), calls, sends, records, outbox }));
 }
 
 describe('S8-T2 drainSends (tier-neutral core)', () => {
@@ -124,5 +132,16 @@ describe('S8-T2 drainSends (tier-neutral core)', () => {
   it('NFR-ECA-003 every claim and record names this org only', async () => {
     const { calls } = await run([P('a', 'party', 'c-1')], {});
     assertEquals(JSON.stringify(calls.map((c) => [c.url.toString(), c.bodyText])).includes('org-b'), false);
+  });
+
+  it('FR-ODC-072 / #1692 a project master carries the PMO column the adapter declares (Odoo: the project number)', async () => {
+    const { records, sends } = await run([P('prop-p', 'project', 'p-1')], { projectCodeField: 'pmo_project_number' });
+    assertEquals(sends, ['project:p-1']);
+    assertEquals([records[0].code, records[0].name], ['PRJ-26-0007', 'Jembatan']);
+  });
+
+  it('#1692 an adapter that declares no column keeps the client project code (ERPNext unchanged)', async () => {
+    const { records } = await run([P('prop-p', 'project', 'p-1')], {});
+    assertEquals(records[0].code, 'CLIENT-9');
   });
 });

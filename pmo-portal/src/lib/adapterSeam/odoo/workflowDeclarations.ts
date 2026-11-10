@@ -17,6 +17,8 @@ const NO_BUDGET_OBJECT = { status: 'unavailable', version: 1, reason: 'Odoo Comm
 const ODOO_LABOUR = 1510;
 const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
 const ODOO_REVENUE_CUTOVER = 1602;
+// The register and its maintenance (#1511): the writes ship in F4; the shared suite and the bed proof are F7's.
+const ODOO_EQUIPMENT = 1511;
 
 /** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
 export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
@@ -54,4 +56,6 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'timesheet.push': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'imprest.transfer': { status: 'pending', version: 1, issue: ODOO_SITE_CASH },
   'purchase-order.revise': { status: 'supported', version: 1 },
+  'equipment.push': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
+  'equipment.read': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
 };

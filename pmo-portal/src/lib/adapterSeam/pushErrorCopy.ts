@@ -55,6 +55,9 @@ export const TRANSLATED_PUSH_ERRORS: ReadonlySet<string> = new Set([
   'budget-fiscal-year-ambiguous',
   'budget-multi-fiscal-year-unphased',
   'outbox-finalize-refused',
+  // rm-1472 / M-2 — the two held-for-a-person reasons a parked replacement push resolves to.
+  'budget-archive-cancellation-held',
+  'budget-archive-resume-actor-unauthorized',
 ]);
 
 const CODES: Record<string, Entry> = {
@@ -165,6 +168,74 @@ const CODES: Record<string, Entry> = {
     message: 'There is no queued push command left for this budget, so the automatic recovery had nothing to work with.',
     retryable: true,
     remedy: 'Retry the push to queue a fresh command.',
+  },
+  // ── the register and its maintenance (#1511 F4) ──────────────────────────────────────────────
+  // Refused BEFORE any outbox row: the asset page is where each is fixed, so no retry can help.
+  'equipment-not-linked': {
+    message: 'This asset is not linked to the Odoo register yet.',
+    retryable: false,
+    remedy: 'An Admin matches it to its Odoo asset on the match screen, then record this again.',
+  },
+  'equipment-kind-mismatch': {
+    message: 'A vehicle takes a service log; equipment takes a maintenance request.',
+    retryable: false,
+    remedy: 'Record the right kind of maintenance for this asset: a service log for a vehicle, a maintenance request for equipment.',
+  },
+  'register-role': {
+    message: 'Only an Admin or Project Manager can change the register.',
+    retryable: false,
+    remedy: 'Ask an Admin or a Project Manager to save this change; anyone can record maintenance.',
+  },
+  // The id a register CREATE reserves is already in the book (this org's or another's): nothing was sent, and a retry would meet the
+  // same row. The asset page is where the fresh id comes from.
+  'record-id-invalid': {
+    message: 'This save would reuse a PMO asset identity that already belongs to a record, so it was not sent to the register.',
+    retryable: false,
+    remedy: 'Start the register entry again from the asset page, so it gets its own identity.',
+  },
+  // A picker the caller named — a vehicle model, a maintenance stage, a service type, a vendor — is not one the Odoo directory
+  // mirrors for this organisation, so the register holds no row PMO could point at. Refused before any outbox row.
+  'vehicle-model-invalid': {
+    message: 'The vehicle model this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a model from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'stage-invalid': {
+    message: 'The maintenance stage this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a stage from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'service-type-invalid': {
+    message: 'The service type this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a service type from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'vendor-invalid': {
+    message: 'The vendor this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a vendor from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  // ⚑ rm-1472 / M-2 (review r8) — the two reasons a PARKED replacement push is held for a person once
+  // the project's archive-cancellation fence is settled. Retryable ON PURPOSE: a Retry re-runs the whole
+  // gate under the retrying person's own authority, which is exactly the way out of both (a different,
+  // currently-authorised pusher; and for a held cancellation, after the previous Budget is resolved).
+  'budget-archive-cancellation-held': {
+    message: 'Nothing was sent for this budget yet: an earlier ERPNext budget cancellation for the project still needs a person, or the person who activated this version can no longer be identified.',
+    retryable: true,
+    remedy: 'Resolve the previous version’s budget in ERPNext, then retry — an authorised pusher’s retry runs every check again.',
+  },
+  'budget-archive-resume-actor-unauthorized': {
+    message: 'Nothing was sent for this budget: the person recorded as having activated this version is no longer allowed to push budgets to ERPNext. The earlier cancellation is not the problem.',
+    retryable: true,
+    remedy: 'Restore that person’s access, or have an Admin or Finance user retry the push — it runs under whoever retries it.',
+  },
+  // ⚑ rm-1472 — a parked unit RETIRED because it is no longer part of the active budget. Not a failure:
+  // the account left the plan when the previous version's ERPNext budget was cancelled, so there is
+  // nothing to push for it, and a retry could only re-loop.
+  'budget-archive-cancellation-superseded': {
+    message: 'This account is no longer part of the active budget, and its earlier ERPNext budget was already cancelled with the previous version.',
+    retryable: false,
+    remedy: 'Nothing to push for this account. Activate a new version if it becomes part of the budget again.',
   },
   // ── cut-over (FR-ECA-030, OQ-ECA-1) ──────────────────────────────────────────────────────────
   // Not a failure: a purchase ordered before the ERP connection is finished in PMO, on purpose.

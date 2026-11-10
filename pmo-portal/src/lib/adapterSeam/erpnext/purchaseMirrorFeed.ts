@@ -292,8 +292,8 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
     let units = 0;
     try {
       while (page.rows.length > 0 && units < unitsPerTurn) {
-        // Start an invoice unit only when its item read can finish within the pass; the rest waits for the next sweep.
-        if (isInvoice && deadline - Date.now() <= REQUEST_TIMEOUT_MS) { outOfTime = true; break; }
+        // Start an enriched unit only when its item read can finish within the pass; the rest waits for the next sweep.
+        if (enriched && deadline - Date.now() <= REQUEST_TIMEOUT_MS) { outOfTime = true; break; }
         const unit = page.rows.slice(0, unitSize);
         const latest = new Map<string, PurchaseMirrorRow>();
         for (const source of unit) {

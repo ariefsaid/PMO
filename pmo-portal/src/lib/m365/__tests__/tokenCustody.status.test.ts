@@ -9,7 +9,8 @@
  *                 (disabled member → DISABLED_MEMBER, unentitled → NOT_ENTITLED) — no relaxation.
  *   AC-M365-152 — the response body leaks NO ciphertext / key_id / entra oid / entra tenant /
  *                 expiry — scanned for the forbidden KEYS and the seeded secret VALUES (mirrors
- *                 tokenCustody.secrets.test.ts), AND the read is read-only (no writes / no RPCs).
+ *                 tokenCustody.secrets.test.ts), AND the read is read-only (no writes; the only
+ *                 service-side rpcs are the two authorization reads — membership + plan switch).
  *
  * The own-row `.eq('org_id', orgId).eq('user_id', userId)` scoping is proven by code inspection
  * of status.ts (same chain proxy.ts/revoke.ts use) + the RLS / unique(org,user) guarantees in
@@ -158,10 +159,9 @@ describe('AC-M365-151 — connection_status enforces the SAME data-access gate (
 
   it('AC-M365-151: an unentitled caller is rejected NOT_ENTITLED (no row read)', async () => {
     const row = await fullConnectionRow('active');
-    const service = mockClient({ ms_graph_connections: [{ data: row, error: null }] });
+    const service = mockClient({ ms_graph_connections: [{ data: row, error: null }] }, { featureEnabled: false });
     const unentitledCaller = mockClient({
       profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
-      org_features: [{ data: { enabled: false }, error: null }],
     });
 
     const result = await handleConnectionStatus(deps({ service, caller: unentitledCaller, userId: 'user-1' }));
@@ -189,7 +189,7 @@ describe('AC-M365-152 — connection_status leaks NO ciphertext / key_id / oid /
     );
   });
 
-  it('AC-M365-152: the read is READ-ONLY — exactly one ms_graph_connections SELECT, no writes, no RPCs (no audit, no locks)', async () => {
+  it('AC-M365-152: the read is READ-ONLY — exactly one ms_graph_connections SELECT, no writes, no audit/lock RPCs (only the two authorization reads)', async () => {
     const row = await fullConnectionRow('active');
     const service = mockClient({ ms_graph_connections: [{ data: row, error: null }] });
 
@@ -198,10 +198,12 @@ describe('AC-M365-152 — connection_status leaks NO ciphertext / key_id / oid /
     // Exactly one read of the connection table (the SELECT).
     const connReads = service.from.mock.calls.filter((c) => c[0] === 'ms_graph_connections');
     expect(connReads).toHaveLength(1);
-    // Read-only: NO mutations recorded (insert/update/upsert/delete) on any table. The one
-    // service-side membership RPC is a read and is required to classify RLS-hidden members.
+    // Read-only: NO mutations recorded (insert/update/upsert/delete) on any table. The ONLY
+    // service-side rpcs are the two authorization READS — membership classification + the
+    // resolved plan switch (AC-M365SS-001) — never an audit or lock rpc (AC-M365-152). The
+    // exhaustive name list pins that allowlist: any added rpc (audit, lock, mutation) fails here.
     expect(service.writes).toHaveLength(0);
-    expect(service.rpc).toHaveBeenCalledTimes(1);
+    expect(service.rpc.mock.calls.map((c) => c[0])).toEqual(['m365_membership_state', 'service_feature_enabled']);
     expect(service.rpc).toHaveBeenCalledWith('m365_membership_state', { p_user_id: 'user-1' });
   });
 });

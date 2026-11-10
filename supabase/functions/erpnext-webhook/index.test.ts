@@ -222,13 +222,15 @@ Deno.test('a vault or binding read failure while resolving the webhook secret is
   });
   const signature = await sign(event);
   const originalFetch = globalThis.fetch;
-  let vault: 'error' | 'missing' = 'error';
+  let vault: 'error' | 'missing' | 'binding-error' = 'error';
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(input, init);
     const url = new URL(request.url);
     const method = init?.method ?? request.method;
     if (url.pathname === '/rest/v1/external_org_bindings' && method === 'GET') {
-      if (url.searchParams.get('select') === 'webhook_secret_ref') return Response.json({ webhook_secret_ref: 'synthetic-vault-ref' });
+      if (url.searchParams.get('select') === 'webhook_secret_ref') {
+        return vault === 'binding-error' ? Response.json({ message: 'db down', code: '57P03' }, { status: 500 }) : Response.json({ webhook_secret_ref: 'synthetic-vault-ref' });
+      }
       return Response.json([{ org_id: ORG_ID, webhook_secret_ref: 'synthetic-vault-ref', activated_at: '2026-01-01T00:00:00Z', config: { company: COMPANY } }]);
     }
     if (url.pathname === '/rest/v1/rpc/read_vault_secret') {
@@ -240,6 +242,9 @@ Deno.test('a vault or binding read failure while resolving the webhook secret is
     if (servedHandler === null) throw new Error('the shipped serve wrapper was not captured');
     const failed = await servedHandler(req(event, signature));
     assert(failed.status === 500, `a vault outage must be retryable 500, got ${failed.status}`);
+    vault = 'binding-error';
+    const bindingFailed = await servedHandler(req(event, signature));
+    assert(bindingFailed.status === 500, `#654 a binding-read outage must be retryable 500, got ${bindingFailed.status}`);
     vault = 'missing';
     const absent = await servedHandler(req(event, signature));
     assert(absent.status === 401, `a genuinely missing secret stays fail-closed 401, got ${absent.status}`);
