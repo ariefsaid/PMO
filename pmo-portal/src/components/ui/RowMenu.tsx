@@ -52,7 +52,7 @@ export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel
                 // Spatially separate the first danger item from the non-danger items above it.
                 const needsSep = item.danger && i > 0 && !items[i - 1].danger;
                 return (
-                  <React.Fragment key={item.label}>
+                  <React.Fragment key={`${i}-${item.label}`}>
                     {needsSep && <Menu.Separator className={menuSeparatorClass} />}
                     <Menu.Item
                       disabled={item.disabled}

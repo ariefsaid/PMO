@@ -7,3 +7,4 @@ export const menuPopupOrigin = { '--menu-origin': 'var(--transform-origin)' } as
 export const menuItemClass =
   'flex h-8 w-full cursor-default items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] outline-none data-[highlighted]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:text-muted-foreground data-[disabled]:data-[highlighted]:bg-transparent';
 export const menuSeparatorClass = 'my-1 h-px bg-border';
+export const menuItemDanger = 'text-destructive';
