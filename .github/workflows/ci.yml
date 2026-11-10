@@ -69,10 +69,14 @@ defaults:
 #          ├─ checks (guards · typecheck · lint · audits · build · script tests) ─────┤
 #          └─ deno (edge-fn tests + M365; conditional on scope.deno) ─────────────────┴→ verify
 #   scope ────────────────────────────────────────→ integration-lanes ──────┐
-#   browser-chromium ×3 ─────────────────────────────────────────────────────┴→ integration
+#   browser-chromium ×3 ─────────────────────────────────────────────────────┴→ integration-full ─┐
+#   scope ─────────────────────────────────────────────────────────────────────────────────────────┴→ integration
+# A validated release-please version-only PR runs the version check and both required aggregates,
+# while skipping unit, Deno, browser and integration lanes.
 #   pgtap runs separately for PR→dev and push→dev.
 #
-# `verify` runs no tests: it fails closed unless every verify-stage job succeeded. That split is
+# `verify` runs no tests: it fails closed unless every scheduled verify-stage job succeeded, or the
+# release-please scope validation passed and the heavy jobs were skipped. That split is
 # what lets the ~8-min `checks`, ~9-min `deno` and ~7-min `unit` lanes overlap instead of queueing
 # behind each other (a full dev push was ~34 min end-to-end; #2161 targets ≤16). The NAME is
 # preserved on purpose: `main`'s branch protection requires exactly `verify` + `integration`, and
@@ -86,9 +90,10 @@ defaults:
 #               scripts change, the `deno` job only when edge functions change.
 #               Typecheck · lint · guards · build always run. No browser. Fast lane.
 # push dev    → everything, full: unit (4 shards) · checks · coverage · verify · pgtap (#1584).
-# PR → main   → (everything full) `verify` + required `integration` aggregate; its browser shards and
-#               `integration-lanes` (Supabase + pgTAP + served smoke + consent + serial e2e) run in
-#               parallel, then `integration` checks all evidence and outcomes.
+# PR → main   → (everything full) `verify` + required `integration` aggregate; a validated
+#               release-please version-only diff keeps both required contexts and skips test/e2e
+#               lanes. Every other PR runs browser shards and `integration-lanes` (Supabase + pgTAP
+#               + served smoke + consent + serial e2e), then `integration` checks all evidence.
 # push main   → `verify` smoke only (pgtap/integration skipped — see their `if`); unit is full.
 # dispatch    → browser shards + `integration-lanes` + `integration` aggregate, pgTAP skipped
 #               (scripts/ci-e2e.sh; the PR already ran `verify` + `pgtap`).
@@ -100,9 +105,11 @@ defaults:
 jobs:
   # What can this change affect? (#1584, scripts/ci-test-scope.mjs, self-tested in `checks`.)
   # Only a PR to `dev` is narrowed; a push (main, dev), a PR to `main` and any other base run
-  # everything. Narrowed = `unit: affected` (module-graph selection) unless the diff touches
+  # everything except the validated release-please version-only path. Narrowed = `unit: affected`
+  # (module-graph selection) unless the diff touches
   # something the graph can't see, `pgtap` only for supabase/** and its scripts, `deno` only for
-  # edge functions (and the pmo-portal files they import). Lint, typecheck, guards, build: always.
+  # edge functions (and the pmo-portal files they import). On the full path, lint, typecheck, guards
+  # and build always run. The release-please path skips those jobs after version validation.
   scope:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -112,6 +119,7 @@ jobs:
       unit: ${{ steps.scope.outputs.unit }}
       pgtap: ${{ steps.scope.outputs.pgtap }}
       deno: ${{ steps.scope.outputs.deno }}
+      release_light: ${{ steps.scope.outputs.release_light }}
       base_sha: ${{ steps.scope.outputs.base_sha }}
     defaults:
       run:
@@ -128,17 +136,26 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = dev ]; then
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ]; then
+            if git fetch --no-tags origin "$BASE_REF"; then
+              json=$(node scripts/ci-test-scope.mjs --release-please --target-base "$BASE_REF" --head-branch "$HEAD_BRANCH" --base "origin/$BASE_REF")
+            else
+              json='{"unit":"full","pgtap":true,"deno":true,"releaseLight":false,"reason":"main base unavailable; full checks required"}'
+            fi
+            base_sha=
+          elif [ "$EVENT" = pull_request ] && [ "$BASE_REF" = dev ]; then
             git fetch --no-tags origin "$BASE_REF"
             json=$(node scripts/ci-test-scope.mjs --base "origin/$BASE_REF")
             base_sha=$(git merge-base "origin/$BASE_REF" HEAD)
           else
-            json='{"unit":"full","pgtap":true,"deno":true,"reason":"not a PR to dev: everything runs"}'
+            json='{"unit":"full","pgtap":true,"deno":true,"releaseLight":false,"reason":"not a PR to dev or validated release-please PR: everything runs"}'
             base_sha=
           fi
           echo "$json"
           unit=$(jq -r .unit <<<"$json")
+          release_light=$(jq -r '.releaseLight // false' <<<"$json")
           # The shard COUNT comes from `strategy.job-total` in the run step (4 in full mode, 1 in
           # affected mode), so it is declared here once and never repeated as a magic number.
           if [ "$unit" = full ]; then
@@ -151,6 +168,7 @@ jobs:
             echo "unit_matrix=$matrix"
             echo "pgtap=$(jq -r .pgtap <<<"$json")"
             echo "deno=$(jq -r .deno <<<"$json")"
+            echo "release_light=$release_light"
             echo "base_sha=$base_sha"
           } >> "$GITHUB_OUTPUT"
           echo "### Test scope" >> "$GITHUB_STEP_SUMMARY"
@@ -166,7 +184,7 @@ jobs:
   # check still owns every selected test and the changed-lines coverage gate.
   unit:
     needs: scope
-    if: github.event_name != 'workflow_dispatch'
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' }}
     runs-on: ubuntu-latest
     # A hung test must not hold a runner for the 6h default (absorbs #1528). 4-way shards run ~7 min.
     timeout-minutes: 40
@@ -221,7 +239,7 @@ jobs:
     # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran this.
     # `!cancelled()`: keep reporting when a sibling job failed (see `verify`).
     needs: [scope]
-    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -304,9 +322,10 @@ jobs:
   # alongside; as its own lane it overlaps `checks` and `unit` instead.
   # `scope.deno` (#1584) still decides whether it runs at all: a PR to dev that touches no edge
   # function (and no script this lane uses) skips the job — the same skip the old per-step `if:` did.
+  # The release-please light path also skips this job after scope validates the version sources.
   deno:
     needs: [scope]
-    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' && needs.scope.outputs.deno == 'true' }}
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' && needs.scope.outputs.deno == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -387,7 +406,7 @@ jobs:
     # Deliberately no `!cancelled()`: a failed shard leaves no reports to merge, and `verify` fails
     # closed on `needs.unit.result` anyway. Skipping keeps the log honest instead of adding a second,
     # confusing red for the same cause.
-    if: github.event_name != 'workflow_dispatch'
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -425,8 +444,9 @@ jobs:
             --min 80
 
   # ── REQUIRED CHECK: `main` protection requires exactly `verify` + `integration` ───────────────
-  # The aggregate gate (#2161): no test runs here — it fails closed unless every verify-stage job
-  # succeeded. Keeping this NAME is what preserves branch protection: the WORK moved to `checks` +
+  # The aggregate gate (#2161): no test runs here — it fails closed unless every scheduled
+  # verify-stage job succeeded, or the version-only scope check passed and heavy jobs were skipped.
+  # Keeping this NAME is what preserves branch protection: the WORK moved to `checks` +
   # `coverage`, the required CONTEXT did not. (A rename would mean editing protection, which this
   # change deliberately does not do.)
   # `!cancelled()` is load-bearing: a failed shard must FAIL this check, never skip it — a skipped
@@ -437,7 +457,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Release-please version check passed
+        if: needs.scope.outputs.release_light == 'true'
+        run: |
+          test "${{ needs.scope.result }}" = success
+          test "${{ needs.checks.result }}" = skipped
+          test "${{ needs.deno.result }}" = skipped
+          test "${{ needs.unit.result }}" = skipped
+          test "${{ needs.coverage.result }}" = skipped
       - name: Every verify-stage job passed
+        if: needs.scope.outputs.release_light != 'true'
         run: |
           test "${{ needs.scope.result }}" = success
           test "${{ needs.checks.result }}" = success
@@ -448,7 +477,7 @@ jobs:
       # would otherwise count as a pass, and an unconditional assertion would fail every PR that
       # legitimately skips it.
       - name: Edge-function lane passed (when it ran)
-        if: needs.scope.outputs.deno == 'true'
+        if: ${{ needs.scope.outputs.release_light != 'true' && needs.scope.outputs.deno == 'true' }}
         run: test "${{ needs.deno.result }}" = success
       # The checkout exists only for the failure annotation below (`git log` needs a repository);
       # depth 1 is enough for the subject line.
@@ -578,7 +607,8 @@ jobs:
         run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
 
   browser-chromium:
-    if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
+    needs: [scope]
+    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success' && needs.scope.outputs.release_light != 'true') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -706,7 +736,7 @@ jobs:
 
   integration-lanes:
     needs: [scope]
-    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success') || github.event_name == 'workflow_dispatch') }}
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success' && needs.scope.outputs.release_light != 'true') || github.event_name == 'workflow_dispatch') }}
     outputs:
       serial_e2e: ${{ steps.serial_e2e.outcome }}
       consent_e2e: ${{ steps.consent_e2e.outcome }}
@@ -980,12 +1010,11 @@ jobs:
           path: /tmp/pmo-portal-test-results/
           retention-days: 7
 
-  # REQUIRED CONTEXT: keep this job id `integration`; main protection still requires `verify` and
-  # `integration`. It joins the independent browser and integration lanes, audits their artifacts,
-  # and fails closed on every lane whose execution uses continue-on-error.
-  integration:
-    needs: [browser-chromium, integration-lanes]
-    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch') }}
+  # Heavy integration evidence is deliberately separate from the required check name: the required
+  # `integration` aggregate below must run on light release PRs rather than being skipped.
+  integration-full:
+    needs: [scope, browser-chromium, integration-lanes]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success' && needs.scope.outputs.release_light != 'true') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -1112,3 +1141,26 @@ jobs:
           test "${{ steps.chromium_inventory.outcome }}" = success
           test "${{ steps.e2e_skip_audit.outcome }}" = success
           test "${{ steps.e2e_timing_audit.outcome }}" = success
+
+  # REQUIRED CONTEXT: main protection requires exactly `verify` + `integration`. This aggregate
+  # always reports for a main PR. The light lane proves scope validated every version source and
+  # confirms the heavy jobs were skipped; the normal lane fails closed on all full evidence.
+  integration:
+    needs: [scope, browser-chromium, integration-lanes, integration-full]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Release-please version check passed
+        if: needs.scope.outputs.release_light == 'true'
+        run: |
+          test "${{ needs.scope.result }}" = success
+          test "${{ needs.browser-chromium.result }}" = skipped
+          test "${{ needs.integration-lanes.result }}" = skipped
+          test "${{ needs.integration-full.result }}" = skipped
+      - name: Full integration evidence passed
+        if: needs.scope.outputs.release_light != 'true'
+        run: |
+          test "${{ needs.browser-chromium.result }}" = success
+          test "${{ needs.integration-lanes.result }}" = success
+          test "${{ needs.integration-full.result }}" = success

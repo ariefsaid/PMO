@@ -2,6 +2,7 @@
 // CI test scope (#1584): decide which test layers a PR to `dev` can affect.
 //
 //   node scripts/ci-test-scope.mjs --base origin/dev   → {"unit":"full"|"affected","pgtap":bool,"deno":bool,"reason":"…"}
+//   node scripts/ci-test-scope.mjs --release-please --target-base main --head-branch <name> --base origin/main
 //   node scripts/ci-test-scope.mjs --fs-coupled        → vitest test files that read repo files (one per line)
 //   node scripts/ci-test-scope.mjs --self-test
 //
@@ -13,6 +14,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -84,8 +86,223 @@ export function scope(changes, { setupFiles = [], edgeImports = new Set(), thres
   };
 }
 
+const RELEASE_PLEASE_FILES = [
+  '.release-please-manifest.json',
+  'pmo-portal/CHANGELOG.md',
+  'pmo-portal/package.json',
+  'pmo-portal/package-lock.json',
+];
+const RELEASE_PLEASE_ALLOWED = new Set(RELEASE_PLEASE_FILES);
+const RELEASE_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+function fullReleasePlease(reason) {
+  return { unit: 'full', pgtap: true, deno: true, releaseLight: false, reason };
+}
+
+function parseJsonFile(files, name) {
+  if (!files || typeof files[name] !== 'string' || files[name].trim() === '') throw new Error('missing file');
+  return JSON.parse(files[name]);
+}
+
+function topLevelVersion(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) && typeof value.version === 'string'
+    ? value.version
+    : null;
+}
+
+function packageLockRootVersion(lock) {
+  if (!lock || typeof lock !== 'object' || Array.isArray(lock)) return null;
+  if (!Object.hasOwn(lock, 'packages')) return topLevelVersion(lock);
+  const packages = lock.packages;
+  return packages && typeof packages === 'object' && !Array.isArray(packages)
+    ? topLevelVersion(packages[''])
+    : null;
+}
+
+function withoutPackageVersion(value, lockfile = false) {
+  const { version: _topLevelVersion, ...rest } = value;
+  if (!lockfile || !Object.hasOwn(value, 'packages')) return rest;
+  const packages = value.packages;
+  const { version: _rootPackageVersion, ...rootPackage } = packages[''];
+  return { ...rest, packages: { ...packages, '': rootPackage } };
+}
+
+function changelogVersion(changelog) {
+  if (typeof changelog !== 'string') return null;
+  const heading = changelog.split(/\r?\n/).find((line) => line.startsWith('## '));
+  return heading?.match(/^## \[([^\]]+)\]/)?.[1] ?? null;
+}
+
+/**
+ * Classify the deliberately narrow release-please fast path. Any missing or uncertain input falls
+ * back to the full CI lanes. JSON is compared as parsed data with only the package version fields
+ * removed (including package-lock's root package record), so formatting/key order is immaterial and
+ * nested dependency edits remain visible.
+ */
+export function classifyReleasePlease({
+  targetBase,
+  headBranch,
+  changes,
+  diffMetadataClean,
+  baseFiles,
+  headFiles,
+} = {}) {
+  if (targetBase !== 'main') return fullReleasePlease('target is not main');
+  if (typeof headBranch !== 'string' || !headBranch.startsWith('release-please--')) {
+    return fullReleasePlease('head branch is not release-please generated');
+  }
+  if (diffMetadataClean !== true) return fullReleasePlease('diff metadata is uncertain');
+  if (!Array.isArray(changes) || changes.length === 0) return fullReleasePlease('diff is empty or unavailable');
+  const seen = new Set();
+  for (const change of changes) {
+    if (!change || change.status !== 'M' || typeof change.path !== 'string' || !RELEASE_PLEASE_ALLOWED.has(change.path)) {
+      return fullReleasePlease('diff contains an unexpected or renamed path');
+    }
+    if (seen.has(change.path)) return fullReleasePlease('diff contains duplicate paths');
+    seen.add(change.path);
+  }
+
+  let manifest;
+  let baseManifest;
+  let basePackage;
+  let headPackage;
+  let baseLock;
+  let headLock;
+  try {
+    manifest = parseJsonFile(headFiles, '.release-please-manifest.json');
+    baseManifest = parseJsonFile(baseFiles, '.release-please-manifest.json');
+    basePackage = parseJsonFile(baseFiles, 'pmo-portal/package.json');
+    headPackage = parseJsonFile(headFiles, 'pmo-portal/package.json');
+    baseLock = parseJsonFile(baseFiles, 'pmo-portal/package-lock.json');
+    headLock = parseJsonFile(headFiles, 'pmo-portal/package-lock.json');
+    if (typeof baseFiles['pmo-portal/CHANGELOG.md'] !== 'string' || baseFiles['pmo-portal/CHANGELOG.md'].trim() === '' ||
+        typeof headFiles['pmo-portal/CHANGELOG.md'] !== 'string' || headFiles['pmo-portal/CHANGELOG.md'].trim() === '') {
+      throw new Error('missing changelog');
+    }
+  } catch {
+    return fullReleasePlease('an expected release file is missing or malformed');
+  }
+
+  const manifestVersion = manifest && typeof manifest === 'object' && !Array.isArray(manifest)
+    ? manifest['pmo-portal']
+    : null;
+  const baseManifestVersion = baseManifest && typeof baseManifest === 'object' && !Array.isArray(baseManifest)
+    ? baseManifest['pmo-portal']
+    : null;
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) ||
+      !baseManifest || typeof baseManifest !== 'object' || Array.isArray(baseManifest)) {
+    return fullReleasePlease('release manifest is not a JSON object');
+  }
+  const { 'pmo-portal': _baseManifestVersion, ...baseManifestWithoutVersion } = baseManifest;
+  const { 'pmo-portal': _headManifestVersion, ...headManifestWithoutVersion } = manifest;
+  if (!isDeepStrictEqual(baseManifestWithoutVersion, headManifestWithoutVersion)) {
+    return fullReleasePlease('release manifest contains a non-version edit');
+  }
+  const packageVersion = topLevelVersion(headPackage);
+  const lockVersion = topLevelVersion(headLock);
+  const lockRootPackageVersion = packageLockRootVersion(headLock);
+  const headingVersion = changelogVersion(headFiles['pmo-portal/CHANGELOG.md']);
+  if (![manifestVersion, packageVersion, lockVersion, lockRootPackageVersion, headingVersion].every((version) => typeof version === 'string' && RELEASE_VERSION.test(version))) {
+    return fullReleasePlease('release version is missing or malformed');
+  }
+  if (new Set([manifestVersion, packageVersion, lockVersion, lockRootPackageVersion, headingVersion]).size !== 1) {
+    return fullReleasePlease('release versions do not agree');
+  }
+
+  const baseLockRootPackageVersion = packageLockRootVersion(baseLock);
+  const previousVersions = [baseManifestVersion, topLevelVersion(basePackage), topLevelVersion(baseLock), baseLockRootPackageVersion];
+  if (!previousVersions.every((version) => typeof version === 'string' && RELEASE_VERSION.test(version))) {
+    return fullReleasePlease('base package-lock root version is missing or malformed');
+  }
+  if (previousVersions.every((version) => version === manifestVersion)) {
+    return fullReleasePlease('release version is unchanged');
+  }
+  for (const [before, after, isLockfile] of [[basePackage, headPackage, false], [baseLock, headLock, true]]) {
+    if (!before || typeof before !== 'object' || Array.isArray(before) || !after || typeof after !== 'object' || Array.isArray(after)) {
+      return fullReleasePlease('package metadata is not a JSON object');
+    }
+    if (topLevelVersion(before) === null || topLevelVersion(after) === null) {
+      return fullReleasePlease('package version field is missing');
+    }
+    if (isLockfile && (packageLockRootVersion(before) === null || packageLockRootVersion(after) === null)) {
+      return fullReleasePlease('package-lock root package version is missing');
+    }
+    const beforeWithoutVersion = withoutPackageVersion(before, isLockfile);
+    const afterWithoutVersion = withoutPackageVersion(after, isLockfile);
+    if (!isDeepStrictEqual(beforeWithoutVersion, afterWithoutVersion)) {
+      return fullReleasePlease('package JSON contains a non-version edit');
+    }
+  }
+
+  return {
+    unit: 'full',
+    pgtap: true,
+    deno: true,
+    releaseLight: true,
+    version: manifestVersion,
+    reason: 'release-please version files validated',
+  };
+}
+
 // ── repo reading ────────────────────────────────────────────────────────────
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20 });
+
+function parseNameStatusZ(output) {
+  const fields = output.split('\0');
+  const changes = [];
+  for (let index = 0; index < fields.length && fields[index] !== ''; ) {
+    const status = fields[index++];
+    const renamedOrCopied = status.startsWith('R') || status.startsWith('C');
+    const pathCount = renamedOrCopied ? 2 : 1;
+    if (fields.length < index + pathCount) return null;
+    if (renamedOrCopied) {
+      const oldPath = fields[index++];
+      const nextPath = fields[index++];
+      changes.push({ status, path: nextPath, oldPath });
+    } else {
+      changes.push({ status, path: fields[index++] });
+    }
+  }
+  return changes;
+}
+
+function gitFile(revision, file) {
+  try {
+    return git('show', `${revision}:${file}`);
+  } catch {
+    return undefined;
+  }
+}
+
+function releasePleaseCli(argv) {
+  const value = (name) => {
+    const index = argv.indexOf(name);
+    return index === -1 ? undefined : argv[index + 1];
+  };
+  const baseRef = value('--base');
+  const resultForFailure = (reason) => console.log(JSON.stringify(fullReleasePlease(reason)));
+  if (!baseRef) return resultForFailure('base ref is missing');
+
+  try {
+    const diffRange = `${baseRef}...HEAD`;
+    const changes = parseNameStatusZ(git('diff', '--name-status', '--find-renames', '-z', '--no-ext-diff', diffRange));
+    if (!changes) return resultForFailure('diff paths could not be parsed');
+    const diffMetadataClean = git('diff', '--summary', '--no-ext-diff', diffRange).trim() === '';
+    const baseFiles = Object.fromEntries(RELEASE_PLEASE_FILES.map((file) => [file, gitFile(baseRef, file)]));
+    const headFiles = Object.fromEntries(RELEASE_PLEASE_FILES.map((file) => [file, gitFile('HEAD', file)]));
+    const result = classifyReleasePlease({
+      targetBase: value('--target-base'),
+      headBranch: value('--head-branch'),
+      changes,
+      diffMetadataClean,
+      baseFiles,
+      headFiles,
+    });
+    console.log(JSON.stringify(result));
+  } catch {
+    resultForFailure('diff could not be inspected');
+  }
+}
 
 /** Relative import targets of a source file, resolved to repo-relative paths that exist. */
 export function localImports(file, root = ROOT) {
@@ -135,10 +352,11 @@ function setupFilesFromConfig(root = ROOT) {
 }
 
 function cli(argv) {
+  if (argv.includes('--release-please')) return releasePleaseCli(argv);
   if (argv.includes('--self-test')) return selfTest();
   if (argv.includes('--fs-coupled')) return console.log(fsCoupledTests().join('\n'));
   const base = argv[argv.indexOf('--base') + 1];
-  if (!argv.includes('--base') || !base) throw new Error('usage: ci-test-scope.mjs --base <ref> | --fs-coupled | --self-test');
+  if (!argv.includes('--base') || !base) throw new Error('usage: ci-test-scope.mjs --base <ref> | --release-please --target-base <branch> --head-branch <name> --base <ref> | --fs-coupled | --self-test');
   const changes = git('diff', '--name-status', '--no-renames', `${base}...HEAD`)
     .split('\n')
     .filter(Boolean)

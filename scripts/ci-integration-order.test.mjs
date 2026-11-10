@@ -56,8 +56,8 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
 
 test('AC-BSH-003 release lanes run beside three balanced Chromium shards and a required aggregate closes the gate', () => {
   const browser = workflow.slice(workflow.indexOf('  browser-chromium:'), workflow.indexOf('  integration-lanes:'));
-  const integrationLanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
-  const integrationGate = workflow.slice(workflow.indexOf('\n  integration:'));
+  const integrationLanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration-full:'));
+  const integrationFull = workflow.slice(workflow.indexOf('\n  integration-full:'), workflow.indexOf('\n  integration:'));
   assert.match(browser, /shard: \[1, 2, 3\]/);
   assert.match(browser, /max-parallel: 3/);
   assert.match(browser, /fail-fast: false/);
@@ -68,19 +68,19 @@ test('AC-BSH-003 release lanes run beside three balanced Chromium shards and a r
     assert.ok(integrationLanes.includes(`${step}: \${{ steps.${step}.outcome }}`));
     assert.match(integrationLanes, new RegExp(`id: ${step}[\\s\\S]*?continue-on-error: true`));
   }
-  assert.match(integrationGate, /needs: \[browser-chromium, integration-lanes\]/);
+  assert.match(integrationFull, /needs: \[scope, browser-chromium, integration-lanes\]/);
   assert.match(workflow, /name: browser-chromium-\$\{\{ matrix\.shard \}\}/);
   assert.match(workflow, /browser-shard-\$\{\{ matrix\.shard \}\}\.json/);
   assert.match(workflow, /GITHUB_RUN_ID[\s\S]*GITHUB_RUN_ATTEMPT[\s\S]*GITHUB_SHA/);
-  assert.match(integrationGate, /Verify Chromium shard provenance and completeness[\s\S]*processOutcome !== 'success'/);
-  assert.match(integrationGate, /E2E skip audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
-  assert.match(integrationGate, /E2E timing budget audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
-  assert.match(integrationGate, /Required integration result requires all browser evidence and audits[\s\S]*needs\.browser-chromium\.result/);
-  const gateStart = integrationGate.indexOf('- name: Required integration result requires all browser evidence and audits');
-  const nextGateStep = integrationGate.indexOf('\n      - name:', gateStart + 1);
-  const gateEnd = nextGateStep === -1 ? integrationGate.length : nextGateStep;
+  assert.match(integrationFull, /Verify Chromium shard provenance and completeness[\s\S]*processOutcome !== 'success'/);
+  assert.match(integrationFull, /E2E skip audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
+  assert.match(integrationFull, /E2E timing budget audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
+  assert.match(integrationFull, /Required integration result requires all browser evidence and audits[\s\S]*needs\.browser-chromium\.result/);
+  const gateStart = integrationFull.indexOf('- name: Required integration result requires all browser evidence and audits');
+  const nextGateStep = integrationFull.indexOf('\n      - name:', gateStart + 1);
+  const gateEnd = nextGateStep === -1 ? integrationFull.length : nextGateStep;
   assert.ok(gateStart !== -1 && gateEnd > gateStart, 'required integration gate bounds are invalid');
-  const gate = integrationGate.slice(gateStart, gateEnd);
+  const gate = integrationFull.slice(gateStart, gateEnd);
   for (const expression of [
     'needs.browser-chromium.result',
     'needs.integration-lanes.result',
@@ -334,7 +334,7 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
   // the condition that scheduled it, so a skipped-but-required lane can never pass silently.
   assert.match(
     verifyJob,
-    /- name: Edge-function lane passed \(when it ran\)\n        if: needs\.scope\.outputs\.deno == 'true'\n        run: test "\$\{\{ needs\.deno\.result \}\}" = success/,
+    /- name: Edge-function lane passed \(when it ran\)\n        if: \$\{\{ needs\.scope\.outputs\.release_light != 'true' && needs\.scope\.outputs\.deno == 'true' \}\}\n        run: test "\$\{\{ needs\.deno\.result \}\}" = success/,
     'verify must fail when the deno lane failed, and skip the assertion only when the lane was not scheduled',
   );
   assert.match(
@@ -382,7 +382,7 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
   const denoJob = workflow.slice(workflow.indexOf('\n  deno:'), workflow.indexOf('\n  coverage:'));
   assert.match(
     denoJob,
-    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.deno == 'true' \}\}\n/,
+    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.release_light != 'true' && needs\.scope\.outputs\.deno == 'true' \}\}\n/,
     'the deno job must be gated on scope.deno',
   );
   for (const step of ['denoland/setup-deno', 'bash scripts/deno-typecheck-edge-fns.sh', 'bash scripts/deno-boot-smoke-edge-fns.sh', 'bash scripts/deno-test-edge-fns.sh']) {
@@ -395,8 +395,8 @@ test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration ga
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
   assert.match(verifyJob, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
-  assert.match(unitJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
-  const integration = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
+  assert.match(unitJob, /\n    if: \$\{\{ github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.release_light != 'true' \}\}\n/);
+  const integration = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration-full:'));
   assert.match(
     integration,
     /if: github\.event_name != 'workflow_dispatch' \|\| inputs\.run_pgtap\n\s+run: supabase test db/,
