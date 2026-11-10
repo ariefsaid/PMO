@@ -10,6 +10,81 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.35.0](https://github.com/ariefsaid/PMO/compare/v0.34.0...v0.35.0) (2026-11-10)
+
+
+### Features
+
+* **budget:** paste budget rows into a Draft, slice C dialog ([#1473](https://github.com/ariefsaid/PMO/issues/1473)) ([c9b5807](https://github.com/ariefsaid/PMO/commit/c9b58073fcfeec61179891fe225f29f74f4105f9))
+* **budget:** return a submitted budget to the PM ([#1413](https://github.com/ariefsaid/PMO/issues/1413)) ([0e67f24](https://github.com/ariefsaid/PMO/commit/0e67f24ac3c02b1e93ab221b154bf7a9b2ecd87a))
+* **budgets:** activate several imported drafts in one reviewed step ([#1273](https://github.com/ariefsaid/PMO/issues/1273)) ([ce3c461](https://github.com/ariefsaid/PMO/commit/ce3c461b67adc6f1846adf189be12ed17bba2189))
+* **equipment:** match Odoo assets once and keep the register in Odoo ([#1511](https://github.com/ariefsaid/PMO/issues/1511) F3, migration 0854) ([93e0dc3](https://github.com/ariefsaid/PMO/commit/93e0dc33e502cb2ebeff4bdde9ec9870c65819aa))
+* **erp-purchases:** attribute purchase orders to every project their item lines name ([#1276](https://github.com/ariefsaid/PMO/issues/1276)) ([905fb57](https://github.com/ariefsaid/PMO/commit/905fb57645d08c006ae43845346860aefbfac0f7))
+* **m365:** client self-serve setup slices 1-2 ([#1017](https://github.com/ariefsaid/PMO/issues/1017)) ([4d0a46d](https://github.com/ariefsaid/PMO/commit/4d0a46dcf226bc03a3a131cbfdff14f9b63116c7))
+* **odoo:** fleet and maintenance kinds, asset discovery and capability gap ([#1511](https://github.com/ariefsaid/PMO/issues/1511) F1) ([fe90127](https://github.com/ariefsaid/PMO/commit/fe90127e3b4961382fcab30c211bbba6755a4d14))
+* **odoo:** fleet and maintenance register through the outbox, sync follow-ups ([#1511](https://github.com/ariefsaid/PMO/issues/1511), [#1504](https://github.com/ariefsaid/PMO/issues/1504)) ([7db72f8](https://github.com/ariefsaid/PMO/commit/7db72f82196433629b48d33302154650057e2561))
+* **odoo:** ledger lines show Showing x of y from the first page ([#2064](https://github.com/ariefsaid/PMO/issues/2064)) ([ad12511](https://github.com/ariefsaid/PMO/commit/ad12511accc4837c646303d444136a1a62d0d00f))
+* **odoo:** plain notice with retry when the ledger-mode read fails ([#2065](https://github.com/ariefsaid/PMO/issues/2065)) ([b807400](https://github.com/ariefsaid/PMO/commit/b807400ce224f7f1bd350a6d9adb5c00cef1460b))
+* **odoo:** record equipment and maintenance in Odoo through the outbox ([#1511](https://github.com/ariefsaid/PMO/issues/1511) F4) ([3d8751b](https://github.com/ariefsaid/PMO/commit/3d8751b35542f03cf9dd4343aaf5d4067b8e039e))
+* **odoo:** setup screens for the record review, plan choice, send states and employ ([#2050](https://github.com/ariefsaid/PMO/issues/2050)) ([07747c5](https://github.com/ariefsaid/PMO/commit/07747c5568033d5acdba3ec063c0d94a6ebc377e))
+* **pack:** recognise revenue from per-line earned value where a project has contract lines ([#1279](https://github.com/ariefsaid/PMO/issues/1279)) ([75fd990](https://github.com/ariefsaid/PMO/commit/75fd9901014b1a63c3771b64d9f9bc9a71f4a233))
+* **revenue:** choose the client withholding article on receipts and per project ([#1275](https://github.com/ariefsaid/PMO/issues/1275)) ([0ab01e5](https://github.com/ariefsaid/PMO/commit/0ab01e5fdcfed0bf67cf99da2f8436fd00e43f4a))
+* **revenue:** receipt withholding by tax article, slices 1-3 ([#1275](https://github.com/ariefsaid/PMO/issues/1275)) ([1a9d5f9](https://github.com/ariefsaid/PMO/commit/1a9d5f96214cbf7726671baa511023159249e427))
+
+
+### Bug Fixes
+
+* **#1458:** review r7 fixes (M365 notice back above the register, i18n gate scope, drawer double close, shared task view types) ([d080d4a](https://github.com/ariefsaid/PMO/commit/d080d4acfd7eaba11024c1ccd6977d712bdaa309))
+* **budget:** activation resolves on the PMO write; ERP push runs in the background (ADR-0062, [#1030](https://github.com/ariefsaid/PMO/issues/1030)) ([a567714](https://github.com/ariefsaid/PMO/commit/a567714879057c5a7af42b2e30f7bb6a900166dc))
+* **budget:** activation settles the background push outcome through onPushSettled (ADR-0062, [#1030](https://github.com/ariefsaid/PMO/issues/1030)) ([6e47711](https://github.com/ariefsaid/PMO/commit/6e4771101552e2ea5c6e9f5cf41decf7b2e52355))
+* **budget:** attribute a resumed push to the version's activation actor ([cc374e3](https://github.com/ariefsaid/PMO/commit/cc374e3bf621ad2a7203525faa1fe635b2368bfd))
+* **budget:** cancel/resume and archive-cancel reference, with the AC-018 journey ([#1472](https://github.com/ariefsaid/PMO/issues/1472)) ([93b9076](https://github.com/ariefsaid/PMO/commit/93b9076534708cc0a7c6c8b6a7184d871f7ec7b8))
+* **budget:** paste dialog drops dead save guard; refreshBudgetQueries back to dev's prefixes ([#1473](https://github.com/ariefsaid/PMO/issues/1473) slice C) ([1a52058](https://github.com/ariefsaid/PMO/commit/1a52058d47419796a4f224b92107a335a5d6d014))
+* **budget:** paste dialog passes a rejected row's error to EntityFormModal submitError (AC-ERR-001, [#1473](https://github.com/ariefsaid/PMO/issues/1473)) ([0488be8](https://github.com/ariefsaid/PMO/commit/0488be81c087c80bcb312c883cc730ee93cb83b1))
+* **budget:** push status reads Queued from activation until the push settles ([#1030](https://github.com/ariefsaid/PMO/issues/1030)) ([b3f42eb](https://github.com/ariefsaid/PMO/commit/b3f42ebdad596dc247e950d3925f8a06fe865bf4))
+* **budget:** resume units parked behind an ERP archive cancellation ([6bbfbe7](https://github.com/ariefsaid/PMO/commit/6bbfbe795600ff17245b4d5ae0c382cf451ef677))
+* **budgets:** bulk activation applies the Budget tab's distribution gate and names the real block reason ([#1273](https://github.com/ariefsaid/PMO/issues/1273)) ([781691a](https://github.com/ariefsaid/PMO/commit/781691ae84e23d132ebd7d1596531b04b61d82d1))
+* **budgets:** bulk activation keeps a per-project outcome list, names empty ERP pushes, classifies errors, plural wording ([#1273](https://github.com/ariefsaid/PMO/issues/1273)) ([9614904](https://github.com/ariefsaid/PMO/commit/9614904cda1a018b4cdaa05f62e6456573bc51db))
+* **budgets:** flag a bulk-activated draft whose ERP push failed ([#1273](https://github.com/ariefsaid/PMO/issues/1273)) ([49905be](https://github.com/ariefsaid/PMO/commit/49905be73f46c5ca72b9d8eb802cf98bc08563ab))
+* **budget:** skip the Queued seed when the push settled before activation resolved ([#1030](https://github.com/ariefsaid/PMO/issues/1030)) ([2b287ba](https://github.com/ariefsaid/PMO/commit/2b287badf0c19adfa6e2092202e73427a9ec6ecf))
+* **budget:** skip the Queued seed when the push settled before activation returned ([#1030](https://github.com/ariefsaid/PMO/issues/1030)) ([f3057c6](https://github.com/ariefsaid/PMO/commit/f3057c61cd3841dcaed0ac0e799d9e2a1a5c66d2))
+* **erp-purchases:** defer an order unit whose item read cannot finish in the pass; add item_projects to the generated types ([#1276](https://github.com/ariefsaid/PMO/issues/1276)) ([0aac015](https://github.com/ariefsaid/PMO/commit/0aac015feee3068e960c193b2a1a38bcee7e01b0))
+* **erp-purchases:** restore the legacy-cursor check after the v4 namespace rename; correct the failed-write test for deferred order errors ([#1276](https://github.com/ariefsaid/PMO/issues/1276)) ([398f3e6](https://github.com/ariefsaid/PMO/commit/398f3e630edf44d4ec1c42c19a3329dee29f8dae))
+* **erpnext:** purchase order company, order guard and mirror customer heal, with test-bed journeys ([#1607](https://github.com/ariefsaid/PMO/issues/1607)) ([64a55a0](https://github.com/ariefsaid/PMO/commit/64a55a03b374602e4cbc3e3ef6e346b839c2d914))
+* **erpnext:** purchase order, invoice and receipt bodies carry the binding company ([aa93d4e](https://github.com/ariefsaid/PMO/commit/aa93d4e17eaa4605b66380d6eae2c9f82f9519f1))
+* **m365:** entitlement follows the resolved plan switch ([#1017](https://github.com/ariefsaid/PMO/issues/1017) S1) ([c1bafd6](https://github.com/ariefsaid/PMO/commit/c1bafd692d0dbb3fc6e606ebaa8b971a84970e3a))
+* **odoo:** a login partner with a trade role is still a customer or vendor ([#2048](https://github.com/ariefsaid/PMO/issues/2048) [#2049](https://github.com/ariefsaid/PMO/issues/2049)) ([abe9cd2](https://github.com/ariefsaid/PMO/commit/abe9cd22fcc4d8f5a43a6d859978f7ac71acccdd))
+* **odoo:** a project whose number or client code equals a cost account's code gets a link proposal ([#2052](https://github.com/ariefsaid/PMO/issues/2052)) ([b75b434](https://github.com/ariefsaid/PMO/commit/b75b43454aca805e66b4c8ad7729a95765a27b38))
+* **odoo:** budget cards follow the Odoo figures and one currency on the tab ([#2066](https://github.com/ariefsaid/PMO/issues/2066)) ([5fa2802](https://github.com/ariefsaid/PMO/commit/5fa28022b44bd46d1d5ac5029e139b6344e9fbac))
+* **odoo:** currency notice names budget, spending and commitments separately; deterministic Odoo company pick ([#2066](https://github.com/ariefsaid/PMO/issues/2066)) ([8bb9166](https://github.com/ariefsaid/PMO/commit/8bb91669decf0a6e94b66bfcefc1ca10642e69b1))
+* **odoo:** every budget figure keeps its own currency; Odoo spend named at the finances read; partial Spent says so ([#2066](https://github.com/ariefsaid/PMO/issues/2066), [#2064](https://github.com/ariefsaid/PMO/issues/2064)) ([95d000e](https://github.com/ariefsaid/PMO/commit/95d000ee4a28b90dd917fc5dafbac21c58eec9d3))
+* **odoo:** login users' partners never become master-data review rows ([#2049](https://github.com/ariefsaid/PMO/issues/2049)) ([37f7209](https://github.com/ariefsaid/PMO/commit/37f7209b9240eba4c70aa41884000e6a450bc34b))
+* **odoo:** project send names the cost account with the PMO project number (FR-ODC-072) ([aa202f6](https://github.com/ariefsaid/PMO/commit/aa202f641f92737e270705bd76dadf989c2f0307))
+* **odoo:** Re-check does one authenticated read, not full discovery ([#2051](https://github.com/ariefsaid/PMO/issues/2051)) ([4e60d8a](https://github.com/ariefsaid/PMO/commit/4e60d8a0ff40f19c2acde2e90d4db3375b3dc6db))
+* **odoo:** Re-check runs discovery on a degraded or missing snapshot; correct the CPU claim ([#2051](https://github.com/ariefsaid/PMO/issues/2051)) ([caf4a16](https://github.com/ariefsaid/PMO/commit/caf4a1622f24259eab92092fd002d139c7b7925c))
+* **odoo:** repair unit and type failures from the batch merge ([#2048](https://github.com/ariefsaid/PMO/issues/2048) [#2051](https://github.com/ariefsaid/PMO/issues/2051) [#2065](https://github.com/ariefsaid/PMO/issues/2065)) ([3122161](https://github.com/ariefsaid/PMO/commit/31221611a2255575c6c0d156aa318bf4722a0b34))
+* **odoo:** sends-finished step shares the connect-status cache, ignores account reviews, hides for Finance; tests tighten ([#2053](https://github.com/ariefsaid/PMO/issues/2053)) ([fb6b881](https://github.com/ariefsaid/PMO/commit/fb6b881f53f797b288aac8334b3f7d1722e8d179))
+* **odoo:** setup checklist sends step follows send state, not an unwritten marker ([#2053](https://github.com/ariefsaid/PMO/issues/2053)) ([d7e5eb7](https://github.com/ariefsaid/PMO/commit/d7e5eb7b89e0f302c33772fbbb08bff185ee34cd))
+* **odoo:** the project link screen shows the connection banner; Map once completes for orgs that use no units ([c33abe0](https://github.com/ariefsaid/PMO/commit/c33abe01fe27e950e4321a941f65a7832b2b10db))
+* **odoo:** the register refuses an id the book holds, binds a maintenance edit to its asset, and checks the ids a caller names ([#1511](https://github.com/ariefsaid/PMO/issues/1511) F4 review) ([086b020](https://github.com/ariefsaid/PMO/commit/086b0209e2f78412e71e3be924f1348404e04033))
+* **odoo:** the setup census leaves out the partners Odoo holds for itself ([#2048](https://github.com/ariefsaid/PMO/issues/2048)) ([99ad91f](https://github.com/ariefsaid/PMO/commit/99ad91f29c0d502346746cf95ffa4678b9391fad))
+* **revenue:** classify projects.receipt_withholding_article in change capture; enter amounts in the no-withholding receipt test ([#1275](https://github.com/ariefsaid/PMO/issues/1275)) ([7ebee2d](https://github.com/ariefsaid/PMO/commit/7ebee2d07138c41530090a0de1bc511e33d5da50))
+* **revenue:** per-field Clear names, keep a hand-picked receipt article, omit stale project article ([#1275](https://github.com/ariefsaid/PMO/issues/1275)) ([12a0e68](https://github.com/ariefsaid/PMO/commit/12a0e680d3e72fa7820394db142a8c6f2a156e33))
+* **revenue:** post receipt withholding to the prepaid account of its tax article ([#1275](https://github.com/ariefsaid/PMO/issues/1275)) ([f486b94](https://github.com/ariefsaid/PMO/commit/f486b9454f55054637ff59910b82470d07d2b730))
+
+
+### Performance
+
+* **budgets:** bulk-activation panel reads nothing until opened, caps readiness checks at 10, gates on role ([#1273](https://github.com/ariefsaid/PMO/issues/1273)) ([c93731e](https://github.com/ariefsaid/PMO/commit/c93731e0a36946d815c6e4cf3e92b95e81685d65))
+* **i18n:** boot with only the common namespace, load feature catalogues on demand ([#2097](https://github.com/ariefsaid/PMO/issues/2097)) ([3ab1d7e](https://github.com/ariefsaid/PMO/commit/3ab1d7e0cc482d2d841ade2f46f50d59c9ef53b3))
+* lazy translation namespaces and derived procurement figures ([#2097](https://github.com/ariefsaid/PMO/issues/2097), [#2101](https://github.com/ariefsaid/PMO/issues/2101)) ([1381df8](https://github.com/ariefsaid/PMO/commit/1381df878741d10a58c84c2a383f4a0fb19e29ac))
+* **procurement:** derive each procurement row once instead of per call site ([#2101](https://github.com/ariefsaid/PMO/issues/2101)) ([9e677d0](https://github.com/ariefsaid/PMO/commit/9e677d01ee90fc7b5a219196a718c3b16dafab65))
+
+
+### Refactors
+
+* **budget:** drop the activation push-outcome toasts that ADR-0062 made unreachable ([#1030](https://github.com/ariefsaid/PMO/issues/1030)) ([43d0e8f](https://github.com/ariefsaid/PMO/commit/43d0e8f2e203c6ddf2ac7e6f5a36d4ec7e1bc440))
+
 ## [0.34.0](https://github.com/ariefsaid/PMO/compare/v0.33.0...v0.34.0) (2026-11-09)
 
 
