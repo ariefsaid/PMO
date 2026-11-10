@@ -169,6 +169,52 @@ const CODES: Record<string, Entry> = {
     retryable: true,
     remedy: 'Retry the push to queue a fresh command.',
   },
+  // ── the register and its maintenance (#1511 F4) ──────────────────────────────────────────────
+  // Refused BEFORE any outbox row: the asset page is where each is fixed, so no retry can help.
+  'equipment-not-linked': {
+    message: 'This asset is not linked to the Odoo register yet.',
+    retryable: false,
+    remedy: 'An Admin matches it to its Odoo asset on the match screen, then record this again.',
+  },
+  'equipment-kind-mismatch': {
+    message: 'A vehicle takes a service log; equipment takes a maintenance request.',
+    retryable: false,
+    remedy: 'Record the right kind of maintenance for this asset: a service log for a vehicle, a maintenance request for equipment.',
+  },
+  'register-role': {
+    message: 'Only an Admin or Project Manager can change the register.',
+    retryable: false,
+    remedy: 'Ask an Admin or a Project Manager to save this change; anyone can record maintenance.',
+  },
+  // The id a register CREATE reserves is already in the book (this org's or another's): nothing was sent, and a retry would meet the
+  // same row. The asset page is where the fresh id comes from.
+  'record-id-invalid': {
+    message: 'This save would reuse a PMO asset identity that already belongs to a record, so it was not sent to the register.',
+    retryable: false,
+    remedy: 'Start the register entry again from the asset page, so it gets its own identity.',
+  },
+  // A picker the caller named — a vehicle model, a maintenance stage, a service type, a vendor — is not one the Odoo directory
+  // mirrors for this organisation, so the register holds no row PMO could point at. Refused before any outbox row.
+  'vehicle-model-invalid': {
+    message: 'The vehicle model this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a model from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'stage-invalid': {
+    message: 'The maintenance stage this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a stage from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'service-type-invalid': {
+    message: 'The service type this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a service type from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'vendor-invalid': {
+    message: 'The vendor this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a vendor from the Odoo list, or sync the Odoo directory, then save again.',
+  },
   // ⚑ rm-1472 / M-2 (review r8) — the two reasons a PARKED replacement push is held for a person once
   // the project's archive-cancellation fence is settled. Retryable ON PURPOSE: a Retry re-runs the whole
   // gate under the retrying person's own authority, which is exactly the way out of both (a different,

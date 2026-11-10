@@ -8,7 +8,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { bindCall, OdooError, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { fetchOdooVersionMajor } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
 import { discoverCapabilities, DISCOVERY_BUDGET_MS, type CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
-import { KIND_SPECS, type DirectoryKind, type DirectoryRow } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
+import { KIND_SPECS, type DirectoryKind, type DirectoryRow, type KindSpec } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
+import { ASSET_KINDS, ASSET_KIND_SPECS, type AssetKind } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { odooKindReaders, runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
 import { advanceConnectRuns } from './connectRun.ts';
 import { matchNewPartners } from './odooPartyFeed.ts';
@@ -30,6 +31,9 @@ const LOCK_TTL = '15 minutes';
 /** Calls held back for each kind still to run (its feed page and census), so one kind's backlog never starves the rest. */
 const RESERVE_PER_KIND = 2;
 const DAY_MS = 86_400_000;
+
+type MirrorKind = DirectoryKind | AssetKind;
+const SPECS: Record<MirrorKind, KindSpec> = { ...KIND_SPECS, ...ASSET_KIND_SPECS };
 
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
 type Budget = { spend: (calls?: number) => boolean; left: () => boolean; canSpend?: (calls?: number) => boolean; refund?: (calls?: number) => void };
@@ -90,7 +94,7 @@ async function rpc(sc: SupabaseClient, fn: string, args: Record<string, unknown>
   return data;
 }
 
-async function readCursor(sc: SupabaseClient, orgId: string, kind: DirectoryKind): Promise<string> {
+async function readCursor(sc: SupabaseClient, orgId: string, kind: MirrorKind): Promise<string> {
   const { data, error } = await sc.from('external_sync_watermarks').select('watermark_cursor')
     .eq('org_id', orgId).eq('external_tier', 'odoo').eq('domain', `master:${kind}`).maybeSingle();
   if (error) throw new Error('could not read the Odoo cursor');
@@ -103,9 +107,27 @@ function readable(capabilities: CapabilitySnapshot | undefined, model: string): 
   return !p || (p.exists && p.read && p.fields_missing.length === 0);
 }
 
-function kindDeps(sc: SupabaseClient, orgId: string, kind: DirectoryKind, call: OdooCall, companyId: number, budget: Budget): KindRunDeps {
+/** An asset model counts as readable only when the snapshot shows it; absent means not read (unlike `readable`, which trusts an old snapshot). */
+function assetReadable(capabilities: CapabilitySnapshot | undefined, model: string): boolean {
+  const p = capabilities?.assets?.[model];
+  return !!p && p.exists && p.read && p.fields_missing.length === 0;
+}
+
+/** FR-OFM-010/011: the fleet and maintenance kinds are read only for an org that employs `equipment` under Odoo. An error is "not employed" for this tick. */
+async function equipmentFeedEmployed(sc: SupabaseClient, orgId: string): Promise<boolean> {
+  try {
+    const { data, error } = await sc.rpc('org_employs_odoo_equipment', { p_org: orgId });
+    if (error) { console.error('could not read the Odoo equipment ownership'); return false; }
+    return data === true;
+  } catch {
+    console.error('could not read the Odoo equipment ownership');
+    return false;
+  }
+}
+
+function kindDeps(sc: SupabaseClient, orgId: string, kind: MirrorKind, call: OdooCall, companyId: number, budget: Budget): KindRunDeps {
   return {
-    ...odooKindReaders(call, KIND_SPECS[kind], companyId),
+    ...odooKindReaders(call, SPECS[kind], companyId),
     apply: async (rows, cursor) => { await rpc(sc, 'apply_odoo_master_page', { p_org_id: orgId, p_kind: kind, p_rows: rows, p_cursor: cursor }); },
     censusSeen: async (run, ids) => { await rpc(sc, 'mark_odoo_census_seen', { p_org_id: orgId, p_kind: kind, p_run: run, p_ids: ids }); },
     censusFinish: async (run, cursor) => { await rpc(sc, 'finish_odoo_census', { p_org_id: orgId, p_kind: kind, p_run: run, p_cursor: cursor }); },
@@ -160,7 +182,8 @@ export async function sweepOdooOrg(
     let hold: PurchaseHold | null = null;
     let ledgerResult: LedgerPassResult | undefined;
     try {
-      const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
+      const assetKinds: AssetKind[] = (await equipmentFeedEmployed(sc, orgId)) ? ASSET_KINDS.filter((k) => assetReadable(capabilities, ASSET_KIND_SPECS[k].model)) : [];
+      const kinds: MirrorKind[] = [...ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model)), ...assetKinds];
       // Document feeds run after the directory (they map through it) and reserve a share of the tick, so the initial directory
       // scan cannot starve purchase or revenue reconciliation. The procurement switch is read here, once, before the purchase
       // domains are chosen: a held feed is simply absent from this tick's list, so it reserves no calls and its cursors stay put.
@@ -244,9 +267,9 @@ export async function sweepOdooOrg(
           spend: (units = 1) => calls + units <= cap && budget.spend(units),
         };
         const deps = kindDeps(sc, orgId, kind, call, r.companyId!, kindBudget);
-        const run = await runKind(KIND_SPECS[kind], await readCursor(sc, orgId, kind), deps);
+        const run = await runKind(SPECS[kind], await readCursor(sc, orgId, kind), deps);
         skippedRows += run.skipped;
-        await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget, call);
+        await AFTER_APPLY[kind as DirectoryKind]?.(sc, orgId, run.applied, started + timeBudget, call);
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
       }
       if (labour) {

@@ -42,6 +42,24 @@ seed() {
   if odoo_run odoo -d "$ODOO_DB" -i "$L10N" --without-demo=all --stop-after-init 2>&1 | tail -3; then :; fi
 }
 
+# The Indonesian chart (PPN taxes, IDR) is what the connect capability check and the journeys expect; loaded once, skipped when already loaded.
+load_chart() {
+  local log; log="$(mktemp)"
+  if odoo_run odoo shell -d "$ODOO_DB" --no-http >"$log" 2>&1 <<'PY'
+co = self.env.company
+if co.chart_template != 'id':
+    self.env['account.chart.template'].sudo().try_loading('id', co, install_demo=False)
+    self.env.cr.commit()
+PY
+  then
+    rm -f "$log"; return 0
+  fi
+  # Best effort (the journeys still run on whatever chart is loaded), but never silent: the tail is what explains a missing tax later.
+  echo "indonesian chart load skipped (best effort); the odoo shell said:" >&2
+  tail -20 "$log" >&2
+  rm -f "$log"
+}
+
 mint_key() {
   # Create/refresh a dedicated bot user + an API key via odoo shell; key goes to .env.odoo.local only.
   grep -q '^ODOO_API_KEY=' "$ENVF" && return 0
@@ -56,7 +74,7 @@ if not u:
     })
 admin_grp = [g for g in ('base.group_system', 'account.group_account_manager', 'purchase.group_purchase_manager',
     'stock.group_stock_manager', 'project.group_project_manager', 'fleet.fleet_group_manager',
-    'maintenance.group_equipment_manager', 'hr.group_hr_manager', 'hr_timesheet.group_timesheet_manager') if env.ref(g, raise_if_not_found=False)]
+    'maintenance.group_equipment_manager', 'analytic.group_analytic_accounting', 'hr.group_hr_manager', 'hr_timesheet.group_timesheet_manager') if env.ref(g, raise_if_not_found=False)]
 field = 'group_ids' if 'group_ids' in Users._fields else 'groups_id'
 u.write({field: [(4, env.ref(g).id) for g in admin_grp]})
 k = env['res.users.apikeys'].with_user(u)._generate('rpc', 'pmo-dev-bed', None) if hasattr(env['res.users.apikeys'], '_generate') else ''
@@ -75,6 +93,7 @@ case "$cmd" in
     "${COMPOSE[@]}" up -d db
     until [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' db)" = healthy ]; do sleep 2; done
     seed
+    load_chart
     mint_key
     "${COMPOSE[@]}" up -d odoo
     wait_http
