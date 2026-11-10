@@ -2263,7 +2263,7 @@
     "documents": {
       "action": {
         "approve": "Approve",
-        "close": "Close",
+        "close": "Close document",
         "delete": "Delete",
         "edit": "Edit",
         "issue": "Issue",

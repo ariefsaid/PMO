@@ -480,7 +480,9 @@
       "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi.",
       "hiddenFigures": "Tidak ditampilkan: {{figures}}.",
       "cashLead": "Diterima {{amount}}",
-      "contractLocked": "hanya baca"
+      "contractLocked": "hanya baca",
+      "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
+      "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)"
     },
     "cost": {
       "estimateTitle": "Anggaran",

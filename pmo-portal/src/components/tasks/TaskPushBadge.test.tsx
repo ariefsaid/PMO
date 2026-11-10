@@ -58,11 +58,11 @@ describe('TaskPushBadge — AA contrast + register + a11y (review fix #8)', () =
     expect(badge.className).not.toContain('text-success');
   });
 
-  it('badge text is on the board 11.5px register (not 11px)', () => {
+  it('badge text is 14px (text-sm), never a sub-14px size', () => {
     render(<TaskPushBadge state={pushing} />);
     const badge = screen.getByRole('status');
-    expect(badge.className).toContain('text-[11.5px]');
-    expect(badge.className).not.toContain('text-[11px]');
+    expect(badge.className).toContain('text-sm');
+    expect(badge.className).not.toMatch(/text-\[1[0-3](\.\d)?px\]/);
   });
 
   it('push-failed default aria-label is NOT duplicated ("push failed: Push failed")', () => {

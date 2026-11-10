@@ -197,8 +197,8 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
 
   it('AC-PRJ-L10N-001: Bahasa localizes the project status, Board tab, and row Edit action', async () => {
     renderBahasaPage('Admin', '/projects?view=table');
-    expect(await screen.findByText('Proyek berjalan')).toBeInTheDocument();
-    const row = screen.getByText('Proyek berjalan').closest('tr')!;
+    const pill = (await screen.findAllByText('Berjalan')).find((el) => el.closest('tr'))!;
+    const row = pill.closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: 'Tindakan baris' }));
     expect(await screen.findByRole('menuitem', { name: 'Ubah' })).toBeInTheDocument();
 
@@ -271,7 +271,7 @@ describe('Projects index — IA-3 (real data)', () => {
 
   it('renders status as a StatusPill (paired surface + text), not a legacy badge (AC-C)', () => {
     renderPage();
-    const pill = screen.getAllByText('Ongoing Project')[0];
+    const pill = screen.getAllByText('Ongoing').find((el) => el.className.includes('rounded-full'))!;
     // The StatusPill carries the pill chrome + the paired neutral status surface
     // (owner ban 2026-10-29: the former decorative leading dot is gone; the label
     // + surface carry the status).
@@ -455,7 +455,7 @@ describe('Projects table — compact layout (#1)', () => {
     }
   });
 
-  it('RF-009: failed summary reads keep optional columns visible for unavailable-state recovery', () => {
+  it('RF-009: a failed spending read hides the money column and says why once; a failed progress read keeps Progress', () => {
     const priorDelivery = { p1: deliverySummaryState.p1, p2: deliverySummaryState.p2, p3: deliverySummaryState.p3 };
     const priorDeliveryError = deliverySummaryState.isError;
     const priorMoney = projectMoneyState.data;
@@ -469,7 +469,8 @@ describe('Projects table — compact layout (#1)', () => {
       projectMoneyState.isError = true;
       renderPage();
       expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'Budget used' })).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+      expect(screen.getByTestId('projects-coverage')).toHaveTextContent('Project spending could not be read.');
     } finally {
       Object.assign(deliverySummaryState, priorDelivery, { isError: priorDeliveryError });
       projectMoneyState.data = priorMoney;
@@ -742,20 +743,25 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(actualCell).toHaveTextContent('$7,200,000');
   });
 
-  it('#2060: an unknown Actual is a grey em dash, never a blank cell', () => {
+  it('#2060: an unknown Actual is an em dash when other rows have one, and the column is dropped when none does', () => {
+    const unknown = { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '7200000.00', asOf: '2026-10-01T00:00:00Z',
+      excludesRestrictedRows: false, complete: false, categories: [{ category: 'Labor', mapped: false, amount: null }] },
+    activeBudgetAmount: '6900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true };
+    projectMoneyState.data = { p1: unknown };
+    const { unmount } = renderPage();
+    // Blank on every row: no Actual column, one page-level line says why.
+    expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId('projects-coverage')).toHaveTextContent(/Actual is partial on 1 of 1 projects/);
+    unmount();
     projectMoneyState.data = {
-      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '7200000.00', asOf: '2026-10-01T00:00:00Z',
-        excludesRestrictedRows: false, complete: false,
-        categories: [{ category: 'Labor', mapped: false, amount: null }] },
-      activeBudgetAmount: '6900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: unknown,
+      p2: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [] },
+        activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
+    projectsState.data = [seed[0], seed[1]] as unknown as ProjectWithRefs[];
     renderPage();
-    const body = document.querySelector('tbody')!;
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
-    const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
-    expect(actualCell.textContent?.trim()).toBe('—');
-    // The reason stays in the one table-level note, not on the row.
-    expect(screen.getByText(/Actual is partial on 1 of 1 projects/)).toBeInTheDocument();
+    expect(document.querySelector('tbody')!.querySelector('tr')!.cells[actualHeaderIndex].textContent?.trim()).toBe('—');
   });
 
   it('AC-S02: shows a committed PMO Actual as the plain amount, with no per-row source label', () => {
@@ -796,18 +802,13 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
 
-  it('AC-MONEY-DISPLAY: failed collection reads leave money cells empty and explain once', () => {
+  it('AC-MONEY-DISPLAY: a failed collection read drops the money columns and explains once', () => {
     projectMoneyState.data = {};
     projectMoneyState.isError = true;
     renderPage();
     const body = document.querySelector('tbody')!;
-    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
-    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
-    for (const row of body.querySelectorAll('tr')) {
-      // #2060: an unreadable collection is the em dash, never a blank money cell.
-      expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
-      expect(row.cells[budgetHeaderIndex]).toBeEmptyDOMElement();
-    }
+    expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Budget used/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('Project spending could not be read.')).toHaveLength(1);
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
   });
@@ -853,16 +854,14 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       const { unmount: unmountAll } = renderPage();
       const body = document.querySelector('tbody')!;
       expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
-      // `*` marks the caveat-carrying header (#2060's partial/unknown note).
       const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
-      const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
-      // #2060: a withheld figure is the em dash (or, for restricted rows, the row-level tag).
-      expect(actualCell.querySelector('[title]')).toBeNull();
-      expect(actualCell.textContent).not.toContain('$450,000');
+      expect(body.textContent).not.toContain('$450,000');
       if (actuals.excludesRestrictedRows) {
-        expect(actualCell).toHaveTextContent('Restricted excluded');
+        // Restricted rows have a row-level cause, so the tag stays.
+        expect(body.querySelector('tr')!.cells[actualHeaderIndex]).toHaveTextContent('Restricted excluded');
       } else {
-        expect(actualCell).toHaveTextContent('—');
+        // Withheld on every row: the column is dropped, the page-level line says why.
+        expect(actualHeaderIndex).toBe(-1);
       }
       unmountAll();
     }

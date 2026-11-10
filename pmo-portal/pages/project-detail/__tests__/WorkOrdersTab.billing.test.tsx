@@ -75,6 +75,7 @@ vi.mock('../InvoiceWorkOrderModal', () => ({
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { formatDay } from '@/src/lib/format';
 
 const wo = (over: Partial<WorkOrderRow> = {}): WorkOrderRow => ({
   id: 'wo-1', org_id: 'org-1', project_id: 'p1', wo_number: 'WO-1', client_po_number: 'PO-77', title: 'Phase 1 fabrication',
@@ -407,7 +408,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(section).getByRole('table', { name: 'Invoices without a customer order' })).toBeInTheDocument();
     const openButtons = within(section).getAllByRole('button', { name: 'Open invoice INV-ORPHAN' });
     expect(openButtons.length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('Oct 4, 2026').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText(formatDay('2026-10-04')).length).toBeGreaterThan(0);
     expect(within(section).getAllByText('12,346').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('10,000').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('2,346').length).toBeGreaterThan(0);
@@ -463,16 +464,13 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
     expect(within(section).getByText('Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')).toBeInTheDocument();
     expect(within(section).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
-    // #2060: an unknown balance is the em dash — explained once by the note above — never a blank
-    // cell and never a 0.
+    // An unknown balance is not a column of dashes: the Paid and Unpaid columns drop out, the note above
+    // says why, and the row never shows a 0.
     const table = within(section).getByRole('table', { name: 'Invoices without a customer order' });
     const row = within(table).getByRole('row', { name: /INV-ORPHAN/ });
-    // DOM order aligns `thead th` with the row's own th/td children (the invoice column is a row header).
-    const headers = [...table.querySelectorAll('thead th')];
-    const paidIndex = headers.findIndex((header) => header.textContent?.startsWith('Paid'));
-    const unpaidIndex = headers.findIndex((header) => header.textContent?.startsWith('Unpaid'));
-    expect(row.children[paidIndex]).toHaveTextContent('—');
-    expect(row.children[unpaidIndex]).toHaveTextContent('—');
+    const headers = [...table.querySelectorAll('thead th')].map((header) => header.textContent ?? '');
+    expect(headers.some((header) => header.startsWith('Paid'))).toBe(false);
+    expect(headers.some((header) => header.startsWith('Unpaid'))).toBe(false);
     expect(row).not.toHaveTextContent(/\b0\b/);
     expect(row).toHaveTextContent('12,000');
   });

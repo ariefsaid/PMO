@@ -2263,7 +2263,7 @@
     "documents": {
       "action": {
         "approve": "Setujui",
-        "close": "Tutup",
+        "close": "Tutup dokumen",
         "delete": "Hapus",
         "edit": "Edit",
         "issue": "Terbitkan",

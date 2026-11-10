@@ -12,6 +12,7 @@ import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
 import { BahasaProvider } from '@/test/bahasa';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatDay } from '@/src/lib/format';
 
 // The toast library's store replays still-active toasts into the next provider — clear them.
 afterEach(() => {
@@ -149,8 +150,8 @@ describe('ProjectDetailHeader — content', () => {
       </BahasaProvider>,
     );
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByText('Proyek berjalan')).toBeInTheDocument();
-    expect(within(header).queryByText('Ongoing Project')).not.toBeInTheDocument();
+    expect(within(header).getByText('Berjalan')).toBeInTheDocument();
+    expect(within(header).queryByText('Ongoing')).not.toBeInTheDocument();
   });
 
   it('gives the full-width project title priority on mobile and keeps status below metadata', () => {
@@ -164,7 +165,7 @@ describe('ProjectDetailHeader — content', () => {
     );
     const header = screen.getByTestId('record-header');
     const title = within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' });
-    const status = within(header).getByText('Ongoing Project');
+    const status = within(header).getByText('Ongoing');
     expect(title.parentElement?.className).toContain('grid');
     expect(title.className).toContain('col-span-2');
     expect(title.parentElement).toContainElement(status);
@@ -239,9 +240,9 @@ describe('ProjectDetailHeader — content', () => {
   it('UX-007/RF-057: leads with customer and order context; codes live in the rail, not a second header disclosure (PD-A)', async () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
+    expect(screen.getByText('Ongoing')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
-    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
+    expect(screen.getByText(`PO CPO-2026-001 (${formatDay('2026-01-10')})`)).toBeInTheDocument();
     expect(screen.queryByText('More project details')).not.toBeInTheDocument();
     expect(screen.queryByText(/PMO-26-7711/)).not.toBeInTheDocument();
   });
@@ -257,7 +258,7 @@ describe('ProjectDetailHeader — content', () => {
     );
     const header = screen.getByTestId('record-header');
     expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
+    expect(within(header).getByText('Ongoing')).toBeInTheDocument();
     expect(within(header).getByText('Innovate Corp')).toBeInTheDocument();
     expect(within(header).queryByText('PM Alice Manager')).not.toBeInTheDocument();
     expect(within(header).queryByText('Jan 1, 2026 – Dec 18, 2026')).not.toBeInTheDocument();
@@ -373,7 +374,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(header).toBeInTheDocument();
     // identity + status live in the one shared header
     expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
+    expect(within(header).getByText('Ongoing')).toBeInTheDocument();
     // the standardized top-right action zone holds the record actions (Edit, etc.)
     expect(within(header).getByTestId('record-header-actions')).toBeInTheDocument();
   });
@@ -1011,6 +1012,6 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
     expect(screen.queryByText(/PMO Project Number/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
-    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
+    expect(screen.getByText(`PO CPO-2026-001 (${formatDay('2026-01-10')})`)).toBeInTheDocument();
   });
 });

@@ -480,7 +480,9 @@
       "cashInvalid": "Cash received is left out because the receipt reading couldn't be verified.",
       "hiddenFigures": "Not shown: {{figures}}.",
       "cashLead": "Received {{amount}}",
-      "contractLocked": "read-only"
+      "contractLocked": "read-only",
+      "cashIncompleteShort": "Cash received (receipts not allocated to invoices)",
+      "cashInvalidShort": "Cash received (receipt reading not verified)"
     },
     "cost": {
       "estimateTitle": "Budget",

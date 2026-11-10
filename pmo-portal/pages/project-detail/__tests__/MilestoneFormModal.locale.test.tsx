@@ -60,10 +60,8 @@ async function renderForm(locale: 'en' | 'id', milestone: MilestoneWithProgress 
 const copy = {
   en: {
     createTitle: 'New phase',
-    createSubtitle: 'Add a delivery phase to this project',
     createAction: 'Create phase',
     editTitle: 'Edit phase',
-    editSubtitle: 'Update this phase',
     editAction: 'Save phase',
     name: 'Phase name',
     weight: 'Relative weight',
@@ -76,10 +74,8 @@ const copy = {
   },
   id: {
     createTitle: 'Fase baru',
-    createSubtitle: 'Tambahkan fase pelaksanaan ke proyek ini',
     createAction: 'Buat fase',
     editTitle: 'Edit fase',
-    editSubtitle: 'Perbarui fase ini',
     editAction: 'Simpan fase',
     name: 'Nama fase',
     weight: 'Bobot relatif',
@@ -100,7 +96,6 @@ describe('phase form localization and guidance', () => {
       const { unmount } = await renderForm(locale, null);
       const createDialog = screen.getByRole('dialog');
       expect(within(createDialog).getByRole('heading', { name: words.createTitle })).toBeInTheDocument();
-      expect(within(createDialog).getByText(words.createSubtitle)).toBeInTheDocument();
       expect(within(createDialog).getByRole('textbox', { name: words.name })).toBeInTheDocument();
       expect(within(createDialog).getByRole('button', { name: words.createAction })).toBeInTheDocument();
       expect(createDialog).not.toHaveTextContent(/milestone|tonggak/i);
@@ -109,7 +104,6 @@ describe('phase form localization and guidance', () => {
       await renderForm(locale, editPhase);
       const editDialog = screen.getByRole('dialog');
       expect(within(editDialog).getByRole('heading', { name: words.editTitle })).toBeInTheDocument();
-      expect(within(editDialog).getByText(words.editSubtitle)).toBeInTheDocument();
       expect(within(editDialog).getByRole('textbox', { name: words.name })).toBeInTheDocument();
       expect(within(editDialog).getByRole('button', { name: words.editAction })).toBeInTheDocument();
       expect(within(editDialog).getByRole('spinbutton', { name: words.progress })).toBeInTheDocument();

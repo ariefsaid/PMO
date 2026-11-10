@@ -330,8 +330,8 @@ describe('ProjectDetail shell (decomposition)', () => {
 
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
     expect(screen.getByText('Budget vs actual')).toBeInTheDocument();
-    expect(screen.getByText(/Spent 2,350,000 of 4,700,000/)).toBeInTheDocument();
-    expect(screen.getByText(/Plus 2,350,000 committed in purchase orders/)).toBeInTheDocument();
+    expect(screen.getByText(/Spent \$2,350,000 of \$4,700,000/)).toBeInTheDocument();
+    expect(screen.getByText(/Plus \$2,350,000 committed in purchase orders/)).toBeInTheDocument();
   });
 
   it.each(['Project Manager', 'Finance'])('UIP-006: %s contract and committed values remain visible', async (role) => {
@@ -350,7 +350,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(contractAmount).toBeVisible();
     const budgetActual = screen.getByRole('region', { name: 'Budget vs actual' });
     expect(budgetActual).toHaveTextContent('USD · excl. PPN');
-    expect(within(budgetActual).getByText('Plus 2,360,000 committed in purchase orders')).toBeVisible();
+    expect(within(budgetActual).getByText('Plus $2,360,000 committed in purchase orders')).toBeVisible();
     projectsState.data = seed;
   });
 

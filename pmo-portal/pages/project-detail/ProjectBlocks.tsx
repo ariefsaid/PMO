@@ -142,7 +142,11 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
   const hidden = [
     ...(['ordered', 'delivered', 'invoiced', 'paid'] as const).filter((key) => !steps.some((step) => step.key === key)).map((key) => stepLabels[key]),
     ...(marginAmount === null ? [t('projectDetail.money.grossMargin', 'Gross margin')] : []),
-    ...(cashReceived === null ? [t('projectDetail.money.cashReceived', 'Cash received')] : []),
+    ...(cashReceived === null ? [cash?.state === 'incomplete'
+      ? t('projectDetail.money.cashIncompleteShort', 'Cash received (receipts not allocated to invoices)')
+      : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
+        ? t('projectDetail.money.cashInvalidShort', 'Cash received (receipt reading not verified)')
+        : t('projectDetail.money.cashReceived', 'Cash received')] : []),
   ];
   const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
   const invoicedShare = share(invoiced);

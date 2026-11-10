@@ -49,6 +49,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import ProjectDetailHeader from '../ProjectDetailHeader';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatDay } from '@/src/lib/format';
 
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
 
@@ -86,7 +87,7 @@ describe('AC-W2-3-01: ProjectDetailHeader contract date — no UTC day-shift', (
     );
 
     // Find text containing Jun 14, 2026 in the meta row.
-    expect(screen.getByText(/Jun 14, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(formatDay('2026-06-14')))).toBeInTheDocument();
     // Must NOT render the UTC-shifted day-before.
     expect(screen.queryByText(/Jun 13, 2026/)).not.toBeInTheDocument();
   });

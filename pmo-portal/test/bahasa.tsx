@@ -29,17 +29,20 @@ const ID_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/i
 const EN_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/lostReason.json'), 'utf8'));
 const ID_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/lostReason.json'), 'utf8'));
 
+const EN_STATUS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/status.json'), 'utf8'));
+const ID_STATUS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/status.json'), 'utf8'));
+
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
   void i18n.init({
     lng: locale,
     fallbackLng: 'en',
-    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project', 'lostReason'],
+    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project', 'lostReason', 'status'],
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT, lostReason: ID_LOST_REASON },
-      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT, lostReason: EN_LOST_REASON },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT, lostReason: ID_LOST_REASON, status: ID_STATUS },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT, lostReason: EN_LOST_REASON, status: EN_STATUS },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

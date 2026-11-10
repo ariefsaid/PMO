@@ -77,6 +77,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 import TasksTab from '../tabs/TasksTab';
 import { clearOwnershipCache, setTaskOwnership, setProjectBindings, setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
 import { act } from '@testing-library/react';
+import { formatDay } from '@/src/lib/format';
 
 // The toast library's store replays still-active toasts into the next provider — clear them.
 afterEach(async () => {
@@ -338,7 +339,7 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     expect(screen.getAllByText('Dana Engineer').length).toBeGreaterThan(0);
     // Status stays quiet until activated, then opens the existing native select.
     const t1Status = screen.getByRole('button', { name: /status for survey the site/i });
-    expect(t1Status).toHaveTextContent('To Do');
+    expect(t1Status).toHaveTextContent('To do');
     expect(screen.queryByRole('combobox', { name: /status for survey the site/i })).not.toBeInTheDocument();
     await userEvent.click(t1Status);
     expect(screen.getByRole('combobox', { name: /status for survey the site/i })).toHaveValue('To Do');
@@ -353,7 +354,7 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     const overdueDate = screen.getByText((_, element) =>
       element?.tagName === 'SPAN'
       && element.classList.contains('text-destructive-text')
-      && element.textContent?.trim() === 'Jun 20, 2026 · 2 days late',
+      && element.textContent?.trim() === `${formatDay('2026-06-20')} · 2 days late`,
     );
     expect(overdueDate).toHaveClass('text-destructive-text');
     expect(screen.queryByText('2026-06-20')).not.toBeInTheDocument();
