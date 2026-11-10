@@ -9,6 +9,14 @@ const setup = () => {
 const keyset = (w: string, id: number) => ['|', ['write_date', '>', w], '&', ['write_date', '=', w], ['id', '>', id]];
 
 describe('fakeOdoo', () => {
+  it('answers `not in`, and reads res.users with its partner link', async () => {
+    const { fake, call } = setup();
+    fake.seed('res.partner', [{ id: 1, name: 'a' }, { id: 2, name: 'b' }, { id: 3, name: 'c' }]);
+    fake.seed('res.users', [{ id: 1, active: false, partner_id: [2, 'b'] }]);
+    expect(await call('res.partner', 'search', { domain: [['id', 'not in', [2, 3]]] })).toEqual([1]);
+    expect(await call('res.users', 'search_read', { domain: [], fields: ['partner_id'], context: { active_test: false } })).toEqual([{ id: 1, partner_id: [2, 'b'] }]);
+  });
+
   it('pages the §2.7 keyset domain in (write_date, id) order with no repeat across pages', async () => {
     const { fake, call } = setup();
     fake.seed('res.partner', [
@@ -108,5 +116,43 @@ describe('fakeOdoo', () => {
         'credit:sum': 30.3,
       },
     ]);
+  });
+  describe('fleet and maintenance models (bed claims V-OFM-1, -5, -6)', () => {
+    it('AC-OFM-010 answers fields_get for the seven asset models and has_access for them', async () => {
+      const { call } = setup();
+      for (const model of ['fleet.vehicle', 'fleet.vehicle.model', 'maintenance.equipment', 'maintenance.request', 'maintenance.stage', 'fleet.vehicle.log.services', 'fleet.service.type']) {
+        expect(Object.keys(await call<Record<string, unknown>>(model, 'fields_get', {})), model).toContain('write_date');
+        expect(await call(model, 'has_access', { operation: 'create' }), model).toBe(true);
+      }
+      expect(Object.keys(await call<Record<string, unknown>>('maintenance.request', 'fields_get', {}))).toContain('archive');
+    });
+
+    it('AC-OFM-010 a write bumps write_date on an asset model', async () => {
+      const { fake, call } = setup();
+      const [id] = await call<number[]>('maintenance.equipment', 'create', { vals_list: [{ name: 'Excavator 20t', serial_no: 'EXC-001' }] });
+      const before = fake.rows('maintenance.equipment')[0].write_date as string;
+      await call('maintenance.equipment', 'write', { ids: [id], vals: { name: 'Excavator 21t' } });
+      expect((fake.rows('maintenance.equipment')[0].write_date as string) > before).toBe(true);
+    });
+
+    it('AC-OFM-090 moving a request to a done stage sets close_date, and a not-done stage does not', async () => {
+      const { fake, call } = setup();
+      fake.seed('maintenance.stage', [{ id: 1, name: 'New Request', sequence: 1, done: false }, { id: 4, name: 'Repaired', sequence: 30, done: true }]);
+      const [id] = await call<number[]>('maintenance.request', 'create', { vals_list: [{ name: 'Hydraulic leak', stage_id: 1 }] });
+      await call('maintenance.request', 'write', { ids: [id], vals: { stage_id: 1 } });
+      expect(fake.rows('maintenance.request')[0].close_date ?? false).toBe(false);
+      await call('maintenance.request', 'write', { ids: [id], vals: { stage_id: 4 } });
+      expect(fake.rows('maintenance.request')[0].close_date).toMatch(/^\d{4}-\d{2}-\d{2}/);
+    });
+
+    it('AC-OFM-010 a vehicle without a model, and a service log without a service type, are refused as Odoo refuses them', async () => {
+      const { fake, call } = setup();
+      await expect(call('fleet.vehicle', 'create', { vals_list: [{ name: 'Hilux', license_plate: 'B 1234 XY' }] })).rejects.toBeInstanceOf(OdooError);
+      await expect(call('fleet.vehicle.log.services', 'create', { vals_list: [{ vehicle_id: 7 }] })).rejects.toBeInstanceOf(OdooError);
+      expect(fake.rows('fleet.vehicle')).toEqual([]);
+      expect(fake.rows('fleet.vehicle.log.services')).toEqual([]);
+      await call('fleet.vehicle', 'create', { vals_list: [{ name: 'Hilux', model_id: 3 }] });
+      expect(fake.rows('fleet.vehicle')).toHaveLength(1);
+    });
   });
 });

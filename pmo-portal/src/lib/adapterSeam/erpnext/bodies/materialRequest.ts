@@ -7,13 +7,14 @@
  */
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
-import { requireItems } from './shared.ts';
+import { requireCompany, requireItems } from './shared.ts';
 
 export function mrToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  const company = requireCompany(ctx.config, 'Material Request');
   const items = requireItems(rec, 'Material Request');
   return {
     material_request_type: 'Purchase',
-    company: ctx.config.company,
+    company,
     items: items.map((i) => ({ item_code: i.item_code, qty: i.qty, rate: i.rate, schedule_date: i.schedule_date })),
   };
 }

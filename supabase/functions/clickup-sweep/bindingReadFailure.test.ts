@@ -17,7 +17,7 @@ let served: (req: Request) => Promise<Response>;
 await import('./index.ts');
 
 // supabase-js starts a token-refresh interval on createClient (harness artifact, not the code under test).
-Deno.test({ name: 'FN2-006 a failed org-binding read fails the org closed: no ClickUp request with the global token', sanitizeOps: false, sanitizeResources: false, fn: async () => {
+for (const failing of ['binding', 'vault'] as const) Deno.test({ name: `FN2-006 #654 a failed org ${failing} read fails the org closed: no ClickUp request with the global token`, sanitizeOps: false, sanitizeResources: false, fn: async () => {
   const urls: URL[] = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = ((input: Request | URL | string) => {
@@ -26,7 +26,10 @@ Deno.test({ name: 'FN2-006 a failed org-binding read fails the org closed: no Cl
     const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } }));
     if (url.pathname === '/rest/v1/rpc/service_feature_enabled') return json(true);
     if (url.pathname.startsWith('/rest/v1/external_domain_ownership')) return json([{ org_id: ORG }]);
-    if (url.pathname.startsWith('/rest/v1/external_org_bindings')) return json({ message: 'db blip', code: '57P03' }, 500);
+    if (url.pathname.startsWith('/rest/v1/external_org_bindings')) {
+      return failing === 'binding' ? json({ message: 'db blip', code: '57P03' }, 500) : json({ secret_ref: 'synthetic-vault-ref' });
+    }
+    if (url.pathname === '/rest/v1/rpc/read_vault_secret') return json({ message: 'db blip', code: '57P03' }, 500);
     throw new Error(`unexpected request ${url.host}${url.pathname}`);
   }) as typeof fetch;
   try {

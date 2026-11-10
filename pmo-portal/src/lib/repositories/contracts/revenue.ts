@@ -28,6 +28,8 @@ export interface RevenueRepository {
     receivedAmount?: number;
     withheldAmount?: number;
     withholdingSlipNumber?: string | null;
+    /** #1275: the tax article the client withheld under; null/absent = not stated. External (ERP) receipts only. */
+    withholdingArticle?: 'pph23' | 'pph4_2' | null;
     /** Odoo mirrored journal selected for this receipt, when set. */
     journalId?: string;
     date: string;

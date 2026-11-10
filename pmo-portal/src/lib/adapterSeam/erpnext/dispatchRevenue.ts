@@ -184,9 +184,11 @@ async function readReceiptAccountCurrencies(
   };
 }
 
+const ARTICLE_ACCOUNT = { pph23: 'pph23_prepaid_account', pph4_2: 'pph4_2_prepaid_account' } as const;
+
 /**
- * AC-WHT-004 — the receipt `ctx.config` merge for an incoming payment WITH withheld tax: the org's
- * `tax_prepaid_account` is required (fail-closed `config-rejected` before any ERP write), merged
+ * AC-WHT-004 / AC-WHA-003..005 — the receipt `ctx.config` merge for an incoming payment WITH withheld tax: the org's
+ * prepaid account for the receipt's stated article (else `tax_prepaid_account`, the default) is required (fail-closed `config-rejected` before any ERP write), merged
  * into the binding config together with the two account currencies `peReceiveToBody` validates
  * against. Every other command sees the binding config untouched.
  */
@@ -194,14 +196,22 @@ export async function resolveReceiptConfig(
   deps: ErpDispatchFactoryDeps,
   binding: ExternalOrgBindingRow,
 ): Promise<Record<string, unknown>> {
-  const record = deps.command.record as { erp_doc_kind?: unknown; withheld_amount?: unknown };
+  const record = deps.command.record as { erp_doc_kind?: unknown; withheld_amount?: unknown; withholding_article?: unknown };
   // Negated EXACTLY as `kind === 'incoming-payment' && Number(withheld_amount ?? 0) > 0` (a NaN
   // withheld_amount fails the `> 0` test, so it must fail this guard too — never re-read the org row).
   if (record.erp_doc_kind !== 'incoming-payment' || !(Number(record.withheld_amount ?? 0) > 0)) return binding.config;
+  const article = record.withholding_article ?? null;
+  if (article !== null && !Object.hasOwn(ARTICLE_ACCOUNT, article as string)) {
+    throw new AppError('The withholding article must be PPh 23 or PPh 4(2).', 'config-rejected');
+  }
   const { data: settings, error: settingError } = await deps.serviceClient.from('organizations')
-    .select('tax_prepaid_account').eq('id', deps.orgId).maybeSingle();
-  const account = (settings as { tax_prepaid_account?: unknown } | null)?.tax_prepaid_account;
-  if (settingError || typeof account !== 'string' || !account.trim() || account.length > 140) {
+    .select('tax_prepaid_account,pph23_prepaid_account,pph4_2_prepaid_account').eq('id', deps.orgId).maybeSingle();
+  const row = (settings ?? {}) as Record<string, unknown>;
+  const isAccount = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 140;
+  // AC-WHA-003/004 (DD-WHA-2): the article's own account when set, else the default account.
+  const articleAccount = article ? row[ARTICLE_ACCOUNT[article as keyof typeof ARTICLE_ACCOUNT]] : undefined;
+  const account = isAccount(articleAccount) ? articleAccount : row.tax_prepaid_account;
+  if (settingError || !isAccount(account)) {
     throw new AppError('Set the Tax-prepaid account in Administration → Accounting before recording withheld tax.', 'config-rejected');
   }
   return { ...binding.config, tax_prepaid_account: account.trim(),

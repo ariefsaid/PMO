@@ -484,6 +484,8 @@ export interface FormActionsProps {
   loading?: boolean;
   /** When the submit is disabled, the id of an element (visible or sr-only) explaining why (G6). */
   submitDescribedBy?: string;
+  /** Omit the primary submit (a dialog whose job is done and only offers Cancel/Done). */
+  hideSubmit?: boolean;
   className?: string;
 }
 
@@ -502,6 +504,7 @@ export const FormActions: React.FC<FormActionsProps> = ({
   disabled,
   loading,
   submitDescribedBy,
+  hideSubmit,
   className,
 }) => (
   <div
@@ -516,15 +519,17 @@ export const FormActions: React.FC<FormActionsProps> = ({
         {cancelLabel}
       </Button>
     )}
-    <Button
-      type={onSubmit ? 'button' : 'submit'}
-      variant="primary"
-      disabled={disabled}
-      loading={loading}
-      onClick={onSubmit}
-      aria-describedby={disabled ? submitDescribedBy : undefined}
-    >
-      {submitLabel}
-    </Button>
+    {!hideSubmit && (
+      <Button
+        type={onSubmit ? 'button' : 'submit'}
+        variant="primary"
+        disabled={disabled}
+        loading={loading}
+        onClick={onSubmit}
+        aria-describedby={disabled ? submitDescribedBy : undefined}
+      >
+        {submitLabel}
+      </Button>
+    )}
   </div>
 );

@@ -181,6 +181,8 @@ describe('#876 slice 2 — entered vendor tax through the served adapter-dispatc
     const posts = r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST' && c.url.pathname === '/api/resource/Purchase%20Invoice');
     assertEquals(posts.length, 1, r.body);
     const body = posts[0].bodyJson as Record<string, unknown>;
+    // The bill states the binding's company (never the integration user's default on a multi-company ERP).
+    assertEquals(body.company, COMPANY);
     assertEquals(body.taxes_and_charges, '');
     assertEquals(body.taxes, [
       { charge_type: 'Actual', account_head: VAT_ACCOUNT, description: 'VAT', tax_amount: 110000, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0 },

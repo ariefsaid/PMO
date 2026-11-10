@@ -501,6 +501,7 @@
       "spendingChecking": "Memeriksa pengeluaran…",
       "spendingError": "Pengeluaran tidak dapat diperiksa",
       "spendingUnlinked": "Pengeluaran belum ditautkan.",
+      "currencyDiffers": "Pengeluaran dicatat dalam {{currency}}, bukan mata uang proyek, sehingga tidak dibandingkan dengan anggaran.",
       "finishSetup": "Selesaikan penyiapan pengeluaran",
       "askAdmin": "Administrator dapat menyelesaikan penyiapan.",
       "committedTooltip": "Pengadaan yang dipesan, diterima, difakturkan pemasok, dan dibayar dalam mata uang proyek, termasuk yang tanpa kategori anggaran; total yang sama dengan tab Anggaran.",
@@ -712,6 +713,14 @@
         "outbox-finalize-refused": {
           "message": "ERPNext menerima anggaran ini, tetapi PMO gagal mencatat referensinya setelah beberapa kali mencoba.",
           "remedy": "Mencoba lagi akan ditolak dengan alasan yang sama. Minta administrator memeriksa koneksi ERPNext dan referensi tersimpan anggaran ini."
+        },
+        "budget-archive-cancellation-held": {
+          "message": "Belum ada yang dikirim untuk anggaran ini: pembatalan anggaran ERPNext sebelumnya di proyek ini masih perlu ditangani orang, atau orang yang mengaktifkan versi ini tidak bisa lagi diidentifikasi.",
+          "remedy": "Selesaikan anggaran versi sebelumnya di ERPNext, lalu kirim ulang."
+        },
+        "budget-archive-resume-actor-unauthorized": {
+          "message": "Belum ada yang dikirim untuk anggaran ini: orang yang tercatat mengaktifkan versi ini tidak lagi berwenang mengirim anggaran ke ERPNext. Pembatalan sebelumnya bukan masalahnya.",
+          "remedy": "Pulihkan akses orang tersebut, atau minta Admin atau Finance mengirim ulang — pengiriman berjalan atas nama orang yang mengirim ulang."
         }
       }
     },
@@ -993,7 +1002,9 @@
     "export": "Ekspor"
   },
   "financeCopy": {
-    "budget": "Anggaran"
+    "budget": "Anggaran",
+    "budgetPushQueued": "Pengiriman masuk antrean",
+    "budgetPushQueuedBehindCancellation": "Pembatalan anggaran ERPNext sebelumnya masih diproses, jadi anggaran ini masuk antrean dan akan dikirim otomatis setelah pembatalan itu selesai."
   },
   "moneyDisplay": {
     "contractUnavailable": "Nilai kontrak belum diisi.",

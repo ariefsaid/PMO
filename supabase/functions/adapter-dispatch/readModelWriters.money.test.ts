@@ -814,6 +814,40 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "AC-WHA-006 READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment, create) stamps withholding_article from the command record",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    const canonical = { id: 'pmo-ip-wha-1', ip_number: 'ACC-PAY-2026-00002', amount: '1000.00', erp_docstatus: 1, erp_modified: '2026-07-12 12:00:00.000000' };
+    await writer.upsert({ serviceClient: client as never, orgId: 'org-1' }, canonical,
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-wha-1', date: '2026-07-12', erp_doc_kind: 'incoming-payment', withholding_article: 'pph4_2' } });
+    const row = calls.find((c) => c.method === 'insert' && c.table === 'incoming_payments')!.args[0] as Record<string, unknown>;
+    assertEquals(row.withholding_article, 'pph4_2');
+    // An article outside the domain is never written (the column CHECK would fail the whole mirror).
+    const other = makeFakeClient();
+    await writer.upsert({ serviceClient: other.client as never, orgId: 'org-1' }, { ...canonical, id: 'pmo-ip-wha-2' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-wha-2', date: '2026-07-12', erp_doc_kind: 'incoming-payment', withholding_article: 'pph21' } });
+    const otherRow = other.calls.find((c) => c.method === 'insert' && c.table === 'incoming_payments')!.args[0] as Record<string, unknown>;
+    assert(!('withholding_article' in otherRow), 'an unknown article must not be written');
+  },
+});
+
+Deno.test({
+  name: "AC-WHA-006 an incoming-payment update mirror never writes withholding_article",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-ip-wha-3', ip_number: 'ACC-PAY-2026-00002', amount: '1000.00', erp_docstatus: 2, erp_modified: '2026-07-13 11:00:00.000000', erp_amended_from: null },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-ip-wha-3', erp_doc_kind: 'incoming-payment', externalRecordId: 'ACC-PAY-2026-00002', verb: 'cancel', withholding_article: 'pph23' } },
+    );
+    const patch = calls.find((c) => c.method === 'update' && c.table === 'incoming_payments')!.args[0] as Record<string, unknown>;
+    assert(!('withholding_article' in patch), 'a later ERP amendment must not clear or rewrite a stated article');
+  },
+});
+
 // ============================================================================
 // Luna money audit — SF7: the service-role writer bypasses RLS, so before copying a PMO-side link
 // (customer_id/project_id/sales_invoice_id) from the command into a created row, it must SELECT the

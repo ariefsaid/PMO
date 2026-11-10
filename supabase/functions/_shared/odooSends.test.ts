@@ -28,7 +28,7 @@ const binding = (config: Record<string, unknown> = {}, over: Record<string, unkn
 });
 
 interface State { fake: FakeOdoo; outbox: Array<Record<string, unknown>>; loseNextCreate?: boolean }
-interface Opts { binding?: Record<string, unknown>; companies?: Record<string, Record<string, unknown>>; reject?: string; revoked?: boolean; mirrorFails?: boolean; actorGone?: boolean; failureEnds?: boolean; claimed: unknown[] }
+interface Opts { binding?: Record<string, unknown>; companies?: Record<string, Record<string, unknown>>; reject?: string; revoked?: boolean; mirrorFails?: boolean; projectNumber?: string | null; actorGone?: boolean; failureEnds?: boolean; claimed: unknown[] }
 const newState = (): State => ({ fake: createFakeOdoo({ key: KEY }), outbox: [] });
 
 async function tick(st: State, o: Opts) {
@@ -40,7 +40,12 @@ async function tick(st: State, o: Opts) {
     supabaseRpc('claim_connect_sends', () => jsonResponse(o.claimed)),
     supabaseRpc('connect_send_existing_link', () => jsonResponse(null)),
     supabaseSelect('companies', (c) => one(o.companies?.[f(c, 'id')!] ?? { id: f(c, 'id'), name: 'PT Sinar Baja', type: 'Vendor', erp_tax_id: '01.234' })),
-    supabaseSelect('projects', (c) => one({ id: f(c, 'id'), name: 'Jembatan', code: 'PRJ-1' })),
+    // PostgREST answers only the selected columns: the client code and the PMO project number differ, so a read of the wrong one shows
+    supabaseSelect('projects', (c) => {
+      const row: Record<string, unknown> = { id: f(c, 'id'), name: 'Jembatan', code: 'CLIENT-9', pmo_project_number: o.projectNumber === undefined ? 'PRJ-26-0007' : o.projectNumber };
+      const cols = (c.url.searchParams.get('select') ?? '').split(',').map((x) => x.trim());
+      return one(Object.fromEntries(Object.entries(row).filter(([k]) => cols.includes(k))));
+    }),
     supabaseSelect('procurement_items', () => jsonResponse([{ id: 'i-1' }])),
     supabaseSelect('profiles', () => (o.actorGone ? none() : one({ id: 'admin-1' }))),
     supabaseSelect('external_sync_watermarks', () => none()),
@@ -179,8 +184,18 @@ describe('S8-T3 drainOdooConnectSends', () => {
     const { calls } = await tick(st, { claimed: [prop('prop-p', 'project', 'p-1')] });
     const acct = st.fake.rows('account.analytic.account');
     assertEquals(acct.length, 1);
-    assertEquals(acct[0].code, 'PRJ-1');
+    // AC-ODC-052 / FR-ODC-072: the account carries the PMO project number (what the matcher compares), never the client project code
+    assertEquals([acct[0].code, acct[0].name], ['PRJ-26-0007', 'PRJ-26-0007 Jembatan']);
     assertEquals(results(calls).map((r) => r.p_external_id), [String(acct[0].id)]);
+  });
+
+  it('AC-ODC-052 a project without a project number is rejected in plain words: no cost account, no "null" anywhere', async () => {
+    for (const projectNumber of [null, '  ']) {
+      const st = newState();
+      const { result, calls } = await tick(st, { claimed: [prop('prop-p', 'project', 'p-1')], projectNumber });
+      assert(/project number/.test(String(results(calls)[0].p_rejection)), String(results(calls)[0].p_rejection));
+      assertEquals([st.fake.rows('account.analytic.account').length, st.outbox.length, result.rejected], [0, 0, 1]);
+    }
   });
 
   it('a sent project\'s cost account is mirrored before the link is recorded, and the directory cursor is passed back unchanged', async () => {
@@ -190,7 +205,7 @@ describe('S8-T3 drainOdooConnectSends', () => {
     assert(names.indexOf('apply_odoo_master_page') >= 0 && names.indexOf('apply_odoo_master_page') < names.indexOf('record_connect_send_result'), names.join());
     const page = body(rpcCall(calls, 'apply_odoo_master_page')[0]);
     assertEquals([page.p_org_id, page.p_kind, page.p_cursor], [ORG, 'analytic_account', '']);
-    assertEquals((page.p_rows as Array<Record<string, unknown>>).map((r) => [r.external_id, r.code, r.parent_external_id]), [[String(st.fake.rows('account.analytic.account')[0].id), 'PRJ-1', '7']]);
+    assertEquals((page.p_rows as Array<Record<string, unknown>>).map((r) => [r.external_id, r.code, r.parent_external_id]), [[String(st.fake.rows('account.analytic.account')[0].id), 'PRJ-26-0007', '7']]);
   });
 
   it('a mirror write that fails leaves the project send waiting: nothing is recorded, and a later look does not create a second account', async () => {

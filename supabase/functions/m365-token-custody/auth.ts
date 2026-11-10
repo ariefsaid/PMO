@@ -20,8 +20,9 @@ export function corsHeaders(allowedOrigin: string): Record<string, string> {
 /**
  * DATA-ACCESS gate (FR-M365SEP-001/002) — authorizes the caller as an ACTIVE MEMBER of an ENTITLED
  * org. Membership is read through the service-side `m365_membership_state` RPC and the entitlement
- * through the caller-JWT client; neither reaches `platform_operators` (FR-M365SEP-001). Three
- * independently-failing assertions, each with its own typed error (FR-M365SEP-002):
+ * through the service-only `service_feature_enabled` RPC — the RESOLVED plan switch (global → org
+ * override → plan), the same answer the setup actions and the write guard use; neither reaches
+ * `platform_operators` (FR-M365SEP-001). Three independently-failing assertions, each with its own typed error (FR-M365SEP-002):
  *   - membership missing/unreadable → BAD_REQUEST (org not resolvable; AC-M365SEP-011)
  *   - caller not an active member → DISABLED_MEMBER (AC-M365SEP-003; NFR-M365SEP-002)
  *   - org lacks the entitlement → NOT_ENTITLED (AC-M365SEP-005)
@@ -73,8 +74,10 @@ export async function authorizeMemberEntitled(deps: {
   callerClient: M365SupabaseLike;
   serviceClient: M365SupabaseLike;
   userId: string;
+  /** false only for own-connection teardown (disconnect), which must stay available when the plan is off. */
+  requireEntitlement?: boolean;
 }): Promise<{ orgId: string; role: string }> {
-  const { callerClient, serviceClient, userId } = deps;
+  const { serviceClient, userId, requireEntitlement = true } = deps;
 
   const membership = await readM365MembershipState(serviceClient, userId);
   if (membership.state === 'missing' || !membership.orgId || !membership.role) {
@@ -88,15 +91,14 @@ export async function authorizeMemberEntitled(deps: {
   }
   const { orgId, role } = membership;
 
-  const { data: feature, error: featureError } = await callerClient
-    .from('org_features')
-    .select('enabled')
-    .eq('org_id', orgId)
-    .eq('feature_key', 'm365_integration')
-    .single();
-
-  if (featureError || (feature as { enabled?: boolean } | null)?.enabled !== true) {
-    throw new M365HandlerError('NOT_ENTITLED', 'organization not entitled for this integration');
+  if (requireEntitlement) {
+    const { data: enabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+      p_org_id: orgId,
+      p_key: 'm365_integration',
+    });
+    if (featureError || enabled !== true) {
+      throw new M365HandlerError('NOT_ENTITLED', 'organization not entitled for this integration');
+    }
   }
 
   return { orgId, role };
@@ -125,7 +127,10 @@ export async function microsoftReadQuota(deps: HandlerDeps): Promise<HandlerResu
  * step 2 (org approval) and entitlement toggling own. The two gates may share code; they shall not
  * share one decision. All four step-3 actions inherit this with no handler edits.
  */
-export async function resolveOrgOrResult(deps: HandlerDeps): Promise<string | HandlerResult> {
+export async function resolveOrgOrResult(
+  deps: HandlerDeps,
+  opts: { requireEntitlement?: boolean } = {},
+): Promise<string | HandlerResult> {
   if (!deps.callerClient) {
     return { status: 500, body: { error: 'INTERNAL_ERROR', message: 'caller client missing' } };
   }
@@ -134,6 +139,7 @@ export async function resolveOrgOrResult(deps: HandlerDeps): Promise<string | Ha
       callerClient: deps.callerClient,
       serviceClient: deps.serviceClient,
       userId: deps.userId,
+      requireEntitlement: opts.requireEntitlement,
     });
     return orgId;
   } catch (err) {

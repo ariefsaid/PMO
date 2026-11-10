@@ -16,7 +16,7 @@ const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
   ['budget-versions', orgId, projectId] as const;
 
 /** `versionId` omitted = the whole project's prefix (invalidation); given = one version's saved plan. */
-const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId?: string) =>
+export const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId?: string) =>
   (versionId === undefined
     ? ['budget-distribution', orgId, projectId]
     : ['budget-distribution', orgId, projectId, versionId]) as readonly unknown[];
@@ -112,6 +112,17 @@ export function useBudgetActivationPrecheck(versionId: string | undefined) {
     queryFn: () => repositories.budget.precheckActivation(versionId!),
     enabled: Boolean(versionId),
     staleTime: 0,
+  });
+}
+
+/** #1273 — org-wide Draft budgets for the review-and-activate list. */
+export function useOrgBudgetDrafts(enabled: boolean) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['org-budget-drafts', orgId],
+    queryFn: () => repositories.budget.listOrgDrafts(),
+    enabled: Boolean(orgId && enabled),
   });
 }
 
@@ -212,6 +223,16 @@ export function useBudgetMutations(projectId: string) {
     },
   });
 
+  const returnVersion = useMutation<void, Error, { versionId: string; reason: string }>({
+    mutationFn: ({ versionId, reason }) => repositories.budget.returnVersion(versionId, reason),
+    onSuccess: invalidateBoth,
+  });
+
+  const resubmitVersion = useMutation<void, Error, string>({
+    mutationFn: (versionId) => repositories.budget.resubmitVersion(versionId),
+    onSuccess: invalidateBoth,
+  });
+
   const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
     mutationFn: ({ versionId, cancelErp }) => repositories.budget.archiveVersion(versionId, cancelErp),
     onSuccess: () => {
@@ -272,6 +293,8 @@ export function useBudgetMutations(projectId: string) {
     createVersion,
     cloneVersion,
     activate,
+    returnVersion,
+    resubmitVersion,
     archive,
     deleteDraft,
     createLineItem: createLineItemMutation,
