@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import { formatNumberWhole } from '@/src/lib/format';
+import { scrollBehavior } from '@/src/lib/motion';
 import type { UserDirectoryRow } from '@/src/lib/db/adminUsers';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { initialsOf } from './avatar';
@@ -123,7 +124,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     if (!container) return;
     const target = container.querySelector<HTMLElement>(`[id="${rowDomId(focus.userId)}"]`);
     if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
     target.style.outline = '2px solid hsl(var(--primary))';
     target.style.outlineOffset = '-2px';
     target.style.borderRadius = '4px';

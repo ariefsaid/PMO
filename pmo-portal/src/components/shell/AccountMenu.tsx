@@ -8,7 +8,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
-import { menuPopupClass, menuPopupOrigin, menuSeparatorClass } from '@/src/components/ui/menuStyles';
+import { menuItemClass, menuPopupClass, menuPopupOrigin, menuSeparatorClass } from '@/src/components/ui/menuStyles';
 import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
@@ -59,8 +59,7 @@ export const AccountMenu: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { textSize, setTextSize } = useTextSize();
 
-  const rowBase =
-    'flex h-8 w-full cursor-default items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] outline-none transition-colors';
+  const rowBase = cn(menuItemClass, 'transition-colors');
   const rowClass = cn(rowBase, 'text-foreground data-[highlighted]:bg-accent');
   const radioClass = cn(
     rowBase,

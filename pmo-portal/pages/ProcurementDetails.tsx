@@ -5,7 +5,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { cn } from '@/src/components/ui/cn';
-import { menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
+import { menuItemClass, menuItemDanger, menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -583,6 +583,25 @@ const ProcurementDetails: React.FC = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  type MenuEntry = { key: string; label: React.ReactNode; run: () => void; danger?: boolean; testId?: string };
+  const captureItems: MenuEntry[] = [
+    ...recordKinds.map((kind) => ({ key: `record-${kind}`, label: recordKindLabels[kind], run: () => beginCapture(kind) })),
+    ...(canAddQuote ? [{ key: 'quote', label: t('procurementRecord:action.addQuote', 'Add quotation'), run: openQuotationCapture }] : []),
+    ...(canLinkAccounting ? [{ key: 'link', label: t('procurementRecord:linkAccounting', 'Link from accounting system'), run: () => setLinkDialogOpen(true) }] : []),
+  ];
+  const cancelAction = actionFor('Cancelled');
+  const moreItems: MenuEntry[] = [
+    ...(canEditHeader ? [{ key: 'edit', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), run: () => setHeaderEditOpen(true) }] : []),
+    { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), run: () => { setHistoryOpen(true); setTab('timeline'); } },
+    ...secondaryTransitionActions.map((action) => ({ key: action.to, label: action.label, run: () => onActionClick(action) })),
+    { key: 'export', label: t('procurementRecord:export', 'Export'), run: exportCurrentProcurement },
+    ...(returnAction ? [{ key: 'reject', danger: true, label: t('procurementDetail.action.reject', 'Reject'), run: () => onActionClick(returnAction) }] : []),
+    ...(cancelAction ? [{ key: 'cancel', danger: true, label: t('procurementRecord:cancelProcurement', 'Cancel procurement'), run: () => onActionClick(cancelAction) }] : []),
+  ];
+  const renderItem = (item: MenuEntry) => (
+    <Menu.Item key={item.key} data-testid={item.testId} className={cn(menuItemClass, 'min-h-10', item.danger && menuItemDanger)} onClick={item.run}>{item.label}</Menu.Item>
+  );
+
   return (
     <div>
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
@@ -622,11 +641,9 @@ const ProcurementDetails: React.FC = () => {
               {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
             </Menu.Trigger>
             <Menu.Portal>
-            <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-30">
+            <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
             <Menu.Popup aria-label={t('procurementRecord:recordMenu', 'Record another document')} className={cn(menuPopupClass, 'min-w-56')} style={menuPopupOrigin}>
-              {recordKinds.map((kind) => <Menu.Item key={kind} className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => beginCapture(kind)}>{recordKindLabels[kind]}</Menu.Item>)}
-              {canAddQuote && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { openQuotationCapture(); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Menu.Item>}
-              {canLinkAccounting && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { setLinkDialogOpen(true); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</Menu.Item>}
+              {captureItems.map(renderItem)}
             </Menu.Popup>
             </Menu.Positioner>
             </Menu.Portal>
@@ -641,17 +658,9 @@ const ProcurementDetails: React.FC = () => {
             <Menu.Root modal={false}>
             <Menu.Trigger render={<Button variant="outline" size="sm" className="hidden sm:inline-flex" />} aria-label={t('procurementRecord:moreActions', 'More procurement actions')}>⋯</Menu.Trigger>
             <Menu.Portal>
-            <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-30">
+            <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
             <Menu.Popup aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className={cn(menuPopupClass, 'min-w-48')} style={menuPopupOrigin}>
-              {canEditHeader && <Menu.Item data-testid="edit-header" className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { setHeaderEditOpen(true); }}>{t('procurementRecord:editDetails', 'Edit details')}</Menu.Item>}
-              <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</Menu.Item>
-              {recordKinds.map((kind) => <Menu.Item key={kind} className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent sm:hidden" onClick={() => { beginCapture(kind); }}>{recordKindLabels[kind]}</Menu.Item>)}
-              {canLinkAccounting && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent sm:hidden" onClick={() => { setLinkDialogOpen(true); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</Menu.Item>}
-              {canEditHeader && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent sm:hidden" onClick={() => { setHeaderEditOpen(true); }}>{t('procurementRecord:editDetails', 'Edit details')}</Menu.Item>}
-              {secondaryTransitionActions.map((action) => <Menu.Item key={action.to} className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { onActionClick(action); }}>{action.label}</Menu.Item>)}
-              <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { exportCurrentProcurement(); }}>{t('procurementRecord:export', 'Export')}</Menu.Item>
-              {returnAction && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive outline-none data-[highlighted]:bg-accent" onClick={() => { onActionClick(returnAction); }}>{t('procurementDetail.action.reject', 'Reject')}</Menu.Item>}
-              {actionFor('Cancelled') && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive outline-none data-[highlighted]:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</Menu.Item>}
+              {moreItems.map(renderItem)}
             </Menu.Popup>
             </Menu.Positioner>
             </Menu.Portal>
@@ -888,18 +897,9 @@ const ProcurementDetails: React.FC = () => {
             <Menu.Root modal={false}>
               <Menu.Trigger render={<Button variant="outline" className="min-h-11" />} aria-label={t('procurementRecord:moreActions', 'More procurement actions')}>⋯</Menu.Trigger>
               <Menu.Portal>
-            <Menu.Positioner side="top" align="end" sideOffset={8} collisionPadding={12} className="z-50">
+              <Menu.Positioner side="top" align="end" sideOffset={8} collisionPadding={12} className="z-50">
               <Menu.Popup aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className={cn(menuPopupClass, 'min-w-56 max-h-[55vh]')} style={menuPopupOrigin}>
-            {returnAction && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { secondaryClick(); }}>{t('procurementRecord:action.return', 'Return')}</Menu.Item>}
-            {recordKinds.map((kind) => <Menu.Item key={kind} className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { beginCapture(kind); }}>{recordKindLabels[kind]}</Menu.Item>)}
-            {canAddQuote && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { openQuotationCapture(); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Menu.Item>}
-            {canLinkAccounting && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { setLinkDialogOpen(true); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</Menu.Item>}
-            {canEditHeader && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { setHeaderEditOpen(true); }}>{t('procurementRecord:editDetails', 'Edit details')}</Menu.Item>}
-            <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</Menu.Item>
-            {secondaryTransitionActions.map((action) => <Menu.Item key={action.to} className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { onActionClick(action); }}>{action.label}</Menu.Item>)}
-            <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] outline-none data-[highlighted]:bg-accent" onClick={() => { exportCurrentProcurement(); }}>{t('procurementRecord:export', 'Export')}</Menu.Item>
-            {returnAction && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive outline-none data-[highlighted]:bg-accent" onClick={() => { onActionClick(returnAction); }}>{t('procurementDetail.action.reject', 'Reject')}</Menu.Item>}
-            {actionFor('Cancelled') && <Menu.Item className="flex items-center min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive outline-none data-[highlighted]:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</Menu.Item>}
+                {[...(returnAction ? [{ key: 'return', label: t('procurementRecord:action.return', 'Return'), run: secondaryClick }] : []), ...captureItems, ...moreItems].map(renderItem)}
               </Menu.Popup>
               </Menu.Positioner>
             </Menu.Portal>

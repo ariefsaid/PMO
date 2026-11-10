@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -79,8 +79,10 @@ import { clearOwnershipCache, setTaskOwnership, setProjectBindings, setProjectBi
 import { act } from '@testing-library/react';
 
 // The toast library's store replays still-active toasts into the next provider — clear them.
-afterEach(() => {
+afterEach(async () => {
   act(() => { sonnerToast.dismiss(); });
+  cleanup(); // unmount first so a still-open menu popup cannot leak into the next test
+  await waitFor(() => expect(document.querySelector('[role=menu]')).toBeNull());
 });
 
 

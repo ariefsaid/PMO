@@ -337,8 +337,8 @@ describe('AC-IXD-PROC-W5-1 (b): exactly one primary button per stage (One-Blue R
   it('AC-IXD-PROC-W5-1b: at Approved stage "Request quotations" is present but NOT primary (a menu item)', async () => {
     detailState.data = { ...approvedBase };
     renderPage();
-    const header = await openMoreActions();
-    const quotes = header.getByRole('menuitem', { name: 'Request quotations' });
+    await openMoreActions();
+    const quotes = screen.getByRole('menuitem', { name: 'Request quotations' });
     expect(quotes.className).not.toContain('bg-primary');
   });
 
@@ -346,8 +346,8 @@ describe('AC-IXD-PROC-W5-1 (b): exactly one primary button per stage (One-Blue R
     detailState.data = { ...approvedBase };
     renderPage();
     expect(headerActions().getByRole('button', { name: 'Record order' })).toBeInTheDocument();
-    const header = await openMoreActions();
-    expect(header.getByRole('menuitem', { name: 'Request quotations' })).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByRole('menuitem', { name: 'Request quotations' })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-W5-1b: at Requested stage (Finance, not requester) exactly ONE primary (Approve)', () => {
@@ -396,8 +396,8 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
 
     const header = await openMoreActions();
     expect(header.queryByRole('button', { name: /^approve$/i })).toBeNull();
-    expect(header.queryByRole('menuitem', { name: /^reject$/i })).toBeNull();
-    expect(header.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^reject$/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-W5-1c: a non-SoD-blocked Finance viewer sees Approve+Reject in the header (no gate)', async () => {
@@ -405,8 +405,8 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
     renderPage();
 
     expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
-    const header = await openMoreActions();
-    expect(header.getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
     // No SoD gate notice for an unblocked viewer
     expect(screen.queryByTestId('sod-blocked-hint')).toBeNull();
     expect(screen.queryByText(/separation-of-duties gate/i)).toBeNull();
@@ -440,8 +440,8 @@ describe('AC-IXD-PROC-W5-1 (d): destructive verbs render after the primary CTA i
     renderPage();
 
     const submitBtn = headerActions().getByRole('button', { name: 'Submit for approval' });
-    const header = await openMoreActions();
-    const cancelItem = header.getByRole('menuitem', { name: /^cancel procurement$/i });
+    await openMoreActions();
+    const cancelItem = screen.getByRole('menuitem', { name: /^cancel procurement$/i });
 
     expect(
       appearsBeforeInDOM(submitBtn, cancelItem),
@@ -454,8 +454,8 @@ describe('AC-IXD-PROC-W5-1 (d): destructive verbs render after the primary CTA i
     renderPage();
 
     const approveBtn = headerActions().getByRole('button', { name: /^approve$/i });
-    const header = await openMoreActions();
-    const cancelItem = header.getByRole('menuitem', { name: /^cancel procurement$/i });
+    await openMoreActions();
+    const cancelItem = screen.getByRole('menuitem', { name: /^cancel procurement$/i });
 
     expect(
       appearsBeforeInDOM(approveBtn, cancelItem),
@@ -468,8 +468,8 @@ describe('AC-IXD-PROC-W5-1 (d): destructive verbs render after the primary CTA i
     renderPage();
 
     const orderBtn = headerActions().getByRole('button', { name: 'Record order' });
-    const header = await openMoreActions();
-    const cancelItem = header.getByRole('menuitem', { name: /^cancel procurement$/i });
+    await openMoreActions();
+    const cancelItem = screen.getByRole('menuitem', { name: /^cancel procurement$/i });
 
     expect(
       appearsBeforeInDOM(orderBtn, cancelItem),
@@ -482,8 +482,8 @@ describe('AC-IXD-PROC-W5-1 (d): destructive verbs render after the primary CTA i
     renderPage();
 
     const approveBtn = headerActions().getByRole('button', { name: /^approve$/i });
-    const header = await openMoreActions();
-    const rejectItem = header.getByRole('menuitem', { name: /^reject$/i });
+    await openMoreActions();
+    const rejectItem = screen.getByRole('menuitem', { name: /^reject$/i });
 
     expect(
       appearsBeforeInDOM(approveBtn, rejectItem),
@@ -533,8 +533,8 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
   it('non-regression: Reject is never a loud destructive fill (a quiet menu item)', async () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const header = await openMoreActions();
-    const rejectItem = header.getByRole('menuitem', { name: /^reject$/i });
+    await openMoreActions();
+    const rejectItem = screen.getByRole('menuitem', { name: /^reject$/i });
     expect(rejectItem.className).not.toContain('bg-destructive');
     expect(rejectItem.className).not.toContain('bg-primary');
   });

@@ -9,6 +9,7 @@ import {
 } from '@/src/components/ui';
 import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
 import { useLocation, useSearchParams } from 'react-router';
+import { scrollBehavior } from '@/src/lib/motion';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -174,7 +175,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       const el = document.getElementById(`task-${taskId}`);
       if (el) {
         scrolledRef.current = taskId;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
         setHighlightedTaskId(taskId);
       }
     });

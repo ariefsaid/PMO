@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {} }) }));
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -201,26 +201,32 @@ describe('ContextBar — unified account menu', () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
-    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    // Keyboard open: the library lands focus on the first item (a pointer open leaves it on the popup).
+    screen.getByRole('button', { name: /account menu/i }).focus();
+    await userEvent.keyboard('{Enter}');
 
-    const profile = screen.getByRole('menuitem', { name: /profile & preferences/i });
+    const profile = await screen.findByRole('menuitem', { name: /profile & preferences/i });
     const light = screen.getByRole('menuitemradio', { name: /^light$/i });
     const signOutItem = screen.getByRole('menuitem', { name: /sign out/i });
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{ArrowDown}');
-    expect(light).toHaveFocus();
+    await waitFor(() => expect(light).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{ArrowUp}');
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{End}');
-    expect(signOutItem).toHaveFocus();
+    await waitFor(() => expect(signOutItem).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{Home}');
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.tab();
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus();
-    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus());
+    screen.getByRole('button', { name: /account menu/i }).focus();
+    await userEvent.keyboard('{Enter}');
+    await screen.findByRole('menu');
     await userEvent.tab({ shift: true });
-    expect(screen.getByRole('button', { name: /command palette/i })).toHaveFocus();
+    // Shift+Tab leaves the menu without a trap: it closes and the library returns focus to its trigger.
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /account menu/i })).toHaveFocus());
   });
 
   it('AC-ACCT-004: an ordinary Admin (or non-admin) sees NO View as role section or choices', async () => {
