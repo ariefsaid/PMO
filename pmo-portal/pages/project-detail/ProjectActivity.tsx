@@ -16,26 +16,23 @@ type ActivityView = 'all' | 'comments' | 'changes';
 export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; title?: string }> = ({ projectId, compact = false, title }) => {
   const { t } = useTranslation('project');
   const [view, setView] = useState<ActivityView>('all');
-  const toggle = (
-    <ViewToggle<ActivityView>
-      ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
-      value={view}
-      onChange={setView}
-      options={[
-        { value: 'all', label: t('projectDetail.activity.all', 'All') },
-        { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
-        { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
-      ]}
-    />
-  );
   return (
     <Card role="region" aria-label={title ?? t('projectDetail.activity.title', 'Activity')} className="min-w-0">
-      <CardHead actions={compact ? toggle : undefined}>{title ?? t('projectDetail.activity.title', 'Activity')}</CardHead>
+      <CardHead>{title ?? t('projectDetail.activity.title', 'Activity')}</CardHead>
       <CardPad className="flex min-w-0 flex-col gap-4">
-      {!compact && toggle}
+      <ViewToggle<ActivityView>
+        ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'all', label: t('projectDetail.activity.all', 'All') },
+          { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
+          { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
+        ]}
+      />
       {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {(view === 'all' || view === 'changes') && (
-        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact} />
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
       )}
       </CardPad>
     </Card>

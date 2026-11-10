@@ -14,11 +14,9 @@ import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/deli
 
 interface ProjectSCurveProps {
   projectId: string;
-  /** The host card already carries the heading. */
-  hideHeading?: boolean;
 }
 
-const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId, hideHeading = false }) => {
+const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   const { t } = useTranslation('project');
   const today = useOrgToday();
   const { data, isPending, isError, refetch } = useMilestones(projectId);
@@ -88,11 +86,9 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId, hideHeading = 
 
   return (
     <div>
-      {!hideHeading && (
-        <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">
-          {t('projectDetail.scurve.heading', 'Progress curve')}
-        </h2>
-      )}
+      <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">
+        {t('projectDetail.scurve.heading', 'Progress curve')}
+      </h2>
 
       <ChartFrame
         state={state}

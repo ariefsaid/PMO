@@ -1,9 +1,10 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, useToast } from '@/src/components/ui';
+import { ListState, ProgressBar, Tooltip, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
@@ -13,25 +14,63 @@ import type { ProjectHeaderInput } from '@/src/lib/db/projects';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
+import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
+import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
-import { ProjectFactsStrip } from './ProjectFactsStrip';
-import { useScheduleSummary } from './useProjectOverviewFigures';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
-import ProjectSections, { PrimaryProjectAction, ProjectQuickActions } from './ProjectSections';
+import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-/** "Behind plan" when a started phase is past its target or the project end has passed unfinished. */
-export const BehindPlanPill: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
-  const schedule = useScheduleSummary(project);
-  if (schedule.lateCount === 0 && schedule.endLate === null) return null;
-  return <StatusPill variant="overdue">{t('projectDetail.health.behind', 'Behind plan')}</StatusPill>;
+  const phases = useMilestones(project.id);
+  const milestones = phases.data ?? [];
+  const totalWeight = milestones.reduce((sum, phase) => sum + phase.weight, 0);
+  const progress = totalWeight > 0
+    ? completionPct(milestones.reduce((sum, phase) => sum + phase.weight * phase.effective_pct, 0) / totalWeight)
+    : null;
+  const manager = project.pm?.full_name;
+  const dates = project.start_date || project.end_date
+    ? `${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}`
+    : t('projectDetail.facts.noDates', 'Dates not set');
+  const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
+  return (
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 pb-2 text-control font-normal text-muted-foreground md:mb-6 md:gap-y-2 md:pb-4">
+      {manager && (
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <Avatar name={manager} decorative />
+          <span className="truncate">{manager}</span>
+        </span>
+      )}
+      <span>{dates}</span>
+      {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
+      {progress !== null && (
+        <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan.')}>
+          {/* Owner tidy ruling 2026-10-29: the segment is content-sized (compact bar,
+              label and value tight) so the meta row keeps ONE consistent gap before
+            "Updated" — the old min-w-40 left dead slack that read as a hole. */}
+          <span tabIndex={0} className="inline-flex items-center gap-2">
+            <span>{t('projectDetail.facts.progress', 'Progress')}</span>
+            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact className="[&>span:last-child]:text-control [&>span:last-child]:font-normal" aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
+          </span>
+        </Tooltip>
+      )}
+      {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
+      {updated && (
+        <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatInstantDate(project.last_update) })}>
+          <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
+            {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
+          </time>
+        </Tooltip>
+      )}
+    </section>
+  );
 };
 
 /**
@@ -182,10 +221,8 @@ const ProjectDetail: React.FC = () => {
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
-        secondaryAction={!isPipelineRecord && area === 'overview' ? <span className="hidden items-center gap-2 md:inline-flex"><ProjectQuickActions project={project} /></span> : undefined}
-        healthPill={!isPipelineRecord ? <BehindPlanPill project={project} /> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
-      <ProjectFactsStrip project={project} />
+      <ProjectHeaderFacts project={project} />
       {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
       {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
           moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}
