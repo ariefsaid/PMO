@@ -46,7 +46,7 @@ const Figure: React.FC<{
   tone?: string;
 }> = ({ testId, label, value, currency, tone }) => (
   <div data-testid={testId}>
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+    <dt className="text-[11px] font-semibold text-muted-foreground">
       {label}
     </dt>
     <dd className={`mt-0.5 text-[15px] font-bold tabular${tone ? ` ${tone}` : ''}`}>

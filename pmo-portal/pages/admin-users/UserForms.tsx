@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db/adminUsers';
 import { useRoleLabels } from './roleLabels';
-import { initialsOf, avatarHue } from './avatar';
+import { initialsOf } from './avatar';
 
 /**
  * The three Administration › Users forms (CROSS-65 / XG01-002): invite, edit-role and
@@ -231,7 +231,6 @@ export const ManagerFormModal: React.FC<{
         label: c.full_name,
         sub: roleNames.label(c.role),
         initials: initialsOf(c.full_name),
-        color: avatarHue(c.id),
       }));
 
   // The saved manager is retained BY ID and NAMED from the row's own server embed, so the current
@@ -241,7 +240,7 @@ export const ManagerFormModal: React.FC<{
     ? (() => {
         const chosen = choices.find((c) => c.id === managerId);
         if (chosen) {
-          return { value: chosen.id, label: chosen.full_name, sub: roleNames.label(chosen.role), initials: initialsOf(chosen.full_name), color: avatarHue(chosen.id) };
+          return { value: chosen.id, label: chosen.full_name, sub: roleNames.label(chosen.role), initials: initialsOf(chosen.full_name) };
         }
         const embeddedName = user.manager_id === managerId ? user.manager?.full_name : undefined;
         return {

@@ -127,8 +127,8 @@ describe('expense account readiness (AD-2, S-12)', () => {
     // screen; the remedy names the connection setup instead.
     expect(await screen.findByText("Expense posting isn't ready right now, so the account was not saved. Check the ERPNext connection setup in Integrations.")).toBeInTheDocument();
 
+    // A rejected save keeps the dialog open with the entry in place: retry from inside it.
     h.save.mockRejectedValueOnce(new AppError('account rejected', 'config-rejected'));
-    await user.click(screen.getByRole('button', { name: 'Map Travel' }));
     await user.clear(screen.getByRole('textbox'));
     await user.type(screen.getByRole('textbox'), 'Travel');
     await user.click(screen.getByRole('button', { name: /Save account|Simpan akun/ }));

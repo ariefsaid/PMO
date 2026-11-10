@@ -136,9 +136,9 @@ beforeEach(() => {
 });
 
 describe('company area hub (#1403)', () => {
-  it('AC-DASH-1403-01: Executive sees all four company work areas and six index figures', () => {
+  it('AC-DASH-1403-01: Executive sees the KPI strip, plan vs actual, needs attention, sales funnel and billing', () => {
     renderPage();
-    for (const area of ['Delivery', 'Sales', 'Billing and collections', 'Purchasing']) {
+    for (const area of ['Plan vs actual', 'Needs attention', 'Sales funnel', 'Billing and collections']) {
       expect(screen.getByRole('heading', { name: area })).toBeInTheDocument();
     }
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
@@ -170,30 +170,25 @@ describe('company area hub (#1403)', () => {
 
   it('L2: the position basis is said once for the page, not repeated in each panel', () => {
     renderPage();
+    // #2055: the sentence lives behind the page's ? button, said once when opened.
+    expect(screen.queryByText(/record currency/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'About Dashboard' }));
     expect(screen.getAllByText(/record currency/i)).toHaveLength(1);
     expect(screen.queryByText(/Selected period:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Invoice amounts exclude tax/)).not.toBeInTheDocument();
   });
 
-  it('F10/L2: pipeline by stage is a table with its column headers above the rows and no always-empty column', () => {
+  it('#2055: the sales funnel shows the count on each open stage, has no repeating stage table, and opens the stage', () => {
     pipelineState.data = {
-      stages: [{ status: 'Tender', count: 2 }, { status: 'Negotiation', count: 1 }],
-      projects: [
-        { status: 'Tender', currency: 'USD', contract_value: 1_000 },
-        { status: 'Tender', currency: 'USD', contract_value: 500 },
-        { status: 'Negotiation', currency: 'USD', contract_value: 2_000 },
-      ],
+      stages: [{ status: 'Tender Submitted', count: 2, weighted_value: 900 }, { status: 'Negotiation', count: 1, weighted_value: 400 }],
+      projects: [],
     };
     renderPage();
-    const table = screen.getByRole('table', { name: 'Pipeline by stage' });
-    const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
-    expect(headers).toEqual(expect.arrayContaining(['Stage', 'Count', 'Gross']));
-    expect(headers).not.toContain('Forecast margin');
-    const rows = within(table).getAllByRole('row');
-    expect(within(rows[0]).getAllByRole('columnheader').length).toBeGreaterThan(0);
-    expect(within(table).getByText('$1,500')).toBeInTheDocument();
-    fireEvent.click(within(table).getByRole('button', { name: 'Open Tender opportunities' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/sales?status=Tender');
+    expect(screen.queryByRole('table', { name: 'Pipeline by stage' })).not.toBeInTheDocument();
+    const stage = screen.getByRole('button', { name: /Tender Submitted/ });
+    expect(stage).toHaveTextContent('2');
+    fireEvent.click(stage);
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales?status=Tender%20Submitted');
   });
 
   it('F2: keeps mixed-currency figures visible once in the KPI band and removes position repeats from panels', () => {
@@ -212,32 +207,9 @@ describe('company area hub (#1403)', () => {
     }
   });
 
-  it('F2: embeds pipeline, win-rate, purchasing and project spend content in their area panels', () => {
-    const dashboard = figureState.result?.dashboard as Record<string, unknown>;
-    dashboard.attention_projects = [{
-      id: 'project-1', name: 'Project North', contract_value: 500, currency: 'USD', spent: 200,
-      actual_complete: true, actual_currency: 'USD', budget: 500, budget_currency: 'USD', status: 'Ongoing Project',
-      attention_signals: 1, overdue_items: 2, overdue_tasks: 2, overdue_milestones: 0, overdue_invoices: 0,
-      waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
-    }];
-    projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
-    renderPage();
-
-    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card');
-    const delivery = screen.getByRole('heading', { name: 'Delivery' }).closest('.panel-card');
-    const purchasing = screen.getByRole('heading', { name: 'Purchasing' }).closest('.panel-card');
-    expect(sales).not.toBeNull();
-    expect(screen.getByRole('group', { name: 'Weighted pipeline value by stage' }).closest('.panel-card')).toBe(sales);
-    expect(screen.getByRole('region', { name: 'Win rate' }).closest('.panel-card')).toBe(sales);
-    expect(screen.getByRole('heading', { name: 'Spending vs contract' }).closest('.panel-card')).toBe(delivery);
-    expect(screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card')).toBe(purchasing);
-  });
-
-  it('F2/#1418: the Delivery list renders the server attention order — never re-sorted or re-sliced by the client', async () => {
-    // The server ranks EVERY active project by attention and cuts to five. Here Project 6 has the worst signals (4
-    // overdue, over budget, 2 approvals) and by far the LOWEST spending percentage, while Project 2 is at 100% of
-    // its contract. The old screen re-sorted these five by spending and would have put Project 2 first; the list
-    // must now keep the server's order.
+  it('F2/#1418: Needs attention renders the server attention order, never re-sorted or re-sliced by the client', () => {
+    // Ranking rule: most distinct signals first, then overdue items; the server cuts to five. Project 2 is at 100% of
+    // its contract and Project 6 far below; spending must not reorder the list.
     const ranked = [6, 5, 4, 3, 2].map((number) => ({
       id: `project-${number}`, name: `Project ${number}`, contract_value: 1_000 + number * 100, currency: 'USD',
       spent: number === 2 ? 1_200 : number * 100, actual_complete: true, actual_currency: 'USD',
@@ -248,28 +220,15 @@ describe('company area hub (#1403)', () => {
       waiting_approvals: number === 6 ? 2 : 0,
       over_budget: number === 6, budget_used_ratio: number === 6 ? 1.5 : null,
     }));
-    const dashboard = figureState.result?.dashboard as Record<string, unknown>;
-    dashboard.attention_projects = ranked;
+    (figureState.result?.dashboard as Record<string, unknown>).attention_projects = ranked;
     projectsState.data = ranked.map((project) => ({ id: project.id, pm: { full_name: `Manager ${project.id.slice(-1)}` } }));
     renderPage();
 
-    const projectList = screen.getByRole('list', { name: 'Spending vs contract' });
-    const order = within(projectList).getAllByRole('link').map((link) => link.textContent).filter((text) => /^Project \d$/.test(text ?? ''));
-    expect(order).toEqual(['Project 6', 'Project 5', 'Project 4', 'Project 3', 'Project 2']);
-    expect(within(projectList).getByRole('link', { name: /^Open Project 6; recorded spending \$600 to date\.$/ })).toHaveAttribute('href', '/projects/project-6');
-    expect(screen.getByText('Manager 6 · $1,600')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Project 6: 38% of contract used' })).toBeInTheDocument();
-    // The reason line the ranking is made from: overdue work, over budget, waiting approvals.
-    expect(within(projectList).getByText('4 overdue · 50% over budget · 2 awaiting approval')).toBeInTheDocument();
-    expect(screen.getByText('The 5 projects that most need attention')).toBeInTheDocument();
+    const list = screen.getByRole('list', { name: /need attention/i });
+    expect(within(list).getAllByRole('link').map((link) => link.textContent)).toEqual(['Project 6', 'Project 5', 'Project 4', 'Project 3', 'Project 2']);
+    expect(within(list).getByRole('link', { name: 'Project 6' })).toHaveAttribute('href', '/projects/project-6');
+    expect(within(list).getByText('4 overdue · 50% over budget · 2 awaiting approval')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View all 5 projects' })).toHaveAttribute('href', '/projects');
-
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Row actions for Project 6' }));
-    const menu = screen.getByRole('menu');
-    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Open project', 'Open budget', 'Open procurements',
-    ]);
   });
 
   it('F2: keeps review accounting mappings on its own line below the margin subline', () => {
@@ -321,7 +280,7 @@ describe('company area hub (#1403)', () => {
     }];
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
     renderPage();
-    fireEvent.click(screen.getByRole('link', { name: /^Open Project North; recorded spending \$200 to date\.$/ }));
+    fireEvent.click(screen.getByRole('link', { name: 'Project North' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/projects/project-1');
   });
 
@@ -404,10 +363,9 @@ describe('company area hub (#1403)', () => {
   it('AC-DASH-1403-06: Admin sees the same company hub as Executive', () => {
     state.role = 'Admin';
     renderPage();
-    expect(screen.getByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Sales' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sales funnel' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Billing and collections' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Purchasing' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Ready to pay' })).not.toBeInTheDocument();
   });
 
@@ -416,17 +374,17 @@ describe('company area hub (#1403)', () => {
     renderPage();
     expect(screen.getByText("Couldn't load approvals and attention items")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Purchasing' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sales funnel' })).toBeInTheDocument();
   });
 
   it('AC-DASH-1403-08: dashboard headings use the Bahasa catalogue', () => {
     renderBahasaPage();
     expect(screen.getByRole('heading', { name: 'Dasbor' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Pekerjaan' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Penjualan' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Rencana vs realisasi' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Perlu perhatian' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Corong penjualan' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Penagihan dan penerimaan' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Pembelian' })).toBeInTheDocument();
   });
 
   it('AC-DASH-1403-05: Engineer is routed to the personal dashboard with no company money figures', () => {
@@ -462,7 +420,7 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     renderPage();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
-    expect(screen.getByText('No delivery projects to compare yet')).toBeInTheDocument();
+    expect(screen.getByText('No projects to compare yet')).toBeInTheDocument();
   });
 
   it('AC-FAA-006: the company empty state appears only when there is no project or procurement evidence at all', () => {
@@ -497,20 +455,8 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     renderPage();
     expect(screen.getByText("Couldn't load company position figures")).toBeInTheDocument();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
-    expect(screen.queryByText('No delivery projects to compare yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No projects to compare yet')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).not.toHaveTextContent('$1,000');
-  });
-
-  it('AC-UXA-003 / L12(g): Bahasa labels the four purchasing stages while each stage link keeps its stage destination', () => {
-    const current = figureState.result!;
-    current.dashboard = { ...(current.dashboard as Record<string, unknown>), procurements_by_status: [{ status: 'Approved', count: 1 }, { status: 'Vendor Invoiced', count: 2 }] };
-    renderBahasaPage();
-    expect(screen.getByRole('group', { name: 'Nilai pipeline tertimbang per tahap' })).toBeInTheDocument();
-    const pay = screen.getAllByRole('link', { name: /Pembayaran/ });
-    expect(pay.length).toBeGreaterThan(0);
-    for (const link of pay) expect(link).toHaveAttribute('href', '/procurement?stage=pay');
-    expect(screen.getAllByRole('link', { name: /Permintaan/ })[0]).toHaveAttribute('href', '/procurement?stage=request');
-    expect(screen.queryByText('Supplier invoiced')).not.toBeInTheDocument();
   });
 
   it('AC-UXA-003: Bahasa error and empty states read in Bahasa, never the English fallback', () => {
@@ -538,12 +484,6 @@ describe('company hub — behaviour carried over from the previous dashboard', (
 // Ported from the pre-restructure ExecutiveDashboard.test.tsx (baseline fa511c382): approvals first,
 // purchasing scope and stage links, help copy, states and a11y — re-asserted on the company hub.
 describe('company hub — ported baseline cases', () => {
-  const purchasingPanel = () => {
-    const panel = screen.getByRole('heading', { name: 'Purchasing' }).closest('.panel-card');
-    expect(panel).not.toBeNull();
-    return panel as HTMLElement;
-  };
-
   it('AC-UX-016 / batch-3: the actionable approvals doorway precedes the passive company figures and opens /approvals', () => {
     renderPage();
     const approvals = screen.getByRole('link', { name: '2 approvals waiting for you' });
@@ -557,48 +497,6 @@ describe('company hub — ported baseline cases', () => {
     renderPage();
     expect(screen.queryByRole('link', { name: /approvals? waiting for you/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Review')).not.toBeInTheDocument();
-  });
-
-  it('AC-RF-007: the purchasing stages say purchases made directly in the accounting system are outside this PMO view', () => {
-    (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [
-      { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
-      { status: 'Ordered', count: 1 }, { status: 'Paid', count: 1 },
-    ];
-    renderPage();
-    const panel = purchasingPanel();
-    expect(panel).toHaveTextContent('Purchases made directly in the accounting system are not counted.');
-    expect(within(panel).getAllByRole('group', { name: 'Purchasing by stage' }).length).toBeGreaterThan(0);
-    // L12(g): five raw statuses fold into the four stages Request · Order · Receive · Pay.
-    expect(within(panel).getAllByRole('link', { name: /: \d+$/ }).map((link) => link.getAttribute('aria-label'))).toEqual(['Request: 3', 'Order: 1', 'Receive: 0', 'Pay: 1']);
-  });
-
-  it('AC-S19-004 / AC-JR-W1-10 / L12(g): the four stage links carry the stage drill-down filter the procurement list reads', () => {
-    (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [
-      { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
-      { status: 'Ordered', count: 1 }, { status: 'Received', count: 1 }, { status: 'Vendor Invoiced', count: 1 },
-      { status: 'Paid', count: 1 },
-    ];
-    renderPage();
-    const panel = purchasingPanel();
-    const expected: Array<[string, string]> = [
-      ['Request: 3', '/procurement?stage=request'],
-      ['Order: 1', '/procurement?stage=order'],
-      ['Receive: 1', '/procurement?stage=receive'],
-      ['Pay: 2', '/procurement?stage=pay'],
-    ];
-    for (const [name, href] of expected) {
-      const links = within(panel).getAllByRole('link', { name });
-      expect(links.length).toBeGreaterThan(0);
-      for (const link of links) expect(link).toHaveAttribute('href', href);
-    }
-  });
-
-  it('AC-S19-004: no PMO procurements is said plainly while the accounting-system scope copy stays', () => {
-    (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [];
-    renderPage();
-    const panel = purchasingPanel();
-    expect(within(panel).getByText('No procurements to show')).toBeInTheDocument();
-    expect(panel).toHaveTextContent('Purchases made directly in the accounting system are not counted.');
   });
 
   it('AC-JR-W4-05: the Pipeline (weighted) help says "project value", never "opportunity value"', () => {

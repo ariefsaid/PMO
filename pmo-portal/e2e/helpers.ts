@@ -20,9 +20,11 @@ export function ownedContextOptions(testInfo: Pick<TestInfo, 'project'>, overrid
   return { ...contextOptions, ...overrides };
 }
 
-/** Locate the rendered toast copy (not its separate, screen-reader-only live announcement). */
+/** Locate the rendered toast copy (not its separate, screen-reader-only live announcement).
+ *  `.last()` targets the newest matching toast: the library stacks repeats instead of
+ *  coalescing them, and assertions follow the toast the last action fired. */
 export function visibleToast(page: Page, text: string | RegExp): Locator {
-  return page.locator('[data-toast="visible"]').filter({ hasText: text });
+  return page.locator('[data-sonner-toast]').filter({ hasText: text }).last();
 }
 
 /** Keep project-create journeys independent of the seeded ERP host; native project persistence remains real. */

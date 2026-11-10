@@ -1,4 +1,7 @@
 import React from 'react';
+import { Menu } from '@base-ui/react/menu';
+import { cn } from '@/src/components/ui/cn';
+import { menuItemClass, menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -102,26 +105,23 @@ const TasksToolbar: React.FC<{
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-page font-bold tracking-[-0.02em]">{heading}</h2>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label={t('projectDetail.tasks.moreOptions', 'More task options')}
-                aria-haspopup="menu"
-                aria-expanded={toolbarMenuOpen}
-                onClick={() => setToolbarMenuOpen((open) => !open)}
-              >
+            <Menu.Root open={toolbarMenuOpen} onOpenChange={setToolbarMenuOpen}>
+              <Menu.Trigger render={<Button variant="outline" size="sm" />} aria-label={t('projectDetail.tasks.moreOptions', 'More task options')}>
                 <span aria-hidden="true">⋯</span>
-              </Button>
-              {toolbarMenuOpen && <div role="menu" className="absolute right-0 top-full z-30 mt-1 min-w-[190px] rounded-md border border-border bg-popover p-1 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-                <button role="menuitemcheckbox" aria-checked={showArchived} type="button" className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { setShowArchived((value) => !value); onClearSelection(); setToolbarMenuOpen(false); }}>
-                  {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
-                </button>
-                <button role="menuitem" type="button" className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { setToolbarMenuOpen(false); integrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
-                  {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}
-                </button>
-              </div>}
-            </div>
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
+                  <Menu.Popup className={cn(menuPopupClass, 'min-w-[190px]')} style={menuPopupOrigin}>
+                    <Menu.CheckboxItem checked={showArchived} closeOnClick onCheckedChange={() => { setShowArchived((value) => !value); onClearSelection(); }} className={menuItemClass}>
+                      {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
+                    </Menu.CheckboxItem>
+                    <Menu.Item onClick={() => integrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className={menuItemClass}>
+                      {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}
+                    </Menu.Item>
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
             {canCreate && <Button variant="outline" size="sm" onClick={onNewTask}>
               <Icon name="plus" />{t('projectDetail.tasks.newTask', 'New task')}
             </Button>}

@@ -44,7 +44,7 @@ describe('invoice picker query recovery', () => {
     const user = userEvent.setup();
     const view = render(<QueryClientProvider client={client}><MemoryRouter><SalesInvoiceFormModal onClose={vi.fn()} onCreate={vi.fn()} native pendingPush={{ status: 'idle', error: null }} /></MemoryRouter></QueryClientProvider>);
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
-    expect(screen.getByTestId('combo-loading')).toBeInTheDocument();
+    expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Retry$/ })).not.toBeInTheDocument();
     await act(async () => resolve([]));
     expect(await screen.findByText('No customer matches.')).toBeInTheDocument();

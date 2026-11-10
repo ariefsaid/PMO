@@ -411,7 +411,24 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   // below that band, never on top of it. Asserted on desktop and again on a phone width
   // (a wrapped header is taller; placement re-measures on resize).
   const expectToastClearOfDrawerHeader = async () => {
-    const toastBox = await visibleToast(page, /client sign-off prepared/i).boundingBox();
+    // The library slides the toast in (transform transition); measure after it settles so the
+    // box is the resting placement, not a mid-flight frame above its final offset.
+    const toast = visibleToast(page, /client sign-off prepared/i);
+    await expect(toast).toBeVisible({ timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('[data-sonner-toast]');
+        if (!el) return false;
+        const w = window as unknown as { __toastY?: number };
+        const now = el.getBoundingClientRect().y;
+        const settled = w.__toastY !== undefined && Math.abs(w.__toastY - now) < 0.5;
+        w.__toastY = now;
+        return settled;
+      },
+      undefined,
+      { timeout: 5_000 },
+    ).catch(() => { /* fall through to the single measurement below */ });
+    const toastBox = await toast.boundingBox();
     const headerBox = await claimDrawer.locator('[data-drawer-header]').boundingBox();
     expect(toastBox, 'the success toast rendered').toBeTruthy();
     expect(headerBox, 'the claim drawer header rendered').toBeTruthy();

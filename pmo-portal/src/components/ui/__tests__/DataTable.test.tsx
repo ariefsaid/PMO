@@ -526,7 +526,7 @@ describe('DataTable', () => {
     );
     const trigger = screen.getAllByRole('button', { name: /row actions/i })[0];
     await userEvent.click(trigger);
-    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
@@ -545,7 +545,7 @@ describe('DataTable', () => {
       />
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    const menu = screen.getByRole('menu');
+    const menu = await screen.findByRole('menu');
     const sep = within(menu).getByRole('separator');
     expect(sep).toBeInTheDocument();
     // The separator sits ABOVE Delete (between Archive and Delete).
@@ -556,12 +556,8 @@ describe('DataTable', () => {
     expect(deleteIndex).toBe(sepIndex + 1);
   });
 
-  // ── WAI-ARIA menu pattern: a disabled item stays FOCUSABLE ──────────────────
-  // An HTML `disabled` button is unfocusable, so when the FIRST menu item is disabled
-  // the open-focus `el.focus()` was a no-op and keyboard focus stayed on the trigger —
-  // arrows/Escape were dead. `aria-disabled` keeps the item in the tab/focus order so
-  // the roving focus always has a landing spot; the activate guard makes Enter a no-op.
-  it('a disabled FIRST item takes focus on open; ArrowDown roves off it; Enter does nothing; Escape closes', async () => {
+  // Base UI announces disabled actions and manages the roving focus cycle.
+  it('keeps disabled menu actions unavailable while supporting mouse and keyboard navigation', async () => {
     const busyClick = vi.fn();
     const downloadClick = vi.fn();
     render(
@@ -572,34 +568,32 @@ describe('DataTable', () => {
         rowMenu={() => [
           { label: 'Preparing PDF…', onClick: busyClick, disabled: true },
           { label: 'Download PDF', onClick: downloadClick },
+          { label: 'View PDF', onClick: vi.fn() },
         ]}
       />
     );
     const trigger = screen.getAllByRole('button', { name: /row actions/i })[0];
     await userEvent.click(trigger);
-    const menu = screen.getByRole('menu');
+    let menu = await screen.findByRole('menu');
     const disabled = within(menu).getByRole('menuitem', { name: 'Preparing PDF…' });
-    // aria-disabled — announced disabled, but NOT the unfocusable HTML attribute.
-    await waitFor(() => expect(disabled).toHaveAttribute('aria-disabled', 'true'));
-    expect(disabled).not.toBeDisabled();
-    // muted styling survives the switch
-    expect(disabled.className).toContain('text-muted-foreground');
-    // on open, focus lands on that first (disabled) item — not stranded on the trigger.
-    expect(disabled).toHaveFocus();
-    // ArrowDown roves to the next item; ArrowUp back onto the disabled one.
-    await userEvent.keyboard('{ArrowDown}');
-    expect(within(menu).getByRole('menuitem', { name: 'Download PDF' })).toHaveFocus();
-    await userEvent.keyboard('{ArrowUp}');
-    expect(disabled).toHaveFocus();
-    // Enter on the disabled item does nothing — guard holds, menu stays open.
+    expect(disabled).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(disabled);
+    expect(busyClick).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
     await userEvent.keyboard('{Enter}');
+    menu = await screen.findByRole('menu');
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'Download PDF' })).toHaveFocus());
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'View PDF' })).toHaveFocus());
+    await userEvent.keyboard('{ArrowUp}');
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'Download PDF' })).toHaveFocus());
     expect(busyClick).not.toHaveBeenCalled();
     expect(downloadClick).not.toHaveBeenCalled();
     expect(screen.getByRole('menu')).toBeInTheDocument();
-    // Escape closes and restores focus to the trigger.
     await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
   });
 
   it('does NOT render a separator when a danger item is the only / first item', async () => {
@@ -612,7 +606,7 @@ describe('DataTable', () => {
       />
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    expect(within(screen.getByRole('menu')).queryByRole('separator')).not.toBeInTheDocument();
+    expect(within(await screen.findByRole('menu')).queryByRole('separator')).not.toBeInTheDocument();
   });
 
   // ── Cause-1 guard: inline interactive controls must NOT fire onActivate ──────

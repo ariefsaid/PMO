@@ -185,18 +185,12 @@
   --motion-sheet-out: 176ms;
   --motion-drawer-in: 200ms;
   --motion-drawer-out: 160ms;
-  --motion-toast-in: 200ms;
-  --motion-toast-out: 160ms;
   --motion-menu-in: 120ms;
   --motion-icon-swap: 180ms;
   --motion-save-pulse: 450ms;
 
   /* Existing AA-safe solid avatar fills remain independently tuned. */
-  --avatar-1: 221.2 83.2% 55%;
   --avatar-2: 255 50% 57%;
-  --avatar-3: 142 60% 32%;
-  --avatar-4: 40 96% 31%;
-  --avatar-5: 240 4% 46%;
 }
 
 .dark {
@@ -315,11 +309,7 @@
   --rail-w: 224px;
   --header-h: 56px;
   --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
-  --avatar-1: 221 83% 55%;
   --avatar-2: 255 60% 57%;
-  --avatar-3: 142 55% 33%;
-  --avatar-4: 43 90% 30%;
-  --avatar-5: 240 4% 46%;
 }
 
 @media (max-width: 921px) {
@@ -402,11 +392,7 @@
   --color-chart-6: hsl(var(--chart-6));
   --color-chart-7: hsl(var(--chart-7));
   --color-chart-8: hsl(var(--chart-8));
-  --color-avatar-1: hsl(var(--avatar-1));
   --color-avatar-2: hsl(var(--avatar-2));
-  --color-avatar-3: hsl(var(--avatar-3));
-  --color-avatar-4: hsl(var(--avatar-4));
-  --color-avatar-5: hsl(var(--avatar-5));
   --radius-lg: var(--radius);
   --radius-md: var(--control-radius);
   --radius-sm: var(--control-radius-sm);
@@ -564,9 +550,11 @@
   padding-right: 2px;
   /* scroll-snap: one column snaps per scroll gesture on a phone */
   scroll-snap-type: x mandatory;
-  /* Right-edge fade affordance — same compositor-only pattern as StatTiles/Tabs/Stepper */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+/* Right-edge fade cue, only while columns run off the edge (Kanban sets data-more-right); compositor-only. */
+.kanban-scroll[data-more-right='true'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
 }
 /* Each column is a scroll-snap target */
 .kanban > * {
@@ -574,6 +562,10 @@
 }
 /* DND (#1637): mandatory snap fights dnd-kit auto-scroll while a card is held */
 [data-dragging='true'] .kanban-scroll { scroll-snap-type: none; }
+/* Empty columns narrow (they stay drop targets); only boards that opt in via narrowEmpty. */
+.kanban[data-narrow-empty='true'] { display: flex; }
+.kanban[data-narrow-empty='true'] > * { flex: 1 0 258px; }
+.kanban[data-narrow-empty='true'] > :has([data-empty-column]) { flex: 0 0 176px; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
 .kcol-head-sticky {
   position: sticky; top: 0;
@@ -605,29 +597,7 @@
   box-shadow: 0 8px 24px hsl(240 10% 4% / 0.4);
 }
 
-/* ---------- Toast slide-in ---------- */
-.toast-anim { animation: toastIn var(--motion-toast-in) var(--ease-out); }
-.toast-anim.out { animation: toastOut var(--motion-toast-out) var(--ease-out) forwards; }
-
-/* Persistent remedies move above an open dialog instead of covering its actions. */
-[data-toast-container][data-dialog-open="true"] {
-  top: max(12px, env(safe-area-inset-top));
-  bottom: auto;
-  transform: none !important;
-}
-/* Side drawers are edge-anchored full-height panels: the dialog remedy above would land
-   the toast exactly on the drawer's header — its title AND action buttons (issue 1816).
-   ToastProvider measures the live header band into --toast-top-inset (viewport px, with
-   the 12px breathing gap already included) and re-measures on resize, so the toast tucks
-   just below the header and clear of the footer actions at every viewport width. The
-   fallback only covers a drawer whose header has not rendered (never the shipped one). */
-[data-toast-container][data-overlay-drawer="true"] {
-  top: var(--toast-top-inset, 64px);
-  bottom: auto;
-  transform: none !important;
-}
-@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+/* Toast slide, stack lift, and dismissal motion are owned by Sonner (reduced-motion off). */
 
 /* ---------- Confirm dialog entrance (scale+fade; scrim crossfade) ----------
    Both are auto-disabled by the global prefers-reduced-motion rule above
@@ -643,11 +613,16 @@
 .confirm-sheet-anim { animation: confirmSheetIn var(--motion-sheet-in) var(--ease-out); }
 @keyframes confirmSheetIn { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
 
-/* ---------- Drawer (right-side sheet) entrance — slide-in from the right.
-   Auto-disabled by the global prefers-reduced-motion rule (duration → 0),
-   degrading to an instant crossfade (opacity 0→1 with no perceptible slide). */
-.drawer-anim { animation: drawerIn var(--motion-drawer-in) var(--ease-out); }
-@keyframes drawerIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+/* ---------- Drawer (right-side sheet): Base UI drives the transition through
+   [data-starting-style]/[data-ending-style] and --drawer-swipe-movement-x while a finger drags.
+   Reduced motion is handled by the global rule above (transition-duration → 0). */
+.drawer-sheet {
+  transform: translateX(var(--drawer-swipe-movement-x, 0px));
+  transition: transform var(--motion-drawer-in) var(--ease-out);
+}
+.drawer-sheet[data-starting-style], .drawer-sheet[data-ending-style] { transform: translateX(100%); }
+.drawer-sheet[data-ending-style] { transition-duration: var(--motion-drawer-out); }
+.drawer-sheet[data-swiping] { transition-duration: 0ms; }
 
 /* ---------- Exits (#1970): ~20% shorter than the entrance, same transform/opacity only.
    Base UI dialogs wait for [data-ending-style]; hand-rolled overlays use [data-closing]
@@ -655,12 +630,10 @@
 .confirm-anim[data-ending-style], .confirm-anim[data-closing] { animation: confirmOut var(--motion-dialog-out) ease-in forwards; }
 .confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing] { animation: confirmScrimOut var(--motion-dialog-out) ease-in forwards; }
 .confirm-sheet-anim[data-ending-style] { animation: confirmSheetOut var(--motion-sheet-out) ease-in forwards; }
-.drawer-anim[data-closing] { animation: drawerOut var(--motion-drawer-out) ease-in forwards; }
 [data-closing] { pointer-events: none; }
 @keyframes confirmOut { to { opacity: 0; transform: scale(0.95); } }
 @keyframes confirmScrimOut { to { opacity: 0; } }
 @keyframes confirmSheetOut { to { opacity: 0; transform: translateY(100%); } }
-@keyframes drawerOut { to { opacity: 0; transform: translateX(24px); } }
 
 /* ---------- Menus/popovers grow from their trigger: --menu-origin is set inline per
    placement (e.g. "top right" under the trigger, "bottom left" when flipped up). ---------- */
@@ -688,8 +661,8 @@
 @media (prefers-reduced-motion: reduce) {
   .confirm-anim[data-ending-style], .confirm-anim[data-closing],
   .confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing],
-  .confirm-sheet-anim[data-ending-style], .drawer-anim[data-closing],
-  .menu-pop-anim, .save-pulse::after, .icon-swap-in, .icon-swap-out, .toast-anim.out { animation: none; }
+  .confirm-sheet-anim[data-ending-style],
+  .menu-pop-anim, .save-pulse::after, .icon-swap-in, .icon-swap-out { animation: none; }
   .save-pulse::after { display: none; }
   .icon-swap-out { display: none; }
 }

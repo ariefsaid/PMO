@@ -85,7 +85,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
           >
             {detailRows.map((row) => (
               <div key={row.label}>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+                <dt className="text-[11px] font-semibold text-muted-foreground">
                   {row.label}
                 </dt>
                 <dd className="mt-0.5 text-[13.5px]">{row.value}</dd>

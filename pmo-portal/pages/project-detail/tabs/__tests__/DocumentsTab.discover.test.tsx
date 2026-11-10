@@ -75,7 +75,7 @@ describe('F1: register rows stay short', () => {
     renderTab();
     expect(screen.queryAllByText(ACCESS)).toHaveLength(0);
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     expect(within(preview).getByRole('button', { name: /^Open in SharePoint:/ })).toBeEnabled();
     expect(within(preview).getAllByText(ACCESS)).toHaveLength(1);
   });

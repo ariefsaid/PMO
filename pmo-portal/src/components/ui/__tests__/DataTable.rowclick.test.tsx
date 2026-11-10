@@ -72,7 +72,7 @@ describe('AC-ROWCLICK-DATATABLE: whole-row activation', () => {
       />,
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
     expect(onActivate).not.toHaveBeenCalled();
     // Activating a menu item must not fire the row's onActivate either.
     const onEdit = vi.fn();

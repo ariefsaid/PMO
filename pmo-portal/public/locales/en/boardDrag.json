@@ -8,11 +8,13 @@
     "start": "Picked up {{name}}."
   },
   "cantMoveHere": "Can't move here",
+  "cardActions": "Actions for {{name}}",
   "dropHere": "Drop to move here",
-  "instructions": "To change status with the keyboard, use the card's status control.",
+  "instructions": "To change status with the keyboard, use the \"Move to\" items in the card's menu.",
   "lostChoice": {
     "legend": "Which outcome?"
   },
+  "moveTo": "Move to {{stage}}",
   "refused": "{{name}} can't move from {{from}} to {{to}}.",
   "refusedTitle": "Move not allowed",
   "saving": "Saving…"

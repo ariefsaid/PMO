@@ -3,7 +3,7 @@ import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Tooltip } from '../Tooltip';
-import { ToastView, ToastProvider, useToast } from '../Toast';
+import { ToastProvider, useToast } from '../Toast';
 
 describe('Tooltip', () => {
   it('is hidden until hover/focus, then shows with role=tooltip', async () => {
@@ -28,6 +28,20 @@ describe('Tooltip', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Keyboard reachable');
   });
 
+  it('Escape dismisses a focus-opened tooltip; the focused trigger is described by it while open', async () => {
+    render(
+      <Tooltip content="Dismissible">
+        <button>info</button>
+      </Tooltip>
+    );
+    await userEvent.tab();
+    const tip = screen.getByRole('tooltip');
+    expect(screen.getByRole('button', { name: 'info' })).toHaveAccessibleDescription('Dismissible');
+    expect(tip).toHaveTextContent('Dismissible');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
   it('renders an optional bold title and closes on blur/mouseleave', async () => {
     render(
       <Tooltip title="Weighted" content="60% of stage value">
@@ -49,32 +63,18 @@ describe('Tooltip', () => {
     );
     await userEvent.hover(screen.getByRole('button', { name: 'help' }));
     const tooltip = screen.getByRole('tooltip');
-    expect(tooltip.parentElement).toBe(document.body);
-    expect(tooltip.className).toContain('fixed');
+    expect(document.body).toContainElement(tooltip);
+    expect(screen.getByRole('button', { name: 'help' }).parentElement).not.toContainElement(tooltip);
     expect(tooltip.className).toContain('w-[280px]');
     expect(tooltip.className).toContain('max-w-[calc(100vw-16px)]');
-    expect(tooltip).toHaveAttribute('data-placement', 'bottom');
   });
 });
 
 describe('Toast', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('renders aria-live polite (does not steal focus) + maps kind to its icon tone', () => {
-    render(<ToastView kind="success" title="Saved" sub="Budget v3 activated" />);
-    const toast = screen.getByText('Saved').closest('[role="status"]')!;
-    expect(toast).toHaveAttribute('aria-live', 'polite');
-    expect(toast.className).toContain('[&_svg]:text-success');
-    expect(toast.className).not.toContain('border-l-');
-  });
-
-  it('warning kind maps to the warning icon tone', () => {
-    render(<ToastView kind="warning" title="Heads up" />);
-    expect(screen.getByText('Heads up').closest('[role="alert"]')!.className).toContain(
-      '[&_svg]:text-warning-foreground'
-    );
-  });
-
+  // aria-live/role and kind-tone behaviour of the announced surface is owned by
+  // Toast.accessibility.test.tsx; this file only keeps the provider lifecycle proof.
   it('provider shows a toast then auto-dismisses it', async () => {
     vi.useFakeTimers();
     const Trigger: React.FC = () => {
@@ -89,9 +89,15 @@ describe('Toast', () => {
     act(() => {
       screen.getByText('fire').click();
     });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(screen.getByText('Saved')).toBeInTheDocument();
     act(() => {
-      vi.advanceTimersByTime(4100);
+      vi.advanceTimersByTime(4_100);
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
     });
     expect(screen.queryByText('Saved')).not.toBeInTheDocument();
   });

@@ -4,8 +4,9 @@
  * directly" mocking idiom (`@/src/lib/repositories/budgetProjection` is mocked; usePermission reads
  * the real JWT role via the mocked `useEffectiveRole`).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -39,6 +40,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 import BudgetAccountMap from './BudgetAccountMap';
 import { Constants } from '@/src/lib/supabase/database.types';
 
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
+
 /**
  * Router-driven fragment navigation control (AC-ADMIA-004). The focus/scroll behavior is keyed to
  * the ROUTER hash (the single source of truth), so these tests navigate a MemoryRouter — while the
@@ -63,7 +70,7 @@ const FragmentNav: React.FC = () => {
 
 const selectCatalogueAccount = async (user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, account: string) => {
   await user.click(within(dialog).getByRole('combobox', { name: /erp account/i }));
-  const search = await screen.findByRole('searchbox');
+  const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
   await user.type(search, account);
   await user.click(await screen.findByRole('option', { name: new RegExp(account, 'i') }));
 };
@@ -309,7 +316,7 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     await user.click(within(materials).getByRole('button', { name: /map materials/i }));
     const modal = await screen.findByRole('dialog');
     await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await user.type(search, '5100 - Direct Costs');
     expect(screen.queryByRole('option', { name: /5100 - Direct Costs/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
@@ -468,7 +475,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     await user.click(within(materials).getByRole('button', { name: 'Add account to Materials' }));
     const modal = await screen.findByRole('dialog', { name: 'Add account to Materials' });
     await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await user.type(search, 'Allowances - PSC');
     expect(screen.queryByRole('option', { name: /Allowances - PSC/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();

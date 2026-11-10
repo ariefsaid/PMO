@@ -277,7 +277,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
       />,
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    const menuItem = screen.getByRole('menuitem', { name: 'Edit item' });
+    const menuItem = await screen.findByRole('menuitem', { name: 'Edit item' });
     await userEvent.click(menuItem);
     expect(onEdit).toHaveBeenCalled();
   });

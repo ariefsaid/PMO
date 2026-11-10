@@ -65,8 +65,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const setCancelRef = useCallback((element: HTMLButtonElement | null) => {
     cancelRef.current = element;
-    if (element && open) element.focus();
-  }, [open]);
+  }, []);
   const triggerRef = useRef<HTMLElement | null>(null);
   const fallbackRef = useRef(restoreFocusFallback);
   fallbackRef.current = restoreFocusFallback;
@@ -112,7 +111,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   return (
-    <Dialog.Root open={open} modal={false} onOpenChange={handleOpenChange}>
+    <Dialog.Root open={open} modal="trap-focus" onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <div className={cn('fixed inset-0 z-[800] flex', isDesktop ? 'items-center justify-center p-4' : 'items-end')}>
         <Dialog.Backdrop
@@ -124,23 +123,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           initialFocus={() => cancelRef.current}
           finalFocus={false}
           onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.stopPropagation();
-              return;
-            }
-            if (event.key !== 'Tab') return;
-            const focusable = event.currentTarget.querySelectorAll<HTMLElement>(
-              'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            );
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault();
-              last?.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault();
-              first?.focus();
-            }
+            if (event.key === 'Escape') event.stopPropagation();
           }}
           role={isDestructive ? 'alertdialog' : 'dialog'}
           aria-labelledby={titleId}

@@ -94,7 +94,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
-      <h3 className="text-[12.5px] font-semibold text-muted-foreground uppercase tracking-[0.06em]">
+      <h3 className="text-[12.5px] font-semibold text-muted-foreground">
         Budget impact
       </h3>
       {projectName ? (

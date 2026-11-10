@@ -58,7 +58,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     const user = userEvent.setup();
     const { onAdd } = renderSection({ items: [] });
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-    await user.type(screen.getByRole('searchbox'), 'Test service');
+    await user.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'Test service');
     await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
     await user.type(screen.getByLabelText('New item description'), 'Inspection of test unit');
     await user.type(screen.getByLabelText('New item quantity'), '2');
@@ -99,7 +99,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     );
     expect(screen.getByText('Belum ada item permintaan. Tambahkan di bawah.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('combobox', { name: 'Item ERP' }));
-    expect(screen.getByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
   });
 
   it('AC-PROC-003: renders rows with a derived line total + footer total (tabular)', () => {

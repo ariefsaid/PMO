@@ -14,7 +14,8 @@ import { useTranslation } from 'react-i18next';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import { formatNumberWhole } from '@/src/lib/format';
 import type { UserDirectoryRow } from '@/src/lib/db/adminUsers';
-import { Avatar } from './userPresentation';
+import { Avatar } from '@/src/components/ui/Avatar';
+import { initialsOf } from './avatar';
 import { useRoleLabels } from './roleLabels';
 
 /**
@@ -140,7 +141,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       header: t('admin.users.columns.user', 'User'),
       cell: (u) => (
         <div className="flex min-w-0 items-center gap-2.5">
-          <Avatar user={u} />
+          <Avatar name={u.full_name} size="md" decorative initials={initialsOf(u.full_name)} />
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="truncate font-semibold" title={u.full_name}>
               {u.full_name}

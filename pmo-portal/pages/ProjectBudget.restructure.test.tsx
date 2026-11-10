@@ -318,7 +318,8 @@ describe('ProjectBudget Option A', () => {
     const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
     await userEvent.click(within(drawer).getByRole('button', { name: 'Clone to revise' }));
     await userEvent.click(screen.getByRole('button', { name: 'Clone version' }));
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Version' })).toHaveValue('v-clone'));
+    // The versions drawer is still open (modal), so the selector behind it is out of the a11y tree: find it by label.
+    await waitFor(() => expect(screen.getByLabelText('Version', { selector: 'select' })).toHaveValue('v-clone'));
   });
 
   it.each(['Active', 'Archived'] as const)('M8: read-only %s category detail includes each line fiscal year', async (status) => {

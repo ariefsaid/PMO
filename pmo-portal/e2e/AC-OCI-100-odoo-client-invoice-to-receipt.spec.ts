@@ -80,7 +80,7 @@ async function waitForOdooBed<T>(read: () => Promise<T>): Promise<T> {
 
 async function choose(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label }).click();
-  const search = page.getByRole('searchbox').last();
+  const search = page.getByRole('combobox', { name: /^(search|cari) /i }).last();
   await search.fill(option);
   await page.getByRole('option', { name: new RegExp(option.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).click();
 }

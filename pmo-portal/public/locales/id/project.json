@@ -583,6 +583,8 @@
       "contractValueReadOnlyExplanation": "Nilai kontrak yang disetujui dikunci bagi manajer proyek setelah proyek dimenangkan. Eksekutif, Finance, atau administrator dapat memperbaruinya dan perubahan tersebut akan dicatat.",
       "changeDeliveryStatus": "Ubah status pelaksanaan",
       "copyLink": "Salin tautan",
+        "previewFileFor": "Pratinjau berkas untuk {{title}}",
+        "previewFile": "Pratinjau berkas",
       "changeContractValue": "Ubah nilai kontrak"
     },
     "rail": {
@@ -763,8 +765,7 @@
         "preview": "Pratinjau",
         "download": "Unduh",
         "copyLink": "Salin tautan",
-        "openSharePoint": "Buka di SharePoint",
-        "closePreview": "Tutup pratinjau"
+        "openSharePoint": "Buka di SharePoint"
       },
       "bulk": {
         "statusUpdated": "Status diperbarui untuk {{count}} dokumen",
@@ -846,6 +847,7 @@
         "progress": "Progres"
       },
       "noTaskProgress": "Progres tingkat tugas tidak disimpan. Progres tahap dihitung dari status tugas pada tahap tersebut atau nilai pengganti manualnya.",
+      "moveTo": "Pindah ke {{status}}",
       "moreOptions": "Opsi tugas lainnya",
       "clickUpSettings": "Daftar ClickUp dan sinkronisasi",
       "scope": {

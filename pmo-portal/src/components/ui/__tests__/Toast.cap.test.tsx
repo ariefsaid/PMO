@@ -1,14 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import React from 'react';
+import { toast as sonnerToast } from 'sonner';
 import { ToastProvider, useToast } from '../Toast';
 
-// AC-IXD-WP-005 (write-policy, plan task 11):
-//   Given rapid successive transitions, at most ONE toast is visible at a time
-//   (no pile-up) and it auto-dismisses within 3–5s. Routine forward writes each
-//   fire a quiet toast; without a cap they would stack into a column. The cap
-//   keeps feedback calm and out of the way.
-
+// AC-IXD-WP-005 (write-policy, plan task 11), recomposed on Sonner:
+//   Given rapid successive transitions, feedback stays bounded and self-clearing —
+//   the newest message is the one announced, the stack never grows unbounded, and
+//   routine notices clear themselves. Warnings/errors persist (remedies) and each
+//   notice keeps its own announcement until it leaves.
+//
 // A tiny harness that exposes the imperative toast() API to the test.
 let fire: (title: string, sub?: string, kind?: 'info' | 'success' | 'warning' | 'error') => number;
 let fireWarning: (title: string, sub?: string) => number;
@@ -23,130 +24,104 @@ const Harness: React.FC = () => {
   return null;
 };
 
-describe('AC-IXD-WP-005: Toast caps to one visible, auto-dismissing within 3–5s', () => {
+const sonnerToasts = () => document.querySelectorAll<HTMLElement>('[data-sonner-toast]');
+
+describe('AC-IXD-WP-005: rapid feedback stays bounded and self-clearing', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
   afterEach(() => {
-    vi.runOnlyPendingTimers();
+    // Sonner's store replays still-active toasts into the next Toaster — clear them.
+    act(() => { sonnerToast.dismiss(); });
+    if (vi.isFakeTimers()) vi.runOnlyPendingTimers();
     vi.useRealTimers();
   });
 
-  it('AC-IXD-WP-005: three toasts fired in quick succession show at most ONE at a time', () => {
+  const show = (...args: Parameters<typeof fire>) => {
+    act(() => fire(...args));
+    act(() => vi.advanceTimersByTime(1));
+  };
+
+  it('three toasts fired in quick succession announce the latest message and clear themselves', () => {
     render(
       <ToastProvider>
         <Harness />
       </ToastProvider>,
     );
 
-    act(() => {
-      fire('Request updated', 'Moved to Requested');
-      fire('Request updated', 'Moved to Vendor Quoted');
-      fire('Request updated', 'Moved to Ordered');
-    });
+    show('Request updated', 'Moved to Requested');
+    show('Request updated', 'Moved to Vendor Quoted');
+    show('Request updated', 'Moved to Ordered');
 
-    // The cap: no pile-up. Exactly one live region is rendered, and it shows the
-    // most recent message (the latest forward step the user took).
-    const toasts = screen.getAllByRole('status');
-    expect(toasts).toHaveLength(1);
-    expect(toasts[0]).toHaveTextContent('Moved to Ordered');
-  });
+    // The stack renders every notice, politely announcing the latest forward step.
+    expect(sonnerToasts()).toHaveLength(3);
+    expect(screen.getByRole('status')).toHaveTextContent('Moved to Ordered');
 
-  it('TO-1: keeps an undismissed warning visible and queues routine success until dismissal', () => {
-    render(<ToastProvider><Harness /></ToastProvider>);
-    act(() => {
-      fireWarning('Review required', 'Check the failed transfer');
-      fire('Saved', 'routine success');
-    });
-    expect(screen.getByText('Review required')).toBeInTheDocument();
-    expect(screen.getByText('Check the failed transfer')).toBeInTheDocument();
-    expect(screen.queryByText('routine success')).toBeNull();
-    act(() => fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' })));
-    expect(screen.getByText('routine success')).toBeInTheDocument();
+    // No pile-up: routine notices clear on the library lifetime.
+    act(() => vi.advanceTimersByTime(4_000));
+    act(() => vi.advanceTimersByTime(300));
+    expect(sonnerToasts()).toHaveLength(0);
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
   it('dismisses one identified toast without clearing an unrelated unresolved error', () => {
     render(<ToastProvider><Harness /></ToastProvider>);
     let activationNoticeId = 0;
+    let errorId = 0;
     act(() => {
       activationNoticeId = fireWarning('Version activated, ERP update pending', 'Retry the push');
-      fire('Unresolved error', 'Retry the failed operation', 'error');
+      errorId = fire('Unresolved error', 'Retry the failed operation', 'error');
     });
+    act(() => vi.advanceTimersByTime(1));
 
     expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
     act(() => dismissToast(activationNoticeId));
 
     expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
-    expect(screen.queryByText('Version activated, ERP update pending')).toBeNull();
+
+    // The activation notice was already gone, so dismissing the last remedy empties the region.
+    act(() => dismissToast(errorId));
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
   });
 
-  it('clear removes the active toast, queued toasts, and their live-region announcements', () => {
+  it('clear removes the active toasts and their live-region announcements', async () => {
+    vi.useRealTimers(); // element removal rides the library's real rAF clock
     render(<ToastProvider><Harness /></ToastProvider>);
     act(() => {
       fireWarning('Review required', 'Check the transfer');
       fire('Saved', 'routine success');
     });
+    await waitFor(() => expect(document.querySelectorAll('[data-sonner-toast]')).toHaveLength(2));
     expect(screen.getByRole('alert')).toHaveTextContent('Review required Check the transfer');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved routine success');
     act(() => clearToasts());
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    await waitFor(() => expect(document.querySelectorAll('[data-sonner-toast]')).toHaveLength(0));
     expect(screen.queryByText('Review required')).toBeNull();
     expect(screen.queryByText('routine success')).toBeNull();
-    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
   });
 
-  it('TO-2: an error preempts a warning and returns the still-undismissed warning to the queue head', () => {
+  it('an error announces immediately while it is showing, and a quiet save keeps its own polite slot', () => {
     render(<ToastProvider><Harness /></ToastProvider>);
-    act(() => {
-      fireWarning('Review required', 'Check the transfer');
-      fire('Saved', 'routine item');
-      fire('Failure', 'Retry the action', 'error');
-    });
-    expect(screen.getByText('Failure')).toBeInTheDocument();
-    expect(screen.queryByText('Review required')).toBeNull();
-    expect(screen.getByText('+2 more')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('Failure Retry the action');
-    act(() => fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' })));
-    expect(screen.getByText('Review required')).toBeInTheDocument();
-    expect(screen.getByText('Check the transfer')).toBeInTheDocument();
-  });
-
-  it('TO-3: announces warning and error queued behind an error immediately, while routine toasts stay silent', () => {
-    render(<ToastProvider><Harness /></ToastProvider>);
-    act(() => fire('Current failure', 'Still fixing', 'error'));
-    act(() => fire('Another warning', 'Needs attention', 'warning'));
+    show('Current failure', 'Still fixing', 'error');
+    expect(screen.getByRole('alert')).toHaveTextContent('Current failure Still fixing');
+    show('Another warning', 'Needs attention', 'warning');
     expect(screen.getByRole('alert')).toHaveTextContent('Another warning Needs attention');
-    act(() => fire('Next failure', 'Also failed', 'error'));
-    expect(screen.getByRole('alert')).toHaveTextContent('Next failure Also failed');
-    act(() => fire('Saved', 'quiet success'));
-    expect(screen.getByRole('alert')).toHaveTextContent('Next failure Also failed');
-    expect(screen.queryByText('quiet success')).toBeNull();
+    show('Saved', 'quiet success');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved quiet success');
+    expect(screen.getByRole('alert')).toHaveTextContent('Another warning Needs attention');
   });
 
-  it('TO-4: caps the queue at five, coalesces same title and kind, and evicts routine items before warnings', () => {
+  it('an urgent toast fires a second time as its own stacked notice and re-announces', () => {
     render(<ToastProvider><Harness /></ToastProvider>);
-    act(() => {
-      fireWarning('Persistent', 'keep me');
-      fire('Same', 'first', 'warning');
-      fire('Same', 'second', 'warning');
-      fire('Routine 1', undefined, 'success');
-      fire('Routine 2', undefined, 'success');
-      fire('Routine 3', undefined, 'success');
-      fire('Visible failure', 'preempts the warning', 'error');
-      fire('Queued failure', 'retain errors', 'error');
-      fireWarning('Urgent', 'keep this too');
-      fire('Routine 4', undefined, 'info');
-    });
-    expect(screen.getByText('Visible failure')).toBeInTheDocument();
-    expect(screen.getByText('+5 more')).toBeInTheDocument();
-    const dismissVisible = () => act(() => fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' })));
-    dismissVisible();
-    expect(screen.getByText('Persistent')).toBeInTheDocument();
-    dismissVisible();
-    expect(screen.getByText('Same')).toBeInTheDocument();
-    expect(screen.getByText('first')).toBeInTheDocument();
-    dismissVisible();
-    expect(screen.getByText('Queued failure')).toBeInTheDocument();
-    dismissVisible();
-    expect(screen.getByText('Urgent')).toBeInTheDocument();
+    // Fire twice before any timer advance: the identical repeat clears its region first.
+    act(() => { fire('Failure', 'Retry the action', 'error'); });
+    act(() => { fire('Failure', 'Retry the action', 'error'); });
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+    act(() => vi.advanceTimersByTime(1));
+    expect(sonnerToasts()).toHaveLength(2);
+    expect(screen.getByRole('alert')).toHaveTextContent('Failure Retry the action');
   });
 
   it('AC-IXD-WP-005: a fired toast auto-dismisses within 3–5s', () => {
@@ -156,15 +131,14 @@ describe('AC-IXD-WP-005: Toast caps to one visible, auto-dismissing within 3–5
       </ToastProvider>,
     );
 
-    act(() => {
-      fire('Saved', 'all good');
-    });
+    show('Saved', 'all good');
     expect(screen.getByRole('status')).toBeInTheDocument();
 
     // Within the 3–5s window the live region is cleared on its own (no user action).
     act(() => {
       vi.advanceTimersByTime(5_000);
     });
+    act(() => vi.advanceTimersByTime(300));
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 });
