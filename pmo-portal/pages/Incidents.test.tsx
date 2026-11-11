@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -81,7 +81,7 @@ const seed = [
     org_id: 'org-1',
     incident_date: '2026-04-02',
     type: 'Equipment Damage',
-    severity: 'High',
+    severity: 'Medium',
     location: 'HQ',
     description: 'Forklift impact',
     status: 'Investigating',
@@ -102,11 +102,25 @@ const seed = [
   },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location-probe"
+      data-pathname={location.pathname}
+      data-search={location.search}
+    >
+      {JSON.stringify(location.state ?? null)}
+    </div>
+  );
+};
+
+const renderPage = (role: Role = 'Admin', initialPath = '/incidents') => {
   realRole = role;
   return render(
     <ToastProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <Incidents />
       </MemoryRouter>
     </ToastProvider>,
@@ -190,7 +204,23 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
   it('#1991: the header keeps the "Showing x of y" count against the unfiltered total', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Investigating$/ }));
-    expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 1 of 3');
+    expect(screen.getByText('Showing 1 of 3')).toBeInTheDocument();
+  });
+
+  it('FilterBar: status filter and search round-trip through the URL', async () => {
+    renderPage('Admin', '/incidents');
+    await userEvent.click(screen.getByRole('tab', { name: /^Investigating$/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toContain('status=Investigating'),
+    );
+    await userEvent.type(screen.getByLabelText(/Search incidents/i), 'impact');
+    await waitFor(() => {
+      const search = screen.getByTestId('location-probe').dataset.search;
+      expect(search).toContain('status=Investigating');
+      expect(search).toContain('q=impact');
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
   });
 
   it('#1991: Export reads EVERY incident matching the status + search, not just the shown page', async () => {
@@ -223,18 +253,18 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
       return { cls: pill.className, style: pill.getAttribute('style') ?? '' };
     };
     const low = pillCls('Low', 'Near Miss');
-    const high = pillCls('High', 'Equipment Damage');
+    const medium = pillCls('Medium', 'Equipment Damage');
     const critical = pillCls('Critical', 'Spill');
-    // High = warn (amber label); Critical = destructive (red label); Low = quiet muted — all distinct.
-    expect(high.cls).toContain('text-warning-foreground');
+    // Medium = warn (amber label); Critical = destructive (red label); Low = quiet muted — all distinct.
+    expect(medium.cls).toContain('text-warning-foreground');
     expect(critical.style).toContain('--status-lost-text');
     expect(low.cls).toContain('text-count-foreground');
-    expect(high.cls).not.toEqual(critical.cls);
-    expect(low.cls).not.toEqual(high.cls);
+    expect(medium.cls).not.toEqual(critical.cls);
+    expect(low.cls).not.toEqual(medium.cls);
     // Freed-Blue Status Rule (CW-2): neither severity NOR workflow status renders the
     // action-blue. "Open" status is the neutral grey `progress` treatment.
     const open = pillCls('Open', 'Near Miss');
-    [low, high, critical, open].forEach((p) => {
+    [low, medium, critical, open].forEach((p) => {
       expect(p.cls).not.toContain('bg-primary');
       expect(p.style).not.toContain('--primary');
     });

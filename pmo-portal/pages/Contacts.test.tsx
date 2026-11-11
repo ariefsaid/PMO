@@ -406,9 +406,28 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
 
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
-    expect(screen.getByLabelText(/Filter by company/i)).toHaveValue('All');
+    expect(screen.getByLabelText(/Filter by company/i)).toHaveValue('');
     expect(screen.queryByRole('option', { name: 'Unavailable company' })).not.toBeInTheDocument();
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+  });
+
+  it('FilterBar: company and search filters round-trip through the URL', async () => {
+    renderPage('Admin', '/contacts');
+    const select = screen.getByLabelText(/Filter by company/i);
+    await userEvent.selectOptions(select, '11111111-1111-4111-8111-111111111111');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toContain(
+        'company=11111111-1111-4111-8111-111111111111',
+      ),
+    );
+    await userEvent.type(screen.getByLabelText(/Search contacts/i), 'Jane');
+    await waitFor(() => {
+      const search = screen.getByTestId('location-probe').dataset.search;
+      expect(search).toContain('company=11111111-1111-4111-8111-111111111111');
+      expect(search).toContain('q=Jane');
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
   });
 
   it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {
