@@ -65,9 +65,9 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values,
     <section aria-label={title} className="mb-5 min-w-0">
       <h2 className="mb-2 text-[14px] font-semibold">{title}</h2>
       {currencies.length === 0 && <p className="text-sm text-muted-foreground">{unknownTotal > 0
-        ? t('finance:area.ageingUnknown', { defaultValue: 'No known balances · {{count}} balance unknown', count: unknownTotal })
+        ? t('finance:area.ageingUnknown', { defaultValue: unknownTotal === 1 ? '{{count}} invoice has no balance reported by the accounting system' : '{{count}} invoices have no balance reported by the accounting system', count: unknownTotal })
         : t('finance:area.ageingEmpty', 'No balances to group by age')}</p>}
-      {currencies.length > 0 && unknownTotal > 0 && <p className="mb-2 text-control text-muted-foreground">{t('finance:area.ageingUnknownCount', { defaultValue: '{{count}} balance unknown', count: unknownTotal })}</p>}
+      {currencies.length > 0 && unknownTotal > 0 && <p className="mb-2 text-control text-muted-foreground">{t('finance:area.ageingUnknownCount', { defaultValue: unknownTotal === 1 ? '{{count}} invoice has no balance reported by the accounting system' : '{{count}} invoices have no balance reported by the accounting system', count: unknownTotal })}</p>}
       {currencies.map(([currency, buckets]) => {
         const amounts = bucketKeys.map((key) => amountFor(buckets, key));
         const total = amounts.reduce((sum, amount) => sum + Math.max(amount, 0), 0);

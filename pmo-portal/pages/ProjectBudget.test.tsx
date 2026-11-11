@@ -460,7 +460,7 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     // Spending is unknown here, so the table drops the blank Spent column; the tile still names it.
     expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
-    expect(within(table).queryByRole('columnheader', { name: 'Left' })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Left after spend' })).not.toBeInTheDocument();
     expect(within(table).getAllByText(/2,000,000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/USD/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('tax-basis')).toBeInTheDocument();

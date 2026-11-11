@@ -1,4 +1,4 @@
-import { daysSince, isNeedsAttention, isStaleBid } from '../../components/salesPipeline';
+import { daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid } from '../../components/salesPipeline';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import type { SalesModel } from './useSalesModel';
 
@@ -21,7 +21,7 @@ export const dash = '—';
 export const attentionReason = (m: SalesModel, p: PipelineProject): string => {
   const { t } = m;
   const stale = isStaleBid(p);
-  const days = stale ? daysSince(p.stage_started_at) : daysSince(p.last_update);
+  const days = stale ? daysSince(p.stage_started_at) : daysSinceLatestTouch(p);
   return stale
     ? t('sales:options.staleReason', 'In {{stage}} for {{days}} days', { stage: m.stageName(p.status), days: days ?? 0 })
     : t('sales:options.idleReason', 'Untouched for {{days}} days', { days: days ?? 0 });

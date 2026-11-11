@@ -51,7 +51,7 @@ export default function BudgetVersionsDrawer({
     { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => `${a?.currency || fallbackCurrency} ${formatNumberMax2(row.a)}` },
     { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => `${b?.currency || fallbackCurrency} ${formatNumberMax2(row.b)}` },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (row) => (a?.currency || fallbackCurrency) !== (b?.currency || fallbackCurrency) ? '—' : (
-      <span className={row.change > 0 ? 'text-destructive-text' : undefined}>
+      <span>
         {row.change > 0 ? '+' : ''}{a?.currency || fallbackCurrency} {formatNumberMax2(row.change)}
       </span>
     ) },

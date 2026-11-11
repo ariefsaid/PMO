@@ -353,7 +353,7 @@
     "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar",
     "barLabel": "Anggaran terpakai setelah pengadaan ini: {{pct}}% dari {{budget}}",
     "barCaption": "Anggaran terpakai dengan pembelian ini: {{pct}}%",
-    "uncommitted": "Anggaran belum terikat",
+    "uncommitted": "Belum dikomitmenkan",
     "actualsNotCounted": "Belanja aktual tidak dihitung",
     "headroom": "Sisa ruang {{pct}}%",
     "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini.",

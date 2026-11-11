@@ -175,6 +175,16 @@ beforeEach(() => {
 });
 
 describe('ProjectBudget Option A', () => {
+  it('R2-P1b #12 labels the remaining figure as left after spend', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
+
+    renderPage();
+
+    expect(screen.getAllByText('Left after spend').length).toBeGreaterThan(0);
+  });
+
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
     // This case includes the Finance-only activation affordance; PM read access and SoD stay
     // covered by the PM summary and activation/PM-draft cases below.
@@ -198,7 +208,7 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getAllByText('Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Spent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Committed').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Left').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Left after spend').length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
     expect(screen.getByRole('toolbar', { name: 'Selected categories' })).toHaveTextContent('1 selected');
