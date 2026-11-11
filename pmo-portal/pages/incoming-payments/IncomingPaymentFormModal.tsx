@@ -16,6 +16,7 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { OdooJournalSelect } from '@/src/components/procurement/OdooDirectoryPickers';
+import { nativeReceiptInvoiceCandidates } from './applicableInvoices';
 
 /** Form values for the payment modal. */
 interface FormValues {
@@ -116,9 +117,10 @@ function openInvoiceOptions(
   native: boolean,
   t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
 ): ComboboxOption[] {
-  return openCustomerOpenInvoices(invoices, customerId)
-    // I-5: a PMO receipt settles only a PMO invoice; an ERP payment never settles a PMO invoice frozen at connect.
-    .filter((inv) => Boolean(inv.pmo_native) === native)
+  const candidates = native
+    ? nativeReceiptInvoiceCandidates(invoices, { customerId })
+    : openCustomerOpenInvoices(invoices, customerId).filter((inv) => !inv.pmo_native);
+  return candidates
     .map((inv) => ({
       value: inv.id,
       label: invoiceNumber(inv) ?? inv.id,
@@ -212,8 +214,13 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => customerOptions ?? [], [customerOptions]);
   const selectedCustomerId = form.values.customerId;
   const selectedCustomerOpenInvoices = openCustomerOpenInvoices(invoices ?? [], selectedCustomerId);
-  const hasEligibleInvoices = selectedCustomerOpenInvoices.some((invoice) => Boolean(invoice.pmo_native) === native);
-  const otherLedgerOpenInvoiceCount = selectedCustomerOpenInvoices.filter((invoice) => Boolean(invoice.pmo_native) !== native).length;
+  const selectedCustomerNativeInvoiceCandidates = nativeReceiptInvoiceCandidates(invoices ?? [], { customerId: selectedCustomerId });
+  const hasEligibleInvoices = native
+    ? selectedCustomerNativeInvoiceCandidates.length > 0
+    : selectedCustomerOpenInvoices.some((invoice) => !invoice.pmo_native);
+  const otherLedgerOpenInvoiceCount = native
+    ? selectedCustomerOpenInvoices.filter((invoice) => !invoice.pmo_native).length
+    : selectedCustomerNativeInvoiceCandidates.length;
   const invoiceQueryLoading = invoicesPending || (!invoicesError && invoices == null);
   const invoiceEmptyMessage = (): React.ReactNode | undefined => {
     if (selectedCustomerId && !hasEligibleInvoices) {
@@ -223,7 +230,9 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
       if (otherLedgerOpenInvoiceCount > 1) {
         return <span role="status">{t('financeCopy.otherLedgerInvoicesPlural', '{{count}} open invoices are recorded in the accounting system: record their payments there.', { count: otherLedgerOpenInvoiceCount })}</span>;
       }
-      return <span role="status">{t('financeCopy.noOpenInvoicesForCustomer', 'No open invoices for this customer.')}</span>;
+      return <span role="status">{native
+        ? t('financeCopy.noEligibleNativeInvoiceForCustomer', 'No approved invoice with a reported balance is available for this customer. Create or approve an invoice, or refresh its balance, then try again.')
+        : t('financeCopy.noOpenInvoicesForCustomer', 'No open invoices for this customer.')}</span>;
     }
     // Keep the Combobox's standard query-specific "No invoice matches" copy when eligible invoices exist.
     return undefined;

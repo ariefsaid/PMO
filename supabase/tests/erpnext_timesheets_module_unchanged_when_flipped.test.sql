@@ -106,7 +106,7 @@ select is(
   (select string_agg(distinct trigger_name, ',' order by trigger_name)
      from information_schema.triggers
     where event_object_schema = 'public' and event_object_table = 'timesheets'),
-  'timesheets_audit_insert,timesheets_notify_transition_trg,timesheets_origination_guard,timesheets_stamp_org_id,timesheets_week_start_bounds',
+  'require_timesheet_rejection_reason_trigger,timesheets_audit_insert,timesheets_notify_transition_trg,timesheets_origination_guard,timesheets_stamp_org_id,timesheets_week_start_bounds',
   'AC-TSP-004: no ERP-driven trigger on timesheets (org_id stamp + the local week-bounds, origination and audit guards only)');
 select is(
   (select string_agg(distinct trigger_name, ',' order by trigger_name)

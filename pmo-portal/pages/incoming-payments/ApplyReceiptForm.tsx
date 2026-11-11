@@ -34,6 +34,17 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
   // One identity per form session (this component is mounted only while the form is open): a retry replays, never doubles.
   const intent = useCommandIntent();
   const candidates = useMemo(() => applicableInvoices(receipt, invoices), [receipt, invoices]);
+  const matchingNativeInvoices = invoices.filter((invoice) => Boolean(invoice.pmo_native)
+    && invoice.customer_id === receipt.customer_id
+    && invoice.currency === receipt.currency);
+  const hasUnreportedApprovedBalance = matchingNativeInvoices.some((invoice) =>
+    invoice.status === 'Unpaid' && invoice.erp_outstanding_amount == null);
+  const hasInvoiceAwaitingApproval = matchingNativeInvoices.some((invoice) => invoice.status === 'Submitted');
+  const noCandidateMessage = hasUnreportedApprovedBalance
+    ? t('finance:receipts.apply.balanceUnavailable', 'The approved invoice balance is not available. Refresh invoices before trying again.')
+    : hasInvoiceAwaitingApproval
+      ? t('finance:receipts.apply.awaitingApproval', 'This invoice is waiting for approval. Approve it before applying the receipt.')
+      : t('finance:receipts.apply.noOpenInvoices', 'No approved invoice in {{currency}} with a reported balance is available. Create or approve one, or refresh its balance, then try again.', { currency: receipt.currency });
   const [rows, setRows] = useState<Row[]>([{ key: 0, invoiceId: '', amount: '' }]);
   const [nextKey, setNextKey] = useState(1);
   const [attempted, setAttempted] = useState(false);
@@ -103,7 +114,7 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
     >
       <p className="mb-3 text-control font-medium">{t('finance:receipts.apply.subtitle', '{{amount}} not yet applied', { amount: formatCurrency(unapplied, receipt.currency, { precision: 'minor' }) })}</p>
       {candidates.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('finance:receipts.apply.noOpenInvoices', 'This customer has no approved invoice in {{currency}} that still owes money.', { currency: receipt.currency })}</p>
+        <p className="text-sm text-muted-foreground">{noCandidateMessage}</p>
       ) : (
         <div className="space-y-3">
           <ul className="space-y-3" aria-label={t('finance:receipts.apply.title', 'Apply to invoices')}>

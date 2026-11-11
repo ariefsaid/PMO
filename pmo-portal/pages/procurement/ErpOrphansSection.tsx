@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, DataTable, MenuButton, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpLinkRow, ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useLinkErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
@@ -154,7 +154,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
           return name?.trim() ? `${name} (${id})` : t('erpPurchases.projectUnavailable', 'Project unavailable ({{id}})', { id });
         }).join(', '),
     }] : []),
-    { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', size: 130, cell: (r) => formatDate(r.docDate), exportValue: (r) => r.docDate ?? '' },
+    { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', size: 130, cell: (r) => formatDay(r.docDate), exportValue: (r) => r.docDate ?? '' },
     {
       key: 'amount', header: <Tooltip content={t('erpPurchases.amountPreTaxTooltip', 'Pre-tax total from the accounting-system document. Source: ERP purchase document.')}><span tabIndex={0}>{t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)')}</span></Tooltip>, kind: 'money', align: 'num', size: 170,
       cell: (r) => <Tooltip content={t('erpPurchases.amountPreTaxTooltip', 'Pre-tax total from the accounting-system document. Source: ERP purchase document.')}><span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{amountOf(r)}</span></Tooltip>,
