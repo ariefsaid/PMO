@@ -45,6 +45,20 @@ const procurements = [
   { id: 'pr2', status: 'Paid', total_value: 999_999, currency: 'USD', requested_by_id: 'u1' },
 ];
 
+// One USD contract with its June invoicing: the period figures (Invoiced, Collected, Left to bill) read the
+// management pack, which this org has — an empty pack means "no basis to invoice", not a zero (80f05c77f).
+const pack = {
+  from: '2026-01-01', to: '2026-06-30', timezone: 'UTC', undatedInvoiceCount: 0,
+  months: ['2026-06'],
+  rows: [{
+    key: 'p1|USD|contract', kind: 'contract', projectId: 'p1', projectName: 'Alpha', projectNumber: null,
+    clientName: 'Acme', projectManagerId: null, projectStatus: 'Ongoing Project', currency: 'USD',
+    contractNet: 50_000_000, latestProgress: null,
+    months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, backlog: 20_000_000, basis: 'invoiced' }],
+  }],
+  totals: [{ currency: 'USD', months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, backlog: 20_000_000 }] }],
+};
+
 // Keep the company-hub data sources deterministic so these checks bind KPI destinations and names.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -66,7 +80,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
-  useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useManagementPack: () => ({ data: pack, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaims: () => ({ data: { rows: [] }, isPending: false, isError: false, refetch: vi.fn() }),
