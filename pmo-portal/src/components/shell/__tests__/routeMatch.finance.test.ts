@@ -3,16 +3,16 @@ import { breadcrumbForPath, modulesForRole, railParentForPath } from '../routeMa
 import { UserRole } from '@/types';
 
 describe('Finance route matching', () => {
-  it('uses Finance and Finance › area breadcrumbs for Finance routes', () => {
+  it('uses Overview and Overview › area breadcrumbs for Finance routes', () => {
     expect(breadcrumbForPath('/finance')).toEqual([
-      { label: 'Finance', i18nKey: 'financeHub:nav.finance' },
+      { label: 'Overview', i18nKey: 'financeHub:nav.overview' },
     ]);
     expect(breadcrumbForPath('/finance/receivables')).toEqual([
-      { label: 'Finance', i18nKey: 'financeHub:nav.finance', href: '/finance', onClick: expect.any(Function) },
+      { label: 'Overview', i18nKey: 'financeHub:nav.overview', href: '/finance', onClick: expect.any(Function) },
       { label: 'Receivables', i18nKey: 'financeHub:hub.receivables' },
     ]);
-    expect(breadcrumbForPath('/sales-invoices/invoice-1').map((part) => part.label)).toEqual(['Finance', 'Receivables', 'Invoice record']);
-    expect(breadcrumbForPath('/incoming-payments/receipt-1').map((part) => part.label)).toEqual(['Finance', 'Receivables', 'Payment record']);
+    expect(breadcrumbForPath('/sales-invoices/invoice-1').map((part) => part.label)).toEqual(['Overview', 'Receivables', 'Invoice record']);
+    expect(breadcrumbForPath('/incoming-payments/receipt-1').map((part) => part.label)).toEqual(['Overview', 'Receivables', 'Payment record']);
     expect(railParentForPath('/sales-invoices/invoice-1')).toBe('/finance/receivables');
   });
 

@@ -7,12 +7,12 @@
  *   C3-3  Drawer focus-trap — Tab cycles within the drawer
  *   C3-4  Drawer Esc closes
  *   C3-5  Drawer scrim-click closes
- *   C3-6  Drawer focus: moves in on open, restores to hamburger on close
+ *   C3-6  Drawer focus: moves in on open, restores to More on close
  *   C3-7  Drawer inert — the persistent rail+main are non-focusable while drawer open
  *   C3-8  Drawer has a visible close (×) button
  *   C3-9  Body scroll-lock while drawer open
  *   C3-10 Breadcrumb mobile truncation — at narrow width only current crumb shown
- *   C3-11 Touch targets — hamburger and ⌘K trigger have .touch-target
+ *   C3-11 Touch targets — phone More and ⌘K trigger have .touch-target
  *   C3-12 Safe-area — drawer panel has safe-area padding class
  *   C3-13 Content gutter — main content uses the responsive page-gutter token
  */
@@ -26,6 +26,7 @@ import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
 import { ContextBar } from '../ContextBar';
 import { Rail } from '../Rail';
+import { PhoneNavBar } from '../PhoneNavBar';
 
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive', canImpersonate: false, viewAs: vi.fn() }) }));
@@ -33,6 +34,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true }, isPending: false }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/components/shell/NotificationBell', () => ({ NotificationBell: () => null }));
+vi.mock('@/src/components/ui/useIsNarrow', () => ({ useIsNarrow: () => true }));
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -208,7 +210,7 @@ describe('AC-IXD-MOBILE-W4-C3 C3-4: Esc key closes drawer', () => {
 });
 
 // ---------------------------------------------------------------------------
-// C3-6: Focus moves into the drawer on open; restores to hamburger on close
+// C3-6: Focus moves into the drawer on open; restores to More on close
 // ---------------------------------------------------------------------------
 describe('AC-IXD-MOBILE-W4-C3 C3-6: focus management', () => {
   it('focus moves into the drawer on open', async () => {
@@ -254,24 +256,30 @@ describe('AC-IXD-MOBILE-W4-C3 C3-6: focus management', () => {
   });
 });
 
-it('UIP-002: the menu glyph opens navigation, a route closes it, and Escape returns focus', async () => {
+it('UIP-002: More opens navigation, a route closes it, and Escape returns focus to More', async () => {
   function Harness() {
     const [open, setOpen] = React.useState(false);
     const location = useLocation();
     return <AppShell
       rail={<Rail onNavigate={() => setOpen(false)} />}
-      header={<ContextBar breadcrumb={[{ label: 'Dashboard' }]} onOpenPalette={() => {}} onToggleRail={() => setOpen((value) => !value)} />}
+      header={<ContextBar breadcrumb={[{ label: 'Dashboard' }]} onOpenPalette={() => {}} />}
+      phoneNav={<PhoneNavBar onOpenMore={() => setOpen((value) => !value)} onOpenSearch={() => {}} moreOpen={open} />}
+      drawerActions={<button type="button">Account menu</button>}
       railOpen={open}
       onCloseRail={() => setOpen(false)}
     ><h1>{location.pathname === '/projects' ? 'Projects' : 'Dashboard'}</h1></AppShell>;
   }
   const user = userEvent.setup();
   wrap(<Harness />);
-  const trigger = screen.getByRole('button', { name: 'Open navigation menu' });
-  expect(trigger.querySelector('svg')).toHaveAttribute('data-icon', 'menu');
-  await user.click(trigger);
+  const trigger = screen.getByRole('button', { name: 'More' });
+  expect(trigger).toHaveAttribute('data-drawer-toggle');
+  trigger.focus();
+  await user.keyboard('{Enter}');
   const drawer = screen.getByRole('dialog', { name: 'Navigation menu' });
-  await user.click(within(drawer).getByRole('link', { name: 'Projects' }));
+  expect(within(drawer).getByRole('button', { name: 'Account menu' })).toBeInTheDocument();
+  const projectsLink = within(drawer).getByRole('link', { name: 'Projects' });
+  projectsLink.focus();
+  await user.keyboard('{Enter}');
   expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
   await user.click(trigger);
@@ -407,9 +415,9 @@ describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb on a phone', () => {
 });
 
 // ---------------------------------------------------------------------------
-// C3-11: Touch targets on hamburger and ⌘K trigger
+// C3-11: Touch targets on More and ⌘K trigger
 // ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-11: hamburger and close button have .touch-target', () => {
+describe('AC-IXD-MOBILE-W4-C3 C3-11: More and close button have .touch-target', () => {
   it('the drawer close button has .touch-target', () => {
     wrap(
       <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
@@ -418,6 +426,11 @@ describe('AC-IXD-MOBILE-W4-C3 C3-11: hamburger and close button have .touch-targ
     );
     const closeBtn = screen.getByRole('button', { name: /close navigation/i });
     expect(closeBtn.className).toMatch(/touch-target/);
+  });
+
+  it('removes the redundant navigation trigger from the context bar', () => {
+    wrap(<ContextBar breadcrumb={[{ label: 'Dashboard' }]} onOpenPalette={() => {}} />);
+    expect(screen.queryByRole('button', { name: /open navigation/i })).not.toBeInTheDocument();
   });
 });
 
@@ -462,5 +475,6 @@ describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token',
     const contentDiv = main.querySelector('div');
     expect(contentDiv).not.toBeNull();
     expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
+    expect(contentDiv!.className).toContain('max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]');
   });
 });

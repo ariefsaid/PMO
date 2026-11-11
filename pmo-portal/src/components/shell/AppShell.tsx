@@ -21,7 +21,9 @@ interface AppShellProps {
   /** Optional full-bleed strip pinned to the top of `main` (e.g. the
    *  impersonation banner). Rendered above the padded content container. */
   banner?: React.ReactNode;
-  /** Mobile drawer open state (controlled by the shell consumer / ContextBar). */
+  /** Account actions shown in the phone navigation drawer. */
+  drawerActions?: React.ReactNode;
+  /** Mobile drawer open state (controlled by the shell consumer / phone More button). */
   railOpen?: boolean;
   onCloseRail?: () => void;
   /**
@@ -35,7 +37,7 @@ interface AppShellProps {
   /** Whether the keep-mounted assistant is currently open/visible. */
   assistantOpen?: boolean;
   /**
-   * #2061 phone bottom bar (Home · Approvals · Search · More). Rendered as a fixed element
+   * #2061 phone bottom bar (Home · Approvals · My Tasks · Search · More). Rendered as a fixed element
    * outside `<main>`; absent on desktop, where nothing about the shell changes.
    */
   phoneNav?: React.ReactNode;
@@ -57,7 +59,7 @@ export const MAIN_SCROLL_CLASS = 'main-scroll';
  *  - h-[100dvh] (not h-screen) — avoids the iOS Safari URL-bar viewport jump.
  *  - Mobile rail drawer is a proper modal: role=dialog aria-modal, focus-trap,
  *    Esc-to-close, scrim-to-close, visible × button, focus-in-on-open,
- *    focus-restore-to-hamburger-on-close, background inert, body scroll-lock,
+ *    focus-restore-to-More-on-close, background inert, body scroll-lock,
  *    safe-area-inset padding.
  *  - Content gutter max-[921px]:px-4 for narrower mobile gutters.
  *  - Breadcrumb truncation is handled in Breadcrumb.tsx.
@@ -67,6 +69,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   header,
   children,
   banner,
+  drawerActions,
   railOpen = false,
   onCloseRail,
   assistant,
@@ -155,7 +158,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   }, []);
 
   // C3: Focus management for the drawer.
-  // On open: retain the focused hamburger, then move focus into the drawer.
+  // On open: retain the focused More trigger, then move focus into the drawer.
   // On close: restore focus to the captured trigger.
   useEffect(() => {
     if (railOpen) {
@@ -354,7 +357,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             aria-modal="true"
             aria-label={t('shell.drawer.navigationMenu', 'Navigation menu')}
             className={cn(
-              'absolute inset-y-0 left-0 w-[224px] bg-card shadow-xl',
+              'absolute inset-y-0 left-0 flex w-[224px] flex-col bg-card shadow-xl',
               // C3: safe-area-inset-left/top so the drawer clears notch/home-bar.
               'safe-area-drawer',
             )}
@@ -382,8 +385,13 @@ export const AppShell: React.FC<AppShellProps> = ({
 
             {/* Rail nav content — same node as the persistent rail. */}
             <RailDrawerContext.Provider value>
-              <div className="flex-1 overflow-y-auto">{rail}</div>
+              <div className="min-h-0 flex-1 overflow-y-auto">{rail}</div>
             </RailDrawerContext.Provider>
+            {drawerActions && (
+              <div className="shrink-0 border-t border-border p-2.5" data-drawer-actions>
+                {drawerActions}
+              </div>
+            )}
           </div>
         </div>
       )}

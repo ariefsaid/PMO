@@ -49,7 +49,7 @@ const breadcrumb = [{ label: 'Dashboard' }];
 const renderBar = () =>
   render(
     <MemoryRouter>
-      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onToggleRail={vi.fn()} />
+      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} />
     </MemoryRouter>
   );
 
@@ -76,6 +76,8 @@ describe('ContextBar', () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /command palette/i });
     expect(trigger.className.split(/\s+/)).toContain('px-3');
+    expect(trigger.className.split(/\s+/)).toContain('min-h-11');
+    expect(trigger.className.split(/\s+/)).toContain('max-[921px]:min-w-11');
     expect(trigger).toHaveAttribute('aria-keyshortcuts');
     await userEvent.click(trigger);
     expect(onOpenPalette).toHaveBeenCalled();
@@ -88,11 +90,9 @@ describe('ContextBar', () => {
     expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
   });
 
-  it('UIP-002: the navigation menu trigger uses the menu glyph and keeps its accessible name', () => {
+  it('UIP-002: the context bar does not render the redundant phone navigation trigger', () => {
     renderBar();
-    const trigger = screen.getByRole('button', { name: /open navigation/i });
-    expect(trigger).toBeInTheDocument();
-    expect(trigger.querySelector('svg')).toHaveAttribute('data-icon', 'menu');
+    expect(screen.queryByRole('button', { name: /open navigation/i })).not.toBeInTheDocument();
   });
 });
 
@@ -336,7 +336,6 @@ describe('ContextBar — catalogue-backed account-menu labels (AC-ACCT-006)', ()
           <ContextBar
             breadcrumb={breadcrumb}
             onOpenPalette={onOpenPalette}
-            onToggleRail={vi.fn()}
           />
         </MemoryRouter>
       </I18nextProvider>,

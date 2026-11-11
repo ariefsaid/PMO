@@ -81,6 +81,7 @@ import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { AccountMenu } from '@/src/components/shell/AccountMenu';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
@@ -625,7 +626,7 @@ export const ShellChrome: React.FC = () => {
       const listPath = canonicalReceivablesList();
       return [
         {
-          label: t('financeHub:nav.finance', 'Finance'),
+          label: t('financeHub:nav.overview', 'Overview'),
           href: '/finance',
           onClick: () => breadcrumbNavigate('/finance'),
         },
@@ -641,7 +642,7 @@ export const ShellChrome: React.FC = () => {
       const listPath = canonicalReceivablesList(true);
       return [
         {
-          label: t('financeHub:nav.finance', 'Finance'),
+          label: t('financeHub:nav.overview', 'Overview'),
           href: '/finance',
           onClick: () => breadcrumbNavigate('/finance'),
         },
@@ -651,6 +652,25 @@ export const ShellChrome: React.FC = () => {
           onClick: () => breadcrumbNavigate(listPath),
         },
         { label: t('financeHub:nav.paymentRecord', 'Payment record') },
+      ];
+    }
+    const fromPayables = (location.state as { recordContext?: { origin?: string } } | null)?.recordContext?.origin === 'finance-payables';
+    if (fromPayables && /^\/procurement\/[^/]+$/.test(pathname)) {
+      const recordLabel = recordLabelForPath(pathname, cachedLists);
+      return [
+        {
+          label: t('financeHub:hub.payablesTitle', 'Payables'),
+          href: '/finance/payables',
+          onClick: () => breadcrumbNavigate('/finance/payables'),
+        },
+        {
+          label: t('shell.nav.procurement', 'Procurement'),
+          href: '/procurement',
+          onClick: () => breadcrumbNavigate('/procurement'),
+        },
+        {
+          label: recordLabel ?? t(recordResolved ? 'shell.breadcrumb.recordNotFound' : 'shell.breadcrumb.recordLoading', recordResolved ? 'Not found' : 'Loading…'),
+        },
       ];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
@@ -715,6 +735,7 @@ export const ShellChrome: React.FC = () => {
       ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : [])
         .filter((module) => !module.feature || (orgFeatures?.[module.feature] ?? FEATURE_ENV_DEFAULT[module.feature]) === true)
         .filter((module) => !module.unlessFeature || (orgFeatures?.[module.unlessFeature] ?? FEATURE_ENV_DEFAULT[module.unlessFeature]) !== true)
+        .filter((module) => module.module !== 'views' || userViewsEntitled)
         .map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
@@ -752,6 +773,7 @@ export const ShellChrome: React.FC = () => {
             moreOpen={railOpen}
           />
         }
+        drawerActions={<AccountMenu />}
         rail={
           <Rail
             onNavigate={closeRail}
@@ -768,7 +790,6 @@ export const ShellChrome: React.FC = () => {
           <ContextBar
             breadcrumb={breadcrumb}
             onOpenPalette={openPalette}
-            onToggleRail={toggleRail}
             beforeBell={feedbackWidget}
           />
         }

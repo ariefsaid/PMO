@@ -503,7 +503,7 @@
 }
 
 /* ≤920px: collapse the rail column so the grid snaps to full-width and the
-   hamburger drawer becomes the sole rail. SINGLE SOURCE OF TRUTH for the
+   More drawer becomes the sole rail. SINGLE SOURCE OF TRUTH for the
    breakpoint — this one query both zeroes the grid column (--rail-w:0) AND
    hides the persistent grid-area rail (.rail-persistent). The Rail <aside>
    itself carries NO hide class, so its drawer copy (not under .rail-persistent)

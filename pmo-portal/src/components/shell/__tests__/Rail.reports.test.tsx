@@ -57,7 +57,7 @@ describe('Rail — Finance Reports destination', () => {
     effectiveRole = 'Executive';
     renderRail();
     expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
-    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/finance');
   });
 
   it('Finance sees Reports as a child destination', () => {
@@ -66,10 +66,10 @@ describe('Rail — Finance Reports destination', () => {
     expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
   });
 
-  it('AC-IXD-DASH-004: the surviving Overview group still shows Dashboard', () => {
+  it('AC-IXD-DASH-004: the top Dashboard destination remains available', () => {
     effectiveRole = 'Executive';
     renderRail();
-    // The module isn't gone wholesale — the real Overview item survives.
+    // Dashboard remains in its unheaded top slot.
     expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
   });
 });

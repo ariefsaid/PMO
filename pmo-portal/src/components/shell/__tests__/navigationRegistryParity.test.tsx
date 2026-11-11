@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UserRole } from '@/types';
 import { MODULES } from '../routeMatch';
 import { ALL_ITEMS as RAIL_NAV_ITEMS } from '../Rail';
+import { NAVIGATION_ORDER } from '../navigationOrder';
 
 /**
  * Navigation-registry parity guard (single-source-of-truth drift gate).
@@ -14,6 +15,8 @@ import { ALL_ITEMS as RAIL_NAV_ITEMS } from '../Rail';
  * touches only one registry fails here instead of shipping the drift.
  */
 const ALL_ROLES = Object.values(UserRole) as string[];
+
+const CANONICAL_NAV_ORDER = NAVIGATION_ORDER.filter((path) => path !== '/administration');
 
 const roleSetOf = (roles: UserRole[] | undefined) => new Set(roles && roles.length ? roles : ALL_ROLES);
 
@@ -42,6 +45,9 @@ describe('navigation registry parity — every rail destination exists in MODULE
       if ((route.unlessFeature ?? null) !== (item.unlessFeature ?? null)) {
         mismatches.push(`${item.to}: unlessFeature gate differs — rail=${item.unlessFeature ?? 'none'}, module=${route.unlessFeature ?? 'none'}`);
       }
+      if (route.icon !== item.icon) {
+        mismatches.push(`${item.to}: icons differ — rail=${item.icon}, search=${route.icon}`);
+      }
     }
 
     expect(mismatches).toEqual([]);
@@ -51,5 +57,40 @@ describe('navigation registry parity — every rail destination exists in MODULE
     const modulePaths = new Set(MODULES.map((m) => m.path));
     const railOnly = RAIL_NAV_ITEMS.filter((item) => !modulePaths.has(item.to)).map((item) => item.to);
     expect(railOnly).toEqual([]);
+  });
+
+  it('the search destinations use the same canonical order as the rail registry', () => {
+    expect(MODULES.map((module) => module.path)).toEqual(NAVIGATION_ORDER);
+  });
+
+  it.each([
+    ['Executive', UserRole.Executive],
+    ['Finance', UserRole.Finance],
+    ['Project Manager', UserRole.ProjectManager],
+    ['Engineer with eligible decisions', UserRole.Engineer],
+    ['Admin', UserRole.Admin],
+  ])('%s rail is a subsequence of the shared ordered registry', (_label, role) => {
+    expect(RAIL_NAV_ITEMS.map((item) => item.to)).toEqual(CANONICAL_NAV_ORDER);
+    const visible = RAIL_NAV_ITEMS.filter((item) =>
+      item.roles.includes(role) || (role === UserRole.Engineer && item.to === '/approvals'),
+    );
+    let cursor = 0;
+    for (const item of visible) {
+      const next = CANONICAL_NAV_ORDER.indexOf(item.to, cursor);
+      expect(next, `${item.to} must preserve the canonical order`).toBeGreaterThanOrEqual(cursor);
+      cursor = next + 1;
+    }
+  });
+
+  it('feature-off role lists only hide gated entries and keep their canonical positions', () => {
+    const featureOff = RAIL_NAV_ITEMS.filter((item) =>
+      item.roles.includes(UserRole.ProjectManager) && !item.feature && (!item.unlessFeature || item.unlessFeature === 'crm'),
+    );
+    expect(featureOff.map((item) => item.to)).toEqual(
+      CANONICAL_NAV_ORDER.filter((path) => featureOff.some((item) => item.to === path)),
+    );
+    expect(featureOff.some((item) => item.to === '/projects')).toBe(true);
+    expect(featureOff.some((item) => item.to === '/sales')).toBe(false);
+    expect(featureOff.some((item) => item.to === '/companies?type=Vendor')).toBe(true);
   });
 });

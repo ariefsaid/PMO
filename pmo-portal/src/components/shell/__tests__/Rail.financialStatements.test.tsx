@@ -41,7 +41,7 @@ describe('Rail Finance navigation', () => {
   it.each(['Admin', 'Executive', 'Finance'])('%s sees all five Finance destinations when features are enabled', (role) => {
     renderRail(role);
     const expected = [
-      ['Finance', '/finance'],
+      ['Overview', '/finance'],
       ['Receivables', '/finance/receivables'],
       ['Payables', '/finance/payables'],
       ['Reports', '/finance/reports'],
@@ -53,12 +53,12 @@ describe('Rail Finance navigation', () => {
 
   it.each(['Project Manager', 'Engineer'])('%s has no Finance rail item', (role) => {
     renderRail(role);
-    expect(screen.queryByRole('link', { name: 'Finance' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
   });
 
   it('Finance visibility follows the selected navigation role', () => {
     renderRail('Admin', 'Engineer');
-    expect(screen.queryByRole('link', { name: 'Finance' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Sales Pipeline' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Timesheets' })).toBeInTheDocument();
   });
@@ -66,13 +66,13 @@ describe('Rail Finance navigation', () => {
   it('only the exact Finance area item is active for its path', () => {
     renderRail('Finance', 'Finance', '/finance/payables');
     expect(screen.getByRole('link', { name: 'Payables' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Finance' })).not.toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Reports' })).not.toHaveAttribute('aria-current', 'page');
   });
 
   it('Finance links use the real role and hide from a PM previewing Finance', () => {
     renderRail('Project Manager', 'Finance');
-    expect(screen.queryByRole('link', { name: 'Finance' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Statements' })).not.toBeInTheDocument();
   });
 });

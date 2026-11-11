@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { Link } from 'react-router';
@@ -58,6 +58,13 @@ export const AccountMenu: React.FC = () => {
   const { realRole, effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
   const { theme, setTheme } = useTheme();
   const { textSize, setTextSize } = useTextSize();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLElement>();
+
+  useLayoutEffect(() => {
+    const dialog = rootRef.current?.closest<HTMLElement>('[role="dialog"]');
+    if (dialog) setPortalContainer(dialog);
+  }, []);
 
   const rowBase = cn(menuItemClass, 'transition-colors');
   const rowClass = cn(rowBase, 'text-foreground data-[highlighted]:bg-accent');
@@ -71,11 +78,11 @@ export const AccountMenu: React.FC = () => {
     size === 'default' ? t('profilePreferences:textSize.default', 'Default') : size === 'large' ? t('profilePreferences:textSize.large', 'Large') : t('profilePreferences:textSize.larger', 'Larger');
 
   return (
-    <div className="relative flex shrink-0 items-center">
+    <div ref={rootRef} className="relative flex shrink-0 items-center">
       <Menu.Root>
         <Menu.Trigger
           aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
-          className="touch-target inline-flex h-auto min-h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card py-1 pl-1.5 pr-2.5 hover:bg-accent"
+          className="touch-target inline-flex h-auto min-h-11 min-w-11 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card py-1 pl-1.5 pr-2.5 hover:bg-accent"
         >
           <Avatar name={currentUser?.full_name} decorative fallback="U" />
           <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
@@ -84,7 +91,7 @@ export const AccountMenu: React.FC = () => {
           </span>
           <Icon name="chev" className="hidden rotate-90 text-muted-foreground sm:block [&_svg]:size-3.5" />
         </Menu.Trigger>
-        <Menu.Portal>
+        <Menu.Portal container={portalContainer}>
           <Menu.Positioner side="bottom" align="end" sideOffset={8} collisionPadding={12} className="z-50">
             <Menu.Popup
               aria-label={t('shell.contextBar.accountMenu', 'Account menu')}

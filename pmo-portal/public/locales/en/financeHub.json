@@ -171,6 +171,7 @@
   },
   "nav": {
     "finance": "Finance",
+    "overview": "Overview",
     "paymentRecord": "Payment record"
   },
   "managementPack": {

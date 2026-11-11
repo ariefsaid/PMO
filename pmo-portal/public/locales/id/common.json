@@ -3174,7 +3174,6 @@
       "helpWhatsApp": "Hubungi dukungan via WhatsApp",
       "legalAndSupport": "Legal & dukungan",
       "openCommandPalette": "Buka palet perintah",
-      "openNavigation": "Buka menu navigasi",
       "privacy": "Privasi",
       "returnToAdmin": "Kembali ke Admin",
       "searchPlaceholder": "Cari atau lompat ke…",
@@ -3265,11 +3264,10 @@
     "rail": {
       "assistant": "Asisten",
       "group": {
-        "crm": "CRM",
+        "crm": "Penjualan",
         "delivery": "Pelaksanaan",
         "finance": "Keuangan",
-        "overview": "Ringkasan",
-        "workforce": "SDM"
+        "workforce": "Pekerjaan saya"
       },
       "myViews": "Tampilan Saya",
       "primaryNavigation": "Navigasi utama",
