@@ -871,9 +871,7 @@
       "expense": "Klaim biaya",
       "invoice": "Faktur pelanggan"
     },
-    "timesheets": {
-      "policyHelp": "Aturan: timesheet disetujui oleh orang yang berbeda."
-    },
+    "timesheets": {},
     "scopeToggleLabel": "Cakupan persetujuan",
     "subtitle": "Perlu persetujuan saya. Semua yang menunggu keputusan Anda: pengadaan, timesheet, klaim biaya, dan faktur pelanggan.",
     "title": "Persetujuan",
@@ -926,14 +924,12 @@
       "archiveInstead": "Arsipkan saja",
       "dismiss": "Tutup"
     },
-    "description": "Klien dan pemasok yang digunakan di seluruh proyek dan pengadaan. Master data yang dipakai bersama oleh seluruh organisasi.",
     "filters": {
       "all": "Semua",
       "ariaLabel": "Filter berdasarkan tipe"
     },
     "form": {
       "editSubmit": "Simpan perusahaan",
-      "editSubtitle": "Perbarui data perusahaan ini",
       "editTitle": "Edit perusahaan",
       "errors": {
         "nameRequired": "Nama perusahaan wajib diisi."
@@ -943,7 +939,6 @@
         "placeholder": "mis. Cascade Port Authority"
       },
       "newSubmit": "Buat perusahaan",
-      "newSubtitle": "Tambahkan klien atau pemasok ke direktori",
       "newTitle": "Perusahaan baru",
       "sections": {
         "identity": "Identitas"
@@ -969,14 +964,12 @@
       "placeholder": "Cari perusahaan…"
     },
     "states": {
-      "emptySub": "Tambahkan klien atau pemasok pertama Anda untuk mulai menautkan proyek dan kasus pengadaan ke direktori.",
       "emptyTitle": "Belum ada perusahaan",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat perusahaan"
     },
     "table": {
       "clearFilters": "Hapus filter",
-      "emptySub": "Coba tipe lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada perusahaan yang cocok dengan filter"
     },
     "title": "Perusahaan",
@@ -1033,9 +1026,7 @@
       "meeting": "Meeting",
       "note": "Catatan"
     },
-    "addContact": {
-      "subtitle": "Tambahkan orang di perusahaan ini"
-    },
+    "addContact": {},
     "archive": "Arsipkan",
     "archiveConfirm": {
       "confirmLabel": "Arsipkan perusahaan",
@@ -1062,9 +1053,7 @@
       "title": "Gagal memuat perusahaan"
     },
     "field": {
-      "name": "Nama",
       "primaryContact": "Kontak utama",
-      "type": "Tipe",
       "clientNumberSegment": "Segmen nomor klien"
     },
     "notFound": {
@@ -1214,8 +1203,6 @@
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan. Arsipkan saja untuk menyimpan riwayatnya.",
       "deleteTitle": "Hapus kontak ini?"
     },
-    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi. Catat telepon dan email untuk setiap kontak. Rapat bernotulen ada di",
-    "descriptionMeetingsLink": "modul Rapat",
     "filters": {
       "allCompanies": "Semua perusahaan",
       "companyLabel": "Filter berdasarkan perusahaan",
@@ -1229,7 +1216,6 @@
         "loadFailed": "Perusahaan tidak dapat dimuat."
       },
       "editSubmit": "Simpan kontak",
-      "editSubtitle": "Perbarui data kontak ini",
       "editTitle": "Edit kontak",
       "email": {
         "label": "Email"
@@ -1247,7 +1233,6 @@
         "placeholder": "mis. Procurement Lead"
       },
       "newSubmit": "Buat kontak",
-      "newSubtitle": "Tambahkan orang di salah satu perusahaan Anda",
       "newTitle": "Kontak baru",
       "notes": {
         "label": "Catatan",
@@ -1496,14 +1481,12 @@
       "previewApplied": "Uang muka dipakai",
       "previewCash": "Kas yang dibayar",
       "referenceLabel": "Referensi pembayaran (opsional)",
-      "rejectTitle": "Tolak {{number}}?",
       "returnAmountHelper": "Maksimal {{amount}} belum diselesaikan.",
       "returnAmountLabel": "Jumlah dikembalikan",
       "returnConfirm": "Catat pengembalian",
       "returnReferenceLabel": "Referensi (opsional)",
       "returnTitle": "Catat pengembalian kas"
     },
-    "description": "Klaim biaya dan uang muka. Anda melihat milik Anda; penyetuju melihat seluruh tim.",
     "detail": {
       "advanceApplied": "Uang muka dipakai",
       "amount": "Jumlah",
@@ -1520,7 +1503,6 @@
       "rejectionNote": "Ditolak: {{note}}",
       "summary": "Ringkasan"
     },
-    "draftNumber": "Draf",
     "filters": {
       "allCategories": "Semua kategori",
       "allKinds": "Klaim dan uang muka",
@@ -1535,7 +1517,6 @@
         "label": "Selesaikan dengan uang muka",
         "none": "Tanpa uang muka"
       },
-      "advanceSubtitle": "Kas yang Anda ambil sebelum pekerjaan. Klaim yang Anda ajukan sesudahnya menyelesaikannya.",
       "advanceTitle": "Ajukan uang muka",
       "amount": {
         "label": "Jumlah"
@@ -1545,7 +1526,6 @@
         "label": "Kategori anggaran",
         "none": "Tanpa kategori"
       },
-      "claimSubtitle": "Tambahkan rincian dan bukti di layar berikutnya.",
       "claimTitle": "Klaim biaya baru",
       "editTitle": "Ubah detail",
       "errors": {
@@ -1636,7 +1616,6 @@
       "submitted": "Diajukan"
     },
     "table": {
-      "emptySub": "Ajukan klaim setelah pekerjaan, atau uang muka sebelumnya.",
       "emptyTitle": "Belum ada biaya",
       "rowLabel": "Buka {{title}}"
     },
@@ -1668,7 +1647,6 @@
       "externalGate": "Tugas dikelola oleh sistem tugas yang terhubung, jadi action item tidak dapat dibuat dari notulen ini.",
       "modalSection": "Tugas tindak lanjut",
       "modalSubmit": "Buat tugas",
-      "modalSubtitle": "Tindakan ini membuat tugas sungguhan. Namanya terlihat oleh semua yang dapat melihat tugas. Edit sebelum diterbitkan.",
       "modalTitle": "Action item baru",
       "personNoun": "orang",
       "nameHelper": "Terlihat oleh semua orang yang dapat melihat tugas. Diisi dari baris notulen.",
@@ -1804,7 +1782,6 @@
       "deleteTitle": "Hapus rapat ini?",
       "deleteTitleNamed": "Hapus {{title}}?"
     },
-    "description": "Rapat bernotulen dengan peserta dan action item. Anda melihat rapat yang Anda hadiri, tulis, atau dibagikan kepada Anda.",
     "filters": {
       "allProjects": "Semua proyek",
       "projectLabel": "Filter berdasarkan proyek",
@@ -1833,14 +1810,12 @@
       "placeholder": "Cari notulen dan judul…"
     },
     "states": {
-      "emptySub": "Buat notulen rapat pertama Anda untuk mencatat catatan, peserta, dan action item di satu tempat.",
       "emptyTitle": "Belum ada rapat",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat rapat"
     },
     "table": {
       "clearFilters": "Hapus filter",
-      "emptySub": "Coba proyek lain atau hapus pencarian.",
       "emptyTitle": "Tidak ada rapat yang cocok",
       "rowLabel": "Buka {{title}}"
     },
@@ -1874,7 +1849,6 @@
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
     "start": "Mulai {{date}}",
-    "subtitle": "Tugas yang ditugaskan kepada Anda di semua proyek.",
     "title": "Tugas Saya"
   },
   "procurement": {
@@ -3200,15 +3174,11 @@
       "table": "Tabel"
     },
     "viewToggleLabel": "Tampilan pipeline",
-    "weightedForecast": "Proyeksi pipeline tertimbang",
     "board": {
       "ariaLabel": "Papan pipeline penjualan"
     },
     "stage": {
       "leads": "Prospek",
-      "preQual": "Pra-kualifikasi",
-      "quotation": "Penawaran",
-      "tender": "Tender",
       "negotiation": "Negosiasi",
       "lost": "Kalah"
     },
@@ -3384,11 +3354,9 @@
       "title": "Hapus baris proyek ini?"
     },
     "empty": {
-      "sub": "Tambahkan proyek untuk mulai mencatat jam, atau gunakan kontrol minggu untuk mencari minggu lain.",
       "title": "Belum ada jam tercatat minggu ini"
     },
     "emptyEdit": {
-      "sub": "Gunakan “Tambahkan proyek” di atas untuk mulai mencatat jam.",
       "title": "Belum ada jam tercatat minggu ini"
     },
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
@@ -3423,20 +3391,13 @@
       "title": "Dikembalikan untuk diperbaiki"
     },
     "save": "Simpan",
-    "status": {
-      "draftNotSubmitted": "Draf: belum diajukan",
-      "Draft": "Draf",
-      "Submitted": "Diajukan",
-      "Approved": "Disetujui",
-      "Rejected": "Dikembalikan untuk diperbaiki"
-    },
+    "status": {},
     "submit": "Ajukan timesheet",
     "submitConfirm": {
       "confirmLabel": "Ajukan timesheet",
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
-    "subtitle": "Minggu {{range}}. Isi jam per proyek per hari, lalu ajukan seluruh minggu untuk disetujui atasan Anda.",
     "title": "Timesheet",
     "toast": {
       "deleteFailed": "Gagal menghapus",
@@ -3454,8 +3415,7 @@
         "headline": "Timesheet diajukan"
       }
     },
-    "unknownProject": "Proyek tidak diketahui",
-    "weekOf": "Minggu"
+    "unknownProject": "Proyek tidak diketahui"
   },
   "integrations": {
     "organization": {
@@ -4433,9 +4393,7 @@
       "teamReviewAwaiting": "Tinjauan tim · {{n}} menunggu"
     },
     "save": {
-      "dirty": "Perubahan belum disimpan",
-      "saved": "Semua perubahan tersimpan",
-      "nothing": "Belum ada yang perlu disimpan"
+      "dirty": "Perubahan belum disimpan"
     },
     "push": {
       "pending": "Pembaruan akuntansi menunggu",
@@ -4673,7 +4631,6 @@
   "uxs29": {
     "expenseCapture": {
       "firstExpense": "Pengeluaran pertama",
-      "claimSubtitle": "Mulai dengan tanda terima atau rincian pengeluaran pertama. Anda dapat menambahkan lagi setelah menyimpan.",
       "firstExpenseHelp": "Tambahkan tanda terima, rincian pengeluaran lengkap, atau keduanya. Berkas tanda terima baru diunggah setelah Anda menyimpan.",
       "expenseTypePlaceholder": "Pilih jenis",
       "expenseTypeRequired": "Pilih jenis pengeluaran.",

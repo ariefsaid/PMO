@@ -871,9 +871,7 @@
       "expense": "Expense claims",
       "invoice": "Customer invoices"
     },
-    "timesheets": {
-      "policyHelp": "Policy: a different person approves each timesheet."
-    },
+    "timesheets": {},
     "scopeToggleLabel": "Approvals scope",
     "subtitle": "Needs my approval. Everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.",
     "title": "Approvals",
@@ -926,14 +924,12 @@
       "archiveInstead": "Archive instead",
       "dismiss": "Dismiss"
     },
-    "description": "Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.",
     "filters": {
       "all": "All",
       "ariaLabel": "Filter by type"
     },
     "form": {
       "editSubmit": "Save company",
-      "editSubtitle": "Update this company record",
       "editTitle": "Edit company",
       "errors": {
         "nameRequired": "Company name is required."
@@ -943,7 +939,6 @@
         "placeholder": "e.g. Cascade Port Authority"
       },
       "newSubmit": "Create company",
-      "newSubtitle": "Add a client or supplier to the directory",
       "newTitle": "New company",
       "sections": {
         "identity": "Identity"
@@ -969,14 +964,12 @@
       "placeholder": "Search companies…"
     },
     "states": {
-      "emptySub": "Add your first client or supplier to start linking projects and procurement cases to a directory.",
       "emptyTitle": "No companies yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load companies"
     },
     "table": {
       "clearFilters": "Clear filters",
-      "emptySub": "Try a different type or clear the search.",
       "emptyTitle": "No companies match your filters"
     },
     "title": "Companies",
@@ -1033,9 +1026,7 @@
       "meeting": "Meeting",
       "note": "Note"
     },
-    "addContact": {
-      "subtitle": "Add a person at this company"
-    },
+    "addContact": {},
     "archive": "Archive",
     "archiveConfirm": {
       "confirmLabel": "Archive company",
@@ -1062,9 +1053,7 @@
       "title": "Couldn't load company"
     },
     "field": {
-      "name": "Name",
       "primaryContact": "Primary contact",
-      "type": "Type",
       "clientNumberSegment": "Client number segment"
     },
     "notFound": {
@@ -1214,8 +1203,6 @@
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone. Archive instead to keep the history.",
       "deleteTitle": "Delete contact?"
     },
-    "description": "People at the companies you work with. Master data shared by the whole organisation. Log calls and emails against each contact. Minuted meetings live in the",
-    "descriptionMeetingsLink": "Meetings module",
     "filters": {
       "allCompanies": "All companies",
       "companyLabel": "Filter by company",
@@ -1229,7 +1216,6 @@
         "loadFailed": "Companies could not be loaded."
       },
       "editSubmit": "Save contact",
-      "editSubtitle": "Update this contact record",
       "editTitle": "Edit contact",
       "email": {
         "label": "Email"
@@ -1247,7 +1233,6 @@
         "placeholder": "e.g. Procurement Lead"
       },
       "newSubmit": "Create contact",
-      "newSubtitle": "Add a person at one of your companies",
       "newTitle": "New contact",
       "notes": {
         "label": "Notes",
@@ -1496,14 +1481,12 @@
       "previewApplied": "Advance applied",
       "previewCash": "Cash to pay",
       "referenceLabel": "Payment reference (optional)",
-      "rejectTitle": "Reject {{number}}?",
       "returnAmountHelper": "Up to {{amount}} is outstanding.",
       "returnAmountLabel": "Amount returned",
       "returnConfirm": "Record return",
       "returnReferenceLabel": "Reference (optional)",
       "returnTitle": "Record cash returned"
     },
-    "description": "Expense claims and cash advances. You see your own; approvers see the whole team.",
     "detail": {
       "advanceApplied": "Advance applied",
       "amount": "Amount",
@@ -1520,7 +1503,6 @@
       "rejectionNote": "Rejected: {{note}}",
       "summary": "Summary"
     },
-    "draftNumber": "Draft",
     "filters": {
       "allCategories": "All categories",
       "allKinds": "Claims and advances",
@@ -1535,7 +1517,6 @@
         "label": "Settle against advance",
         "none": "No advance"
       },
-      "advanceSubtitle": "Cash you take before the work. Claims you file afterwards settle it.",
       "advanceTitle": "Request a cash advance",
       "amount": {
         "label": "Amount"
@@ -1545,7 +1526,6 @@
         "label": "Budget category",
         "none": "No category"
       },
-      "claimSubtitle": "Add lines and receipts on the next screen.",
       "claimTitle": "New expense claim",
       "editTitle": "Edit details",
       "errors": {
@@ -1636,7 +1616,6 @@
       "submitted": "Submitted"
     },
     "table": {
-      "emptySub": "File a claim after the work, or request an advance before it.",
       "emptyTitle": "No expenses here yet",
       "rowLabel": "Open {{title}}"
     },
@@ -1668,7 +1647,6 @@
       "externalGate": "Tasks are managed by the connected task system, so action items cannot be created from these minutes.",
       "modalSection": "Follow-up task",
       "modalSubmit": "Create task",
-      "modalSubtitle": "This creates a real task. Its name is visible to everyone who can see tasks. Edit it before publishing.",
       "modalTitle": "New action item",
       "personNoun": "person",
       "nameHelper": "Visible to everyone who can see tasks. Prefilled from the minute line.",
@@ -1804,7 +1782,6 @@
       "deleteTitle": "Delete meeting?",
       "deleteTitleNamed": "Delete {{title}}?"
     },
-    "description": "Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.",
     "filters": {
       "allProjects": "All projects",
       "projectLabel": "Filter by project",
@@ -1833,14 +1810,12 @@
       "placeholder": "Search notes and titles…"
     },
     "states": {
-      "emptySub": "Minute your first meeting to capture notes, attendees and action items in one place.",
       "emptyTitle": "No meetings yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load meetings"
     },
     "table": {
       "clearFilters": "Clear filters",
-      "emptySub": "Try a different project or clear the search.",
       "emptyTitle": "No meetings match",
       "rowLabel": "Open {{title}}"
     },
@@ -1874,7 +1849,6 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "subtitle": "Your assigned tasks across all projects.",
     "title": "My Tasks"
   },
   "procurement": {
@@ -3200,15 +3174,11 @@
       "table": "Table"
     },
     "viewToggleLabel": "Pipeline view",
-    "weightedForecast": "Weighted pipeline forecast",
     "board": {
       "ariaLabel": "Sales pipeline board"
     },
     "stage": {
       "leads": "Leads",
-      "preQual": "Pre-Qual",
-      "quotation": "Quotation",
-      "tender": "Tender",
       "negotiation": "Negotiation",
       "lost": "Lost"
     },
@@ -3384,11 +3354,9 @@
       "title": "Delete this project row?"
     },
     "empty": {
-      "sub": "Add a project to start logging hours, or use the week controls to find another week.",
       "title": "No hours logged this week"
     },
     "emptyEdit": {
-      "sub": "Use “Add a project” above to start logging hours.",
       "title": "No hours logged this week"
     },
     "enterHoursToSubmit": "Enter hours to submit",
@@ -3423,20 +3391,13 @@
       "title": "Returned for changes"
     },
     "save": "Save",
-    "status": {
-      "draftNotSubmitted": "Draft: not submitted",
-      "Draft": "Draft",
-      "Submitted": "Submitted",
-      "Approved": "Approved",
-      "Rejected": "Returned for changes"
-    },
+    "status": {},
     "submit": "Submit timesheet",
     "submitConfirm": {
       "confirmLabel": "Submit timesheet",
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       "title": "Submit this week for approval?"
     },
-    "subtitle": "Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.",
     "title": "Timesheets",
     "toast": {
       "deleteFailed": "Delete failed",
@@ -3454,8 +3415,7 @@
         "headline": "Timesheet submitted"
       }
     },
-    "unknownProject": "Unknown Project",
-    "weekOf": "Week of"
+    "unknownProject": "Unknown Project"
   },
   "integrations": {
     "organization": {
@@ -4433,9 +4393,7 @@
       "teamReviewAwaiting": "Team review · {{n}} awaiting"
     },
     "save": {
-      "dirty": "Unsaved changes",
-      "saved": "All changes saved",
-      "nothing": "Nothing to save yet"
+      "dirty": "Unsaved changes"
     },
     "push": {
       "pending": "Accounting update waiting",
@@ -4673,7 +4631,6 @@
   "uxs29": {
     "expenseCapture": {
       "firstExpense": "First expense",
-      "claimSubtitle": "Start with a receipt or first expense line. You can add more after saving.",
       "firstExpenseHelp": "Add a receipt, a complete expense line, or both. No receipt upload starts until you save.",
       "expenseTypePlaceholder": "Choose a type",
       "expenseTypeRequired": "Choose an expense type.",

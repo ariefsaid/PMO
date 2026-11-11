@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, EntityFormModal, FormGrid, FormSection, GateNotice, SelectField, TextField, useEntityForm, type SubmitError,
+  Button, EntityFormModal, FormGrid, FormSection, SelectField, TextField, useEntityForm, type SubmitError,
 } from '@/src/components/ui';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
