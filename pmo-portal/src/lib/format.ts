@@ -700,23 +700,30 @@ export function formatTableMoney(amount: number | string | null, currency: strin
  * One figure per organisation currency plus second lines for the rest: `['IDR 7.7B', '+ USD 5.3K']`.
  * Same-currency entries add up; different currencies are never summed or joined into one "A · B" string.
  * `prefixOtherCurrencies: false` keeps a tile's foreign-currency lines from reading like an addition.
- * The home line is always first and is "0" when the organisation has none.
+ * A known home amount is first; missing or non-finite amounts are reported as unknown.
  */
 export function formatMoneyLines(
-  totals: ReadonlyArray<{ currency: string; amount: number }>,
+  totals: ReadonlyArray<{ currency: string; amount: number | null }>,
   homeCurrency: string,
   kind: 'tile' | 'table',
   options: { prefixOtherCurrencies?: boolean } = {},
-): string[] {
-  const byCurrency = new Map<string, number>([[homeCurrency, 0]]);
-  for (const { currency, amount } of totals) byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount);
+): { lines: string[]; unknown: boolean } {
+  const byCurrency = new Map<string, number>();
+  let unknown = totals.length === 0;
+  for (const { currency, amount } of totals) {
+    if (amount === null || !Number.isFinite(amount)) { unknown = true; continue; }
+    byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount);
+  }
+  const ordered = [...byCurrency].sort(([a], [b]) => Number(b === homeCurrency) - Number(a === homeCurrency));
   const render = kind === 'tile' ? formatTileMoney : formatTableMoney;
-  return [...byCurrency].flatMap(([currency, amount]) => {
+  const lines = ordered.flatMap(([currency, amount]) => {
     const isHome = currency === homeCurrency;
     const text = render(amount, currency, { code: !isHome });
     const prefix = options.prefixOtherCurrencies !== false && !isHome && amount >= 0;
-    return text === null ? [] : [prefix ? `+ ${text}` : text];
+    if (text === null) { unknown = true; return []; }
+    return [prefix ? `+ ${text}` : text];
   });
+  return { lines, unknown };
 }
 
 // ── Wall-clock <-> instant, for `<input type="datetime-local">` (#684, FR-PLC-006, AC-PLC-005) ──

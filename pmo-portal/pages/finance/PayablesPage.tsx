@@ -138,7 +138,7 @@ const PayablesPage: React.FC = () => {
     ].filter(Boolean).join(' · ')
     : t('financeHub:hub.fix.payables.supplierCount', { defaultValue_one: '{{count}} supplier', defaultValue_other: '{{count}} suppliers', count: supplierCount });
   const noKnownTotal = Object.keys(payablesPosition.payablesTotals).length === 0;
-  const toPay = noKnownTotal && payablesPosition.payables.length > 0 ? null : moneyTileProps(payablesPosition.payablesTotals, home);
+  const toPay = noKnownTotal && payablesPosition.payables.length > 0 ? null : moneyTileProps(payablesPosition.payables.length === 0 ? { [home]: 0 } : payablesPosition.payablesTotals, home);
 
   return (
     <FigureScope>
