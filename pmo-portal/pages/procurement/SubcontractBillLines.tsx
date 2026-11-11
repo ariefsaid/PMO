@@ -62,14 +62,14 @@ export const SubcontractBillLines: React.FC<SubcontractBillLinesProps> = ({ poId
 
   if (position.isPending) return <ListState variant="loading" rows={2} loadingLabel={t('subcontract.bill.loading', 'Loading the BoQ lines…')} />;
   if (position.isError) {
-    return <p role="alert" className="text-[12px] text-destructive-text">{t('subcontract.lines.loadError', 'Could not load the subcontract position.')}</p>;
+    return <p role="alert" className="text-sm text-destructive-text">{t('subcontract.lines.loadError', 'Could not load the subcontract position.')}</p>;
   }
 
   if (rows.length === 0) return null;
 
   return (
     <div data-testid="subcontract-bill-lines" className="flex w-full flex-col gap-1.5">
-      <p className="text-[12px] font-semibold text-muted-foreground">
+      <p className="text-sm font-semibold text-muted-foreground">
         {t('subcontract.bill.title', 'Bill these BoQ lines (up to what is still payable)')}
       </p>
       <ul className="flex flex-col gap-1.5">
@@ -79,27 +79,27 @@ export const SubcontractBillLines: React.FC<SubcontractBillLinesProps> = ({ poId
             code: r.item_code, verified: formatNumberExact(r.verified), po: formatNumberExact(r.po_qty), billed: formatNumberExact(r.billed ?? 0),
           });
           return (
-            <li key={r.boq_item_id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px]">
+            <li key={r.boq_item_id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
               <label className="flex items-center gap-2">
                 <span className="w-56 truncate"><span className="font-mono">{r.item_code}</span> <span className="text-muted-foreground">{r.description}</span></span>
                 <input
                   type="text" inputMode="decimal" aria-label={`${r.item_code} ${r.description}`}
                   value={current[r.boq_item_id] ?? ''} disabled={max <= 0}
                   onChange={(e) => edit(r.boq_item_id, r.item_code, e.target.value)}
-                  className="h-8 w-24 rounded-md border border-input bg-background px-2 text-right tabular-nums text-[13.5px] outline-none disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="h-8 w-24 rounded-md border border-input bg-background px-2 text-right tabular-nums text-sm outline-none disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 />
                 <span className="text-muted-foreground">{r.unit}</span>
               </label>
-              <span className="text-[12px] text-muted-foreground tabular">
+              <span className="text-sm text-muted-foreground tabular">
                 {t('subcontract.bill.payable', 'payable {{max}} at {{rate}}', { max: formatNumberExact(max), rate: formatCurrency(r.rate, currency) })}
               </span>
-              {words && <span className="text-[12px] text-muted-foreground">{words}</span>}
+              {words && <span className="text-sm text-muted-foreground">{words}</span>}
             </li>
           );
         })}
       </ul>
-      <p role="status" className="min-h-4 text-[12px] font-medium text-warning-foreground">{clamped}</p>
-      {error && <p role="alert" className="text-[12.5px] text-destructive-text">{error}</p>}
+      <p role="status" className="min-h-4 text-sm font-medium text-warning-foreground">{clamped}</p>
+      {error && <p role="alert" className="text-sm text-destructive-text">{error}</p>}
     </div>
   );
 };

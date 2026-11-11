@@ -1,4 +1,4 @@
-import { formatDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -53,7 +53,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     renderPage();
     await screen.findByText('Eka Engineer');
     expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
-    expect(screen.getByText(formatDate('2026-10-28'))).toBeInTheDocument();
+    expect(screen.getByText(formatDay('2026-10-28'))).toBeInTheDocument();
   });
 
   it('AC-STK-032 loading, empty, error with retry', async () => {

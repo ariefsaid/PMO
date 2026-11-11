@@ -67,8 +67,8 @@ describe('LinkErpDocumentsDialog', () => {
   it('review 9: options show the same stage labels as the purchase list', async () => {
     render(<LinkErpDocumentsDialog docs={[doc('PINV-1')]} projectId="p1" onClose={() => {}} onLinked={() => {}} />);
     const texts = await optionTexts();
-    expect(texts.find((t) => t.includes('Steel'))).toContain('Purchase Order');
-    expect(texts.find((t) => t.includes('Cables'))).toContain('Goods Receipt');
+    expect(texts.find((t) => t.includes('Steel'))).toContain('Purchase order');
+    expect(texts.find((t) => t.includes('Cables'))).toContain('Goods receipt');
   });
 
   it('review 11: a one-line summary names the count, the supplier and the pre-tax amount', () => {

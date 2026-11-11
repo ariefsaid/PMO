@@ -31,10 +31,10 @@ export const OdooTaxPicker: React.FC<{ value: string[]; onChange: (ids: string[]
     : state === 'stale' ? t('odoo.taxes.staleReason', 'The tax list was last read {{age}}; refresh the Odoo connection first.', { age: formatRelativeTime(asOf) }) : null;
   return (
     <fieldset disabled={disabled} className="min-w-0 border-0 p-0" aria-describedby={reason ? 'odoo-tax-reason' : undefined}>
-      <legend className="mb-1 text-[12px] font-semibold text-muted-foreground">{t('odoo.taxes.label', 'Taxes')}</legend>
+      <legend className="mb-1 text-sm font-semibold text-muted-foreground">{t('odoo.taxes.label', 'Taxes')}</legend>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {rows.map((r) => (
-          <label key={r.external_id} className="inline-flex items-center gap-2 text-[13px]">
+          <label key={r.external_id} className="inline-flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               className="size-4 accent-[hsl(var(--primary))]"
@@ -45,7 +45,7 @@ export const OdooTaxPicker: React.FC<{ value: string[]; onChange: (ids: string[]
           </label>
         ))}
       </div>
-      <p id={reason ? 'odoo-tax-reason' : undefined} className="mt-1 text-[12px] text-muted-foreground">
+      <p id={reason ? 'odoo-tax-reason' : undefined} className="mt-1 text-sm text-muted-foreground">
         {reason ?? t('odoo.taxes.defaultHint', "Leave all unticked to use your organisation's default taxes.")}
       </p>
     </fieldset>

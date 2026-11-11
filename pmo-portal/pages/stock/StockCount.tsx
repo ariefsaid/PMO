@@ -43,7 +43,7 @@ const StockCount: React.FC = () => {
 
 const Shell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="mx-auto w-full max-w-5xl px-4 py-4">
-    <h1 className="mb-4 text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+    <h1 className="mb-4 text-page font-semibold">{title}</h1>
     <StockTabs />
     {children}
   </div>
@@ -173,8 +173,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">{heading}</h1>
-      <p className="mb-4 mt-1 text-sm text-muted-foreground">{t(`count.intro.${kind}`)}</p>
+      <h1 className="text-page font-semibold">{heading}</h1>
       <StockTabs />
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}

@@ -65,7 +65,7 @@ describe('ProcurementBlock sort order (#2101)', () => {
 
   it('keeps the age-in-stage sort order: ascending, then descending', () => {
     renderBlock();
-    const header = screen.getByRole('button', { name: /^Age/ });
+    const header = screen.getByRole('button', { name: /^In stage/ });
 
     fireEvent.click(header);
     expect(rowOrder()).toEqual(['b', 'a', 'c']);

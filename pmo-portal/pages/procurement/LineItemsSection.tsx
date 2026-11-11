@@ -47,7 +47,7 @@ export interface LineItemsSectionProps {
 }
 const CellInput: React.FC<React.ComponentPropsWithRef<'input'> & { numeric?: boolean }> = ({ numeric, className = '', ...rest }) => (
   <input {...rest} type="text" inputMode={numeric ? 'decimal' : undefined}
-    className={'h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
+    className={'h-8 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
 );
 
 export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, valuesEditable = true, onAdd, onUpdate, onDelete, onError, busy, currency, erpItems }) => {
@@ -121,7 +121,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   if (editable) columns.push({ key: 'actions', header: t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: 150, cell: (it) => editingId === it.id ? <div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>{t('lineItems.cancel', 'Cancel')}</Button></div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => setDeleteTarget(it)}><Icon name="x" /></Button></div> });
   const columnsTotal = { amount: total === null ? '—' : formatCurrency(total, currency) };
   return <Card className="mb-4" data-testid="line-items-section">
-    <CardHead>{t('lineItems.heading', 'Line items')}<span className="ml-2 text-[12.5px] font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span></CardHead>
+    <CardHead>{t('lineItems.heading', 'Line items')}<span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span></CardHead>
     <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"
       state={items.length === 0 ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={[{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }]} />

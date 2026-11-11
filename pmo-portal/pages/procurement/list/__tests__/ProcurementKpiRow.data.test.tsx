@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { ProcurementKpiRow } from '../ProcurementKpiRow';
+
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 /**
  * The KPI row is memoised on (rows, role) so the page's per-query-settle re-renders skip it.
@@ -19,25 +21,24 @@ describe('ProcurementKpiRow (memoised) data contract', () => {
   it('shows the figures of the rows it was given, and follows new query data', () => {
     const oneUnpaid = [row('a', 'Vendor Invoiced', 5_000)];
     const { rerender } = render(<ProcurementKpiRow rows={oneUnpaid} role="Finance" />);
-    const unpaidCell = () => screen.getByTestId('summary-cell-unpaid');
-    expect(unpaidCell()).toHaveTextContent('1 procurement');
+    expect(screen.getByText(/^1 procurement/)).toBeInTheDocument();
     expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$5K');
 
     // The query settles again with a second supplier invoice in scope.
     rerender(<ProcurementKpiRow rows={[...oneUnpaid, row('b', 'Vendor Invoiced', 7_000)]} role="Finance" />);
 
-    expect(unpaidCell()).toHaveTextContent('2 procurements');
+    expect(screen.getByText(/^2 procurements/)).toBeInTheDocument();
     expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$12K');
   });
 
   it('re-renders when the viewer changes, so an engineer never keeps the money tiles', () => {
     const rows = [row('a', 'Vendor Invoiced', 5_000)];
     const { rerender } = render(<ProcurementKpiRow rows={rows} role="Finance" />);
-    expect(screen.getByTestId('summary-cell-unpaid')).toBeInTheDocument();
+    expect(screen.getByTestId('summary-total-unpaid')).toBeInTheDocument();
 
     rerender(<ProcurementKpiRow rows={rows} role="Engineer" />);
 
-    expect(screen.queryByTestId('summary-cell-unpaid')).not.toBeInTheDocument();
-    expect(screen.getByTestId('summary-cell-ordered')).toBeInTheDocument();
+    expect(screen.queryByTestId('summary-total-unpaid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Supplier invoices unpaid')).not.toBeInTheDocument();
   });
 });

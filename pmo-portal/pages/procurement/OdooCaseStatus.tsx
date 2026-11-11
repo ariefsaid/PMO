@@ -77,15 +77,15 @@ const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string 
   return (
     <section data-testid="odoo-case-status" aria-label={t('odoo.waiting.title', 'Waiting on Odoo')} className="mb-3 space-y-2 rounded-lg border border-border bg-card px-4 py-3">
       {showUnreachable && (
-        <p data-testid="odoo-unreachable" role="status" className="text-[13px] text-foreground">
+        <p data-testid="odoo-unreachable" role="status" className="text-sm text-foreground">
           {t('odoo.unreachable', 'Odoo cannot be reached. Showing what PMO last read, {{age}}. Try again once Odoo is back.', { age: formatRelativeTime(lastOkAt) })}
         </p>
       )}
-      {done && <p role="status" className="text-[13px] text-muted-foreground">{t('odoo.held.done', 'Decision recorded.')}</p>}
-      {readFailed && <p role="status" className="text-[13px] text-muted-foreground">{t('odoo.readFailed', 'What Odoo has not settled could not be read. Try again in a moment.')}</p>}
+      {done && <p role="status" className="text-sm text-muted-foreground">{t('odoo.held.done', 'Decision recorded.')}</p>}
+      {readFailed && <p role="status" className="text-sm text-muted-foreground">{t('odoo.readFailed', 'What Odoo has not settled could not be read. Try again in a moment.')}</p>}
       {list.length > 0 && (
         <>
-          <h3 className="text-[13px] font-semibold">{t('odoo.waiting.title', 'Waiting on Odoo')}</h3>
+          <h3 className="text-sm font-semibold">{t('odoo.waiting.title', 'Waiting on Odoo')}</h3>
           <ul className="space-y-2">
             {list.map((c) => {
               const outcome = odooOutcome({ outboxState: c.state, outboxUpdatedAt: c.updatedAt, lastError: c.lastError });
@@ -93,7 +93,7 @@ const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string 
               const mine = me !== null && c.actorUserId === me;
               return (
                 <li key={c.id} className="grid items-start gap-x-4 gap-y-1.5 sm:grid-cols-[8.5rem_minmax(0,1fr)_auto]">
-                  <span className="text-[13px] font-medium">{t(`odoo.kind.${c.kind}`, KIND_LABEL[c.kind])}</span>
+                  <span className="text-sm font-medium">{t(`odoo.kind.${c.kind}`, KIND_LABEL[c.kind])}</span>
                   <span className="min-w-0">{outcome && <OdooOutcome outcome={outcome} />}</span>
                   {heldPayment && mayResolve && !mine && (
                     <span className="flex flex-wrap gap-2">
@@ -101,7 +101,7 @@ const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string 
                       <Button variant="outline" size="sm" aria-label={manyHeld ? `${t('odoo.held.absent', 'It does not exist in Odoo')}: ${t(`odoo.kind.${c.kind}`, KIND_LABEL[c.kind])}` : undefined} onClick={() => setDecision({ command: c, resolution: 'absent' })}>{t('odoo.held.absent', 'It does not exist in Odoo')}</Button>
                     </span>
                   )}
-                  {heldPayment && mayResolve && mine && <span className="text-[12px] text-muted-foreground">{t(invoiceId ? 'odoo.held.ownRevenueCommand' : 'odoo.held.ownCommand', invoiceId ? 'You sent this document, so someone else must decide.' : 'You sent this payment, so someone else must decide.')}</span>}
+                  {heldPayment && mayResolve && mine && <span className="text-sm text-muted-foreground">{t(invoiceId ? 'odoo.held.ownRevenueCommand' : 'odoo.held.ownCommand', invoiceId ? 'You sent this document, so someone else must decide.' : 'You sent this payment, so someone else must decide.')}</span>}
                 </li>
               );
             })}
