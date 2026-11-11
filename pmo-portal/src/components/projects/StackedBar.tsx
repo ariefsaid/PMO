@@ -15,8 +15,8 @@ export interface StackedBarSegment {
 const NEUTRAL = [
   'bg-foreground/85 text-background',
   'bg-foreground/70 text-background',
-  'bg-foreground/30 text-foreground',
-  'bg-foreground/15 text-foreground',
+  'bg-secondary text-foreground',
+  'bg-muted text-foreground',
 ];
 const MIN_LABELLED_SHARE = 14;
 
@@ -50,7 +50,7 @@ export const StackedBar: React.FC<{
         return (
           <div key={segment.key} style={{ flexGrow: segment.value, flexBasis: 0 }} title={`${segment.label}${segment.display ? ` ${segment.display}` : ''} · ${Math.round(share)}%`}
             className={cn('flex min-w-0 items-center px-2 text-sm font-medium', tone)}>
-            {share >= MIN_LABELLED_SHARE && <span className="truncate">{segment.label}{segment.display ? ` ${segment.display}` : ''}</span>}
+            {(share >= MIN_LABELLED_SHARE || segment.key === '__other') && <span className="truncate">{segment.label}{segment.display ? ` ${segment.display}` : ''}</span>}
           </div>
         );
       })}
