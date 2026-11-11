@@ -115,8 +115,8 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
     const figures = screen.getByRole('region', { name: 'Budget figures' });
     // 1,200 + 300 of the figures the table shows; Left = 6,000 budget - 1,500 spent - 0 committed.
-    expect(within(table).getByText('1,500')).toBeInTheDocument();
-    expect(within(table).getByText('4,500')).toBeInTheDocument();
+    expect(within(table).getByText('IDR 1,500')).toBeInTheDocument();
+    expect(within(table).getByText('IDR 4,500')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
     expect(figures.textContent).toMatch(/Left.*IDR\s*4,500/);
     expect(figures.textContent).not.toMatch(/Spending is unknown|Left is unknown|Comparison unavailable/);
@@ -199,7 +199,7 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     renderPage();
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
     const figures = screen.getByRole('region', { name: 'Budget figures' });
-    expect(within(table).getByText('1,600')).toBeInTheDocument();
+    expect(within(table).getByText('$1,600')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*\$1,600/);
     expect(figures.textContent).toMatch(/Left.*\$4,400/);
   });
