@@ -3,7 +3,7 @@ import { render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { renderWithQueryClient } from '@/test/renderWithQueryClient';
-import { ToastProvider } from '@/src/components/ui';
+import { FigureHiddenLine, FigureScope, ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { formatCurrency } from '@/src/lib/format';
 
@@ -92,11 +92,15 @@ import { PrimaryProjectAction } from '../ProjectSections';
 import { ProjectAttention } from '../ProjectAttention';
 import { MyOpenTasks } from '../ProjectActivity';
 
-const project = (overrides: Partial<ProjectWithRefs> = {}) => ({
+const project = (overrides: Omit<Partial<ProjectWithRefs>, 'contract_value'> & { contract_value?: number | null } = {}) => ({
   id: 'p1', status: 'Ongoing Project', currency: 'USD', contract_value: 1_000,
   contract_date: '2026-10-10', tax_treatment: null,
   ...overrides,
 }) as ProjectWithRefs;
+
+const renderMoneyPosition = (value = project()) => renderWithQueryClient(
+  <MemoryRouter><FigureScope><FigureHiddenLine compact /><MoneyBlock project={value} /></FigureScope></MemoryRouter>,
+);
 
 const budgetVersion = (lineItems: unknown[]) => ({
   id: 'bv1', status: 'Active', line_items: lineItems,
@@ -615,9 +619,7 @@ describe('contract billing block', () => {
       cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '0' }] },
     };
 
-    renderWithQueryClient(
-      <MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>,
-    );
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
     expect(screen.getAllByText('≈ Rp 16,300,000 (JISDOR 2026-10-09)').length).toBeGreaterThan(0);
     expect(state.fxRateCalls).toContainEqual(['USD', 'IDR', '2026-10-10', true]);
   });
@@ -642,7 +644,7 @@ describe('contract billing block', () => {
     expect(state.fxRateCalls).toContainEqual(['USD', 'IDR', '2026-10-10', false]);
   });
 
-  it('omits unknown received values and offers Match payments without a not-available figure', () => {
+  it('omits unknown received values and offers Match payments in the hidden-figure reasons', async () => {
     state.finances = {
       contract_invoiced: '100',
       remaining_to_invoice: null,
@@ -650,22 +652,25 @@ describe('contract billing block', () => {
       cash_received: { state: 'unknown', buckets: [] },
     };
 
-    renderWithQueryClient(
-      <MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>,
-    );
+    renderMoneyPosition(project({ contract_value: null }));
     expect(screen.getByText('Money position')).toBeInTheDocument();
-    expect(screen.getByText('Match payments')).toHaveAttribute('href', '/finance/receivables?view=payments');
+    expect(screen.queryByRole('link', { name: 'Match payments' })).not.toBeInTheDocument();
     // C4: an unknown cash figure is left out (no label with a placeholder value); the reason is said once.
     expect(screen.queryByText('Cash received', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText(/Unavailable|Not available/)).not.toBeInTheDocument();
     expect(screen.queryByText('Received', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Outstanding', { exact: true })).not.toBeInTheDocument();
-    expect(screen.getByText(/Not shown:.*Cash received/)).toBeInTheDocument();
+    const hidden = screen.getByTestId('figures-hidden');
+    expect(hidden).toHaveTextContent('5 figures hidden');
+    await userEvent.click(within(hidden).getByText('Why'));
+    expect(screen.getByText('Receipt-backed cash is not available yet.')).toBeInTheDocument();
+    expect(screen.getByText('Contract value is not recorded.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Match payments' })).toHaveAttribute('href', '/finance/receivables?view=payments');
   });
 });
 
 describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
-  it('L6/C4: Money position keeps each figure once — no spent-vs-budget pair, no placeholder margin — and says why margin is left out', () => {
+  it('L6/C4: Money position keeps each figure once — no spent-vs-budget pair, no placeholder margin — and says why margin is left out', async () => {
     state.role = 'Admin';
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 }];
@@ -675,12 +680,14 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
       cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '200' }] },
       actuals: { currency: 'USD', total: null, as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] },
     };
-    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    renderMoneyPosition();
     const money = screen.getByRole('region', { name: /Money position/ });
     expect(within(money).queryByText('Spent vs budget')).not.toBeInTheDocument();
     expect(within(money).queryByText('Gross margin')).not.toBeInTheDocument();
     expect(within(money).queryByText(/Unavailable/)).not.toBeInTheDocument();
-    expect(within(money).getAllByText(/Not shown:.*Gross margin/)).toHaveLength(1);
+    const hidden = screen.getByTestId('figures-hidden');
+    await userEvent.click(within(hidden).getByText('Why'));
+    expect(screen.getByText(/Gross margin is left out/)).toBeInTheDocument();
     expect(within(money).getByTestId('money-lead-cash')).toBeInTheDocument();
   });
 
@@ -700,16 +707,18 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     expect(within(money).queryByText(/\.00/)).not.toBeInTheDocument();
   });
 
-  it('C4: Money position names why cash received is left out — incomplete allocation or an unverified reading', () => {
+  it('C4: Money position names why cash received is left out — incomplete allocation or an unverified reading', async () => {
     state.finances = { contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
       cash_received: { state: 'incomplete', buckets: [], receipt_count: 1, reasons: ['allocation-unreported'] } };
-    const first = renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
-    expect(screen.getByText(/Not shown:.*receipts not allocated to invoices/)).toBeInTheDocument();
+    const first = renderMoneyPosition();
+    await userEvent.click(within(screen.getByTestId('figures-hidden')).getByText('Why'));
+    expect(screen.getByText(/receipts not allocated to invoices/)).toBeInTheDocument();
     first.unmount();
     state.finances = { contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
       cash_received: { state: 'unavailable', buckets: [], reason: 'invalid-reading' } };
-    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
-    expect(screen.getByText(/Not shown:.*receipt reading not verified/)).toBeInTheDocument();
+    renderMoneyPosition();
+    await userEvent.click(within(screen.getByTestId('figures-hidden')).getByText('Why'));
+    expect(screen.getByText(/receipt reading not verified/)).toBeInTheDocument();
   });
 
   it('AC-UWC-009: Money position shows known cash received — a known zero stays 0, and only the project-currency bucket counts', () => {

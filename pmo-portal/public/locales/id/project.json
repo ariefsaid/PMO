@@ -445,6 +445,7 @@
       "contract": "Kontrak",
       "contractSourceBoq": "Jumlah kuantitas kontrak dikalikan harga satuan dari daftar kuantitas proyek.",
       "contractSourceRecord": "Nilai kontrak yang disetujui pada catatan proyek.",
+      "contractUnavailable": "Nilai kontrak belum tercatat.",
       "ordered": "Dipesan",
       "orderedSource": "Jumlah alokasi pesanan kerja yang diterbitkan dikalikan harga satuan daftar kuantitas.",
       "delivered": "Terkirim",

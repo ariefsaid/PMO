@@ -2394,9 +2394,7 @@
       "editContractValue": "Edit nilai kontrak",
       "po": "PO {{ref}}",
       "poWithDate": "PO {{ref}} ({{date}})",
-      "readOnly": "Hanya lihat",
       "sodEditableNote": "Mengubah nilai pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat.",
-      "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
       "taxAmount": "Jumlah pajak",
       "taxTreatment": "Perlakuan pajak",
       "tile": {

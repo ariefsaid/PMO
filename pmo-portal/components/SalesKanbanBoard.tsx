@@ -20,6 +20,7 @@ import {
   isStaleBid,
   stageLine,
   formatIsoDayMonth,
+  canSummarizeExclusiveTaxBasis,
   type SalesColumn,
 } from './salesPipeline';
 
@@ -91,7 +92,8 @@ const DealCard: React.FC<{
   project: PipelineProject;
   selected: boolean;
   onActivate: () => void;
-}> = ({ project, selected, onActivate }) => {
+  hideExclusiveTaxBasis?: boolean;
+}> = ({ project, selected, onActivate, hideExclusiveTaxBasis = false }) => {
   const { t } = useTranslation();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
@@ -134,11 +136,15 @@ const DealCard: React.FC<{
               {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
                   It sits IMMEDIATELY after the contract value — a label whose job is to remove
                   ambiguity must not sit where it could be read as qualifying another number. */}
-              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
+              {!(hideExclusiveTaxBasis && project.tax_treatment === 'exclusive') && <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}, ${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
-                {t('sales:chanceShort', '{{pct}} chance', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
+                chance: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)),
+                go: formatPercent(project.go_probability ?? project.win_probability),
+                get: formatPercent(project.get_probability ?? 1),
+              })} className="px-1.5">
+                {t('sales:chanceValue', '{{pct}}%', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
               </Badge>
             </div>
           </div>
@@ -162,7 +168,8 @@ const CompactDealCard: React.FC<{
   project: PipelineProject;
   onActivate: () => void;
   hideStatus: boolean;
-}> = ({ project, onActivate, hideStatus }) => {
+  hideExclusiveTaxBasis?: boolean;
+}> = ({ project, onActivate, hideStatus, hideExclusiveTaxBasis = false }) => {
   const { t } = useTranslation();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
@@ -188,17 +195,21 @@ const CompactDealCard: React.FC<{
               <span className="break-words text-[15px] font-bold tabular">
                 {formatCurrency(project.contract_value, project.currency)}
               </span>
-              <TaxBasisLabel
+              {!(hideExclusiveTaxBasis && project.tax_treatment === 'exclusive') && <TaxBasisLabel
                 treatment={project.tax_treatment}
                 taxRate={project.tax_rate}
                 taxBaseNumerator={project.tax_base_numerator}
                 taxBaseDenominator={project.tax_base_denominator}
                 showDetails={false}
-              />
+              />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}, ${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
-                {t('sales:chanceShort', '{{pct}} chance', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
+                chance: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)),
+                go: formatPercent(project.go_probability ?? project.win_probability),
+                get: formatPercent(project.get_probability ?? 1),
+              })} className="px-1.5">
+                {t('sales:chanceValue', '{{pct}}%', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
               </Badge>
             </div>
           </div>
@@ -253,22 +264,30 @@ const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' 
   selectedStatus,
 }) => {
   const { t } = useTranslation();
+  const sharedExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(projects);
   return (
-    <ul
-      data-testid="sales-phone-stage-list"
-      aria-label={t('uxs24.phoneList', 'Projects in selected pipeline stage')}
-      className="grid min-w-0 list-none gap-3 p-0 sm:grid-cols-2"
-    >
-      {projects.map((project) => (
-        <li key={project.id} className="min-w-0">
-          <CompactDealCard
-            project={project}
-            onActivate={() => onOpen(project)}
-            hideStatus={selectedStatus != null}
-          />
-        </li>
-      ))}
-    </ul>
+    <>
+      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mb-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
+        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
+        <span>{t('sales:chanceHeader', 'Chance')}</span>
+      </div>
+      <ul
+        data-testid="sales-phone-stage-list"
+        aria-label={t('uxs24.phoneList', 'Projects in selected pipeline stage')}
+        className="grid min-w-0 list-none gap-3 p-0 sm:grid-cols-2"
+      >
+        {projects.map((project) => (
+          <li key={project.id} className="min-w-0">
+            <CompactDealCard
+              project={project}
+              onActivate={() => onOpen(project)}
+              hideStatus={selectedStatus != null}
+              hideExclusiveTaxBasis={sharedExclusiveTaxBasis}
+            />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 };
 
@@ -306,6 +325,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
     projects.filter((p) => (drag ? drag.columnOf(p.id, serverColumnId(p)) : serverColumnId(p)) === col.testId);
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
+  const sharedExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(projects);
 
   // #697: a funnel stage selection scrolls the board to that column (on mount too, so a copied
   // `?status=` link lands on it). `handleStageClick` is identity-stable.
@@ -327,7 +347,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           // The card being held, at its own width (dnd-kit sizes the overlay to the source card). Inert: a picture, not a control.
           return p ? (
             <div inert aria-hidden="true" className="pointer-events-none w-full shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-              <DealCard project={p} selected={false} onActivate={() => undefined} />
+              <DealCard project={p} selected={false} onActivate={() => undefined} hideExclusiveTaxBasis={sharedExclusiveTaxBasis} />
             </div>
           ) : null;
         }}
@@ -352,6 +372,11 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
         activeIndex={activeStageIndex}
         onStageClick={handleStageClick}
       />
+
+      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mb-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
+        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
+        <span>{t('sales:chanceHeader', 'Chance')}</span>
+      </div>
 
       {/* Kanban scroll wrapper — onScroll is passed directly to <Kanban> so it lands on
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
@@ -390,6 +415,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                     project={p}
                     selected={p.id === selectedId}
                     onActivate={() => onOpen(p)}
+                    hideExclusiveTaxBasis={sharedExclusiveTaxBasis}
                   />
                 );
                 if (!drag) return card;

@@ -10,7 +10,6 @@ import {
   StatTiles,
   StatusPill,
   Button,
-  Icon,
   NumberField,
   SelectField,
   ConfirmDialog,
@@ -102,13 +101,10 @@ export interface ProjectDetailHeaderProps {
 }
 
 interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project' | 'committedSpend' | 'committedOtherCurrencies' | 'commitmentSource' | 'ledgerBasis' | 'commitmentPending' | 'commitmentError'> {
-  isOnHand: boolean;
   isFinanceForward: boolean;
   canViewActual: boolean;
   canEditValue: boolean;
   valueEditing: boolean;
-  lockReasonOpen: boolean;
-  onToggleLockReason: () => void;
   onBeginValueEdit: () => void;
 }
 
@@ -121,13 +117,10 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   ledgerBasis = 'unavailable',
   commitmentPending = false,
   commitmentError = false,
-  isOnHand,
   isFinanceForward,
   canViewActual,
   canEditValue,
   valueEditing,
-  lockReasonOpen,
-  onToggleLockReason,
   onBeginValueEdit,
 }) => {
   const { t } = useTranslation('project');
@@ -188,14 +181,6 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
               aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
               {t('projectDetail.header.action.edit', 'Edit')}
             </Button>
-          )}
-          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
-            <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason" onClick={onToggleLockReason}
-              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-sm font-semibold text-muted-foreground">
-              <Icon name="lock" className="size-3" />
-              {t('projectDetail.header.readOnly', 'Read-only')}
-              <Icon name="chev" className="size-3 rotate-90" />
-            </button>
           )}
         </div>
       ),
@@ -260,7 +245,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
  *  • **contract_value SoD** (ADR-0019): pre-win a delivery role may set the value freely;
  *    on a WON/on-hand project only Exec/Finance/Admin may, via the scoped RPC behind an
  *    audit confirm that NAMES the segregation of duties. A delivery role that cannot edit
- *    a won value sees a static "Read-only" lock (read-only-distinction), never a dead input.
+ *    contract-value edit remains available only where the project policy allows it.
  */
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   project,
@@ -303,7 +288,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
-  const [lockReasonOpen, setLockReasonOpen] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
   // #513: the basis the new value is stated on. ⛔ Both start EMPTY on every open and are never
   // seeded — not from the stored row either. 0197's backfill wrote 'exclusive' onto every existing
@@ -500,9 +484,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     ...(canArchive ? [{ key: 'archive', label: t('projectDetail.header.action.archive', 'Archive'), onSelect: () => setArchiveOpen(true) }] : []),
     ...(canDelete ? [{ key: 'delete', label: t('projectDetail.header.action.delete', 'Delete'), onSelect: () => setDeleteOpen(true), danger: true }] : []),
   ];
-  const pmReadsLockedValue = compact && realRole === 'Project Manager' && isOnHand;
   const taxLabel = canViewMoney && project.tax_treatment;
-  const hasDetails = compact && Boolean(menuContent || pmReadsLockedValue || taxLabel);
+  const hasDetails = compact && Boolean(menuContent || taxLabel);
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
     <Popover>
@@ -510,18 +493,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         {t('projectDetail.header.projectDetails', 'Project details')}
       </PopoverTrigger>
       <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
-        {pmReadsLockedValue && (
-          <div className="border-b border-border px-3 py-3" data-testid="contract-value-read-explanation">
-            <details>
-              <summary className="cursor-pointer text-sm font-medium text-foreground">
-                {t('projectDetail.header.contractValueReadOnly', 'Contract value · read-only')}
-              </summary>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t('projectDetail.header.contractValueReadOnlyExplanation', 'The approved contract value is locked for project managers after the project is won. Finance or an administrator can update it, with the change recorded.')}
-              </p>
-            </details>
-          </div>
-        )}
         {menuContent && (
           <>
             <div id="project-menu-details" className="border-b border-border px-2 py-3">{menuContent}</div>
@@ -704,22 +675,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             ledgerBasis={ledgerBasis}
             commitmentPending={commitmentPending}
             commitmentError={commitmentError}
-            isOnHand={isOnHand}
             isFinanceForward={isFinanceForward}
             canViewActual={may('view', 'salesInvoice')}
             canEditValue={canEditValue}
             valueEditing={valueEditing}
-            lockReasonOpen={lockReasonOpen}
-            onToggleLockReason={() => setLockReasonOpen(open => !open)}
             onBeginValueEdit={beginValueEdit}
           />
-          {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (
-            <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
-              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-sm text-muted-foreground">
-                {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
-              </p>
-            </div>
-          )}
           <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>
         </>
       )}

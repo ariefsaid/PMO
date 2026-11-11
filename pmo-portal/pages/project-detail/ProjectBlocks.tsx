@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip, useFigureReport } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -23,7 +23,6 @@ import { summarizeInvoiceSettlement } from './ContractCascade';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 /** Full whole-unit amount with its currency, right-aligned and tabular where it sits in a column (screen rules, Numbers). */
 const moneyIn = (currency: string) => (value: number) => formatTableMoney(value, currency) ?? String(value);
@@ -60,6 +59,11 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
   <Link to={to} className="font-semibold text-primary-text hover:underline">{children}</Link>
 );
 
+const MoneyHiddenFigures: React.FC<{ figures: HiddenFigure[] }> = ({ figures }) => {
+  useFigureReport(figures);
+  return null;
+};
+
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
 
 const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
@@ -69,7 +73,6 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
   const q = useProjectFinances(project.id);
   const may = usePermission();
   const canViewMoney = may('view', 'salesInvoice');
-  const contractLocked = ON_HAND_STATUSES.includes(project.status as string) && !may('editContractValue', 'project', { record: { status: project.status as string } });
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
@@ -132,16 +135,43 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
     { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
   ].filter((step): step is { key: string; label: string; value: number; source: string } => step.value !== null);
   const stepLabels = { ordered: t('projectDetail.money.ordered', 'Ordered'), delivered: t('projectDetail.money.delivered', 'Delivered'), invoiced: t('projectDetail.money.invoiced', 'Invoiced'), paid: t('projectDetail.money.paid', 'Paid') };
-  const hidden = [
-    ...(['ordered', 'delivered', 'invoiced', 'paid'] as const).filter((key) => !steps.some((step) => step.key === key)).map((key) => stepLabels[key]),
-    ...(marginAmount === null ? [t('projectDetail.money.grossMargin', 'Gross margin')] : []),
-    ...(cashReceived === null ? [cashUnconfirmed
-      ? t('projectDetail.money.cashUnmatchedShort', 'Cash received (no receipt matched yet)')
-      : cash?.state === 'incomplete'
-      ? t('projectDetail.money.cashIncompleteShort', 'Cash received (receipts not allocated to invoices)')
-      : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
-        ? t('projectDetail.money.cashInvalidShort', 'Cash received (receipt reading not verified)')
-        : t('projectDetail.money.cashReceived', 'Cash received')] : []),
+  const marginHiddenReason = margin?.reason === 'different-currencies'
+    ? t('projectDetail.money.marginOutCurrency', 'Gross margin is left out because spending and billed work use different currencies.')
+    : margin?.reason === 'work-unavailable'
+      ? t('projectDetail.money.marginOutWork', 'Gross margin is left out until billed-work revenue is complete.')
+      : margin?.reason === 'restricted-rows'
+        ? t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.')
+        : margin?.reason === 'actuals-unavailable'
+          ? t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.')
+          : t('projectDetail.money.marginOutNoInvoices', 'Gross margin starts with the first invoice in the project currency.');
+  const hidden: HiddenFigure[] = [
+    ...(contractValue === null ? [{ label: t('projectDetail.money.contract', 'Contract'), reason: t('projectDetail.money.contractUnavailable', 'Contract value is not recorded.') }] : []),
+    ...(ordered === null ? [{ label: stepLabels.ordered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.') }] : []),
+    ...(delivered === null ? [{ label: stepLabels.delivered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.') }] : []),
+    ...(invoiced === null && !invoices.isPending ? [{ label: stepLabels.invoiced, reason: invoices.isError
+      ? t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")
+      : t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.') }] : []),
+    ...(paid === null && !invoices.isPending ? [{ label: stepLabels.paid, reason: invoices.isError
+      ? t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")
+      : t('projectDetail.money.paidOut', 'Paid is left out until every invoice balance is known.') }] : []),
+    ...(marginAmount === null ? [{ label: t('projectDetail.money.grossMargin', 'Gross margin'), reason: marginHiddenReason }] : []),
+    ...(cashReceived === null ? [{
+      label: cashUnconfirmed
+        ? t('projectDetail.money.cashUnmatchedShort', 'Cash received (no receipt matched yet)')
+        : cash?.state === 'incomplete'
+          ? t('projectDetail.money.cashIncompleteShort', 'Cash received (receipts not allocated to invoices)')
+          : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
+            ? t('projectDetail.money.cashInvalidShort', 'Cash received (receipt reading not verified)')
+            : t('projectDetail.money.cashReceived', 'Cash received'),
+      reason: cashUnconfirmed
+        ? t('projectDetail.money.cashUnmatchedShort', 'Cash received (no receipt matched yet)')
+        : cash?.state === 'incomplete'
+          ? t('projectDetail.money.cashIncompleteShort', 'Cash received (receipts not allocated to invoices)')
+          : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
+            ? t('projectDetail.money.cashInvalidShort', 'Cash received (receipt reading not verified)')
+            : t('projectDetail.money.cashUnavailable', 'Receipt-backed cash is not available yet.'),
+      link: { to: '/finance/receivables?view=payments', label: t('projectDetail.money.matchPayments', 'Match payments') },
+    }] : []),
   ];
   const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
   const invoicedShare = share(invoiced);
@@ -149,6 +179,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
 
   return (
     <Block id="pd-money" title={title} unit={unit}>
+      <MoneyHiddenFigures figures={hidden} />
       {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
       {invoicedShare !== null && (
         <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -170,7 +201,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
               </dd>
               <dd className="text-right text-sm">
                 {step.key === 'contract'
-                  ? <><span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>{contractLocked && <span data-testid="contract-value-locked" className="ml-2 text-muted-foreground">{t('projectDetail.money.contractLocked', 'read-only')}</span>}</>
+                  ? <span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>
                   : explain(step.source, whole(step.value))}
               </dd>
               {step.key === 'contract' && contractValue !== null && (
@@ -191,12 +222,6 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
         </dl>
       )}
       {invoices.isError && <Note>{t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")} <Button variant="ghost" size="sm" onClick={() => void invoices.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
-      {hidden.length > 0 && !invoices.isPending && (
-        <Note>
-          {t('projectDetail.money.hiddenFigures', 'Not shown: {{figures}}.', { figures: hidden.join(', ') })}{' '}
-          {cashReceived === null && <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
-        </Note>
-      )}
       {cashReceived !== null && paid !== null && paid > cashReceived && (
         <Note>
           {t('projectDetail.money.paidNotReceived', '{{amount}} is settled in accounting but no receipt is matched to it yet.', { amount: whole(paid - cashReceived) })}{' '}
