@@ -350,6 +350,35 @@ describe('DocumentsTab — register views and selection', () => {
     await waitFor(() => expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'd1', status: 'Issued' }));
   });
 
+  it('F2-28 keeps failed rows selected and names them in the open bulk confirmation', async () => {
+    listState.data = [seed[0], { ...seed[0], id: 'd7', code: 'DOC-007', title: 'Field Notes' }];
+    mutations.transition.mutateAsync
+      .mockImplementationOnce(async ({ id }: { id: string }) => {
+        if (id === 'd1') throw Object.assign(new Error('permission denied'), { code: '42501' });
+      });
+    renderTab('Admin', 'admin-1');
+    const sitePlan = screen.getByRole('checkbox', { name: 'Select Site Plan' });
+    const fieldNotes = screen.getByRole('checkbox', { name: 'Select Field Notes' });
+    await userEvent.click(sitePlan);
+    await userEvent.click(fieldNotes);
+    await userEvent.click(screen.getByRole('button', { name: 'Change status' }));
+    await userEvent.selectOptions(screen.getByLabelText('Change status'), 'Issued');
+    await userEvent.click(screen.getByRole('button', { name: 'Review change' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm status change' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Site Plan');
+    expect(sitePlan).toBeChecked();
+    expect(fieldNotes).not.toBeChecked();
+    expect(within(dialog).getByText(/Updated 1 document/i)).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm status change' }));
+    await waitFor(() => expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(3));
+    expect(mutations.transition.mutateAsync).toHaveBeenLastCalledWith({ id: 'd1', status: 'Issued' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sitePlan).not.toBeChecked();
+  });
+
   it('AC-1402: bulk Download and Export register use only the selected document', async () => {
     const originalCreateUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
     const originalRevokeUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
@@ -540,6 +569,23 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
     );
   });
 
+  it('F2-19 keeps a refused document status confirmation open with its classified error', async () => {
+    mutations.transition.mutateAsync
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    renderTab('Admin', 'admin-1');
+    const row = screen.getByText('Site Plan').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Issue/i }));
+    let dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Issue document/i }));
+
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    await userEvent.click(within(dialog).getByRole('button', { name: /Issue document/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('AC-DOC-005: an Issued document offers Approve + Reject when the viewer is NOT the author (SoD ok)', async () => {
     // d2 authored by pm-1; current admin user (admin-1) is NOT the author → may approve/reject.
     renderTab('Admin', 'admin-1');
@@ -589,6 +635,24 @@ describe('DocumentsTab — delete (AC-DOC-006)', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete document/i }));
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('d1'));
+  });
+
+  it('F2-19 keeps a refused document delete confirmation open with its classified error', async () => {
+    mutations.remove.mutateAsync
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    renderTab('Admin');
+    await userEvent.click(
+      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Delete/i }));
+    let dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Delete document/i }));
+
+    dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    await userEvent.click(within(dialog).getByRole('button', { name: /Delete document/i }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 });
 
@@ -725,6 +789,27 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
       },
       expect.any(Object),
     );
+  });
+
+  it('F2-15 keeps the classified revision refusal in the open dialog until retry', async () => {
+    const failure = Object.assign(new Error('permission denied'), { code: '42501' });
+    revisionState.createRevision.mutate
+      .mockImplementationOnce((_input: unknown, options: { onError?: (error: unknown) => void }) => options.onError?.(failure))
+      .mockImplementationOnce((_input: unknown, options: { onSuccess?: () => void }) => options.onSuccess?.());
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(
+      within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New revision' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.clear(within(dialog).getByLabelText(/Title/i));
+    await userEvent.type(within(dialog).getByLabelText(/Title/i), 'Survey Report Rev B');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Create revision/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    expect(within(dialog).getByLabelText(/Title/i)).toHaveValue('Survey Report Rev B');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Create revision/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('offers draft attachment actions to the author and Admin', async () => {

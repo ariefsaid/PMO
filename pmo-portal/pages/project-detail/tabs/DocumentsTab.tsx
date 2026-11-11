@@ -86,6 +86,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const [bulkStatus, setBulkStatus] = useState<DocStatus | ''>('');
   const [pendingBulkStatus, setPendingBulkStatus] = useState<DocStatus | null>(null);
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkFailure, setBulkFailure] = useState<{ succeeded: number; failures: Array<{ id: string; title: string; headline: string; detail: string }> } | null>(null);
 
   // Modal: null = closed; { doc: null } = create; { doc } = edit.
   const [formTarget, setFormTarget] = useState<{ doc: ProjectDocumentRow | null; reference?: MicrosoftReferenceInput } | null>(null);
@@ -94,6 +95,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     documentLinkPermissions, link, unlink, (reference) => setFormTarget({ doc: null, reference }),
   );
   const [deleteTarget, setDeleteTarget] = useState<ProjectDocumentRow | null>(null);
+  const [deleteError, setDeleteError] = useState<{ headline: string; detail: string } | null>(null);
   // The selected document lives in URL state so copied register links reopen the same preview.
   const drawerId = searchParams.get('open');
   const setDrawerDoc = useCallback((doc: ProjectDocumentRow | null) => {
@@ -105,6 +107,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     }, { replace: doc === null });
   }, [setSearchParams]);
   const [revisionParent, setRevisionParent] = useState<ProjectDocumentRow | null>(null);
+  const [revisionError, setRevisionError] = useState<{ headline: string; detail: string } | null>(null);
 
   const currentUserId = currentUser?.id ?? null;
   const canCreate = may('create', 'document');
@@ -116,7 +119,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const canDelete = may('delete', 'document');
   const canApprove = may('transition', 'documentStatus');
 
-  const { pending, setPending, sodBlocked, setSodBlocked, reviewUnavailableLabel,
+  const { pending, setPending, transitionError, setTransitionError, sodBlocked, setSodBlocked, reviewUnavailableLabel,
     isOwnDocument, statusActions, allowedStatusTargets, onTransitionConfirm } = useDocumentWorkflow({
     canWriteDocs, canApprove, currentUserId, transition,
   });
@@ -227,6 +230,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     selectedIds,
     onChange: (ids) => {
       setBulkStatus('');
+      setBulkFailure(null);
       setSelectedIds(ids);
     },
     rowLabel: (doc) => t('projectDetail.documents.selectDocument', 'Select {{title}}', { title: doc.title }),
@@ -292,18 +296,18 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   const onBulkStatusConfirm = async () => {
     if (!pendingBulkStatus) return;
+    setBulkFailure(null);
     const targets = selectedDocuments.filter((doc) => allowedStatusTargets(doc).includes(pendingBulkStatus));
     let succeeded = 0;
-    const failures: unknown[] = [];
+    const failures: Array<{ doc: ProjectDocumentRow; error: unknown }> = [];
     for (const doc of targets) {
       try {
         await transition.mutateAsync({ id: doc.id, status: pendingBulkStatus });
         succeeded += 1;
       } catch (error) {
-        failures.push(error);
+        failures.push({ doc, error });
       }
     }
-    setPendingBulkStatus(null);
     setBulkStatus('');
     setBulkStatusOpen(false);
     if (succeeded > 0) {
@@ -312,15 +316,24 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         transitionActionLabel(pendingBulkStatus, t),
         'success',
       );
-      setSelectedIds(new Set());
     }
     if (failures.length > 0) {
-      const { headline, detail } = classifyMutationError(failures[0]);
+      const { headline, detail } = classifyMutationError(failures[0].error);
+      const visibleFailures = failures.map(({ doc, error }) => {
+        const classified = classifyMutationError(error, undefined, { suppressCapture: true });
+        return { id: doc.id, title: doc.title, headline: classified.headline, detail: classified.detail };
+      });
+      setSelectedIds(new Set(failures.map(({ doc }) => doc.id)));
+      setBulkFailure({ succeeded, failures: visibleFailures });
       toast(
         t('projectDetail.documents.bulk.statusFailed', 'Some documents could not be updated'),
-        detail || headline,
+        visibleFailures.map((failure) => `${failure.title}: ${failure.detail || failure.headline}`).join(' · ') || detail || headline,
         'warning',
       );
+    } else {
+      setPendingBulkStatus(null);
+      setSelectedIds(new Set());
+      setBulkFailure(null);
     }
   };
 
@@ -358,20 +371,23 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const onDeleteConfirm = async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
+    setDeleteError(null);
     try {
       await remove.mutateAsync(target.id);
       toast(t('projectDetail.documents.toast.deleted', 'Document deleted'), target.title, 'success');
       setDeleteTarget(null);
+      setDeleteError(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setDeleteError({ headline, detail });
       toast(headline, detail, 'warning');
-      setDeleteTarget(null);
     }
   };
 
   const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => {
     const parent = latestRevision?.parent ?? revisionParent;
     if (!parent || (data.microsoft && !documentLinkPermissions.projectCreate())) return;
+    setRevisionError(null);
     createRevision.mutate(
       { parentId: parent.id, ...data },
       {
@@ -386,6 +402,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         },
         onError: (err) => {
           const { headline, detail } = classifyMutationError(err);
+          setRevisionError({ headline, detail });
           toast(headline, detail, 'warning');
         },
       },
@@ -483,6 +500,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         onAddDocument={() => setFormTarget({ doc: null })}
       />
 
+      {bulkFailure && <div role="alert" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+        {bulkFailure.succeeded > 0 && <p>{t('projectDetail.documents.bulk.partialSuccess', 'Updated {{count}} document(s). Failed documents remain selected for retry.', { count: bulkFailure.succeeded })}</p>}
+        <ul className="list-disc space-y-1 pl-5">{bulkFailure.failures.map((failure) => <li key={failure.id}>{failure.title}: {failure.headline}{failure.detail ? `. ${failure.detail}` : ''}</li>)}</ul>
+      </div>}
+
       {selectedDocuments.length > 0 && (
         <DocumentsBulkBar
           selectedCount={selectedDocuments.length}
@@ -494,7 +516,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           statusLabels={statusLabels}
           bulkStatusOpen={bulkStatusOpen}
           setBulkStatusOpen={setBulkStatusOpen}
-          onReviewStatus={() => setPendingBulkStatus(bulkStatus as DocStatus)}
+          onReviewStatus={() => { setBulkFailure(null); setPendingBulkStatus(bulkStatus as DocStatus); }}
           onExportSelected={exportSelectedRegister}
           onClearSelection={() => { setSelectedIds(new Set()); setBulkStatus(''); setBulkStatusOpen(false); }}
         />
@@ -603,22 +625,26 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         revisionParent={revisionParent}
         onCreateRevision={handleCreateRevision}
         revisionLoading={createRevision.isPending}
-        onRevisionClose={() => { setRevisionParent(null); setLatestRevision(null); }}
+        revisionError={revisionError}
+        onRevisionClose={() => { setRevisionParent(null); setLatestRevision(null); setRevisionError(null); }}
         unlinkTarget={unlinkTarget}
         onUnlinkConfirm={onUnlinkConfirm}
         onUnlinkClose={() => setUnlinkTarget(null)}
         unlink={unlink}
         pending={pending}
+        transitionError={transitionError}
         onTransitionConfirm={onTransitionConfirm}
-        onTransitionCancel={() => setPending(null)}
+        onTransitionCancel={() => { setPending(null); setTransitionError(null); }}
         transitionLoading={transition.isPending}
         pendingBulkStatus={pendingBulkStatus}
+        bulkFailure={bulkFailure}
         onBulkStatusConfirm={() => void onBulkStatusConfirm()}
         onBulkStatusCancel={() => setPendingBulkStatus(null)}
         bulkSelectedCount={selectedDocuments.length}
         deleteTarget={deleteTarget}
+        deleteError={deleteError}
         onDeleteConfirm={() => void onDeleteConfirm()}
-        onDeleteCancel={() => setDeleteTarget(null)}
+        onDeleteCancel={() => { setDeleteTarget(null); setDeleteError(null); }}
         deleteLoading={remove.isPending}
       />
     </div>

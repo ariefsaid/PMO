@@ -42,6 +42,8 @@ interface NewRevisionModalProps {
    * changed-content file. It becomes the child's own reference; the parent's pin is never inherited.
    */
   microsoft?: MicrosoftReferenceInput | null;
+  /** Persistent, classified error from the revision write; cleared by the parent on retry. */
+  error?: { headline: string; detail: string } | null;
 }
 
 /**
@@ -56,6 +58,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
   loading,
   readOnly = false,
   microsoft,
+  error = null,
 }) => {
   const { t } = useTranslation();
   const [title, setTitle] = useState(parent.title);
@@ -95,6 +98,12 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
       dirty={true}
       submitDisabled={readOnly || !canSubmit}
     >
+      {error && (
+        <div role="alert" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+          <p className="font-semibold">{error.headline}</p>
+          {error.detail && <p>{error.detail}</p>}
+        </div>
+      )}
       {parent.source === 'onedrive' && parent.status !== 'Draft' && parent.ms_item_kind === 'file' && (
         <div className="mb-3 flex min-w-0 flex-col gap-1" data-testid="revision-parent-summary">
           <DocumentDriftBadge
