@@ -12,6 +12,7 @@ import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { moneyTileProps } from '@/src/components/finance/moneyTile';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
+import FinanceRevenueTrend from '@/src/components/finance/FinanceRevenueTrend';
 import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
@@ -128,13 +129,19 @@ const FinanceHub: React.FC = () => {
       </CardPad>
     </Card>
   );
+  const ageingCurrencies = [...new Set([...Object.keys(finance.position.receivablesAgeing), ...Object.keys(finance.position.payablesAgeing)])];
+  const ageingTotal = (buckets: object | undefined) => Object.values(buckets ?? {}).reduce<number>((sum, amount) => sum + Number(amount), 0);
+  const ageScaleByCurrency = Object.fromEntries(ageingCurrencies.map((currency) => [
+    currency,
+    Math.max(ageingTotal(finance.position.receivablesAgeing[currency]), ageingTotal(finance.position.payablesAgeing[currency])),
+  ]));
   const ageings = (
     <Card role="region" aria-labelledby="finance-hub-ageings">
       <CardHead id="finance-hub-ageings">{t('financeHub:hub.ageing', 'Balances by age')}</CardHead>
       <CardPad>
         {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} scaleMaxByCurrency={ageScaleByCurrency} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} scaleMaxByCurrency={ageScaleByCurrency} /></div>}
       </CardPad>
     </Card>
   );
@@ -159,12 +166,15 @@ const FinanceHub: React.FC = () => {
           <span>{t('financeHub:hub.positionError', "Couldn't load finance figures")}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => { if (finance.isError) finance.retry(); if (figures.isError) retryFigures(); }}>{t('financeHub:hub.retry', 'Retry')}</Button>
         </div>}
-        {/* A short list takes a third beside the figures it relates to; on a phone it comes first. */}
+        {/* Waiting and balance-age bars form the left column; company figures and the six-month trend sit beside them. */}
         <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          {attention}
+          <div className="min-w-0 space-y-[var(--space-panel-gap)]">
+            {attention}
+            {ageings}
+          </div>
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {tiles}
-            {ageings}
+            <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
           </div>
         </div>
       </div>

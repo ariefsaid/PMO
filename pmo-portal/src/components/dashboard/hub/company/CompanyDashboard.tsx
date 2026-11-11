@@ -36,6 +36,8 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { ACTIVE_PROJECT_STATUSES } from '@/src/lib/db/projects';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { invoiceGross } from '@/src/lib/revenue/nativeInvoice';
+import { trendWindow } from '@/src/lib/dashboardTrend';
+import { monthsBetween } from '@/src/lib/reports/months';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
 import type { Role } from '@/src/auth/AuthContext';
 import { InvoicedTrendCard } from './InvoicedTrendCard';
@@ -43,7 +45,7 @@ import { PlanVsActualChart } from './PlanVsActualChart';
 import { SalesFunnel } from './SalesFunnel';
 import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBlocks';
 import { useSupplierUnpaid } from './financeData';
-import { BudgetUsedCard, BudgetVsSpentCard, InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
+import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
@@ -312,7 +314,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // dissolve into one stack in the order given by each card's `order`.
     const ORDER = ['', 'max-[899px]:order-1', 'max-[899px]:order-2', 'max-[899px]:order-3', 'max-[899px]:order-4', 'max-[899px]:order-5', 'max-[899px]:order-6'];
     const columns = 'grid content-start gap-[var(--space-panel-gap)] max-[899px]:contents';
-    const invoicedCard = (order: number) => <InvoicedCollectedCard className={ORDER[order]} months={figures.invoicedByMonth} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.periodPending} error={figures.periodError} retry={figures.periodRetry} currency={orgCurrency} />;
+    const trendRange = trendWindow(figures.organizationToday);
+    const trendMonths = trendRange.from && trendRange.to ? monthsBetween(trendRange.from, trendRange.to).map((month) => month.slice(0, 7)) : [];
+    const invoicedCard = (order: number) => <InvoicedCollectedCard className={ORDER[order]} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.todayPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />;
     // Billing (exec): Collected, the figure that used to sit under "Analysis".
     const billingTiles = (
       <KPIRow aria-label={t('home.billing', 'Billing')} className={cn('grid-flow-col auto-cols-fr', ORDER[6])}>
@@ -331,13 +335,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         </div>
         <div className={columns}>
           {invoicedCard(2)}
-          <BudgetUsedCard className={ORDER[4]} rows={budgetRows} name={projectDisplayName} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />
+          <div className={ORDER[4]}>{planCard}</div>
         </div>
       </div>
     ) : (
       <div className={cn(panelGrid, 'min-[900px]:grid-cols-2 max-[899px]:grid-cols-1')}>
         <div className={columns}>
-          <BudgetVsSpentCard className={ORDER[1]} projects={data?.top_projects ?? []} currency={orgCurrency} pending={projectsPending} error={projectsError} retry={() => { figures.dashboardRetry(); void projects.refetch(); }} />
+          <div className={ORDER[1]}>{planCard}</div>
           {invoicedCard(3)}
           <PurchasingCard className={ORDER[4]} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
         </div>

@@ -46,6 +46,16 @@ vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: 
 vi.mock('@/src/hooks/useFinanceHubFigures', () => ({
   useFinanceHubFigures: () => state.figures,
 }));
+vi.mock('@/src/hooks/useManagementPack', () => ({
+  useManagementPack: () => ({
+    data: { totals: [{ currency: 'IDR', months: ['2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01'].map((month) => ({ month, invoiced: 100_000 })) }] },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useRevenue', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useRevenue')>()),
+  usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
 }));

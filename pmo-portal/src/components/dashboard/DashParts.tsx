@@ -61,7 +61,7 @@ export const WaitsOnYou: React.FC<{
                   <li key={row.id}>
                     <Link
                       to={row.href}
-                      className="grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      className="grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 px-2 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
                       <span className={cn('whitespace-nowrap text-left font-bold tabular', index === 0 ? 'text-[23px] leading-none' : 'text-[18px] leading-none', COUNT_TONE[row.tone])}>{row.count}</span>
                       <span className="min-w-0">
@@ -244,10 +244,10 @@ export const ProjectRows: React.FC<{
                             title={row.title}
                             aria-label={structuredAriaLabel}
                             style={{ '--cols': cols } as React.CSSProperties}
-                            className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
+                            className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-2 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
                             <span className={cn('min-w-0 text-control', quiet ? 'font-normal' : 'font-semibold')}>{row.name}</span>
-                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
+                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill className="py-1" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (
                               <span className="col-span-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-control tabular min-[900px]:contents">
                                 {needColumns.map((column) => (
