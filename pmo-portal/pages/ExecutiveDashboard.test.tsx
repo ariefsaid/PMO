@@ -485,11 +485,11 @@ describe('company home — finance (one question: what must I collect, pay and i
       payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } },
     };
     renderPage();
-    expect(screen.queryByRole('region', { name: 'Client balances by age · tax included' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Client balances by age' })).not.toBeInTheDocument();
     await openAnalysis();
-    const clientAgeing = await screen.findByRole('region', { name: 'Client balances by age · tax included' });
+    const clientAgeing = await screen.findByRole('region', { name: 'Client balances by age' });
     expect(within(clientAgeing).getByText('$100')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoiced status or last update' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Waiting to pay, by days' })).toBeInTheDocument();
   });
 });
 
