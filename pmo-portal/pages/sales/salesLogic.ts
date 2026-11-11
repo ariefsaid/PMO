@@ -23,7 +23,7 @@ export const attentionReason = (m: SalesModel, p: PipelineProject): string => {
   const stale = isStaleBid(p);
   const days = stale ? daysSince(p.stage_started_at) : daysSinceLatestTouch(p);
   return stale
-    ? t('sales:options.staleReason', 'In {{stage}} for {{days}} days', { stage: m.stageName(p.status), days: days ?? 0 })
-    : t('sales:options.idleReason', 'Untouched for {{days}} days', { days: days ?? 0 });
+    ? t('sales:options.staleReason', 'In {{stage}} for {{days}} days', { stage: m.stageName(p.status), days: days ?? dash })
+    : t('sales:options.idleReason', 'Untouched for {{days}} days', { days: days ?? dash });
 };
 

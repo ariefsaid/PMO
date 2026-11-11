@@ -186,7 +186,7 @@ const ImprestFloatDetail: React.FC = () => {
               </dl>
               {pos.last_count_at && (
                 <p className="mt-3 text-sm text-muted-foreground">
-                  {t('imprest:position.lastCount', 'Last count {{date}}: variance {{variance}}', { date: formatDay(pos.last_count_at), variance: moneyCents(pos.last_count_variance ?? 0) })}
+                  {t('imprest:position.lastCount', 'Last count {{date}}: variance {{variance}}', { date: formatDay(pos.last_count_at), variance: pos.last_count_variance == null ? '—' : moneyCents(pos.last_count_variance) })}
                   {pos.last_count_variance != null && toCents(pos.last_count_variance) !== 0 && <> · <span className="text-destructive-text">{t('imprest:position.varianceFlag', 'Count variance')}</span></>}
                 </p>
               )}

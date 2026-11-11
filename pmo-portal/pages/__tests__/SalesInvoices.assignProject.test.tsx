@@ -135,7 +135,10 @@ describe('SalesInvoices project attribution', () => {
     await waitFor(() => expect(h.assignProject).toHaveBeenCalledWith({
       siId: 'unassigned', projectId: 'project-1', oldProjectId: null, billingKind: 'contract',
     }));
-    await userEvent.click(screen.getByRole('button', { name: 'Clear filter' }));
+    // Two "Clear filter" controls exist: the shared FilterBar's (search + status) and this chip's
+    // (attribution). Click the chip's own one, which is the filter this assertion is about.
+    const attributionChip = screen.getByText('Unassigned invoices').closest('div')!;
+    await userEvent.click(within(attributionChip).getByRole('button', { name: 'Clear filter' }));
     expect(screen.queryByText('Unassigned invoices')).not.toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search sales invoices' })).toHaveValue('SI-unassigned');
     expect(screen.getByRole('tab', { name: 'Unpaid' })).toHaveAttribute('aria-selected', 'true');

@@ -106,7 +106,7 @@ export function buildPipelineColumns({
       align: 'num',
       cell: (r) => (
         <span className="inline-flex items-baseline gap-1.5">
-          {formatCurrency(r.contract_value, r.currency)}
+          {r.contract_value == null ? '—' : formatCurrency(r.contract_value, r.currency)}
           <TaxBasisLabel
             treatment={r.tax_treatment}
             taxRate={r.tax_rate}
@@ -125,9 +125,9 @@ export function buildPipelineColumns({
       size: 152,
       align: 'num',
       cell: (r) => (
-        <span className="text-muted-foreground">{formatCurrency(weightedValue(r), r.currency)}</span>
+        <span className="text-muted-foreground">{r.contract_value == null || (r.go_probability ?? r.win_probability) == null ? '—' : formatCurrency(weightedValue(r), r.currency)}</span>
       ),
-      exportValue: (r) => weightedValue(r),
+      exportValue: (r) => r.contract_value == null || (r.go_probability ?? r.win_probability) == null ? '' : weightedValue(r),
     },
     {
       key: 'go',
