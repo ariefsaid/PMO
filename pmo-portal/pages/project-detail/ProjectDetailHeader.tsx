@@ -30,6 +30,7 @@ import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import type { CommitmentSource, CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
 import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
@@ -76,6 +77,20 @@ interface PendingContractValue {
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
   subjectToVat?: boolean;
+}
+
+interface ContractValueDraftBaseline {
+  value: string;
+  treatment: string;
+  taxAmount: string;
+  rate: string;
+  base: string;
+  vat: boolean;
+}
+
+interface PendingValueExit {
+  kind: 'cancel' | 'leave';
+  run: () => void;
 }
 
 export interface ProjectDetailHeaderProps {
@@ -306,6 +321,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const taxFields = useStandaloneTaxFields(valueDraft, taxTreatmentDraft, taxAmountDraft, setTaxAmountDraft, project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate), `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
   // The audit-confirm holds the pending new value + its basis until the user confirms the SoD action.
   const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
+  const [pendingValueExit, setPendingValueExit] = useState<PendingValueExit | null>(null);
+  const valueDraftBaselineRef = useRef<ContractValueDraftBaseline | null>(null);
 
   const contract = project.contract_value ?? 0;
   const status = project.status as string;
@@ -348,16 +365,46 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     </div>
   );
 
+  const valueDraftDirty = (() => {
+    const baseline = valueDraftBaselineRef.current;
+    return valueEditing && baseline !== null && (
+      valueDraft !== baseline.value ||
+      taxTreatmentDraft !== baseline.treatment ||
+      taxAmountDraft !== baseline.taxAmount ||
+      taxFields.rateRaw !== baseline.rate ||
+      taxFields.baseRaw !== baseline.base ||
+      (canSetVat && vatDraft !== baseline.vat)
+    );
+  })();
+
+  useUnsavedChangesGuard({
+    dirty: valueDraftDirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingValueExit({ kind: 'leave', run: leave }),
+  });
+
   const beginValueEdit = () => {
     // Seed the editor with the formatted figure ("5,000,000"), not the raw number. The tax fields
     // are deliberately NOT seeded — see the state declaration.
-    setValueDraft(project.contract_value == null ? '' : formatMoneyInputValue(project.contract_value));
+    const initialValue = project.contract_value == null ? '' : formatMoneyInputValue(project.contract_value);
+    const initialRate = project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate);
+    const initialBase = `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`;
+    const initialVat = project.subject_to_vat ?? true;
+    valueDraftBaselineRef.current = {
+      value: initialValue,
+      treatment: '',
+      taxAmount: '',
+      rate: initialRate,
+      base: initialBase,
+      vat: initialVat,
+    };
+    setValueDraft(initialValue);
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
-    setVatDraft(project.subject_to_vat ?? true);
+    setVatDraft(initialVat);
     void vatCheck.refetch();
-    taxFields.setRateRaw(project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate));
-    taxFields.setBaseRaw(`${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
+    taxFields.setRateRaw(initialRate);
+    taxFields.setBaseRaw(initialBase);
     setValueEditing(true);
   };
 
@@ -366,11 +413,20 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a request counter, not a dependency
   }, [editValueRequest]);
 
-  const cancelValueEdit = () => {
+  const cancelValueEditNow = () => {
     setValueEditing(false);
     setValueDraft('');
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
+    valueDraftBaselineRef.current = null;
+  };
+
+  const cancelValueEdit = () => {
+    if (valueDraftDirty) {
+      setPendingValueExit({ kind: 'cancel', run: cancelValueEditNow });
+      return;
+    }
+    cancelValueEditNow();
   };
 
   // #513: the ONE predicate. `stagedValue` is null exactly when the editor is not submittable —
@@ -411,6 +467,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       setTaxTreatmentDraft('');
       setTaxAmountDraft('');
       setPendingValue(null);
+      valueDraftBaselineRef.current = null;
     } catch (err) {
       const refusal = projectVatRefusal(err);
       if (refusal === 'live-invoice' || refusal === 'command-pending' || refusal === 'context-changed') {
@@ -776,6 +833,25 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         loading={setContractValue.isPending}
         onConfirm={() => pendingValue !== null && void commitValue(pendingValue)}
         onCancel={() => setPendingValue(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingValueExit !== null}
+        tone="default"
+        title={t('projectDetail.header.unsavedValue.title', 'Unsaved contract value')}
+        description={t('projectDetail.header.unsavedValue.description', 'Your contract value and tax basis edits will be lost if you leave.')}
+        confirmLabel={pendingValueExit?.kind === 'cancel'
+          ? t('projectDetail.header.unsavedValue.discard', 'Discard changes')
+          : t('projectDetail.header.unsavedValue.leave', 'Leave')}
+        cancelLabel={pendingValueExit?.kind === 'cancel'
+          ? t('projectDetail.header.unsavedValue.keepEditing', 'Keep editing')
+          : t('projectDetail.header.unsavedValue.stay', 'Stay')}
+        onConfirm={() => {
+          const exit = pendingValueExit;
+          setPendingValueExit(null);
+          exit?.run();
+        }}
+        onCancel={() => setPendingValueExit(null)}
       />
     </>
   );

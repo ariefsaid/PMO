@@ -612,7 +612,15 @@
       "copyLink": "Copy link",
       "previewFileFor": "Preview file for {{title}}",
       "previewFile": "Preview file",
-      "changeContractValue": "Change contract value"
+      "changeContractValue": "Change contract value",
+      "unsavedValue": {
+        "title": "Unsaved contract value",
+        "description": "Your contract value and tax basis edits will be lost if you leave.",
+        "discard": "Discard changes",
+        "leave": "Leave",
+        "keepEditing": "Keep editing",
+        "stay": "Stay"
+      }
     },
     "rail": {
       "contractDate": "Contract date"
