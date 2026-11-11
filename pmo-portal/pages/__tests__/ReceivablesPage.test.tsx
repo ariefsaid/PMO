@@ -188,6 +188,18 @@ describe('Receivables page', () => {
     expect(tile('Overdue')).toHaveTextContent('10% of owed');
   });
 
+  it('F5 withholds unknown receipt amounts and comparisons while preserving known zero', () => {
+    h.payments = [payment(), payment({ id: 'previous', date: '2026-09-05', received_amount: null })];
+    const view = renderPage();
+    expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
+    expect(tile('Received this month')).not.toHaveTextContent(/vs last month/);
+    view.unmount();
+    h.payments = [payment({ received_amount: null })];
+    renderPage();
+    expect(screen.queryByText('Received this month')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/receipt.*unknown/i);
+  });
+
   it('compares actual received cash month over month and excludes cancelled or scheduled rows', () => {
     renderPage();
     const cash = tile('Received this month');
