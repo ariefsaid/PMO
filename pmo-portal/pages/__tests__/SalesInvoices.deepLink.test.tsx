@@ -371,7 +371,8 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
-    expect(screen.getByText('$5,000')).toBeInTheDocument();
+    // D4 ruling (owner #1437 exception): a transaction screen shows minor units — USD cents.
+    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
     const appliedReceiptsHeading = screen.getByRole('heading', { name: 'Applied receipts' });
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('SYNTHETIC-RECEIPT-1');
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');
