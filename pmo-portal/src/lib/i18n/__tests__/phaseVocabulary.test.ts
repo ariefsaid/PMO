@@ -21,7 +21,11 @@ function catalogue(locale: 'en' | 'id') {
       ...common.projectDetail,
       ...project.projectDetail,
       gantt: common.projectDetail.gantt,
-      tasks: { ...common.projectDetail.tasks, ...project.projectDetail.tasks },
+      tasks: {
+        ...common.projectDetail.tasks,
+        ...project.projectDetail.tasks,
+        form: { ...common.projectDetail.tasks?.form, ...project.projectDetail.tasks?.form },
+      },
     },
   };
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { CircleAlert, CircleCheck, CircleMinus } from 'lucide-react';
-import { Card, CardHead, CardPad, DataTable, Drawer, ListState, ProgressBar, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { Card, CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, ProgressBar, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
@@ -237,10 +237,18 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       )}
       {!isCascadePending && !isCascadeError && showSummary && (
         <section aria-labelledby="pd-cascade" className="panel-card min-w-0">
-          <CardHead id="pd-cascade" subline={project.currency}>
-            <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}>
-              <span tabIndex={0} className="cursor-help">{t('projectDetail.cascade.title', 'Contract')}</span>
-            </Tooltip>
+          <CardHead
+            id="pd-cascade"
+            subline={project.currency}
+            // The heading stays plain text (its accessible name is the title alone); the percentage
+            // basis sits behind the card's one help affordance instead of wrapping the title word.
+            actions={
+              <HelpPopover subject={t('projectDetail.cascade.title', 'Contract')}>
+                {t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}
+              </HelpPopover>
+            }
+          >
+            {t('projectDetail.cascade.title', 'Contract')}
           </CardHead>
           <CardPad className="pt-0">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>

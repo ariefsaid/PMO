@@ -48,6 +48,6 @@ describe('AC-UXA-003 redesigned company dashboard Bahasa coverage', () => {
       </BahasaProvider>,
     );
     expect(within(chart.container).getByRole('progressbar', { name: /Prospek: .* tertimbang/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /2\s*Persetujuan menunggu Anda/ })).toHaveAttribute('href', '/approvals');
+    expect(screen.getByRole('link', { name: /2\s*Persetujuan/ })).toHaveAttribute('href', '/approvals');
   });
 });

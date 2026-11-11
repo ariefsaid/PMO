@@ -135,6 +135,7 @@
     "equipment": "Peralatan"
   },
   "panel": {
+    "notRecorded": "{{count}} tidak tercatat",
     "columns": {
       "allocated": "Dialokasikan",
       "equipment": "Peralatan"
@@ -173,6 +174,8 @@
     "assetNoun": "peralatan",
     "cancel": "Batal",
     "cardTitle": "Pemakaian",
+    "confirmApproveBody": "Ini akan menyetujui entri pemakaian peralatan yang dicatat.",
+    "confirmApproveTitle": "Setujui entri pemakaian?",
     "columns": {
       "date": "Tanggal",
       "decision": "Keputusan",

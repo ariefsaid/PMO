@@ -86,7 +86,8 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
   it('AC-MTG1-003 a pristine editor baseline can be left without a discard dialog', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // The unsaved-changes confirm is a destructive ConfirmDialog → role="alertdialog".
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
@@ -217,8 +218,9 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
     await user.click(screen.getByRole('link', { name: 'Meetings' }));
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Leave' }));
+    // Shared UnsavedChangesDialog (F3a, 444d4ce88): destructive tone, keeping the edits is the default.
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
     expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });

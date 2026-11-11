@@ -240,15 +240,33 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           <ol aria-label={t('projectDetail.milestones.heading', 'Delivery phases')} className="space-y-4">
             <li>
               {isDesktop ? (
-                <div className="delivery-track flex h-3 overflow-hidden rounded-full bg-secondary">
-                  {deliverySegments.map(({ milestone, width }) => (
-                      <span
-                        className={`delivery-fill block h-full ${fillClass(milestone, currentMilestoneId === milestone.id, today)}`}
-                        style={{ width: percentStyle(width) }}
-                        key={milestone.id}
-                      />
-                  ))}
-                </div>
+                <>
+                  <div className="delivery-track flex h-3 overflow-hidden rounded-full bg-secondary">
+                    {deliverySegments.map(({ milestone, width }) => (
+                        <span
+                          className={`delivery-fill block h-full ${fillClass(milestone, currentMilestoneId === milestone.id, today)}`}
+                          style={{ width: percentStyle(width) }}
+                          key={milestone.id}
+                        />
+                    ))}
+                  </div>
+                  {deliverySegments.length > 0 && (
+                    <ul aria-label={t('projectDetail.milestones.deliveryStatusKey.label', 'Delivery phase status key')} className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-control text-muted-foreground">
+                      <li className="inline-flex items-center gap-1.5">
+                        <span aria-hidden className="size-2.5 rounded-sm bg-success" />
+                        {t('projectDetail.milestones.deliveryStatusKey.completed', 'Completed')}
+                      </li>
+                      <li className="inline-flex items-center gap-1.5">
+                        <span aria-hidden className="size-2.5 rounded-sm bg-warning" />
+                        {t('projectDetail.milestones.deliveryStatusKey.overdue', 'Overdue')}
+                      </li>
+                      <li className="inline-flex items-center gap-1.5">
+                        <span aria-hidden className="size-2.5 rounded-sm bg-primary" />
+                        {t('projectDetail.milestones.deliveryStatusKey.currentOrPlanned', 'Current / planned')}
+                      </li>
+                    </ul>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-col divide-y divide-border/70 rounded-md border border-border">
                   {all.map((milestone) => (

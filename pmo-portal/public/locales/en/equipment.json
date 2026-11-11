@@ -135,6 +135,7 @@
     "equipment": "Equipment"
   },
   "panel": {
+    "notRecorded": "{{count}} not recorded",
     "columns": {
       "allocated": "Allocated",
       "equipment": "Equipment"
@@ -173,6 +174,8 @@
     "assetNoun": "equipment",
     "cancel": "Cancel",
     "cardTitle": "Usage",
+    "confirmApproveBody": "This will approve the logged equipment usage entry.",
+    "confirmApproveTitle": "Approve usage entry?",
     "columns": {
       "date": "Date",
       "decision": "Decision",

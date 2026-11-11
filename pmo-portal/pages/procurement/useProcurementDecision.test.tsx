@@ -59,12 +59,14 @@ describe('useProcurementDecision', () => {
     expect(transition).toHaveBeenCalledWith({ to: 'Rejected', notes: 'Revise quantities' });
   });
 
-  it('closes the confirm and surfaces the error when the commit fails', async () => {
+  it('keeps the confirm staged for retry and surfaces the error when the commit fails', async () => {
     const { hook, ui, transition } = setup();
     transition.mockRejectedValueOnce(new Error('boom'));
     act(() => hook.result.current.onActionClick({ to: 'Approved', label: 'Approve', variant: 'primary' } as never));
     await act(() => hook.result.current.commitConfirm());
-    expect(hook.result.current.pendingConfirm).toBeNull();
+    // A failed confirm keeps its dialog open with the staged payload inside (r2-f3c ruling:
+    // the refusal stays visible; a retry repeats the exact, already-confirmed attempt).
+    expect(hook.result.current.pendingConfirm).toMatchObject({ kind: 'transition', to: 'Approved', confirmLabel: 'Approve' });
     expect(ui.setMutationError).toHaveBeenLastCalledWith(expect.any(String));
     expect(toast).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'warning');
   });

@@ -114,11 +114,13 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                       ? countLabel
                       : t('stage.countAndAmount', { defaultValue: '{{count}} {{document}} · {{amount}}', count, document, amount: formatCurrency(amount, procurement.currency) });
                   })()
-                : index < current
-                  ? stage.key === 'request'
-                    ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
-                    : t('stage.notRecorded', 'Not recorded')
-                  : '';
+                : index < current && stage.key === 'request'
+                  ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
+                  : index !== current
+                    // A stage the purchase has not reached, or one it skipped, still says it holds no
+                    // record — the tracker never drops a stage's state to a bare label (ADR-0093).
+                    ? t('stage.notRecorded', 'Not recorded')
+                    : '';
             const meta = [date ? showDate(date, t('timeline.dateMissing', 'Date not recorded')) : null, state].filter(Boolean).join(' · ');
             return (
               <li key={stage.key} aria-current={isCurrent ? 'step' : undefined} className="min-w-0">
