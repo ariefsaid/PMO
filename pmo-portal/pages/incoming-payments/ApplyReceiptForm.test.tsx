@@ -137,5 +137,6 @@ describe('ApplyReceiptForm (#1415)', () => {
   it('AC-NPA-004 explains when an approved invoice has no reported balance', () => {
     setup([invoice('unknown', { erp_outstanding_amount: null })]);
     expect(screen.getByText('The approved invoice balance is not available. Refresh invoices before trying again.')).toBeInTheDocument();
+    expect(screen.queryByText(/0.*outstanding/)).not.toBeInTheDocument();
   });
 });

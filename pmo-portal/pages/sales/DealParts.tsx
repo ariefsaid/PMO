@@ -30,7 +30,8 @@ function useDealFigures(d: DealActions): Fig[] {
       ? t('projectDetail.pipeline.goInputLabel', 'Chance the project proceeds (%)')
       : t('projectDetail.pipeline.getInputLabel', 'Chance we win if the client proceeds (%)');
     if (!d.canEditProbability) {
-      return formatPercent(kind === 'go' ? (d.cached?.go_probability ?? d.cached?.win_probability ?? 0) : (d.cached?.get_probability ?? 0.25));
+      const probability = kind === 'go' ? (d.cached?.go_probability ?? d.cached?.win_probability) : (d.cached?.get_probability ?? 0.25);
+      return probability == null ? '—' : formatPercent(probability);
     }
     return (
       <form onSubmit={(e) => void d.saveProbability(e, kind)} className="flex flex-wrap items-center gap-2">
@@ -44,8 +45,9 @@ function useDealFigures(d: DealActions): Fig[] {
       </form>
     );
   };
+  const contractValue = p.contract_value ?? d.cached?.contract_value;
   const value: Fig = {
-    key: 'value', label: t('projectDetail.pipeline.stat.value', 'Value'), value: formatCurrency(p.contract_value ?? d.cached?.contract_value ?? 0, p.currency),
+    key: 'value', label: t('projectDetail.pipeline.stat.value', 'Value'), value: contractValue == null ? '—' : formatCurrency(contractValue, p.currency),
     sub: <TaxBasisLabel treatment={p.tax_treatment} taxRate={p.tax_rate} taxBaseNumerator={p.tax_base_numerator} taxBaseDenominator={p.tax_base_denominator} />,
   };
   const owner: Fig = { key: 'owner', label: t('projectDetail.pipeline.stat.owner', 'Owner'), value: p.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set') };
@@ -65,7 +67,7 @@ function useDealFigures(d: DealActions): Fig[] {
     ...(d.canSeeMoney ? [value] : []),
     { key: 'go', label: t('projectDetail.pipeline.goProbability', '% Go'), value: gate(prob('go')) },
     { key: 'get', label: t('projectDetail.pipeline.getProbability', '% Get'), value: gate(prob('get')) },
-    ...(d.canSeeMoney ? [{ key: 'weighted', label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: gate(d.cached ? formatCurrency(weightedValue(d.cached), p.currency) : null) }] : []),
+    ...(d.canSeeMoney ? [{ key: 'weighted', label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: gate(d.cached && d.cached.contract_value != null && (d.cached.go_probability ?? d.cached.win_probability) != null ? formatCurrency(weightedValue(d.cached), p.currency) : '—') }] : []),
     owner,
   ];
 }
@@ -142,7 +144,7 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
       <div className="text-control font-semibold text-muted-foreground">{t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}</div>
       <div className="text-control text-foreground">
         <Trans i18nKey="projectDetail.pipeline.bookingOnWin" t={t} defaults="Booking <1>{{amount}}</1> <3></3> to contract value on win"
-          values={{ amount: formatCurrency(p.contract_value ?? 0, p.currency) }}
+          values={{ amount: p.contract_value == null ? '—' : formatCurrency(p.contract_value, p.currency) }}
           components={{ 1: <strong className="font-semibold tabular" />, 3: <TaxBasisLabel treatment={p.tax_treatment} taxRate={p.tax_rate} taxBaseNumerator={p.tax_base_numerator} taxBaseDenominator={p.tax_base_denominator} /> }} />
       </div>
       <div className="flex flex-col gap-1">
