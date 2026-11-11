@@ -78,7 +78,8 @@ const companyReady: Route['ready'] = async (page, _width, language) => {
   // opened here so their figures stay inside the geometry gate.
   const weighted = page.getByText(language === 'id' ? 'Pipeline terbobot' : 'Weighted pipeline', { exact: true }).locator('xpath=..');
   await expect(weighted.locator('.tabular').filter({ hasText: /75[.,]2/ }).first()).toBeVisible();
-  await page.getByText(language === 'id' ? 'Analisis' : 'Analysis', { exact: true }).click();
+  const analysis = page.getByText(language === 'id' ? 'Analisis' : 'Analysis', { exact: true });
+  if (await analysis.isVisible().catch(() => false)) await analysis.click();
   await expect(page.getByTestId('kpi-win-rate')).toHaveText(/95(?:[.,]0)?%/);
 };
 const financeReady: Route['ready'] = async (page, _width, language) => {
