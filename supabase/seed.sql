@@ -1159,9 +1159,11 @@ insert into procurements (id, code, title, project_id, requested_by_id, status, 
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
    'Approved',45000,null,'2026-02-22T00:00:00Z'),
   -- PROC-2026-008: dedicated for AC-IXD-WP-002 (Vendor Invoiced → Paid confirm)
+  -- vendor_id = its selected quote's vendor (RMS-PAY-08, RackMount Structures), matching the state
+  -- select_procurement_quote leaves behind — the seed inserts that selection directly (see §J quotations).
   ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Surge Protection Devices & Fusing',
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   'Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z'),
+   'Vendor Invoiced',30000,'c0000000-0000-0000-0000-000000000010','2026-02-24T00:00:00Z'),
   -- PROC-2026-009: dedicated for AC-816 (Draft procurement for full procure-to-pay journey)
   ('60000000-0000-0000-0000-000000000009','PROC-2026-009','AC-816 Dedicated Procurement',
    '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',

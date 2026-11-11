@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, ListPage, SearchMini, StatusPill, Toolbar, useUrlFilters, type Column } from '@/src/components/ui';
+import { Button, DataTable, LateText, ListPage, SearchMini, StatusPill, Toolbar, useUrlFilters, isMostUrgentLateRow, type Column } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
@@ -60,6 +60,12 @@ const PayablesPage: React.FC = () => {
     return [procurement.vendor?.name, procurement.title, procurement.code, procurement.project?.name, procurement.project?.short_name, manager]
       .some((value) => value?.toLocaleLowerCase().includes(query));
   }), [payablesPosition.payables, projectManagers, query]);
+  const lateRows = useMemo(
+    () => filteredRows
+      .filter((row) => row.ageDays !== null && row.ageDays > 90)
+      .sort((a, b) => (b.ageDays ?? 0) - (a.ageDays ?? 0)),
+    [filteredRows],
+  );
 
   const columns = useMemo<Column<PayableRow>[]>(() => [
     {
@@ -95,7 +101,9 @@ const PayablesPage: React.FC = () => {
       header: t('financeHub:hub.invoiceAge', 'Invoice age'),
       kind: 'status',
       size: 130,
-      cell: (row) => row.ageDays === null ? null : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : row.ageDays <= 90 ? 'warn' : 'lost'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>,
+      cell: (row) => row.ageDays === null ? null : row.ageDays > 90
+        ? <LateText data-testid="payables-late-age" emphasis={isMostUrgentLateRow(lateRows, row)}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</LateText>
+        : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : 'warn'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>,
       exportValue: (row) => row.ageDays === null ? '' : `${row.ageDays} days`,
     },
     {
@@ -108,7 +116,7 @@ const PayablesPage: React.FC = () => {
       cell: (row) => row.amount === null ? null : formatTableMoney(row.amount / 100, row.procurement.currency),
       exportValue: (row) => (row.amount === null ? '' : row.amount / 100),
     },
-  ], [projectManagers, t]);
+  ], [lateRows, projectManagers, t]);
 
   const totalValues = useMemo(() => currencyTotals(filteredRows), [filteredRows]);
   const totals = Object.entries(totalValues).map(([currency, amount]) => ({
@@ -154,11 +162,15 @@ const PayablesPage: React.FC = () => {
           value={oldest?.ageDays === null || !oldest ? null : t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: oldest.ageDays })} loading={isPending}
         />}
       </KPIRow>
-      {!isPending && !finance.isError && <AgeingStrip kind="payables" values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
+      {!isPending && !finance.isError && <AgeingStrip kind="payables" heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
       <div className="min-w-0" data-testid="finance-payables-table-card">
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
         <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={filteredRows.length} />
-        <div className="ml-auto flex flex-wrap gap-2"><Button variant="outline" loading={busy} onClick={() => void exportXlsx(filteredRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>{selectedKeys.size > 0 && <Button variant="outline" loading={busy} onClick={() => void exportXlsx(payablesPosition.payables.filter((row) => selectedKeys.has(row.procurement.id)), columns, 'Payables')}>{t('financeHub:hub.exportSelected', 'Export selected')}</Button>}</div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {lateRows.length > 0 && <StatusPill variant="overdue" data-testid="payables-overdue-count">{t('finance:area.overdueCount', { defaultValue: '{{count}} overdue', count: lateRows.length })}</StatusPill>}
+          <Button variant="outline" loading={busy} onClick={() => void exportXlsx(filteredRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>
+          {selectedKeys.size > 0 && <Button variant="outline" loading={busy} onClick={() => void exportXlsx(payablesPosition.payables.filter((row) => selectedKeys.has(row.procurement.id)), columns, 'Payables')}>{t('financeHub:hub.exportSelected', 'Export selected')}</Button>}
+        </div>
       </Toolbar>
       <DataTable
         rows={filteredRows}

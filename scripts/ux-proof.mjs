@@ -149,6 +149,7 @@ try {
         await page.evaluate(() => {
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         });
+        await page.mouse.move(0, 0);
         await page.screenshot({ path: path.join(output, `${stem}.png`), fullPage: true });
         if (theme === 'light') {
           const metrics = await page.evaluate(measureText, CHART_SELECTOR);

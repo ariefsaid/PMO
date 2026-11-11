@@ -87,7 +87,7 @@ const FinanceHub: React.FC = () => {
       />}
       {hasProcurement && <KPITile
         icon="grid" tone="blue" to="/finance/payables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.payables', 'Payables') })}
-        label={t('financeHub:hub.toPay', 'Payables')} caption={t('financeHub:hub.waitingToPay', 'unpaid')}
+        label={t('financeHub:hub.toPay', 'Owed to suppliers')} caption={t('financeHub:hub.waitingToPay', 'unpaid')}
         value={toPay?.value ?? null} exactValue={toPay?.exactValue}
         unavailableReason={payablesUnknown ? t('financeHub:hub.payablesUnknown', 'supplier balances are unknown') : undefined}
         hiddenLink={{ to: '/finance/payables', label: t('financeHub:hub.seePayables', 'See payables') }}
@@ -96,7 +96,7 @@ const FinanceHub: React.FC = () => {
       />}
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/reports" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.reports', 'Reports') })}
-        label={t('financeHub:hub.doneNotYetBilled', 'Done · unbilled')} caption={pack?.asAt ? t('financeHub:hub.through', 'through {{month}}', { month: formatMonthYearShort(pack.asAt) }) : undefined}
+        label={t('financeHub:hub.doneNotYetBilled', 'Done, not yet billed')} caption={pack?.asAt ? t('financeHub:hub.through', 'through {{month}}', { month: formatMonthYearShort(pack.asAt) }) : undefined}
         value={toInvoice?.value ?? null} exactValue={toInvoice?.exactValue}
         unavailableReason={pack ? undefined : t('financeHub:hub.reportsUnknown', 'report figures are not available')}
         hiddenLink={{ to: '/finance/reports', label: t('financeHub:hub.openReports', 'Open reports') }}
@@ -166,15 +166,15 @@ const FinanceHub: React.FC = () => {
           <span>{t('financeHub:hub.positionError', "Couldn't load finance figures")}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => { if (finance.isError) finance.retry(); if (figures.isError) retryFigures(); }}>{t('financeHub:hub.retry', 'Retry')}</Button>
         </div>}
-        {/* Waiting and balance-age bars form the left column; company figures and the six-month trend sit beside them. */}
+        {/* Waiting stays left; company figures, monthly totals and ageing use the wider right column. */}
         <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {attention}
-            {ageings}
           </div>
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {tiles}
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
+            {ageings}
           </div>
         </div>
       </div>

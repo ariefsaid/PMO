@@ -12,8 +12,7 @@ import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
 import type { BudgetReviewRow, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
 import type { AgeingBuckets } from '@/src/lib/finance/financePosition';
-import { BarList, ChartCard, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
-import { RevenueTrendLineChart } from '@/src/components/dashboard/RevenueTrendLineChart';
+import { BarList, ChartCard, MonthColumns, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
 import { budgetSpendKnown } from './financeData';
@@ -138,7 +137,7 @@ export const InvoicedCollectedCard: React.FC<{
     <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={activeMonths >= 3} hiddenReason={t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')}
       pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected" className={className}>
-      <RevenueTrendLineChart points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} />
+      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} />
       {gap && <p data-testid="invoiced-collected-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>
   );

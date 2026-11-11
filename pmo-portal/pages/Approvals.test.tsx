@@ -572,6 +572,17 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
   });
 });
 
+describe('screen rules: approvals waiting hierarchy', () => {
+  it('puts the queue count on the waiting surface as a key figure', () => {
+    queryState.data = submittedSheets;
+    renderPage('timesheets');
+
+    const waiting = screen.getByTestId('approvals-waiting-summary');
+    expect(waiting).toHaveClass('bg-waiting-surface');
+    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveClass('text-metric');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // S-18 / RF-042 — the empty inbox explains PMO scope: documents entered directly in ERP are
 // approved in ERP, so "all caught up" must never claim no approvals exist anywhere.

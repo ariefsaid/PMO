@@ -139,7 +139,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const columnsTotal = { amount: total === null ? '—' : formatCurrency(total, currency) };
   return <Card className="mb-4" data-testid="line-items-section">
     <CardHead>{t('lineItems.heading', 'Line items')}<span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span></CardHead>
-    <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"
+    <DataTable embedded rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"
       state={items.length === 0 ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={[{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }]} />
     {editable && <CardPad>

@@ -547,4 +547,13 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(summary).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: /stage history/i })).not.toBeInTheDocument();
   });
+
+  it.each(['Project Manager', 'Executive', 'Finance'])('screen rules: the %s overview states the project tax basis once', async (role) => {
+    roleBox.value = role;
+    projectsState.data = [{ ...seed[0], tax_treatment: 'exclusive' } as unknown as ProjectWithRefs];
+    await renderAt('/projects/p1');
+
+    expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
+  });
+
 });

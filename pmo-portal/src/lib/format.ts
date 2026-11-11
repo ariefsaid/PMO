@@ -633,6 +633,11 @@ export type AgeTranslate = (
   options: { count: number; n: string; defaultValue_one: string; defaultValue_other: string },
 ) => string;
 
+export type LateTranslate = (
+  key: 'status:age.late',
+  options: { count: number; n: string; defaultValue_one: string; defaultValue_other: string },
+) => string;
+
 /** "118 days overdue" — a number with its unit, nothing relative-sounding. null when not overdue. */
 export function formatDaysOverdue(due: DayInput, t: AgeTranslate, now: Date = new Date()): string | null {
   const days = daysOverdue(due, now);
@@ -642,6 +647,18 @@ export function formatDaysOverdue(due: DayInput, t: AgeTranslate, now: Date = ne
     n: formatNumberWhole(days),
     defaultValue_one: '{{n}} day overdue',
     defaultValue_other: '{{n}} days overdue',
+  });
+}
+
+/** "118 days late" — plain wording for the non-emphasized overdue rows in a grouped list. */
+export function formatDaysLate(due: DayInput, t: LateTranslate, now: Date = new Date()): string | null {
+  const days = daysOverdue(due, now);
+  if (days === null) return null;
+  return t('status:age.late', {
+    count: days,
+    n: formatNumberWhole(days),
+    defaultValue_one: '{{n}} day late',
+    defaultValue_other: '{{n}} days late',
   });
 }
 
@@ -682,12 +699,14 @@ export function formatTableMoney(amount: number | string | null, currency: strin
 /**
  * One figure per organisation currency plus second lines for the rest: `['IDR 7.7B', '+ USD 5.3K']`.
  * Same-currency entries add up; different currencies are never summed or joined into one "A · B" string.
+ * `prefixOtherCurrencies: false` keeps a tile's foreign-currency lines from reading like an addition.
  * The home line is always first and is "0" when the organisation has none.
  */
 export function formatMoneyLines(
   totals: ReadonlyArray<{ currency: string; amount: number }>,
   homeCurrency: string,
   kind: 'tile' | 'table',
+  options: { prefixOtherCurrencies?: boolean } = {},
 ): string[] {
   const byCurrency = new Map<string, number>([[homeCurrency, 0]]);
   for (const { currency, amount } of totals) byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount);
@@ -695,7 +714,8 @@ export function formatMoneyLines(
   return [...byCurrency].flatMap(([currency, amount]) => {
     const isHome = currency === homeCurrency;
     const text = render(amount, currency, { code: !isHome });
-    return text === null ? [] : [isHome || amount < 0 ? text : `+ ${text}`];
+    const prefix = options.prefixOtherCurrencies !== false && !isHome && amount >= 0;
+    return text === null ? [] : [prefix ? `+ ${text}` : text];
   });
 }
 

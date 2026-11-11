@@ -112,10 +112,16 @@ export interface ColumnPoint {
 }
 
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
-const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
+const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false) => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
-  if (value == null || value === '' || !data[index]?.[series] || (lastOnly && index !== data.length - 1)) return null;
-  const anchorX = side === 'end' ? Number(x) + Number(width) : side === 'start' ? Number(x) : Number(x) + Number(width) / 2;
+  const lastNonZero = data.reduce((last, point, pointIndex) => point[series] != null && point[series] !== 0 ? pointIndex : last, -1);
+  if (value == null || value === '' || !data[index]?.[series] || (lastOnly && index !== lastNonZero)) return null;
+  const barX = Number(x);
+  const barWidth = Number(width);
+  // Paired labels meet at the midpoint between the columns. Each series keeps its own half of the month,
+  // so their values stay readable even when both amounts are non-zero.
+  const pairedCenter = side === 'end' ? barX + (barWidth * 1.5) + 1 : barX - (barWidth / 2) - 1;
+  const anchorX = paired ? pairedCenter : side === 'end' ? barX + barWidth : side === 'start' ? barX : barX + barWidth / 2;
   return <text x={anchorX} y={Number(y) - 5} textAnchor={side} style={LABEL_STYLE}>{String(value)}</text>;
 };
 
@@ -130,24 +136,27 @@ export const MonthColumns: React.FC<{
   seriesNames?: [string, string?];
   labelAll?: boolean;
   height?: number;
-}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168 }) => {
+  /** Keep paired value labels legible on narrow screens; the chart can scroll horizontally. */
+  minWidth?: number;
+  tickInterval?: number;
+}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, minWidth, tickInterval = 0 }) => {
   const reduced = usePrefersReducedMotion();
   const two = points.some((point) => point.b !== undefined);
   const data = points.map((point) => ({ ...point }));
   return (
-    <div>
-      <div role="img" aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={{ height }}>
+    <div className={minWidth ? 'overflow-x-auto' : undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
+      <div role="img" aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={{ height, minWidth }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 22, right: two ? 8 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
-            <XAxis dataKey="tick" tick={TICK_STYLE} tickLine={false} stroke={chartTheme.grid} interval={0} />
+            <XAxis dataKey="tick" tick={TICK_STYLE} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
             <YAxis hide domain={[0, 'auto']} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
             <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-              <LabelList dataKey="labelA" content={columnLabel(data, 'a', !labelAll)} />
+              <LabelList dataKey="labelA" content={columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two)} />
             </Bar>
             {two && (
               <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                <LabelList dataKey="labelB" content={columnLabel(data, 'b', !labelAll || points.length > 6, 'middle')} />
+                <LabelList dataKey="labelB" content={columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true)} />
               </Bar>
             )}
           </BarChart>
