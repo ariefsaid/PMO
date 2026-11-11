@@ -11,7 +11,7 @@ import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hoo
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead } from '@/src/lib/financialStatements';
-import { formatDay } from '@/src/lib/format';
+import { formatDayRange } from '@/src/lib/format';
 
 interface ProjectProfitLossSectionProps {
   projectId: string;
@@ -43,7 +43,7 @@ function totalsContext(read: FinancialStatementRead, currentLabel: string): stri
   if (!isTotalsRead(read)) return '';
   return [
     read.generation.currency,
-    `${currentLabel}: ${formatDay(read.result.period.currentStart)} – ${formatDay(read.result.period.currentEnd)}`,
+    `${currentLabel}: ${formatDayRange(read.result.period.currentStart, read.result.period.currentEnd)}`,
   ].join(' · ');
 }
 
@@ -144,7 +144,7 @@ const ErpnextProjectProfitLoss: React.FC<ProjectProfitLossSectionProps> = ({ pro
           <StatementPeriodPicker
             kind={periodKind}
             periodStart={selectedPair?.currentStart ?? null}
-            periods={choices.map((pair) => ({ kind: pair.kind, periodStart: pair.currentStart, label: `${formatDay(pair.currentStart)} – ${formatDay(pair.currentEnd)} · ${priorLabel}: ${formatDay(pair.priorStart)} – ${formatDay(pair.priorEnd)}` }))}
+            periods={choices.map((pair) => ({ kind: pair.kind, periodStart: pair.currentStart, label: `${formatDayRange(pair.currentStart, pair.currentEnd)} · ${priorLabel}: ${formatDayRange(pair.priorStart, pair.priorEnd)}` }))}
             labels={{
               kind: t('financialStatements.periodKind', 'Period type'),
               period: t('financialStatements.period', 'Period'),

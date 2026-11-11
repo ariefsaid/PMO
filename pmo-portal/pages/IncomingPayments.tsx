@@ -28,7 +28,6 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   formatCurrency,
-  formatCurrencyCents,
   formatDay,
 } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
@@ -517,9 +516,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       >
         {panelPayment && <div className="space-y-5 p-4 sm:p-5">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
-            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
-            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
-            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrencyCents(panelUnapplied, panelPayment.currency)}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrency(panelPayment.received_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrency(panelPayment.withheld_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrency(panelUnapplied, panelPayment.currency, { precision: 'minor' })}</dd></div>
             <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
           </dl>
           <section aria-labelledby="receivable-payment-invoices">
@@ -535,7 +534,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               {panelAllocations.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span className="font-mono">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
                 <span className="flex items-center gap-2">
-                  <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported}</span>
+                  <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported}</span>
                   {canApplyHere && panelPayment.allocations?.[index] && (
                     <Button
                       type="button"

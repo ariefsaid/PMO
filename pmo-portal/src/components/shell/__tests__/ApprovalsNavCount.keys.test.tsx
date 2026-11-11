@@ -168,19 +168,22 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
   });
 
-  it('OD-TS-5 counts cached pending timesheet for assigned Finance manager with role-appropriate queues seeded', () => {
+  it('matches Finance home by counting only cached procurement approvals', () => {
     const client = makeClient();
-    // Finance can approve procurement and invoices; seed those applicable queues as empty / ready
+    // The Finance home tile excludes timesheets, expenses and invoices.
     client.setQueryData(ownershipKey, []);
-    client.setQueryData(queueKeys[0], []);
-    client.setQueryData(queueKeys[1], []);
+    client.setQueryData(queueKeys[0], [
+      { id: 'p1', status: 'Requested', requested_by_id: 'other', approvalRoute: { route: 'flat' } },
+    ]);
     client.setQueryData(queueKeys[2], [{ id: 't1' }]);
-    client.setQueryData(queueKeys[3], []);
+    client.setQueryData(queueKeys[3], [{ id: 'i1', author_user_id: 'other', author_user_ids: ['other'] }]);
 
     renderCount(client, 'Finance');
 
     expect(screen.getByText('1')).toBeInTheDocument();
-    expect(keys.timesheets).toHaveBeenCalledWith(orgId, userId, 'Finance');
+    expect(keys.timesheets).not.toHaveBeenCalled();
+    expect(keys.expenses).not.toHaveBeenCalled();
+    expect(keys.invoices).not.toHaveBeenCalled();
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
   });
 

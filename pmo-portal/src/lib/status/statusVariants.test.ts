@@ -15,6 +15,12 @@ import {
  * open/active/in-progress is neutral grey (the distinct LABEL carries identity).
  */
 describe('statusVariants registry — Freed-Blue Status Rule', () => {
+  it('uses red for high incident severity and amber for medium', () => {
+    expect(severityVariant('High')).toBe('lost');
+    expect(severityVariant('Medium')).toBe('warn');
+    expect(severityVariant('Low')).toBe('neutral');
+  });
+
   // (a) The headline guard: no registry mapping may resolve to the action-blue `open` variant.
   it('never resolves any status / severity / category to the primary/action-blue (open) variant', () => {
     expect(ALL_REGISTRY_VARIANTS).not.toContain('open');
@@ -65,11 +71,11 @@ describe('statusVariants registry — Freed-Blue Status Rule', () => {
     });
   });
 
-  describe('severityVariant — Low grey, Medium/High amber, Critical red — never blue', () => {
+  describe('severityVariant — Low neutral, Medium amber, High/Critical red — never blue', () => {
     it.each([
       ['Low', 'neutral'],
       ['Medium', 'warn'],
-      ['High', 'warn'],
+      ['High', 'lost'],
       ['Critical', 'lost'],
     ] as const)('maps %s → %s', (sev, variant) => {
       expect(severityVariant(sev)).toBe(variant);

@@ -187,16 +187,22 @@ describe('Receivables page', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?todo=unapplied');
   });
 
-  it('B4: one filled primary in the header; the other create action is outline from sm up and in the list menu on a phone', async () => {
+  it('B4: keeps New invoice and Receive payment in the same header on both tabs', async () => {
     const user = userEvent.setup();
-    renderPage();
-    const newInvoice = screen.getAllByRole('button', { name: /New invoice/i });
-    expect(newInvoice).toHaveLength(1);
-    expect(screen.getByTestId('receivables-header-new-invoice')).toBeInTheDocument();
-    // Receive payment is the quiet header button on larger screens (hidden below sm).
-    expect(screen.getByRole('button', { name: 'Receive payment' }).parentElement).toHaveClass('hidden', 'sm:block');
-    await user.click(newInvoice[0]!);
+    const invoices = renderPage();
+    const newInvoice = screen.getByRole('button', { name: /New invoice/i });
+    const receivePayment = screen.getByRole('button', { name: 'Receive payment' });
+    const headerActions = screen.getByTestId('receivables-header-new-invoice').parentElement!;
+    expect(headerActions).toContainElement(newInvoice);
+    expect(headerActions).toContainElement(receivePayment);
+    await user.click(newInvoice);
     expect(screen.getByTestId('location')).toHaveTextContent('create=1');
+
+    invoices.unmount();
+    renderPage('/finance/receivables?view=payments');
+    const paymentHeaderActions = screen.getByTestId('receivables-header-new-invoice').parentElement!;
+    expect(paymentHeaderActions).toContainElement(screen.getByRole('button', { name: /New invoice/i }));
+    expect(paymentHeaderActions).toContainElement(screen.getByRole('button', { name: 'Receive payment' }));
   });
 
   it('hides New invoice for an Executive', () => {

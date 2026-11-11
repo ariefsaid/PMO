@@ -28,6 +28,12 @@
     "description": "Jam minggu ini yang belum disimpan akan dibuang.",
     "confirm": "Buang perubahan"
   },
+  "discardHours": {
+    "title": "Buang jam yang belum disimpan?",
+    "description": "Tinggalkan halaman ini dan buang jam yang belum disimpan?",
+    "leave": "Tinggalkan",
+    "stay": "Tetap di sini"
+  },
   "reconcile": {
     "message": "Muat ulang minggu ini sebelum melanjutkan.",
     "retry": "Coba muat ulang minggu"

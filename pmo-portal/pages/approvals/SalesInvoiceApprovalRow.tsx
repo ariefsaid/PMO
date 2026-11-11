@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrencyCents, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDay } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -20,7 +20,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const { data: profiles } = useAssignableProfiles();
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
-  const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
+  const money = (n: number | null) => (n != null ? formatCurrency(n, inv.currency, { precision: 'minor' }) : '—');
   const net = invoiceNet(inv);
   const lines = inv.native_lines ?? [];
 

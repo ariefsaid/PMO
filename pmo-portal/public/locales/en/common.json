@@ -2394,9 +2394,7 @@
       "editContractValue": "Edit contract value",
       "po": "PO {{ref}}",
       "poWithDate": "PO {{ref}} ({{date}})",
-      "readOnly": "Read-only",
       "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
-      "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
       "taxAmount": "Tax amount",
       "taxTreatment": "Tax treatment",
       "tile": {
@@ -4059,8 +4057,6 @@
       "invoiced": "Invoiced",
       "recognisedToDate": "Recognised to date",
       "invoicedToDate": "Invoiced to date",
-      "unbilled": "Unbilled",
-      "backlog": "Backlog",
       "basis": "Basis"
     },
     "progressModal": {
@@ -4074,9 +4070,6 @@
       "save": "Save progress",
       "saved": "Progress saved"
     }
-  },
-  "uxs34": {
-    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
   },
   "comments": {
     "title": "Comments",

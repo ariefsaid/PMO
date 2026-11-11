@@ -11,7 +11,7 @@ import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/sr
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
-import { StillToInvoiceCard } from './StillToInvoiceCard';
+import { DoneNotYetBilledCard } from './DoneNotYetBilledCard';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
@@ -20,6 +20,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
 import { orderByProcurementLifecycle } from '@/src/lib/db/procurementLifecycle';
@@ -30,17 +31,9 @@ import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { isProcurementReadyToPay } from '@/src/lib/finance/financePosition';
+import { calendarAgeDays, supplierInvoiceDate } from '@/src/lib/finance/financePosition';
 
-/**
- * Compute days since a given ISO date string (the row's `vendor_invoiced_at` — the real time the
- * PR entered 'Vendor Invoiced', stamped by transition_procurement (migration 0022) — falling back
- * to `updated_at` only for legacy rows stamped before the migration).
- * Returns a compact label: "N days" or "Today".
- * Guards against clock-skew (negative delta clamped to 0).
- */
-function daysAgoLabel(isoDate: string, t: (key: string, fallback: string, options?: { count?: number }) => string): string {
-  const ms = Date.now() - new Date(isoDate).getTime();
-  const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+function invoiceAgeLabel(days: number, t: (key: string, fallback: string, options?: { count?: number }) => string): string {
   if (days === 0) return t('dashboard:finance.today', 'Today');
   if (days === 1) return t('dashboard:finance.oneDay', '1 day');
   return t('dashboard:finance.days', '{{count}} days', { count: days });
@@ -49,11 +42,18 @@ function daysAgoLabel(isoDate: string, t: (key: string, fallback: string, option
 // ── ReadyToPayTable — exported for unit testing ──────────────────────────
 
 export interface ReadyToPayTableProps {
-  procurements: ProcurementWithRefs[];
+  procurements: ReadyToPayProcurement[];
+  today: string | null;
   isPending: boolean;
   isError: boolean;
   onRetry: () => void;
 }
+
+type ReadyToPayProcurement = Pick<
+  ProcurementWithRefs,
+  'id' | 'status' | 'title' | 'code' | 'project' | 'total_value' | 'currency' | 'procurement_invoices'
+  | 'vendor_invoiced_at' | 'updated_at'
+>;
 
 /**
  * N16 — "Ready to pay" table.
@@ -63,6 +63,7 @@ export interface ReadyToPayTableProps {
  */
 export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
   procurements,
+  today,
   isPending,
   isError,
   onRetry,
@@ -75,7 +76,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
     [procurements],
   );
 
-  const columns: Column<ProcurementWithRefs>[] = [
+  const columns: Column<ReadyToPayProcurement>[] = [
     {
       key: 'request',
       header: t('dashboard:finance.request', 'Procurement'),
@@ -110,17 +111,16 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
     },
     {
       key: 'age',
-      // FR-FIN-DEBT / OBS-FIN-DEBT-004: real vendor_invoiced_at (stamped on →'Vendor Invoiced',
-      // migration 0022), falling back to updated_at only for legacy rows stamped before the migration.
       header: (
-        <span title={t('dashboard:finance.invoicedHelp', 'Days since the supplier invoice was recorded; older records use their last update date.') }>
-          {t('dashboard:finance.invoiced', 'Invoiced')}
+        <span title={t('dashboard:finance.invoicedHelp', 'Invoice age is counted from the supplier invoice date.') }>
+          {t('dashboard:finance.invoiceAge', 'Invoice age')}
         </span>
       ),
       align: 'num',
       cell: (r) => (
-        /* Age in days since vendor_invoiced_at (real invoice date) — text signal, not color-only */
-        <span className="text-muted-foreground">{daysAgoLabel(r.vendor_invoiced_at ?? r.updated_at, t)}</span>
+        <span className="text-muted-foreground">{calendarAgeDays(supplierInvoiceDate(r), today) === null
+          ? '—'
+          : invoiceAgeLabel(calendarAgeDays(supplierInvoiceDate(r), today)!, t)}</span>
       ),
     },
   ];
@@ -134,7 +134,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
         : undefined;
 
   return (
-    <DataTable<ProcurementWithRefs>
+    <DataTable<ReadyToPayProcurement>
       rows={viRows}
       columns={columns}
       rowKey={(r) => r.id}
@@ -231,6 +231,7 @@ export const FinanceDashboard: React.FC = () => {
   const { data: projects } = useProjectIdentity();
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
   const orgCurrency = useOrgCurrency();
+  const organizationDay = useFxOrgDay(true);
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
   const { data: clientCompanies } = useCompanies('Client');
   const clientCompanyIds = useMemo(() => (clientCompanies ?? []).map((company) => company.id), [clientCompanies]);
@@ -448,8 +449,7 @@ export const FinanceDashboard: React.FC = () => {
           help={t('dashboard:finance.payablesHelp', 'Procurement value owed to suppliers in the Supplier Invoiced state.')} />
       </KPIRow>
 
-      {/* OD-BILL-1 / #786: what is still to invoice on the client's POs. */}
-      <StillToInvoiceCard />
+      <DoneNotYetBilledCard />
 
       {/* Finance "ledger" block: Ready to pay + Budget review stacked full-width (C1 fix).
           Previously a 2-up DashGrid which clipped the 5-col budget table (~626px intrinsic)
@@ -463,6 +463,7 @@ export const FinanceDashboard: React.FC = () => {
           <CardHead className="rounded-t-lg">{t('uxs03.financeReadyToPay', 'Ready to pay')}</CardHead>
           <ReadyToPayTable
             procurements={procurements ?? []}
+            today={organizationDay.day}
             isPending={procPending}
             isError={procError}
             onRetry={() => refetchProc()}

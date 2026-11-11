@@ -2,7 +2,7 @@ import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatNumber } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -261,7 +261,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
                 <div key={kind}>
                   <p className="mb-1 text-control font-medium text-foreground">{t(`money.${kind}`, moneyLabels[kind])}</p>
                   <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} text-foreground tabular-nums`}>
-                    {formatNumber(Math.round(figure.amount ?? 0))}
+                    {formatCurrency(figure.amount ?? 0, procurement.currency)}
                   </p>
                   {lead && nextDueDate && <p className={`mt-0.5 text-control ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
                     {overdueDays > 0

@@ -78,7 +78,8 @@ function currencyFormatterFor(shape: string, currency: string, opts: Intl.Number
   });
 }
 
-export function formatCurrency(value: number, currency: string): string {
+export function formatCurrency(value: number, currency: string, opts: { precision?: 'whole' | 'minor' } = {}): string {
+  if (opts.precision === 'minor') return currencyFormatterFor('minor', currency, {}).format(value);
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
@@ -583,6 +584,20 @@ export function formatDay(input: DayInput, now: Date = new Date()): string {
   const { day, month, year } = dayPart(frame, 'day');
   const currentYear = dayPart({ date: now, timeZone: getActiveLocale().timezone }, 'day').year;
   return year === currentYear ? `${day} ${month}` : `${day} ${month} ${year}`;
+}
+
+/** A range keeps both years whenever they differ or either endpoint is outside the current year. */
+export function formatDayRange(from: DayInput, to: DayInput, now: Date = new Date()): string {
+  const start = dayFrame(from);
+  const end = dayFrame(to);
+  if (!start || !end) return `${formatDay(from, now)} – ${formatDay(to, now)}`;
+  const startYear = dayPart(start, 'day').year;
+  const endYear = dayPart(end, 'day').year;
+  const currentYear = dayPart({ date: now, timeZone: getActiveLocale().timezone }, 'day').year;
+  if (startYear !== endYear || startYear !== currentYear || endYear !== currentYear) {
+    return `${formatDayYear(from)} – ${formatDayYear(to)}`;
+  }
+  return `${formatDay(from, now)} – ${formatDay(to, now)}`;
 }
 
 /** "Nov 2026" — a month, never "Nov 26" (which reads as a day). */

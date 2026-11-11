@@ -2394,9 +2394,7 @@
       "editContractValue": "Edit nilai kontrak",
       "po": "PO {{ref}}",
       "poWithDate": "PO {{ref}} ({{date}})",
-      "readOnly": "Hanya lihat",
       "sodEditableNote": "Mengubah nilai pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat.",
-      "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
       "taxAmount": "Jumlah pajak",
       "taxTreatment": "Perlakuan pajak",
       "tile": {
@@ -4059,8 +4057,6 @@
       "invoiced": "Ditagih",
       "recognisedToDate": "Diakui s.d. saat ini",
       "invoicedToDate": "Ditagih s.d. saat ini",
-      "unbilled": "Belum ditagih",
-      "backlog": "Backlog",
       "basis": "Dasar"
     },
     "progressModal": {
@@ -4074,9 +4070,6 @@
       "save": "Simpan progres",
       "saved": "Progres disimpan"
     }
-  },
-  "uxs34": {
-    "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
   "comments": {
     "title": "Komentar",

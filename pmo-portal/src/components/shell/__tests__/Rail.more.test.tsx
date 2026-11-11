@@ -65,6 +65,19 @@ describe('Rail More group', () => {
     expect(screen.getByRole('link', { name: 'Contacts' })).toBeInTheDocument();
   });
 
+  it('scrolls the active More item into view when opening that section', () => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+    try {
+      renderRail('/contacts');
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+    }
+  });
+
   it('is always open in the phone drawer', () => {
     renderRail('/', true);
     expect(screen.getByRole('link', { name: 'Contacts' })).toBeInTheDocument();

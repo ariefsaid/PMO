@@ -20,7 +20,7 @@ import { LIST_LIMIT, type ContractRateLineInput, type ContractRateLineRow, type 
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatDayRange, formatNumberExact } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
@@ -496,7 +496,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               {claimRows.length > 0 && <ul className="divide-y divide-border">
                 {claimRows.map((claim) => <li key={claim.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <button type="button" className="min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={claimOpenLabel(claim)} onClick={() => openClaimDetail(claim)}>
-                    <span className="block font-medium text-foreground">{formatDay(claim.period_from)} – {formatDay(claim.period_to)}</span>
+                    <span className="block font-medium text-foreground">{formatDayRange(claim.period_from, claim.period_to)}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                       {statusPill(claim)}
                       <span className="tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</span>
@@ -778,7 +778,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
   const { t } = useTranslation('timeAndMaterials');
   const sourceGroups = groupClaimSources(sources, t('preview.personUnavailable', 'Person no longer active'));
   const standbyLabel = (label: string, basis: string) => basis === 'standby' ? `${label} (${t('basis.standby', 'standby')})` : label;
-  return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={`${formatDay(claim.period_from)} – ${formatDay(claim.period_to)}`}
+  return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={formatDayRange(claim.period_from, claim.period_to)}
     status={statusPill}
     onClose={onClose} headerActions={<div className="flex flex-wrap items-center gap-2">
       {prepareAction && <Button variant="outline" size="sm" onClick={prepareAction}>{claim.signoff_prepared_by ? t('signoff.prepareAgain', 'Prepare sign-off again') : t('signoff.prepare', 'Prepare sign-off')}</Button>}
@@ -787,7 +787,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
       {invoiceAction && <Button variant="primary" size="sm" onClick={invoiceAction}>{t('claims.createInvoice', 'Create invoice')}</Button>}
     </div>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
-      <div><dt className="text-muted-foreground">{t('claims.period', 'Period')}</dt><dd className="mt-1 font-medium">{formatDay(claim.period_from)} – {formatDay(claim.period_to)}</dd></div>
+      <div><dt className="text-muted-foreground">{t('claims.period', 'Period')}</dt><dd className="mt-1 font-medium">{formatDayRange(claim.period_from, claim.period_to)}</dd></div>
       <div><dt className="text-muted-foreground">{t('claims.total', 'Claim total')}</dt><dd className="mt-1 font-semibold tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</dd></div>
     </dl>
     {awaitingHint && <p className="px-4 pb-3 text-sm text-muted-foreground">{t('signoff.preparerHint', 'A different user must confirm this sign-off.')}</p>}

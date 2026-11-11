@@ -76,7 +76,7 @@ export const SalesOverviewCard: React.FC<{
           )}
           {won && (
             <button type="button" onClick={() => navigate(won.href ?? '/projects?filter=won')} className="min-h-11 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              <span className="block text-control text-muted-foreground">{t('home.wonThisYear', 'Won')} · {period} · {won.count}</span>
+              <span className="block text-control text-muted-foreground">{t('home.wonThisYear', 'Won')}{period ? ` · ${period}` : ''} · {won.count}</span>
               <span className="block text-[23px] font-bold leading-tight tabular">{wonValue}</span>
             </button>
           )}

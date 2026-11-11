@@ -95,7 +95,7 @@ const FinanceHub: React.FC = () => {
       />}
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/reports" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.reports', 'Reports') })}
-        label={t('financeHub:hub.toInvoice', 'Earned, not invoiced')} caption={pack?.asAt ? t('financeHub:hub.through', 'through {{month}}', { month: formatMonthYearShort(pack.asAt) }) : undefined}
+        label={t('financeHub:hub.doneNotYetBilled', 'Done, not yet billed')} caption={pack?.asAt ? t('financeHub:hub.through', 'through {{month}}', { month: formatMonthYearShort(pack.asAt) }) : undefined}
         value={toInvoice?.value ?? null} exactValue={toInvoice?.exactValue}
         unavailableReason={pack ? undefined : t('financeHub:hub.reportsUnknown', 'report figures are not available')}
         hiddenLink={{ to: '/finance/reports', label: t('financeHub:hub.openReports', 'Open reports') }}

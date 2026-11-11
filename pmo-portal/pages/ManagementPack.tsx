@@ -17,7 +17,7 @@ import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
-import { fromCents, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
+import { fromCents, leftToBillAt, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
 import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
@@ -94,10 +94,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     planned: t('managementPack.col.planned', 'Planned'),
     recognised: t('managementPack.col.recognised', 'Recognised'),
     invoiced: t('managementPack.col.invoiced', 'Invoiced'),
-    unbilled: t('managementPack.col.unbilled', 'Unbilled'),
+    unbilled: t('financeHub:managementPack.col.doneNotYetBilled', 'Done, not yet billed'),
     recognisedToDate: t('managementPack.col.recognisedToDate', 'Recognised to date'),
     invoicedToDate: t('managementPack.col.invoicedToDate', 'Invoiced to date'),
-    backlog: t('managementPack.col.backlog', 'Backlog'),
+    backlog: t('financeHub:managementPack.col.leftToBill', 'Left to bill'),
   }), [t]);
   const range = { from: monthInputToIso(params.get('from') ?? ''), to: monthInputToIso(params.get('to') ?? '') };
   const { data: pack, isPending, isError, error, refetch } = useManagementPack(range);
@@ -143,7 +143,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         ? 'empty'
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
-  const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
+  const backlogReason = t('financeHub:managementPack.figures.leftToBillUnknownReason', 'A foreign-currency invoice needs reconciliation before this amount can be known.');
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -215,7 +215,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const last = pack ? pack.months.length - 1 : -1;
   const measureCell = useCallback((key: Measure) => (row: PackRow) => {
     const m = last >= 0 ? row.months[last] : null;
-    const value = m ? m[key] : null;
+    const value = key === 'backlog'
+      ? m && row.kind === 'contract' ? leftToBillAt([row], row.currency, m.month) : null
+      : m ? m[key] : null;
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-control">
         {key === 'backlog' && row.kind === 'contract' && value === null ? backlogUnknown : money(value, row.currency)}
@@ -371,6 +373,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     const contractTotal = contracts.reduce((sum, r) => sum + (r.contractNet ?? 0), 0);
     const sum = (key: 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'invoiceCountToDate') => ms.reduce((total, month) => total + month[key], 0);
     const backlogIsUnknown = contracts.some((row) => latestMonth(row)?.backlog === null);
+    const month = pack?.months[last];
+    const leftToBill = backlogIsUnknown || !month ? null : leftToBillAt(contracts, currency, month);
     return {
       key: currency,
       label: `${t('managementPack.total', 'Total')} · ${currency}`,
@@ -379,7 +383,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         recognisedToDate: money(sum('recognisedToDate'), currency),
         invoicedToDate: money(sum('invoicedToDate'), currency),
         unbilled: money(sum('unbilled'), currency),
-        backlog: backlogIsUnknown ? backlogUnknown : money(contracts.reduce((total, row) => total + (latestMonth(row)?.backlog ?? 0), 0), currency),
+        backlog: leftToBill === null ? backlogUnknown : money(leftToBill, currency),
         invoiceCount:
           invoiceCountStatus === 'error' ? (
             invoiceCountsUnavailableLabel
@@ -394,7 +398,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   });
 
   const totalsRows: TotalsRow[] = (pack?.totals ?? []).flatMap((tot) =>
-    tot.months.map((m) => ({ ...m, currency: tot.currency })),
+    tot.months.map((m) => ({ ...m, backlog: leftToBillAt(pack?.rows ?? [], tot.currency, m.month), currency: tot.currency })),
   );
   const earnedBars = (pack && last >= 0 ? filteredRows : []).flatMap((row) => {
     const m = row.months[last];
@@ -426,7 +430,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const sortedTotals = [...(pack?.totals ?? [])].sort((left, right) => left.currency === orgCurrency ? -1 : right.currency === orgCurrency ? 1 : left.currency.localeCompare(right.currency));
   const latestTotals = sortedTotals.flatMap((tot) => {
     const month = tot.months[tot.months.length - 1];
-    return month ? [{ currency: tot.currency, month }] : [];
+    if (!month) return [];
+    const leftToBill = leftToBillAt(pack?.rows ?? [], tot.currency, month.month);
+    return [{ currency: tot.currency, month: { ...month, backlog: leftToBill } }];
   });
   const homeCurrency = orgCurrency ?? 'IDR';
   const figureSpecs: Array<{
@@ -438,8 +444,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   }> = [
     {
       key: 'earnedNotInvoiced',
-      label: t('financeHub:managementPack.figures.earnedNotInvoiced', 'Earned, not invoiced'),
-      help: t('financeHub:managementPack.figures.earnedNotInvoicedHelp', 'Earned to date minus invoiced to date, using the report’s revenue recognition basis.'),
+      label: t('financeHub:managementPack.figures.doneNotYetBilled', 'Done, not yet billed'),
+      help: t('financeHub:managementPack.figures.doneNotYetBilledHelp', 'Earned to date minus invoiced to date, using the report’s revenue recognition basis.'),
       amount: (month) => month.unbilled,
     },
     {
@@ -457,8 +463,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     },
     {
       key: 'backlog',
-      label: t('financeHub:managementPack.figures.backlog', 'Backlog'),
-      help: t('financeHub:managementPack.figures.backlogHelp', 'Contract total minus revenue earned to date; unavailable if a foreign-currency invoice needs reconciliation.'),
+      label: t('financeHub:managementPack.figures.leftToBill', 'Left to bill'),
+      help: t('financeHub:managementPack.figures.leftToBillHelp', 'Signed contract value minus invoiced to date; unavailable if a foreign-currency invoice needs reconciliation.'),
       amount: (month) => month.backlog,
     },
   ];
@@ -586,6 +592,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             rowKey={(row) => row.key}
             tableId="managementpack-1-table"
             accessibleName={t('managementPack.col.project', 'Project')}
+            mobileLabelsOnce
             totals={projectTotals}
             // N6: the heading sits apart from the filter panel, so the table closes its own top edge.
             className="rounded-t-lg"
@@ -600,7 +607,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       {pack && state === undefined && (
         <>
           {!anyProgress && pack.rows.some((row) => row.kind === 'contract') && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.noProgressNote', 'No progress assessments recorded, so earned revenue follows what has been invoiced.')}</p>}
-          {backlogUnknownSomewhere && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.backlogUnknownNote', 'Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known.')}{' '}<Link to="/finance/receivables" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.reviewInvoices', 'Review invoices')}</Link></p>}
+          {backlogUnknownSomewhere && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.leftToBillUnknownNote', 'Left to bill is left out where a foreign-currency invoice needs reconciliation before the amount can be known.')}{' '}<Link to="/finance/receivables" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.reviewInvoices', 'Review invoices')}</Link></p>}
           {pack.rows.some((row) => row.kind === 'unassigned') && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.unassignedNote', 'Some invoices are not assigned to a project yet.')}{' '}<Link to="/finance/receivables?attribution=unassigned" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.assignProjects', 'Assign projects')}</Link></p>}
           <button type="button" aria-expanded={monthlyTotalsExpanded} aria-controls="managementpack-monthly-totals" onClick={() => setMonthlyTotalsExpanded((expanded) => !expanded)} className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {monthlyTotalsExpanded ? t('finance:area.hideMonthlyTotals', 'Hide monthly totals') : t('finance:area.showMonthlyTotals', 'Show monthly totals')}

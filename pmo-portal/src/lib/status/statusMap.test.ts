@@ -86,6 +86,11 @@ describe('status map', () => {
     expect(statusLabel('procurement', 'Requested', echo)).toBe('Requested');
     expect(statusLabel('procurement', 'Ordered', echo)).toBe('Purchase order');
   });
+
+  it('uses sentence casing for common task states', () => {
+    expect(statusLabel('task', 'To Do', echo)).toBe('To do');
+    expect(statusLabel('task', 'In Progress', echo)).toBe('In progress');
+  });
 });
 
 describe('status catalogues (en + id)', () => {

@@ -116,24 +116,24 @@ const ExpenseClaimDetail: React.FC = () => {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <dt className="text-control text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
-              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrency(amount, claim.currency)}</dd>
+              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrency(amount, claim.currency, { precision: 'minor' })}</dd>
             </div>
             {claim.kind === 'claim' && claim.status === 'Paid' && (
               <>
                 <div>
                   <dt className="text-control text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
-                  <dd className="tabular-nums">{formatCurrency(paidSplit.applied, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.applied, claim.currency, { precision: 'minor' })}</dd>
                 </div>
                 <div>
                   <dt className="text-control text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
-                  <dd className="tabular-nums">{formatCurrency(paidSplit.cash, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.cash, claim.currency, { precision: 'minor' })}</dd>
                 </div>
               </>
             )}
             {claim.kind === 'advance' && claim.status === 'Paid' && (
               <div>
                 <dt className="text-control text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
-                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrency(outstanding, claim.currency)}</dd>
+                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrency(outstanding, claim.currency, { precision: 'minor' })}</dd>
               </div>
             )}
             {claim.payment_reference && (

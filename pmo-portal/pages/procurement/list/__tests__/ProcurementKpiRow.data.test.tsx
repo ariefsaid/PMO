@@ -4,6 +4,7 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { ProcurementKpiRow } from '../ProcurementKpiRow';
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-20', isPending: false, isError: false, retry: vi.fn() }) }));
 
 /**
  * The KPI row is memoised on (rows, role) so the page's per-query-settle re-renders skip it.
@@ -29,6 +30,17 @@ describe('ProcurementKpiRow (memoised) data contract', () => {
 
     expect(screen.getByText(/^2 procurements/)).toBeInTheDocument();
     expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$12K');
+  });
+
+  it('uses the invoice date for the oldest supplier-invoice age, with no recorded-date fallback', () => {
+    const { rerender } = render(<ProcurementKpiRow rows={[row('a', 'Vendor Invoiced', 5_000)]} role="Finance" />);
+    expect(screen.getByText(/Invoice age 18 days/)).toBeInTheDocument();
+
+    const noInvoiceDate = { ...row('b', 'Vendor Invoiced', 7_000), procurement_invoices: [{
+      id: 'inv-b', invoice_date: null, created_at: '2026-10-02T00:00:00.000Z', amount: 7_000, total_value: 7_000, status: 'Recorded',
+    }] } as unknown as ProcurementWithRefs;
+    rerender(<ProcurementKpiRow rows={[noInvoiceDate]} role="Finance" />);
+    expect(screen.queryByText(/Invoice age/)).not.toBeInTheDocument();
   });
 
   it('re-renders when the viewer changes, so an engineer never keeps the money tiles', () => {

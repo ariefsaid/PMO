@@ -15,6 +15,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { formatDashboardPercent, moneyFigure } from '@/src/lib/dashboardMoney';
 import { formatTileMoney } from '@/src/lib/format';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
+import { selectLeftToBillTotals } from '@/src/lib/reports/managementPack';
 import type { PaidPaymentFact } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
@@ -226,7 +227,10 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const collected = useMemo(() => selectCollectedTotals(payments.data, period.from, period.to), [payments.data, period.from, period.to]);
   const invoicedByMonth = useMemo(() => selectInvoicedByMonth(pack.data, period.from, period.to, orgCurrency), [pack.data, period.from, period.to, orgCurrency]);
   const collectedByMonth = useMemo(() => selectCollectedByMonth(payments.data, orgCurrency), [payments.data, orgCurrency]);
-  const unbilledTotals = useMemo(() => selectUnbilledTotals(workOrders.data?.totals), [workOrders.data?.totals]);
+  const leftToBillTotals = useMemo(() => selectLeftToBillTotals(pack.data, orgCurrency), [pack.data, orgCurrency]);
+  const leftToBillKnown = leftToBillTotals?.some((row) => row.amount === null)
+    ? null
+    : leftToBillTotals?.map((row) => ({ currency: row.currency, amount: row.amount as number })) ?? null;
   const moneyReason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   // Owed by clients: every open invoice's balance; one unknown balance makes the total unknowable (never a partial sum).
   const owed = useMemo(() => {
@@ -242,13 +246,11 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   }, [invoices.data]);
   const overdueKnown = overdue?.knownTotals.length ? currencyText(overdue.knownTotals, orgCurrency, moneyReason) : null;
   const supplierKnown = suppliers?.knownTotals.length ? currencyText(suppliers.knownTotals, orgCurrency, moneyReason) : null;
-  const unbilledKnown = unbilledTotals?.length ? currencyText(unbilledTotals, orgCurrency, moneyReason) : null;
   const invoiceCurrencyTotals = useMemo(() => invoiced ?? [], [invoiced]);
   const collectedCurrencyTotals = useMemo(() => collected?.totals ?? [], [collected]);
   const winCurrencyTotals = (winRate.data?.value_by_currency ?? [])
     .filter((row) => row.wins_value !== null && row.wins_value > 0)
     .map((row) => ({ currency: row.currency, amount: row.wins_value }));
-  const unbilledCount = workOrders.data?.totals.reduce((sum, row) => sum + row.count, 0) ?? 0;
   const onHand = dashboard.data?.on_hand_value_by_currency;
   const margin = dashboard.data?.on_hand_realized_margin_by_currency;
   const pipelineTotals = dashboard.data?.pipeline_total_value_by_currency;
@@ -344,15 +346,14 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       href: '/procurement?status=Vendor+Invoiced',
     },
     {
-      id: 'still-to-invoice', label: t('figures.stillToInvoice', 'Still to invoice on work orders'),
-      value: workOrders.data === undefined ? null : unbilledKnown ?? (workOrders.data.incompleteCount > 0 ? null : moneyFigure(0, orgCurrency, moneyReason).value),
-      unavailableReason: t('figures.unbilledUnknown', 'Some work orders could not be totalled.'),
-      amounts: workOrders.data === undefined || workOrders.data.incompleteCount > 0 ? null : unbilledTotals ?? [],
-      exactValue: unbilledTotals?.length ? currencyFigure(unbilledTotals, orgCurrency, moneyReason)?.exactValue : undefined,
-      subline: workOrders.data ? t('figures.workOrderCount', '{{count}} work orders', { count: unbilledCount + workOrders.data.incompleteCount }) : undefined,
-      href: '/projects',
+      id: 'left-to-bill', label: t('figures.leftToBill', 'Left to bill'),
+      value: leftToBillTotals === undefined ? null : leftToBillKnown ? currencyText(leftToBillKnown, orgCurrency, moneyReason) : null,
+      unavailableReason: t('figures.leftToBillUnknown', 'A contract invoice needs reconciliation before this amount can be known.'),
+      amounts: leftToBillKnown,
+      exactValue: leftToBillKnown?.length ? currencyFigure(leftToBillKnown, orgCurrency, moneyReason)?.exactValue : undefined,
+      href: '/finance/reports',
     },
-  ], [dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, unbilledTotals, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, unbilledCount, unbilledKnown, workOrders.data, orgCurrency]);
+  ], [dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, leftToBillTotals, leftToBillKnown, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, orgCurrency]);
 
   const periodFigures = useMemo<DashboardFigure[]>(() => {
     const wonCount = winRate.data?.wins_count;
@@ -389,8 +390,8 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
 
   return {
     today, period: periodFigures,
-    todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || orgDay.isPending || anyInvoice.isLoading || anyPayment.isLoading,
-    todayError: dashboard.isError || invoices.isError || procurements.isError || workOrders.isError || orgDay.isError,
+    todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || pack.isPending || orgDay.isPending || anyInvoice.isLoading || anyPayment.isLoading,
+    todayError: dashboard.isError || invoices.isError || procurements.isError || workOrders.isError || pack.isError || orgDay.isError,
     periodPending, periodError,
     todayRetry: () => { void dashboard.refetch(); void invoices.refetch(); void procurements.refetch(); void workOrders.refetch(); void anyInvoice.refetch(); void anyPayment.refetch(); orgDay.retry(); },
     periodRetry: () => { void pack.refetch(); void payments.refetch(); void winRate.refetch(); },

@@ -71,7 +71,12 @@ export function procurementMoney(input: ProcurementMoneyInput): ProcurementMoney
   const hasLaterDocuments = orders.length + invoices.length + payments.length + erpDocs.length > 0;
 
   const requested = requests.length > 0
-    ? sumRows(requests)
+    ? (() => {
+        const total = sumRows(requests);
+        if (!total.unknown) return total;
+        const lineItemsTotal = numeric(input.total_value);
+        return lineItemsTotal === null ? total : { amount: lineItemsTotal, unknown: false };
+      })()
     : hasLaterDocuments
       ? { amount: null, unknown: true }
     : (() => {

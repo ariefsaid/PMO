@@ -4,7 +4,7 @@ import { Button } from '@/src/components/ui';
 import { useSalesInvoiceEvidence, useIncomingPayments } from '@/src/hooks/useRevenue';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
-import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { useOdooRevenueCommands, useOdooRevenueCreditNotes } from '@/src/hooks/useOdooRevenue';
 import { useOdooUnreachable } from '@/src/hooks/useOdooPurchase';
 import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
@@ -98,8 +98,8 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
                         {line.item_code && line.description && <span className="font-mono text-control text-muted-foreground">{line.item_code}</span>}
                       </span>
                       <span className="tabular text-right text-muted-foreground">
-                        {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
-                        <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyCents(line.amount, invoice.currency)}</span>
+                        {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrency(line.rate, invoice.currency, { precision: 'minor' })}{' = '}
+                        <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrency(line.amount, invoice.currency, { precision: 'minor' })}</span>
                       </span>
                     </li>
                   ))}
@@ -119,8 +119,8 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
                           {line.item_code && line.description && <span className="font-mono text-control text-muted-foreground">{line.item_code}</span>}
                         </span>
                         <span className="tabular text-right text-muted-foreground">
-                          {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
-                          <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyCents(line.amount, invoice.currency)}</span>
+                          {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrency(line.rate, invoice.currency, { precision: 'minor' })}{' = '}
+                          <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrency(line.amount, invoice.currency, { precision: 'minor' })}</span>
                         </span>
                       </li>
                     ))}
@@ -154,11 +154,11 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
                 return (
                   <li key={`${payment.id}-${index}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
                     <span>{payment.ip_number ?? payment.reference_number ?? t('uxs17.receiptReferenceUnavailable', 'Receipt reference not recorded')}
-                      {payment.date && <span className="ml-2 text-muted-foreground">{formatDateOnly(payment.date)}</span>}
+                      {payment.date && <span className="ml-2 text-muted-foreground">{formatDay(payment.date)}</span>}
                     </span>
                     <span className="tabular">{amount == null || !Number.isFinite(amount) || !allocation.currency
                       ? t('uxs17.allocationAmountUnavailable', 'Applied amount not available')
-                      : formatCurrencyCents(amount, allocation.currency)}</span>
+                      : formatCurrency(amount, allocation.currency, { precision: 'minor' })}</span>
                   </li>
                 );
               })}
@@ -178,9 +178,9 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
               <li key={note.id} className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
                 <span className="min-w-0 break-words">
                   <span className="font-mono">{note.number}</span>
-                  {note.date && <span className="ml-2 text-muted-foreground">{formatDateOnly(note.date)}</span>}
+                  {note.date && <span className="ml-2 text-muted-foreground">{formatDay(note.date)}</span>}
                 </span>
-                <span className="tabular text-right">{note.amount == null || !note.currency ? t('finance:odooOutcome.amountUnavailable', 'Amount not available') : formatCurrencyCents(note.amount, note.currency)}</span>
+                <span className="tabular text-right">{note.amount == null || !note.currency ? t('finance:odooOutcome.amountUnavailable', 'Amount not available') : formatCurrency(note.amount, note.currency, { precision: 'minor' })}</span>
               </li>
             ))}
           </ul>
@@ -192,7 +192,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
       {invoice.efaktur_number && (
         <dl className="mt-4 border-t border-border/70 pt-3 text-sm">
           <dt className="text-control font-medium text-muted-foreground">{t('finance:receivables.eFaktur', 'e-Faktur')}</dt>
-          <dd className="mt-1 break-words">{invoice.efaktur_number}{invoice.efaktur_date ? ` · ${formatDateOnly(invoice.efaktur_date)}` : ''}</dd>
+          <dd className="mt-1 break-words">{invoice.efaktur_number}{invoice.efaktur_date ? ` · ${formatDay(invoice.efaktur_date)}` : ''}</dd>
         </dl>
       )}
       {odoo && (

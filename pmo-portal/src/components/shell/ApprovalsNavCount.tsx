@@ -32,7 +32,9 @@ export const ApprovalsNavCount: React.FC = () => {
   const canApproveProcurement = can('transition', 'procurement', { realRole: role });
   // OD-TS-5: assigned managers of any real role can approve timesheets. The awaiting-approval
   // cache is caller-filtered and applies whenever a real role is authenticated.
-  const canApproveTimesheets = role !== null;
+  const canApproveTimesheets = role !== null && role !== 'Finance';
+  // The Finance home tile is procurement-only; keep this rail badge on that same population.
+  const canApproveExpenses = canApproveProcurement && role !== 'Finance';
   const canApproveInvoices = can('transition', 'salesInvoice', { realRole: role });
 
   const ownershipKey = useMemo(() => externalDomainOwnershipKey(orgId), [orgId]);
@@ -44,7 +46,7 @@ export const ApprovalsNavCount: React.FC = () => {
       .map((row) => [row.domain, row.externalTier]),
   ) as OwnershipMap;
   const invoiceMode = ownershipState?.status === 'success' ? routeWrite('revenue', ownershipMap) : undefined;
-  const includeInvoices = canApproveInvoices && invoiceMode !== 'external';
+  const includeInvoices = role !== 'Finance' && canApproveInvoices && invoiceMode !== 'external';
 
   // The approvals queue reads the Requested-only list; the dashboard's "needs you" reads the lean list of the same
   // rows (same filter below). Either, when current, gives the count, so it shows wherever one of them is already loaded.
@@ -57,10 +59,11 @@ export const ApprovalsNavCount: React.FC = () => {
     return state?.status === 'success' && !state.isInvalidated && queryClient?.getQueryData(key) !== undefined;
   }) ?? procurementCandidates[0];  // none current: first candidate, so the count stays omitted
   const queueKeys = useMemo(() => [
-    ...(canApproveProcurement ? [procurementKey, expenseClaimsAwaitingKey(orgId)] : []),
+    ...(canApproveProcurement ? [procurementKey] : []),
+    ...(canApproveExpenses ? [expenseClaimsAwaitingKey(orgId)] : []),
     ...(canApproveTimesheets ? [awaitingApprovalKey(orgId, userId, role)] : []),
     ...(includeInvoices ? [nativeDraftInvoicesKey(orgId)] : []),
-  ], [canApproveProcurement, canApproveTimesheets, includeInvoices, orgId, procurementKey, role, userId]);
+  ], [canApproveProcurement, canApproveExpenses, canApproveTimesheets, includeInvoices, orgId, procurementKey, role, userId]);
   const getSnapshot = useCallback(() => {
     const currentOwnershipState = queryClient?.getQueryState(ownershipKey);
     return JSON.stringify([
@@ -103,7 +106,7 @@ export const ApprovalsNavCount: React.FC = () => {
         role === 'Admin',
       ).length
     : 0;
-  const expenseRows = canApproveProcurement
+  const expenseRows = canApproveExpenses
     ? claimsAwaitingViewer(
         queues[index++].data as Parameters<typeof claimsAwaitingViewer>[0],
         userId,

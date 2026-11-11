@@ -18,7 +18,7 @@ import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { StackedBar } from '@/src/components/projects/StackedBar';
-import { formatNumberMax2, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
@@ -548,9 +548,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   };
   // C5/C6: whole units use the project heading; foreign budget figures carry their own basis.
   // C5 + money precision: no trailing .00 on whole amounts, but a real fraction (1,234.5) is never rounded away.
-  const formatAmount = (value: number | null) => value === null ? '—' : formatNumberMax2(value);
-  const formatBudget = (value: number | null) => value === null ? '—' : selectedCurrency === project.currency ? formatAmount(value) : `${selectedCurrency} ${formatAmount(value)}`;
-  const formatSpent = (value: number | null) => value === null ? '—' : spendCurrency === project.currency ? formatAmount(value) : `${spendCurrency} ${formatAmount(value)}`;
+  const formatAmount = (value: number | null, currency = project.currency) => value === null ? '—' : formatCurrency(value, currency);
+  const formatBudget = (value: number | null) => formatAmount(value, selectedCurrency);
+  const formatSpent = (value: number | null) => formatAmount(value, spendCurrency);
   // F11: KPI tiles carry the short amount; the full amount stays on hover and for screen readers.
   const tileAmount = (value: number | null, currency = project.currency) => {
     const tile = value === null ? null : formatTileMoney(value, currency);
@@ -663,11 +663,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       secondaryCell: (version) => versionMeta(version) ? <span className="text-sm text-muted-foreground">{versionMeta(version)}</span> : null,
     },
     { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill record="budgetVersion" state={version.status} /> },
-    { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{`${version.currency || project.currency} ${formatAmount(version.total)}`}</span></Tooltip> },
+    { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{formatAmount(version.total, version.currency || project.currency)}</span></Tooltip> },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
       const index = orderedVersions.findIndex((item) => item.id === version.id);
       const previous = index > 0 ? orderedVersions[index - 1] : null;
-      return previous && (version.currency || project.currency) === (previous.currency || project.currency) ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{`${version.currency || project.currency} ${formatAmount(version.total - previous.total)}`}</span></Tooltip> : '—';
+      return previous && (version.currency || project.currency) === (previous.currency || project.currency) ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatAmount(version.total - previous.total, version.currency || project.currency)}</span></Tooltip> : '—';
     } },
     ...(canViewBudgetEnforcement ? [{ key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version: BudgetVersionWithItems) => {
       if (version.status !== 'Active') return '—';

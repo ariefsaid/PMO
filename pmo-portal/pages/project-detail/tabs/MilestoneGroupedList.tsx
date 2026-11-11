@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { DataTable, Tooltip, ProgressBar, Button, Icon, type Column, type RowMenuItem, type DataTableSelection } from '@/src/components/ui';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
-import { completionPct, formatDay } from '@/src/lib/format';
+import { completionPct, formatDay, formatDayRange } from '@/src/lib/format';
 import { buildTaskRenderOrder } from '@/src/lib/tasks/taskTree';
 import { orderedTasks, daysLate } from './taskViewModel';
 
@@ -131,7 +131,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
     const starts = phaseTasks.map((task) => task.start_date).filter((date): date is string => Boolean(date)).sort();
     const ends = phaseTasks.map((task) => task.end_date).filter((date): date is string => Boolean(date)).sort();
     const dateRange = starts.length || ends.length
-      ? `${starts.length ? formatDay(starts[0]) : '—'} – ${ends.length ? formatDay(ends[ends.length - 1]) : '—'}`
+      ? starts.length && ends.length ? formatDayRange(starts[0], ends[ends.length - 1]) : `${starts.length ? formatDay(starts[0]) : '—'} – ${ends.length ? formatDay(ends[ends.length - 1]) : '—'}`
       : null;
     const lateDays = group.milestone?.target_date && group.milestone.target_date < today && group.milestone.effective_pct < 100
       ? daysLate(group.milestone.target_date, today)

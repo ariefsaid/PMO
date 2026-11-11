@@ -39,7 +39,6 @@ export const EarnedAgainstContract: React.FC<{ rows: EarnedBarRow[] }> = ({ rows
                     aria-label={t('finance:managementPack.chart.barLabel', '{{name}}: earned {{earned}} of {{contract}}', { name: row.name, earned: tile(row.earned, currency), contract: tile(row.contract, currency) })}
                     className="relative h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary"
                   >
-                    <span aria-hidden className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(row.contract / scale) * 100}%`, background: chartTheme.series.neutral }} />
                     <span aria-hidden className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(Math.max(0, row.earned) / scale) * 100}%`, background: chartTheme.series.primary }} />
                   </span>
                   <span className="shrink-0 whitespace-nowrap text-control tabular text-muted-foreground">{tile(row.earned, currency)} / {tile(row.contract, currency)}</span>

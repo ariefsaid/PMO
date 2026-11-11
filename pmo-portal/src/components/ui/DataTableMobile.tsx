@@ -55,6 +55,7 @@ export interface DataTableMobileProps<Row> {
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   mobileCardTitle?: (row: Row) => React.ReactNode;
   mobileCardDetails?: (row: Row) => React.ReactNode;
+  mobileLabelsOnce?: boolean;
 }
 
 export function DataTableMobile<Row>({
@@ -81,8 +82,10 @@ export function DataTableMobile<Row>({
   totals,
   mobileCardTitle,
   mobileCardDetails,
+  mobileLabelsOnce = false,
 }: DataTableMobileProps<Row>) {
   const { t } = useTranslation('projects');
+  const mobileLabelColumns = columns.slice(1).filter((column) => column.kind !== 'actions');
 
   return (
     /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
@@ -108,6 +111,15 @@ export function DataTableMobile<Row>({
       aria-label={accessibleName}
       className="divide-y divide-border/70"
     >
+      {mobileLabelsOnce && !state && groupedRows.some((entry) => entry.type === 'data') && (
+        <li
+          data-testid="dt-mobile-column-legend"
+          aria-hidden="true"
+          className="sticky top-0 z-10 grid grid-cols-2 gap-x-3 gap-y-1 border-b border-border/70 bg-card px-[var(--table-cell-inset)] py-3 text-control font-semibold text-muted-foreground"
+        >
+          {mobileLabelColumns.map((column) => <span key={column.key} className="min-w-0">{column.header}</span>)}
+        </li>
+      )}
       {selection && !state && (!selection.selectAllAfterFirst || selection.selectedIds.size > 0) && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
         <span onClick={(event) => event.stopPropagation()}>
           <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} labelledBy={`${tableInstanceId}-select-all`} disabled={visibleSelectionIds.length === 0} />
@@ -186,21 +198,28 @@ export function DataTableMobile<Row>({
                   (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                   the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
               {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
-                <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                <dl className={cn(
+                  'grid gap-x-3 gap-y-1.5',
+                  mobileLabelsOnce ? 'grid-cols-2' : 'grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)]',
+                )}>
                   {restCols.map((col) => {
                     const content = col.cell(row);
                     if (content == null || content === false) return null;
+                    const mobileLabelId = `${tableInstanceId}-mobile-label-${entryIndex}-${col.key}`;
+                    const mobileValueId = `${tableInstanceId}-mobile-value-${entryIndex}-${col.key}`;
                     return (
                       <React.Fragment key={col.key}>
                         <dt
+                          id={mobileLabelsOnce ? mobileLabelId : undefined}
                           className={cn(
-                            'text-control font-semibold text-muted-foreground self-start',
+                            mobileLabelsOnce ? 'hidden' : 'text-control font-semibold text-muted-foreground self-start',
                             stripHiddenClasses(col.colClassName)
                           )}
                         >
                           {col.header}
                         </dt>
                         <dd
+                          aria-labelledby={mobileLabelsOnce ? `${mobileLabelId} ${mobileValueId}` : undefined}
                           className={cn(
                             // Table content wraps instead of hiding the end of an identity or label.
                             'min-w-0 break-words text-control text-foreground [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
@@ -215,7 +234,7 @@ export function DataTableMobile<Row>({
                             '[&>div]:items-start',
                           )}
                         >
-                          {content}
+                          {mobileLabelsOnce ? <div id={mobileValueId} className="contents">{content}</div> : content}
                         </dd>
                       </React.Fragment>
                     );
@@ -227,14 +246,28 @@ export function DataTableMobile<Row>({
         })
       )}
       {!state && totals?.map((total) => <li key={`total-${total.key}`} className="min-h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
-        <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-          {columns.map((column, index) => {
-            const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
-              ? total.values[column.key]
-              : index === 0 ? total.label : null;
-            return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'tabular')}>{value}</dd></React.Fragment>;
-          })}
-        </dl>
+        {mobileLabelsOnce ? (
+          <>
+            <p className="mb-2">{total.values && Object.prototype.hasOwnProperty.call(total.values, columns[0]?.key) ? total.values[columns[0].key] : total.label}</p>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {columns.slice(1).map((column) => {
+                const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key) ? total.values[column.key] : null;
+                const labelId = `${tableInstanceId}-mobile-total-label-${total.key}-${column.key}`;
+                const valueId = `${tableInstanceId}-mobile-total-value-${total.key}-${column.key}`;
+                return value == null ? null : <React.Fragment key={column.key}><dt id={labelId} className="hidden">{column.header}</dt><dd aria-labelledby={`${labelId} ${valueId}`} className={cn('min-w-0', column.align === 'num' && 'tabular')}><span id={valueId}>{value}</span></dd></React.Fragment>;
+              })}
+            </dl>
+          </>
+        ) : (
+          <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+            {columns.map((column, index) => {
+              const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
+                ? total.values[column.key]
+                : index === 0 ? total.label : null;
+              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'tabular')}>{value}</dd></React.Fragment>;
+            })}
+          </dl>
+        )}
       </li>)}
     </ul>
   );

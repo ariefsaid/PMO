@@ -116,6 +116,15 @@ export function resolveProjectDrop(status: ProjectStatus, column: SalesColumn): 
  */
 export const ATTENTION_THRESHOLD_DAYS = 30;
 
+/** True when a board can state the exclusive default once and leave inclusive rows explicitly marked. */
+export function canSummarizeExclusiveTaxBasis(
+  projects: readonly Pick<PipelineProject, 'contract_value' | 'tax_treatment'>[],
+): boolean {
+  const priced = projects.filter((project) => Number(project.contract_value ?? 0) > 0);
+  return priced.some((project) => project.tax_treatment === 'exclusive')
+    && priced.every((project) => project.tax_treatment === 'exclusive' || project.tax_treatment === 'inclusive');
+}
+
 /** An open bid is stale after 90 days without a move to a new pipeline stage. */
 export function isStaleBid(
   project: Pick<PipelineProject, 'status' | 'stage_started_at'>,

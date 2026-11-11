@@ -80,6 +80,32 @@ export interface ManagementPack {
   undatedInvoiceCount: number;
 }
 
+/** Contract value less invoiced value for signed contract rows, in the row currency. */
+export function leftToBillAt(rows: readonly PackRow[], currency: string, month: string): number | null {
+  const contracts = rows.filter((row) => row.kind === 'contract' && row.currency === currency);
+  if (contracts.length === 0) return 0;
+  let total = 0;
+  for (const row of contracts) {
+    const snapshot = row.months.find((entry) => entry.month === month);
+    if (row.contractNet === null || !snapshot || snapshot.backlog === null) return null;
+    total += row.contractNet - snapshot.invoicedToDate;
+  }
+  return total;
+}
+
+/** Latest-period Left to bill totals in currency units for dashboard formatters, retaining unknowns as null. */
+export function selectLeftToBillTotals(pack: ManagementPack | undefined, emptyCurrency?: string): Array<{ currency: string; amount: number | null }> | undefined {
+  if (!pack) return undefined;
+  const month = pack.months[pack.months.length - 1];
+  if (!month) return [];
+  const currencies = [...new Set(pack.rows.filter((row) => row.kind === 'contract').map((row) => row.currency))];
+  if (currencies.length === 0 && emptyCurrency) currencies.push(emptyCurrency);
+  return currencies.map((currency) => {
+    const cents = leftToBillAt(pack.rows, currency, month);
+    return { currency, amount: cents === null ? null : cents / 100 };
+  });
+}
+
 export const toCents = (amount: number): Cents => Math.round(amount * 100);
 export const fromCents = (cents: Cents): number => cents / 100;
 
