@@ -38,6 +38,8 @@ const ALLOWED: Record<string, number> = {
   'pmo-portal/src/components/integrations/TierConnectionCard.tsx': 7,
   // #1504 S5: the Odoo setup steps count only Odoo's own employed domains (the list is Odoo-only UI).
   'pmo-portal/src/components/integrations/odoo/OdooSetupChecklist.tsx': 1,
+  // #1511 F5: the equipment screens' ownership switch selects the Odoo-specific register UI (D12).
+  'pmo-portal/src/hooks/useEquipment.ts': 1,
   'pmo-portal/src/hooks/useErpItemOptions.ts': 1,
   'pmo-portal/src/hooks/useExpensePostingReadiness.ts': 1,
   'pmo-portal/src/lib/repositories/integrations.ts': 2,
