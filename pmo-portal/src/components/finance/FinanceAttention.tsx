@@ -37,6 +37,8 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const draftsToApprove = canAct ? position.drafts.canApprove.length : position.drafts.all.length;
+  const oldestAge = position.payables.find((payable) => payable.ageDays != null)?.ageDays;
+  const unknownBalance = t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown');
   const waiting: WaitingItem[] = [
     ...(draftsToApprove > 0 ? [{
       key: 'approve', count: draftsToApprove,
@@ -66,9 +68,11 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
       key: 'payables', count: position.payables.length,
       label: t('financeHub:hub.fix.waiting.payables', { defaultValue: '{{count}} unpaid supplier invoices', count: position.payables.length }),
       // L6: the known amount lives on the Payables figure; this row adds the age (or says the balance is unknown).
-      detail: currencyLines(position.payablesTotals, orgCurrency).length > 0
-        ? [t('financeHub:hub.fix.waiting.payablesOldest', { defaultValue: 'Oldest {{days}} days', days: position.payables[0]?.ageDays ?? 0 })]
-        : [t('financeHub:hub.fix.waiting.payablesDetail', { defaultValue: '{{amount}} · oldest {{days}} days', amount: t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown'), days: position.payables[0]?.ageDays ?? 0 })],
+      detail: oldestAge == null
+        ? (currencyLines(position.payablesTotals, orgCurrency).length > 0 ? [] : [unknownBalance])
+        : currencyLines(position.payablesTotals, orgCurrency).length > 0
+          ? [t('financeHub:hub.fix.waiting.payablesOldest', { defaultValue: 'Oldest {{days}} days', days: oldestAge })]
+          : [t('financeHub:hub.fix.waiting.payablesDetail', { defaultValue: '{{amount}} · oldest {{days}} days', amount: unknownBalance, days: oldestAge })],
       to: '/finance/payables', action: t('financeHub:hub.fix.waiting.openPayables', 'Open payables'),
     }] : []),
   ];
