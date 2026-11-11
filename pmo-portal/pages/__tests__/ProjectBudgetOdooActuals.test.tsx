@@ -145,7 +145,7 @@ describe('BudgetOdooActuals strip (FR-ODA-050/052)', () => {
     expect(await screen.findByText('We could not check where these figures come from')).toBeInTheDocument();
     expect(screen.getByText(/PMO documents or the Odoo ledger/)).toBeInTheDocument();
     expect(screen.queryByText('Up to date')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Retry ledger mode' }));
     expect(await screen.findByText('Up to date')).toBeInTheDocument();
     expect(screen.queryByText('We could not check where these figures come from')).not.toBeInTheDocument();
   });
@@ -157,7 +157,7 @@ describe('BudgetOdooActuals strip (FR-ODA-050/052)', () => {
     h.health.mockResolvedValue(health());
     mount(<BudgetOdooActuals projectId={PROJECT} />);
     expect(await screen.findByText('We could not check where these figures come from')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Retry ledger mode' }));
     expect(await screen.findByText('Up to date')).toBeInTheDocument();
     expect(h.getConnection).toHaveBeenCalledTimes(1);
   });
