@@ -118,6 +118,13 @@ describe('Receivables page', () => {
     expect(screen.getByRole('region', { name: /Client balances by age/ })).not.toHaveTextContent('No balances');
   });
 
+  it('F4 identifies unknown due-soon balances without inventing zero', () => {
+    h.invoices = [invoice({ erp_outstanding_amount: null })];
+    renderPage();
+    expect(screen.queryByText('Due in next 30 days')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 invoice has no balance reported by the accounting system');
+  });
+
   it('shows zero for an empty due window and no payments this month', () => {
     h.invoices = [];
     h.payments = [];

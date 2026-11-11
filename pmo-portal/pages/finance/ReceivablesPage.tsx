@@ -97,6 +97,7 @@ export default function ReceivablesPage() {
       return due && due >= today && due <= end ? [{ invoice, due }] : [];
     }).sort((a, b) => a.due.localeCompare(b.due));
   }, [openInvoices, today]);
+  const dueSoonUnknown = dueSoon.filter(({ invoice }) => invoice.erp_outstanding_amount == null || !Number.isFinite(invoice.erp_outstanding_amount)).length;
   const dueSoonByCurrency = useMemo(() => dueSoonTotals(dueSoon.map(({ invoice }) => invoice)), [dueSoon]);
   const thisMonthCash = useMemo(() => today ? monthlyCash(payments, monthStart(today), nextMonthStart(today)) : {}, [payments, today]);
   const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : {}, [payments, today]);
@@ -183,6 +184,7 @@ export default function ReceivablesPage() {
             icon="grid" tone="amber" label={t('finance:receivables.dueNext30', 'Due in next 30 days')}
             caption={dueSoon[0] ? t('finance:receivables.nextDue', 'next due {{date}}', { date: formatDay(dueSoon[0].due) }) : undefined}
             value={dataPending ? null : dueSoonTile.value} exactValue={dataPending ? undefined : dueSoonTile.exactValue} loading={dataPending}
+            unavailableReason={!dataPending && dueSoonTile.value == null && dueSoonUnknown > 0 ? unknownReason(dueSoonUnknown) : undefined} hiddenLink={seeInvoices}
             help={t('finance:receivables.dueHelp', 'Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.')}
           />
           <KPITile
