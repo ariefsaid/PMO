@@ -69,6 +69,12 @@ afterEach(() => resetActiveLocale());
 // ── AC-W3-NUM-002 ─────────────────────────────────────────────────────────────
 
 describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', () => {
+  it('does not frame the line-item table a second time inside its section surface', () => {
+    renderSection();
+    const section = screen.getByTestId('line-items-section');
+    expect(section.querySelector(':scope > div.rounded-b-lg.border')).toBeNull();
+  });
+
   // ── Add row: quantity validation ──────────────────────────────────────────
 
   it('AC-W3-NUM-002: non-numeric quantity ("abc") shows inline error and blocks onAdd', async () => {
