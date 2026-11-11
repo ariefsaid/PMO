@@ -222,11 +222,11 @@ describe('ProjectDetail route panel loading', () => {
     fireEvent.click(linkAction);
     expect(routeChunkState.taskActionClicks()).toBe(1);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Contract & billing' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Contract' }));
     expect(await screen.findByTestId('contract-cascade')).toBeInTheDocument();
     expect(screen.getByTestId('tab-work-orders')).toBeInTheDocument();
     expect(screen.getByTestId('tab-billing')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Contract & billing' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Contract' })).toHaveAttribute('aria-selected', 'true');
     expect(routeChunkState.loads.billing).toBe(1);
     expect(routeChunkState.loads.contract).toBe(1);
     expect(routeChunkState.loads.workOrders).toBe(1);
