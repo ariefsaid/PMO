@@ -1,14 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { SALES_COLUMNS } from '@/components/salesPipeline';
 import { ListState } from '@/src/components/ui/ListState';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
+import { openPipelineStages } from './pipelineStages';
 
-const OPEN_STATUSES = new Set(SALES_COLUMNS.filter((column) => !column.terminal).flatMap((column) => column.statuses));
 
 const Bar: React.FC<{ label: string; value: string; share: number; onOpen: () => void }> = ({ label, value, share, onOpen }) => (
   <li>
@@ -30,7 +29,7 @@ export const SalesFunnel: React.FC<{ stages: PipelineStage[]; currency: string; 
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
-  const open = stages.filter((stage) => OPEN_STATUSES.has(stage.status as string));
+  const open = openPipelineStages(stages);
   if (open.length === 0 && !won) return <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />;
   const max = Math.max(1, ...open.map((stage) => stage.weighted_value));
   const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney).join(' ') : '';

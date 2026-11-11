@@ -723,7 +723,10 @@
       "returnedToMe": "Dikembalikan ke saya",
       "submitWeek": "Kirim minggu ini",
       "thisWeek": "Lembar waktu minggu ini",
-      "weekStrip": "Jam per hari minggu ini"
+      "weekStrip": "Jam per hari minggu ini",
+      "otherProjects": "Lainnya",
+      "hoursByProject": "Jam per proyek minggu ini",
+      "reasonNoHours": "belum ada waktu dicatat minggu ini"
     },
     "help": {
       "basis": "Posisi hari ini dalam mata uang tiap catatan. Ditagih, diterima, dan menang mengikuti periode yang dipilih.",
@@ -768,6 +771,32 @@
     "waits": "Menunggu Anda",
     "waitsError": "Daftar yang menunggu Anda tidak dapat dimuat",
     "waitsNone": "Tidak ada yang menunggu Anda.",
-    "wonThisYear": "Menang"
+    "wonThisYear": "Menang",
+    "chartSpent": "Terpakai",
+    "chartBudget": "Anggaran",
+    "reasonNoBudgets": "belum ada proyek dengan anggaran aktif",
+    "budgetVsSpent": "Anggaran dan pengeluaran per proyek",
+    "pipelineChart": "Pipeline terbobot per tahap",
+    "invoicedVsCollected": "Ditagihkan dan diterima per bulan",
+    "invoicedByMonth": "Ditagihkan per bulan",
+    "chartInvoiced": "Ditagihkan, tanpa pajak",
+    "chartCollected": "Diterima",
+    "reasonTrend": "penagihan belum punya tiga bulan riwayat",
+    "whyLost": "Alasan deal kalah",
+    "receivablesByAge": "Piutang klien menurut umur",
+    "reasonAgeing": "belum ada saldo klien yang diketahui",
+    "ageingUnknown_one": "{{count}} faktur dengan saldo tidak diketahui tidak digambar",
+    "ageingUnknown_other": "{{count}} faktur dengan saldo tidak diketahui tidak digambar",
+    "budgetUsedByProject": "Anggaran terpakai per proyek",
+    "invoicedSpark": "Ditagihkan per bulan, {{count}} bulan terakhir",
+    "chartDelivery": "Progres",
+    "deliveryVsBudget": "Progres dan anggaran terpakai per proyek",
+    "overdueByProject": "Tugas terlambat per proyek",
+    "noOverdueTasks": "Tidak ada tugas terlambat.",
+    "teamHours": "Jam tim untuk disetujui",
+    "reasonTeamHours": "timesheet tim tidak dapat dibaca",
+    "tasksOverdue": "Tugas terlambat",
+    "reasonTasksOverdue": "tanggal tugas tidak dapat dibaca",
+    "reasonDeliveryBudget": "progres dan anggaran belum dicatat"
   }
 }

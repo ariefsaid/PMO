@@ -312,3 +312,52 @@ describe('Project Manager home (one question: what needs me, which of my project
     expect(rowFor('Project Two')).not.toHaveTextContent('On Hold');
   });
 });
+
+describe('Project Manager home — layouts', () => {
+  const tableRows = (name: string) => (screen.getByRole('img', { name: new RegExp(`^${name}\\.`) }).getAttribute('aria-label') ?? '').slice(name.length + 2).split('; ');
+  beforeEach(() => {
+    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 2, label: 'overdue tasks on your projects', href: '/projects?filter=My+Projects', tone: 'lost' }];
+  });
+
+  it('Overview (default, also for an unknown stored value): three figures and the two charts', () => {
+    localStorage.setItem('home-layout', 'sideways');
+    renderDashboard();
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$500K');
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
+    expect(within(screen.getByTestId('kpi-tasks-overdue')).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
+    const paired = tableRows('Delivery and budget used by project');
+    expect(paired[0]).toContain('Project One');
+    expect(paired[0]).toContain('45%');
+    expect(paired[0]).toContain('95%');
+    const overdue = tableRows('Overdue tasks by project');
+    expect(overdue).toHaveLength(1);
+    expect(overdue[0]).toContain('Project One');
+    expect(overdue[0]).toContain('2');
+  });
+
+  it('Overview: no overdue tasks reads as a line, not an empty chart', () => {
+    localStorage.removeItem('home-layout');
+    state.needs.pmOverdueTasksByProject = {};
+    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 0, label: 'overdue tasks on your projects', href: '/projects', tone: 'lost' }];
+    renderDashboard();
+    expect(screen.getByText('No overdue tasks.')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /^Overdue tasks by project/ })).not.toBeInTheDocument();
+  });
+
+  it('Overview: delivery and budget are left out and counted when neither is known', () => {
+    localStorage.removeItem('home-layout');
+    state.delivery.data = {};
+    state.projects.data = projects.map((project) => ({ ...project, spent: null, actual_complete: false }));
+    renderDashboard();
+    expect(screen.queryByRole('heading', { name: 'Delivery and budget used by project' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('delivery and budget are not recorded');
+  });
+
+  it('Focused: the calm build, one figure and no charts', () => {
+    localStorage.setItem('home-layout', 'focused');
+    renderDashboard();
+    expect(screen.getByTestId('kpi-my-contract-value')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-team-hours')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Overdue tasks by project' })).not.toBeInTheDocument();
+  });
+});

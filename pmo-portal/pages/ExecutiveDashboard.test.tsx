@@ -6,6 +6,9 @@ import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { BahasaProvider } from '@/test/bahasa';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const state = vi.hoisted(() => ({ role: 'Executive', unknownContract: false }));
 const needsState = vi.hoisted(() => ({
@@ -535,5 +538,99 @@ describe('company home — routing, states and loading', () => {
     renderBahasaPage();
     expect(screen.queryByText("Couldn't load what waits on you")).not.toBeInTheDocument();
     expect(screen.getByText('Daftar yang menunggu Anda tidak dapat dimuat')).toBeInTheDocument();
+  });
+});
+
+describe('company home — Overview layout (the default: one page, charts carry the analysis)', () => {
+  beforeEach(() => { localStorage.setItem('home-layout', 'overview'); });
+  // A chart's accessible name carries its values, one "; "-separated entry per bar or column, in drawing order.
+  const tableCells = (name: string) => (screen.getByRole('img', { name: new RegExp(`^${name}\\.`) }).getAttribute('aria-label') ?? '').slice(name.length + 2).split('; ');
+
+  it('an unknown or missing stored layout is Overview; Focused is only an explicit choice', () => {
+    localStorage.removeItem('home-layout');
+    const { unmount } = renderPage();
+    expect(document.querySelector('[data-home-layout="overview"]')).not.toBeNull();
+    unmount();
+    localStorage.setItem('home-layout', 'sideways');
+    renderPage();
+    expect(document.querySelector('[data-home-layout="overview"]')).not.toBeNull();
+  });
+
+  it('executive: waits, off-track, figures, budget and sales charts, with the Analysis section holding only billing', async () => {
+    renderPage();
+    for (const name of ['Waits on you', 'Projects off track', 'Sales']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    expect(within(figures()).getByText('Contract on hand')).toBeInTheDocument();
+    await openAnalysis();
+    expect(screen.queryByRole('heading', { name: 'Plan vs actual' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Billing' })).toBeInTheDocument();
+  });
+
+  it('draws budget and spending per project, worst first, and leaves out a project whose spending is unknown', () => {
+    const top = (id: string, spent: number | null) => ({ id, name: `Delivery ${id}`, client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent, actual_complete: spent !== null, actual_currency: 'USD', status: 'Ongoing Project' });
+    (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top('a', 1_000), top('b', 5_000), top('c', null)];
+    renderPage();
+    const rows = tableCells('Budget and spending by project');
+    expect(rows[0]).toContain('Delivery b');
+    expect(rows[0]).toContain('Spent $5K');
+    expect(rows[1]).toContain('Delivery a');
+    expect(rows[2]).toContain('Delivery c');
+    expect(rows[2]).not.toContain('Spent');
+  });
+
+  it('with no recorded spending the budget chart is not drawn and the page line counts it', () => {
+    const top = { id: 'a', name: 'Delivery a', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: null, actual_complete: false, actual_currency: null, status: 'Ongoing Project' };
+    (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
+    renderPage();
+    expect(screen.queryByRole('heading', { name: 'Budget and spending by project' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('project spending is not recorded');
+  });
+
+  it('the sales card draws the open stages as bars on one scale with their counts, Won as a figure, and no stage table', () => {
+    pipelineState.data = { stages: [
+      { status: 'Leads', count: 8, total_value: 2_000, weighted_value: 1_000, win_probability: 0.5 },
+      { status: 'Negotiation', count: 2, total_value: 8_000, weighted_value: 4_000, win_probability: 0.5 },
+      { status: 'Ongoing Project', count: 5, total_value: 9, weighted_value: 9, win_probability: 1 },
+    ], projects: [] };
+    renderPage();
+    const rows = tableCells('Weighted pipeline by stage');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain('Leads · 8');
+    expect(rows[1]).toContain('Negotiation · 2');
+    expect(rows.join(' ')).not.toContain('Ongoing');
+    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card') as HTMLElement;
+    expect(within(sales).getByRole('button', { name: /Won · Year to date · 2/ })).toHaveTextContent('$14.4M');
+  });
+
+  it('draws purchasing as one stacked bar with a count per stage, and invoiced by month only from three months of history', () => {
+    (figureState.result?.dashboard as Record<string, unknown>).procurements_by_status = [{ status: 'Requested', count: 3 }, { status: 'Vendor Invoiced', count: 1 }];
+    renderPage();
+    const purchasing = screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card') as HTMLElement;
+    expect(purchasing).toHaveTextContent('Request 3');
+    expect(purchasing).toHaveTextContent('Pay 1');
+    expect(screen.queryByRole('heading', { name: /Invoiced/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoicing has fewer than three months of history');
+  });
+
+  it('draws invoiced next to collected by month once receipts are recorded', () => {
+    const points = ['2026-05-01', '2026-06-01', '2026-07-01'].map((month, index) => ({ month, amount: 1_000 * (index + 1) }));
+    figureState.result = { ...figureState.result, invoicedTrend: { currency: 'USD', points, total: 6_000, first: 1_000, last: 3_000, direction: 'up', hasLine: true }, collectedByMonth: new Map([['2026-06', 500]]), trendPending: false, trendError: false, trendRetry: vi.fn() };
+    renderPage();
+    const rows = tableCells('Invoiced and collected by month');
+    expect(rows).toHaveLength(3);
+    expect(rows[1]).toContain('Invoiced, excl. tax $2K');
+    expect(rows[1]).toContain('Collected $500');
+    expect(rows[0]).toContain('Collected $0');
+  });
+
+  it('finance: overdue from clients beside waits, receivables by age, and an unknown balance counted, not drawn', () => {
+    state.role = 'Finance';
+    financePositionState.position = { receivablesAgeing: { USD: { notDue: 100_000, d1_30: 50_000, d31_60: 0, d61_90: 0, over90: 25_000 } }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 2 } as never;
+    renderPage();
+    for (const name of ['Waits on you', 'Overdue from clients', 'Ready to pay']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    const rows = tableCells('Owed by clients, by age');
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toContain('$1K');
+    expect(rows[4]).toContain('Over 90 days');
+    expect(screen.getByText('2 invoices with unknown balances are not drawn')).toBeInTheDocument();
   });
 });

@@ -11,6 +11,7 @@ import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { StatusPill } from '@/src/components/ui/StatusPill';
+import { MonthColumns } from '@/src/components/dashboard/charts';
 
 interface PanelState {
   loading: boolean;
@@ -34,11 +35,17 @@ export function EngineerTimesheetCard({
   status,
   days,
   hours,
+  today,
+  chart = false,
 }: PanelState & {
   /** The stored timesheet status of this week; null when no sheet exists yet. */
   status: string | null;
   days: Array<{ date: string; label: string; hours: number }>;
   hours: number;
+  /** The organisation's day, to mark today's column. */
+  today?: string | null;
+  /** Overview: the week as a column chart instead of the strip. */
+  chart?: boolean;
 }) {
   const { t } = useTranslation('dashboard');
   const open = status === 'Submitted' || status === 'Approved';
@@ -53,14 +60,18 @@ export function EngineerTimesheetCard({
               <>
                 <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)} {t('hub.engineer.hourUnit', 'h')}</div>
                 {status === 'Rejected' && <p className="text-control text-destructive-text">{t('home.eng.returnedLine', 'Sent back for correction.')}</p>}
-                <ol aria-label={t('home.eng.weekStrip', 'Hours by day this week')} className="grid grid-cols-7 gap-1 text-center text-control">
-                  {days.map((day) => (
-                    <li key={day.date} className="min-w-0 rounded-md bg-secondary px-1 py-1.5">
-                      <span className="block text-muted-foreground">{day.label}</span>
-                      <span className={day.hours > 0 ? 'block font-semibold tabular' : 'block text-muted-foreground tabular'}>{day.hours > 0 ? formatNumberExact(day.hours) : '—'}</span>
-                    </li>
-                  ))}
-                </ol>
+                {chart
+                  ? <MonthColumns labelAll height={150} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined, accentA: day.date === today }))} />
+                  : (
+                  <ol aria-label={t('home.eng.weekStrip', 'Hours by day this week')} className="grid grid-cols-7 gap-1 text-center text-control">
+                    {days.map((day) => (
+                      <li key={day.date} className="min-w-0 rounded-md bg-secondary px-1 py-1.5">
+                        <span className="block text-muted-foreground">{day.label}</span>
+                        <span className={day.hours > 0 ? 'block font-semibold tabular' : 'block text-muted-foreground tabular'}>{day.hours > 0 ? formatNumberExact(day.hours) : '—'}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  )}
               </>
             )}
         {/* The way into the timesheet stays whatever state the data is in. */}

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
+import { useHomeLayout } from '@/src/hooks/useHomeLayout';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
@@ -9,6 +10,8 @@ import { recentEntries } from '@/src/lib/timesheet-derive';
 import { Button } from '@/src/components/ui/Button';
 import { Icon } from '@/src/components/ui/icons';
 import { PageHeader } from '@/src/components/ui/PageHeader';
+import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
+import { ChartCard, StackedBar } from './charts';
 import {
   EngineerRecentEntriesPanel,
   EngineerReturnedCard,
@@ -43,6 +46,7 @@ function activeTask(status: string): boolean {
 export const EngineerDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
   const { currentUser } = useAuth();
+  const overview = useHomeLayout().homeLayout === 'overview';
   const timesheets = useTimesheets();
   const tasks = useMyTasks();
   const claims = useExpenseClaims({ kind: 'claim' });
@@ -126,25 +130,68 @@ export const EngineerDashboard: React.FC = () => {
   const recentError = timeError || (!organizationDay.day && !organizationDay.isPending);
   const currentStatus = currentSheet?.status ?? null;
 
+  // Hours by project this week: the four biggest, the rest together, as parts of one bar.
+  const projectParts = useMemo(() => {
+    const byProject = new Map<string, number>();
+    for (const entry of currentEntries) {
+      const name = entry.project?.name ?? t('hub.engineer.projectUnavailable', 'project unavailable');
+      byProject.set(name, (byProject.get(name) ?? 0) + (entry.hours || 0));
+    }
+    const sorted = [...byProject].filter(([, hours]) => hours > 0).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 4).map(([name, hours]) => ({ key: name, label: name, value: hours }));
+    const rest = sorted.slice(4).reduce((sum, [, hours]) => sum + hours, 0);
+    return rest > 0 ? [...top, { key: '__other', label: t('home.eng.otherProjects', 'Other'), value: rest }] : top;
+  }, [currentEntries, t]);
+
+  const header = (
+    <PageHeader
+      className="mb-0"
+      title={t('hub.engineer.title', 'My dashboard')}
+      action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.engineer.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.engineer.refresh', 'Refresh')}</span></Button>}
+    />
+  );
+  const recentEl = (
+    <EngineerRecentEntriesPanel
+      entries={recent}
+      statusBySheet={statusBySheet}
+      loading={timeLoading}
+      error={recentError}
+      onRetry={refresh}
+    />
+  );
+
+  if (overview) {
+    const hoursTitle = t('home.eng.hoursByProject', 'Hours by project this week');
+    const returned = !claimsError && returnedClaims.length > 0;
+    return (
+      <FigureScope>
+        <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
+          <div>{header}<FigureHiddenLine /></div>
+          <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
+            <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} today={organizationDay.day} chart />
+            <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />
+          </div>
+          <div className={returned ? 'grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start' : undefined}>
+            <ChartCard title={hoursTitle} known={projectParts.length > 0} hiddenReason={t('home.eng.reasonNoHours', 'no time is logged this week')} pending={timeLoading} error={timeError ? { title: t('hub.engineer.timesheetsError', "Couldn't load your timesheets"), retry: refresh } : undefined} testId="chart-hours-by-project">
+              <StackedBar ariaLabel={hoursTitle} parts={projectParts} />
+            </ChartCard>
+            {returned && <EngineerReturnedCard claims={returnedClaims} />}
+          </div>
+          {recentEl}
+        </div>
+      </FigureScope>
+    );
+  }
+
   return (
-    <div className="space-y-[var(--space-panel-gap)]">
-      <PageHeader
-        className="mb-0"
-        title={t('hub.engineer.title', 'My dashboard')}
-        action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.engineer.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.engineer.refresh', 'Refresh')}</span></Button>}
-      />
+    <div className="space-y-[var(--space-panel-gap)]" data-home-layout="focused">
+      {header}
       <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
         <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} />
         <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />
       </div>
       {!claimsError && <EngineerReturnedCard claims={returnedClaims} />}
-      <EngineerRecentEntriesPanel
-        entries={recent}
-        statusBySheet={statusBySheet}
-        loading={timeLoading}
-        error={recentError}
-        onRetry={refresh}
-      />
+      {recentEl}
     </div>
   );
 };

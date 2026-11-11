@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter, useLocation } from 'react-router';
 import { EngineerDashboard } from './EngineerDashboard';
 import { BahasaProvider } from '@/test/bahasa';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const state = vi.hoisted(() => ({
   timesheets: { data: undefined as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
@@ -299,5 +302,40 @@ describe('Engineer home (one question: is my week on track?)', () => {
     renderDashboard('id');
     expect(within(timesheetCard()).getByRole('link', { name: 'Catat waktu' })).toHaveAttribute('href', '/timesheets');
     expect(screen.getByText('Belum ada entri waktu terbaru')).toBeInTheDocument();
+  });
+});
+
+describe('Engineer home — Overview layout', () => {
+  beforeEach(() => { localStorage.setItem('home-layout', 'overview'); });
+
+  it('draws the week as a column chart (Mon–Sun) beside my tasks, and the hours by project as one bar', () => {
+    renderDashboard();
+    const label = within(timesheetCard()).getByRole('img', { name: /^Hours by day this week\./ }).getAttribute('aria-label');
+    expect(label).toBe('Hours by day this week. Mon: 8; Tue: 7.5; Wed: ; Thu: ; Fri: ; Sat: ; Sun: ');
+    expect(within(timesheetCard()).getByText('15.5 h')).toBeInTheDocument();
+    const hours = screen.getByTestId('chart-hours-by-project');
+    expect(hours).toHaveTextContent('Cedar Works');
+    expect(within(hours).getByRole('img')).toHaveAccessibleName('Hours by project this week. Cedar Works 15.5');
+    expect(within(timesheetCard()).queryByRole('list', { name: 'Hours by day this week' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the filled action and the returned claims, and leaves the project chart out (counted) when no time is logged', () => {
+    state.timesheets.data = [{ ...sheets[1], status: 'Draft', entries: [] }];
+    renderDashboard();
+    expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getByTestId('engineer-returned')).toBeInTheDocument();
+    expect(screen.queryByTestId('chart-hours-by-project')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('no time is logged this week');
+  });
+
+  it('an unknown stored layout is Overview; Focused keeps the strip and no project chart', () => {
+    localStorage.setItem('home-layout', 'sideways');
+    const first = renderDashboard();
+    expect(screen.getByTestId('chart-hours-by-project')).toBeInTheDocument();
+    first.unmount();
+    localStorage.setItem('home-layout', 'focused');
+    renderDashboard();
+    expect(within(timesheetCard()).getByRole('list', { name: 'Hours by day this week' })).toBeInTheDocument();
+    expect(screen.queryByTestId('chart-hours-by-project')).not.toBeInTheDocument();
   });
 });

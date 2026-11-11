@@ -50,6 +50,8 @@ export interface CompanyFiguresResult {
   trendPending: boolean;
   trendError: boolean;
   trendRetry: () => void;
+  /** Recorded incoming payments per month ("YYYY-MM") in the organisation currency; undefined while unknown. */
+  collectedByMonth: Map<string, number> | undefined;
 }
 
 export function selectInvoicedTotals(pack: ManagementPack | undefined, from: string | null, to: string | null) {
@@ -88,6 +90,19 @@ export function selectCollectedTotals(payments: PaidPaymentFact[] | undefined, f
     totals.set(payment.currency, (totals.get(payment.currency) ?? 0n) + cents);
   }
   return { totals: [...totals].map(([currency, amount]) => ({ currency, amount: formatExactCents(amount) })), unknownCurrencies: [...unknownCurrencies] };
+}
+
+/** Paid receipts per calendar month in one currency. One receipt with no amount makes the whole series unknown, never a partial sum. */
+export function selectCollectedByMonth(payments: PaidPaymentFact[] | undefined, currency: string): Map<string, number> | undefined {
+  if (!payments) return undefined;
+  const months = new Map<string, number>();
+  for (const payment of payments) {
+    if (payment.status !== 'Paid' || !payment.date || payment.currency !== currency) continue;
+    if (payment.amount === null || !Number.isFinite(payment.amount)) return undefined;
+    const month = payment.date.slice(0, 7);
+    months.set(month, (months.get(month) ?? 0) + Number(payment.amount));
+  }
+  return months;
 }
 
 export function selectUnbilledTotals(totals: UnbilledWorkOrderTotal[] | undefined) {
@@ -198,6 +213,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const suppliers = useMemo(() => selectSupplierInvoices(withLinkedDocuments(procurements.data, linkedDocuments.data)), [procurements.data, linkedDocuments.data]);
   const invoiced = useMemo(() => selectInvoicedTotals(pack.data, period.from, period.to), [pack.data, period.from, period.to]);
   const collected = useMemo(() => selectCollectedTotals(payments.data, period.from, period.to), [payments.data, period.from, period.to]);
+  const collectedByMonth = useMemo(() => selectCollectedByMonth(payments.data, orgCurrency), [payments.data, orgCurrency]);
   const unbilledTotals = useMemo(() => selectUnbilledTotals(workOrders.data?.totals), [workOrders.data?.totals]);
   const moneyReason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   // Owed by clients: every open invoice's balance; one unknown balance makes the total unknowable (never a partial sum).
@@ -385,5 +401,6 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     trendPending: trendRange.to ? trendPack.isPending : Boolean(orgDay.isPending),
     trendError: trendPack.isError,
     trendRetry: () => { void trendPack.refetch(); },
+    collectedByMonth,
   };
 }

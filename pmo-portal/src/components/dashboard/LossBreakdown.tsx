@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
 import { Button } from '@/src/components/ui';
 import { lostReasonLabel } from '@/src/lib/lostReasons';
+import { BarList } from './charts';
 
-export const LossBreakdown: React.FC<{ range: WinRateRange; /** Inside its own card: no divider or top gap. */ bare?: boolean }> = ({ range, bare = false }) => {
+export const LossBreakdown: React.FC<{ range: WinRateRange; /** Inside its own card: no divider or top gap. */ bare?: boolean; /** Reasons as a bar chart (the Overview home). */ chart?: boolean }> = ({ range, bare = false, chart = false }) => {
   const { t } = useTranslation('lostReason');
   const { data, isError, isPending, refetch } = useLossBreakdown(range);
   if (isPending) return null;
@@ -23,6 +24,15 @@ export const LossBreakdown: React.FC<{ range: WinRateRange; /** Inside its own c
         {!bare && <h4 className="mb-2 text-control font-semibold">{t('breakdown.reasonsTitle', 'Why deals were lost')}</h4>}
         {data.by_reason.length === 0 ? (
           <p className="text-control text-muted-foreground">{t('breakdown.none', 'No lost deals in this period.')}</p>
+        ) : chart ? (
+          <BarList
+            ariaLabel={t('breakdown.reasonsTitle', 'Why deals were lost')}
+            nameWidth={132}
+            rows={data.by_reason.map((r) => {
+              const total = r.losses_count + r.declined_count;
+              return { id: r.reason ?? 'not-recorded', name: lostReasonLabel((key, d) => String(t(key, d)), r.reason), value: total, label: String(total), tone: 'neutral' as const };
+            })}
+          />
         ) : (
           <ul className="grid gap-1.5">
             {data.by_reason.map((r) => {
