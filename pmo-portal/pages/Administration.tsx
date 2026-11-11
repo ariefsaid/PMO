@@ -94,11 +94,11 @@ function administrationSectionForPath(pathname: string): AdministrationSection |
 const isOperatorSection = (section: AdministrationSection): boolean =>
   section === 'usage' || section === 'features';
 
-const AdministrationHeader: React.FC<{ section?: AdministrationSection }> = ({ section }) => {
+const AdministrationHeader: React.FC<{ section?: AdministrationSection; title?: string }> = ({ section, title }) => {
   const { t } = useTranslation();
   return (
     <PageHeader
-      title={t('admin.nav.title', 'Administration')}
+      title={title ?? t('admin.nav.title', 'Administration')}
       help={section === 'accounting' ? <AccountingHelp /> : undefined}
       helpSubject={t('admin.nav.accounting', 'Accounting setup')}
     />
@@ -363,7 +363,7 @@ const Administration: React.FC = () => {
 
   return (
     <div className="min-w-0">
-      <AdministrationHeader section={section} />
+      <AdministrationHeader section={section} title={section ? label(section) : undefined} />
 
       {operatorMembership.isPending && needsOperatorCheck ? (
         <OperatorMembershipPending />

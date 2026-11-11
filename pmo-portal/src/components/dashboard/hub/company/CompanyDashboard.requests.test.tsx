@@ -30,7 +30,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { totals: [] as unknown[] }, procurementList: vi.fn() }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn() }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
@@ -91,7 +91,7 @@ const renderExec = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { totals: [] }; h.procurementList.mockReset().mockResolvedValue([]); });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { months: [], totals: [] }; h.procurementList.mockReset().mockResolvedValue([]); });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company dashboard procurement reads (PERF-FIN-1)', () => {

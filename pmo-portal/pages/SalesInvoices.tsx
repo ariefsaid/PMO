@@ -486,7 +486,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
 
   return (
     <ListPage
-      title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
+      title={invoiceId ? t('shell.nav.invoiceRecord', 'Invoice record') : embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
       count={undefined}
       total={undefined}
       headingLevel={embedded ? 2 : 1}

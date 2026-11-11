@@ -120,10 +120,13 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const user = userEvent.setup();
     renderCascade();
 
-    const heading = screen.getByRole('heading', { name: 'Contract' });
-    await user.hover(within(heading).getByText('Contract'));
+    // The explanation lives behind the card head's one help control: the heading itself stays plain
+    // text (CardHead's children may hold no interactive content — the static guard enforces it), and
+    // the note is said once, not repeated under each figure.
+    const headingRow = screen.getByRole('heading', { name: 'Contract' }).parentElement!.parentElement!;
+    await user.click(within(headingRow).getByRole('button', { name: 'About Contract' }));
 
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Computed as this stage value divided by the contract value.');
+    expect(await screen.findByText('Computed as this stage value divided by the contract value.')).toBeVisible();
   });
 
   it('AC-1402 shows can-invoice and overdue callouts from delivered quantities and ERP balances', () => {

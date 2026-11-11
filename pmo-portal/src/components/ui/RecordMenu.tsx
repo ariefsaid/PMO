@@ -1,9 +1,10 @@
 import React from 'react';
-import { Menu } from '@base-ui/react/menu';
+import { Menu } from './menu';
 import { buttonClasses } from './buttonClasses';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { menuItemClass, menuItemDanger, menuPopupClass, menuPopupOrigin, menuSeparatorClass } from './menuStyles';
+import { useOverlayPortalContainer } from './useOverlayPortalContainer';
 
 export interface RecordMenuItem {
   key: string;
@@ -27,8 +28,11 @@ export interface RecordMenuProps {
 
 /** Record action menu on Base UI Menu with the shared menu look: focus, arrow keys, Escape, outside-press and positioning come from the library. */
 export const RecordMenu: React.FC<RecordMenuProps> = ({ items, ariaLabel, label, side = 'bottom', triggerClassName }) => {
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const portalContainer = useOverlayPortalContainer(rootRef);
   if (items.length === 0) return null;
   return (
+    <div ref={rootRef} className="contents">
     <Menu.Root modal={false}>
       <Menu.Trigger
         aria-label={ariaLabel}
@@ -43,7 +47,7 @@ export const RecordMenu: React.FC<RecordMenuProps> = ({ items, ariaLabel, label,
           <span aria-hidden className="text-base leading-none">⋯</span>
         )}
       </Menu.Trigger>
-      <Menu.Portal>
+      <Menu.Portal container={portalContainer}>
         <Menu.Positioner side={side} align="end" sideOffset={side === 'top' ? 8 : 4} collisionPadding={12} className="z-50">
           <Menu.Popup aria-label={ariaLabel} className={cn(menuPopupClass, 'min-w-48')} style={menuPopupOrigin}>
             {items.map((item, i) => (
@@ -63,5 +67,6 @@ export const RecordMenu: React.FC<RecordMenuProps> = ({ items, ariaLabel, label,
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
+    </div>
   );
 };

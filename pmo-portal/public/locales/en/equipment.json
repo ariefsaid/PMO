@@ -46,7 +46,7 @@
     "notFoundSub": "It may have been archived.",
     "refLine": "ERP reference {{ref}}",
     "rowLabel": "Open {{name}}",
-    "title": "Equipment assets",
+    "title": "Assets",
     "truncated": "Showing the first {{count}} assets. Archive the ones you no longer use.",
     "unit": "Default unit",
     "unitLine": "Logged in {{unit}}"
@@ -135,6 +135,7 @@
     "equipment": "Equipment"
   },
   "panel": {
+    "notRecorded": "{{count}} not recorded",
     "columns": {
       "allocated": "Allocated",
       "equipment": "Equipment"
@@ -173,6 +174,8 @@
     "assetNoun": "equipment",
     "cancel": "Cancel",
     "cardTitle": "Usage",
+    "confirmApproveBody": "This will approve the logged equipment usage entry.",
+    "confirmApproveTitle": "Approve usage entry?",
     "columns": {
       "date": "Date",
       "decision": "Decision",

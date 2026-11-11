@@ -43,7 +43,9 @@ describe('FinancialStatements by tier', () => {
     h.error = true;
     mount();
     expect(screen.getByText('We could not check where these figures come from')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    // FX2 (deliberate, e6580de45): the notice's button is the DISTINCT 'Retry ledger mode' —
+    // a second generic 'Retry' was ambiguous next to the section retry. Assertion unchanged.
+    await userEvent.click(screen.getByRole('button', { name: 'Retry ledger mode' }));
     expect(h.retry).toHaveBeenCalledTimes(1);
   });
 

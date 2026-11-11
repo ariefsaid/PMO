@@ -82,9 +82,9 @@ const Incidents: React.FC = () => {
   // not a choice — it replaces so Back keeps the page the user actually came from). setPage's
   // identity changes every render by design (URL-backed filter setters are render-local); the
   // guard stops the write once page ≤ lastPage, so a per-render re-run is harmless.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (data && page > lastPage) setPage(lastPage, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage's identity changes every render by design (URL-backed filter setters are render-local); the guard stops the write once page ≤ lastPage, so a per-render re-run is harmless.
   }, [data, page, lastPage]);
 
   // Modal: null = closed; { incident: null } = create; { incident } = edit.
@@ -244,6 +244,10 @@ const Incidents: React.FC = () => {
           <FilterBar
             searchKey="q"
             searchLabel="Search incidents"
+            // search_used analytics (2026-07-13 wiring plan): c002a54a4's FilterBar adoption
+            // dropped these two props; restored so the incidents search reports again.
+            searchSurface="incidents-list"
+            module="incidents"
             filters={filters}
             values={values}
             onChange={handleFilterChange}

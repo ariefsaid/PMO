@@ -547,7 +547,13 @@
     "milestones": {
       "currentPhaseLabel": "Fase saat ini",
       "taskCount": "{{done}} dari {{total}} tugas",
-      "noCurrentPhase": "Tidak ada fase aktif"
+      "noCurrentPhase": "Tidak ada fase aktif",
+      "deliveryStatusKey": {
+        "label": "Keterangan warna fase pelaksanaan",
+        "completed": "Selesai",
+        "overdue": "Terlambat",
+        "currentOrPlanned": "Saat ini / direncanakan"
+      }
     },
     "billingMilestones": {
       "title": "Milestone penagihan",
@@ -604,6 +610,7 @@
       },
       "more": "Tindakan lainnya",
       "projectDetails": "Detail proyek",
+      "pastEndDate": "Melewati tanggal akhir · {{count}} h",
       "contractValueReadOnly": "Nilai kontrak · hanya baca",
       "contractValueReadOnlyExplanation": "Nilai kontrak yang disetujui dikunci bagi manajer proyek setelah proyek dimenangkan. Eksekutif, Finance, atau administrator dapat memperbaruinya dan perubahan tersebut akan dicatat.",
       "changeDeliveryStatus": "Ubah status pelaksanaan",

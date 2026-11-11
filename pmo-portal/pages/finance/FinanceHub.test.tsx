@@ -8,6 +8,7 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
 const state = vi.hoisted(() => ({
   role: 'Finance',
+  currency: 'IDR',
   position: null as FinancePosition | null,
   figures: {
     data: undefined as unknown,
@@ -54,10 +55,11 @@ vi.mock('@/src/hooks/useManagementPack', () => ({
 }));
 vi.mock('@/src/hooks/useRevenue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/hooks/useRevenue')>()),
+  useMonthlyInvoiceFacts: () => ({ data: [{ invoice_date: '2026-09-01', currency: 'IDR', net: 1000, recovery: 0 }], isPending: false, isError: false, refetch: vi.fn() }),
   usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
-  useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
+  useOrgCurrencyState: () => ({ currency: state.currency, isResolved: true, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'project-1', name: 'North delivery', short_name: 'North delivery', pm: { full_name: 'Alex Rivera' } }] }) }));
 
@@ -96,6 +98,7 @@ function renderHub(role = 'Finance') {
 }
 
 beforeEach(() => {
+  state.currency = 'IDR';
   state.position = positionFixture();
   state.figures = {
     data: {
@@ -114,20 +117,51 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
+  it('shows known zero for no receivables and no supplier invoices', () => {
+    state.position = { ...positionFixture(), receivablesCount: 0, receivablesAgeing: {}, payables: [], payablesTotals: {} };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+    expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+  });
+
   it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
     renderHub('Finance');
     expect(screen.getByTestId('invoice-pair-review')).toHaveTextContent('org-1');
   });
 
-  it('shows unknown receivables instead of no balance and explains empty ageing', () => {
-    state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };
+  it('F1: shows only known receivable currencies beside the unknown invoice count', () => {
+    state.currency = 'USD';
+    state.position = {
+      ...positionFixture(),
+      receivablesAgeing: { IDR: { notDue: 40_000_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesUnknownCount: 1,
+      overdueUnknownCount: 1,
+      overdue: [],
+    };
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    // Unknown is not a sentence in a tile and not "0": the tile is hidden and one page line says why.
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    expect(receivables).toHaveTextContent('IDR 400K');
+    expect(receivables).toHaveTextContent('1 balance unknown');
+    expect(receivables).not.toHaveTextContent('$0');
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/no balance reported by the accounting system/i);
+  });
+
+  it('F1: names a wholly unknown balance and keeps a known unbilled zero as zero', () => {
+    state.currency = 'USD';
+    state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };
+    state.figures.data = {
+      pack: { asAt: '2026-10-01', unbilled: [], contractRows: 2, invoicedBasisRows: 2 },
+      statement: { unpublished: true, periodStart: null, netProfit: null, currency: null },
+    };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
     expect(screen.queryByRole('link', { name: 'Open Receivables' })).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoice balances unknown');
     expect(screen.getByRole('link', { name: 'See invoices' })).toHaveAttribute('href', '/finance/receivables');
-    expect(screen.queryByText('No balance')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/balance.*unknown/i);
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/no balance reported by the accounting system/i);
+    const unbilled = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
+    expect(unbilled).toHaveTextContent('Done, not yet billed');
+    expect(unbilled).toHaveTextContent('$0');
   });
 
   it('AC-1405-HUB-001: shows whole-unit figures and four linked figure tiles with one caption each', () => {
@@ -151,6 +185,9 @@ describe('Finance hub', () => {
     expect(within(payables).getByText('IDR 62,400,000; USD 5,000')).toHaveClass('sr-only');
     const earned = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
     expect(within(earned).getByText('Done, not yet billed')).toBeInTheDocument();
+    const areas = screen.getByRole('region', { name: 'Finance areas' });
+    expect(areas).toHaveClass('min-[900px]:grid-cols-3');
+    expect(areas.children).toHaveLength(3);
   });
 
   it('L6: each overdue and supplier figure is shown once on the hub', () => {
@@ -185,12 +222,25 @@ describe('Finance hub', () => {
     expect(screen.getByRole('heading', { name: 'Ageing' })).toBeInTheDocument();
     const trend = screen.getByTestId('finance-revenue-trend');
     const ageing = screen.getByRole('region', { name: 'Ageing' });
-    expect(ageing.parentElement).toBe(trend.parentElement);
+    expect(ageing.parentElement).not.toBe(trend.parentElement);
     expect(trend.compareDocumentPosition(ageing) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
     expect(screen.getAllByTestId('ageing-bar-IDR')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: /Waiting on Finance/ })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Finance areas' }).children).toHaveLength(3);
+    const firstRow = screen.getByTestId('finance-hub-first-row');
+    const [left, right] = Array.from(firstRow.children) as HTMLElement[];
+    const attention = screen.getByRole('region', { name: 'Finance attention' });
+    expect(left).toContainElement(attention);
+    expect(right).toContainElement(screen.getByRole('region', { name: 'Finance areas' }));
+    expect(right).toContainElement(trend);
+    expect(right).not.toContainElement(ageing);
+    expect(firstRow.compareDocumentPosition(ageing) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(ageing.parentElement).not.toBe(trend.parentElement);
+    expect(attention).toHaveClass('gap-0');
+    expect(within(trend).getByText('Invoiced, excl. tax')).toBeInTheDocument();
+    expect(within(trend).getByText('Collected')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
     expect(within(screen.getByRole('region', { name: 'Receivables' })).getByText(/38[,.]?200[,.]?000/)).toBeInTheDocument();
   });
@@ -232,6 +282,26 @@ describe('Finance hub', () => {
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
     const ageing = screen.getByRole('region', { name: 'Payables' });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
+  });
+
+  it('F6: each ageing chart uses its own currency total and zero buckets recede visually', () => {
+    const position = positionFixture();
+    position.receivablesAgeing = { IDR: { notDue: 100, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.payablesAgeing = { IDR: { d0_30: 1_000_000, d31_60: 0, d61_90: 0, over90: 0 } };
+    state.position = position;
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    const payables = screen.getByRole('region', { name: 'Payables' });
+    expect(within(receivables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '100');
+    expect(within(payables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '1000000');
+    const zeroBucket = within(receivables).getByTestId('ageing-bucket-IDR-d1_30').querySelector('.tabular');
+    const positiveBucket = within(receivables).getByTestId('ageing-bucket-IDR-notDue').querySelector('.tabular');
+    expect(zeroBucket).toHaveClass('text-muted-foreground');
+    expect(zeroBucket).toHaveClass('font-normal');
+    expect(zeroBucket).not.toHaveClass('font-semibold');
+    expect(positiveBucket).not.toHaveClass('text-muted-foreground');
   });
 
   it('AC-1405-HUB-007: figure read errors offer a retry action', () => {

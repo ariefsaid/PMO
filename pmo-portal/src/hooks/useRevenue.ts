@@ -52,6 +52,18 @@ export function useOverdueInvoiceFacts(enabled = true) {
   });
 }
 
+/** Billed work facts for a bounded monthly chart. */
+export function useMonthlyInvoiceFacts(from: string, toExclusive: string, enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['salesInvoices', orgId, 'monthly-facts', from, toExclusive],
+    queryFn: () => repositories.revenue.listMonthlyInvoiceFacts(from, toExclusive),
+    enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
 /** Dashboard: Paid receipts, narrow columns. Same `incomingPayments` key prefix as the full list. */
 export function usePaidPaymentFacts(enabled = true) {
   const { currentUser } = useAuth();

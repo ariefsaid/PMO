@@ -175,6 +175,16 @@ beforeEach(() => {
 });
 
 describe('ProjectBudget Option A', () => {
+  it('R2-P1b #12 labels the remaining figure as left after spend', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
+
+    renderPage();
+
+    expect(screen.getAllByText('Left after spend').length).toBeGreaterThan(0);
+  });
+
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
     // This case includes the Finance-only activation affordance; PM read access and SoD stay
     // covered by the PM summary and activation/PM-draft cases below.
@@ -198,7 +208,7 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getAllByText('Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Spent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Committed').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Left').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Left after spend').length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
     expect(screen.getByRole('toolbar', { name: 'Selected categories' })).toHaveTextContent('1 selected');
@@ -446,12 +456,12 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toHaveTextContent('125');
     expect(screen.getAllByText(/^USD ·/).length).toBeGreaterThan(0);
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(table).toHaveTextContent('GBP 125');
+    expect(table).toHaveTextContent('£125');
     expect(table).not.toHaveTextContent('75');
     expect(table).not.toHaveTextContent('40%');
     expect(table).not.toHaveTextContent('On track');
     await userEvent.click(screen.getByRole('button', { name: 'Open Labor budget details' }));
-    expect(screen.getByRole('dialog', { name: 'Labor' })).toHaveTextContent('GBP 125');
+    expect(screen.getByRole('dialog', { name: 'Labor' })).toHaveTextContent('£125');
   });
 
   it.each(['Active', 'Archived'])('keeps %s budget in its own basis and leaves mixed comparisons unavailable', async (status) => {
@@ -461,7 +471,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(table).toHaveTextContent('GBP 125');
+    expect(table).toHaveTextContent('£125');
     expect(table).not.toHaveTextContent('75');
     expect(table).not.toHaveTextContent('40%');
     expect(table).not.toHaveTextContent('On track');
@@ -471,8 +481,8 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     state.versions.data = [{ ...active(), currency: 'GBP' }, draft({ currency: 'EUR' }), { ...draft({ currency: 'GBP' }), id: 'v-archived', status: 'Archived', version: 3 }];
     renderPage();
     const versionRegion = screen.getByRole('region', { name: 'Budget versions' });
-    expect(versionRegion).toHaveTextContent('GBP 100');
-    expect(versionRegion).toHaveTextContent('EUR 125');
+    expect(versionRegion).toHaveTextContent('£100');
+    expect(versionRegion).toHaveTextContent('€125');
     await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
     await userEvent.click(within(drawer).getByRole('button', { name: 'Compare' }));
@@ -484,11 +494,22 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(table).toHaveTextContent('+GBP 25');
   });
 
+  it('keeps a non-zero fractional budget and version difference visible', () => {
+    state.versions.data = [active([line('li-1', 'Labor', 'Design', 0.01)]), draft({ total: 0.02, line_items: [line('li-2', 'Labor', 'Design', 0.02)] })];
+    renderPage();
+    const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    expect(tiles).toHaveTextContent('USD 0.01');
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(table).toHaveTextContent('USD 0.01');
+    const versions = screen.getByRole('region', { name: 'Budget versions' });
+    expect(versions).toHaveTextContent('+USD 0.01');
+  });
+
   it('shows a same-currency change between foreign version totals', () => {
     state.versions.data = [{ ...active(), currency: 'GBP' }, draft({ currency: 'GBP' })];
     renderPage();
     const versions = screen.getByRole('region', { name: 'Budget versions' });
-    expect(versions).toHaveTextContent('+GBP 25');
+    expect(versions).toHaveTextContent('+£25');
   });
 
   it('keeps the forecast editor available with a foreign active budget', async () => {
@@ -527,15 +548,14 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(within(tiles).getByText('$4,500,000')).toHaveClass('sr-only');
   });
 
-  it('C5/C6: table amounts are bare numbers with no trailing .00, under the one currency and tax heading', () => {
+  it('C5/C6: table amounts show currency and whole units alongside the tax heading', () => {
     state.versions.data = [bigActive()];
     state.position.rows = [{ category: 'Labor', budget: 4_500_000, actual: 1_780_000.4 }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(within(table).getAllByText('4,500,000').length).toBeGreaterThan(0);
-    // A real fraction is money and is kept; a whole amount never grows a .00.
-    expect(within(table).getAllByText('1,780,000.4').length).toBeGreaterThan(0);
-    expect(within(table).queryByText(/\$/)).not.toBeInTheDocument();
+    expect(within(table).getAllByText('$4,500,000').length).toBeGreaterThan(0);
+    // Read-only budget tables display whole currency units.
+    expect(within(table).getAllByText('$1,780,000').length).toBeGreaterThan(0);
     expect(within(table).queryByText(/\.00$/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/^USD ·/).length).toBeGreaterThan(0);
   });

@@ -46,7 +46,7 @@
     "notFoundSub": "Mungkin sudah diarsipkan.",
     "refLine": "Referensi ERP {{ref}}",
     "rowLabel": "Buka {{name}}",
-    "title": "Aset peralatan",
+    "title": "Aset",
     "truncated": "Hanya {{count}} aset pertama yang ditampilkan. Arsipkan aset yang tidak dipakai lagi.",
     "unit": "Satuan bawaan",
     "unitLine": "Dicatat dalam {{unit}}"
@@ -135,6 +135,7 @@
     "equipment": "Peralatan"
   },
   "panel": {
+    "notRecorded": "{{count}} tidak tercatat",
     "columns": {
       "allocated": "Dialokasikan",
       "equipment": "Peralatan"
@@ -173,6 +174,8 @@
     "assetNoun": "peralatan",
     "cancel": "Batal",
     "cardTitle": "Pemakaian",
+    "confirmApproveBody": "Ini akan menyetujui entri pemakaian peralatan yang dicatat.",
+    "confirmApproveTitle": "Setujui entri pemakaian?",
     "columns": {
       "date": "Tanggal",
       "decision": "Keputusan",

@@ -15,6 +15,8 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
 const h = vi.hoisted(() => ({
   figures: vi.fn(),
+  monthlyInvoices: vi.fn(),
+  paidPayments: vi.fn(),
   managementPack: vi.fn(),
   statementGet: vi.fn(),
   statementCatalogue: vi.fn(),
@@ -63,6 +65,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
     ...actual,
     repositories: {
       ...actual.repositories,
+      revenue: { ...actual.repositories.revenue, listMonthlyInvoiceFacts: h.monthlyInvoices, listPaidPaymentFacts: h.paidPayments },
       reports: { ...actual.repositories.reports, figures: h.figures, managementPack: h.managementPack },
       financialStatements: { ...actual.repositories.financialStatements, get: h.statementGet, catalogue: h.statementCatalogue },
     },
@@ -141,6 +144,8 @@ const renderHub = () => render(
 );
 
 beforeEach(() => {
+  h.monthlyInvoices.mockReset().mockResolvedValue([]);
+  h.paidPayments.mockReset().mockResolvedValue([]);
   h.figures.mockReset();
   h.managementPack.mockReset();
   h.statementGet.mockReset();
@@ -174,6 +179,8 @@ describe('finance hub narrow figure read (PERF-1988)', () => {
     expect(statements).toHaveTextContent('Jan 2026');
 
     await vi.waitFor(() => expect(h.figures).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(h.monthlyInvoices).toHaveBeenCalledWith("2026-05-01", "2026-11-01"));
+    expect(h.paidPayments).toHaveBeenCalledTimes(1);
     expect(h.managementPack).not.toHaveBeenCalled();
     expect(h.statementGet).not.toHaveBeenCalled();
     expect(h.statementCatalogue).not.toHaveBeenCalled();

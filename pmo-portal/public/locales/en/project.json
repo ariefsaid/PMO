@@ -547,7 +547,13 @@
     "milestones": {
       "currentPhaseLabel": "Current phase",
       "taskCount": "{{done}} of {{total}} tasks",
-      "noCurrentPhase": "No active phase"
+      "noCurrentPhase": "No active phase",
+      "deliveryStatusKey": {
+        "label": "Delivery phase status key",
+        "completed": "Completed",
+        "overdue": "Overdue",
+        "currentOrPlanned": "Current / planned"
+      }
     },
     "billingMilestones": {
       "title": "Billing milestones",
@@ -604,6 +610,7 @@
       },
       "more": "More actions",
       "projectDetails": "Project details",
+      "pastEndDate": "Past end date · {{count}} d",
       "contractValueReadOnly": "Contract value · read-only",
       "contractValueReadOnlyExplanation": "The approved contract value is locked for project managers after the project is won. An executive, Finance, or an administrator can update it, with the change recorded.",
       "changeDeliveryStatus": "Change delivery status",

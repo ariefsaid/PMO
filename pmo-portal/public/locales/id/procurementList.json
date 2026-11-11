@@ -1,4 +1,5 @@
 {
+  "description": {"engineer": "Pengadaan yang Anda ajukan", "projectManager": "Pengadaan untuk proyek yang Anda kelola"},
   "title": {
     "default": "Pengadaan",
     "engineer": "Pengadaan Anda"

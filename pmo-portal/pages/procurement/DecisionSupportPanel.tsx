@@ -222,7 +222,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     },
     {
       // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".
-      label: t('decisionSupport.uncommitted', 'Uncommitted budget'),
+      label: t('decisionSupport.uncommitted', 'Not yet committed'),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.

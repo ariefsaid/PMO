@@ -7,7 +7,7 @@ import {
 import { formatCurrency, formatDay, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
-  dealJourneySteps, formatPercent, daysSince, isNeedsAttention, isStaleBid, weightedValue,
+  dealJourneySteps, formatPercent, daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid, weightedValue,
 } from '../../components/salesPipeline';
 import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
@@ -154,8 +154,8 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
                 <span className="w-full truncate text-control font-semibold text-foreground">{p.name}</span>
                 <span className="w-full truncate text-control text-warning-foreground">{compact
                   ? (isStaleBid(p)
-                    ? t('sales:options.staleReasonShort', 'Stage {{days}}d', { days: daysSince(p.stage_started_at) ?? 0 })
-                    : t('sales:options.idleReasonShort', 'Idle {{days}}d', { days: daysSince(p.last_update) ?? 0 }))
+                    ? t('sales:options.staleReasonShort', 'Stage {{days}}d', { days: daysSince(p.stage_started_at) ?? dash })
+                    : t('sales:options.idleReasonShort', 'Idle {{days}}d', { days: daysSinceLatestTouch(p) ?? dash }))
                   : attentionReason(m, p)}</span>
               </button>
             </li>
@@ -225,10 +225,10 @@ export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null
           </p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
             <div><dt className="text-control text-muted-foreground">{t('projectDetail.pipeline.stat.value', 'Value')}</dt>
-              <dd className="tabular text-base font-semibold">{formatCurrency(deal.contract_value, deal.currency)}</dd>
+              <dd className="tabular text-base font-semibold">{deal.contract_value == null ? dash : formatCurrency(deal.contract_value, deal.currency)}</dd>
               <dd className="text-control text-muted-foreground"><TaxBasisLabel treatment={deal.tax_treatment} taxRate={deal.tax_rate} taxBaseNumerator={deal.tax_base_numerator} taxBaseDenominator={deal.tax_base_denominator} /></dd></div>
             <div><dt className="text-control text-muted-foreground">{t('projectDetail.pipeline.stat.weighted', 'Weighted')}</dt>
-              <dd className="tabular text-base font-semibold">{formatCurrency(weightedValue(deal), deal.currency)}</dd></div>
+              <dd className="tabular text-base font-semibold">{deal.contract_value == null || (deal.go_probability ?? deal.win_probability) == null ? dash : formatCurrency(weightedValue(deal), deal.currency)}</dd></div>
             <div><dt className="text-control text-muted-foreground">{t('sales:goProbability', '% Go')}</dt>
               <dd className="tabular">{formatPercent(deal.go_probability ?? deal.win_probability)}</dd></div>
             <div><dt className="text-control text-muted-foreground">{t('sales:getProbability', '% Get')}</dt>

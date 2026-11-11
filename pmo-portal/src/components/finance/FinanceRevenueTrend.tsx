@@ -1,10 +1,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChartCard, MonthColumns } from '@/src/components/dashboard/charts';
-import { usePaidPaymentFacts } from '@/src/hooks/useRevenue';
-import { useManagementPack } from '@/src/hooks/useManagementPack';
+import { ChartCard, MonthColumns, SeriesKey } from '@/src/components/dashboard/charts';
+import { useMonthlyInvoiceFacts, usePaidPaymentFacts } from '@/src/hooks/useRevenue';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
-import { selectCollectedByMonth, selectInvoicedByMonth } from '@/src/components/dashboard/restructure/useCompanyFigures';
+import { selectCollectedByMonth } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { addMonths, monthsBetween } from '@/src/lib/reports/months';
 import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 
@@ -13,16 +12,21 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const currencyState = useOrgCurrencyState();
   const to = addMonths(`${(today ?? new Date().toISOString()).slice(0, 7)}-01`, -1);
   const from = addMonths(to, -5);
-  const ready = enabled && Boolean(today) && currencyState.isResolved;
-  const pack = useManagementPack({ from, to }, ready);
-  const payments = usePaidPaymentFacts(ready);
-  const invoicesByMonth = selectInvoicedByMonth(pack.data, from, to, currencyState.currency);
+  const invoices = useMonthlyInvoiceFacts(from, addMonths(to, 1), enabled && Boolean(today));
+  const payments = usePaidPaymentFacts(enabled && Boolean(today));
+  const invoiceValues = new Map<string, number>();
+  for (const invoice of invoices.data ?? []) {
+    if (invoice.currency !== currencyState.currency || invoice.net == null) continue;
+    const month = invoice.invoice_date.slice(0, 7);
+    invoiceValues.set(month, (invoiceValues.get(month) ?? 0) + Number(invoice.net) + Number(invoice.recovery ?? 0));
+  }
+  const invoicesByMonth = invoices.data === undefined ? undefined : invoiceValues;
   const collectedByMonth = selectCollectedByMonth(payments.data, currencyState.currency);
   const hasInvoices = invoicesByMonth !== undefined;
   const hasCollections = collectedByMonth !== undefined;
   const collectionsPrimary = !hasInvoices && hasCollections;
+  const hasPair = hasInvoices && hasCollections && !collectionsPrimary;
   const months = monthsBetween(from, to);
-  const invoiceValues = new Map((invoicesByMonth ?? []).map((point) => [point.month, point.amount]));
   const points = months.map((month) => {
     const monthKey = month.slice(0, 7);
     const collected = hasCollections ? collectedByMonth?.get(monthKey) ?? 0 : undefined;
@@ -34,13 +38,15 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
       tick: formatMonthShort(date),
       a: primary ?? 0,
       labelA: primary === undefined ? undefined : formatTileMoney(primary, currencyState.currency) ?? undefined,
-      ...(hasInvoices && hasCollections && !collectionsPrimary ? {
+      ...(hasPair ? {
         b: collected ?? 0,
         labelB: formatTileMoney(collected ?? 0, currencyState.currency) ?? undefined,
       } : {}),
     };
   });
   const title = t('home.financeRevenueTrend', 'Invoiced and collected · 6 months');
+  const invoicedLabel = t('home.invoiced', 'Invoiced');
+  const collectedLabel = t('home.collected', 'Collected');
   const collectionGap = !hasCollections && !payments.isPending
     ? t('home.collectedTrendGap', 'Collected is incomplete; invoiced amounts are shown.')
     : null;
@@ -51,28 +57,33 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const hasNonZero = points.some((point) => point.a !== 0 || (point.b !== undefined && point.b !== 0));
   const canDraw = hasSeries && hasNonZero && points.length >= 3;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
+  const pending = !today || !currencyState.isResolved || invoices.isPending || payments.isPending;
 
   if (!enabled) return null;
   return (
     <ChartCard
       title={title}
       known={canDraw}
-      hiddenReason={hasNonZero
-        ? t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')
-        : t('home.reasonTrendNoActivity', 'no invoice or collection amounts are recorded in these months')}
-      pending={!today || !currencyState.isResolved || pack.isPending || payments.isPending}
-      error={!canDraw && (pack.isError || payments.isError) ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry: () => { void pack.refetch(); void payments.refetch(); } } : undefined}
+      hiddenReason={!hasSeries
+        ? t('home.reasonTrendUnavailable', "Monthly series aren't available yet")
+        : hasNonZero
+          ? t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')
+          : t('home.reasonTrendNoActivity', 'no invoice or collection amounts are recorded in these months')}
+      pending={pending}
       testId="finance-revenue-trend"
     >
       <MonthColumns
         points={points}
-        ariaLabel={collectionsPrimary ? `${title} · ${t('home.chartCollected', 'Collected')}` : title}
+        ariaLabel={collectionsPrimary ? `${title} · ${collectedLabel}` : title}
         seriesNames={collectionsPrimary
-          ? [t('home.chartCollected', 'Collected')]
-          : [t('home.chartInvoiced', 'Invoiced, excl. tax'), t('home.chartCollected', 'Collected')]}
+          ? [collectedLabel]
+          : [t('home.chartInvoiced', 'Invoiced, excl. tax'), collectedLabel]}
         labelAll
         minWidth={660}
       />
+      {!hasPair && <SeriesKey items={collectionsPrimary
+        ? [{ label: collectedLabel, tone: 'accent' }]
+        : [{ label: invoicedLabel, tone: 'accent' }]} />}
       {gap && <p data-testid="finance-revenue-trend-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>
   );

@@ -106,7 +106,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'vendors',
     icon: 'cart',
-    label: 'Vendors', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    label: 'Suppliers', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
@@ -201,8 +201,8 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'finance',
     icon: 'dollar',
-    label: 'Overview', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'financeHub:nav.overview',
+    label: 'Finance', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'financeHub:hub.title',
     path: '/finance',
     roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
@@ -344,7 +344,7 @@ export function railParentForPath(pathname: string): string | undefined {
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
-const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
+export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
   '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
@@ -465,15 +465,15 @@ export function breadcrumbForPath(
   if (administrationBreadcrumb) return administrationBreadcrumb;
 
   if (pathname === '/finance') {
-    return [{ label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
-      i18nKey: 'financeHub:nav.overview' }];
+    return [{ label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+      i18nKey: 'financeHub:hub.title' }];
   }
   const invoiceRecord = /^\/sales-invoices\/[^/]+$/.test(pathname);
   const paymentRecord = /^\/incoming-payments\/[^/]+$/.test(pathname);
   if (invoiceRecord || paymentRecord) {
     return [
-      { label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
-        i18nKey: 'financeHub:nav.overview', href: '/finance', onClick: () => navigate?.('/finance') },
+      { label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.title', href: '/finance', onClick: () => navigate?.('/finance') },
       { label: 'Receivables', // i18n-exempt: translated from i18nKey by Breadcrumb
         i18nKey: 'financeHub:hub.receivables', href: paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables', onClick: () => navigate?.(paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables') },
       { label: paymentRecord ? 'Payment record' : 'Invoice record', i18nKey: paymentRecord ? 'financeHub:nav.paymentRecord' : 'shell.nav.invoiceRecord' },
@@ -489,8 +489,8 @@ export function breadcrumbForPath(
     };
     return [
       {
-        label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
-        i18nKey: 'financeHub:nav.overview',
+        label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.title',
         href: '/finance',
         onClick: () => navigate?.('/finance'),
       },

@@ -26,7 +26,9 @@ afterEach(cleanup);
 describe('#2097: route preload rules load the route namespace in parallel with its chunk', () => {
   it.each([
     ['/projects', ['projects']],
-    ['/', ['dashboard']],
+    // PH1 "one home at every width": / is the phone's landing route too, and its bottom bar
+    // labels (PhoneNavBar) come from `home`, so the dashboard's first paint needs that catalogue.
+    ['/', ['dashboard', 'home']],
     ['/procurement', ['procurement', 'procurementList']],
     ['/finance/receivables', ['finance', 'financeHub']],
     ['/administration/users', ['administration', 'costAttribution', 'plans', 'procurement']],

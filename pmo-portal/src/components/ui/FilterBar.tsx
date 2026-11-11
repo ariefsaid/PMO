@@ -25,9 +25,14 @@ export interface FilterBarProps {
   searchSurface?: string;
   module?: string;
   className?: string;
+  /**
+   * A page whose own builder already offers one list-wide "Clear all" (which this bar cannot see
+   * the state of, so it would sit there disabled) opts out of this bar's duplicate.
+   */
+  showClear?: boolean;
 }
 
-export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, values, onChange, onClear, shown, total, labels, searchSurface, module, className }: FilterBarProps) {
+export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, values, onChange, onClear, shown, total, labels, searchSurface, module, className, showClear = true }: FilterBarProps) {
   const narrow = useIsNarrow();
   const [open, setOpen] = useState(false);
   const all = labels?.all ?? 'All';
@@ -54,7 +59,7 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
           <option value="">{all}</option>{filter.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>)}
-    <button type="button" disabled={!active} onClick={onClear} className="min-h-11 rounded-md px-3 text-control text-primary-text disabled:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8">{labels?.clear ?? 'Clear all'}</button>
+    {showClear && <button type="button" disabled={!active} onClick={onClear} className="min-h-11 rounded-md px-3 text-control text-primary-text disabled:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8">{labels?.clear ?? 'Clear all'}</button>}
   </div>;
   return <div className={`flex flex-wrap items-center justify-between gap-2 w-full ${className ?? ''}`}>
     {narrow ? <><button type="button" onClick={() => setOpen(true)} className="min-h-11 rounded-md border border-input bg-background px-3 text-control text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{filterLabel}</button><Drawer open={open} onClose={() => setOpen(false)} title={filterLabel}>{controls}</Drawer></> : controls}
