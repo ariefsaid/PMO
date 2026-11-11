@@ -36,6 +36,9 @@ function wordCount(body) {
 
 const tableRow = (i) => `<tr><td>Row ${i} detail here</td></tr>`;
 const cardRow = (i) => `<button class="row"><div class="title">Row ${i}</div><div class="meta">detail here</div></button>`;
+// The shared DataTable's phone branch marks each record card, so one card is data even alone.
+const recordCard = (i) => `<li data-record-row=""><div class="title">Row ${i}</div><div class="meta">detail here</div></li>`;
+const cardList = (count, extraChrome = '') => `<h1>Receivables</h1>${extraChrome}<ul role="list">${Array.from({ length: count }, (_, i) => recordCard(i + 1)).join('')}</ul>`;
 
 test('wordCount counts chrome only: twenty extra table rows do not change it', () => {
   const head = '<h1>Expenses</h1><table><thead><tr><th>Title</th></tr></thead><tbody>';
@@ -53,6 +56,21 @@ test('wordCount counts chrome only: twenty extra card rows do not change it', ()
 
 test('wordCount still counts the first row of a list', () => {
   assert.equal(wordCount('<h1>Expenses</h1><ul><li>First row three words</li><li>Second row three words</li></ul>'), 5);
+});
+
+test('wordCount counts chrome only: marked record cards are data even when one is the whole list', () => {
+  const one = wordCount(cardList(1));
+  const two = wordCount(cardList(2));
+  const twenty = wordCount(cardList(20));
+  assert.equal(one, 1, 'a single record card is data, not chrome — only the heading counts');
+  assert.equal(two, one, 'two record cards keep the same count as one');
+  assert.equal(twenty, one, 'twenty record cards keep the same count as two');
+});
+
+test('wordCount still rises when the chrome around marked record cards changes', () => {
+  const base = cardList(20);
+  assert.equal(wordCount(cardList(20, '<h2>Extra heading</h2>')), wordCount(base) + 2);
+  assert.equal(wordCount(cardList(20, '<p>one two three</p>')), wordCount(base) + 3);
 });
 
 test('wordCount rises when an extra heading is added', () => {

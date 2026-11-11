@@ -117,7 +117,7 @@
   "/finance/statements@1440@exec@acme.test": 13,
   "/finance@390@finance@acme.test": 97,
   "/finance@1440@finance@acme.test": 100,
-  "/finance/receivables@390@finance@acme.test": 81,
+  "/finance/receivables@390@finance@acme.test": 48,
   "/finance/receivables@1440@finance@acme.test": 60,
   "/finance/payables@390@finance@acme.test": 39,
   "/finance/payables@1440@finance@acme.test": 47,
@@ -245,6 +245,9 @@
   "/companies@1440@finance@acme.test": 13,
   "/my-tasks@390@finance@acme.test": 21,
   "/my-tasks@1440@finance@acme.test": 21,
+  "notes": {
+    "/projects/41000000-0000-0000-0000-000000000002": "The old @1440 exec budget of 4 words came from a blank render, not a real baseline; the screen renders 116 words once loaded. Every budget here is measured chrome-only (record rows excluded)."
+  },
   "charts": {
     "/@390@exec@acme.test": 1,
     "/@1440@exec@acme.test": 1,
