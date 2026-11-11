@@ -204,6 +204,7 @@
         "category": "Kategori",
         "stage": "Tahap",
         "nextStep": "Langkah berikutnya",
+        "status": "Status",
         "accessibleName": "Pengadaan proyek"
       },
       "noSupplier": "Tidak ada pemasok",
@@ -247,12 +248,11 @@
         "approveManyDescription": "Persetujuan mengizinkan setiap pesanan berjalan.",
         "cancelManyTitle": "Batalkan pengadaan ini?",
         "cancelTitle": "Batalkan pengadaan ini?",
-        "returnManyTitle": "Kembalikan pengadaan ini?",
-        "returnTitle": "Kembalikan pengadaan ini?",
         "cancelDescription": "Pengadaan ini akan ditandai sebagai dibatalkan.",
-        "returnDescription": "Pengadaan ini akan dikembalikan kepada pengajunya.",
-        "returnComment": "Komentar pengembalian",
-        "returnCommentHelp": "Jelaskan apa yang perlu diubah pengaju."
+        "returnSubject": "pengadaan",
+        "returnSubjectMany_one": "{{count}} pengadaan",
+        "returnSubjectMany_other": "{{count}} pengadaan",
+        "returnSubjectMany": "{{count}} pengadaan"
       },
       "stage": {
         "cancelled": "Dibatalkan",
@@ -356,6 +356,8 @@
     "uncommitted": "Anggaran belum terikat",
     "actualsNotCounted": "Belanja aktual tidak dihitung",
     "headroom": "Sisa ruang {{pct}}%",
+    "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini.",
+    "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini.",
     "heading": "Dampak anggaran",
     "openProject": "Buka proyek"
   },
