@@ -6,6 +6,8 @@ begin;
 select plan(4);
 create extension if not exists dblink;
 select dblink_connect('cap_lock', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(), 5432)));
+-- session-level: every second-session statement errors instead of waiting forever if the lock is ever removed
+select dblink_exec('cap_lock', $$set lock_timeout = '5s'$$);
 select dblink_exec('cap_lock', $sql$
   delete from purchase_requests where procurement_id='20390000-0000-0000-0000-000000000003';
   delete from procurement_doc_counters where org_id='20390000-0000-0000-0000-000000000001';
@@ -35,7 +37,7 @@ reset role;
 
 select dblink_exec('cap_lock', 'commit');
 -- once released, a capture (run in the second session so this transaction never holds the row the cleanup deletes)
-select dblink_exec('cap_lock', $$ begin; set local request.jwt.claims = '{"sub":"20390000-0000-0000-0000-000000000002","role":"authenticated"}'; set local role authenticated; set local lock_timeout = '3s' $$);
+select dblink_exec('cap_lock', $$ begin; set local request.jwt.claims = '{"sub":"20390000-0000-0000-0000-000000000002","role":"authenticated"}'; set local role authenticated $$);
 select lives_ok($$ select * from dblink('cap_lock', $q$select (create_purchase_request('20390000-0000-0000-0000-000000000003','REF-LOCK','Draft',current_date,100)).id::text$q$) as t(id text) $$, '#2039 once released, the capture succeeds');
 select dblink_exec('cap_lock', 'commit');
 select is((select count(*) from purchase_requests where procurement_id='20390000-0000-0000-0000-000000000003'), 1::bigint, '#2039 exactly one request captured');

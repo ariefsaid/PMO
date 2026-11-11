@@ -32,6 +32,8 @@ import { login } from '../helpers';
 import { SAR_CURRENCY } from './_sarHelpers';
 import { runFullSweep } from './_sweepHelpers';
 import { assertLocalBenchUrl } from './_benchGuard';
+import { KIND_DOMAIN, sweepKindsForOrg } from '../../src/lib/adapterSeam/erpnext/feedKinds';
+import { primeProcurementSweepBaseline } from './_sweepBaseline';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -110,12 +112,26 @@ interface Seed {
   companyId: string;
   procurementId: string;
   piRecordId: string;
+  /** The org's main currency before the journey; restored in cleanup. */
+  priorCurrency?: string;
 }
 /** Seeds the seed org exactly like AC-ENA-053 (company + Supplier mapping + binding + flip) plus the
  *  SoD shape the #910 gate reads: the case sits at `Vendor Invoiced` approved by the ADMIN profile. */
 async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
+  // The served adapter writes to this destination; refuse a remote site before changing org state.
+  assertLocalBenchUrl(SITE_URL);
   const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   const approverId = await profileId(admin, ADMIN_EMAIL);
+  // #939 currency rule stays: a bill is payable from PMO only in the org's main currency. The seed
+  // org is USD, the bench company bills in IDR, so the setup aligns the org to the bench for this run.
+  const { data: org, error: orgReadErr } = await admin.from('organizations').select('default_currency').eq('id', ORG_ID).single();
+  if (orgReadErr || !org) throw new Error(`seed org currency read failed: ${orgReadErr?.message}`);
+  s.priorCurrency = (org as { default_currency: string }).default_currency;
+  // Already aligned → no write (and cleanup then skips the same-value restore).
+  if (s.priorCurrency !== SAR_CURRENCY) {
+    const { error: orgCurErr } = await admin.from('organizations').update({ default_currency: SAR_CURRENCY }).eq('id', ORG_ID);
+    if (orgCurErr) throw new Error(`seed org currency failed: ${orgCurErr.message}`);
+  }
   const { error: companyErr } = await admin.from('companies').insert({ id: s.companyId, org_id: ORG_ID, name: `Spike Supplier ${suffix}`, type: 'Vendor' });
   if (companyErr) throw new Error(`seed companies failed: ${companyErr.message}`);
   const { error: refErr } = await admin.from('external_refs').insert({
@@ -148,6 +164,7 @@ async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
 }
 
 async function cleanup(admin: SupabaseClient, s: Seed): Promise<void> {
+  if (s.priorCurrency && s.priorCurrency !== SAR_CURRENCY) await admin.from('organizations').update({ default_currency: s.priorCurrency }).eq('id', ORG_ID);
   await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'procurement');
   await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
   await admin.from('payments').delete().eq('procurement_id', s.procurementId);
@@ -156,6 +173,42 @@ async function cleanup(admin: SupabaseClient, s: Seed): Promise<void> {
   await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'procurement').eq('pmo_record_id', s.piRecordId);
   await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'companies').eq('pmo_record_id', s.companyId);
   await admin.from('companies').delete().eq('id', s.companyId);
+}
+
+async function primeExistingProcurementSweepCursor(admin: SupabaseClient): Promise<void> {
+  const kinds = sweepKindsForOrg(['procurement']).map(({ kind, doctype }) => ({
+    doctype,
+    domain: `${KIND_DOMAIN[kind]}::${doctype}`,
+  }));
+  await primeProcurementSweepBaseline({
+    orgId: ORG_ID,
+    company: COMPANY,
+    kinds,
+    readLatest: async (doctype, company) => {
+      const query = new URLSearchParams({
+        filters: JSON.stringify([['company', '=', company]]),
+        fields: JSON.stringify(['name', 'modified']),
+        order_by: 'modified desc,name desc',
+        limit_page_length: '1',
+      });
+      const response = await erp('GET', `${resource(doctype)}?${query.toString()}`);
+      if (response.status !== 200) throw new Error(`${doctype} sweep baseline read failed (${response.status})`);
+      const rows = response.data as Array<{ modified?: unknown; name?: unknown }>;
+      if (!Array.isArray(rows)) throw new Error(`${doctype} sweep baseline response was malformed`);
+      const [latest] = rows;
+      if (!latest) return null;
+      if (typeof latest.modified !== 'string' || typeof latest.name !== 'string') {
+        throw new Error(`${doctype} sweep baseline row was missing its keyset fields`);
+      }
+      return { modified: latest.modified, name: latest.name };
+    },
+    writeRows: async (rows) => {
+      const { error } = await admin.from('external_sync_watermarks').upsert([...rows], {
+        onConflict: 'org_id,external_tier,domain',
+      });
+      if (error) throw new Error(`procurement sweep baseline write failed: ${error.message}`);
+    },
+  });
 }
 
 test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lands in ERPNext, the mirror names the payer, the sweep closes the bill', async ({ page }) => {
@@ -174,6 +227,9 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
 
   try {
     await seed(admin, s);
+    // The shared local bench has older company records. Snapshot them so this journey proves the
+    // incremental sweep of the PI and PE it creates, without replaying unrelated history.
+    await primeExistingProcurementSweepCursor(admin);
 
     // ── The ERP-owned bill: recorded by dispatch (the AC-VWH-005 shape) — net 1,000,000, PPN 11%,
     //    PPh 23 2% → ERPNext outstanding 1,090,000. The APPROVER records it; the SoD question is

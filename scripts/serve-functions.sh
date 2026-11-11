@@ -107,4 +107,15 @@ export SUPABASE_FUNCTIONS_URL=http://localhost:54321
 if [ "${1:-}" = "--" ]; then
   shift
 fi
-"$@"
+# A failing run prints the runtime's own log: without it a 502/503 from the served lane has no
+# stated cause (the caller sees only the status code).
+rc=0
+"$@" || rc=$?
+if [ "$rc" != 0 ]; then
+  echo "--- served-function runtime log (last 200 lines) ---"
+  tail -n 200 /tmp/functions-serve.log || true
+  echo "--- runtime container state, then the gateway's last lines ---"
+  docker ps -a --filter name=supabase_edge_runtime --format '{{.Names}} {{.Status}}' || true
+  docker logs --tail 40 supabase_kong_pmo-portal 2>&1 || true
+fi
+exit "$rc"
