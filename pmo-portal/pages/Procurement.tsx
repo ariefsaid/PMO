@@ -483,6 +483,13 @@ const ProcurementPage: React.FC = () => {
     >
       <div className="space-y-4">
         <FigureHiddenLine />
+        {(isEngineer || isProjectManager) && (
+          <p className="text-sm text-muted-foreground">
+            {isEngineer
+              ? t('description.engineer', 'Track the procurements you raised, from request through payment.')
+              : t('description.projectManager', 'Procurements for projects you manage, from request through payment.')}
+          </p>
+        )}
         <Tabs
           items={tabs.map(({ key, label, count, money }) => ({ value: key, label, count, detail: money || undefined }))}
           value={tab}
