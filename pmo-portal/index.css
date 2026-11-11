@@ -712,6 +712,32 @@
    element's own visual size. Inert on fine pointers (mouse), so the dense
    desktop layout is unchanged. Hook: add the `.touch-target` class. */
 .touch-target { touch-action: manipulation; }
+/* The phone audit measures the actual element box at 390px (including mouse-driven
+   captures), so compact controls need a physical minimum there as well as the
+   larger coarse-pointer hit area below. Desktop density stays unchanged. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea,
+  [role="combobox"] {
+    font-size: 16px !important;
+  }
+
+  main button:not([role="switch"]),
+  main select,
+  main [role="button"],
+  main [role="tab"],
+  main .touch-target,
+  [role="dialog"] button:not([role="switch"]),
+  [role="dialog"] select,
+  [role="dialog"] [role="button"],
+  [role="dialog"] [role="tab"],
+  [role="dialog"] .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @media (pointer: coarse) {
   .touch-target { position: relative; }
   .touch-target::before {

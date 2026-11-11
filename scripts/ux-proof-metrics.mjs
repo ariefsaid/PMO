@@ -3,6 +3,11 @@ export const CHART_SELECTOR = 'main svg.recharts-surface, main svg[role="img"]';
 export function measureText(chartSelector) {
   const main = document.querySelector('main');
   if (!main) throw new Error('No main element to measure');
+  const isVisible = (element) => {
+    const style = getComputedStyle(element);
+    return style.display !== 'none' && style.visibility === 'visible' && Number(style.opacity) !== 0 &&
+      style.contentVisibility !== 'hidden' && element.getClientRects().length > 0;
+  };
   // `wordCount` counts CHROME only: a screen's own words (headings, labels, captions, help), never
   // record data. Sample data grows as people work (rows, claims, review records), so counting it made
   // unchanged screens drift over budget. Font-size metrics still cover every painted word, data
@@ -59,6 +64,14 @@ export function measureText(chartSelector) {
   }
   const distinctFontSizes = Object.keys(sizes).map(Number).sort((a, b) => a - b);
   if (!total) throw new Error('No visible text in main');
+  const contentRoots = [main, ...document.querySelectorAll('[role="dialog"]')];
+  const inContent = (selector) => [...new Set(contentRoots.flatMap((root) => [...root.querySelectorAll(selector)]))].filter(isVisible);
+  const formInputs = inContent('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, textarea, [role="combobox"]');
+  const phoneWidth = window.innerWidth <= 640;
+  const smallInputCount = phoneWidth ? formInputs.filter((element) => parseFloat(getComputedStyle(element).fontSize) < 16).length : 0;
+  const actionTargets = inContent('button, a.touch-target[href], a[role="button"], [role="button"], [role="tab"], [role="switch"], summary.touch-target');
+  const smallTargetCount = phoneWidth ? actionTargets.filter((element) => element.getBoundingClientRect().height < 44).length : 0;
+  const horizontalOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
   const chartCount = [...main.querySelectorAll(chartSelector)]
     .filter((svg) => {
       const rect = svg.getBoundingClientRect();
@@ -69,14 +82,19 @@ export function measureText(chartSelector) {
       }
       return true;
     }).length;
-  return { minFontPx: distinctFontSizes[0], pctCharsUnder14: small * 100 / total, distinctFontSizes, wordCount: words, chartCount, smallTextSamples: samples };
+  return { minFontPx: distinctFontSizes[0], pctCharsUnder14: small * 100 / total, distinctFontSizes, wordCount: words, chartCount, smallTextSamples: samples, smallInputCount, smallTargetCount, horizontalOverflow };
 }
 
-export function violations(metrics, baseline, label, chartBaseline) {
+export function violations(metrics, baseline, label, chartBaseline, targetBaseline) {
   const failures = [];
   const samples = JSON.stringify(metrics.smallTextSamples);
   if (metrics.minFontPx < 12) failures.push(`${label}: minFontPx=${metrics.minFontPx} (<12); samples=${samples}`);
   if (metrics.pctCharsUnder14 > 15) failures.push(`${label}: pctCharsUnder14=${metrics.pctCharsUnder14.toFixed(2)} (>15); samples=${samples}`);
+  if (metrics.smallInputCount > 0) failures.push(`${label}: smallInputCount=${metrics.smallInputCount} (input font size <16px)`);
+  if (metrics.horizontalOverflow) failures.push(`${label}: horizontalOverflow=document wider than viewport`);
+  if (targetBaseline !== undefined && metrics.smallTargetCount > targetBaseline) {
+    failures.push(`${label}: smallTargetCount=${metrics.smallTargetCount} (> shrink-only baseline ${targetBaseline})`);
+  }
   if (baseline !== undefined && metrics.wordCount > baseline * 1.05) failures.push(`${label}: wordCount=${metrics.wordCount} (>105% of ${baseline}); samples=${samples}`);
   if (chartBaseline !== undefined && metrics.chartCount < chartBaseline) {
     failures.push(`${label}: chartCount=${metrics.chartCount} (< baseline ${chartBaseline}); selector="${CHART_SELECTOR}"`);

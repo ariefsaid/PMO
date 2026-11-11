@@ -167,7 +167,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             </LineChart>
           </ResponsiveContainer>
 
-          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-control text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span
                 data-testid="legend-dot"
@@ -191,7 +191,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
 
           {/* FR-SCA-014 backfill caveat — shown only when a proxy date (completed_at absent) was used. */}
           {model.usesProxyDates && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-control text-muted-foreground">
               {t(
                 'projectDetail.scurve.backfillCaveat',
                 'Completion dates before today are estimated; live tracking starts now.',

@@ -217,8 +217,8 @@ const Incidents: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          /* AC-2: scrollable so all status segments are reachable at 390px. */
-          <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+          /* At phone width, wrap the full set into rows so every status stays visible without a sideways gesture. */
+          <div data-testid="status-filter-scroll" className="min-w-0 max-w-full">
             <ViewToggle<StatusFilter>
               options={STATUS_FILTERS.map((f) => ({ value: f, label: f === 'All' ? 'All' : statusLabel('incident', f, tStatus) }))}
               value={filter}
@@ -228,6 +228,7 @@ const Incidents: React.FC = () => {
                 trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
               }}
               ariaLabel="Filter by status"
+              className="w-full flex-wrap"
             />
           </div>
         )

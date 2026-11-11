@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, SelectField, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -194,6 +194,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
 const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
+  const sectionsLabel = t('projectDetail.tabs.ariaLabel', 'Project sections');
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
   const [loadedCounts, setLoadedCounts] = useState<{ projectId: string; values: ProjectTabCounts }>(() => ({ projectId: project.id, values: {} }));
   const updateCount = useCallback((key: CountedArea, count: number | null) => {
@@ -235,7 +236,19 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   return (
     <>
       {header}
+      <div data-testid="mobile-project-area-select" className="mb-4 md:hidden">
+        <SelectField
+          label={sectionsLabel}
+          hideLabel
+          value={panel}
+          onChange={(next) => setArea(next as Area)}
+          options={areas.map((a) => ({ value: a, label: labels[a] }))}
+          className="touch-target w-full"
+        />
+      </div>
       <div
+        data-testid="project-section-tabs"
+        className="hidden md:block"
         onPointerOver={preloadTabChunk}
         onPointerDown={preloadTabChunk}
         onFocusCapture={preloadTabChunk}

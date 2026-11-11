@@ -170,12 +170,13 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
     expect(within(listTabs).getAllByRole('tab').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('Incidents: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
+  it('Incidents: status filters wrap so the full set stays visible without horizontal scrolling', () => {
     renderIncidents();
     const statusFilter = screen.getByRole('tablist', { name: /filter by status/i });
     const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
     expect(scrollWrapper).toBeInTheDocument();
-    expect(scrollWrapper!.className).toContain('overflow-x-auto');
+    expect(scrollWrapper!.className).not.toContain('overflow-x-auto');
+    expect(statusFilter.className).toContain('flex-wrap');
   });
 });
 

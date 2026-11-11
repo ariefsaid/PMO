@@ -267,10 +267,6 @@ const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' 
   const sharedExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(projects);
   return (
     <>
-      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mb-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
-        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
-        <span>{t('sales:chanceHeader', 'Chance')}</span>
-      </div>
       <ul
         data-testid="sales-phone-stage-list"
         aria-label={t('uxs24.phoneList', 'Projects in selected pipeline stage')}
@@ -287,6 +283,10 @@ const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' 
           </li>
         ))}
       </ul>
+      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mt-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
+        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
+        <span>{t('sales:chanceHeader', 'Chance')}</span>
+      </div>
     </>
   );
 };

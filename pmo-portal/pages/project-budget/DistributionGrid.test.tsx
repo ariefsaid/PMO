@@ -53,6 +53,23 @@ afterEach(async () => {
 });
 
 describe('DistributionGrid (#1472 B1)', () => {
+  it('keeps category totals and editable year allocations in stacked phone rows', async () => {
+    setActiveLocale(EN);
+    renderGrid();
+
+    const phoneRows = await screen.findByTestId('budget-distribution-phone-rows');
+    const row = within(phoneRows).getByRole('listitem');
+    expect(row).toHaveTextContent('Labor');
+    expect(row).toHaveTextContent('$100.01');
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Distribution method' }), 'percent_by_year');
+    await userEvent.click(within(row).getByRole('checkbox', { name: 'Use custom distribution for Labor' }));
+    await userEvent.click(within(row).getByText('Fiscal-year distribution'));
+    const input = within(row).getByRole('textbox', { name: 'Labor input for 2026' });
+    await userEvent.type(input, '100');
+    expect(input).toHaveValue('100');
+  });
+
   it('previews exact cents and saves only after the operator confirms the reviewed snapshot', async () => {
     setActiveLocale(EN);
     const { onSave } = renderGrid();

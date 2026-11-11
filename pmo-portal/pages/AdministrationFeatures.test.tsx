@@ -114,16 +114,30 @@ beforeEach(() => {
 });
 
 describe('AC-PLN-012 — Operator console', () => {
+  it('keeps resolved states and per-organisation switches available in stacked phone rows', async () => {
+    renderConsole();
+
+    const phoneRows = await screen.findByTestId('feature-phone-rows');
+    const incidents = within(phoneRows).getByTestId('feature-phone-row-incidents');
+    expect(incidents).toHaveTextContent('Incidents');
+    expect(within(incidents).getByTestId('effective-incidents')).toHaveTextContent('On');
+    expect(within(incidents).getByTestId('source-incidents')).toHaveTextContent('Override');
+
+    fireEvent.click(within(incidents).getByRole('switch', { name: /override for this organisation/i }));
+    await waitFor(() => expect(api.toggle).toHaveBeenCalledWith({ orgId: 'org-1', key: 'incidents', enabled: false }));
+  });
+
   it('AC-PLN-012: each key shows its effective state AND its source', async () => {
     renderConsole();
-    await screen.findByTestId('feature-row-incidents');
-    expect(screen.getByTestId('effective-incidents')).toHaveTextContent('On');
-    expect(screen.getByTestId('source-incidents')).toHaveTextContent('Override');
+    const incidents = await screen.findByTestId('feature-row-incidents');
+    expect(within(incidents).getByTestId('effective-incidents')).toHaveTextContent('On');
+    expect(within(incidents).getByTestId('source-incidents')).toHaveTextContent('Override');
 
-    expect(screen.getByTestId('effective-stock')).toHaveTextContent('Off');
-    expect(screen.getByTestId('source-stock')).toHaveTextContent('All organisations');
+    const stock = screen.getByTestId('feature-row-stock');
+    expect(within(stock).getByTestId('effective-stock')).toHaveTextContent('Off');
+    expect(within(stock).getByTestId('source-stock')).toHaveTextContent('All organisations');
 
-    expect(screen.getByTestId('source-crm')).toHaveTextContent('Plan');
+    expect(within(screen.getByTestId('feature-row-crm')).getByTestId('source-crm')).toHaveTextContent('Plan');
   });
 
   it('AC-PLN-012: the override toggle calls the override RPC with the flipped state', async () => {
