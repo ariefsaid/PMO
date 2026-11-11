@@ -1,8 +1,11 @@
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 
 const keys = vi.hoisted(() => ({
   procurements: vi.fn(() => ['owner-factory', 'procurements'] as const),
@@ -46,6 +49,8 @@ function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
+const CurrentPath = () => <span data-testid="current-path">{useLocation().pathname}</span>;
+
 function seedReady(client: QueryClient, ownership: { domain: string; externalTier: string | null }[] = []) {
   client.setQueryData(ownershipKey, ownership);
   client.setQueryData(queueKeys[0], [
@@ -63,11 +68,17 @@ function seedReady(client: QueryClient, ownership: { domain: string; externalTie
 
 function renderCount(client: QueryClient, role: AuthContextValue['role'] = 'Admin') {
   return render(
-    <QueryClientProvider client={client}>
-      <AuthContext.Provider value={authValue(role)}>
-        <ApprovalsNavCount />
-      </AuthContext.Provider>
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={['/']}>
+      <QueryClientProvider client={client}>
+        <AuthContext.Provider value={authValue(role)}>
+          <ImpersonationProvider realRole={role} demoEligibility="eligible">
+            <Link to="/finance">Finance</Link>
+            <CurrentPath />
+            <ApprovalsNavCount />
+          </ImpersonationProvider>
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -234,5 +245,22 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(await screen.findByText('5')).toBeInTheDocument();
     expect(screen.queryByText('4')).not.toBeInTheDocument();
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
+  });
+
+  it('H5: keeps the last complete count visible across navigation while approval queues refetch', async () => {
+    const client = makeClient();
+    seedReady(client); // 4 complete approvals
+    renderCount(client);
+
+    await userEvent.click(screen.getByRole('link', { name: 'Finance' }));
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/finance');
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: queueKeys[2], exact: true });
+    });
+
+    expect(screen.getByText('4')).toBeInTheDocument();
+    act(() => client.setQueryData(queueKeys[2], [{ id: 't1' }, { id: 't2' }]));
+    expect(await screen.findByText('5')).toBeInTheDocument();
+    expect(screen.queryByText('4')).not.toBeInTheDocument();
   });
 });

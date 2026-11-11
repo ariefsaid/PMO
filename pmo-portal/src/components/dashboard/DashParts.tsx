@@ -144,7 +144,7 @@ export interface ProjectRow {
   name: string;
   /** What needs the person, in a few words ("9 overdue tasks · 1 purchase to approve"). */
   reason: string | null;
-  /** Company dashboard counts use shared columns to avoid repeating each category label per project. */
+  /** Company dashboard counts are structured for desktop columns and labelled per project on phones. */
   needs?: {
     tasksOverdue: number;
     phasesLate: number;
@@ -220,23 +220,36 @@ export const ProjectRows: React.FC<{
                     {showBudget && <span className="text-right">{t('home.colBudget', 'Budget used')}</span>}
                     <span className="text-right">{t('home.colStatus', 'Status')}</span>
                   </div>
-                  {showStructuredNeeds && (
-                    <div aria-hidden="true" className="sticky top-0 z-10 grid grid-cols-2 gap-x-3 gap-y-1 border-b border-border/70 bg-card px-2 py-2 text-control font-semibold text-muted-foreground min-[900px]:hidden">
-                      {needColumns.map((column) => <span key={column.key} className="min-w-0">{column.label}</span>)}
-                      {showDelivery && <span>{t('home.colDelivery', 'Delivery')}</span>}
-                      {showBudget && <span>{t('home.colBudget', 'Budget used')}</span>}
-                    </div>
-                  )}
                   <ul className="divide-y divide-border">
                     {sorted.map((row, index) => {
                       const quiet = !row.offTrack && !row.reason;
                       const emphasized = row.offTrack && index === firstExceptionIndex;
                       const rowStatus = statusLabel('project', row.status, ts);
+                      const mobileFacts = row.needs ? [
+                        ...needColumns.flatMap((column) => {
+                          const count = row.needs?.[column.key] ?? 0;
+                          if (count <= 0) return [];
+                          const label = column.key === 'tasksOverdue'
+                            ? t('home.mobileTasksOverdue', { count, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' })
+                            : column.key === 'phasesLate'
+                              ? t('home.mobilePhasesLate', { count, defaultValue_one: '{{count}} phase late', defaultValue_other: '{{count}} phases late' })
+                              : column.key === 'invoicesOverdue'
+                                ? t('home.mobileInvoicesOverdue', { count, defaultValue_one: '{{count}} invoice overdue', defaultValue_other: '{{count}} invoices overdue' })
+                                : t('home.mobileAwaitingApproval', { count, defaultValue_one: '{{count}} awaiting approval', defaultValue_other: '{{count}} awaiting approval' });
+                          return [{ key: column.key, label, urgent: column.key !== 'awaitingApproval' }];
+                        }),
+                        showDelivery && row.delivery !== null && row.delivery > 0
+                          ? { key: 'delivery', label: `${pct(row.delivery)} ${t('home.mobileDelivered', 'delivered')}`, urgent: false }
+                          : null,
+                        showBudget && row.budgetUsed !== null && row.budgetUsed > 0
+                          ? { key: 'budget', label: `${pct(row.budgetUsed)} ${t('home.colBudget', 'Budget used').toLowerCase()}`, urgent: false }
+                          : row.needs.overBudget && showBudget
+                            ? { key: 'budget', label: t('home.overBudget', 'Over budget'), urgent: false }
+                            : null,
+                      ].filter((fact): fact is { key: string; label: string; urgent: boolean } => fact !== null) : [];
                       const structuredAriaLabel = row.needs ? [
                         row.name,
-                        ...needColumns.map((column) => `${column.label}: ${row.needs?.[column.key] ?? 0}`),
-                        showDelivery ? `${t('home.colDelivery', 'Delivery')}: ${pct(row.delivery)}` : null,
-                        showBudget ? `${t('home.colBudget', 'Budget used')}: ${pct(row.budgetUsed)}${row.needs.overBudget ? `, ${t('home.overBudget', 'Over budget')}` : ''}` : null,
+                        ...mobileFacts.map((fact) => fact.label),
                         `${t('home.colStatus', 'Status')}: ${rowStatus}`,
                       ].filter(Boolean).join('; ') : undefined;
                       return (
@@ -251,7 +264,8 @@ export const ProjectRows: React.FC<{
                             <span className={cn('min-w-0 text-control', emphasized ? 'font-semibold' : 'font-normal')}>{row.name}</span>
                             <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill className="py-2" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (
-                              <span className="col-span-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-control tabular min-[900px]:contents">
+                              <>
+                              <span className="col-span-2 hidden grid-cols-2 gap-x-3 gap-y-0.5 text-control tabular min-[900px]:contents">
                                 {needColumns.map((column) => {
                                   const exceptionNeed = column.key !== 'awaitingApproval' && (row.needs?.[column.key] ?? 0) > 0;
                                   return (
@@ -262,20 +276,25 @@ export const ProjectRows: React.FC<{
                                         emphasized && exceptionNeed ? 'font-semibold text-destructive-text' : 'font-normal text-foreground',
                                       )}
                                     >
+                                      <span className="min-[900px]:hidden">{column.label}: </span>
                                       {row.needs?.[column.key]}
                                     </span>
                                   );
                                 })}
                               </span>
+                              <span data-testid="project-needs-mobile" className="col-span-2 flex flex-wrap gap-x-3 gap-y-1 text-control tabular min-[900px]:hidden">
+                                {mobileFacts.map((fact) => <span key={fact.key} className={cn(fact.urgent ? 'font-semibold text-destructive-text' : 'text-foreground')}>{fact.label}</span>)}
+                              </span>
+                              </>
                             ) : showReason && <span className={cn('col-span-2 min-w-0 text-control min-[900px]:order-2 min-[900px]:col-span-1', emphasized ? 'font-semibold text-destructive-text' : quiet ? 'text-muted-foreground' : 'text-foreground')}>{row.reason ?? ''}</span>}
                             {(showDelivery || showBudget) && (
-                              <span className="col-span-2 flex gap-4 text-control tabular text-foreground min-[900px]:contents">
+                              <span className={cn('col-span-2 flex gap-4 text-control tabular text-foreground min-[900px]:contents', row.needs && 'hidden min-[900px]:contents')}>
                                 {showDelivery && <span className={cn(showStructuredNeeds ? 'min-[900px]:order-6' : 'min-[900px]:order-3', 'min-[900px]:text-right')}>
-                                  {!showStructuredNeeds && <span className="min-[900px]:hidden">{t('home.colDelivery', 'Delivery')} </span>}
+                                  {!row.needs && <span className="min-[900px]:hidden">{t('home.colDelivery', 'Delivery')} </span>}
                                   {pct(row.delivery)}
                                 </span>}
                                 {showBudget && <span className={cn(showStructuredNeeds ? 'min-[900px]:order-7' : 'min-[900px]:order-4', 'min-[900px]:text-right', emphasized && row.budgetUsed !== null && row.budgetUsed >= 90 && 'font-semibold text-destructive-text')}>
-                                  {!showStructuredNeeds && <span className="min-[900px]:hidden">{t('home.colBudget', 'Budget used')} </span>}
+                                  {!row.needs && <span className="min-[900px]:hidden">{t('home.colBudget', 'Budget used')} </span>}
                                   {pct(row.budgetUsed)}{row.needs?.overBudget && <span className={cn(emphasized ? 'font-semibold text-destructive-text' : 'font-normal text-foreground')}> · {t('home.overBudget', 'Over budget')}</span>}
                                 </span>}
                               </span>
