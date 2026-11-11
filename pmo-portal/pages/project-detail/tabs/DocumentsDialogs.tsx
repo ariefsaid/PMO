@@ -50,6 +50,7 @@ const DocumentsDialogs: React.FC<{
   revisionParent: ProjectDocumentRow | null;
   onCreateRevision: (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => void;
   revisionLoading: boolean;
+  revisionError: { headline: string; detail: string } | null;
   onRevisionClose: () => void;
   unlinkTarget: ProjectDocumentRow | null;
   onUnlinkConfirm: () => void;
@@ -57,14 +58,17 @@ const DocumentsDialogs: React.FC<{
   /** Read lazily inside the unlink dialog's own conditional, exactly as the tab did. */
   unlink: { isPending: boolean };
   pending: DocumentsPendingTransition | null;
+  transitionError: { headline: string; detail: string } | null;
   onTransitionConfirm: () => void;
   onTransitionCancel: () => void;
   transitionLoading: boolean;
   pendingBulkStatus: DocStatus | null;
+  bulkFailure: { succeeded: number; failures: Array<{ id: string; title: string; headline: string; detail: string }> } | null;
   onBulkStatusConfirm: () => void;
   onBulkStatusCancel: () => void;
   bulkSelectedCount: number;
   deleteTarget: ProjectDocumentRow | null;
+  deleteError: { headline: string; detail: string } | null;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
   deleteLoading: boolean;
@@ -82,20 +86,24 @@ const DocumentsDialogs: React.FC<{
   revisionParent,
   onCreateRevision,
   revisionLoading,
+  revisionError,
   onRevisionClose,
   unlinkTarget,
   onUnlinkConfirm,
   onUnlinkClose,
   unlink,
   pending,
+  transitionError,
   onTransitionConfirm,
   onTransitionCancel,
   transitionLoading,
   pendingBulkStatus,
+  bulkFailure,
   onBulkStatusConfirm,
   onBulkStatusCancel,
   bulkSelectedCount,
   deleteTarget,
+  deleteError,
   onDeleteConfirm,
   onDeleteCancel,
   deleteLoading,
@@ -136,6 +144,7 @@ const DocumentsDialogs: React.FC<{
           onSubmit={onCreateRevision}
           onClose={onRevisionClose}
           loading={revisionLoading}
+          error={revisionError}
         />
       )}
 
@@ -163,7 +172,8 @@ const DocumentsDialogs: React.FC<{
             : t('projectDetail.documents.transitionConfirm.titleFallback', 'Update status?')
         }
         description={
-          pending?.to === 'Approved'
+          <div className="space-y-2">
+            <p>{pending?.to === 'Approved'
             ? t(
                 'projectDetail.documents.transitionConfirm.approved',
                 'Approving records you as the reviewer. This is a segregation-of-duties step and is recorded.',
@@ -181,7 +191,9 @@ const DocumentsDialogs: React.FC<{
                 : t(
                     'projectDetail.documents.transitionConfirm.closed',
                     'Closing finalises the document. This is a terminal status.',
-                  )
+                  )}</p>
+            {transitionError && <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{transitionError.headline}. {transitionError.detail}</p>}
+          </div>
         }
         confirmLabel={
           pending?.verb ?? t('projectDetail.documents.transitionConfirm.confirmFallback', 'Update status')
@@ -197,7 +209,8 @@ const DocumentsDialogs: React.FC<{
         title={pendingBulkStatus
           ? t('projectDetail.documents.bulk.confirmTitle', 'Update status for selected documents?')
           : t('projectDetail.documents.transitionConfirm.titleFallback', 'Update status?')}
-        description={pendingBulkStatus === 'Approved'
+        description={<div className="space-y-2">
+          <p>{pendingBulkStatus === 'Approved'
           ? t('projectDetail.documents.bulk.approvalDescription', 'Apply this approval to {{count}} selected documents. Approval is recorded and follows the reviewer separation rule.', { count: bulkSelectedCount })
           : pendingBulkStatus === 'Rejected'
             ? t('projectDetail.documents.bulk.rejectionDescription', 'Rejecting returns selected documents for revision. This change will be recorded.')
@@ -205,7 +218,12 @@ const DocumentsDialogs: React.FC<{
               ? t('projectDetail.documents.bulk.issueDescription', 'Issuing moves selected documents into review so a reviewer can approve or reject them.')
               : pendingBulkStatus === 'Closed'
                 ? t('projectDetail.documents.bulk.closeDescription', 'Closing finalises the selected documents.')
-                : t('projectDetail.documents.bulk.confirmDescription', 'Apply this status change to {{count}} selected documents. The change will be recorded.', { count: bulkSelectedCount })}
+                : t('projectDetail.documents.bulk.confirmDescription', 'Apply this status change to {{count}} selected documents. The change will be recorded.', { count: bulkSelectedCount })}</p>
+          {bulkFailure && <div role="alert" className="space-y-2 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+            {bulkFailure.succeeded > 0 && <p>{t('projectDetail.documents.bulk.partialSuccess', 'Updated {{count}} document(s). Failed documents remain selected for retry.', { count: bulkFailure.succeeded })}</p>}
+            <ul className="list-disc space-y-1 pl-5">{bulkFailure.failures.map((failure) => <li key={failure.id}>{failure.title}: {failure.headline}{failure.detail ? `. ${failure.detail}` : ''}</li>)}</ul>
+          </div>}
+        </div>}
         confirmLabel={t('projectDetail.documents.bulk.confirmAction', 'Confirm status change')}
         loading={transitionLoading}
         onConfirm={onBulkStatusConfirm}
@@ -221,10 +239,13 @@ const DocumentsDialogs: React.FC<{
             ? `${t('projectDetail.documents.action.delete', 'Delete')} ${deleteTarget.title}?`
             : t('projectDetail.documents.deleteConfirm.titleFallback', 'Delete document?')
         }
-        description={t(
-          'projectDetail.documents.deleteConfirm.body',
-          "This permanently removes the document register entry. This can't be undone.",
-        )}
+        description={<div className="space-y-2">
+          <p>{t(
+            'projectDetail.documents.deleteConfirm.body',
+            "This permanently removes the document register entry. This can't be undone.",
+          )}</p>
+          {deleteError && <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{deleteError.headline}. {deleteError.detail}</p>}
+        </div>}
         confirmLabel={t('projectDetail.documents.deleteConfirm.confirm', 'Delete document')}
         loading={deleteLoading}
         onConfirm={onDeleteConfirm}

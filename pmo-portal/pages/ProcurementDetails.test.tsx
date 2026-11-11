@@ -1370,6 +1370,49 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
     );
   });
 
+  it('F2-27 keeps a failed staged receipt confirmation open and reuses its command intent on retry', async () => {
+    detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    mockCreateReceipt
+      .mockRejectedValueOnce(Object.assign(new Error('This receipt cannot be recorded yet.'), { code: 'P0001' }))
+      .mockResolvedValueOnce({ id: 'r-new' });
+    renderPage();
+    await chooseRecordKind('Receipt');
+    await userEvent.type(screen.getByTestId('gr-ref-input'), 'GR-RETRY');
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    let dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /save GR/i }));
+
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('This receipt cannot be recorded yet.');
+    expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
+    const firstIntent = mockCreateReceipt.mock.calls[0][0].intent;
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /save GR/i }));
+    await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(2));
+    expect(mockCreateReceipt.mock.calls[1][0].intent).toEqual(firstIntent);
+    expect(screen.queryByTestId('form-create-gr')).not.toBeInTheDocument();
+  });
+
+  it('F2-05 keeps capture values when the user tries Cancel or route Back', async () => {
+    detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    navigate.mockClear();
+    renderPage();
+    await chooseRecordKind('Receipt');
+    await userEvent.type(screen.getByTestId('gr-ref-input'), 'GR-KEEP');
+    const form = screen.getByTestId('form-create-gr');
+
+    await userEvent.click(within(form).getByRole('button', { name: /^Cancel$/i }));
+    let dialog = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    expect(screen.getByTestId('gr-ref-input')).toHaveValue('GR-KEEP');
+
+    await userEvent.click(screen.getByRole('button', { name: /Back to Procurement/i }));
+    dialog = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    expect(navigate).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    expect(screen.getByTestId('gr-ref-input')).toHaveValue('GR-KEEP');
+  });
+
   it('cancelling GR form hides the form', async () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();

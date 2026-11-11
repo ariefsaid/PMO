@@ -67,6 +67,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { RecordCaptureForm, type CreateRecordInput, type RecordKind } from './procurement/RecordCaptureForm';
 import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
@@ -156,6 +157,8 @@ const ProcurementDetails: React.FC = () => {
   );
 
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [captureDirty, setCaptureDirty] = useState(false);
+  const [pendingCaptureLeave, setPendingCaptureLeave] = useState<(() => void) | null>(null);
   const [notesInput, setNotesInput] = useState('');
   const [showCreateGR, setShowCreateGR] = useState(false);
   const [showCreateVI, setShowCreateVI] = useState(false);
@@ -174,6 +177,9 @@ const ProcurementDetails: React.FC = () => {
   // O3 (AC-W3-O3): "Mark Vendor Invoiced" inline capture — open when the user
   // clicks the action so invoice details are captured BEFORE the transition fires.
   const [showVICapture, setShowVICapture] = useState(false);
+  useEffect(() => {
+    if (captureKind === null && !showCreateGR && !showCreateVI && !showVICapture) setCaptureDirty(false);
+  }, [captureKind, showCreateGR, showCreateVI, showVICapture]);
   const erpOrphanQuery = useErpOrphans(undefined, { enabled: linkDialogOpen });
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
@@ -225,7 +231,16 @@ const ProcurementDetails: React.FC = () => {
   // back to the bare index with clean state for a direct/copied link. The desktop parent
   // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
   const { returnToList } = useListReturn({ list: 'procurement' });
-  const goBack = () => returnToList('procurement');
+  const guardCaptureLeave = useUnsavedChangesGuard({
+    dirty: captureDirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingCaptureLeave(() => leave),
+  });
+  const closeCapture = () => {
+    setCaptureDirty(false);
+    setCaptureKind(null);
+  };
+  const goBack = () => guardCaptureLeave(() => returnToList('procurement'));
 
   // Deep-linkable tab switch (mirrors ProjectDetail) — replace so tab changes don't
   // pile up in history. The shell route is `/procurement/:procurementId/:tab?`.
@@ -818,7 +833,7 @@ const ProcurementDetails: React.FC = () => {
       </div>
 
       {captureKind && <div className="mt-4" data-testid="procurement-record-capture">
-        <CardHead actions={<Button variant="outline" size="sm" onClick={() => setCaptureKind(null)}>{t('procurementRecord:close', 'Close')}</Button>}>{recordKindLabels[captureKind]}</CardHead>
+        <CardHead actions={<Button variant="outline" size="sm" onClick={() => guardCaptureLeave(closeCapture)}>{t('procurementRecord:close', 'Close')}</Button>}>{recordKindLabels[captureKind]}</CardHead>
         <RecordCaptureForm
           kind={captureKind}
           onCreate={createCapturedRecord}
@@ -830,7 +845,8 @@ const ProcurementDetails: React.FC = () => {
           currency={p.currency}
           subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
           onStage={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
-          onClose={() => setCaptureKind(null)}
+          onClose={closeCapture}
+          onDirtyChange={setCaptureDirty}
         />
       </div>}
 
@@ -909,6 +925,24 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
+          mutationError && pendingConfirm?.kind !== 'transition'
+            ? (
+              <div className="space-y-3">
+                <p>{pendingConfirm?.kind === 'createGR'
+                  ? t(
+                      'procurementDetail.confirm.grBody',
+                      'This records a {{status}} goods receipt against procurement case {{request}}.',
+                      { status: pendingConfirm.status.toLowerCase(), request: p.title },
+                    )
+                  : t(
+                      'procurementDetail.confirm.viBody',
+                      'This records a supplier invoice against procurement case {{request}}.',
+                      { request: p.title },
+                    )}</p>
+                <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>
+              </div>
+            )
+            :
           pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'
             ? (
               <div className="space-y-3">
@@ -952,6 +986,21 @@ const ProcurementDetails: React.FC = () => {
         confirmDisabled={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected' && rejectionComment.trim().length === 0}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
+      />
+
+      <ConfirmDialog
+        open={pendingCaptureLeave !== null}
+        title={t('entityForm.discardTitle', 'Discard your changes?')}
+        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('procurementDetail.leave', 'Leave')}
+        cancelLabel={t('procurementDetail.stay', 'Stay')}
+        onConfirm={() => {
+          const leave = pendingCaptureLeave;
+          setPendingCaptureLeave(null);
+          setCaptureDirty(false);
+          leave?.();
+        }}
+        onCancel={() => setPendingCaptureLeave(null)}
       />
 
     </div>

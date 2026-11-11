@@ -797,6 +797,7 @@
       "bulk": {
         "statusUpdated": "Status updated for {{count}} documents",
         "statusFailed": "Some documents could not be updated",
+        "partialSuccess": "Updated {{count}} document(s). Failed documents remain selected for retry.",
         "ariaLabel": "Selected document actions",
         "selected": "{{count}} selected",
         "download": "Download",

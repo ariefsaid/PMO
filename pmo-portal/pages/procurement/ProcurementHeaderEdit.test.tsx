@@ -118,4 +118,29 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
     await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('F2-16 keeps the classified save refusal in the edit panel and preserves the draft for retry', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    const onError = vi.fn();
+    const onClose = vi.fn();
+    renderEdit({ onSave, onError, onClose });
+
+    const title = screen.getByLabelText(/title/i);
+    await user.clear(title);
+    await user.type(title, 'Welding consumables Q3');
+    await user.click(screen.getByRole('button', { name: /save procurement/i }));
+
+    const saveError = await screen.findByText("You don't have permission to do that.");
+    expect(saveError.closest('[role="alert"]')).not.toBeNull();
+    expect(title).toHaveValue('Welding consumables Q3');
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /save procurement/i }));
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

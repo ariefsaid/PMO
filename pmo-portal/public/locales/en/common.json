@@ -1888,6 +1888,8 @@
     }
   },
   "procurementDetail": {
+    "leave": "Leave",
+    "stay": "Stay",
     "accessDenied": {
       "sub": "This procurement case either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
       "title": "You don't have access to this record"
@@ -4291,6 +4293,7 @@
     "discardTitle": "Discard your changes?",
     "discardBody": "This form has unsaved changes. Discarding will lose them.",
     "discard": "Discard",
+    "stay": "Stay",
     "keepEditing": "Keep editing",
     "fixFields_one": "Fix {{count}} field before saving",
     "fixFields_other": "Fix {{count}} fields before saving"
