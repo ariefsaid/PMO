@@ -59,6 +59,7 @@ export { PageHeader, type PageHeaderProps } from './PageHeader';
 export { RecordHeader, type RecordHeaderProps, type PageStat } from './RecordHeader';
 export { ReasonDialog, type ReasonDialogProps, type ReasonKind } from './ReasonDialog';
 export { FigureScope, FigureHiddenLine, FigureHelpList } from './FigureScope';
+export { HelpPopover, type HelpPopoverProps } from './HelpPopover';
 export { useFigureScope, useFigureReport, type HiddenFigure, type FigureHelpEntry } from './useFigureScope';
 export { RecordMenu, type RecordMenuItem, type RecordMenuProps } from './RecordMenu';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
