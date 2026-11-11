@@ -47,7 +47,9 @@ describe('invoice picker query recovery', () => {
     expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Retry$/ })).not.toBeInTheDocument();
     await act(async () => resolve([]));
-    expect(await screen.findByText('No customer matches.')).toBeInTheDocument();
+    // F1b/F3d ruling: an empty picker names the reason and the next step (the bare
+    // "Nothing is available to select yet…" copy), never a silent blank list.
+    expect(await screen.findByText(/Nothing is available to select yet\./)).toBeInTheDocument();
     expect(screen.queryByTestId('combo-loading')).not.toBeInTheDocument();
     view.unmount(); client.clear();
   });
