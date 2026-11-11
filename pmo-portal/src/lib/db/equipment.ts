@@ -15,6 +15,7 @@ import type { Database, Json, Tables } from '@/src/lib/supabase/database.types';
  */
 export type EquipmentAssetRow = Tables<'equipment_assets'>;
 export type EquipmentUsageRow = Tables<'equipment_usage_entries'>;
+export type EquipmentUsageWithRejecter = EquipmentUsageRow & { rejecter: { full_name: string } | null };
 export type EquipmentCostingRow = Database['public']['Functions']['list_equipment_costing']['Returns'][number];
 export type EquipmentAllocationRow = Database['public']['Functions']['list_equipment_allocations']['Returns'][number];
 export type EquipmentUsageTotalRow = Database['public']['Functions']['list_equipment_usage_totals']['Returns'][number];
@@ -102,8 +103,8 @@ export async function deleteAsset(id: string): Promise<void> {
 // ── usage (0447): reads over granted columns, every write an RPC ──────────────────────────────────
 export async function listUsage(
   range: { from: string; to: string; assetId?: string; projectId?: string; status?: UsageStatus },
-): Promise<Bounded<EquipmentUsageRow>> {
-  let query = supabase.from('equipment_usage_entries').select('*')
+): Promise<Bounded<EquipmentUsageWithRejecter>> {
+  let query = supabase.from('equipment_usage_entries').select('*, rejecter:profiles!equipment_usage_entries_rejected_by_fkey(full_name)')
     .gte('work_date', range.from).lte('work_date', range.to).is('archived_at', null);
   if (range.assetId) query = query.eq('asset_id', range.assetId);
   if (range.projectId) query = query.eq('project_id', range.projectId);

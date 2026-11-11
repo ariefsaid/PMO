@@ -331,3 +331,10 @@ describe('AC-DATA28 complete claim detail lines', () => {
     });
   });
 });
+
+it('AC-RSN-004 claim reads include the visible rejecting profile', async () => {
+  h.result.value = { data: [{ id: 'c1', rejection_notes: 'reason', rejected_by: 'u1', rejecter: { full_name: 'Approver' } }], error: null };
+  const result = await listExpenseClaims();
+  expect(result.rows[0]).toMatchObject({ rejection_notes: 'reason', rejected_by: 'u1', rejecter: { full_name: 'Approver' } });
+  expect(h.calls.select[0]).toContain('expense_claims_rejected_by_fkey');
+});

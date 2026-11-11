@@ -15,9 +15,10 @@ export type TimesheetEntryWithProject = TimesheetEntryRow & {
 /** A timesheet header with its entries (each carrying the joined project) resolved in one query. */
 export type TimesheetWithEntries = TimesheetRow & {
   entries: TimesheetEntryWithProject[];
+  rejecter: { full_name: string } | null;
 };
 
-const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code))';
+const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code)), rejecter:profiles!timesheets_rejected_by_fkey(full_name)';
 
 /**
  * List the given user's timesheets + entries for the caller's org. org_id is NEVER sent — RLS

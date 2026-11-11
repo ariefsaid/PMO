@@ -100,7 +100,7 @@ describe('listTimesheets', () => {
     builderResolving({ data: rows, error: null });
     const result = await listTimesheets('00000000-0000-0000-0000-0000000000a2');
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
-    expect(mockSelect).toHaveBeenCalledWith('*, entries:timesheet_entries(*, project:projects(name,short_name,code))');
+    expect(mockSelect).toHaveBeenCalledWith('*, entries:timesheet_entries(*, project:projects(name,short_name,code)), rejecter:profiles!timesheets_rejected_by_fkey(full_name)');
     expect(mockEq).toHaveBeenCalledWith('user_id', '00000000-0000-0000-0000-0000000000a2');
     expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
     expect(result[0].entries[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
@@ -279,4 +279,11 @@ describe('deleteTimesheetEntry', () => {
     expect((err as AppError).code).toBe('42501');
     expect(mockDelete).toHaveBeenCalled();
   });
+});
+
+it('AC-RSN-004 timesheet reads include the visible rejecting profile', async () => {
+  builderResolving({ data: [{ id: 'x', week_start_date: '2026-01-01', entries: [], rejection_reason: 'reason', rejected_by: 'u1', rejecter: { full_name: 'Approver' } }], error: null });
+  const result = await listTimesheets('u1');
+  expect(result[0]).toMatchObject({ rejection_reason: 'reason', rejected_by: 'u1', rejecter: { full_name: 'Approver' } });
+  expect(mockSelect.mock.calls[0][0]).toContain('timesheets_rejected_by_fkey');
 });

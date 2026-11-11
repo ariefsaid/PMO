@@ -66,8 +66,9 @@ export async function listPlanLines(planId: string): Promise<ImprestPlanLineRow[
   fail(error);
   return data ?? [];
 }
-export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentRow>> {
-  const { data, error } = await supabase.from('imprest_replenishments').select('*').eq('float_id', floatId)
+export type ImprestReplenishmentWithRejecter = ImprestReplenishmentRow & { rejecter: { full_name: string } | null };
+export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentWithRejecter>> {
+  const { data, error } = await supabase.from('imprest_replenishments').select('*, rejecter:profiles!imprest_replenishments_rejected_by_fkey(full_name)').eq('float_id', floatId)
     .order('requested_at', { ascending: false }).limit(LIST_LIMIT + 1);
   fail(error);
   return bounded(data);
