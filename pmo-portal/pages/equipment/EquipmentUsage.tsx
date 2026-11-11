@@ -24,7 +24,6 @@ type Kind = 'work' | 'standby';
 /** One grid line: an (asset, project, kind) pair, or a fuel/trips line opened under it. */
 interface GridRow { key: string; assetId: string; projectId: string; kind: Kind; field: Field }
 type Tab = 'log' | 'approvals';
-type Status = 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
 type Pending = { id: string; label: string } | null;
 
 const cellKey = (assetId: string, projectId: string, kind: string, date: string) => `${assetId}|${projectId}|${kind}|${date}`;
@@ -192,7 +191,7 @@ const EquipmentUsagePage: React.FC = () => {
         if (r.field !== 'quantity') return null;
         const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key).map((e) => e.status))];
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
-        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s}>{s === 'Rejected' ? statusLabel(t, 'Rejected') : undefined}</StatusPill>)}</span>;
+        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s} />)}</span>;
       } },
     { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
@@ -348,14 +347,5 @@ const EquipmentUsagePage: React.FC = () => {
     </ListPage>
   );
 };
-
-function statusLabel(t: (k: string, d: string) => string, s: Status): string {
-  switch (s) {
-    case 'Draft': return t('equipment:status.draft', 'Draft');
-    case 'Submitted': return t('equipment:status.submitted', 'Submitted');
-    case 'Approved': return t('equipment:status.approved', 'Approved');
-    case 'Rejected': return t('equipment:status.rejected', 'Returned');
-  }
-}
 
 export default EquipmentUsagePage;
