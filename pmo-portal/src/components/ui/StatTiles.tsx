@@ -140,6 +140,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             <div
               className={cn(
                 'min-w-0 break-words text-metric font-semibold tabular',
+                !t.tone && 'text-foreground',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text
                 // uses --success-text (the AA on-canvas variant), same move as destructive-text.

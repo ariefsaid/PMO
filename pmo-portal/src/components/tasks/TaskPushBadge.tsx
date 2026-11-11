@@ -29,7 +29,8 @@ export interface TaskPushBadgeProps {
 }
 
 export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
-  const { t } = useTranslation(['common', 'procurement']);
+  // `tasks` carries this badge's labels (both languages) — no hard-coded strings.
+  const { t } = useTranslation(['common', 'procurement', 'tasks']);
   if (state.status === 'idle') return null;
 
   // FR-ECA-030: the purchase predates the ERP connection and finishes in PMO. Information, not a failure: neutral, no alert icon.
@@ -59,12 +60,12 @@ export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
     return (
       <span
         role="status"
-        aria-label="pushing to external system"
-        title="Syncing to the external system"
+        aria-label={t('tasks:push.pushingAria', 'pushing to external system')}
+        title={t('tasks:push.pushingTitle', 'Syncing to the external system')}
         className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-sm font-semibold text-muted-foreground"
       >
         <Icon name="refresh" className="size-3 animate-spin" />
-        Pushing…
+        {t('tasks:push.pushing', 'Pushing…')}
       </span>
     );
   }
@@ -73,33 +74,35 @@ export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
     return (
       <span
         role="status"
-        aria-label="pushed to external system"
-        title="Synced to the external system"
+        aria-label={t('tasks:push.pushedAria', 'pushed to external system')}
+        title={t('tasks:push.pushedTitle', 'Synced to the external system')}
         style={{ color: 'hsl(var(--status-won-text))' }}
         className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-sm font-semibold"
       >
         <Icon name="check" className="size-3" />
-        Pushed
+        {t('tasks:push.pushed', 'Pushed')}
       </span>
     );
   }
 
   // push-failed — carries the classified external-error headline (AC-CUA-062).
-  const headline = state.error?.headline ?? 'Push failed';
+  const headline = state.error?.headline ?? t('tasks:push.pushFailed', 'Push failed');
   // Review fix #8: avoid the duplicated 'push failed: Push failed' when the headline is the generic
   // default — the visible 'Push failed' label already conveys the state; the aria carries the reason
   // only when there IS a specific one.
-  const ariaLabel = headline === 'Push failed' ? 'push failed' : `push failed: ${headline}`;
+  const ariaLabel = headline === t('tasks:push.pushFailed', 'Push failed')
+    ? t('tasks:push.pushFailedAria', 'push failed')
+    : t('tasks:push.pushFailedAriaWithReason', 'push failed: {{reason}}', { reason: headline });
   return (
     <span
       role="status"
       aria-label={ariaLabel}
-      title={state.error?.detail ?? 'The push to the external system failed'}
+      title={state.error?.detail ?? t('tasks:push.pushFailedTitle', 'The push to the external system failed')}
       style={{ color: 'hsl(var(--status-lost-text))' }}
       className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-sm font-semibold"
     >
       <Icon name="alert" className="size-3" />
-      Push failed
+      {t('tasks:push.pushFailed', 'Push failed')}
     </span>
   );
 };

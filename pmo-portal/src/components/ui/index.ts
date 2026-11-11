@@ -14,6 +14,8 @@ export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, CardFoot, type CardProps, type CardHeadingLevel } from './Card';
 export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta } from './KPITile';
+export { LateText, type LateTextProps } from './LateText';
+export { isMostUrgentLateRow } from './lateTextRows';
 export {
   DataTable,
   MenuButton,
