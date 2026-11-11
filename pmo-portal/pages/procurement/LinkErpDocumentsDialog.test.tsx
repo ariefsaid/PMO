@@ -159,4 +159,33 @@ describe('LinkErpDocumentsDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(listState.refetch).toHaveBeenCalledTimes(1);
   });
+
+  describe('F2-11: dismiss must not silently drop the chosen purchase', () => {
+    it('Escape with a purchase chosen asks first; Keep editing keeps the choice, Discard closes', async () => {
+      const onClose = vi.fn();
+      render(<LinkErpDocumentsDialog docs={[doc('PINV-1')]} projectId="p1" onClose={onClose} onLinked={() => {}} />);
+      await choose(/Steel/);
+      expect(screen.getByRole('button', { name: 'Link' })).toBeEnabled();
+      await userEvent.keyboard('{Escape}');
+      // The dialog asks before throwing the choice away.
+      expect(onClose).not.toHaveBeenCalled();
+      expect(await screen.findByRole('alertdialog')).toHaveTextContent(/Discard/i);
+      await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+      expect(onClose).not.toHaveBeenCalled();
+      // The chosen purchase is still chosen: Link stays enabled.
+      expect(screen.getByRole('button', { name: 'Link' })).toBeEnabled();
+      // A second dismiss offers the confirm again, and Discard closes.
+      await userEvent.keyboard('{Escape}');
+      await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('Escape with nothing chosen closes at once — no confirm', async () => {
+      const onClose = vi.fn();
+      render(<LinkErpDocumentsDialog docs={[doc('PINV-1')]} projectId="p1" onClose={onClose} onLinked={() => {}} />);
+      await userEvent.keyboard('{Escape}');
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+  });
 });

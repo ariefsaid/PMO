@@ -32,16 +32,17 @@ export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, labell
     aria-labelledby={labelledBy}
     aria-describedby={describedBy}
     className={cn(
-      'relative inline-flex h-[22px] w-[40px] shrink-0 items-center rounded-full border-2 transition-colors',
+      'touch-target group relative inline-flex h-[22px] w-[40px] shrink-0 items-center justify-center rounded-full border-0 bg-transparent transition-colors max-[640px]:h-11 max-[640px]:w-11',
       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-      'border-muted-foreground bg-background data-[checked]:border-primary data-[checked]:bg-primary',
       'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-60',
       className,
     )}
   >
-    <BaseSwitch.Thumb
-      className="pointer-events-none block size-[14px] translate-x-[2px] rounded-full bg-muted-foreground transition-transform data-[checked]:translate-x-[20px] data-[checked]:bg-primary-foreground"
-    />
+    <span className="pointer-events-none inline-flex h-[22px] w-[40px] items-center rounded-full border-2 border-muted-foreground bg-background group-data-[checked]:border-primary group-data-[checked]:bg-primary">
+      <BaseSwitch.Thumb
+        className="pointer-events-none block size-[14px] translate-x-[2px] rounded-full bg-muted-foreground transition-transform group-data-[checked]:translate-x-[20px] group-data-[checked]:bg-primary-foreground"
+      />
+    </span>
   </BaseSwitch.Root>
 );
 Switch.displayName = 'Switch';

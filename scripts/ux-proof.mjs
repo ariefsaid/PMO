@@ -20,6 +20,7 @@ async function selfTest() {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
+    await page.setViewportSize({ width: 390, height: 844 });
     const cases = [
       { html: '<main><span style="font-size:11px">tiny text</span></main>', baseline: 2, expected: 'minFontPx' },
       { html: '<main><span style="font-size:13px">small text</span><span style="font-size:16px">normal text</span></main>', baseline: 4, expected: 'pctCharsUnder14' },
@@ -34,6 +35,31 @@ async function selfTest() {
     await page.setContent('<main><span>page words</span><span class="sr-only">accessible duplicate</span><svg class="recharts-surface" width="10" height="10"><text>chart labels</text></svg></main>');
     const chartMetrics = await page.evaluate(measureText, CHART_SELECTOR);
     if (chartMetrics.wordCount !== 2 || chartMetrics.chartCount !== 1) throw new Error(`Self-test failed: chart labels should count as a chart, not page copy (${JSON.stringify(chartMetrics)})`);
+    // The phone card branch marks each record; a menu of 2 records and one of 20 must read the
+    // same, and a single record card must not leak into chrome either.
+    const recordCard = (index) => `<li data-record-row=""><span>Record ${index} detail here</span></li>`;
+    const recordList = (count, chrome = '') => `<main style="font-size:16px"><h1>Receivables</h1>${chrome}<ul role="list">${Array.from({ length: count }, (_, index) => recordCard(index + 1)).join('')}</ul></main>`;
+    await page.setContent(recordList(2));
+    const twoCards = await page.evaluate(measureText, CHART_SELECTOR);
+    await page.setContent(recordList(20));
+    const twentyCards = await page.evaluate(measureText, CHART_SELECTOR);
+    await page.setContent(recordList(1));
+    const oneCard = await page.evaluate(measureText, CHART_SELECTOR);
+    await page.setContent(recordList(20, '<h2>Extra heading</h2>'));
+    const moreChrome = await page.evaluate(measureText, CHART_SELECTOR);
+    if (oneCard.wordCount !== twoCards.wordCount || twentyCards.wordCount !== twoCards.wordCount) throw new Error(`Self-test failed: record cards moved the word count (${oneCard.wordCount}/${twoCards.wordCount}/${twentyCards.wordCount})`);
+    if (moreChrome.wordCount !== twoCards.wordCount + 2) throw new Error(`Self-test failed: chrome next to record cards must still count (${twoCards.wordCount} -> ${moreChrome.wordCount})`);
+    await page.setContent('<main><span>visible copy</span><input style="font-size:15px"><button style="height:43px">Action</button></main>');
+    const controlMetrics = await page.evaluate(measureText, CHART_SELECTOR);
+    const controlFailures = violations(controlMetrics, undefined, 'fixture @390', undefined, 0);
+    if (controlMetrics.smallInputCount !== 1 || !controlFailures.some((failure) => failure.includes('smallInputCount=1')) || !controlFailures.some((failure) => failure.includes('smallTargetCount=1'))) {
+      throw new Error(`Self-test failed: phone inputs and action targets should be measured (${JSON.stringify({ controlMetrics, controlFailures })})`);
+    }
+    await page.setContent('<main style="min-width:500px"><span>wide copy</span></main>');
+    const overflowMetrics = await page.evaluate(measureText, CHART_SELECTOR);
+    if (!overflowMetrics.horizontalOverflow || !violations(overflowMetrics, undefined, 'fixture @390').some((failure) => failure.includes('horizontalOverflow'))) {
+      throw new Error(`Self-test failed: document overflow should fail (${JSON.stringify(overflowMetrics)})`);
+    }
     console.log('ux-proof self-test passed');
   } finally { await browser.close(); }
 }
@@ -74,6 +100,7 @@ if (!fs.existsSync(authFile)) throw new Error(`Auth storage state missing: ${aut
 
 const budgetPath = path.join(ROOT, 'docs/ux/word-budget.json');
 const budget = fs.existsSync(budgetPath) ? JSON.parse(fs.readFileSync(budgetPath, 'utf8')) : {};
+budget.targets ||= {};
 const login = path.basename(authFile).replace(/\.json$/, '');
 const measurements = [];
 
@@ -92,7 +119,7 @@ const countDetectorFindings = (value) => {
 };
 
 let failed = false;
-console.log('route | width | charts | min px | chars <14% | font sizes | words');
+console.log('route | width | charts | min px | chars <14% | font sizes | inputs <16 | targets <44 | overflow | words');
 const cdpServer = net.createServer();
 await new Promise((resolve, reject) => cdpServer.listen(0, '127.0.0.1', resolve).once('error', reject));
 const cdpPort = cdpServer.address().port;
@@ -127,11 +154,19 @@ try {
           const metrics = await page.evaluate(measureText, CHART_SELECTOR);
           const key = `${route}@${width}@${login}`;
           measurements.push({ route, width, login, ...metrics });
-          console.log(`${route} | ${width} | ${metrics.chartCount} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.wordCount}`);
-          const errors = violations(metrics, updateBudget ? undefined : budget[key], `${route} @${width}`, budget.charts?.[key]);
+          console.log(`${route} | ${width} | ${metrics.chartCount} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.smallInputCount} | ${metrics.smallTargetCount} | ${metrics.horizontalOverflow} | ${metrics.wordCount}`);
+          const oldTargetBaseline = budget.targets[key];
+          const targetBaseline = updateBudget && oldTargetBaseline === undefined ? metrics.smallTargetCount : oldTargetBaseline;
+          const errors = violations(metrics, budget[key], `${route} @${width}`, budget.charts?.[key], targetBaseline);
+          if (!updateBudget && targetBaseline === undefined) errors.push(`${route} @${width}: missing shrink-only target baseline; run the measured seed after fixes.`);
           for (const error of errors) console.error(error);
           if (errors.length) failed = true;
-          if (updateBudget || budget[key] === undefined) budget[key] = metrics.wordCount;
+          if (updateBudget) {
+            budget[key] = Math.min(budget[key] ?? metrics.wordCount, metrics.wordCount);
+            if (!errors.some((error) => /smallInputCount|horizontalOverflow/.test(error))) {
+              budget.targets[key] = Math.min(oldTargetBaseline ?? metrics.smallTargetCount, metrics.smallTargetCount);
+            }
+          }
         }
 
         const detect = spawnSync(detector, ['detect', '--cdp', `${cdpPort}`, '--target', page.url(), '--json', '--no-advisory'], {
@@ -160,6 +195,8 @@ try {
   await browser.close();
 }
 fs.writeFileSync(path.join(output, 'measurements.json'), `${JSON.stringify(measurements, null, 2)}\n`);
-fs.mkdirSync(path.dirname(budgetPath), { recursive: true });
-fs.writeFileSync(budgetPath, `${JSON.stringify(budget, null, 2)}\n`);
+if (updateBudget) {
+  fs.mkdirSync(path.dirname(budgetPath), { recursive: true });
+  fs.writeFileSync(budgetPath, `${JSON.stringify(budget, null, 2)}\n`);
+}
 process.exitCode = failed ? 1 : 0;

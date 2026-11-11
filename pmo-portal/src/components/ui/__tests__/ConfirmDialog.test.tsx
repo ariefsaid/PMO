@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -68,6 +68,14 @@ describe('AC-CONFIRM-001: render gating', () => {
   it('AC-CONFIRM-001: renders a custom cancelLabel', () => {
     render(<ConfirmDialog {...baseProps} cancelLabel="Keep open" />);
     expect(screen.getByRole('button', { name: 'Keep open' })).toBeInTheDocument();
+  });
+
+  it('renders a shared form error inside the dialog when a write fails', () => {
+    render(<ConfirmDialog {...baseProps} error="You don't have permission to do that." />);
+    const dialog = screen.getByRole('dialog');
+    const error = within(dialog).getByRole('alert');
+    expect(error).toHaveTextContent("You don't have permission to do that.");
+    expect(error.querySelector('svg')).toBeTruthy();
   });
 
   it('AC-CONFIRM-001: renders nothing when !open', () => {

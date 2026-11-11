@@ -964,13 +964,10 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     h.invoices.data = [nativeInvoice({ pmo_number: 'INV-1', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 500_000 })];
     const user = userEvent.setup();
     renderPage('/finance/receivables', true);
-    expect(screen.queryByRole('tablist', { name: 'Group by' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('invoice-filter-group')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Filters/ }));
-    const filters = screen.getByRole('region', { name: 'Filter by status' });
-    expect(within(filters).getByRole('tablist', { name: 'Group by' })).toBeInTheDocument();
-    // jsdom has no layout: wrapping (not a clipped horizontal scroller) is the contract.
-    expect(filters).toHaveClass('flex-wrap');
-    expect(filters).not.toHaveClass('overflow-x-auto');
+    const drawer = screen.getByRole('dialog', { name: 'Filters' });
+    expect(within(drawer).getByRole('tablist', { name: 'Filter by status' })).toBeInTheDocument();
     expect(screen.getByTestId('invoice-filter-group')).toHaveClass('flex-wrap');
   });
 
@@ -994,7 +991,8 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     renderPage('/finance/receivables', true);
     expect(screen.queryByRole('tablist', { name: 'Filter by status' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Filters/ }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by status' }), 'Cancelled');
+    const drawer = screen.getByRole('dialog', { name: 'Filters' });
+    await user.click(within(drawer).getByRole('tab', { name: 'Cancelled' }));
     expect(screen.getByTestId('location')).toHaveTextContent('status=Cancelled');
   });
 

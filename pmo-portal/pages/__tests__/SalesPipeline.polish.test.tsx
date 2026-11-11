@@ -64,7 +64,12 @@ it.each(['kanban', 'table'])('UIP-004 phone %s keeps a single search/core scope,
   expect(screen.queryByRole('tablist', { name: 'Pipeline view' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
   expect(screen.getAllByRole('tablist', { name: 'Project scope' })).toHaveLength(1);
-  expect(screen.getByTestId('sales-phone-stage-list')).toBeInTheDocument();
+  const stageList = screen.getByTestId('sales-phone-stage-list');
+  expect(stageList).toBeInTheDocument();
+  expect(stageList.firstElementChild).toBeInTheDocument();
+  const summary = screen.getByTestId('sales-phone-summary-details');
+  expect(summary).not.toHaveAttribute('open');
+  expect(stageList.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   await user.click(screen.getByRole('button', { name: /^Classification$/ }));
   expect(screen.getByRole('region', { name: /^Classification$/ })).toBeVisible();
   await user.selectOptions(screen.getByLabelText('Filter by sector'), 'Energy');

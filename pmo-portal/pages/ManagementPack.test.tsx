@@ -60,7 +60,7 @@ describe('Management pack money display (#1260, #1437)', () => {
     expect(within(figures).getAllByText('IDR 0', { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
-    expect(screen.getAllByText(/Left to bill is left out where a foreign-currency invoice needs reconciliation before the amount can be known/)).toHaveLength(1);
+    expect(screen.getAllByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
 });

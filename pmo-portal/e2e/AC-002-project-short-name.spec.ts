@@ -72,7 +72,9 @@ test('AC-002 #1325: create, find, edit, reload and clear a project alias without
 
     // Open the record from its short-first pipeline card, then edit and reload.
     await page.goto('/sales?status=Leads');
-    const openDeal = page.getByRole('button', { name: new RegExp(initialAlias) });
+    // Exact: the pipeline card's own row menu is labelled "Actions for <alias>" and would otherwise
+    // match the substring too. The card itself carries the deal name as its accessible name.
+    const openDeal = page.getByRole('button', { name: initialAlias, exact: true });
     await openDeal.click();
     await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u);

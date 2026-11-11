@@ -5,8 +5,8 @@
   "/projects@1440@exec@acme.test": 25,
   "/procurement@390@exec@acme.test": 48,
   "/procurement@1440@exec@acme.test": 48,
-  "/finance@390@exec@acme.test": 94,
-  "/finance@1440@exec@acme.test": 94,
+  "/finance@390@exec@acme.test": 126,
+  "/finance@1440@exec@acme.test": 126,
   "/sales@390@exec@acme.test": 56,
   "/sales@1440@exec@acme.test": 63,
   "/approvals@390@exec@acme.test": 114,
@@ -117,7 +117,7 @@
   "/finance/statements@1440@exec@acme.test": 13,
   "/finance@390@finance@acme.test": 97,
   "/finance@1440@finance@acme.test": 100,
-  "/finance/receivables@390@finance@acme.test": 81,
+  "/finance/receivables@390@finance@acme.test": 48,
   "/finance/receivables@1440@finance@acme.test": 60,
   "/finance/payables@390@finance@acme.test": 39,
   "/finance/payables@1440@finance@acme.test": 47,
@@ -245,9 +245,12 @@
   "/companies@1440@finance@acme.test": 13,
   "/my-tasks@390@finance@acme.test": 21,
   "/my-tasks@1440@finance@acme.test": 21,
+  "notes": {
+    "/projects/41000000-0000-0000-0000-000000000002": "The old @1440 exec budget of 4 words came from a blank render, not a real baseline; the screen renders 116 words once loaded. Every budget here is measured chrome-only (record rows excluded)."
+  },
   "charts": {
-    "/@390@exec@acme.test": 1,
-    "/@1440@exec@acme.test": 1,
+    "/@390@exec@acme.test": 2,
+    "/@1440@exec@acme.test": 2,
     "/@390@finance@acme.test": 1,
     "/@1440@finance@acme.test": 1,
     "/@390@pm@acme.test": 0,
@@ -256,13 +259,15 @@
     "/@1440@engineer@acme.test": 0,
     "/@390@admin@acme.test": 1,
     "/@1440@admin@acme.test": 1,
-    "/finance@390@exec@acme.test": 0,
-    "/finance@1440@exec@acme.test": 0,
+    "/finance@390@exec@acme.test": 4,
+    "/finance@1440@exec@acme.test": 4,
     "/sales@390@exec@acme.test": 0,
     "/sales@1440@exec@acme.test": 0,
     "/finance/reports@390@finance@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002@390@pm@acme.test": 1,
     "/finance/reports@1440@finance@acme.test": 0,
-    "/projects/41000000-0000-0000-0000-000000000002@1440@pm@acme.test": 1
+    "/projects/41000000-0000-0000-0000-000000000002@1440@pm@acme.test": 1,
+    "/finance/reports@390@exec@acme.test": 2,
+    "/finance/reports@1440@exec@acme.test": 2
   }
 }

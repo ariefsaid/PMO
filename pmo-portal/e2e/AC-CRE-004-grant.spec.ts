@@ -71,7 +71,9 @@ test(
     await page.getByRole('button', { name: /grant credits/i }).click();
     const grantDialog = page.getByRole('dialog');
     await expect(grantDialog).toBeVisible({ timeout: 8_000 });
-    await expect(grantDialog.getByText(/add credits to the org pool/i)).toBeVisible();
+    // ux/1110 recomposed the dialog: the old subtitle ("Add credits to the org pool. Takes effect
+    // immediately.") became the amount helper. Same waypoint — the dialog states what a grant does.
+    await expect(grantDialog.getByText(/added to the org pool/i)).toBeVisible();
 
     await grantDialog.getByLabel(/amount/i).fill(String(GRANT));
     await grantDialog.getByLabel(/note/i).fill(note);

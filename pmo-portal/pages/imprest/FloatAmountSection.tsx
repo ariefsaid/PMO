@@ -22,6 +22,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const decide = useDecideFloatChange();
   const propose = useProposeFloatAmount();
   const [dialog, setDialog] = useState<'approve' | 'reject' | 'propose' | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [amount, setAmount] = useState('');
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
@@ -43,10 +44,15 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const dirty = Boolean(amount || notes);
   const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
-  const close = () => { setDialog(null); setNotes(''); setAmount(''); };
+  const close = () => { setDialog(null); setDecisionError(null); setNotes(''); setAmount(''); };
   const run = async (work: () => Promise<unknown>, success: string) => {
+    setDecisionError(null);
     try { await work(); toast(success, undefined, 'success'); close(); }
-    catch (err) { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); }
+    catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      setDecisionError(detail ? `${headline}. ${detail}` : headline);
+      toast(headline, detail, 'warning');
+    }
   };
 
   return (
@@ -63,8 +69,8 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
             {open && (
               <div role="note" className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <span>{t('imprest:amount.open', 'Proposed {{amount}} on {{date}}: awaiting a senior approver.', { amount: money(open.proposed_amount), date: formatDay(open.proposed_at) })}</span>
-                {actions.includes('approveFloatChange') && <Button variant="primary" size="sm" onClick={() => setDialog('approve')}>{t('imprest:actions.approve', 'Approve')}</Button>}
-                {actions.includes('rejectFloatChange') && <Button variant="outline" size="sm" onClick={() => setDialog('reject')}>{t('imprest:actions.reject', 'Reject')}</Button>}
+                {actions.includes('rejectFloatChange') && <Button variant="outline" size="sm" onClick={() => { setDecisionError(null); setDialog('reject'); }}>{t('imprest:actions.reject', 'Reject')}</Button>}
+                {actions.includes('approveFloatChange') && <Button variant="primary" size="sm" onClick={() => { setDecisionError(null); setDialog('approve'); }}>{t('imprest:actions.approve', 'Approve')}</Button>}
               </div>
             )}
             {!open && (
@@ -88,6 +94,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
         </div>}
         confirmLabel={dialog === 'reject' ? t('imprest:actions.reject', 'Reject') : t('imprest:actions.approve', 'Approve')}
         loading={decide.isPending}
+        error={decisionError}
         onConfirm={() => { if (open) void run(() => decide.mutateAsync({ changeId: open.id, approve: dialog === 'approve', ...(notes.trim() ? { notes: notes.trim() } : {}) }), t('imprest:toast.updated', 'Updated')); }}
         onCancel={() => guardLeave(close)}
       />
@@ -98,6 +105,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
         confirmLabel={t('imprest:amount.proposeConfirm', 'Propose amount')}
         confirmDisabled={parsed === null || !(parsed > 0)}
         loading={propose.isPending}
+        error={decisionError}
         onConfirm={() => void run(() => propose.mutateAsync({ floatId, amount: parsed as number }), t('imprest:amount.proposed', 'Amount proposed'))}
         onCancel={() => guardLeave(close)}
       />

@@ -3,17 +3,18 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
-  SearchMini,
+  FilterBar,
+  useUrlFilters,
   ListState,
   DataTable,
   ConfirmDialog,
-  SelectField,
   AccessDenied,
   useToast,
   Button,
   Icon,
   type Column,
   type RowMenuItem,
+  type FilterBarFilter,
 } from '@/src/components/ui';
 import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
@@ -26,7 +27,6 @@ import { useContactsExportAll, useContactsPage, useContactsTotal, useContactMuta
 import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useCompanyPartyMappings } from '@/src/hooks/useCompanyPartyMappings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import type { ContactRow } from '@/src/lib/db/contacts';
 import { ContactFormModal } from './contact/ContactFormModal';
@@ -58,20 +58,22 @@ const Contacts: React.FC = () => {
   // CRM directory view = the master-data roles (Engineer = ○, no nav/page) — mirrors Companies §D.
   const canView = may('view', 'contact');
 
-  // list-working-set-return (#683): `company`/`q` are URL-owned (AC-LRC-007). Search stays LOCAL
-  // text written to the URL after a pause — never bound straight to `workingSet.q`. A Back return
-  // restores the list's scroll once its rows have loaded (`contentReady`).
-  const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
-    useListSearchWorkingSet('contacts');
-  const companyFilter = workingSet.company;
+  const { values, setFilter, clear } = useUrlFilters(['q', 'company']);
+  const companyFilter = values.company;
+  const search = values.q;
 
   // #1989 (the Master-data pattern): the directory reads ONE server page with the company filter
   // and search applied SERVER-side, plus the exact matching total. The whole contact directory is
   // no longer loaded to filter it in the browser.
   const [page, setPage] = useState(1);
-  const directory = useContactsPage({ companyId: companyFilter, search, page, pageSize: PAGE_SIZE });
+  const directory = useContactsPage({
+    companyId: !companyFilter || companyFilter === 'All' ? 'All' : companyFilter,
+    search,
+    page,
+    pageSize: PAGE_SIZE,
+  });
   const { openRecord } = useListReturn({ list: 'contacts', contentReady: !directory.isPending && !directory.isError });
-  const unfiltered = companyFilter === 'All' && !search.trim();
+  const unfiltered = (!companyFilter || companyFilter === 'All') && !search.trim();
   // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
   // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
   const totalCount = useContactsTotal({ enabled: !unfiltered });
@@ -114,11 +116,8 @@ const Contacts: React.FC = () => {
   // another org's) stays the ACTIVE choice — the control agrees with the URL and the zero-match
   // state offers Clear filters — rather than the select silently showing "All companies".
   const companyFilterOptions = useMemo(() => {
-    const options = [
-      { value: 'All', label: t('contacts.filters.allCompanies', 'All companies') },
-      ...companyOptions,
-    ];
-    if (companyFilter !== 'All' && !companyById.has(companyFilter)) {
+    const options = [...companyOptions];
+    if (companyFilter && companyFilter !== 'All' && !companyById.has(companyFilter)) {
       options.push({
         value: companyFilter,
         // Until the directory has loaded the choice may yet resolve, so it is not called unavailable.
@@ -127,6 +126,16 @@ const Contacts: React.FC = () => {
     }
     return options;
   }, [companyById, companyData, companyFilter, companyOptions, t]);
+
+  const filters: FilterBarFilter[] = useMemo(() => [
+    {
+      key: 'company',
+      label: t('contacts.filters.companyLabel', 'Filter by company'),
+      kind: 'select',
+      options: companyFilterOptions,
+    },
+  ], [companyFilterOptions, t]);
+
   const creatableCompanies = external ? companies.filter((company) => mappings.ids.includes(company.id)) : companies;
   const createOptions = creatableCompanies.map((company) => ({ value: company.id, label: companyDisplayName(company) }));
   const importDescriptor = makeContactImportDescriptor(creatableCompanies);
@@ -240,8 +249,6 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
-      count={directory.data ? total : undefined}
-      total={directory.data && !unfiltered ? directoryTotal : undefined}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ contact: null })}>
@@ -252,23 +259,20 @@ const Contacts: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <SelectField
-            label={t('contacts.filters.companyLabel', 'Filter by company')}
-            hideLabel
-            value={companyFilter}
-            onChange={(v) => setWorkingSet((ws) => ({ ...ws, company: v }))}
-            options={companyFilterOptions}
-          />
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder={t('contacts.search.placeholder', 'Search contacts…')}
-            aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          <FilterBar
+            searchKey="q"
+            searchLabel={t('contacts.search.ariaLabel', 'Search contacts')}
+            searchPlaceholder={t('contacts.search.placeholder', 'Search contacts…')}
+            filters={filters}
+            values={values}
+            onChange={setFilter}
+            onClear={clear}
+            shown={directory.data ? total : 0}
+            total={directory.data ? directoryTotal : 0}
+            labels={{
+              all: t('contacts.filters.allCompanies', 'All companies'),
+              clear: 'Clear all',
+            }}
           />
         )
       }
@@ -280,7 +284,7 @@ const Contacts: React.FC = () => {
             hasRows={total > 0}
             fetchRows={() =>
               exportAll.mutateAsync({
-                companyId: companyFilter === 'All' ? undefined : companyFilter,
+                companyId: !companyFilter || companyFilter === 'All' ? undefined : companyFilter,
                 search: search.trim() || undefined,
               })
             }
@@ -375,7 +379,7 @@ const Contacts: React.FC = () => {
             state={pageRows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
             emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
-            emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
+            emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clear }}
           tableId="contacts-table" />
 
           {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}

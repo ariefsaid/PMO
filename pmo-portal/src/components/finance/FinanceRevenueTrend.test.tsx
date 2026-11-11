@@ -37,6 +37,7 @@ describe('FinanceRevenueTrend', () => {
     expect(selectCollectedByMonth(state.payments.data as never, 'USD')?.size).toBe(6);
     renderTrend();
     expect(state.range).toEqual({ from: '2026-05-01', to: '2026-10-01' });
+    expect(screen.getByRole('heading', { name: 'Invoiced and collected · 6 months' })).toBeInTheDocument();
     const chart = screen.getByRole('img', { name: /invoiced and collected/i });
     expect(chart.getAttribute('aria-label')).toContain('May');
     expect(chart.getAttribute('aria-label')).toContain('Invoiced, excl. tax');

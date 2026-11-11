@@ -135,6 +135,8 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
       loading={link.isPending}
+      // F2-11: a chosen purchase must survive Escape/Cancel/backdrop — confirm the discard first.
+      dirty={!!target}
       submitDisabled={!target}
       disabledReason={t('erpLinks.choosePurchaseFirst', 'Choose a purchase first.')}
       submitError={submitError}

@@ -355,6 +355,9 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
       submitDisabled={!selected}
+      // F2-11: a chosen item must survive Escape/Cancel/backdrop — confirm the discard first.
+      // Browsing folders without selecting anything is not dirty: Escape closes as before.
+      dirty={!!selected}
       loading={saving}
       submitError={submitError}
       width="lg"

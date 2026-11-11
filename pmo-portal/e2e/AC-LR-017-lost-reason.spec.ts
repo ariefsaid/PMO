@@ -69,12 +69,18 @@ test('AC-LR-017 / AC-LR-018 Executive marks deal lost with reason: picker requir
 
   // Reload deal page and assert "Lost reason" tile reads "Price"
   await page.reload();
-  await expect(page.getByText('Lost reason')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('Price')).toBeVisible();
+  // Scoped to the overview's decision band: the inline notes-and-activity card now also prints the
+  // field label "Lost reason" and its change line ("empty → price"), so a page-wide text match is
+  // ambiguous. The band is where the deal's standing (and its lost reason) is read.
+  const decisionBand = page.getByLabel('Where this stands');
+  await expect(decisionBand.getByText('Lost reason', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(decisionBand.getByText('Price', { exact: true })).toBeVisible();
 
-  // Go to Company dashboard and assert loss breakdown lists Price with >= 1 lost
+  // Go to Company dashboard and assert the loss breakdown counts Price with >= 1 lost.
+  // ux/1110 draws "Why deals were lost" as one chart (the per-reason list items are gone), so the
+  // reason and its count are read from the chart's accessible name: "… Price: 1".
   await page.goto('/');
-  const priceRow = page.getByTestId('loss-reason-price');
-  await expect(priceRow).toBeVisible({ timeout: 20_000 });
-  await expect(priceRow).toContainText(/\d+ lost/);
+  const lossReasons = page.getByRole('img', { name: /Why deals were lost/i });
+  await expect(lossReasons).toBeVisible({ timeout: 20_000 });
+  await expect(lossReasons).toHaveAccessibleName(/Price: [1-9]\d*/);
 });

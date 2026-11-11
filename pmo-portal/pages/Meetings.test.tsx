@@ -459,6 +459,25 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     expect(screen.getByLabelText(/Search meetings/i)).toBeInTheDocument();
   });
 
+  it('FilterBar: project filter and search round-trip through the URL', async () => {
+    renderPage('Admin', '/meetings');
+    const select = screen.getByLabelText(/Filter by project/i);
+    await userEvent.selectOptions(select, '33333333-3333-4333-8333-333333333333');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toContain(
+        'project=33333333-3333-4333-8333-333333333333',
+      ),
+    );
+    await userEvent.type(screen.getByLabelText(/Search meetings/i), 'kickoff');
+    await waitFor(() => {
+      const search = screen.getByTestId('location-probe').dataset.search;
+      expect(search).toContain('project=33333333-3333-4333-8333-333333333333');
+      expect(search).toContain('q=kickoff');
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+  });
+
   it('AC-LRC-001: an unavailable ?project= stays the active, clearable choice (control agrees with the URL)', async () => {
     const GONE = '99999999-9999-4999-8999-999999999999';
     renderPage('Admin', `/meetings?project=${GONE}`);
@@ -470,7 +489,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
 
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
-    expect(screen.getByLabelText(/Filter by project/i)).toHaveValue('All');
+    expect(screen.getByLabelText(/Filter by project/i)).toHaveValue('');
     expect(screen.queryByRole('option', { name: 'Unavailable project' })).not.toBeInTheDocument();
   });
 

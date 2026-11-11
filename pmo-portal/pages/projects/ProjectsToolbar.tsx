@@ -1,3 +1,4 @@
+import { FilterBar, type FilterBarFilter } from '@/src/components/ui/FilterBar';
 import { ProjectFilterBuilder } from './ProjectFilterBuilder';
 import type { TFunction } from 'i18next';
 import { SearchMini, ViewToggle, MobileToolbarDisclosure, type Column } from '@/src/components/ui';
@@ -112,35 +113,52 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
     </div>
   );
 
+  const statusFilterConfig: FilterBarFilter[] = [
+    {
+      key: 'status',
+      label: t('projects.filters.ariaLabel', 'Status filter'),
+      kind: 'segment',
+      semantics: 'tabs',
+      options: [
+        { value: 'My Projects', label: filterLabels['My Projects'] },
+        { value: 'Ongoing', label: filterLabels['Ongoing'] },
+        { value: 'Completed', label: filterLabels['Completed'] },
+        { value: 'at-risk', label: filterLabels['at-risk'] },
+      ],
+    },
+  ];
+
+  const handleFilterChange = (key: string, value: string) => {
+    if (key === 'status') {
+      const nextFilter = (value === '' ? 'All' : value) as StatusFilter;
+      setWorkingSet((ws) => ({ ...ws, filter: nextFilter }));
+      trackFilterApplied('status', FILTERS.length, 'projects');
+    } else if (key === 'q') {
+      setSearch(value);
+    }
+  };
+
   return {
     mobileToolbar,
     filters: (
-        /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
-           reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
-           affordance (the project tab strip pattern). */
-        <div data-testid="status-filter-scroll" className="min-w-0 max-w-full shrink-0 overflow-x-auto scroll-fade-x md:[mask-image:none] md:[-webkit-mask-image:none] [&_button]:whitespace-nowrap">
-          <ViewToggle<StatusFilter>
-            options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
-            value={filter}
-            onChange={(v) => {
-              setWorkingSet((ws) => ({ ...ws, filter: v }));
-              trackFilterApplied('status', FILTERS.length, 'projects');
-            }}
-            ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
-          />
-        </div>
-    ),
-    search: (
-        <SearchMini
-          placeholder={t('projects.search.placeholder', 'Search projects…')}
-          aria-label={t('projects.search.ariaLabel', 'Search projects')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          searchSurface="projects-list"
-          module="projects"
-          resultCount={filtered.length}
-          containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
-        />
+      <FilterBar
+        searchKey="q"
+        searchLabel={t('projects.search.ariaLabel', 'Search projects')}
+        searchPlaceholder={t('projects.search.placeholder', 'Search projects…')}
+        filters={statusFilterConfig}
+        values={{
+          q: search,
+          status: filter === 'All' ? '' : filter,
+        }}
+        onChange={handleFilterChange}
+        onClear={model.clearFilters}
+        shown={filtered.length}
+        total={model.all.length}
+        labels={{
+          all: filterLabels['All'],
+          clear: t('projects.mobile.clearAll', 'Clear all'),
+        }}
+      />
     ),
     // One filter builder: customer, end customer, PM, status, dates, contract value, classification.
     // An Engineer is not offered the manager-browse fields (ProjectFilterBuilder, N19).
