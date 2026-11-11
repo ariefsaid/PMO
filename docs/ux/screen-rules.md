@@ -18,7 +18,7 @@ removes reading or makes the same thing identical everywhere.
 - A screen never gains words: `scripts/ux-proof.sh` word budget is the check; update the budget downward only.
 
 ## Numbers
-- Money always carries its currency. Tiles: 2–3 significant digits ("IDR 7.7B"). Tables: full amount, right-aligned, tabular.
+- Money always carries its currency. Tiles: 2–3 significant digits ("IDR 7.7B"). Tables: full amount, right-aligned, tabular. Read-only money uses the currency symbol and whole units; inputs, exports and editable values keep their exact value. Never show a non-zero amount or difference as zero: show its exact value or “under $1” (in its currency).
 - One currency per figure: the organisation's currency is the figure; another currency sits on a second line ("+ USD 5,300"). Never "A · B" in one figure.
 - A count never sits in a row of money figures. Counts go in the "waits on you" rows.
 - Unknown is never a sentence in a tile and never "0": the tile or column is hidden, and ONE page-level line says what is missing and links to the fix ("3 figures hidden: accounting is not connected · Set up").

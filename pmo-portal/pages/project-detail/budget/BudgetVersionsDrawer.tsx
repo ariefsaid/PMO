@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Drawer, StatusPill, type Column } from '@/src/components/ui';
 import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
-import { formatCurrency, formatDay, formatNumberMax2 } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
+import { formatBudgetAmount, formatBudgetExactNumber } from './budgetMoney';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { compareBudgetVersions, type BudgetComparisonRow } from '@/src/lib/budget/budgetModel';
 
@@ -48,11 +49,11 @@ export default function BudgetVersionsDrawer({
   );
   const compareColumns: Column<BudgetComparisonRow>[] = [
     { key: 'category', header: t('financeCopy.category', 'Category'), kind: 'primary', cell: (row) => budgetCategoryLabel(row.category, t) },
-    { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => `${a?.currency || fallbackCurrency} ${formatNumberMax2(row.a)}` },
-    { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => `${b?.currency || fallbackCurrency} ${formatNumberMax2(row.b)}` },
+    { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => `${a?.currency || fallbackCurrency} ${formatBudgetExactNumber(row.a)}` },
+    { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => `${b?.currency || fallbackCurrency} ${formatBudgetExactNumber(row.b)}` },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (row) => (a?.currency || fallbackCurrency) !== (b?.currency || fallbackCurrency) ? '—' : (
-      <span className={row.change > 0 ? 'text-destructive-text' : undefined}>
-        {row.change > 0 ? '+' : ''}{a?.currency || fallbackCurrency} {formatNumberMax2(row.change)}
+      <span>
+        {row.change > 0 ? '+' : ''}{a?.currency || fallbackCurrency} {formatBudgetExactNumber(row.change)}
       </span>
     ) },
   ];
@@ -80,7 +81,7 @@ export default function BudgetVersionsDrawer({
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {formatCurrency(version.total, version.currency || fallbackCurrency)}
+                    {formatBudgetAmount(version.total, version.currency || fallbackCurrency)}
                     {' · '}{version.activated_at ? formatDay(version.activated_at) : t('projectDetail.budget.notActivated', 'Not activated')}
                   </p>
                 </div>

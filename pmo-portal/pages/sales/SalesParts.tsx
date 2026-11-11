@@ -7,7 +7,7 @@ import {
 import { formatCurrency, formatDay, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
-  dealJourneySteps, formatPercent, daysSince, isNeedsAttention, isStaleBid, weightedValue,
+  dealJourneySteps, formatPercent, daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid, weightedValue,
 } from '../../components/salesPipeline';
 import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
@@ -155,7 +155,7 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
                 <span className="w-full truncate text-control text-warning-foreground">{compact
                   ? (isStaleBid(p)
                     ? t('sales:options.staleReasonShort', 'Stage {{days}}d', { days: daysSince(p.stage_started_at) ?? 0 })
-                    : t('sales:options.idleReasonShort', 'Idle {{days}}d', { days: daysSince(p.last_update) ?? 0 }))
+                    : t('sales:options.idleReasonShort', 'Idle {{days}}d', { days: daysSinceLatestTouch(p) ?? 0 }))
                   : attentionReason(m, p)}</span>
               </button>
             </li>

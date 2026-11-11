@@ -43,6 +43,8 @@ const { roleBox, desktopBox, projectMutations } = vi.hoisted(() => ({
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
+const orgTodayBox = vi.hoisted(() => ({ value: '2026-11-11' }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => orgTodayBox.value }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktopBox.value }));
 // B-0.2: useProjectBudget is now called from ProjectDetailHeader to get the DERIVED
 // budget (Σ Active-version line-items). Default: 4_200_000 (real budget, not the
@@ -120,6 +122,7 @@ const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHan
 };
 
 beforeEach(() => {
+  orgTodayBox.value = '2026-11-11';
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
   financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };
@@ -141,6 +144,18 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it('R2-P1b #14 flags an unfinished project past its end date in organization days', () => {
+    const pastEnd = { ...onHand, end_date: '2026-06-30' } as ProjectWithRefs;
+    const first = renderHeader('Project Manager', pastEnd);
+
+    expect(screen.getByText('Past end date · 134 d')).toBeInTheDocument();
+    expect(screen.getByText('Ongoing')).toBeInTheDocument();
+    first.unmount();
+
+    renderHeader('Project Manager', { ...pastEnd, status: 'Close Out' } as ProjectWithRefs);
+    expect(screen.queryByText(/Past end date/)).not.toBeInTheDocument();
+  });
+
   it('#1339: the status pill names the project status in the viewer\'s language', () => {
     render(
       <BahasaProvider>

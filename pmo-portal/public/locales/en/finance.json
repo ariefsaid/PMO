@@ -73,10 +73,10 @@
     "latestStatement": "Latest period {{period}}",
     "back": "Back",
     "payablesAgeingBasis": "Invoice age, by days",
-    "ageingUnknown_one": "No known balances · {{count}} balance unknown",
-    "ageingUnknown_other": "No known balances · {{count}} balances unknown",
-    "ageingUnknownCount_one": "{{count}} balance unknown",
-    "ageingUnknownCount_other": "{{count}} balances unknown",
+    "ageingUnknown_one": "{{count}} invoice has no balance reported by the accounting system",
+    "ageingUnknown_other": "{{count}} invoices have no balance reported by the accounting system",
+    "ageingUnknownCount_one": "{{count}} invoice has no balance reported by the accounting system",
+    "ageingUnknownCount_other": "{{count}} invoices have no balance reported by the accounting system",
     "ageingEmpty": "No balances to group by age"
   },
   "table": {
@@ -556,7 +556,7 @@
       "budgetSource": "Source: selected budget version line items, grouped by category.",
       "committed": "Committed",
       "committedSource": "Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.",
-      "left": "Left",
+      "left": "Left after spend",
       "leftFormula": "Calculated as budget minus spent and committed.",
       "percentUsed": "% used",
       "utilizationUnknown": "Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.",
@@ -735,8 +735,10 @@
     "invoiceLoading": "Loading invoices…",
     "noOpenInvoicesForCustomer": "No open invoices for this customer.",
     "noEligibleNativeInvoiceForCustomer": "No approved invoice with a reported balance is available for this customer. Create or approve an invoice, or refresh its balance, then try again.",
-    "otherLedgerInvoiceSingular": "1 open invoice is recorded in the accounting system: record its payment there.",
-    "otherLedgerInvoicesPlural": "{{count}} open invoices are recorded in the accounting system: record their payments there."
+    "excludedAccountingInvoiceSingular": "1 open invoice is in the accounting system. A receipt against it cannot be recorded here yet.",
+    "excludedAccountingInvoicesPlural": "{{count}} open invoices are in the accounting system. Receipts against them cannot be recorded here yet.",
+    "excludedPmoInvoiceSingular": "1 open invoice is in PMO. A receipt against it cannot be recorded here yet.",
+    "excludedPmoInvoicesPlural": "{{count}} open invoices are in PMO. Receipts against them cannot be recorded here yet."
   },
   "odooOutcome": {
     "confirmed": "In Odoo",

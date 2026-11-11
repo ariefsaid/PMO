@@ -100,6 +100,24 @@ beforeEach(async () => {
 const tile = (label: string) => screen.getByText(label).parentElement!.parentElement as HTMLElement;
 
 describe('Receivables page', () => {
+  it('R2-P1b #4 explains that an unknown invoice balance was not reported', () => {
+    h.invoices = [invoice({ erp_outstanding_amount: null })];
+    h.position = {
+      ...h.position,
+      receivablesAgeing: {},
+      receivablesUnknownCount: 1,
+      overdueTotals: {},
+      overdueUnknownCount: 1,
+      overdue: [{ invoice: invoice({ erp_outstanding_amount: null }), daysOverdue: 119, outstanding: null }],
+    };
+
+    renderPage();
+
+    expect(screen.getByRole('region', { name: /Client balances by age/ }))
+      .toHaveTextContent('1 invoice has no balance reported by the accounting system');
+    expect(screen.getByRole('region', { name: /Client balances by age/ })).not.toHaveTextContent('No balances');
+  });
+
   it('hides unknown owed and overdue figures and says why once, in one page line', () => {
     h.invoices = [invoice({ erp_outstanding_amount: null })];
     h.position = { ...h.position, receivablesAgeing: {}, receivablesUnknownCount: 1, overdueTotals: {}, overdueUnknownCount: 1,
@@ -107,8 +125,8 @@ describe('Receivables page', () => {
     renderPage();
     expect(screen.queryByText('Owed to you')).not.toBeInTheDocument();
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden: 1 balance unknown');
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden: 1 invoice has no balance reported by the accounting system');
+    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/no balance reported by the accounting system/i);
     // The overdue filter in the list is the one way in; no second "N overdue" line sits above it.
     expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
     expect(screen.queryByText(/Show all \d+ overdue/)).toBeNull();
