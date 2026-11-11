@@ -518,7 +518,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       headingLevel={embedded ? 2 : 1}
       primaryAction={!embedded ? <BoardPackAction /> : undefined}
     >
-      <div className="mb-3"><FigureHiddenLine /></div>
+      <div className="mb-3"><FigureHiddenLine compact /></div>
       {isPending && !pack ? (
         <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
           {figureSpecs.map((spec) => <KPITile key={spec.key} loading tone="blue" icon="grid" label={spec.label} value="" />)}

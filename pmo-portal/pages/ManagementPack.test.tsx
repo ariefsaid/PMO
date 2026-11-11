@@ -1,6 +1,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
@@ -48,20 +49,22 @@ const renderPage = () => {
 };
 
 describe('Management pack money display (#1260, #1437)', () => {
-  it('AC-MONEY-DISPLAY: keeps unknown backlog separate from known zero unbilled and links to invoice review', () => {
+  it('AC-MONEY-DISPLAY: keeps unknown backlog separate from known zero unbilled and links to invoice review in Why', async () => {
     renderPage();
 
     const figures = screen.getByRole('region', { name: 'Report figures' });
     // Unknown is not a value: the backlog tile is hidden and one page line says why, with its fix link.
     expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden');
+    const hiddenLine = screen.getByTestId('figures-hidden');
+    expect(hiddenLine).toHaveTextContent('2 figures hidden · Why');
     expect(within(figures).queryByRole('status')).not.toBeInTheDocument();
     // The known zero is in USD; no home-currency amount was supplied.
     expect(within(figures).getAllByText('USD 0', { exact: true }).length).toBeGreaterThan(0);
     expect(within(figures).queryByText('IDR 0', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.');
+    await userEvent.click(within(hiddenLine).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
 
@@ -70,9 +73,10 @@ describe('Management pack money display (#1260, #1437)', () => {
     renderPage();
 
     const line = await screen.findByTestId('figures-hidden');
-    expect(line).toHaveTextContent('Without progress assessments, earned revenue follows invoiced revenue.');
-    expect(line).toHaveTextContent('2 undated invoices are excluded');
-    expect(screen.queryByText('Without progress assessments, earned revenue follows invoiced revenue.', { exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByText('2 undated invoices are excluded', { exact: true })).not.toBeInTheDocument();
+    expect(line).toHaveTextContent('Why');
+    expect(line).not.toHaveTextContent('Without progress assessments, earned revenue follows invoiced revenue.');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
+    expect(screen.getByText('2 undated invoices are excluded')).toBeInTheDocument();
   });
 });
