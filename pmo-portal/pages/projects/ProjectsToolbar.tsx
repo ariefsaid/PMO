@@ -154,6 +154,13 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
         onClear={model.clearFilters}
         shown={filtered.length}
         total={model.all.length}
+        // AC-PRJUX-002: the builder below owns the ONE list-wide Clear all (chips, status, search).
+        // This bar cannot see the builder's chips, so its own copy would render disabled beside it.
+        showClear={false}
+        // search_used (2026-07-13 wiring plan): the desktop search lives in this bar, so the
+        // surface must be named here or the event stops firing on a wide screen.
+        searchSurface="projects-list"
+        module="projects"
         labels={{
           all: filterLabels['All'],
           clear: t('projects.mobile.clearAll', 'Clear all'),

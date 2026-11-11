@@ -158,13 +158,17 @@ describe('AC-L10N-052 Projects and Procurement exports carry the row currency', 
 
   it('AC-L10N-052: Projects exports a per-row Currency column right after Contract (USD + IDR)', async () => {
     const { ws, col } = await exportFrom(<ProjectsPage />);
-    expect(col('Currency')).toBe(col('Contract') + 1);
+    // The contract column carries its tax basis in the header — once, for the whole list — because
+    // both fixtures are 'exclusive' (OD-TAX-1 §2, a2 merge 5be3126a0). The export keeps that basis.
+    const contract = col('Contract (excl. PPN)');
+    expect(contract).toBeGreaterThan(0);
+    expect(col('Currency')).toBe(contract + 1);
     const row = (name: string) =>
       [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(col('Project')).value === name)!;
     expect(row('Alpha USD').getCell(col('Project')).value).toBe('Alpha USD');
     expect(row('Alpha USD').getCell(col('Project')).value).not.toBe('North Terminal');
     expect(row('Alpha USD').getCell(col('Currency')).value).toBe('USD');
     expect(row('Beta IDR').getCell(col('Currency')).value).toBe('IDR');
-    expect(row('Beta IDR').getCell(col('Contract')).value).toBe(15_000_000_000);
+    expect(row('Beta IDR').getCell(contract).value).toBe(15_000_000_000);
   });
 });
