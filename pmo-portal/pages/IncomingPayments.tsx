@@ -92,7 +92,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   const all = useMemo(() => data ?? [], [data]);
 
-  const [search, setSearch] = useState('');
+  // R2: the search box is URL-owned (`?q=`) so Back/refresh keep it, like the status drill does.
+  const search = searchParams.get('q') ?? '';
   // #1461: the list status is URL-owned so a dashboard drill (`status=Paid&from&to`) lands on
   // exactly the receipts the Collected figure sums, and a copied link reproduces the view.
   const [statusFilter, setStatusFilterState] = useState<StatusFilter>(() => {
@@ -293,7 +294,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             placeholder={t('financeCopy.searchPayments', "Search payments…")}
             aria-label={t('financeCopy.searchIncomingPayments', "Search incoming payments")}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setQueryValue('q', e.target.value)}
             searchSurface="incoming-payments-list"
             module="incomingPayments"
             resultCount={filtered.length}

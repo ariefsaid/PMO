@@ -32,7 +32,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number> }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
@@ -69,7 +69,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: h.win, isPending: false, isError: false, refetch: vi.fn() }),
-  useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+  useLossBreakdown: () => ({ data: h.loss, isPending: h.loss === null, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+  useProjectsDelivery: () => ({ data: h.delivery, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
@@ -96,7 +99,14 @@ const tile = (label: string) => {
   return element as HTMLElement;
 };
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { months: [], rows: [], totals: [] }; });
+beforeEach(() => {
+  h.dash = { ...base };
+  h.win = null;
+  h.pack = { months: [], rows: [], totals: [] };
+  h.loss = null;
+  h.delivery = {};
+  localStorage.removeItem('home-layout');
+});
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
@@ -180,7 +190,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(screen.queryByText('No project is off track.')).not.toBeInTheDocument();
   });
 
-  it('D2: executive project counts use one set of labels and keep each project count in its own column', () => {
+  it('H2: phone project cards name each non-zero need and delivery figure, worst needs first', () => {
     h.dash = {
       ...base,
       attention_projects: [{
@@ -189,19 +199,58 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
         overdue_invoices: 0, waiting_approvals: 1, over_budget: false, budget_used_ratio: null,
       }],
     };
+    h.delivery = { p1: 51 };
     renderExec();
 
     const list = screen.getByTestId('project-rows');
-    expect(within(list).getAllByText('Tasks overdue')).toHaveLength(2);
-    expect(within(list).getAllByText('Phases late')).toHaveLength(2);
-    expect(within(list).getAllByText('Invoices overdue')).toHaveLength(2);
-    expect(within(list).getAllByText('Awaiting approval')).toHaveLength(2);
     const project = within(list).getByRole('link', { name: /Project One/ });
-    expect(project).toHaveTextContent('2');
-    expect(project).toHaveTextContent('1');
-    expect(project).toHaveAccessibleName(/Tasks overdue:?\s*2/);
-    expect(project).toHaveAccessibleName(/Phases late:?\s*1/);
-    expect(project).toHaveAccessibleName(/Awaiting approval:?\s*1/);
+    const mobileNeeds = within(project).getByTestId('project-needs-mobile');
+    expect(mobileNeeds).toHaveTextContent('2 tasks overdue');
+    expect(mobileNeeds).toHaveTextContent('1 phase late');
+    expect(mobileNeeds).toHaveTextContent('1 awaiting approval');
+    expect(mobileNeeds).toHaveTextContent('51% delivered');
+    expect(mobileNeeds).not.toHaveTextContent('Invoices overdue');
+    expect(project).toHaveAccessibleName(/2 tasks overdue/);
+    expect(project).toHaveAccessibleName(/1 phase late/);
+    expect(project).toHaveAccessibleName(/1 awaiting approval/);
+  });
+
+  it('H1: Waits and the four position figures share the left desktop column; off-track projects stay content-sized on the right', () => {
+    h.dash = {
+      ...base,
+      attention_projects: [{
+        id: 'p1', name: 'Project One', short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null,
+        status: 'Ongoing Project', attention_signals: 2, overdue_items: 4, overdue_tasks: 2, overdue_milestones: 1,
+        overdue_invoices: 0, waiting_approvals: 1, over_budget: false, budget_used_ratio: null,
+      }],
+    };
+    h.delivery = { p1: 51 };
+    renderExec();
+
+    const layout = screen.getByTestId('home-primary-layout');
+    const waits = within(layout).getByTestId('waits-on-you');
+    const figures = within(layout).getByRole('region', { name: /Company figures/ });
+    const projects = within(layout).getByTestId('project-rows');
+    expect(waits.parentElement).toBe(figures.parentElement);
+    expect(projects.parentElement).not.toBe(waits.parentElement);
+    expect(waits.compareDocumentPosition(figures) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(figures.compareDocumentPosition(projects) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(layout).toHaveClass('items-start');
+    expect(layout).not.toHaveClass('items-stretch');
+    expect(within(layout).getByRole('region', { name: /Company figures/ })).toHaveClass('grid-cols-2');
+  });
+
+  it('H3: places Win and loss by client under Sales in the right dashboard column', () => {
+    h.loss = {
+      by_reason: [],
+      by_client: [{ client_id: 'c1', client_name: 'Client One', wins_count: 1, losses_count: 0 }],
+    };
+    renderExec();
+
+    const sales = screen.getByTestId('sales-overview');
+    const loss = screen.getByTestId('chart-loss-reasons');
+    expect(sales.parentElement).toBe(loss.parentElement);
+    expect(sales.compareDocumentPosition(loss) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
   it('shows mixed-currency contract on hand per currency, never as a blend or "USD $", with the exact amounts kept', () => {

@@ -184,17 +184,24 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(cardBranch.textContent).toContain('Active');
   });
 
-  it('shows shared column labels once while keeping each mobile card value labelled for assistive technology', () => {
+  it('shows field names beside each value in every phone card', () => {
     mockViewport(false);
-    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} mobileLabelsOnce />);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     const cardBranch = getCardBranch()!;
-    const legend = within(cardBranch).getByTestId('dt-mobile-column-legend');
-    expect(within(legend).getByText('Value')).toBeVisible();
-    expect(within(legend).getByText('Status')).toBeVisible();
-    expect(cardBranch.querySelectorAll('dt')).toHaveLength(4);
-    expect(Array.from(cardBranch.querySelectorAll('dt')).every((dt) => dt.classList.contains('hidden'))).toBe(true);
-    expect(within(cardBranch).getByRole('definition', { name: /Value 125000/ })).toBeInTheDocument();
-    expect(within(cardBranch).getByRole('definition', { name: /Status Active/ })).toBeInTheDocument();
+    expect(within(cardBranch).queryByTestId('dt-mobile-column-legend')).not.toBeInTheDocument();
+    const cards = Array.from(cardBranch.querySelectorAll('[data-record-row]'));
+    expect(cards).toHaveLength(rows.length);
+    for (const card of cards) {
+      const labels = Array.from(card.querySelectorAll('dt'));
+      expect(labels.map((label) => label.textContent)).toContain('Value');
+      expect(labels.map((label) => label.textContent)).toContain('Status');
+      expect(labels.every((label) => !label.classList.contains('hidden'))).toBe(true);
+    }
+    const firstCard = cards[0] as HTMLElement;
+    const valueLabel = Array.from(firstCard.querySelectorAll('dt')).find((label) => label.textContent === 'Value');
+    const statusLabel = Array.from(firstCard.querySelectorAll('dt')).find((label) => label.textContent === 'Status');
+    expect(valueLabel?.nextElementSibling).toHaveTextContent('125000');
+    expect(statusLabel?.nextElementSibling).toHaveTextContent('Active');
     expect(cardBranch.textContent).toContain('125000');
     expect(cardBranch.textContent).toContain('Active');
   });
