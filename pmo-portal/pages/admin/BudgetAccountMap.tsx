@@ -254,7 +254,9 @@ const BudgetAccountMap: React.FC = () => {
               <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="break-words">{account.erpAccount}</span>
                 {/* Only worth saying when the category has more than one account; alone, it is the push account by definition. */}
-                {accounts.length > 1 && <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>}
+                {/* violet (the non-interactive category accent), never the action-blue: the Freed-Blue rule
+                    (DESIGN.md / statusVariants CW-2) reserves `open` for the one interactive affordance. */}
+                {accounts.length > 1 && <StatusPill variant="violet">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>}
               </div>
             ))}
             {accounts.some((account) => !account.isPushTarget) && (

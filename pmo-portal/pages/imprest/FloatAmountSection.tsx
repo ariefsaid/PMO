@@ -8,7 +8,7 @@ import { useDecideFloatChange, useImprestFloatChanges, useProposeFloatAmount } f
 import { availableFloatChangeActions } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ImprestFloatChangeListRow } from '@/src/lib/db/imprest';
-import { formatCurrency, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 /** The float's amount and its change proposals (FR-IMP-002): a new float starts at zero until a second person approves the
@@ -26,6 +26,8 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const [amount, setAmount] = useState('');
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const money = (v: number | string) => formatCurrency(Number(v), currency);
+  // The approve/reject confirm names the exact amount being decided — minor units (owner ruling D4).
+  const moneyCents = (v: number | string) => formatCurrencyCents(Number(v), currency);
   const rows = changes.data?.rows ?? [];
   const open = rows.find((c) => c.status === 'Proposed');
   const actions = open ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];
@@ -81,7 +83,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
         tone={dialog === 'reject' ? 'destructive' : 'default'}
         title={dialog === 'reject' ? t('imprest:amount.rejectTitle', 'Reject the proposed float amount?') : t('imprest:amount.approveTitle', 'Approve the proposed float amount?')}
         description={<div className="space-y-3">
-          <p>{open ? money(open.proposed_amount) : ''}</p>
+          <p>{open ? moneyCents(open.proposed_amount) : ''}</p>
           {dialog === 'reject' && <TextArea label={t('imprest:confirm.notes', 'Note (optional)')} value={notes} onChange={setNotes} />}
         </div>}
         confirmLabel={dialog === 'reject' ? t('imprest:actions.reject', 'Reject') : t('imprest:actions.approve', 'Approve')}

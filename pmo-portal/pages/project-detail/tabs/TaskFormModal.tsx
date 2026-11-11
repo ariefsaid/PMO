@@ -97,7 +97,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 }) => {
   const { t } = useTranslation('project');
   const isEdit = !!task;
-  const { data: profiles, isPending: profilesPending, isError: profilesError } =
+  const { data: profiles, isPending: profilesPending, isError: profilesError, refetch: refetchProfiles } =
     useAssignableProfiles();
   // Memoised on `t` so the validator identity is stable between renders.
   const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
@@ -287,6 +287,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             value={assigneeField.value || null}
             selectedOption={selectedAssignee}
             loadOptions={async () => assigneeOptions}
+            statusOverride={profilesPending ? 'loading' : profilesError ? 'error' : undefined}
+            onRetry={() => void refetchProfiles()}
             onChange={(v) => assigneeField.onChange(v)}
             placeholder={
               profilesPending
@@ -295,6 +297,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             }
             searchPlaceholder={t('projectDetail.tasks.form.searchPeople', 'Search people…')}
             noun="person"
+            emptyMessage={(query) => query ? undefined : t('projectDetail.tasks.form.noAssignees', 'No assignable people are available. Add or activate a user in Administration.')}
           />
           <SelectField
             id={statusField.id}

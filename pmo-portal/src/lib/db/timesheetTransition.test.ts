@@ -175,6 +175,12 @@ describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
     });
   });
 
+  it('AC-RSN-004 timesheet rejection forwards its reason', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await rejectTimesheet('ts-id', 'correct the hours');
+    expect(mockRpc).toHaveBeenCalledWith('transition_timesheet', { p_timesheet_id: 'ts-id', p_to: 'Rejected', p_notes: 'correct the hours' });
+  });
+
   it('does not send org_id to the RPC (FR-TS-009/010)', async () => {
     makeRpcBuilder({ data: null, error: null });
     await submitTimesheet('ts-id');

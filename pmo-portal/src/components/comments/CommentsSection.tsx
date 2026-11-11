@@ -6,6 +6,7 @@ import { useComments, useCommentMutations } from '@/src/hooks/useComments';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { CommentEntityType } from '@/src/lib/db/comments';
 import { formatClockTime, formatDay } from '@/src/lib/format';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Button } from '@/src/components/ui/Button';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { SectionHeader } from '@/src/components/ui/SectionHeader';
@@ -81,6 +82,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
   const [body, setBody] = useState('');
   const [mentions, setMentions] = useState<MentionSlot[]>([]);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const query = activeMention(body);
   const suggestions = useMemo(() => {
@@ -110,6 +112,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
 
   const tooLong = body.length > MAX_LEN;
   const canPost = body.trim().length > 0 && !tooLong && !post.isPending;
+  const dirty = body.length > 0 || mentions.length > 0;
+
+  useUnsavedChangesGuard({
+    dirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingLeave(() => leave),
+  });
 
   const submit = async () => {
     // Recipients derive from surviving mention spans, never substring matching.
@@ -204,6 +213,19 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
           if (confirmId) remove.mutate(confirmId, { onSettled: () => setConfirmId(null) });
         }}
         onCancel={() => setConfirmId(null)}
+      />
+      <ConfirmDialog
+        open={pendingLeave !== null}
+        title={t('comments.unsavedDraft.title', 'Unsaved comment draft')}
+        description={t('comments.unsavedDraft.description', 'Your comment and mentions will be lost if you leave this page.')}
+        confirmLabel={t('comments.unsavedDraft.leave', 'Leave')}
+        cancelLabel={t('comments.unsavedDraft.stay', 'Stay')}
+        onConfirm={() => {
+          const leave = pendingLeave;
+          setPendingLeave(null);
+          leave?.();
+        }}
+        onCancel={() => setPendingLeave(null)}
       />
     </section>
   );

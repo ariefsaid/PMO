@@ -44,7 +44,7 @@ describe('supplier invoice recognition identity', () => {
     expect(label).toContain('Case: Case North');
     expect(label).toContain('Project: Harbor works');
     expect(label).toContain('PRJ-2641');
-    expect(label).toContain('Bill date: 2026-09-18');
+    expect(label).toContain('Bill date: 18 Sep 2026');
     expect(label).not.toContain('invoice-uuid');
   });
 });

@@ -146,6 +146,10 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
     submitted_at: '2026-06-08T17:00:00Z',
     approved_by: null,
     approved_at: null,
+    rejected_at: null,
+    rejected_by: null,
+    rejection_reason: null,
+    rejecter: null,
     org_id: 'org-1',
     owner: { full_name: 'Dave Engineer', manager_id: null },
     entries: [

@@ -31,6 +31,14 @@ describe('AdministrationUsage — cost unit (FR-L10N-023)', () => {
   });
 });
 
+describe('AdministrationUsage — month column (ux/1110 rule 1: no ISO strings on screen)', () => {
+  it('renders the RPC month bucket through the shared month formatter, never the raw ISO date', () => {
+    render(<AdministrationUsage rows={[baseRow]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    expect(screen.getByText('Jul 2026')).toBeInTheDocument();
+    expect(screen.queryByText('2026-07-01')).not.toBeInTheDocument();
+  });
+});
+
 describe('AdministrationUsage — margin column (AC-USE-003)', () => {
   it('hides the margin column and shows a "pricing not yet configured" note when every row has margin_usd = null', () => {
     render(<AdministrationUsage rows={[baseRow, { ...baseRow, action: 'compose' }]} isPending={false} isError={false} onRetry={vi.fn()} />);

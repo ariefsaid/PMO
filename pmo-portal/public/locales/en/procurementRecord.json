@@ -133,6 +133,8 @@
     "overdue": "Overdue {{days}} days · due {{date}}",
     "budgetLoading": "Budget signal loading",
     "budgetUnavailable": "Couldn't load the project budget",
+    "currencyUnavailable": "Budget comparison unavailable for these currencies",
+    "amountUnavailable": "Budget comparison unavailable for these amounts",
     "noBudget": "No active project budget",
     "budgetSignal": "Budget not yet committed {{available}} · {{after}} after this procurement",
     "budgetSignalTooltip": "Available = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.",

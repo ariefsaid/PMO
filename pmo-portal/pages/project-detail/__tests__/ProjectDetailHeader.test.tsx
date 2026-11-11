@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor, act } from '@testing-library/react';
 import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
@@ -105,6 +105,8 @@ const onHand = {
 } as unknown as ProjectWithRefs;
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
+
+const RouteProbe = () => <output data-testid="route-path">{useLocation().pathname}</output>;
 
 const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'erp') => {
   roleBox.value = role;
@@ -489,6 +491,54 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
     // the delivery StatTiles strip (Contract / Committed / Actual / margin / Spend) is gone too
     expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
+  });
+
+  it('CMP-010: route leave warns on changed contract value and tax basis, and Stay keeps both drafts', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    roleBox.value = 'Finance';
+    render(
+      <MemoryRouter initialEntries={['/projects/p1']}>
+        <RouteProbe />
+        <Link to="/next">Next page</Link>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const value = screen.getByRole('textbox', { name: /Contract value/i });
+    await userEvent.clear(value);
+    await userEvent.type(value, '5140000');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '565400');
+
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    await userEvent.click(screen.getByRole('link', { name: 'Next page' }));
+    const leavePrompt = await screen.findByRole('dialog', { name: /unsaved contract value/i });
+    await userEvent.click(within(leavePrompt).getByRole('button', { name: /^stay$/i }));
+
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/p1');
+    expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,140,000');
+    expect(screen.getByLabelText(/tax treatment/i)).toHaveValue('exclusive');
+    expect(screen.getByLabelText(/tax amount/i)).toHaveValue('565,400');
+    expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('CMP-011: Cancel confirms before discarding a changed contract value and Keep editing preserves it', async () => {
+    const user = userEvent.setup();
+    renderHeader('Finance');
+    await user.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const value = screen.getByRole('textbox', { name: /Contract value/i });
+    await user.clear(value);
+    await user.type(value, '5140000');
+    await user.click(screen.getByRole('button', { name: /^Cancel$/i }));
+
+    const discardPrompt = await screen.findByRole('dialog', { name: /unsaved contract value/i });
+    await user.click(within(discardPrompt).getByRole('button', { name: /keep editing/i }));
+    expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,140,000');
+    expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
   });
 
   it('AC-PRJ-006: on a WON/on-hand project, a PM sees the contract value without an edit control', () => {

@@ -11,6 +11,11 @@ const setup = (over: Partial<React.ComponentProps<typeof ReasonDialog>> = {}) =>
 };
 
 describe('ReasonDialog: one Return / Reject dialog', () => {
+  it('AC-RSN-006 respects the shorter equipment reason limit', () => {
+    setup({ maxLength: 500 });
+    expect(screen.getByRole('textbox', { name: /Reason for returning/ })).toHaveAttribute('maxlength', '500');
+  });
+
   it('Return: reason field first in focus, confirm disabled until a reason is typed, then sends the trimmed reason', async () => {
     const { onConfirm } = setup();
     const dialog = await screen.findByRole('dialog', { name: 'Return timesheet' });

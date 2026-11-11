@@ -187,12 +187,12 @@ export function KPITile({
         <div className="relative z-10 flex min-w-0 flex-col gap-2.5 pointer-events-none">
           {head}
           {loading ? (
-            <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+            <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
           ) : error ? null : (
             <div
               className={cn(
-                'min-w-0 break-words text-metric font-bold leading-none tracking-[-0.02em] tabular',
-                negative && 'text-destructive'
+                'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
+                negative ? 'text-destructive' : 'text-foreground'
               )}
             >
               <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
@@ -209,12 +209,12 @@ export function KPITile({
       {head}
 
       {loading ? (
-        <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+        <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
       ) : error ? null : (
         <div
           className={cn(
-            'min-w-0 break-words text-metric font-bold leading-none tracking-[-0.02em] tabular',
-            negative && 'text-destructive'
+            'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
+            negative ? 'text-destructive' : 'text-foreground'
           )}
         >
           <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />

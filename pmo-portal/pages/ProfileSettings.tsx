@@ -80,7 +80,7 @@ const ProfileSettings: React.FC = () => {
   }, [currentUser?.locale, currentUser?.number_locale, currentUser?.timezone]);
   const dirty = languageChoice !== savedPreferences.language || numberChoice !== savedPreferences.number || timezoneChoice !== savedPreferences.timezone;
   const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
-  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   // What each "Organization default" would give this user: the SAME resolver with that preference
   // cleared — never `resolvedLocale`, which carries the user's own override when one is set. The

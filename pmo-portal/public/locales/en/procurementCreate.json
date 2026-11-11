@@ -54,12 +54,16 @@
     "retryProjects": "Retry projects",
     "loadingSuppliers": "Loading suppliers…",
     "suppliersError": "Couldn't load suppliers.",
-    "retrySuppliers": "Retry suppliers"
+    "retrySuppliers": "Retry suppliers",
+    "noProjects": "No projects available. You can continue without a project or ask an administrator to add one.",
+    "noSuppliers": "No suppliers available. A supplier is optional; ask an administrator to add one if needed."
   },
   "saveLabel": {
     "need": "Save draft",
     "order": "Save and record order",
     "invoice": "Save and record invoice",
     "payment": "Save and record payment"
-  }
+  },
+  "uncertainSave": "The save may have completed. Check its status before starting a new request; retrying here uses the same request.",
+  "checkSaveStatus": "Check request status"
 }

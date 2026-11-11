@@ -42,7 +42,7 @@
     "cascade": {
       "error": "Couldn't load the contract",
       "title": "Contract",
-      "contract": "Contract",
+      "contract": "Contract value",
       "source": {
         "contract": "Source: priced contract lines (quantity × rate), excluding tax.",
         "contractFallback": "Source: the project billing summary, excluding tax.",
@@ -77,23 +77,21 @@
       "orderBillingIncomplete": "Can invoice is unavailable until the order value is complete.",
       "openDraftOrder": "Open draft order",
       "reasonDraftOrder": "The customer order is still a draft.",
-      "reasonNoOrders": "No customer orders.",
       "reasonNoAllocations": "No contract lines are allocated.",
       "reasonNoAcceptance": "No accepted quantities.",
       "reasonAlreadyClaimed": "Accepted quantities are already claimed.",
       "reasonMoneyOrdersClaimed": "Customer order value is already invoiced.",
       "reasonComputedZero": "The billable total is zero at current contract rates.",
-      "stepOrder": "Customer order recorded",
-      "stepAllocation": "Contract lines allocated",
-      "stepAcceptance": "Accepted quantity recorded",
+      "stepOrder": "Order",
+      "stepAllocation": "Lines",
+      "stepAcceptance": "Accepted",
       "recordAcceptedQuantity": "Record accepted quantity",
-      "stepUnclaimed": "Unclaimed quantity remains",
-      "beforeBill": "Before you can bill",
-      "phaseProgressLabel": "Phase progress is not billable quantity.",
+      "stepUnclaimed": "Unclaimed",
+      "beforeBill": "Billing",
       "billingSteps": "Billing steps",
       "done": "Done",
-      "notNeeded": "Not needed",
-      "needed": "Needed",
+      "notNeeded": "None",
+      "needed": "Missing",
       "canInvoice": "Can invoice",
       "overdue": "Overdue",
       "notOrdered": "Not yet ordered",
@@ -167,7 +165,7 @@
         },
         "rateSource": "Source: the priced contract line rate.",
         "openLine": "Open {{item}} contract line",
-        "manage": "Edit contract lines",
+        "manage": "Edit lines",
         "toast": {
           "saved": "Bill of quantities line saved",
           "deleted": "Bill of quantities line deleted"
@@ -592,7 +590,7 @@
       "noDates": "Dates not set",
       "ariaLabel": "Project facts",
       "projectManager": "Project manager: {{name}}",
-      "progressTooltip": "Weighted average of phase completion using each phase weight; source: project phase plan.",
+      "progressTooltip": "Weighted average of phase completion using each phase weight; source: project phase plan. Phase progress is not billable quantity.",
       "progress": "Progress",
       "progressAria": "Project progress {{percent}}%",
       "progressLoading": "Progress loading",
@@ -612,13 +610,21 @@
       "copyLink": "Copy link",
       "previewFileFor": "Preview file for {{title}}",
       "previewFile": "Preview file",
-      "changeContractValue": "Change contract value"
+      "changeContractValue": "Change contract value",
+      "unsavedValue": {
+        "title": "Unsaved contract value",
+        "description": "Your contract value and tax basis edits will be lost if you leave.",
+        "discard": "Discard changes",
+        "leave": "Leave",
+        "keepEditing": "Keep editing",
+        "stay": "Stay"
+      }
     },
     "rail": {
       "contractDate": "Contract date"
     },
     "tabs": {
-      "contract": "Contract & billing",
+      "contract": "Contract",
       "activity": "Activity",
       "materials": "Materials"
     },
@@ -840,6 +846,10 @@
     },
     "tasks": {
       "selectTask": "Select task {{name}}",
+      "form": {
+        "noAssignees": "No assignable people are available. Add or activate a user in Administration."
+      },
+      "addTask": "Add task",
       "bulk": {
         "toast": {
           "partial": "{{succeeded}} updated; {{failed}} failed. Review the selected tasks and retry.",

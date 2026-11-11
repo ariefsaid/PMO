@@ -7,6 +7,7 @@ export type ReasonKind = 'return' | 'reject';
 
 export interface ReasonDialogProps {
   open: boolean;
+  maxLength?: number;
   /** `return` = send back for correction (primary confirm); `reject` = final refusal (destructive confirm). Same layout either way. */
   kind: ReasonKind;
   /** What is being returned or rejected, as a short noun ("timesheet", "purchase request"); fills the default title. */
@@ -32,6 +33,7 @@ export interface ReasonDialogProps {
  */
 export const ReasonDialog: React.FC<ReasonDialogProps> = ({
   open,
+  maxLength = 1000,
   kind,
   subject = '',
   title,
@@ -99,7 +101,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
             required
             fullWidth
             rows={3}
-            maxLength={1000}
+            maxLength={maxLength}
             value={reason}
             disabled={loading}
             onChange={(next) => setReason(next)}

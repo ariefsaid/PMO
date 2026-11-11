@@ -33,6 +33,7 @@ import { ContactFormModal } from './contact/ContactFormModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
+import { typeLabels } from './company/companyTypeLabels';
 
 /**
  * CompanyDetail — the routable `/companies/:id` master-data record page (CW-4b).
@@ -211,10 +212,12 @@ const CompanyDetail: React.FC = () => {
 
       {/* The ONE RecordHeader anatomy — icon + name + categorical company-type pill (CW-2
           registry) + the role-allowed action zone (Edit + Archive). */}
+      {/* The pill reads the one shared type-label map (the directory's filter, form and pills read
+          it too) — never the raw stored enum. */}
       <RecordHeader
         name={companyDisplayName(company)}
         icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
-        status={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
+        status={<StatusPill variant={companyTypeVariant(company.type)}>{typeLabels(t)[company.type]}</StatusPill>}
         primaryAction={canEdit ? (
           <Button variant="primary" size="sm" data-testid="company-edit" onClick={() => setEditOpen(true)}>
             {t('companyDetail.edit', 'Edit')}
