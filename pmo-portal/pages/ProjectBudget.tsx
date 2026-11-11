@@ -18,7 +18,8 @@ import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { StackedBar } from '@/src/components/projects/StackedBar';
-import { formatCurrency, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
+import { formatDay, formatTableMoney } from '@/src/lib/format';
+import { formatBudgetAmount, formatBudgetTile } from './project-detail/budget/budgetMoney';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
@@ -560,16 +561,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     if (row.used >= 70) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
     return { variant: 'neutral' as const, label: t('projectDetail.budget.onTrack', 'On track') };
   };
-  // C5/C6: whole units use the project heading; foreign budget figures carry their own basis.
-  // C5 + money precision: no trailing .00 on whole amounts, but a real fraction (1,234.5) is never rounded away.
-  const formatAmount = (value: number | null, currency = project.currency) => value === null ? '—' : formatCurrency(value, currency);
+  const formatAmount = (value: number | null, currency = project.currency) => value === null ? '—' : formatBudgetAmount(value, currency);
   const formatBudget = (value: number | null) => formatAmount(value, selectedCurrency);
   const formatSpent = (value: number | null) => formatAmount(value, spendCurrency);
   // F11: KPI tiles carry the short amount; the full amount stays on hover and for screen readers.
   const tileAmount = (value: number | null, currency = project.currency) => {
-    const tile = value === null ? null : formatTileMoney(value, currency);
+    const tile = value === null ? null : formatBudgetTile(value, currency);
     if (tile === null) return { value: null };
-    const exact = formatTableMoney(value as number, currency);
+    const exact = value !== null && value !== 0 && Math.abs(value) < 0.5 ? tile : formatTableMoney(value, currency);
     return exact && exact !== tile ? { value: tile, exactValue: exact } : { value: tile };
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
@@ -892,7 +891,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
                 key: row.category,
                 label: budgetCategoryLabel(row.category, t),
                 value: row.budget,
-                display: formatTileMoney(row.budget, activeBudgetCurrency ?? project.currency) ?? String(row.budget),
+                display: formatBudgetTile(row.budget, activeBudgetCurrency ?? project.currency),
               }))}
             />
           </CardPad>

@@ -16,6 +16,16 @@ const increase = {
 } as unknown as BudgetVersionWithItems;
 
 describe('BudgetVersionsDrawer', () => {
+  it.each([0.01, -0.01, 0.001])('shows a non-zero fractional version total and comparison change (%s)', async (amount) => {
+    const user = userEvent.setup();
+    const fractional = { ...increase, total: amount, line_items: [{ ...increase.line_items[0], budgeted_amount: amount }] };
+    render(<BudgetVersionsDrawer open onClose={() => {}} versions={[original, fractional]} fallbackCurrency="USD" canWrite={false} hasDraft={false} onArchive={() => {}} onClone={() => {}} onDeleteDraft={() => {}} />);
+    expect(screen.getByRole('list', { name: 'Budget versions' })).toHaveTextContent(`USD ${amount}`);
+    await user.click(screen.getByRole('button', { name: 'Compare' }));
+    const cells = within(screen.getByRole('row', { name: /Labor/ })).getAllByRole('cell');
+    expect(cells[cells.length - 1]).toHaveTextContent(`${amount > 0 ? '+' : ''}USD ${amount}`);
+  });
+
   it('R2-P1b #13 renders an increase in neutral text, not as an overrun', async () => {
     const user = userEvent.setup();
     render(

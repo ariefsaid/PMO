@@ -494,6 +494,17 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(table).toHaveTextContent('+GBP 25');
   });
 
+  it('keeps a non-zero fractional budget and version difference visible', () => {
+    state.versions.data = [active([line('li-1', 'Labor', 'Design', 0.01)]), draft({ total: 0.02, line_items: [line('li-2', 'Labor', 'Design', 0.02)] })];
+    renderPage();
+    const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    expect(tiles).toHaveTextContent('USD 0.01');
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(table).toHaveTextContent('USD 0.01');
+    const versions = screen.getByRole('region', { name: 'Budget versions' });
+    expect(versions).toHaveTextContent('+USD 0.01');
+  });
+
   it('shows a same-currency change between foreign version totals', () => {
     state.versions.data = [{ ...active(), currency: 'GBP' }, draft({ currency: 'GBP' })];
     renderPage();
