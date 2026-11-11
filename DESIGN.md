@@ -66,7 +66,7 @@ typography:
   heading: { size: "16px", weight: 600, lineHeight: 1.5 }
   group: { size: "16px", weight: 600, lineHeight: 1.5 }
   control: { size: "14px", weight: 400, lineHeight: 1.43, floor: "job text" }
-  supporting: { size: "12px", weight: 400, lineHeight: 1.34, use: "chart ticks and legends, count badges, keyboard hints, timestamps, app-version footer" }
+  supporting: { size: "14px", weight: 400, lineHeight: 1.43, color: "muted-foreground", use: "captions, meta, table header labels" }
   metric: { size: "30px", weight: 600, lineHeight: 1.2, numeric: "tabular", use: "key figures" }
   mono: "Tailwind v4 font-mono stack — identifiers only"
 rounded:
@@ -217,10 +217,11 @@ Hanken Grotesk remains self-hosted and is used without stylistic alternates. The
 | Card or section title | 16px / 24px | 600, foreground |
 | Group | 16px / 24px | 600 |
 | Control/body | 14px / 20.02px | 400 |
-| Supporting (restricted) | 12px / 16.08px | 400 |
+| Secondary | 14px / 20.02px | 400, muted-foreground |
 | Key figure | 30px / 36px | 600, tabular |
+| Micro (restricted) | 12px / 16.08px | 400 |
 
-14px is the floor for job text. 12px is limited to chart ticks and legends, count badges, keyboard hints, timestamps, and the app-version footer; nothing renders below 12px. Mono remains for identifiers only.
+14px is the floor for job text, secondary copy, and table labels. 12px is limited to chart ticks, count badges, shortcut hints, timestamps, and the app-version footer; nothing renders below 12px. Mono remains for identifiers only.
 
 ## 4. Geometry, motion, and elevation
 

@@ -139,8 +139,8 @@
   --shadow-overlay: none;
 
   /* Type scale: semantic roles share Hanken Grotesk and retain tabular figures. */
-  --type-support: 0.75rem;
-  --line-support: 1.34;
+  --type-support: 0.875rem;
+  --line-support: 1.43;
   --type-control: 0.875rem;
   --line-control: 1.43;
   --type-group: 1.0rem;
@@ -287,8 +287,8 @@
   --shadow-overlay: none;
 
   /* Theme-independent type, shape, density, motion, and avatar tokens. */
-  --type-support: 0.75rem;
-  --line-support: 1.34;
+  --type-support: 0.875rem;
+  --line-support: 1.43;
   --type-control: 0.875rem;
   --line-control: 1.43;
   --type-group: 1.0rem;
