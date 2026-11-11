@@ -230,7 +230,8 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/projects/project-6', '/projects/project-5', '/projects/project-3', '/projects/project-2', '/projects/project-1']);
     expect(within(list).queryByText('Project 9')).not.toBeInTheDocument();
     const row = links[0];
-    expect(row).toHaveAccessibleName(/Tasks overdue:?\s*4.*Phases late:?\s*0.*Invoices overdue:?\s*0.*Awaiting approval:?\s*2/);
+    expect(row).toHaveAccessibleName(/4 tasks overdue.*2 awaiting approval/);
+    expect(row).toHaveAccessibleName(/0 invoices overdue/);
     expect(row).toHaveTextContent('40%');
     expect(row).toHaveTextContent('150%');
     // A status pill takes its tone from the status map, not from being off track (red already means overdue).
@@ -697,10 +698,10 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.queryByText(/Not recorded/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Win and loss by client' })).toBeInTheDocument();
     expect(screen.getByText('1 won, 1 lost')).toBeInTheDocument();
-    const purchasing = screen.getByTestId('chart-purchasing');
+    const sales = screen.getByTestId('sales-overview');
     const winLoss = screen.getByTestId('chart-loss-reasons');
-    expect(winLoss.parentElement).toBe(purchasing.parentElement);
-    expect(purchasing.compareDocumentPosition(winLoss) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(winLoss.parentElement).toBe(sales.parentElement);
+    expect(sales.compareDocumentPosition(winLoss) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     await openHiddenReasons();
     expect(await screen.findByText('no loss reason is recorded')).toBeInTheDocument();
   });

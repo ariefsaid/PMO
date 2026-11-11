@@ -215,6 +215,29 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(project).toHaveAccessibleName(/1 awaiting approval/);
   });
 
+  it('Added: off-track projects stop at five, numeric columns have room, and status labels stay on one line', () => {
+    h.dash = {
+      ...base,
+      attention_projects: Array.from({ length: 6 }, (_, index) => ({
+        id: `p${index + 1}`, name: `Project ${index + 1}`, short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null,
+        status: 'Ongoing Project', attention_signals: 1, overdue_items: 1, overdue_tasks: 1, overdue_milestones: 0,
+        overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
+      })),
+    };
+    renderExec();
+
+    const list = screen.getByTestId('project-rows');
+    const projects = within(list).getAllByRole('link').filter((link) => /^\/projects\/p\d+$/.test(link.getAttribute('href') ?? ''));
+    expect(projects).toHaveLength(5);
+    expect(within(list).queryByRole('link', { name: /Project 6/ })).not.toBeInTheDocument();
+
+    const numericHeader = within(list).getByText('Project', { exact: true }).parentElement;
+    expect(numericHeader).toHaveClass('gap-x-5');
+    const needsGrid = projects[0].querySelector('[data-testid="project-needs-mobile"]')?.previousElementSibling;
+    expect(needsGrid).toHaveClass('gap-x-5');
+    expect(projects[0].querySelector('.inline-flex')).toHaveClass('whitespace-nowrap');
+  });
+
   it('H1: Waits and the four position figures share the left desktop column; off-track projects stay content-sized on the right', () => {
     h.dash = {
       ...base,

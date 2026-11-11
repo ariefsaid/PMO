@@ -58,7 +58,7 @@ describe('FinanceRevenueTrend', () => {
     state.payments.data = undefined;
     const { container } = renderTrend();
     expect(container.querySelector('[data-testid="finance-revenue-trend"]')).toBeNull();
-    expect(screen.getByText(/no invoice or collection amounts are recorded/i)).toBeInTheDocument();
+    expect(screen.getByText(/monthly series aren't available yet/i)).toBeInTheDocument();
   });
 
   it('keeps the six-month chart even when only one month has invoiced activity', () => {

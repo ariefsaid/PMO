@@ -29,8 +29,11 @@ it('shows the collected KPI for fractional receipts in the selected period', () 
   expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({ value: '$1', lines: ['$1'], href: '/finance/receivables?view=payments&status=Paid&from=2026-01&to=2026-01' });
 });
 
-it('provides an explicit zero when the loaded period has no payments', () => {
+it('passes a recorded zero explicitly when the period has no receipts', () => {
   state.payments = [];
   const { result } = renderHook(() => useCompanyFigures({ key: 'custom', label: 'January', from: '2026-01', to: '2026-01' }));
-  expect(result.current.period.find((figure) => figure.id === 'collected')?.amounts).toEqual([{ currency: 'USD', amount: 0 }]);
+  expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({
+    value: '$0',
+    amounts: [{ currency: 'USD', amount: 0 }],
+  });
 });

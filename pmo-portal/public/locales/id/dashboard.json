@@ -810,6 +810,7 @@
     "invoicedTrendGap": "Data penagihan belum lengkap; jumlah yang diterima tetap ditampilkan.",
     "collectedTrendGap": "Data penerimaan belum lengkap; jumlah yang ditagihkan tetap ditampilkan.",
     "financeRevenueTrend": "Ditagih dan diterima · 6 bulan",
+    "reasonTrendUnavailable": "Rangkaian bulanan belum tersedia",
     "reasonTrend": "kurang dari tiga bulan memiliki jumlah penagihan atau penerimaan",
     "reasonTrendNoActivity": "tidak ada jumlah penagihan atau penerimaan tercatat pada bulan ini",
     "whyLost": "Alasan deal kalah",

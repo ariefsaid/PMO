@@ -201,8 +201,8 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'finance',
     icon: 'dollar',
-    label: 'Overview', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'financeHub:nav.overview',
+    label: 'Finance', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'financeHub:hub.title',
     path: '/finance',
     roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
@@ -465,15 +465,15 @@ export function breadcrumbForPath(
   if (administrationBreadcrumb) return administrationBreadcrumb;
 
   if (pathname === '/finance') {
-    return [{ label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
-      i18nKey: 'financeHub:nav.overview' }];
+    return [{ label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+      i18nKey: 'financeHub:hub.title' }];
   }
   const invoiceRecord = /^\/sales-invoices\/[^/]+$/.test(pathname);
   const paymentRecord = /^\/incoming-payments\/[^/]+$/.test(pathname);
   if (invoiceRecord || paymentRecord) {
     return [
-      { label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
-        i18nKey: 'financeHub:nav.overview', href: '/finance', onClick: () => navigate?.('/finance') },
+      { label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.title', href: '/finance', onClick: () => navigate?.('/finance') },
       { label: 'Receivables', // i18n-exempt: translated from i18nKey by Breadcrumb
         i18nKey: 'financeHub:hub.receivables', href: paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables', onClick: () => navigate?.(paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables') },
       { label: paymentRecord ? 'Payment record' : 'Invoice record', i18nKey: paymentRecord ? 'financeHub:nav.paymentRecord' : 'shell.nav.invoiceRecord' },
@@ -489,8 +489,8 @@ export function breadcrumbForPath(
     };
     return [
       {
-        label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
-        i18nKey: 'financeHub:nav.overview',
+        label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.title',
         href: '/finance',
         onClick: () => navigate?.('/finance'),
       },

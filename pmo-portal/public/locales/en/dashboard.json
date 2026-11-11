@@ -810,6 +810,7 @@
     "invoicedTrendGap": "Invoiced is incomplete; collected amounts are shown.",
     "collectedTrendGap": "Collected is incomplete; invoiced amounts are shown.",
     "financeRevenueTrend": "Invoiced and collected · 6 months",
+    "reasonTrendUnavailable": "Monthly series aren't available yet",
     "reasonTrend": "fewer than three months have invoiced or collected amounts",
     "reasonTrendNoActivity": "no invoice or collection amounts are recorded in these months",
     "whyLost": "Why deals were lost",
