@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatCurrencyCents, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 
@@ -42,8 +42,8 @@ const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: Inco
       content: <><span>{payment.date ? formatDay(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{(() => {
         // #1415: a split PMO receipt shows what reached THIS invoice, not the whole receipt.
         const share = payment.pmo_native ? payment.allocations?.find((a) => a.sales_invoice_id === invoice.id) : undefined;
-        if (share) return formatCurrencyCents(share.cash_amount, payment.currency);
-        return payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—';
+        if (share) return formatCurrency(share.cash_amount, payment.currency, { precision: 'minor' });
+        return payment.received_amount != null ? formatCurrency(payment.received_amount, payment.currency, { precision: 'minor' }) : payment.amount != null ? formatCurrency(payment.amount, payment.currency, { precision: 'minor' }) : '—';
       })()}</span></>,
     })),
     {

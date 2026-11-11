@@ -43,7 +43,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownC
   // The basis of each age ("tax included", "since the invoice was recorded") lives in the page's one help control.
   const title = kind === 'receivables'
     ? t('finance:area.receivablesAgeingTitle', 'Client balances by age')
-    : t('finance:area.payablesAgeingBasis', 'Waiting to pay, by days');
+    : t('finance:area.payablesAgeingBasis', 'Invoice age, by days');
   const currencies = [...new Set([...Object.keys(values), ...Object.keys(unknownCounts)])].map((currency) => [currency, values[currency]] as const).sort(([left], [right]) => {
     if (isResolved && left === orgCurrency) return -1;
     if (isResolved && right === orgCurrency) return 1;

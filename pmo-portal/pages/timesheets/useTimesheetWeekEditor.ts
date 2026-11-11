@@ -9,7 +9,7 @@ import type { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, saveToastForChangeCount } from '@/src/lib/timesheet-edit';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDay } from '@/src/lib/format';
+import { formatDayRange } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import { dayKey, planCopyLastWeekRows } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
@@ -356,7 +356,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     else moveWeek(delta);
   };
 
-  const weekRangeLabel = `${formatDay(weekStartDate)} – ${formatDay(weekDates[6])}`;
+  const weekRangeLabel = formatDayRange(weekStartDate, weekDates[6]);
 
   // Submit affordance (FR-TS-004): only the owner of a Draft sheet for this week.
   const isOwner = currentTimesheet?.user_id === signedInUserId;

@@ -4057,8 +4057,6 @@
       "invoiced": "Ditagih",
       "recognisedToDate": "Diakui s.d. saat ini",
       "invoicedToDate": "Ditagih s.d. saat ini",
-      "unbilled": "Belum ditagih",
-      "backlog": "Backlog",
       "basis": "Dasar"
     },
     "progressModal": {
@@ -4072,9 +4070,6 @@
       "save": "Simpan progres",
       "saved": "Progres disimpan"
     }
-  },
-  "uxs34": {
-    "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
   "comments": {
     "title": "Komentar",

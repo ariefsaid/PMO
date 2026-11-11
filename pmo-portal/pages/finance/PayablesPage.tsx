@@ -10,7 +10,7 @@ import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
-import { formatDay, formatTableMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { moneyTileProps } from '@/src/components/finance/moneyTile';
@@ -85,23 +85,12 @@ const PayablesPage: React.FC = () => {
       exportValue: (row) => row.procurement.project ? projectDisplayName(row.procurement.project) : '',
     },
     {
-      key: 'recorded',
-      header: t('financeHub:hub.invoiceRecorded', 'Invoice recorded'),
-      kind: 'date',
-      size: 130,
-      cell: (row) => {
-        const recordedAt = row.procurement.vendor_invoiced_at ?? row.procurement.updated_at;
-        return <span className="whitespace-nowrap">{recordedAt ? formatDay(recordedAt) : '—'}</span>;
-      },
-      exportValue: (row) => (row.procurement.vendor_invoiced_at ?? row.procurement.updated_at)?.slice(0, 10) ?? '',
-    },
-    {
-      key: 'waiting',
-      header: t('financeHub:hub.waiting', 'Waiting to pay'),
+      key: 'age',
+      header: t('financeHub:hub.invoiceAge', 'Invoice age'),
       kind: 'status',
-      size: 105,
-      cell: (row) => <StatusPill variant={row.ageDays <= 30 ? 'neutral' : row.ageDays <= 90 ? 'warn' : 'lost'}>{t('financeHub:hub.daysWaiting', '{{count}} days', { count: row.ageDays })}</StatusPill>,
-      exportValue: (row) => `${row.ageDays} days`,
+      size: 130,
+      cell: (row) => row.ageDays === null ? null : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : row.ageDays <= 90 ? 'warn' : 'lost'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>,
+      exportValue: (row) => row.ageDays === null ? '' : `${row.ageDays} days`,
     },
     {
       key: 'amount',
@@ -121,11 +110,19 @@ const PayablesPage: React.FC = () => {
     label: t('financeHub:hub.totalCurrency', 'Total · {{currency}}', { currency }),
     values: { amount: formatTableMoney(amount / 100, currency) ?? '' },
   }));
-  const oldest = payablesPosition.payables[0];
+  const oldest = payablesPosition.payables.find((row) => row.ageDays !== null);
 
   if (!canView) return <FinanceAccessDenied />;
 
-  const supplierCount = new Set(payablesPosition.payables.map(({ procurement }) => procurement.vendor_id ?? procurement.id)).size;
+  const knownSupplierIds = new Set(payablesPosition.payables.flatMap(({ procurement }) => procurement.vendor_id ? [procurement.vendor_id] : []));
+  const supplierCount = knownSupplierIds.size;
+  const unknownSupplierInvoices = payablesPosition.payables.filter(({ procurement }) => !procurement.vendor_id).length;
+  const supplierCaption = unknownSupplierInvoices > 0
+    ? [
+      supplierCount > 0 ? t('financeHub:hub.fix.payables.supplierCount', { defaultValue_one: '{{count}} supplier', defaultValue_other: '{{count}} suppliers', count: supplierCount }) : null,
+      t('financeHub:hub.fix.payables.unknownSupplierInvoices', { defaultValue_one: '{{count}} invoice, supplier not recorded', defaultValue_other: '{{count}} invoices, supplier not recorded', count: unknownSupplierInvoices }),
+    ].filter(Boolean).join(' · ')
+    : t('financeHub:hub.fix.payables.supplierCount', { defaultValue_one: '{{count}} supplier', defaultValue_other: '{{count}} suppliers', count: supplierCount });
   const noKnownTotal = Object.keys(payablesPosition.payablesTotals).length === 0;
   const toPay = noKnownTotal && payablesPosition.payables.length > 0 ? null : moneyTileProps(payablesPosition.payablesTotals, home);
 
@@ -133,7 +130,7 @@ const PayablesPage: React.FC = () => {
     <FigureScope>
     <ListPage
       title={t('financeHub:hub.payablesTitle', 'Payables')}
-      help={<p>{t('financeHub:hub.payablesHelp', 'Waiting to pay counts calendar days since the supplier invoice was recorded, or since its last update when no date was recorded. Procurement shows the invoice\'s own age, a different clock.')}</p>}
+      help={<p>{t('financeHub:hub.payablesHelp', 'Invoice age is counted from the supplier invoice date.')}</p>}
       count={filteredRows.length}
       total={payablesPosition.payables.length}
     >
@@ -141,15 +138,14 @@ const PayablesPage: React.FC = () => {
       <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 grid-cols-2">
         <KPITile
           icon="grid" tone="blue" label={t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}
-          caption={t('financeHub:hub.fix.payables.supplierCount', { defaultValue: supplierCount === 1 ? '{{count}} supplier' : '{{count}} suppliers', count: supplierCount })}
+          caption={supplierCaption}
           value={toPay?.value ?? null} exactValue={toPay?.exactValue} loading={isPending}
           unavailableReason={toPay || isPending ? undefined : t('financeHub:hub.fix.payables.unknownCount', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: payablesPosition.payablesUnknownCount })}
           help={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}
         />
         {(isPending || oldest) && <KPITile
-          icon="grid" tone="amber" label={t('financeHub:hub.oldestWaiting', 'Longest wait')}
-          caption={t('financeHub:hub.fix.payables.oldestBasis', 'since invoice recorded')}
-          value={oldest ? t('financeHub:hub.daysWaiting', '{{count}} days', { count: oldest.ageDays }) : null} loading={isPending}
+          icon="grid" tone="amber" label={t('financeHub:hub.oldestInvoiceAge', 'Oldest invoice age')}
+          value={oldest?.ageDays === null || !oldest ? null : t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: oldest.ageDays })} loading={isPending}
         />}
       </KPIRow>
       {!isPending && !finance.isError && <AgeingStrip kind="payables" values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}

@@ -8,7 +8,7 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useWorkOrderAcceptanceAge, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { deriveBillingMilestoneStatus, sortBillingMilestones, type BillingMilestoneStatus } from '@/src/lib/billingMilestones';
 import { canInvoiceWorkOrder } from '@/src/lib/workOrderBilling';
-import { formatCurrency, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatDayRange } from '@/src/lib/format';
 
 const TONE: Record<BillingMilestoneStatus, StatusVariant> = { unknown: 'warn', planned: 'open', 'in-progress': 'progress', invoiced: 'neutral', paid: 'won' };
 
@@ -45,7 +45,7 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
     paid: t('projectDetail.billingMilestones.status.paid', 'Paid'),
   };
   const dates = (w: (typeof rows)[number]) =>
-    w.start_date && w.end_date ? t('projectDetail.billingMilestones.dates', '{{start}} – {{end}}', { start: formatDay(w.start_date), end: formatDay(w.end_date) })
+    w.start_date && w.end_date ? formatDayRange(w.start_date, w.end_date)
       : w.start_date ? t('projectDetail.billingMilestones.startOnly', 'From {{date}}', { date: formatDay(w.start_date) })
       : w.end_date ? t('projectDetail.billingMilestones.endOnly', 'Due {{date}}', { date: formatDay(w.end_date) })
       : w.order_date ? t('projectDetail.billingMilestones.ordered', 'Ordered {{date}}', { date: formatDay(w.order_date) })

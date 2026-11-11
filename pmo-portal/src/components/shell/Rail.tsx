@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -237,6 +237,11 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const isOperator = useIsOperator();
   const inDrawer = useContext(RailDrawerContext);
   const [moreOpen, setMoreOpen] = useState(false);
+  const scrollRegionRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const active = scrollRegionRef.current?.querySelector<HTMLElement>('#rail-more-list a[aria-current="page"]');
+    active?.scrollIntoView?.({ block: 'nearest' });
+  }, [location.pathname, location.search, inDrawer]);
 
   if (!role) return null;
 
@@ -461,7 +466,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
             {items.filter((item) => item.to === '/approvals').map(renderItem)}
           </div>
         )}
-        <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
+        <div ref={scrollRegionRef} data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
           {GROUP_ORDER.map((group) => {
             const groupItems = primaryItems.filter((i) => i.group === group);
             if (groupItems.length === 0) return null;

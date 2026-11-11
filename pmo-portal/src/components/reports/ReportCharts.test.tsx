@@ -14,6 +14,17 @@ describe('report charts', () => {
     expect(screen.getByRole('img', { name: 'Large: earned $100K of $400K' })).toBeInTheDocument();
   });
 
+  it('uses the contract as a light track and has no second contract-coloured overlay', () => {
+    render(<EarnedAgainstContract rows={[
+      { key: 'a', name: 'No earned value', currency: 'USD', contract: 100_000, earned: 0 },
+      { key: 'b', name: 'Some earned value', currency: 'USD', contract: 50_000, earned: 25_000 },
+    ]} />);
+    const bars = screen.getAllByRole('img');
+    expect(bars).toHaveLength(2);
+    for (const bar of bars) expect(bar.children).toHaveLength(1);
+    expect(bars[0]?.firstElementChild).toHaveStyle({ width: '0%' });
+  });
+
   it('does not draw a one-project comparison', () => {
     const { container } = render(<EarnedAgainstContract rows={[{ key: 'a', name: 'Only', currency: 'USD', contract: 100, earned: 0 }]} />);
     expect(container).toBeEmptyDOMElement();

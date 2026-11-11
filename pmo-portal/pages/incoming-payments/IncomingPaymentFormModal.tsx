@@ -7,7 +7,7 @@ import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -117,7 +117,7 @@ function openInvoiceOptions(
       label: invoiceNumber(inv) ?? inv.id,
       sub:
         inv.erp_outstanding_amount != null
-          ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) })
+          ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrency(inv.erp_outstanding_amount, inv.currency, { precision: 'minor' }) })
           : undefined,
     }));
 }
@@ -400,7 +400,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             error={paidAmountField.error}
             helper={chosenInvoice?.erp_outstanding_amount != null
               ? t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
-                amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
+                amount: formatCurrency(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency, { precision: 'minor' }),
               })
               : undefined}
             localeAware

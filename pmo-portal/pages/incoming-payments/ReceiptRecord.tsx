@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, StatusPill, type Column } from '@/src/components/ui';
-import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -20,7 +20,7 @@ interface Props {
 /** S-06 (RF-030..034) — the read-only receipt page: every invoice allocation, cash not yet applied, and recorded withholding. */
 export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, odoo = false }) => {
   const { t } = useTranslation();
-  const money = (n: number) => formatCurrencyCents(n, receipt.currency);
+  const money = (n: number) => formatCurrency(n, receipt.currency, { precision: 'minor' });
   const cancelled = Boolean(receipt.cancelled_at || receipt.erp_cancelled_at);
   const unapplied = knownUnappliedCash({ ...receipt, allocation_details: allocations });
   const notReported = t('uxs06.notReported', 'Not reported');
@@ -54,7 +54,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
     { key: 'invoice', header: t('financeCopy.invoice', 'Invoice #'), kind: 'primary', cell: (allocation) => allocation.invoice_id
       ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="font-mono text-control text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
       : <span className="font-mono text-control" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
-    { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported },
+    { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported },
   ], [notReported, t]);
 
   return (
@@ -82,7 +82,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
               </StatusPill>}
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {[receipt.customer_name, receipt.date ? formatDateOnly(receipt.date) : null].filter(Boolean).join(' · ') || '—'}
+          {[receipt.customer_name, receipt.date ? formatDay(receipt.date) : null].filter(Boolean).join(' · ') || '—'}
         </p>
       </header>
 

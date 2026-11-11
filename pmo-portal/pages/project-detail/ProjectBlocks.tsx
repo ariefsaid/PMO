@@ -197,7 +197,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
             <div key={step.key} className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
               <dt className="text-sm text-muted-foreground">{step.label}</dt>
               <dd className="min-w-0">
-                {percent !== null && <ProgressBar value={percent} tone="primary" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
+                {percent !== null && (step.key === 'invoiced' || step.key === 'paid') && <ProgressBar value={percent} tone={step.key === 'invoiced' ? 'primary' : 'success'} widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
               </dd>
               <dd className="text-right text-sm">
                 {step.key === 'contract'

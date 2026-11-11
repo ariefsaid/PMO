@@ -151,16 +151,8 @@ export default function ReceivablesPage() {
         helpSubject={t('finance:receivables.title', 'Receivables')}
         className="order-1"
         action={<div className="flex flex-wrap items-center gap-2">
-          {/* One filled primary (by view). The other create action is an outline button on large screens and in the list's ⋯ menu on a phone. */}
-          {view === 'payments'
-            ? <>
-              {canCreateInvoice && <div className="hidden sm:block"><Button type="button" variant="outline" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
-              {canCreatePayment && <Button type="button" variant="primary" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button>}
-            </>
-            : <>
-              {canCreatePayment && <div className="hidden sm:block"><Button type="button" variant="outline" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button></div>}
-              {canCreateInvoice && <div data-testid="receivables-header-new-invoice"><Button type="button" variant="primary" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
-            </>}
+          {canCreateInvoice && <div data-testid="receivables-header-new-invoice"><Button type="button" variant="primary" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
+          {canCreatePayment && <div data-testid="receivables-header-receive-payment"><Button type="button" variant="outline" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button></div>}
         </div>}
       />
 

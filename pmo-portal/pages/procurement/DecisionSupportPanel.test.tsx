@@ -251,7 +251,7 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/after this procurement/i)).toBeInTheDocument();
     expect(screen.getByText(/\$165,400/)).toBeInTheDocument();
-    expect(screen.getByText(/13\.8%/)).toBeInTheDocument();
+    expect(screen.getByText(/14% headroom left/)).toBeInTheDocument();
   });
 });
 
@@ -319,6 +319,18 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     expect(screen.getByText(/Budget in use with this purchase: 60%/)).toBeInTheDocument();
     // The figure behind the bar: 1000 − 300 − 200 − 100 left after this procurement.
     expect(tileValue(/^after this procurement$/i).textContent).toMatch(/\$400\b/);
+  });
+
+  it('uses one whole-percent rounding rule so budget use and headroom total 100%', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    reservedState.data = 200;
+    renderPanel({ projectId: 'proj-1', totalValue: 179, projectName: 'HQ Fit-Out', status: 'Requested' });
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '68');
+    expect(screen.getByText('Budget in use with this purchase: 68%')).toBeInTheDocument();
+    const tile = screen.getByText(/^after this procurement$/i).closest('[data-testid="stat-tile"]');
+    expect(tile).not.toBeNull();
+    expect(within(tile as HTMLElement).getByText('32% headroom left')).toBeInTheDocument();
   });
 
   it('2057: past the budget the bar is full and carries the destructive tone', () => {

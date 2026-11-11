@@ -590,7 +590,8 @@ describe('contract billing block', () => {
     // L5: one answer leads, biggest — the invoiced share of the contract — and the cascade follows as a compact strip.
     expect(screen.getByText('25% invoiced')).toHaveClass('text-2xl');
     expect(screen.getByText('20% paid')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Delivered is 40% of contract' })).toBeInTheDocument();
+    expect(screen.getAllByRole('progressbar')).toHaveLength(2);
+    expect(screen.queryByRole('progressbar', { name: /Contract is|Delivered is/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('contract-value-amount').textContent).toBe(formatCurrency(1_000, 'USD'));
     expect(screen.getByText('$500')).toBeInTheDocument();
     expect(screen.getByText('$400')).toBeInTheDocument();

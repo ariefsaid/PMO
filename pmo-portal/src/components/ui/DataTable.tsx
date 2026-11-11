@@ -110,6 +110,8 @@ export interface DataTableProps<Row> {
   /** Compact mobile title and details for record cards that do not need a field-by-field definition list. */
   mobileCardTitle?: (row: Row) => React.ReactNode;
   mobileCardDetails?: (row: Row) => React.ReactNode;
+  /** Show mobile field headings once above the cards while retaining per-value screen-reader labels. */
+  mobileLabelsOnce?: boolean;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -223,6 +225,7 @@ export function DataTable<Row>({
   accessibleName,
   mobileCardTitle,
   mobileCardDetails,
+  mobileLabelsOnce = false,
   tableId,
   groupBy,
   groupHeader,
@@ -382,7 +385,11 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div ref={rootRef} className={cn(!embedded && 'overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+    <div ref={rootRef} className={cn(
+      !embedded && 'rounded-b-lg border border-border bg-card',
+      !embedded && (mobileLabelsOnce ? 'overflow-visible md:overflow-hidden' : 'overflow-hidden'),
+      className,
+    )}>
       {isDesktop ? (
         <DataTableDesktop
           columns={columns}
@@ -438,6 +445,7 @@ export function DataTable<Row>({
           totals={totals}
           mobileCardTitle={mobileCardTitle}
           mobileCardDetails={mobileCardDetails}
+          mobileLabelsOnce={mobileLabelsOnce}
         />
       )}
       {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">

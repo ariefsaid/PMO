@@ -81,7 +81,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 ...(viewTarget.erp_outstanding_amount == null ? [] : [{
                   label: t('financeCopy.outstanding', 'Outstanding'),
                   value: <>
-                    {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                    {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency, { precision: 'minor' })}
                     <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
                   </>,
                 }]),

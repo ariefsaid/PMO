@@ -28,6 +28,12 @@
     "description": "Your unsaved hours for this week will be discarded.",
     "confirm": "Discard changes"
   },
+  "discardHours": {
+    "title": "Discard unsaved hours?",
+    "description": "Leave this page and discard the hours you have not saved?",
+    "leave": "Leave",
+    "stay": "Stay"
+  },
   "reconcile": {
     "message": "Refresh this week before continuing.",
     "retry": "Retry week refresh"

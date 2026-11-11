@@ -4,7 +4,7 @@ import { Button, ConfirmDialog, DecisionContextSummary, MobileDecisionBar, Reaso
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { settlementPreview, type ExpenseAction } from '@/src/lib/expenses/expenseRules';
 import type { ExpenseClaimStatus, ExpenseClaimWithRefs } from '@/src/lib/db/expenseClaims';
 
@@ -49,7 +49,8 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const parsedReturn = parseMoneyInputAtScale(returnAmount, 2);
   const returnValid = parsedReturn !== null && parsedReturn > 0 && advanceOutstanding !== null && parsedReturn <= advanceOutstanding;
   const identity = [claim.claim_number, claim.title].filter(Boolean).join(' · ');
-  const formattedAmount = formatCurrencyCents(Number(claim.amount), claim.currency);
+  const money = (amount: number) => formatCurrency(amount, claim.currency, { precision: 'minor' });
+  const formattedAmount = money(Number(claim.amount));
   const decisionContext = <DecisionContextSummary identity={identity} amount={formattedAmount} />;
 
   // #2061: on a phone the SAME actions render in the sticky bottom bar (same dialogs, same
@@ -115,7 +116,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         open={dialog === 'pay'}
         title={claim.advance_id && !previewKnown
           ? `${t('expenses.actions.pay', 'Mark paid')} · ${claim.claim_number ?? claim.title}`
-          : t('expenses.confirm.payTitle', 'Mark {{number}} paid: {{amount}}?', { number: claim.claim_number ?? claim.title, amount: claim.advance_id ? formatCurrencyCents(preview.cash, claim.currency) : formattedAmount })}
+          : t('expenses.confirm.payTitle', 'Mark {{number}} paid: {{amount}}?', { number: claim.claim_number ?? claim.title, amount: claim.advance_id ? money(preview.cash) : formattedAmount })}
         description={
           <div className="space-y-3">
             {decisionContext}
@@ -123,11 +124,11 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <dt>{t('expenses.confirm.previewApplied', 'Advance applied')}</dt>
                 <dd className="text-right tabular-nums" data-testid="pay-preview-applied">
-                  {previewKnown ? formatCurrencyCents(preview.applied, claim.currency) : '—'}
+                  {previewKnown ? money(preview.applied) : '—'}
                 </dd>
                 <dt>{t('expenses.confirm.previewCash', 'Cash to pay')}</dt>
                 <dd className="text-right tabular-nums" data-testid="pay-preview-cash">
-                  {previewKnown ? formatCurrencyCents(preview.cash, claim.currency) : '—'}
+                  {previewKnown ? money(preview.cash) : '—'}
                 </dd>
               </dl>
             )}
@@ -148,7 +149,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
             {decisionContext}
             <TextField label={t('expenses.confirm.returnAmountLabel', 'Amount returned')} inputMode="decimal" value={returnAmount} onChange={setReturnAmount}
               helper={advanceOutstanding !== null
-                ? t('expenses.confirm.returnAmountHelper', 'Up to {{amount}} is outstanding.', { amount: formatCurrencyCents(advanceOutstanding, claim.currency) })
+                ? t('expenses.confirm.returnAmountHelper', 'Up to {{amount}} is outstanding.', { amount: money(advanceOutstanding) })
                 : undefined} />
             <TextField label={t('expenses.confirm.returnReferenceLabel', 'Reference (optional)')} value={reference} onChange={setReference} />
           </div>

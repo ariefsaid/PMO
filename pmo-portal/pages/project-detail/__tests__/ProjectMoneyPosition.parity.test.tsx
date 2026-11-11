@@ -129,6 +129,16 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     expect(definitionValueText(section, 'Cash received')).toBe(expectedForeignCash);
   });
 
+  it('draws only invoiced and paid bars; contract remains a plain figure', async () => {
+    renderOverviewMoney();
+    const money = await screen.findByRole('region', { name: /Money position/ });
+    expect(await within(money).findByTestId('contract-value-amount')).toHaveTextContent('$100');
+    expect(within(money).getAllByRole('progressbar')).toHaveLength(2);
+    expect(within(money).queryByRole('progressbar', { name: /Contract is/ })).not.toBeInTheDocument();
+    expect(within(money).getByRole('progressbar', { name: /Invoiced is/ })).toBeInTheDocument();
+    expect(within(money).getByRole('progressbar', { name: /Paid is/ })).toBeInTheDocument();
+  });
+
   it('AC-PMP-003 a mapped category with no ERP amount is never reported as complete spending', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: null }], '10.10') }));
     h.versions = { data: [activeVersion([['Labor', 40]])], isPending: false, isError: false };

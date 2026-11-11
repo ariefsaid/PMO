@@ -23,7 +23,7 @@
  * Touch-target sweep (C6): Button size="sm" and size="icon" carry `.touch-target`.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 import { Button } from '../Button';
@@ -168,6 +168,21 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     const dtTexts = Array.from(cardBranch.querySelectorAll('dt')).map((dt) => dt.textContent);
     expect(dtTexts).toContain('Value');
     expect(dtTexts).toContain('Status');
+    expect(cardBranch.textContent).toContain('125000');
+    expect(cardBranch.textContent).toContain('Active');
+  });
+
+  it('shows shared column labels once while keeping each mobile card value labelled for assistive technology', () => {
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} mobileLabelsOnce />);
+    const cardBranch = getCardBranch()!;
+    const legend = within(cardBranch).getByTestId('dt-mobile-column-legend');
+    expect(within(legend).getByText('Value')).toBeVisible();
+    expect(within(legend).getByText('Status')).toBeVisible();
+    expect(cardBranch.querySelectorAll('dt')).toHaveLength(4);
+    expect(Array.from(cardBranch.querySelectorAll('dt')).every((dt) => dt.classList.contains('hidden'))).toBe(true);
+    expect(within(cardBranch).getByRole('definition', { name: /Value 125000/ })).toBeInTheDocument();
+    expect(within(cardBranch).getByRole('definition', { name: /Status Active/ })).toBeInTheDocument();
     expect(cardBranch.textContent).toContain('125000');
     expect(cardBranch.textContent).toContain('Active');
   });

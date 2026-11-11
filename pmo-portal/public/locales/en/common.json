@@ -4057,8 +4057,6 @@
       "invoiced": "Invoiced",
       "recognisedToDate": "Recognised to date",
       "invoicedToDate": "Invoiced to date",
-      "unbilled": "Unbilled",
-      "backlog": "Backlog",
       "basis": "Basis"
     },
     "progressModal": {
@@ -4072,9 +4070,6 @@
       "save": "Save progress",
       "saved": "Progress saved"
     }
-  },
-  "uxs34": {
-    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
   },
   "comments": {
     "title": "Comments",

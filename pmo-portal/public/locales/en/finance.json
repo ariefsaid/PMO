@@ -72,7 +72,7 @@
     "periodTrialBalance": "Trial balance",
     "latestStatement": "Latest period {{period}}",
     "back": "Back",
-    "payablesAgeingBasis": "Waiting to pay, by days",
+    "payablesAgeingBasis": "Invoice age, by days",
     "ageingUnknown_one": "No known balances to group · {{count}} balance unknown",
     "ageingUnknown_other": "No known balances to group · {{count}} balances unknown",
     "ageingUnknownCount_one": "{{count}} balance unknown",

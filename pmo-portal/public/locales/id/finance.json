@@ -72,7 +72,7 @@
     "periodTrialBalance": "Neraca saldo",
     "latestStatement": "Periode terbaru {{period}}",
     "back": "Kembali",
-    "payablesAgeingBasis": "Menunggu dibayar, menurut hari",
+    "payablesAgeingBasis": "Usia faktur, menurut hari",
     "ageingUnknown_one": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
     "ageingUnknown_other": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
     "ageingUnknownCount_one": "{{count}} saldo tidak diketahui",

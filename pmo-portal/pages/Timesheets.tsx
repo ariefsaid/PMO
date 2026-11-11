@@ -34,6 +34,7 @@ import { dayKey, weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } fr
 import { useTimesheetWeekEditor } from './timesheets/useTimesheetWeekEditor';
 import { TimesheetWeekToolbar } from './timesheets/TimesheetWeekToolbar';
 import { TimesheetWeekActions } from './timesheets/TimesheetWeekActions';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 // RF-061: recognizable code + short title in the picker; the added row shows the full name.
 const PICKER_NAME_MAX = 36;
@@ -120,6 +121,12 @@ const TimesheetsPage: React.FC = () => {
   const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
+  useUnsavedChangesGuard({
+    dirty,
+    guardHistory: true,
+    onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
+  });
 
   // ── Copy last week enablement ───────────────────────────────────────────────
   // While projects are still loading the reason is deliberately BLANK (transient — the picker's
@@ -408,6 +415,16 @@ const TimesheetsPage: React.FC = () => {
         </div>
       )}
       {submitConfirm}
+
+      <ConfirmDialog
+        open={pendingLeave !== null}
+        title={t('timesheets:discardHours.title', 'Discard unsaved hours?')}
+        description={t('timesheets:discardHours.description', 'Leave this page and discard the hours you have not saved?')}
+        confirmLabel={t('timesheets:discardHours.leave', 'Leave')}
+        cancelLabel={t('timesheets:discardHours.stay', 'Stay')}
+        onCancel={() => { pendingLeave?.stay(); setPendingLeave(null); }}
+        onConfirm={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
+      />
 
       {rowToDelete && (
         <ConfirmDialog

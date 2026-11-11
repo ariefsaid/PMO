@@ -6,6 +6,7 @@ import { StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatDay } from '@/src/lib/format';
 
 /**
@@ -64,7 +65,7 @@ export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
       ) : (
         <span className={`${shell}__name`}>{task.name}</span>
       )}
-      <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+      <StatusPill variant={workflowVariant(task.status)}>{statusLabel('task', task.status, t)}</StatusPill>
       <span className={`${shell}__meta`}>
         {task.assignee
           ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
