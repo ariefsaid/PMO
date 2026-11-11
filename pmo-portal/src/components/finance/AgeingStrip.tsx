@@ -5,6 +5,7 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { formatCurrency } from '@/src/lib/format';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
+import { cn } from '@/src/components/ui/cn';
 import type { AgeingBuckets, PayablesAgeingBuckets } from '@/src/lib/finance/financePosition';
 
 type AgeingKind = 'receivables' | 'payables';
@@ -18,8 +19,6 @@ export interface AgeingStripProps {
   /** L12: invoices whose balance is unknown, counted in their age bucket — never added as zero, never dropped. */
   unknownCounts?: Record<string, Partial<Record<BucketKey, number>>>;
   unknownTotal?: number;
-  /** Shared per-currency extent so receivables and payables bars use the same scale. */
-  scaleMaxByCurrency?: Record<string, number>;
 }
 
 const RECEIVABLE_BUCKETS = ['notDue', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
@@ -34,7 +33,7 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
   over90: chartTheme.series.destructive,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values, unknownCounts = {}, unknownTotal = 0, scaleMaxByCurrency }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values, unknownCounts = {}, unknownTotal = 0 }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -71,7 +70,6 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values,
       {currencies.map(([currency, buckets]) => {
         const amounts = bucketKeys.map((key) => amountFor(buckets, key));
         const total = amounts.reduce((sum, amount) => sum + Math.max(amount, 0), 0);
-        const scaleMax = scaleMaxByCurrency?.[currency];
         const chartData = { name: currency, ...Object.fromEntries(bucketKeys.map((key, index) => [key, Math.max(amounts[index] ?? 0, 0)])) };
         const chartLabel = `${t('financeHub:hub.fix.ageingBarLabel', '{{currency}} balance distribution by age', { currency })}. ${bucketKeys.map((key, index) => `${labels[key]} ${formatCurrency((amounts[index] ?? 0) / 100, currency)}`).join(', ')}`;
         return (
@@ -81,11 +79,12 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values,
               role="img"
               aria-label={chartLabel}
               data-testid={`ageing-bar-${currency}`}
+              data-scale-max={total}
               className="h-9 min-w-0 overflow-hidden rounded-md"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={[chartData]} layout="vertical" margin={{ top: 3, right: 0, bottom: 3, left: 0 }} barSize={24}>
-                  <XAxis type="number" hide domain={[0, scaleMax && scaleMax > 0 ? scaleMax : 'dataMax']} />
+                  <XAxis type="number" hide domain={[0, total]} />
                   <YAxis type="category" dataKey="name" hide />
                   <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key) => [formatCurrency(Number(value) / 100, currency), labels[key as BucketKey]]} />
                   {bucketKeys.map((key) => <Bar key={key} dataKey={key} stackId="age" fill={BUCKET_COLORS[key]} />)}
@@ -103,7 +102,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values,
                     <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
-                      : <span className="max-w-full break-all text-right tabular text-sm font-semibold">{formatCurrency(amount / 100, currency)}</span>}
+                      : <span className={cn('max-w-full break-all text-right tabular text-sm font-semibold', amount === 0 ? 'text-muted-foreground' : 'text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
                     {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
                   </div>
                 );

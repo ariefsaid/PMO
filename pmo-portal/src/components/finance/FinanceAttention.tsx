@@ -84,7 +84,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
   }
 
   return (
-    <section aria-label={t('finance:area.attention', 'Finance attention')} className="@container grid min-w-0 grid-cols-1 gap-6">
+    <section aria-label={t('finance:area.attention', 'Finance attention')} className="@container grid min-w-0 grid-cols-1 gap-0">
       {overdueCount > 0 && (
         <div>
           <h2 className="mb-2 text-group font-semibold text-foreground">

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChartCard, MonthColumns } from '@/src/components/dashboard/charts';
+import { ChartCard, MonthColumns, SeriesKey } from '@/src/components/dashboard/charts';
 import { usePaidPaymentFacts } from '@/src/hooks/useRevenue';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
@@ -21,6 +21,7 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const hasInvoices = invoicesByMonth !== undefined;
   const hasCollections = collectedByMonth !== undefined;
   const collectionsPrimary = !hasInvoices && hasCollections;
+  const hasPair = hasInvoices && hasCollections && !collectionsPrimary;
   const months = monthsBetween(from, to);
   const invoiceValues = new Map((invoicesByMonth ?? []).map((point) => [point.month, point.amount]));
   const points = months.map((month) => {
@@ -34,13 +35,15 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
       tick: formatMonthShort(date),
       a: primary ?? 0,
       labelA: primary === undefined ? undefined : formatTileMoney(primary, currencyState.currency) ?? undefined,
-      ...(hasInvoices && hasCollections && !collectionsPrimary ? {
+      ...(hasPair ? {
         b: collected ?? 0,
         labelB: formatTileMoney(collected ?? 0, currencyState.currency) ?? undefined,
       } : {}),
     };
   });
   const title = t('home.financeRevenueTrend', 'Invoiced and collected · 6 months');
+  const invoicedLabel = t('home.invoiced', 'Invoiced');
+  const collectedLabel = t('home.collected', 'Collected');
   const collectionGap = !hasCollections && !payments.isPending
     ? t('home.collectedTrendGap', 'Collected is incomplete; invoiced amounts are shown.')
     : null;
@@ -66,13 +69,16 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
     >
       <MonthColumns
         points={points}
-        ariaLabel={collectionsPrimary ? `${title} · ${t('home.chartCollected', 'Collected')}` : title}
+        ariaLabel={collectionsPrimary ? `${title} · ${collectedLabel}` : title}
         seriesNames={collectionsPrimary
-          ? [t('home.chartCollected', 'Collected')]
-          : [t('home.chartInvoiced', 'Invoiced, excl. tax'), t('home.chartCollected', 'Collected')]}
+          ? [collectedLabel]
+          : [t('home.chartInvoiced', 'Invoiced, excl. tax'), collectedLabel]}
         labelAll
         minWidth={660}
       />
+      {!hasPair && <SeriesKey items={collectionsPrimary
+        ? [{ label: collectedLabel, tone: 'accent' }]
+        : [{ label: invoicedLabel, tone: 'accent' }]} />}
       {gap && <p data-testid="finance-revenue-trend-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>
   );

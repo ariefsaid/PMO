@@ -52,6 +52,9 @@ const FinanceHub: React.FC = () => {
   const receivableValues = Object.fromEntries(Object.entries(finance.position.receivablesAgeing).map(([currency, buckets]) => [
     currency, buckets.notDue + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.over90,
   ]));
+  const receivableCurrencies = Object.keys(receivableValues);
+  const receivablesAllUnknown = finance.position.receivablesUnknownCount > 0 && receivableCurrencies.length === 0;
+  const receivableHome = receivableCurrencies.includes(home) ? home : receivableCurrencies[0] ?? home;
   const pack = figures.data?.pack;
   const unbilled = Object.fromEntries((pack?.unbilled ?? []).map(({ currency, cents }) => [currency, cents]));
   const statement = figures.data?.statement;
@@ -59,12 +62,13 @@ const FinanceHub: React.FC = () => {
   const net = statement?.netProfit ?? null;
   const statementPeriod = statement?.periodStart ?? null;
   const retryFigures = () => { void figures.refetch(); };
-  const receivablesUnknown = finance.position.receivablesUnknownCount > 0 && !Object.values(receivableValues).some((amount) => amount !== 0);
   const payablesUnknown = finance.position.payables.length > 0 && Object.keys(finance.position.payablesTotals).length === 0;
   const manageIntegration = may('manage', 'integration');
   const figuresFailed = finance.isError || figures.isError;
 
-  const owed = receivablesUnknown ? null : moneyTileProps(receivableValues, home);
+  const owed = receivableCurrencies.length > 0
+    ? moneyTileProps(receivableValues, receivableHome)
+    : receivablesAllUnknown ? null : moneyTileProps({}, home);
   const toPay = payablesUnknown ? null : moneyTileProps(finance.position.payablesTotals, home);
   const toInvoice = pack ? moneyTileProps(unbilled, home) : null;
   const profit = statement?.currency && net !== null && !statementUnavailable ? moneyTileProps({ [statement.currency]: Math.round(net * 100) }, statement.currency) : null;
@@ -75,12 +79,17 @@ const FinanceHub: React.FC = () => {
     may('view', 'financialStatements') && ((figures.isPending && !statementUnavailable) || figures.isError || profit),
   ].filter(Boolean).length;
   const tiles = (
-    <KPIRow aria-label={t('financeHub:hub.areas', 'Finance areas')} className={shownTiles <= 1 ? 'grid-cols-1' : 'grid-cols-2'}>
+    <KPIRow
+      aria-label={t('financeHub:hub.areas', 'Finance areas')}
+      className={shownTiles <= 1 ? 'grid-cols-1' : shownTiles === 2 ? 'grid-cols-2' : 'grid-cols-2 min-[900px]:grid-cols-3'}
+    >
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/receivables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.receivables', 'Receivables') })}
-        label={t('financeHub:hub.owed', 'Receivables')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
-        value={owed?.value ?? null} exactValue={owed?.exactValue}
-        unavailableReason={receivablesUnknown ? t('financeHub:hub.owedUnknown', 'invoice balances unknown') : undefined}
+        label={t('financeHub:hub.owed', 'Receivables')}
+        value={receivablesAllUnknown ? t('financeHub:hub.balanceUnknown', 'Balance unknown') : owed?.value ?? null} exactValue={owed?.exactValue}
+        caption={finance.position.receivablesUnknownCount > 0
+          ? t('financeHub:hub.owedUnknownCaption', { count: finance.position.receivablesUnknownCount, defaultValue_one: '{{count}} invoice · balance unknown', defaultValue_other: '{{count}} invoices · balance unknown' })
+          : t('financeHub:hub.taxIncluded', 'tax included')}
         hiddenLink={{ to: '/finance/receivables', label: t('financeHub:hub.seeInvoices', 'See invoices') }}
         help={t('financeHub:hub.receivablesHint', 'Sum of known outstanding balances on open invoices, including tax. Draft and cancelled invoices are excluded.')}
         loading={finance.isPending} error={finance.isError}
@@ -129,19 +138,13 @@ const FinanceHub: React.FC = () => {
       </CardPad>
     </Card>
   );
-  const ageingCurrencies = [...new Set([...Object.keys(finance.position.receivablesAgeing), ...Object.keys(finance.position.payablesAgeing)])];
-  const ageingTotal = (buckets: object | undefined) => Object.values(buckets ?? {}).reduce<number>((sum, amount) => sum + Number(amount), 0);
-  const ageScaleByCurrency = Object.fromEntries(ageingCurrencies.map((currency) => [
-    currency,
-    Math.max(ageingTotal(finance.position.receivablesAgeing[currency]), ageingTotal(finance.position.payablesAgeing[currency])),
-  ]));
   const ageings = (
     <Card role="region" aria-labelledby="finance-hub-ageings">
       <CardHead id="finance-hub-ageings">{t('financeHub:hub.ageing', 'Ageing')}</CardHead>
       <CardPad>
         {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} scaleMaxByCurrency={ageScaleByCurrency} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} scaleMaxByCurrency={ageScaleByCurrency} /></div>}
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
       </CardPad>
     </Card>
   );
@@ -167,16 +170,16 @@ const FinanceHub: React.FC = () => {
           <Button type="button" variant="outline" size="sm" onClick={() => { if (finance.isError) finance.retry(); if (figures.isError) retryFigures(); }}>{t('financeHub:hub.retry', 'Retry')}</Button>
         </div>}
         {/* Waiting stays left; company figures, monthly totals and ageing use the wider right column. */}
-        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div data-testid="finance-hub-first-row" className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {attention}
           </div>
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {tiles}
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
-            {ageings}
           </div>
         </div>
+        {ageings}
       </div>
     </div>
     </FigureScope>
