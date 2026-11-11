@@ -61,9 +61,10 @@ const TimesheetsPage: React.FC = () => {
   // Engineer cannot approve timesheets (OD-W2-2), so showing them the cross-link is a RBAC leak.
   const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
-  // Pending-approval count for the queue toggle badge (shared cache; cheap).
+  // Pending-approval count for the queue toggle badge (shared cache; cheap). Unknown (not yet
+  // loaded) is null — the badge withholds the count; it never reads as a confirmed zero.
   const { data: awaiting } = useTimesheetsAwaitingApproval();
-  const pendingCount = awaiting?.length ?? 0;
+  const pendingCount = awaiting?.length ?? null;
 
   // R2: the selected week is URL-owned (`?week=YYYY-MM-DD`) so Back/refresh return to it; the
   // current week is the default and stays out of the URL (empty = default).

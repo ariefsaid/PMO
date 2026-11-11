@@ -122,7 +122,9 @@ const MyTasks: React.FC = () => {
     });
   }, [tasks, queue, search, dueBy]);
 
-  const openTaskCount = tasks?.filter((task) => task.status !== 'Done').length ?? 0;
+  // Unknown (list not loaded) is null: the open-task figure is a fact only once the read has
+  // landed, and it never renders as a fabricated 0 (unknown-as-zero audit F19).
+  const openTaskCount = tasks ? tasks.filter((task) => task.status !== 'Done').length : null;
   const lateTasks = React.useMemo(
     () => visibleTasks
       .filter((task) => isOverdueTask(task, today))
@@ -171,7 +173,7 @@ const MyTasks: React.FC = () => {
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
         <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
-          {queue === 'open' && (
+          {queue === 'open' && openTaskCount !== null && (
             <div className="flex shrink-0 items-center gap-3">
               <span
                 data-testid="my-tasks-open-count"
