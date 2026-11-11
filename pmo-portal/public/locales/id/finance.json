@@ -73,10 +73,10 @@
     "latestStatement": "Periode terbaru {{period}}",
     "back": "Kembali",
     "payablesAgeingBasis": "Usia faktur, menurut hari",
-    "ageingUnknown_one": "Tidak ada saldo diketahui · {{count}} saldo tidak diketahui",
-    "ageingUnknown_other": "Tidak ada saldo diketahui · {{count}} saldo tidak diketahui",
-    "ageingUnknownCount_one": "{{count}} saldo tidak diketahui",
-    "ageingUnknownCount_other": "{{count}} saldo tidak diketahui",
+    "ageingUnknown_one": "Saldo {{count}} faktur belum dilaporkan oleh sistem akuntansi",
+    "ageingUnknown_other": "Saldo {{count}} faktur belum dilaporkan oleh sistem akuntansi",
+    "ageingUnknownCount_one": "Saldo {{count}} faktur belum dilaporkan oleh sistem akuntansi",
+    "ageingUnknownCount_other": "Saldo {{count}} faktur belum dilaporkan oleh sistem akuntansi",
     "ageingEmpty": "Tidak ada saldo untuk dikelompokkan berdasarkan usia"
   },
   "table": {
@@ -556,7 +556,7 @@
       "budgetSource": "Sumber: baris versi anggaran yang dipilih, dikelompokkan menurut kategori.",
       "committed": "Terikat",
       "committedSource": "Sumber: total pengadaan yang dipesan, diterima, difakturkan pemasok, dan dibayar dalam mata uang proyek, termasuk yang tanpa kategori anggaran.",
-      "left": "Sisa",
+      "left": "Sisa setelah belanja",
       "leftFormula": "Dihitung dari anggaran dikurangi jumlah terpakai dan terikat.",
       "percentUsed": "% digunakan",
       "utilizationUnknown": "Persentase penggunaan tidak tersedia jika anggaran, pengeluaran, atau komitmen tidak diketahui, atau jika anggaran bernilai nol.",
@@ -735,8 +735,10 @@
     "invoiceLoading": "Memuat faktur…",
     "noOpenInvoicesForCustomer": "Tidak ada faktur terbuka untuk pelanggan ini.",
     "noEligibleNativeInvoiceForCustomer": "Tidak ada faktur disetujui dengan sisa tagihan yang dilaporkan untuk pelanggan ini. Buat atau setujui faktur, atau perbarui sisa tagihannya, lalu coba lagi.",
-    "otherLedgerInvoiceSingular": "1 faktur terbuka tercatat di sistem akuntansi: catat pembayarannya di sana.",
-    "otherLedgerInvoicesPlural": "{{count}} faktur terbuka tercatat di sistem akuntansi: catat pembayarannya di sana."
+    "excludedAccountingInvoiceSingular": "1 faktur terbuka ada di sistem akuntansi. Penerimaan pembayaran untuk faktur ini belum dapat dicatat di sini.",
+    "excludedAccountingInvoicesPlural": "{{count}} faktur terbuka ada di sistem akuntansi. Penerimaan pembayaran untuk faktur-faktur ini belum dapat dicatat di sini.",
+    "excludedPmoInvoiceSingular": "1 faktur terbuka ada di PMO. Penerimaan pembayaran untuk faktur ini belum dapat dicatat di sini.",
+    "excludedPmoInvoicesPlural": "{{count}} faktur terbuka ada di PMO. Penerimaan pembayaran untuk faktur-faktur ini belum dapat dicatat di sini."
   },
   "odooOutcome": {
     "confirmed": "Ada di Odoo",

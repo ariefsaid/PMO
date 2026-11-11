@@ -139,7 +139,7 @@ export default function ReceivablesPage() {
     return next;
   }, { replace: true });
 
-  const unknownReason = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count });
+  const unknownReason = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} invoice has no balance reported by the accounting system' : '{{count}} invoices have no balance reported by the accounting system', count });
   const seeInvoices = { to: '/finance/receivables?status=Unpaid', label: t('financeHub:hub.seeInvoices', 'See invoices') };
 
   return (

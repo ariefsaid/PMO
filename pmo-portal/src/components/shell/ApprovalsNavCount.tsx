@@ -1,7 +1,8 @@
-import React, { useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { pendingProcurementApprovals, type ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
@@ -22,8 +23,8 @@ import {
 
 /**
  * Read the inbox count only from data already loaded by its owning screens. The global rail must
- * not trigger list reads on every route; until every applicable queue is cached and current, omit
- * the count rather than announce a partial total as complete.
+ * not trigger list reads on every route; while queues refresh, keep the last complete count for
+ * this signed-in user and role until the next complete read replaces it.
  */
 export const ApprovalsNavCount: React.FC = () => {
   const { t } = useTranslation();
@@ -32,8 +33,11 @@ export const ApprovalsNavCount: React.FC = () => {
   const currentUser = auth?.currentUser;
   // Authorization and counts use the real role, never the view-as role.
   const role = auth?.role ?? null;
+  const { effectiveRole } = useEffectiveRole();
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
+  const scopeKey = JSON.stringify([orgId ?? null, userId ?? null, role, effectiveRole]);
+  const [retained, setRetained] = useState<{ scope: string; count: number } | null>(null);
   const canApproveProcurement = can('transition', 'procurement', { realRole: role });
   // OD-TS-5: assigned managers of any real role can approve timesheets. The awaiting-approval
   // cache is caller-filtered and applies whenever a real role is authenticated.
@@ -134,15 +138,25 @@ export const ApprovalsNavCount: React.FC = () => {
     }
   }
   const population = useApprovalPopulation(entries, 'all');
-  if (!ready) return null;
+  useEffect(() => {
+    setRetained((current) => current?.scope === scopeKey ? current : null);
+  }, [scopeKey]);
+  useEffect(() => {
+    if (ready && currentUser && role) setRetained({ scope: scopeKey, count: population.length });
+  }, [currentUser, population.length, ready, role, scopeKey]);
+
+  const visibleCount = ready
+    ? population.length
+    : retained?.scope === scopeKey ? retained.count : null;
+  if (visibleCount === null) return null;
 
   return (
     <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
       <span className="tabular text-support text-muted-foreground" aria-hidden="true">
-        {population.length}
+        {visibleCount}
       </span>
       <span className="sr-only">
-        , {t('shell.rail.approvalsCountSuffix', '{{count}} pending', { count: population.length })}
+        , {t('shell.rail.approvalsCountSuffix', '{{count}} pending', { count: visibleCount })}
       </span>
     </span>
   );

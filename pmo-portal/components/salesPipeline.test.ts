@@ -156,7 +156,8 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(steps[steps.length - 1].state).toBe('skipped');
   });
 
-  it('AC-SP-205: formatPercent renders the RPC probability as a whole-number percent', () => {
+  it('R2-P1b #11 keeps a stored fractional chance visible without adding unnecessary decimals', () => {
+    expect(formatPercent(0.025)).toBe('2.5%');
     expect(formatPercent(0.5)).toBe('50%');
     expect(formatPercent(0.25)).toBe('25%');
     expect(formatPercent(0)).toBe('0%');
