@@ -4020,7 +4020,7 @@
     "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
     "recordProgress": "Record progress",
     "billedAhead": "billed ahead",
-    "undated": "{{count}} invoices have no date and are not counted",
+    "undated": "{{count}} undated invoices are excluded",
     "total": "Total",
     "basis": {
       "invoiced": "Invoiced",

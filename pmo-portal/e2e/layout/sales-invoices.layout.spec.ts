@@ -246,14 +246,20 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
         const menuInfo = await menu.evaluate((el) => {
           const r = el.getBoundingClientRect();
           const portalRoot = el.closest('[data-base-ui-portal]');
-          const stackLayer = el.parentElement ?? el;
+          let zIndex = 0;
+          for (let node: HTMLElement | null = el as HTMLElement; node; node = node.parentElement) {
+            const value = Number(getComputedStyle(node).zIndex);
+            if (Number.isFinite(value) && value > zIndex) zIndex = value;
+          }
           return {
             portalRootIsBodyChild: portalRoot?.parentElement === document.body,
-            zIndex: Number(getComputedStyle(stackLayer).zIndex),
+            escapesScroller: el.closest('[data-testid="dt-table-branch"]') === null,
+            zIndex,
             box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
           };
         });
         expect(menuInfo.portalRootIsBodyChild, 'the menu portal must attach directly to document.body (outside the clipped scroller/card)').toBe(true);
+        expect(menuInfo.escapesScroller, 'the menu must escape the clipped scroller/card (portaled out of its overflow clip)').toBe(true);
         expect(menuInfo.zIndex, 'menu positioner must stack above the sticky cells (z-[3])').toBeGreaterThanOrEqual(800);
         const vw = width;
         const vh = 900;

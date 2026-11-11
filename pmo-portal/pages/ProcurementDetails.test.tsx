@@ -767,6 +767,34 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     );
   });
 
+  it('AC-805: a failed procurement rejection keeps its trimmed reason for a successful retry', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    mockTransition.mockRejectedValueOnce(Object.assign(new Error('permission denied for table procurements'), { code: '42501' }));
+    renderPage();
+    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Approval-only note');
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /reject/i }));
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('PROC-2026-001');
+    expect(dialog).toHaveTextContent('Workstations for HQ');
+    expect(dialog).toHaveTextContent('terminal action for this procurement and cannot be undone');
+    const reason = within(dialog).getByLabelText(/rejection comment/i);
+    await userEvent.type(reason, '  Over budget.  ');
+    await userEvent.click(within(dialog).getByRole('button', { name: /reject/i }));
+
+    const failedDialog = await screen.findByRole('alertdialog');
+    expect(within(failedDialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    expect(within(failedDialog).getByLabelText(/rejection comment/i)).toHaveValue('  Over budget.  ');
+
+    await userEvent.click(within(failedDialog).getByRole('button', { name: /reject/i }));
+    await waitFor(() => expect(mockTransition).toHaveBeenCalledTimes(2));
+    expect(mockTransition).toHaveBeenNthCalledWith(1, { to: 'Rejected', notes: 'Over budget.' });
+    expect(mockTransition).toHaveBeenNthCalledWith(2, { to: 'Rejected', notes: 'Over budget.' });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
   it('AC-805: notes input is NOT shown when no Approve/Reject action is available', () => {
     detailState.data = { ...baseProcurement, status: 'Draft' };
     renderPage();
@@ -1152,15 +1180,14 @@ describe('AC-806: mutation error renders in UI', () => {
     mockEffectiveRole = 'Finance';
   });
 
-  it('AC-806: shows RPC error message when transition mutation fails (after confirm)', async () => {
+  it('AC-806: shows the classified transition error inside the still-open confirm dialog', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    mockTransition.mockRejectedValueOnce(new Error('not authorized (42501)'));
+    mockTransition.mockRejectedValueOnce(Object.assign(new Error('permission denied for table procurements'), { code: '42501' }));
     await userEvent.click(screen.getByRole('button', { name: /approve/i }));
     await confirmInDialog(/approve/i);
-    await waitFor(() =>
-      expect(screen.getByText(/not authorized/i)).toBeInTheDocument()
-    );
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
     mockTransition.mockResolvedValue(undefined);
   });
 });
