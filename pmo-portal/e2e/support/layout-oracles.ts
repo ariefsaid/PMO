@@ -327,7 +327,7 @@ export async function assertDashboardPaintAndDesktopAccount(page: Page) {
     }
     await page.keyboard.press('Shift+Tab');
     await expect(menu).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /notifications/i })).toBeFocused();
+    await expect(page.getByRole('button', { name: /account menu/i })).toBeFocused();
     await page.getByRole('button', { name: /account menu/i }).click();
     await page.keyboard.press('Tab');
     await expect(menu).toHaveCount(0);
