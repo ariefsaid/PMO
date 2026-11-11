@@ -290,7 +290,12 @@ describe('Projects persona money visibility — contract figure gated on the sha
   });
 
   it.each([[false, 'error'], [true, 'error'], [false, 'pending'], [true, 'pending']] as const)('blocks stale assignment export and exports fresh rows on mobile=%s during %s', async (mobile, state) => {
-    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: !mobile, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
+    // Answer BOTH breakpoints the toolbar asks about, truthfully: the list swaps to its phone
+    // toolbar/disclosure below `md` (`min-width: 768px`, `useIsDesktop`), while `FilterBar` collapses
+    // its filter row below `sm` (`max-width: 639px`, `useIsNarrow`). A blanket `matches: !mobile`
+    // answered the `max-width` query too, so a desktop run rendered the Filters drawer closed and the
+    // status tabs were unreachable — the status filter is a tab either way, only its container moves.
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: /max-width/.test(query) ? mobile : !mobile, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
     tasksState.data = [{ project_id: 'p1' }];
     tasksState.isError = state === 'error';
     tasksState.isPending = state === 'pending';
