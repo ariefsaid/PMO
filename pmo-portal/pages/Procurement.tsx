@@ -573,7 +573,7 @@ const ProcurementPage: React.FC = () => {
           />
         )}
       </div>
-      {canCreate && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 p-3 shadow-sm sm:hidden"><Button variant="primary" className="w-full" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></div>}
+      {canCreate && <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background/95 p-3 shadow-sm sm:hidden"><Button variant="primary" className="w-full" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></div>}
     </ListPage>
   );
 };

@@ -95,19 +95,6 @@ const SpendApprovers: React.FC = () => {
     }
   };
 
-  const roleList = [
-    t('admin.roles.admin', 'Admin'),
-    t('admin.roles.executive', 'Executive'),
-    t('admin.roles.projectManager', 'Project Manager'),
-    t('admin.roles.finance', 'Finance'),
-  ];
-  const roles = t('uxs32.roleList', {
-    defaultValue: '{{first}}, {{second}}, {{third}} or {{fourth}}',
-    first: roleList[0],
-    second: roleList[1],
-    third: roleList[2],
-    fourth: roleList[3],
-  });
   const names = eligible.map((p) => p.full_name).join(', ');
   const eligibleIds = new Set(eligible.map((p) => p.id));
   // Eligibility-derived notes wait for the people list; when it fails they stay silent
@@ -117,23 +104,18 @@ const SpendApprovers: React.FC = () => {
   const holders = peopleError
     ? t('uxs32.holdersUnavailable', "Couldn't check who holds these roles right now.")
     : people
-      ? names
-        ? t('uxs32.holders', { defaultValue: 'Right now: {{names}}.', names })
-        : t('uxs32.holdersNone', 'Nobody active holds these roles right now.')
+      ? names || t('uxs32.holdersNone', 'Nobody active holds these roles right now.')
       : '';
 
-  const flatRouteNote = (scope: 'org' | 'project') => (
-    <p data-testid={`spend-route-${scope}`} className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
-      {t('uxs32.roleRoute', {
-        defaultValue: "Standard rules: any of {{roles}} can approve another person's procurement case.",
-        roles,
-      })}{' '}
-      {holders}
+  const flatRouteNote = (scope: 'org' | 'project') => holders ? (
+    <p data-testid={`spend-route-${scope}`} className="mt-2 max-w-[68ch] text-control text-muted-foreground">
+      <span className="font-medium text-foreground">{t('administration:admin.spendApprovers.whoNow', 'Who can approve now')}</span>
+      {': '}{holders}
     </p>
-  );
+  ) : null;
   const adminRouteNote = (scope: 'org' | 'project') => (
-    <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
-      {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide these procurement cases until someone eligible is added.')}
+    <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-control text-warning-foreground">
+      {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide.')}
     </p>
   );
 
@@ -146,22 +128,15 @@ const SpendApprovers: React.FC = () => {
    */
   const renderRoute = (rows: SpendApproverRow[], scope: 'org' | 'project') => {
     if (rows.length === 0) {
-      if (scope === 'org' || orgRows.length === 0) return flatRouteNote(scope);
+      if (scope === 'org') return flatRouteNote(scope);
+      // Both lists empty: the standard rules were already said once, under the overhead list.
+      if (orgRows.length === 0) return null;
       if (peopleReady && !orgRows.some((r) => eligibleIds.has(r.profileId))) return adminRouteNote(scope);
-      return (
-        <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
-          {t('uxs32.projectEmpty', {
-            defaultValue:
-              'No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement cases go to the overhead approvers.',
-            roles,
-          })}{' '}
-          {holders}
-        </p>
-      );
+      return flatRouteNote('project');
     }
     if (peopleError) {
       return (
-        <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+        <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-control text-muted-foreground">
           {t('uxs32.routeUnavailable', "Couldn't verify who can approve right now.")}
         </p>
       );
@@ -174,8 +149,8 @@ const SpendApprovers: React.FC = () => {
         : 'flat';
     if (senior === 'org') {
       return (
-        <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
-          {t('uxs32.escalate', 'Nobody listed can approve right now. These procurement cases go to the overhead approvers.')}
+        <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-control text-warning-foreground">
+          {t('uxs32.escalate', 'Nobody listed can approve right now. The overhead approvers decide.')}
         </p>
       );
     }
@@ -185,8 +160,8 @@ const SpendApprovers: React.FC = () => {
   const renderRows = (rows: SpendApproverRow[], scope: 'org' | 'project') =>
     rows.length === 0 ? (
       <>
-        <p className="text-[13px] text-muted-foreground">
-          {t('admin.spendApprovers.empty', 'Nobody listed. The standard role rules apply.')}
+        <p className="text-control text-muted-foreground">
+          {t('admin.spendApprovers.empty', 'Nobody listed.')}
         </p>
         {renderRoute(rows, scope)}
       </>
@@ -194,7 +169,7 @@ const SpendApprovers: React.FC = () => {
       <>
         <ul className="divide-y divide-border rounded-lg border border-border">
           {rows.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[13.5px]">
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-control">
               <span className="min-w-0">
                 <span className="font-medium">{r.fullName}</span>
                 {scope === 'org' && r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
@@ -218,15 +193,9 @@ const SpendApprovers: React.FC = () => {
 
   return (
     <section id="spend-approvers" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.spendApprovers.title', 'Spend approvers')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+      <h2 className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.spendApprovers.title', 'Spend approvers')}
       </h2>
-      <p className="mt-1 max-w-[68ch] text-[13px] text-muted-foreground">
-        {t(
-          'admin.spendApprovers.description',
-          "Who approves procurement. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
-        )}
-      </p>
       {isError ? (
         <ListState
           variant="error"
@@ -241,7 +210,7 @@ const SpendApprovers: React.FC = () => {
         <div className="mt-3 space-y-4">
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[13px] font-semibold">
+              <h3 className="text-control font-semibold">
                 {t('admin.spendApprovers.orgSet.title', 'Overhead and over-budget approvers')}
               </h3>
               {canManage && (
@@ -254,7 +223,7 @@ const SpendApprovers: React.FC = () => {
           </div>
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[13px] font-semibold">
+              <h3 className="text-control font-semibold">
                 {t('admin.spendApprovers.projectSet.title', 'Project approvers')}
               </h3>
               {canManage && (
@@ -268,7 +237,7 @@ const SpendApprovers: React.FC = () => {
                 {projectGroups.map(([id, rows]) => {
                   const name = rows[0].projectName ?? id;
                   return <div key={id} role="group" aria-label={name}>
-                    <h4 className="mb-2 text-[13px] font-medium">{name}</h4>
+                    <h4 className="mb-2 text-control font-medium">{name}</h4>
                     {renderRows(rows, 'project')}
                   </div>;
                 })}
@@ -276,7 +245,7 @@ const SpendApprovers: React.FC = () => {
             )}
           </div>
           {!canManage && (
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-control text-muted-foreground">
               {t('admin.spendApprovers.adminOnly', 'Only an Admin can change this.')}
             </p>
           )}
@@ -384,7 +353,6 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
           ? t('admin.spendApprovers.form.projectTitle', 'Add a project approver')
           : t('admin.spendApprovers.form.orgTitle', 'Add an overhead approver')
       }
-      subtitle={t('admin.spendApprovers.form.subtitle', 'Any one listed approver can approve a procurement case.')}
       submitLabel={t('admin.spendApprovers.form.save', 'Add')}
       onSubmit={handleSubmit}
       submitError={submitError}

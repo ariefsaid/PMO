@@ -78,6 +78,7 @@ export { ContactNameLink, type ContactNameLinkProps } from './ContactNameLink';
 export { HoursBar, type HoursBarProps } from './HoursBar';
 export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
 export { MobileActionBar } from './MobileActionBar';
+export { MobileDecisionBar, type MobileDecisionAction, type MobileDecisionBarProps } from './MobileDecisionBar';
 export { MobileActionStrip, type MobileActionStripProps } from './MobileActionStrip';
 export { EntryList, type EntryListProps } from './EntryList';
 

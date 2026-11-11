@@ -34,8 +34,10 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
   return (
     <MobileActionBar
       data-testid="timesheets-mobile-action-strip"
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background px-3 pt-2 md:hidden"
+      className="fixed inset-x-0 z-20 border-t border-border bg-background px-3 pt-2 md:hidden"
       style={{
+        // #2061: sit above the phone bottom bar (the token is 0px above the phone breakpoint).
+        bottom: 'var(--phone-nav-height)',
         paddingBottom: `calc(env(safe-area-inset-bottom) + ${hasEnvironmentBadge ? '2.75rem' : '0.5rem'})`,
       }}
     >

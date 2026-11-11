@@ -71,7 +71,6 @@ export const ConnectCredentialsModal: React.FC<ConnectCredentialsModalProps> = (
     <EntityFormModal
       open
       title={t('integrations.organization.readiness.connectAction', 'Connect {{service}}', { service: tierLabel(tier) })}
-      subtitle={t('integrations.organization.readiness.connect.subtitle', 'Enter your {{service}} credentials to establish the connection', { service: tierLabel(tier) })}
       submitLabel={t('integrations.organization.readiness.connectAction', 'Connect {{service}}', { service: tierLabel(tier) })}
       onSubmit={handleSubmit}
       onClose={onClose}

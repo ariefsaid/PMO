@@ -8,7 +8,7 @@ import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolved
 import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
 import { formatMoneyInputValue } from '@/src/lib/format';
-import { Button, Combobox, SelectField, type ComboboxOption } from '@/src/components/ui';
+import { Button, Combobox, PageHeader, SelectField, type ComboboxOption } from '@/src/components/ui';
 
 type LocaleChoice = 'inherit' | 'id' | 'en';
 type NumberLocaleChoice = 'inherit' | 'id-ID' | 'en-US';
@@ -96,7 +96,7 @@ const ProfileSettings: React.FC = () => {
   if (!currentUser) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-        <p className="text-[13.5px] text-muted-foreground">
+        <p className="text-control text-muted-foreground">
           {t('profileSettings.loading', 'Loading profile…')}
         </p>
       </div>
@@ -135,8 +135,6 @@ const ProfileSettings: React.FC = () => {
     { value: 'id-ID', label: t('profileSettings.number.options.id', 'Indonesian (1.234.567,89)') },
     { value: 'en-US', label: t('profileSettings.number.options.en', 'English (1,234,567.89)') },
   ];
-  const effectiveLanguage = languageName(resolvedLocale.locale);
-  const effectiveNumberFormat = numberExample(resolvedLocale.numberLocale);
   // #684: the preview reflects what SAVING NOW would produce (the pending selection), never the
   // still-in-effect saved value — otherwise picking a new convention shows no visible feedback
   // until after Save + refresh.
@@ -194,18 +192,9 @@ const ProfileSettings: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <PageHeader title={t('profileSettings.title', 'Profile & preferences')} />
       <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-        <h1 className="text-xl font-bold tracking-[-0.01em] text-foreground">
-          {t('profileSettings.title', 'Profile & preferences')}
-        </h1>
-        <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
-          {t(
-            'profileSettings.description',
-            'Choose your language, number format, and timezone for this portal.',
-          )}
-        </p>
-
-        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <SelectField
               label={t('profileSettings.language.label', 'Interface language')}
@@ -215,13 +204,9 @@ const ProfileSettings: React.FC = () => {
                 resetStatus();
               }}
               options={languageOptions}
-              helper={t('profileSettings.language.help', 'Saved to your profile and applied across devices.')}
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
-              {t('profileSettings.language.effective', { defaultValue: 'Effective language: {{value}}', value: effectiveLanguage })}
-            </p>
           </div>
 
           <div>
@@ -237,9 +222,6 @@ const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
-              {t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}
-            </p>
           </div>
 
           <div>
@@ -268,9 +250,6 @@ const ProfileSettings: React.FC = () => {
               noun={t('profileSettings.timezone.noun', 'timezone')}
               disabled={isSaving}
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
-              {t('profileSettings.timezone.effective', { defaultValue: 'Effective timezone: {{value}}', value: resolvedLocale.timezone })}
-            </p>
           </div>
         </div>
 
@@ -287,21 +266,21 @@ const ProfileSettings: React.FC = () => {
         </div>
 
         {status === 'saving' && (
-          <p role="status" className="mt-3 text-[13px] text-muted-foreground">
+          <p role="status" className="mt-3 text-control text-muted-foreground">
             {t('profileSettings.saving', 'Saving your preferences…')}
           </p>
         )}
         {status === 'saved' && (
-          <p role="status" className="mt-3 text-[13px] font-medium text-foreground">
+          <p role="status" className="mt-3 text-control font-medium text-foreground">
             {t('profileSettings.saved', 'Preferences saved')}
           </p>
         )}
         {status === 'stale' && (
           <div className="mt-3 space-y-2">
-            <p role="status" className="text-[13px] font-medium text-foreground">
+            <p role="status" className="text-control font-medium text-foreground">
               {t('profileSettings.saved', 'Preferences saved')}
             </p>
-            <p role="alert" className="text-[13px] leading-[1.5] text-muted-foreground">
+            <p role="alert" className="text-control leading-[1.5] text-muted-foreground">
               {t(
                 'profileSettings.staleRefresh',
                 'Refreshing this session failed — your choices are stored and will apply on your next sign-in.',
@@ -319,7 +298,7 @@ const ProfileSettings: React.FC = () => {
           </div>
         )}
         {status === 'error' && errorMsg && (
-          <p role="alert" className="mt-3 text-[13px] font-medium text-destructive-text">
+          <p role="alert" className="mt-3 text-control font-medium text-destructive-text">
             {errorMsg}
           </p>
         )}

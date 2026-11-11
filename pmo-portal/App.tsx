@@ -35,6 +35,8 @@ import {
   Rail,
   ContextBar,
   CommandPalette,
+  PhoneNavBar,
+  PhoneLandingRedirect,
   modulesForRoleWithOperator,
   agentEntityForPath,
   breadcrumbForPath,
@@ -108,6 +110,7 @@ const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
 const MyTasksPage = lazyWithPreload(() => import('./pages/MyTasks'));
+const MyQueuePage = lazyWithPreload(() => import('./pages/MyQueue'));
 const CalendarPage = lazyWithPreload(() => import('./pages/Calendar'));
 const NotFoundPage = lazyWithPreload(() => import('./pages/NotFound'));
 const UserViewRenderer = lazyWithPreload(() => import('./pages/UserViewRenderer'));
@@ -194,6 +197,8 @@ interface PreloadRule {
 
 const PRELOAD_RULES: PreloadRule[] = [
   { path: '/', chunks: [ExecutiveDashboard], namespaces: ['dashboard'] },
+  // #2061: the phone landing. Preloaded at route entry like every other destination.
+  { path: '/home', chunks: [MyQueuePage], namespaces: ['home'] },
   { path: '/projects', chunks: [Projects], namespaces: ['projects'] },
   { path: '/projects/new', chunks: [ProjectNew], namespaces: ['projects'] },
   ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH).map(([path, chunks]) => ({
@@ -379,6 +384,9 @@ const gated = (feature: EntitleableKey, element: React.ReactNode): React.ReactNo
 // eslint-disable-next-line react-refresh/only-export-components -- route data is shared with route-table tests
 export const appRouteConfig: RouteObject[] = [
   { path: '/', element: <ExecutiveDashboard /> },
+  // #2061: the phone "my queue" Home. A phone opens here (PhoneLandingRedirect); desktop keeps
+  // the executive dashboard at / and can still deep-link this page.
+  { path: '/home', element: <MyQueuePage /> },
   { path: '/projects', element: <Projects /> },
   // B-9 (AC-W2-IA-004): /projects/:id/:tab? — all five tabs are deep-linkable symmetrically
   //   (budget is just another :tab value). Both routes render ProjectDetail; the component reads
@@ -741,7 +749,15 @@ export const ShellChrome: React.FC = () => {
 
   return (
     <>
+      {/* #2061: a phone opens on the my-queue Home; desktop lands on the dashboard, unchanged. */}
+      <PhoneLandingRedirect />
       <AppShell
+        phoneNav={
+          <PhoneNavBar
+            onOpenMore={toggleRail}
+            moreOpen={railOpen}
+          />
+        }
         rail={
           <Rail
             onNavigate={closeRail}

@@ -90,14 +90,10 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(localStorage.getItem('text-size')).toBe('larger');
   });
 
-  it('UIP-012: keeps the resting preferences card flat, bordered, and keyboard-focusable', () => {
+  it('UIP-012: the preferences are keyboard-focusable', () => {
     renderPage();
 
-    const heading = screen.getByRole('heading', { name: /profile & preferences/i });
-    const card = heading.parentElement;
-    expect(card).not.toBeNull();
-    expect(card).toHaveClass('rounded-lg', 'border', 'border-border', 'bg-card', 'p-4', 'sm:p-6');
-    expect(card).not.toHaveClass('shadow-sm');
+    expect(screen.getByRole('heading', { name: /profile & preferences/i })).toBeInTheDocument();
 
     languageSelect().focus();
     expect(document.activeElement).toBe(languageSelect());
@@ -233,7 +229,7 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(languageSelect()).toHaveValue('inherit');
     expect(screen.getByLabelText(/number format/i)).toHaveValue('inherit');
     expect(screen.getByRole('combobox', { name: /timezone/i })).toHaveTextContent(/organization default/i);
-    expect(screen.getByText(/effective.*english/i)).toBeInTheDocument();
+    expect(within(languageSelect()).getByRole('option', { name: 'Organization default — English' })).toHaveValue('inherit');
     // #684: the ONE labelled preview reflects the pending (here: inherited) choice — English,
     // not the currently effective saved convention ('id-ID' per resolvedLocaleState above).
     expect(screen.getByText('Preview: 1,234,567.89')).toBeInTheDocument();
@@ -250,8 +246,8 @@ describe('ProfileSettings personal locale preferences', () => {
 
     // The preview updates immediately, before Save is pressed…
     expect(screen.getByText('Preview: 1.234.567,89')).toBeInTheDocument();
-    // …while the "effective" (currently saved) convention is unchanged until save + refresh.
-    expect(screen.getByText('Effective number format: 1,234,567.89')).toBeInTheDocument();
+    // …while the saved convention is unchanged until save + refresh.
+    expect(resolvedLocaleState.current.numberLocale).toBe('en-US');
   });
 
   it('AC-PLC-001: names the organization timezone on Organization default, not the user override', async () => {
@@ -292,8 +288,6 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(within(languageSelect()).getByRole('option', { name: 'Organization default — Bahasa Indonesia' })).toBeInTheDocument();
     const numberSelect = screen.getByLabelText(/number format/i) as HTMLSelectElement;
     expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1.234.567,89' })).toBeInTheDocument();
-    // The effective line shows the convention's example, never a bare language tag like "id".
-    expect(screen.getByText('Effective number format: 1.234.567,89')).toBeInTheDocument();
 
     // Choosing English as the language changes what "Organization default" number format would give.
     fireEvent.change(languageSelect(), { target: { value: 'en' } });

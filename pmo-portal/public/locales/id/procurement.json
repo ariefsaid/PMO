@@ -99,7 +99,7 @@
   },
   "gates": {
     "heading": "Aturan pembelian",
-    "intro": "Semua mati: pembelian dapat dimulai dari langkah mana pun. Aktifkan aturan hanya bila akuntansi Anda membutuhkannya.",
+    "intro": "Semua mati: pembelian dapat dimulai di langkah mana pun.",
     "loadError": "Aturan pembelian tidak dapat dimuat",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "request_before_order": "Wajib permintaan sebelum pesanan",
@@ -107,11 +107,7 @@
     "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
     "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
     "saving": "Menyimpan…",
-    "saved": "Tersimpan",
-    "request_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan pembelian lebih dulu.",
-    "approval_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan yang disetujui lebih dulu.",
-    "receipt_before_invoiceHelp": "Jika aktif, faktur pemasok memerlukan penerimaan barang lebih dulu.",
-    "approval_before_paymentHelp": "Jika aktif, pembayaran memerlukan jumlah yang disetujui lebih dulu."
+    "saved": "Tersimpan"
   },
   "documents": {
     "attachTo": "Lampirkan ke",
@@ -362,6 +358,7 @@
     "loadErrorTitle": "Gagal memuat detail pengadaan"
   },
   "procurementDetail": {
+    "decisionBar": "Keputusan pengadaan",
     "readyHint": {
       "draftOther": "Siap mengajukan pengadaan ini untuk disetujui.",
       "requested": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengajuannya sendiri. Pemisahan tugas memerlukan peninjau lain.",

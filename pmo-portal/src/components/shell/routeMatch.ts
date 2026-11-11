@@ -301,6 +301,9 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/revenue-by-project': 'Revenue by Project',
   // #1512: the Stock module's sub-pages that are not detail records.
   '/stock/setup': 'Stock setup',
+  // #2061: the phone Home (my queue) is a composition of already-modular surfaces, not a module
+  // of its own — register its title so the breadcrumb reads "Home", never "Not found".
+  '/home': 'Home',
 };
 
 /**

@@ -23,7 +23,7 @@
  * so the profile read is rewritten to `locale: 'id'` (same technique as UXS-006).
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { signIn } from '../helpers';
+import { openAppPath, signIn } from '../helpers';
 import { expectFiguresContained } from './layout-oracles';
 import { FINANCE_FIXTURE, installIdrDashboardFixture } from '../dashboard-idr.fixtures';
 
@@ -128,7 +128,7 @@ export function registerFigureLayout(name: string) {
         await installIdrDashboardFixture(page);
         await page.setViewportSize({ width, height: 900 });
         await signIn(page, route.user);
-        await page.goto(route.path);
+        await openAppPath(page, route.path);
         await expect(page.locator('html')).toHaveAttribute('lang', 'en');
         await route.ready(page, width, 'en');
         await expectFiguresContained(page, `${route.name} ${width}px en`);
@@ -140,7 +140,7 @@ export function registerFigureLayout(name: string) {
         await installIdrDashboardFixture(page);
         await page.setViewportSize({ width, height: 900 });
         await signIn(page, route.user);
-        await page.goto(route.path);
+        await openAppPath(page, route.path);
         await expect(page.locator('html')).toHaveAttribute('lang', 'id');
         await route.ready(page, width, 'id');
         await expectFiguresContained(page, `${route.name} ${width}px id`);

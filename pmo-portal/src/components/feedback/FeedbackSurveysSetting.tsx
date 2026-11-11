@@ -31,17 +31,17 @@ export const FeedbackSurveysSetting: React.FC = () => {
   return (
     <div className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[13.5px] font-medium">{label}</span>
+        <span className="text-control font-medium">{label}</span>
         {canAct('manage', 'orgFeedback') ? (
           <Switch checked={on} onChange={() => mutation.mutate(!on)} label={label} disabled={mutation.isPending} />
         ) : (
           <StatusPill variant={on ? 'won' : 'neutral'}>{on ? t('feedbackSurveys.on', 'On') : t('feedbackSurveys.off', 'Off')}</StatusPill>
         )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="mt-1 text-control text-muted-foreground">
         {t(
           'feedbackSurveys.description',
-          'A Feedback button in the header and, at most once every 30 days, a short question after a first task or a quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents.',
+          'A Feedback button in the header and, at most every 30 days, a short survey. Never while filling in a form.',
         )}
       </p>
     </div>

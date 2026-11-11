@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin' }) }));
@@ -32,7 +33,7 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
   return { ...actual, isFeatureEnabled: (key: string) => key === 'userViews' || key === 'agentAssistant' };
 });
 
-const renderRail = () => render(<MemoryRouter><Rail /></MemoryRouter>);
+const renderRail = () => render(<MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter>);
 
 describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
   it('maps each exposed destination to its entity-specific glyph without changing link names', () => {

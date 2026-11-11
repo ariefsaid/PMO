@@ -138,7 +138,7 @@ export function ErpSetupChecklist(
       <p className='mb-3 mt-1 max-w-[65ch] text-sm text-muted-foreground'>
         {t(
           'uxs08.reviewDescription',
-          'Review how your organization keeps business information current. Completed links stay in place; only work needing attention needs a decision.',
+          'Completed links stay in place; only items needing attention need a decision.',
         )}
       </p>
       <h4 className='mb-2 text-sm font-semibold text-foreground'>
@@ -157,7 +157,7 @@ export function ErpSetupChecklist(
                 {t('integrations.erpSetup.unavailable', 'ERP setup unavailable')}
               </p>
               <p className='mt-1 text-muted-foreground'>
-                {t('uxs07.setupUnavailableHelp', 'Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.')}
+                {t('uxs07.setupUnavailableHelp', 'Readiness is unknown.')}
               </p>
               <Button variant='ghost' size='sm' className='mt-1 px-2' onClick={() => void setup.refetch()}>
                 {t('ux.retry', 'Retry')}
@@ -173,7 +173,7 @@ export function ErpSetupChecklist(
             {setup.isError && (
               <div className='mb-3 rounded-md border border-border bg-muted/30 p-3 text-sm' role='status'>
                 <p className='font-medium text-foreground'>{t('uxs07.lastKnownTitle', 'Showing the last saved setup check')}</p>
-                <p className='mt-1 text-muted-foreground'>{t('uxs07.lastKnownBody', 'The current check failed. These results may be out of date; retry or ask your PMO administrator to review setup.')}</p>
+                <p className='mt-1 text-muted-foreground'>{t('uxs07.lastKnownBody', 'The current check failed; results may be out of date.')}</p>
                 <div className='mt-2 flex flex-wrap items-center gap-3'>
                   <Button variant='outline' size='sm' onClick={() => void setup.refetch()}>
                     {t('uxs07.retryCheck', 'Check setup again')}
@@ -322,7 +322,7 @@ export function ErpSetupChecklist(
             </ul>
             {!hasOutstandingSetup && (
               <p className='py-3 text-sm text-muted-foreground' role='status'>
-                {t('uxs08.setupComplete', 'Setup is complete. Confirmed connections are retained; this review will return when something needs attention.')}
+                {t('uxs08.setupComplete', 'Setup is complete.')}
               </p>
             )}
             <div className='mt-3 flex flex-wrap items-center gap-3'>
