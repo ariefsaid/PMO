@@ -52,10 +52,11 @@ const ImprestFloatDetail: React.FC = () => {
   const transitionRep = useTransitionReplenishment();
   const recordCount = useRecordCount();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
   const [counted, setCounted] = useState('');
-  const close = () => { setDialog(null); setNotes(''); setReference(''); setCounted(''); };
+  const close = () => { setDialog(null); setDialogError(null); setNotes(''); setReference(''); setCounted(''); };
   const backLabel = t('imprest:detail.back', 'Site cash');
   const goBack = () => navigate('/imprest');
 
@@ -102,8 +103,13 @@ const ImprestFloatDetail: React.FC = () => {
   const books = pos ? booksState(pos) : null;
 
   const run = async (work: () => Promise<unknown>, success: string) => {
+    setDialogError(null);
     try { await work(); toast(success, flt.project?.name, 'success'); close(); }
-    catch (err) { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); }
+    catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      setDialogError(detail ? `${headline}. ${detail}` : headline);
+      toast(headline, detail, 'warning');
+    }
   };
   const countedParsed = parseMoneyInputAtScale(counted, 2);
   const countDiffers = pos !== null && countedParsed !== null && Math.round(countedParsed * 100) !== toCents(pos.cash_book);
@@ -279,6 +285,7 @@ const ImprestFloatDetail: React.FC = () => {
           : t('imprest:confirm.requestBody', 'Asks Finance to refill the float with the {{amount}} of receipts waiting.', { amount: moneyCents(requestable / 100) })}</p>}
         confirmLabel={dialog?.kind === 'request' && dialog.as === 'funding' ? t('imprest:actions.requestFunding', 'Request funding') : t('imprest:actions.requestReplenishment', 'Request replenishment')}
         loading={requestRep.isPending}
+        error={dialogError}
         onConfirm={() => { if (dialog?.kind === 'request') void run(() => requestRep.mutateAsync({ floatId: flt.id, kind: dialog.as }), t('imprest:toast.requested', 'Request sent')); }}
         onCancel={close}
       />
@@ -288,6 +295,7 @@ const ImprestFloatDetail: React.FC = () => {
         subject={repDialog?.rep.number ?? ''}
         context={repDialog ? moneyCents(repDialog.rep.amount) : undefined}
         loading={transitionRep.isPending}
+        error={dialogError}
         onConfirm={(reason) => {
           if (!repDialog) return;
           void run(() => transitionRep.mutateAsync({ id: repDialog.rep.id, to: REP_TO[repDialog.action], notes: reason }), t('imprest:toast.updated', 'Updated'));
@@ -304,6 +312,7 @@ const ImprestFloatDetail: React.FC = () => {
         </div>}
         confirmLabel={repLabel ?? ''}
         loading={transitionRep.isPending}
+        error={dialogError}
         onConfirm={() => {
           if (!repDialog) return;
           const to = REP_TO[repDialog.action];
@@ -323,6 +332,7 @@ const ImprestFloatDetail: React.FC = () => {
         confirmLabel={t('imprest:actions.recordCount', 'Record count')}
         confirmDisabled={!countValid}
         loading={recordCount.isPending}
+        error={dialogError}
         onConfirm={() => void run(() => recordCount.mutateAsync({ floatId: flt.id, counted: countedParsed as number, ...(notes.trim() ? { note: notes.trim() } : {}) }), t('imprest:toast.counted', 'Count recorded'))}
         onCancel={close}
       />

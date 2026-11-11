@@ -69,6 +69,7 @@ const EquipmentUsagePage: React.FC = () => {
   const [draftRow, setDraftRow] = useState<{ assetId: string | null; projectId: string | null; kind: Kind }>({ assetId: null, projectId: null, kind: 'work' });
   const [warnings, setWarnings] = useState<Record<string, number>>({});
   const [problem, setProblem] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [approving, setApproving] = useState<Pending>(null);
   const [rejecting, setRejecting] = useState<Pending>(null);
 
@@ -113,10 +114,11 @@ const EquipmentUsagePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the name lookups derive from assets/projects, already deps
   }, [mine, added, opened, assetFilter, assets, projects]);
 
-  const fail = (err: unknown) => {
+  const classifiedFailure = (err: unknown) => {
     const c = classifyMutationError(err);
-    setProblem(`${c.headline}. ${c.detail}`);
+    return c.detail ? `${c.headline}. ${c.detail}` : c.headline;
   };
+  const fail = (err: unknown) => setProblem(classifiedFailure(err));
 
   const commit = async (row: GridRow, date: string, text: string) => {
     const entry = byCell.get(cellKey(row.assetId, row.projectId, row.kind, date));
@@ -225,7 +227,14 @@ const EquipmentUsagePage: React.FC = () => {
   });
   const decide = async (id: string, to: 'Approved' | 'Rejected', notes?: string) => {
     setProblem(null);
-    try { await transition.mutateAsync(notes ? { id, to, notes } : { id, to }); } catch (err) { fail(err); }
+    setDecisionError(null);
+    try {
+      await transition.mutateAsync(notes ? { id, to, notes } : { id, to });
+      return true;
+    } catch (err) {
+      setDecisionError(classifiedFailure(err));
+      return false;
+    }
   };
   const approveAssetWeek = async (assetId: string) => {
     setProblem(null);
@@ -252,8 +261,8 @@ const EquipmentUsagePage: React.FC = () => {
         const who = `${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`;
         return (
           <span className="flex gap-1">
-            <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => setRejecting({ id: e.id, label: who })}>{t('equipment:usage.reject', 'Return')}</Button>
-            <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => setApproving({ id: e.id, label: who })}>{t('equipment:usage.approve', 'Approve')}</Button>
+            <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => { setDecisionError(null); setRejecting({ id: e.id, label: who }); }}>{t('equipment:usage.reject', 'Return')}</Button>
+            <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => { setDecisionError(null); setApproving({ id: e.id, label: who }); }}>{t('equipment:usage.approve', 'Approve')}</Button>
           </span>
         );
       } },
@@ -353,16 +362,16 @@ const EquipmentUsagePage: React.FC = () => {
         description={approving?.label ?? t('equipment:usage.confirmApproveBody', 'This will approve the logged equipment usage entry.')}
         confirmLabel={t('equipment:usage.approve', 'Approve')}
         loading={transition.isPending}
-        onCancel={() => setApproving(null)}
-        onConfirm={() => {
+        error={decisionError}
+        onCancel={() => { setApproving(null); setDecisionError(null); }}
+        onConfirm={async () => {
           const a = approving;
-          setApproving(null);
-          if (a) void decide(a.id, 'Approved');
+          if (a && await decide(a.id, 'Approved')) setApproving(null);
         }}
       />
       <ReasonDialog maxLength={500} open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}
-        loading={transition.isPending} onCancel={() => setRejecting(null)}
-        onConfirm={(notes) => { const r = rejecting; setRejecting(null); if (r) void decide(r.id, 'Rejected', notes); }} />
+        loading={transition.isPending} error={decisionError} onCancel={() => { setRejecting(null); setDecisionError(null); }}
+        onConfirm={async (notes) => { const r = rejecting; if (r && await decide(r.id, 'Rejected', notes)) setRejecting(null); }} />
     </ListPage>
   );
 };

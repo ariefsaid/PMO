@@ -54,7 +54,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => detailState,
   useProcurementMutations: () => ({
-    transition: { mutate: transitionMutate, isPending: false },
+    transition: { mutateAsync: transitionMutate, isPending: false },
   }),
 }));
 
@@ -196,17 +196,13 @@ describe('AC-IFW-PROC-01: expanded panel — loading + error states', () => {
 // ── AC-IFW-PROC-02: Approve fires transition({to:'Approved'}) ────────────────
 
 describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
-  it('Approve → ConfirmDialog → confirm fires transition.mutate with {to:"Approved"}', async () => {
-    transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
+  it('Approve → ConfirmDialog → confirm fires transition.mutateAsync with {to:"Approved"}', async () => {
     renderAs();
     await userEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
     // ConfirmDialog should open
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
-    expect(transitionMutate).toHaveBeenCalledWith(
-      { to: 'Approved' },
-      expect.any(Object),
-    );
+    expect(transitionMutate).toHaveBeenCalledWith({ to: 'Approved' });
     // Lens-D regression: navigate was never called
     expect(navigateMock).not.toHaveBeenCalled();
   });
@@ -216,7 +212,6 @@ describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
 
 describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
   it('AC-1578: returning requires a non-empty comment and sends it with the transition', async () => {
-    transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderAs();
     await userEvent.click(screen.getByRole('button', { name: /^Return$/i }));
     // The shared ReasonDialog: required reason, filled confirm.
@@ -230,10 +225,7 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
     await userEvent.type(comment, 'Please revise the requested quantities.');
     expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
-    expect(transitionMutate).toHaveBeenCalledWith(
-      { to: 'Rejected', notes: 'Please revise the requested quantities.' },
-      expect.any(Object),
-    );
+    expect(transitionMutate).toHaveBeenCalledWith({ to: 'Rejected', notes: 'Please revise the requested quantities.' });
     expect(navigateMock).not.toHaveBeenCalled();
   });
 });

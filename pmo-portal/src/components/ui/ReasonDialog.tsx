@@ -111,9 +111,9 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
             onBlur={() => setTouched(true)}
             error={touched && missing ? t('reasonDialog.reasonRequired', 'Enter a reason.') : undefined}
           />
-          {error != null && <div role="alert" className="text-control text-destructive-text">{error}</div>}
         </div>
       )}
+      error={error}
     />
   );
 };

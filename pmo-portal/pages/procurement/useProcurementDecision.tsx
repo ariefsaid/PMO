@@ -257,10 +257,9 @@ export function useProcurementDecision(
         'success',
       );
     } catch (err) {
-      setPendingConfirm(null);
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail);
+      setMutationError(detail ? `${headline}. ${detail}` : headline);
     }
   };
 

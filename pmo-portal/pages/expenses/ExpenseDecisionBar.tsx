@@ -27,20 +27,24 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const { transition, recordReturn } = useExpenseClaimMutations();
   const isNarrow = useIsNarrow();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
   const [returnAmount, setReturnAmount] = useState('');
   const showReopen = actions.includes('reopen') && !hideReopen;
   if (actions.length === 0 || (hideReopen && actions.every((action) => action === 'reopen'))) return null;
 
-  const close = () => { setDialog(null); setNotes(''); setReference(''); setReturnAmount(''); };
+  const close = () => { setDialog(null); setDecisionError(null); setNotes(''); setReference(''); setReturnAmount(''); };
+  const openDialog = (next: Dialog) => { setDecisionError(null); setDialog(next); };
   const run = async (work: () => Promise<unknown>, success: string) => {
+    setDecisionError(null);
     try {
       await work();
       toast(success, claim.title, 'success');
       close();
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setDecisionError(detail ? `${headline}. ${detail}` : headline);
       toast(headline, detail, 'warning');
     }
   };
@@ -62,11 +66,11 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const barActions: MobileDecisionAction[] = [
     ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
     ...(showReopen ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
-    ...(actions.includes('reject') ? [{ key: 'reject', label: t('expenses.actions.reject', 'Reject'), variant: 'outline' as const, onSelect: () => setDialog('reject') }] : []),
-    ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => setDialog('approve') }] : []),
-    ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => setDialog('pay') }] : []),
-    ...(actions.includes('recordReturn') ? [{ key: 'recordReturn', label: t('expenses.actions.recordReturn', 'Record cash returned'), variant: 'outline' as const, onSelect: () => setDialog('recordReturn') }] : []),
-    ...(actions.includes('cancel') ? [{ key: 'cancel', label: t('expenses.actions.cancel', 'Cancel'), variant: 'ghost' as const, onSelect: () => setDialog('cancel') }] : []),
+    ...(actions.includes('reject') ? [{ key: 'reject', label: t('expenses.actions.reject', 'Reject'), variant: 'outline' as const, onSelect: () => openDialog('reject') }] : []),
+    ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => openDialog('approve') }] : []),
+    ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => openDialog('pay') }] : []),
+    ...(actions.includes('recordReturn') ? [{ key: 'recordReturn', label: t('expenses.actions.recordReturn', 'Record cash returned'), variant: 'outline' as const, onSelect: () => openDialog('recordReturn') }] : []),
+    ...(actions.includes('cancel') ? [{ key: 'cancel', label: t('expenses.actions.cancel', 'Cancel'), variant: 'ghost' as const, onSelect: () => openDialog('cancel') }] : []),
   ];
 
   return (
@@ -85,13 +89,13 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
           {t('expenses.actions.reopen', 'Edit and resubmit')}
         </Button>
       )}
-      {actions.includes('reject') && <Button variant="outline" onClick={() => setDialog('reject')}>{t('expenses.actions.reject', 'Reject')}</Button>}
-      {actions.includes('approve') && <Button variant="primary" onClick={() => setDialog('approve')}>{t('expenses.actions.approve', 'Approve')}</Button>}
-      {actions.includes('pay') && <Button variant="primary" onClick={() => setDialog('pay')}>{t('expenses.actions.pay', 'Mark paid')}</Button>}
+      {actions.includes('reject') && <Button variant="outline" onClick={() => openDialog('reject')}>{t('expenses.actions.reject', 'Reject')}</Button>}
+      {actions.includes('approve') && <Button variant="primary" onClick={() => openDialog('approve')}>{t('expenses.actions.approve', 'Approve')}</Button>}
+      {actions.includes('pay') && <Button variant="primary" onClick={() => openDialog('pay')}>{t('expenses.actions.pay', 'Mark paid')}</Button>}
       {actions.includes('recordReturn') && (
-        <Button variant="outline" onClick={() => setDialog('recordReturn')}>{t('expenses.actions.recordReturn', 'Record cash returned')}</Button>
+        <Button variant="outline" onClick={() => openDialog('recordReturn')}>{t('expenses.actions.recordReturn', 'Record cash returned')}</Button>
       )}
-      {actions.includes('cancel') && <Button variant="ghost" onClick={() => setDialog('cancel')}>{t('expenses.actions.cancel', 'Cancel')}</Button>}
+      {actions.includes('cancel') && <Button variant="ghost" onClick={() => openDialog('cancel')}>{t('expenses.actions.cancel', 'Cancel')}</Button>}
     </div>
     )}
     <MobileDecisionBar actions={barActions} context={identity} label={identity} />
@@ -102,6 +106,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         description={<div className="space-y-3"><DecisionContextSummary identity={identity} amount={formattedAmount} /><TextArea label={t('expenses.confirm.notesLabel', 'Note to the claimant (optional)')} value={notes} onChange={setNotes} /></div>}
         confirmLabel={t('expenses.actions.approve', 'Approve')}
         loading={transition.isPending}
+        error={decisionError}
         onConfirm={() => void move('Approved', t('expenses.toast.approved', 'Approved'), { notes: notes.trim() || null })}
         onCancel={close}
       />
@@ -112,6 +117,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         subject={claim.claim_number ?? claim.title}
         context={decisionContext}
         loading={transition.isPending}
+        error={decisionError}
         onConfirm={(reason) => void move('Rejected', returnedToastLabel ?? statusLabel('expense', 'Rejected', t), { notes: reason })}
         onCancel={close}
       />
@@ -141,6 +147,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         }
         confirmLabel={t('expenses.actions.pay', 'Mark paid')}
         loading={transition.isPending}
+        error={decisionError}
         onConfirm={() => void move('Paid', t('expenses.toast.paid', 'Marked paid'), { paymentReference: reference.trim() || null })}
         onCancel={close}
       />
@@ -161,6 +168,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         confirmLabel={t('expenses.confirm.returnConfirm', 'Record return')}
         confirmDisabled={!returnValid}
         loading={recordReturn.isPending}
+        error={decisionError}
         onConfirm={() =>
           void run(
             () => recordReturn.mutateAsync({ id: claim.id, amount: parsedReturn as number, reference: reference.trim() || null }),
@@ -178,6 +186,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         confirmLabel={t('expenses.confirm.cancelConfirm', 'Cancel it')}
         cancelLabel={t('expenses.confirm.keep', 'Keep it')}
         loading={transition.isPending}
+        error={decisionError}
         onConfirm={() => void move('Cancelled', t('expenses.toast.cancelled', 'Cancelled'))}
         onCancel={close}
       />

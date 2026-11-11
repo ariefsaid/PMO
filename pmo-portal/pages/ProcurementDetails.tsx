@@ -920,8 +920,11 @@ const ProcurementDetails: React.FC = () => {
       <ReasonDialog
         open={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'}
         kind="reject"
+        subject={`${p.code} · ${p.title}`}
         label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
+        context={pendingConfirm?.kind === 'transition' ? pendingConfirm.description : undefined}
         loading={confirmInFlight}
+        error={mutationError}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={(reason) => { void commitConfirm(reason); }}
       />
@@ -939,24 +942,7 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
-          mutationError && pendingConfirm?.kind !== 'transition'
-            ? (
-              <div className="space-y-3">
-                <p>{pendingConfirm?.kind === 'createGR'
-                  ? t(
-                      'procurementDetail.confirm.grBody',
-                      'This records a {{status}} goods receipt against procurement case {{request}}.',
-                      { status: pendingConfirm.status.toLowerCase(), request: p.title },
-                    )
-                  : t(
-                      'procurementDetail.confirm.viBody',
-                      'This records a supplier invoice against procurement case {{request}}.',
-                      { request: p.title },
-                    )}</p>
-                <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>
-              </div>
-            )
-            : pendingConfirm?.kind === 'transition'
+          pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? t(
@@ -981,6 +967,7 @@ const ProcurementDetails: React.FC = () => {
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
         }
         loading={confirmInFlight}
+        error={mutationError}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
       />

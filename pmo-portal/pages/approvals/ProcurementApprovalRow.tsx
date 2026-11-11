@@ -55,37 +55,37 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
   const detail = useProcurementDetail(row.id);
   const { transition } = useProcurementMutations(row.id);
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
 
   const canTransition = may('transition', 'procurement');
   const isInline = surface === 'inline';
 
   const money = (amount: number) => formatTableMoney(amount, row.currency) ?? '—';
 
-  const handleConfirm = (reason?: string) => {
+  const handleConfirm = async (reason?: string) => {
     if (!pending) return;
-    transition.mutate(
-      { to: pending, ...(pending === 'Rejected' ? { notes: (reason ?? '').trim() } : {}) },
-      {
-        onSuccess: () => {
-          setPending(null);
-          queryClient.invalidateQueries({ queryKey: ['procurements', currentUser?.org_id] });
-          toast(
-            pending === 'Approved'
-              ? t('approvalRow.approved', 'Procurement approved')
-              : t('approvalRow.returned', 'Procurement returned'),
-            pending === 'Approved'
-              ? t('approvalRow.approvedDetail', '{{title}} has been approved', { title: row.title })
-              : t('approvalRow.returnedDetail', '{{title}} has been returned', { title: row.title }),
-            'success',
-          );
-        },
-        onError: (err) => {
-          setPending(null);
-          const { headline, detail: errDetail } = classifyMutationError(err);
-          toast(headline, errDetail, 'warning');
-        },
-      },
-    );
+    const action = pending;
+    setDecisionError(null);
+    try {
+      await transition.mutateAsync(
+        { to: action, ...(action === 'Rejected' ? { notes: (reason ?? '').trim() } : {}) },
+      );
+      setPending(null);
+      queryClient.invalidateQueries({ queryKey: ['procurements', currentUser?.org_id] });
+      toast(
+        action === 'Approved'
+          ? t('approvalRow.approved', 'Procurement approved')
+          : t('approvalRow.returned', 'Procurement returned'),
+        action === 'Approved'
+          ? t('approvalRow.approvedDetail', '{{title}} has been approved', { title: row.title })
+          : t('approvalRow.returnedDetail', '{{title}} has been returned', { title: row.title }),
+        'success',
+      );
+    } catch (err) {
+      const { headline, detail: errDetail } = classifyMutationError(err);
+      setDecisionError(errDetail ? `${headline}. ${errDetail}` : headline);
+      toast(headline, errDetail, 'warning');
+    }
   };
 
   const actionCluster = canTransition ? (
@@ -93,7 +93,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       <Button
         variant="outline"
         className="max-sm:min-h-11"
-        onClick={() => setPending('Rejected')}
+        onClick={() => { setDecisionError(null); setPending('Rejected'); }}
         loading={transition.isPending}
       >
         {t('approvalRow.returnShort', 'Return')}
@@ -101,7 +101,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       <Button
         variant="primary"
         className="max-sm:min-h-11"
-        onClick={() => setPending('Approved')}
+        onClick={() => { setDecisionError(null); setPending('Approved'); }}
         loading={transition.isPending}
       >
         <Icon name="check" />
@@ -229,7 +229,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           })}
           confirmLabel={t('approvalRow.approve', 'Approve')}
           loading={transition.isPending}
-          onCancel={() => setPending(null)}
+          error={decisionError}
+          onCancel={() => { setPending(null); setDecisionError(null); }}
           onConfirm={() => handleConfirm()}
         />
       )}
@@ -240,8 +241,9 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         subject={t('approvalRow.rejectSubject', 'purchase request')}
         context={`${row.title} · ${money(row.total_value)}`}
         loading={transition.isPending}
+        error={decisionError}
         onConfirm={(reason) => handleConfirm(reason)}
-        onCancel={() => setPending(null)}
+        onCancel={() => { setPending(null); setDecisionError(null); }}
       />
     </>
   );
