@@ -1,3 +1,4 @@
+import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +13,7 @@ import {
   useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
-import { LIST_LIMIT, type ImprestReplenishmentRow } from '@/src/lib/db/imprest';
+import { LIST_LIMIT, type ImprestReplenishmentWithRejecter as ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatCurrencyCents, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -125,7 +126,7 @@ const ImprestFloatDetail: React.FC = () => {
     { key: 'kind', header: t('imprest:rep.kind', 'Type'), cell: (r) => r.kind === 'funding' ? t('imprest:rep.funding', 'Funding') : t('imprest:rep.replenishment', 'Replenishment') },
     { key: 'amount', header: t('imprest:rep.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.amount)}</span> },
     { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <span className="flex flex-wrap items-center gap-x-2">
-      <StatusPill record="imprest" state={r.status} />{posting(r.id)}</span> },
+      <StatusPill record="imprest" state={r.status} />{posting(r.id)}{r.status === 'Rejected' && <RejectionDetails reason={r.decided_notes} person={r.rejecter?.full_name} at={r.rejected_at} />}</span> },
     { key: 'actions', header: <span className="sr-only">{t('imprest:rep.actions', 'Actions')}</span>, cell: (r) => {
       const acts = availableReplenishmentActions({ userId, realRole, custodianId: flt.custodian_id, rep: r });
       const btn = (a: ImprestAction, label: string, variant: 'primary' | 'outline' | 'ghost') => acts.includes(a) &&

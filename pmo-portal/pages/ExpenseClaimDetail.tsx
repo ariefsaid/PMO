@@ -1,3 +1,4 @@
+import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -151,10 +152,8 @@ const ExpenseClaimDetail: React.FC = () => {
             </p>
           )}
           {claim.purpose && <p className="mt-3 text-sm">{claim.purpose}</p>}
-          {claim.rejection_notes && (claim.status === 'Rejected' || claim.status === 'Draft') && (
-            <p role="note" className="mt-3 text-sm">
-              {t('expenses.detail.rejectionNote', 'Rejected: {{note}}', { note: claim.rejection_notes })}
-            </p>
+          {(claim.status === 'Rejected' || (claim.status === 'Draft' && !!(claim.rejected_at || claim.rejection_notes || claim.rejected_by))) && (
+            <RejectionDetails reason={claim.rejection_notes ? t('expenses.detail.rejectionNote', 'Rejected: {{note}}', { note: claim.rejection_notes }) : null} person={claim.rejecter?.full_name} at={claim.rejected_at} />
           )}
         </CardPad>
       </Card>

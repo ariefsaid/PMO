@@ -1,3 +1,4 @@
+import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -262,6 +263,8 @@ const TimesheetsPage: React.FC = () => {
           }
         />
       )}
+
+      {(returned || (status === TimesheetStatus.Draft && !!(currentTimesheet?.rejected_at || currentTimesheet?.rejection_reason || currentTimesheet?.rejected_by))) && <RejectionDetails reason={currentTimesheet?.rejection_reason} person={currentTimesheet?.rejecter?.full_name} at={currentTimesheet?.rejected_at} />}
 
       <Card
         clip
