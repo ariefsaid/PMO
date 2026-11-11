@@ -240,7 +240,7 @@ const Companies: React.FC = () => {
 
   return (
     <ListPage
-      title={t('companies.title', 'Companies')}
+      title={filter === 'Vendor' ? t('shell.nav.vendors', 'Suppliers') : t('companies.title', 'Companies')}
       count={directory.data ? total : undefined}
       total={directory.data && !unfiltered ? directoryTotal : undefined}
       primaryAction={

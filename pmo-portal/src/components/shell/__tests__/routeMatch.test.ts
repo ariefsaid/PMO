@@ -62,7 +62,7 @@ describe('UXS-006 shared route vocabulary', () => {
     expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
     expect(MODULES.find((module) => module.module === 'vendors')).toMatchObject({
       path: '/companies?type=Vendor',
-      label: 'Vendors',
+      label: 'Suppliers',
       labelKey: 'shell.nav.vendors',
     });
     expect(MODULES.find((module) => module.module === 'my-tasks')).toMatchObject({
@@ -72,9 +72,9 @@ describe('UXS-006 shared route vocabulary', () => {
     });
   });
 
-  it('keeps the filtered Vendors doorway vocabulary on its canonical breadcrumb', () => {
+  it('keeps the filtered Suppliers doorway vocabulary on its canonical breadcrumb', () => {
     expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, '?type=Vendor')).toEqual([
-      { label: 'Vendors', i18nKey: 'shell.nav.vendors' },
+      { label: 'Suppliers', i18nKey: 'shell.nav.vendors' },
     ]);
   });
 });

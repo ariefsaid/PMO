@@ -329,7 +329,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   return (
     <ListPage
-      title={embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
+      title={receiptId ? t('financeHub:nav.paymentRecord', 'Payment record') : embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
       count={data ? filtered.length : undefined}
       total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}

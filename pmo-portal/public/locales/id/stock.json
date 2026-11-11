@@ -182,7 +182,7 @@
     "reorder": "Pemesanan ulang"
   },
   "onHand": {
-    "title": "Persediaan stok",
+    "title": "Stok",
     "columns": {
       "item": "Barang",
       "warehouse": "Gudang",
@@ -212,7 +212,7 @@
     "moreMovements": "Lainnya"
   },
   "documents": {
-    "title": "Dokumen stok",
+    "title": "Dokumen",
     "columns": {
       "number": "Dokumen",
       "status": "Status",
@@ -468,7 +468,7 @@
   },
   "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang.",
   "reorder": {
-    "title": "Level pemesanan ulang",
+    "title": "Pemesanan ulang",
     "panel": {
       "title": "Atur level pemesanan ulang",
       "item": "Barang",
