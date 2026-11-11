@@ -261,9 +261,11 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('exposes the equipment repository (#1519 S5): assets, usage, costing and allocations', () => {
+    // #1511 F5: register and maintenance reads, picker and pending-change reads, asset matching
+    // (list and accept), and outbox commands deliberately extend this repository seam.
     expect(Object.keys(repositories.equipment).sort()).toEqual(
-      ['approveWeek', 'archiveUsage', 'createAsset', 'deleteAsset', 'endCosting', 'listAllocations', 'listAssets', 'listCosting',
-        'listUsage', 'listUsageTotals', 'previewCosting', 'saveCosting', 'saveUsage', 'transitionUsage', 'updateAsset'].sort(),
+      ['acceptAssetMatches', 'approveWeek', 'archiveUsage', 'createAsset', 'deleteAsset', 'endCosting', 'listAllocations', 'listAssetMatches', 'listAssets', 'listCosting',
+        'listMaintenance', 'listPendingChanges', 'listPickers', 'listRegister', 'listUsage', 'listUsageTotals', 'previewCosting', 'saveCosting', 'saveUsage', 'sendEquipmentCommand', 'transitionUsage', 'updateAsset'].sort(),
     );
   });
 
