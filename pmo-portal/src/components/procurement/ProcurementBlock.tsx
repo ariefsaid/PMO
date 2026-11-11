@@ -895,12 +895,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         {!projectId && !isPending && !isError && data && (
           <div className="border-b border-border px-3 pb-2.5 pt-3 sm:px-4">
             {/* Stages as parts of one whole: width = share of procurements; the chips below name each part. */}
-            <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
+            {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).length > 1 && <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
               {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).map(({ key, rows: stageRows }) => (
                 <span key={key} title={`${stageText(key, t)}: ${stageRows.length}`} style={{ flexGrow: stageRows.length }}
                   className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-muted-foreground/40'} />
               ))}
-            </div>
+            </div>}
           <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex gap-2 overflow-x-auto">
             {stageStats.map(({ key, rows: stageRows, currencyTotals }) => {
               const forYou = key === 'Request' && canApprove

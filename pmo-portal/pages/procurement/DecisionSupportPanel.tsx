@@ -95,9 +95,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
-      <h3 className="text-control font-semibold text-foreground">
+      <h2 className="text-control font-semibold text-foreground">
         {t('decisionSupport.heading', 'Budget impact')}
-      </h3>
+      </h2>
       {projectName ? (
         <ProjectNameLink
           projectId={scopedProjectId}

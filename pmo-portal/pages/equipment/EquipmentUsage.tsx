@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import {
-  Button, Combobox, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, useToast,
+  Button, Combobox, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast,
   type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -284,6 +284,7 @@ const EquipmentUsagePage: React.FC = () => {
       filters={header}
     >
       {canApproveTab && <Tabs items={tabs} value={tab} onChange={setTab} ariaLabel={t('equipment:usage.tabsLabel', 'Equipment usage views')} idBase="equipment-usage" className="mb-3" />}
+      <div {...(canApproveTab ? { id: tabPanelId('equipment-usage', tab), role: 'tabpanel', 'aria-labelledby': tabId('equipment-usage', tab) } : {})}>
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
       {Object.entries(warnings).map(([date, hours]) => (
         <p key={date} role="status" className="mb-2 flex items-center gap-2 text-sm text-warning-foreground">
@@ -340,6 +341,7 @@ const EquipmentUsagePage: React.FC = () => {
                 accessibleName={t('equipment:usage.approvalsLabel', 'Submitted usage for {{asset}}', { asset: assetName(assetId) })} />
             </section>))
       )}
+      </div>
       <ReasonDialog open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}
         loading={transition.isPending} onCancel={() => setRejecting(null)}
         onConfirm={(notes) => { const r = rejecting; setRejecting(null); if (r) void decide(r.id, 'Rejected', notes); }} />
