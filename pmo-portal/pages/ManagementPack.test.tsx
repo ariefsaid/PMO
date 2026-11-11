@@ -54,13 +54,24 @@ describe('Management pack money display (#1260, #1437)', () => {
     const figures = screen.getByRole('region', { name: 'Report figures' });
     // Unknown is not a value: the backlog tile is hidden and one page line says why, with its fix link.
     expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden');
     expect(within(figures).queryByRole('status')).not.toBeInTheDocument();
     // A known zero stays a figure in the home currency.
     expect(within(figures).getAllByText('IDR 0', { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
-    expect(screen.getAllByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toHaveLength(1);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.');
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
+  });
+
+  it('reports missing progress and undated-invoice figures in the shared Why line', async () => {
+    state.pack = { ...report(), undatedInvoiceCount: 2 };
+    renderPage();
+
+    const line = await screen.findByTestId('figures-hidden');
+    expect(line).toHaveTextContent('Without progress assessments, earned revenue follows invoiced revenue.');
+    expect(line).toHaveTextContent('2 undated invoices are excluded');
+    expect(screen.queryByText('Without progress assessments, earned revenue follows invoiced revenue.', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('2 undated invoices are excluded', { exact: true })).not.toBeInTheDocument();
   });
 });

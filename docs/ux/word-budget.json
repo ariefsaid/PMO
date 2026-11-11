@@ -111,8 +111,8 @@
   "/finance/receivables@1440@exec@acme.test": 56,
   "/finance/payables@390@exec@acme.test": 39,
   "/finance/payables@1440@exec@acme.test": 40,
-  "/finance/reports@390@exec@acme.test": 61,
-  "/finance/reports@1440@exec@acme.test": 66,
+  "/finance/reports@390@exec@acme.test": 55,
+  "/finance/reports@1440@exec@acme.test": 65,
   "/finance/statements@390@exec@acme.test": 13,
   "/finance/statements@1440@exec@acme.test": 13,
   "/finance@390@finance@acme.test": 97,
@@ -298,6 +298,8 @@
     "/@1440@admin@acme.test": 0,
     "/administration/accounting@1440@admin@acme.test": 0,
     "/administration/cost-attribution@1440@admin@acme.test": 0,
-    "/administration/integrations@1440@admin@acme.test": 0
+    "/administration/integrations@1440@admin@acme.test": 0,
+    "/finance/reports@390@exec@acme.test": 0,
+    "/finance/reports@1440@exec@acme.test": 0
   }
 }
