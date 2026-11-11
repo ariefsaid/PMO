@@ -167,13 +167,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const billabilitySteps = [
     {
       id: 'order',
-      label: t('projectDetail.cascade.stepOrder', 'Customer order recorded'),
+      label: t('projectDetail.cascade.stepOrder', 'Order'),
       state: customerOrderRecorded ? 'done' as const : 'needed' as const,
-      action: orderStepAction,
     },
     {
       id: 'allocation',
-      label: t('projectDetail.cascade.stepAllocation', 'Contract lines allocated'),
+      label: t('projectDetail.cascade.stepAllocation', 'Lines'),
       state: !hasContractLines ? 'not-needed' as const : hasAllocatedLines ? 'done' as const : 'needed' as const,
       action: allocationOrder ? {
         label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'),
@@ -182,7 +181,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     },
     {
       id: 'acceptance',
-      label: t('projectDetail.cascade.stepAcceptance', 'Accepted quantity recorded'),
+      label: t('projectDetail.cascade.stepAcceptance', 'Accepted'),
       state: !hasContractLines ? 'not-needed' as const : hasAcceptedQuantity ? 'done' as const : 'needed' as const,
       action: acceptanceOrder ? {
         label: t('projectDetail.cascade.recordAcceptedQuantity', 'Record accepted quantity'),
@@ -191,7 +190,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     },
     {
       id: 'unclaimed',
-      label: t('projectDetail.cascade.stepUnclaimed', 'Unclaimed quantity remains'),
+      label: t('projectDetail.cascade.stepUnclaimed', 'Unclaimed'),
       state: hasUnclaimedQuantity || hasUnclaimedMoneyOrderValue ? 'done' as const : 'needed' as const,
       action: undefined,
     },
@@ -248,7 +247,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           </CardHead>
           <CardPad className="pt-0">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
-            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={tileMoney(contractValue)} percentage={contractValue > 0 ? 100 : null} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} showLabel={false} />
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tileMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && <>
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
               <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
@@ -292,9 +291,16 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           </p>}
           {billabilityDataReady && canViewMoney && (
             <section className="mt-4 border-t border-border pt-4" aria-labelledby="pd-before-bill">
-              <h3 id="pd-before-bill" className="text-base font-semibold text-foreground">
-                {t('projectDetail.cascade.beforeBill', 'Billing')}
-              </h3>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                <h3 id="pd-before-bill" className="text-base font-semibold text-foreground">
+                  {t('projectDetail.cascade.beforeBill', 'Billing')}
+                </h3>
+                {orderStepAction && (
+                  <Link className="touch-target ml-auto inline-flex min-h-11 items-center rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" to={orderStepAction.to}>
+                    {orderStepAction.label}
+                  </Link>
+                )}
+              </div>
               {canInvoice === 0 && billabilityReason && (
                 <p role="status" className="mt-2 text-control text-muted-foreground" data-testid="billability-reason">
                   {billabilityReason}
@@ -309,11 +315,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                       const stateLabel = step.state === 'done'
                         ? t('projectDetail.cascade.done', 'Done')
                         : step.state === 'not-needed'
-                          ? t('projectDetail.cascade.notNeeded', 'Not needed')
-                          : t('projectDetail.cascade.needed', 'Needed');
+                          ? t('projectDetail.cascade.notNeeded', 'None')
+                          : t('projectDetail.cascade.needed', 'Missing');
                       return (
-                        <span className={`ml-auto inline-flex shrink-0 ${className}`} role="img" aria-label={stateLabel}>
+                        <span className={`ml-auto inline-flex shrink-0 items-center gap-1.5 ${className}`}>
                           <StateIcon aria-hidden="true" className="size-4" />
+                          <span>{stateLabel}</span>
                         </span>
                       );
                     })()}
@@ -423,18 +430,18 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   );
 };
 
-const MoneyStep: React.FC<{ label: string; value: string; percentage: number | null; detail: string; showLabel?: boolean }> = ({ label, value, percentage, detail, showLabel = true }) => {
+const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | null; detail: string }> = ({ label, value, percentage, detail }) => {
   return (
-    <li aria-label={!showLabel ? `${label} ${value}` : undefined} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
-      {showLabel && <div className="block">
+    <li aria-label={`${label} ${value}`} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
+      <div className="block">
         <Tooltip content={detail}>
           <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
         </Tooltip>
-      </div>}
-      <div className={`${showLabel ? 'mt-1 ' : ''}block`}>
+      </div>
+      <div className="mt-1 block">
         <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
       </div>
-      {percentage !== null && <span className="mt-2 block w-full max-w-36">
+      {percentage != null && <span className="mt-2 block w-full max-w-36">
         <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
       </span>}
       {percentage === null && <span className="mt-2 block text-sm text-muted-foreground">—</span>}

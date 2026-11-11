@@ -98,13 +98,14 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(screen.getByRole('region', { name: 'Contract' })).getByRole('button', { name: 'Edit contract lines' })).toBeInTheDocument();
   });
 
-  it('keeps the contract figure accessible without repeating the card heading', () => {
+  it('labels contract value and omits its self-comparison bar', () => {
     renderCascade();
     const cascade = within(screen.getByRole('list', { name: 'Contract' }));
-    const figure = cascade.getByRole('listitem', { name: /Contract IDR\s500K/ });
+    const figure = cascade.getByRole('listitem', { name: /Contract value IDR\s500K/ });
 
+    expect(within(figure).getByText('Contract value')).toBeVisible();
     expect(within(figure).getByText('IDR 500K')).toBeVisible();
-    expect(within(figure).queryByText('Contract')).not.toBeInTheDocument();
+    expect(within(figure).queryByRole('progressbar', { name: 'Contract' })).not.toBeInTheDocument();
   });
 
   it('explains contract percentages once at the section heading', async () => {
@@ -138,14 +139,20 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(checklist).not.toHaveTextContent('Phase progress is not billable quantity.');
     expect(checklist).not.toHaveTextContent('No customer orders.');
     const orderStep = within(checklist).getByTestId('billability-step-order');
-    expect(orderStep).toHaveAccessibleName('Customer order');
-    expect(within(orderStep).getByRole('img', { name: 'Needed' })).toBeInTheDocument();
-    expect(within(orderStep).queryByText('Customer order')).not.toBeInTheDocument();
-    expect(within(checklist).getByTestId('billability-step-allocation')).toHaveAccessibleName('Contract lines');
-    expect(within(within(checklist).getByTestId('billability-step-allocation')).getByRole('img', { name: 'Not needed' })).toBeInTheDocument();
-    expect(within(checklist).getByTestId('billability-step-acceptance')).toHaveAccessibleName('Accepted quantity');
-    expect(within(within(checklist).getByTestId('billability-step-acceptance')).getByRole('img', { name: 'Not needed' })).toBeInTheDocument();
-    expect(within(checklist).getByRole('link', { name: 'Add customer order' })).toHaveAttribute('href', '/projects/p1/contract#add-customer-order');
+    expect(orderStep).toHaveAccessibleName('Order');
+    expect(within(orderStep).getByText('Missing')).toBeVisible();
+    expect(within(orderStep).queryByRole('link', { name: 'Add customer order' })).not.toBeInTheDocument();
+    const allocationStep = within(checklist).getByTestId('billability-step-allocation');
+    expect(allocationStep).toHaveAccessibleName('Lines');
+    expect(within(allocationStep).getByText('None')).toBeVisible();
+    const acceptanceStep = within(checklist).getByTestId('billability-step-acceptance');
+    expect(acceptanceStep).toHaveAccessibleName('Accepted');
+    expect(within(acceptanceStep).getByText('None')).toBeVisible();
+    const unclaimedStep = within(checklist).getByTestId('billability-step-unclaimed');
+    expect(unclaimedStep).toHaveAccessibleName('Unclaimed');
+    expect(within(unclaimedStep).getByText('Missing')).toBeVisible();
+    const headingRow = screen.getByRole('heading', { name: 'Billing' }).parentElement!;
+    expect(within(headingRow).getByRole('link', { name: 'Add customer order' })).toHaveAttribute('href', '/projects/p1/contract#add-customer-order');
   });
 
   it('names a draft customer order as the blocker and links to that order', () => {
@@ -165,8 +172,8 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
 
     const checklist = screen.getByRole('region', { name: 'Billing' });
     expect(checklist).toHaveTextContent('No contract lines are allocated.');
-    expect(within(within(checklist).getByTestId('billability-step-order')).getByRole('img', { name: 'Done' })).toBeInTheDocument();
-    expect(within(within(checklist).getByTestId('billability-step-allocation')).getByRole('img', { name: 'Needed' })).toBeInTheDocument();
+    expect(within(within(checklist).getByTestId('billability-step-order')).getByText('Done')).toBeVisible();
+    expect(within(within(checklist).getByTestId('billability-step-allocation')).getByText('Missing')).toBeVisible();
     expect(within(checklist).getByRole('link', { name: 'Allocate contract lines' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-1');
   });
 
@@ -178,7 +185,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
 
     const checklist = screen.getByRole('region', { name: 'Billing' });
     expect(checklist).toHaveTextContent('No accepted quantities.');
-    expect(within(within(checklist).getByTestId('billability-step-acceptance')).getByRole('img', { name: 'Needed' })).toBeInTheDocument();
+    expect(within(within(checklist).getByTestId('billability-step-acceptance')).getByText('Missing')).toBeVisible();
     expect(within(checklist).getByRole('link', { name: 'Record accepted quantity' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-1');
   });
 
@@ -190,7 +197,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
 
     const checklist = screen.getByRole('region', { name: 'Billing' });
     expect(checklist).toHaveTextContent('Accepted quantities are already claimed.');
-    expect(within(within(checklist).getByTestId('billability-step-unclaimed')).getByRole('img', { name: 'Needed' })).toBeInTheDocument();
+    expect(within(within(checklist).getByTestId('billability-step-unclaimed')).getByText('Missing')).toBeVisible();
   });
 
   it('explains when money-only customer order value is already invoiced', () => {
@@ -200,7 +207,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
 
     const checklist = screen.getByRole('region', { name: 'Billing' });
     expect(checklist).toHaveTextContent('Customer order value is already invoiced.');
-    expect(within(within(checklist).getByTestId('billability-step-order')).getByRole('img', { name: 'Done' })).toBeInTheDocument();
+    expect(within(within(checklist).getByTestId('billability-step-order')).getByText('Done')).toBeVisible();
   });
 
   it('shows a real computed zero separately from missing or claimed billing inputs', () => {
@@ -211,7 +218,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
 
     const checklist = screen.getByRole('region', { name: 'Billing' });
     expect(checklist).toHaveTextContent('The billable total is zero at current contract rates.');
-    expect(within(within(checklist).getByTestId('billability-step-unclaimed')).getByRole('img', { name: 'Done' })).toBeInTheDocument();
+    expect(within(within(checklist).getByTestId('billability-step-unclaimed')).getByText('Done')).toBeVisible();
     expect(within(checklist).queryByText('No accepted quantities.')).not.toBeInTheDocument();
     expect(within(checklist).queryByText('Accepted quantities are already claimed.')).not.toBeInTheDocument();
   });
@@ -226,7 +233,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
     expect(within(summary).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoiceIDR 200$/);
     for (const step of ['order', 'allocation', 'acceptance', 'unclaimed']) {
-      expect(within(within(checklist).getByTestId(`billability-step-${step}`)).getByRole('img', { name: 'Done' })).toBeInTheDocument();
+      expect(within(within(checklist).getByTestId(`billability-step-${step}`)).getByText('Done')).toBeVisible();
     }
     expect(within(checklist).queryByText(/zero at current contract rates/i)).not.toBeInTheDocument();
   });

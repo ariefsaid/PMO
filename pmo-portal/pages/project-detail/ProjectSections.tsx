@@ -171,7 +171,7 @@ function useAreaLabels(): Record<Area, string> {
     budget: t('projectDetail.tabs.budget', 'Budget'),
     procurement: t('projectDetail.tabs.procurement', 'Procurement'),
     tasks: t('projectDetail.tabs.tasks', 'Tasks'),
-    contract: t('projectDetail.tabs.contract', 'Contract & billing'),
+    contract: t('projectDetail.tabs.contract', 'Contract'),
     materials: t('projectDetail.tabs.materials', 'Materials'),
     documents: t('projectDetail.tabs.documents', 'Documents'),
     activity: t('projectDetail.tabs.activity', 'Activity'),

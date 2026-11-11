@@ -42,7 +42,7 @@
     "cascade": {
       "error": "Couldn't load the contract",
       "title": "Contract",
-      "contract": "Contract",
+      "contract": "Contract value",
       "source": {
         "contract": "Source: priced contract lines (quantity × rate), excluding tax.",
         "contractFallback": "Source: the project billing summary, excluding tax.",
@@ -82,16 +82,16 @@
       "reasonAlreadyClaimed": "Accepted quantities are already claimed.",
       "reasonMoneyOrdersClaimed": "Customer order value is already invoiced.",
       "reasonComputedZero": "The billable total is zero at current contract rates.",
-      "stepOrder": "Customer order",
-      "stepAllocation": "Contract lines",
-      "stepAcceptance": "Accepted quantity",
+      "stepOrder": "Order",
+      "stepAllocation": "Lines",
+      "stepAcceptance": "Accepted",
       "recordAcceptedQuantity": "Record accepted quantity",
-      "stepUnclaimed": "Unclaimed quantity",
+      "stepUnclaimed": "Unclaimed",
       "beforeBill": "Billing",
       "billingSteps": "Billing steps",
       "done": "Done",
-      "notNeeded": "Not needed",
-      "needed": "Needed",
+      "notNeeded": "None",
+      "needed": "Missing",
       "canInvoice": "Can invoice",
       "overdue": "Overdue",
       "notOrdered": "Not yet ordered",
@@ -165,7 +165,7 @@
         },
         "rateSource": "Source: the priced contract line rate.",
         "openLine": "Open {{item}} contract line",
-        "manage": "Edit contract lines",
+        "manage": "Edit lines",
         "toast": {
           "saved": "Bill of quantities line saved",
           "deleted": "Bill of quantities line deleted"
@@ -616,7 +616,7 @@
       "contractDate": "Contract date"
     },
     "tabs": {
-      "contract": "Contract & billing",
+      "contract": "Contract",
       "activity": "Activity",
       "materials": "Materials"
     },

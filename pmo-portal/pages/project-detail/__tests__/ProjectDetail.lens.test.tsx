@@ -261,7 +261,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByRole('heading', { name: 'Budget' })).not.toBeInTheDocument();
     expect(screen.queryByText(/5,000,000/)).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Contract' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
     expect(await screen.findByTestId('project-detail-rail')).toBeInTheDocument();
     expect(screen.getByTestId('project-erp-link')).toBeInTheDocument();
