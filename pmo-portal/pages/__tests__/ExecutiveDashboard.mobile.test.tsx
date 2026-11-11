@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '../../test/companyDashboardHarness';
 
 const dashboardHarness = getDashboardHarness();
@@ -12,42 +12,31 @@ const setPhoneViewport = () => {
   })) as unknown as typeof window.matchMedia;
 };
 
-const openAttentionHelp = () => fireEvent.click(screen.getByRole('button', { name: 'About Needs attention' }));
-
 beforeEach(() => { resetCompanyDashboardHarness(); setPhoneViewport(); });
 afterEach(() => { window.matchMedia = originalMatchMedia; });
 
 describe('AC-MOBILE-1 and AC-MOBILE-3 responsive dashboard reading order', () => {
-  it('puts the at-risk doorway and contract figure before the passive sales funnel', () => {
+  it('puts the off-track projects and the contract figure before the passive sales card', () => {
     dashboardHarness.pipeline = { stages: [{ status: 'Leads', count: 1, weighted_value: 500, total_value: 1_000 }], projects: [] };
     renderCompanyDashboard();
-    const atRisk = screen.getByRole('link', { name: /1 of 7 active delivery projects at risk/ });
+    const offTrack = screen.getByRole('heading', { name: 'Projects off track' });
     const contractBook = screen.getByRole('link', { name: /Contract on hand/ });
-    const chart = screen.getByRole('heading', { name: 'Sales funnel' });
-    expect(atRisk.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(contractBook.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const sales = screen.getByRole('heading', { name: 'Sales' });
+    expect(offTrack.compareDocumentPosition(sales) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(contractBook.compareDocumentPosition(sales) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('states coverage and a checked-zero clear result in the Needs attention help, but stays silent when risk was unchecked', () => {
-    expect(dashboardHarness.dashboard).toMatchObject({ active_delivery_projects: 7, active_delivery_actual_project_count: 2 });
-    const coverage = renderCompanyDashboard();
-    openAttentionHelp();
-    expect(screen.getByText(/Actuals available for 2 of 7 active delivery projects\./)).toBeInTheDocument();
-    coverage.unmount();
+  it('never claims a clear result while risk was unchecked: names the unchecked projects, and says "No project is off track" only when all were checked', () => {
+    dashboardHarness.dashboard!.attention_projects = [];
+    const unchecked = renderCompanyDashboard();
+    expect(screen.getByRole('link', { name: '5 projects can’t be checked against their budget' })).toBeInTheDocument();
+    expect(screen.queryByText('No project is off track.')).not.toBeInTheDocument();
+    expect(screen.getByText('No checked project is off track.')).toBeInTheDocument();
+    unchecked.unmount();
 
-    dashboardHarness.areaItems = [];
-    dashboardHarness.dashboard!.projects_at_risk = 0;
     dashboardHarness.dashboard!.risk_unchecked_projects = 0;
-    dashboardHarness.dashboard!.active_delivery_actual_project_count = 7;
-    const { unmount } = renderCompanyDashboard();
-    openAttentionHelp();
-    expect(screen.getByText(/Actuals available for 7 of 7 active delivery projects\./)).toBeInTheDocument();
-    expect(screen.getByText(/0 projects at risk\. All 7 active delivery projects are currently on track\./)).toBeInTheDocument();
-    unmount();
-
-    dashboardHarness.dashboard!.risk_unchecked_projects = 1;
     renderCompanyDashboard();
-    openAttentionHelp();
-    expect(screen.queryByText(/0 projects at risk\. All 7 active delivery projects are currently on track\./)).not.toBeInTheDocument();
+    expect(screen.getByText('No project is off track.')).toBeInTheDocument();
+    expect(screen.queryByText(/can’t be checked/)).not.toBeInTheDocument();
   });
 });

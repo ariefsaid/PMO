@@ -10,3 +10,16 @@ export function orderByCurrency<T extends { currency: string }>(rows: readonly T
     return a.currency.localeCompare(b.currency);
   });
 }
+
+/**
+ * Tile-sized money, one line per currency, never joined: the organisation currency first (when it has an amount),
+ * every other currency on its own `+ …` line in alphabetical order. No amounts at all reads as zero in `home`.
+ */
+export function tileMoneyLines(totals: ReadonlyArray<{ currency: string; amount: number }>, home: string, format: (amount: number, currency: string, opts: { code: boolean }) => string | null): string[] {
+  const ordered = orderByCurrency(totals, home);
+  if (ordered.length === 0) return [format(0, home, { code: false }) ?? '—'];
+  return ordered.flatMap(({ currency, amount }, index) => {
+    const text = format(amount, currency, { code: currency !== home });
+    return text === null ? [] : [index === 0 ? text : `+ ${text}`];
+  });
+}

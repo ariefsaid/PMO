@@ -9,7 +9,7 @@ import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
-import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
+import { formatNumberMax2, formatNumberWhole, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -59,6 +59,8 @@ const qty = (n: number) => formatNumberMax2(n);
 
 /** Contract value summary and the customer's ordered → delivered → invoiced reading layer. */
 export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode; contractTools?: React.ReactNode }> = ({ project, children, contractTools }) => {
+  const tileMoney = (value: number) => formatTileMoney(value, project.currency) ?? String(value);
+  const tableMoney = (value: number) => formatTableMoney(value, project.currency) ?? String(value);
   const { t } = useTranslation('project');
   const [searchParams, setSearchParams] = useSearchParams();
   const openRecordId = searchParams.get('open');
@@ -149,50 +151,50 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       {!isCascadePending && !isCascadeError && showSummary && (
         <section aria-labelledby="pd-cascade" className="panel-card min-w-0">
           <CardHead id="pd-cascade" subline={<>{project.currency}
-              {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
+              {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-sm text-muted-foreground" /></>}
             </>}>{t('projectDetail.cascade.title', 'Contract')}</CardHead>
           <CardPad className="pt-0">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
-            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={formatNumberWhole(contractValue)} percentage={contractValue > 0 ? 100 : null} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={tileMoney(contractValue)} percentage={contractValue > 0 ? 100 : null} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && <>
-              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={formatNumberWhole(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
-              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={formatNumberWhole(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
+              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
+              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
             </>}
             {canViewMoney && settlement.invoiced !== null && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} percentage={percent(settlement.invoiced)} detail={t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />
+              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={tileMoney(settlement.invoiced)} percentage={percent(settlement.invoiced)} detail={t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />
             </>}
             {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
+              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
             </>}
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
             {(orderBilling.isError || orderBilling.isPending) ? (
-              <span className="text-xs text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
+              <span className="text-sm text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
                 {orderBilling.isError ? t('projectDetail.cascade.orderBillingError', 'Can invoice is unavailable while work-order billing is loading.') : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
               </span>
             ) : <Tooltip content={t('projectDetail.cascade.source.canInvoice', 'Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.')}>
               <span className="inline-flex cursor-help items-center gap-2 tabular-nums">
                 <span className="text-muted-foreground">{t('projectDetail.cascade.canInvoice', 'Can invoice')}</span>
-                <strong className="font-semibold text-foreground">{formatNumberWhole(canInvoice)}</strong>
+                <strong className="font-semibold text-foreground">{tableMoney(canInvoice)}</strong>
               </span>
             </Tooltip>}
             {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
               <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
                 <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
-                <strong className="font-semibold">{formatNumberWhole(overdue)}</strong>
+                <strong className="font-semibold">{tableMoney(overdue)}</strong>
               </span>
             </Tooltip>}
           </div>
-          {(hasReadingLayer || Boolean(billing.data && billing.data.dpBilled > 0)) && <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
-            {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span></Tooltip>}
+          {(hasReadingLayer || Boolean(billing.data && billing.data.dpBilled > 0)) && <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm tabular-nums text-muted-foreground">
+            {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{tableMoney(notYetOrdered)}</strong></span></Tooltip>}
             {Boolean(billing.data && billing.data.dpBilled > 0) && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
-              billed: formatNumberWhole(billing.data!.dpBilled),
-              recovered: formatNumberWhole(billing.data!.dpRecovered),
+              billed: tableMoney(billing.data!.dpBilled),
+              recovered: tableMoney(billing.data!.dpRecovered),
               interpolation: { escapeValue: false },
             })}</span></Tooltip>}
           </p>}
           {invoiceFiguresMissing && !children && (
-            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
               <span>{invoices.isError
                 ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")
                 : invoices.isPending
@@ -217,7 +219,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       {hasReadingLayer && unorderedRows.length > 0 && (() => {
         const columns: Column<UnorderedLine>[] = [
           { key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
-            cell: (line) => <span>{line.item.item_code && <span className="mr-2 text-xs text-muted-foreground">{line.item.item_code}</span>}{line.item.description}</span>,
+            cell: (line) => <span>{line.item.item_code && <span className="mr-2 text-sm text-muted-foreground">{line.item.item_code}</span>}{line.item.description}</span>,
             secondaryCell: (line) => line.item.unit },
           { key: 'contract', header: t('projectDetail.cascade.colContract', 'Contract'), align: 'num', kind: 'number',
             cell: (line) => <Tooltip content={t('projectDetail.cascade.source.contractQuantity', 'Source: priced contract line quantity.') }><span className="cursor-help tabular-nums">{qty(Number(line.item.quantity))} {line.item.unit}</span></Tooltip>,
@@ -293,7 +295,7 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
     <li className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
       <div className="block">
         <Tooltip content={detail}>
-          <span className="block w-fit cursor-help text-xs text-muted-foreground">{label}</span>
+          <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
         </Tooltip>
       </div>
       <div className="mt-1 block">
@@ -302,12 +304,12 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
       {percentage !== null && <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.') }>
         <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} /></span>
       </Tooltip>}
-      {percentage === null && <span className="mt-2 block text-xs text-muted-foreground">—</span>}
+      {percentage === null && <span className="mt-2 block text-sm text-muted-foreground">—</span>}
     </li>
   );
 };
 
 const UnorderedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
-  <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd></div>
+  <div><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd></div>
 );
 

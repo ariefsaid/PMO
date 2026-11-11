@@ -114,7 +114,9 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
 
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
   const { data: deliverySummary, isPending: deliveryPending, isError: deliveryError } = useProjectsDeliverySummary(all.map((p) => p.id));
-  const { data: projectMoney, isPending: moneyPending, isError: moneyError, refetch: refetchMoney } = useProjectsMoneyCollection(all.map((p) => p.id));
+  const { data: projectMoney, isPending: moneyRawPending, fetchStatus: moneyFetchStatus, isError: moneyError, refetch: refetchMoney } = useProjectsMoneyCollection(all.map((p) => p.id));
+  // A query the role may not run stays `pending` forever but never fetches; that is not "loading".
+  const moneyPending = moneyRawPending && moneyFetchStatus !== 'idle';
 
   // Financial risk uses the canonical mapped Actual over an explicit Active budget.
   // Missing snapshots/budgets stay unknown and cannot become zero-based risk signals.

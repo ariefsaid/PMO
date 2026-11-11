@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useTranslation } from 'react-i18next';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { Icon } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
@@ -21,7 +21,7 @@ export interface ProjectDetailRailProps {
 }
 
 const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <h2 className="mb-3 text-xs font-semibold text-muted-foreground">
+  <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
     {children}
   </h2>
 );
@@ -73,20 +73,20 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
           value={project.pm?.full_name ?? t('projectDetail.rail.unassigned', 'Unassigned')}
         />
         <ProjectClassificationRows project={project} />
-        <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
-        <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
-        {project.contract_date && <DetailRow label={t('projectDetail.rail.contractDate', 'Contract date')} value={formatDateOnly(project.contract_date)} />}
+        <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDay(project.start_date)} />
+        <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDay(project.end_date)} />
+        {project.contract_date && <DetailRow label={t('projectDetail.rail.contractDate', 'Contract date')} value={formatDay(project.contract_date)} />}
         <DetailRow
           label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
-          value={<span className="font-mono text-[13px]">{project.pmo_project_number}</span>}
+          value={<span className="font-mono text-sm">{project.pmo_project_number}</span>}
         />
         <DetailRow
           label={t('projectDetail.rail.clientCode', 'Client Project Code')}
-          value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
+          value={project.code ? <span className="font-mono text-sm">{project.code}</span> : notSet}
         />
         <DetailRow
           label={t('projectDetail.rail.customerPoRef', 'Customer PO ref')}
-          value={project.customer_contract_ref ? <span className="font-mono text-[13px]">{project.customer_contract_ref}</span> : notSet}
+          value={project.customer_contract_ref ? <span className="font-mono text-sm">{project.customer_contract_ref}</span> : notSet}
         />
       </dl>
     </section>
@@ -105,7 +105,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
       className={quiet ? 'min-w-0' : 'min-w-0 border-t border-border/70 pt-3'}
     >
       <details>
-        <summary className={quiet ? 'touch-target inline-flex cursor-pointer list-none items-center gap-1 rounded-sm py-1 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden' : 'touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground'}>
+        <summary className={quiet ? 'touch-target inline-flex cursor-pointer list-none items-center gap-1 rounded-sm py-1 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden' : 'touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground'}>
           {summaryLabel ?? t('uxs13.projectDetailsAndActions', 'Project details and actions')}
           {quiet && <Icon name="chev" className="size-3 rotate-90 [details[open]_&]:-rotate-90" aria-hidden="true" />}
         </summary>

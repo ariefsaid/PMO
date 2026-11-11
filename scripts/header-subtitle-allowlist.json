@@ -2,9 +2,6 @@
   "components/IncidentFormModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
-  "components/ProjectFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
   "pages/Companies.tsx": {
     "ListPage-description": 1
   },
@@ -32,9 +29,6 @@
   },
   "pages/Procurement.tsx": {
     "ListPage-description": 1
-  },
-  "pages/Projects.tsx": {
-    "ListPage-description": 4
   },
   "pages/SalesInvoices.tsx": {
     "ListPage-description": 1
@@ -81,57 +75,6 @@
   },
   "pages/procurement/SubcontractLinesEditor.tsx": {
     "EntityFormModal-subtitle": 2
-  },
-  "pages/project-budget/BudgetPasteRowsDialog.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/AttachJournalLineDialog.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/BoqItemFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/ClaimEvidenceModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/InvoiceWorkOrderModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/MaterialAllowanceModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/MilestoneFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/ProgressAssessmentModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/ProgressClaimModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/StageDateDialog.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/TimeAndMaterials.tsx": {
-    "EntityFormModal-subtitle": 3
-  },
-  "pages/project-detail/WorkOrderAcceptanceModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/WorkOrderFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/WorkOrderLinesModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/WorkOrderValueModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/tabs/DocumentFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/project-detail/tabs/TaskFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
   },
   "pages/sales-invoices/SalesInvoiceDialogs.tsx": {
     "EntityFormModal-subtitle": 1

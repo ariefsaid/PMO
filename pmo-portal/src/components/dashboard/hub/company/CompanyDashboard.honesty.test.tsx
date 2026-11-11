@@ -26,6 +26,7 @@ const base = {
   pipeline_weighted_value: 800_000,
   pipeline_projected_margin: 0.2,
   pipeline_total_value: 2_000_000,
+  pipeline_total_value_by_currency: [{ currency: 'USD', total_value: 2_000_000, weighted_value: 800_000, forecast_margin: 0.2, no_active_budget: 0 }],
   projects_at_risk: 0,
   projects_by_status: [{ status: 'Ongoing Project', count: 2 }],
   procurements_by_status: [],
@@ -99,51 +100,52 @@ beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { totals: [] }; 
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
-  it('AC-IXD-DASH-002: no figure carries the ambiguous "Projected margin" name; forecast margin appears once, on the pipeline', () => {
+  it('AC-IXD-DASH-002: no figure carries the ambiguous "Projected margin" name; forecast margin appears once, on the weighted pipeline', () => {
     renderExec();
     expect(screen.queryByText(/^Projected margin$/i)).not.toBeInTheDocument();
-    expect(within(figures()).getAllByText(/Forecast margin/)).toHaveLength(1);
-    expect(tile('Pipeline (weighted)')).toHaveTextContent('Forecast margin: 20.0%');
+    expect(screen.getAllByText(/Forecast margin/)).toHaveLength(1);
+    expect(screen.getByText('Weighted pipeline').parentElement).toHaveTextContent('Forecast margin: 20.0%');
   });
 
-  it('AC-1414: company margin percentage uses billed revenue from the same known-margin projects', () => {
+  it('AC-1414: known margin on billed work is the known amount; it is drawn only when the accounting source provides one', () => {
     h.dash = {
       ...base,
       on_hand_realized_margin_by_currency: [
         { currency: 'USD', known_amount: 1_000_000, known_billed_revenue: 8_000_000, unknown_projects: 1 },
       ],
     };
-    renderExec();
+    const { unmount } = renderExec();
     const margin = tile('Known margin on billed work');
     expect(margin).toHaveTextContent('$1M');
-    expect(margin).toHaveTextContent('12.5% of billed revenue for projects with known margin');
-  });
+    expect(margin.querySelector('[title="$1,000,000"]')).not.toBeNull();
+    unmount();
 
-  it('AC-1414: keeps the known margin amount and omits the percentage when billed revenue is unavailable', () => {
-    h.dash = {
-      ...base,
-      on_hand_realized_margin_by_currency: [
-        { currency: 'USD', known_amount: 1_000_000, known_billed_revenue: null, unknown_projects: 1 },
-      ],
-    };
+    h.dash = { ...base, on_hand_realized_margin: null, on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: null, known_billed_revenue: null, unknown_projects: 2 }] };
     renderExec();
-    const margin = tile('Known margin on billed work');
-    expect(margin).toHaveTextContent('$1M');
-    expect(margin).not.toHaveTextContent(/of billed revenue/);
+    expect(screen.queryByText('Known margin on billed work')).not.toBeInTheDocument();
   });
 
-  it('AC-RD-SPEND-001: marks the remaining contract as partial when some actuals are not recorded yet', () => {
+  it('AC-RD-SPEND-001: Contract on hand states the contract total only, never a remaining or "left" figure that could hide missing actuals', () => {
     h.dash = { ...base, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 2 };
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent(/Left after recorded spending \(Partial\)/);
+    const contract = tile('Contract on hand');
+    expect(contract).toHaveTextContent('$8M');
+    expect(contract).not.toHaveTextContent(/left|remaining|partial/i);
   });
 
-  it('AC-IXD-DASH-W5-C2A: Contract on hand opens the ongoing projects it sums', () => {
+  it('AC-IXD-DASH-W5-C2A: Contract on hand counts the same on-hand projects it sums, and opens them', () => {
     h.dash = { ...base };
     renderExec();
-    const contract = tile('Contract on hand');
-    expect(contract).toHaveTextContent('2 Ongoing projects');
+    expect(tile('Contract on hand')).toHaveTextContent('2 projects');
     expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=on-hand');
+  });
+
+  it('AC-IXD-DASH-W5-C2A: the caption counts every on-hand state the figure sums (ongoing, on hold, close-out, won pending kickoff), never leads', () => {
+    h.dash = { ...base, active_projects: 1, projects_by_status: [
+      { status: 'Ongoing Project', count: 1 }, { status: 'Close Out', count: 2 }, { status: 'On Hold', count: 1 }, { status: 'Won, Pending KoM', count: 1 }, { status: 'Leads', count: 9 },
+    ] };
+    renderExec();
+    expect(tile('Contract on hand')).toHaveTextContent('5 projects');
   });
 
   it('AC-UXA-003: labels the Ongoing project count in Bahasa and links to that set', async () => {
@@ -151,24 +153,17 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     await act(async () => { await i18next.changeLanguage('id'); });
     h.dash = { ...base, active_projects: 2 };
     renderExec();
-    const contract = tile('Kontrak berjalan');
-    expect(contract).toHaveTextContent('2 proyek yang sedang berjalan');
+    expect(tile('Kontrak berjalan')).toHaveTextContent('2 proyek');
     expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
-  it('AC-RD-RISK-001: unbudgeted active projects are named in the Delivery panel, so zero at risk is not read as all clear', async () => {
+  it('AC-RD-RISK-001: unbudgeted active projects are named once under Projects off track, so no off-track project is not read as all clear', async () => {
     h.dash = { ...base, risk_unchecked_projects: 2 };
     renderExec();
-    const notice = /projects without an active budget; risk can't be checked yet/;
+    const notice = /2 projects can’t be checked against their budget/;
     expect(await screen.findByText(notice)).toBeInTheDocument();
     expect(screen.getAllByText(notice)).toHaveLength(1);
-    expect(screen.queryByText(/0 projects at risk\. All .* currently on track/)).not.toBeInTheDocument();
-  });
-
-  it('AC-RD-SPEND-001: complete actuals carry no partial marker', () => {
-    h.dash = { ...base };
-    renderExec();
-    expect(tile('Contract on hand')).not.toHaveTextContent(/Partial/);
+    expect(screen.queryByText('No project is off track.')).not.toBeInTheDocument();
   });
 
   it('shows mixed-currency contract on hand per currency, never as a blend or "USD $", with the exact amounts kept', () => {
@@ -190,29 +185,27 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     // The exact amounts stay available (hover / screen reader).
     expect(contract).toHaveTextContent(/2,000,000,000/);
     expect(contract).toHaveTextContent(/1,000,000/);
-    // The remainder is short per known currency; the unknown one is not shown as zero.
-    expect(contract).toHaveTextContent('IDR 800M');
     expect(contract).not.toHaveTextContent(/\$0\b/);
   });
 
-  it('L6: Won reads "3 · $14.4M" once, with no second "3 projects won" line, inside the Sales funnel card', () => {
+  it('L6: Won reads "Won · Year to date · 3" with "$14.4M" once, in the Sales card, with no second "3 projects won" line', () => {
     h.win = { wins_count: 3, losses_count: 2, wins_value: 14_400_000, losses_value: 0, win_rate_count: 0.6, win_rate_value: 0.5, value_by_currency: [{ currency: 'USD', wins_value: 14_400_000, losses_value: 0 }] };
     renderExec();
-    const sales = screen.getByRole('heading', { name: 'Sales funnel' }).closest('.panel-card') as HTMLElement;
-    expect(within(sales).getByText('3 · $14.4M')).toBeInTheDocument();
-    expect(within(sales).queryByText(/projects? won/)).not.toBeInTheDocument();
+    const won = screen.getByRole('button', { name: /Won · Year to date · 3/ });
+    expect(won).toHaveTextContent('$14.4M');
+    expect(screen.queryByText(/projects? won/)).not.toBeInTheDocument();
   });
 
-  it('L2: Billing puts one currency per line, the organisation currency first', () => {
+  it('L2: Invoiced puts one currency per line, the organisation currency first', () => {
     const january = `${new Date().getFullYear()}-01`;
     h.pack = { totals: [
       { currency: 'IDR', months: [{ month: january, invoiced: 11_470_000_000 }] },
       { currency: 'USD', months: [{ month: january, invoiced: 1_180_000_000 }] },
     ] };
     renderExec();
-    const billing = screen.getByRole('heading', { name: 'Billing and collections' }).closest('.panel-card') as HTMLElement;
-    const lines = within(billing).getAllByText(/114\.7M|11\.8M/);
-    expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', 'IDR 114.7M']);
-    for (const line of lines) expect(line).toHaveClass('block');
+    const invoiced = tile('Invoiced');
+    const lines = within(invoiced).getAllByText(/115M|11\.8M/).filter((line) => line.children.length === 0);
+    expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', '+ IDR 115M']);
+    expect(invoiced.querySelector('[title="$11,800,000 + IDR\u00a0114,700,000"]')).not.toBeNull();
   });
 });

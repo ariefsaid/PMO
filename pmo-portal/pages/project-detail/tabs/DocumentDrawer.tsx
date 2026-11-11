@@ -4,8 +4,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Drawer, GateNotice, StatusPill, type RowMenuItem } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 
 // ── D12: read-first quick-view drawer + inline status workflow ────────────────
@@ -23,7 +22,7 @@ const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, directio
   return (
   <button
     type="button"
-    className="w-fit text-[11px] text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    className="w-fit text-sm text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     aria-label={`${t('projectDetail.documents.viewRevision', 'View revision')} ${revision} ${t(
       'projectDetail.documents.ofWord',
       'of',
@@ -58,7 +57,7 @@ export const DocumentTitleCell: React.FC<{
           {doc.title}
         </span>
         {(doc.code || doc.revision) && (
-          <span className="text-[12px] text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {[
               doc.code,
               doc.revision ? `${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}` : null,
@@ -80,7 +79,7 @@ export const DocumentTitleCell: React.FC<{
         <div className="mt-1 flex flex-col gap-1" key={child.id}>
           <LineageButton revision={child.revision ?? '—'} title={doc.title} direction="forward" status={child.status} onClick={() => onViewDocument(child)} />
           {doc.status === 'Superseded' && (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {`${t('projectDetail.documents.supersededNotice', 'Read-only: continue on Rev')} ${child.revision ?? '—'}`}
             </span>
           )}
@@ -209,13 +208,13 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLeve
           <>
             {/* C4: empty fields are left out, never shown as "—". */}
             {doc.code && <DocField label={t('projectDetail.documents.field.code', 'Code')}>
-              <span className="font-mono text-[13px]">{doc.code}</span>
+              <span className="font-mono text-sm">{doc.code}</span>
             </DocField>}
             <DocField label={t('projectDetail.documents.field.category', 'Category')}>
               {doc.category || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}
             </DocField>
             {doc.doc_date && <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
-              <span className="tabular-nums">{formatDateOnly(doc.doc_date)}</span>
+              <span className="tabular-nums">{formatDay(doc.doc_date)}</span>
             </DocField>}
           </>
         )}
@@ -243,7 +242,7 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLeve
 
       {(transitions.length > 0 || sodBlocked) && (
         <div className="mt-5 border-t border-border pt-4">
-          <StatusHeading className="mb-2.5 text-[11px] font-semibold text-muted-foreground">
+          <StatusHeading className="mb-2.5 text-sm font-semibold text-muted-foreground">
             {t('projectDetail.documents.updateStatus', 'Update status')}
           </StatusHeading>
           {sodBlocked ? (
@@ -284,7 +283,7 @@ interface DocumentDrawerProps extends DocumentPreviewProps, DocumentActionFooter
 /** Definition-list row — label (overline voice) + value. */
 const DocField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="flex flex-col gap-1">
-    <dt className="text-[11px] font-semibold text-muted-foreground">
+    <dt className="text-sm font-semibold text-muted-foreground">
       {label}
     </dt>
     <dd className="text-[14px] text-foreground">{children}</dd>
@@ -320,7 +319,7 @@ export const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
       open
       width="lg"
       title={doc.title}
-      status={!isFolder ? <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill> : undefined}
+      status={!isFolder ? <StatusPill record="document" state={doc.status} /> : undefined}
       headerActions={<DocumentHeaderActions primaryAction={primaryTransition} fullRecordHref={fullRecordHref} />}
       nestedOpen={nestedOpen}
       onClose={onClose}

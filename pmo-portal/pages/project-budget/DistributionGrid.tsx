@@ -296,7 +296,7 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
           <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.distributionIntro', 'Review how each category total is allocated across the project fiscal years. Saving changes only this Draft distribution.')}</p>
         </div>
         {savedPlan && (
-          <span role="status" className={savedPlanIsCurrent ? 'text-xs text-muted-foreground' : 'text-xs font-medium text-warning-foreground'}>
+          <span role="status" className={savedPlanIsCurrent ? 'text-sm text-muted-foreground' : 'text-sm font-medium text-warning-foreground'}>
             {savedPlanIsCurrent
               ? t('projectDetail.budget.distributionSaved', 'Saved distribution')
               : t('projectDetail.budget.distributionStale', 'Saved distribution needs review')}
@@ -395,7 +395,7 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
 
           <div className="max-w-full overflow-x-auto rounded-md border border-border">
             <table className="min-w-[42rem] w-full border-collapse text-sm" aria-label={t('projectDetail.budget.distributionGridLabel', 'Category fiscal-year distribution')}>
-              <thead className="bg-muted text-xs text-muted-foreground">
+              <thead className="bg-muted text-sm text-muted-foreground">
                 <tr>
                   <th scope="col" className="sticky left-0 z-[1] bg-muted px-3 py-2 text-left">{t('financeCopy.category', 'Category')}</th>
                   <th scope="col" className="px-3 py-2 text-right">{t('financeCopy.total', 'Total')}</th>

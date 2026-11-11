@@ -11,7 +11,6 @@ import { SelectField, StatusPill } from '@/src/components/ui';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { STATUS_OPTIONS } from './taskViewModel';
 
 interface TaskStatusCellProps {
@@ -66,11 +65,11 @@ export const TaskStatusCell: React.FC<TaskStatusCellProps> = ({ task, editable, 
         onClick={() => setEditing(true)}
         className="touch-target inline-flex min-h-8 items-center rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+        <StatusPill record="task" state={task.status} />
       </button>
     )
   ) : (
-    <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+    <StatusPill record="task" state={task.status} />
   );
 
   return (

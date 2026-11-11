@@ -12,7 +12,7 @@ import { Tooltip, type Column } from '@/src/components/ui';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { daysLate } from './taskViewModel';
 import { TaskStatusCell } from './TaskStatusCell';
 
@@ -58,7 +58,7 @@ function buildTaskColumns(
         </span>;
       },
       secondaryCell: (task) => task.priority ? (
-        <span className="text-xs font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
+        <span className="text-sm font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
       ) : null,
     },
     {
@@ -83,7 +83,7 @@ function buildTaskColumns(
         'Due date from the task record. Late days compare the due date with today in the organization timezone.',
       )}>
         <span tabIndex={0} className={`block whitespace-normal break-words tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : 'text-muted-foreground'}`}>
-          {formatDateOnly(task.end_date)}
+          {formatDay(task.end_date)}
           {task.status !== 'Done' && task.end_date < today && (
             <span> · {daysLate(task.end_date, today)} {daysLate(task.end_date, today) === 1 ? t('projectDetail.tasks.dayLate', 'day late') : t('projectDetail.tasks.daysLate', 'days late')}</span>
           )}

@@ -95,6 +95,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { formatDay } from '@/src/lib/format';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -256,9 +257,9 @@ describe('the rows', () => {
     listState.data = [row({ order_date: '2026-08-01' })];
     const user = userEvent.setup();
     renderTab();
-    expect(screen.getByText(/Order date.*Aug 1, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`Order date.*${formatDay('2026-08-01')}`))).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
-    expect(within(screen.getByRole('dialog')).getByText('Aug 1, 2026')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText(formatDay('2026-08-01'))).toBeInTheDocument();
   });
 
   it('retains an allocation draft while a required source fails and recovers', async () => {

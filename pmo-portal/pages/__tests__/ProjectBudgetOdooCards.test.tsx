@@ -126,7 +126,7 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Travel has no Odoo account: Spent (and the Left built on it) state the exclusion.
-    expect(within(figures).getAllByText('Spent excludes categories with no Odoo account (1)')).toHaveLength(2);
+    expect(within(figures).getAllByText('Excludes 1 unmapped categories')).toHaveLength(2);
   });
 
   it('every category known: no exclusion note', async () => {
@@ -140,7 +140,9 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Spending is unknown or unavailable/);
+    // Spent is withheld, never a zero: the page's one hidden-figures line says why.
+    expect(figures.textContent).not.toMatch(/Spent/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures hidden: spending is not linked/i);
   });
 });
 
@@ -172,7 +174,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Comparison unavailable because budget and spending use different currencies/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/different currencies/i);
     expect(figures.textContent).not.toMatch(/4,500/);
     expect(screen.queryByText('Over budget')).not.toBeInTheDocument();
     expect(screen.queryByText('On track')).not.toBeInTheDocument();
@@ -185,8 +187,8 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Spending is unknown or unavailable/);
-    expect(figures.textContent).toMatch(/Left is unknown/);
+    expect(figures.textContent).not.toMatch(/Spent|Left/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/2 figures hidden/i);
     expect(figures.textContent).toMatch(/\$/);
     expect(figures.textContent).not.toMatch(/IDR|Spent excludes/);
     expect(screen.queryByText('Amounts in IDR')).not.toBeInTheDocument();

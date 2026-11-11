@@ -183,7 +183,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   };
 
   const fieldCls =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+    'h-8 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
   const total = lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
   const rows: EditorRow[] = [
@@ -297,7 +297,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
                 }}
                 className={`${fieldCls} w-32`}
               />
-              {newFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{newFiscalYearError}</p>}
+              {newFiscalYearError && <p role="alert" className="text-sm text-destructive-text">{newFiscalYearError}</p>}
               {fiscalYearDatalist}
             </>
           );
@@ -324,7 +324,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               }}
               className={`${fieldCls} w-32`}
             />
-            {editFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{editFiscalYearError}</p>}
+            {editFiscalYearError && <p role="alert" className="text-sm text-destructive-text">{editFiscalYearError}</p>}
             {fiscalYearDatalist}
           </>
         ) : (
@@ -491,7 +491,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   return (
     <div className="relative mt-4">
       {wholeProject && (
-        <p data-testid="budget-whole-project-editor-hint" className="mb-2 text-xs text-muted-foreground">
+        <p data-testid="budget-whole-project-editor-hint" className="mb-2 text-sm text-muted-foreground">
           {t('financeCopy.wholeProjectEditorHint', 'Whole-project budget: enter each category total once — no fiscal year per line.')}
         </p>
       )}

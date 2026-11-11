@@ -15,7 +15,7 @@ export function OtherCurrencyCommitments({ positions }: { positions: CommittedOt
     ? formatCurrency(position.amount, position.currency)
     : t('projectFinances.currencyUnavailable', 'Currency unavailable')).join(', ');
   return (
-    <span className="block text-xs text-muted-foreground" data-testid="committed-other-currencies">
+    <span className="block text-sm text-muted-foreground" data-testid="committed-other-currencies">
       {t('projects:committed.otherCurrencies', 'Plus amounts in other currencies: {{amounts}}', { amounts })}
     </span>
   );

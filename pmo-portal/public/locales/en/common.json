@@ -1361,8 +1361,7 @@
         "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable",
         "linkOne": "{{label}}: {{count}} item awaiting",
-        "linkMany": "{{label}}: {{count}} items awaiting",
-        "review": "Review"
+        "linkMany": "{{label}}: {{count}} items awaiting"
       },
       "helpLabel": "Help: {{label}}"
     },
@@ -2226,7 +2225,6 @@
         "none": "No issued or approved document with a file on this project.",
         "revision": "rev {{revision}}",
         "save": "Attach",
-        "subtitle": "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.",
         "title": "Attach billing evidence"
       },
       "summary": {
@@ -2246,7 +2244,7 @@
     "documents": {
       "action": {
         "approve": "Approve",
-        "close": "Close",
+        "close": "Close document",
         "delete": "Delete",
         "edit": "Edit",
         "issue": "Issue",
@@ -2288,7 +2286,6 @@
         "codeHelper": "Optional document number or drawing code.",
         "codePlaceholder": "e.g. DWG-001",
         "docDate": "Document date",
-        "editSubtitle": "Update this register entry",
         "editTitle": "Edit document",
         "errors": {
           "categoryRequired": "Category is required.",
@@ -2457,7 +2454,6 @@
     "milestoneForm": {
       "create": "Create phase",
       "detailsLegend": "Details",
-      "editSubtitle": "Update this phase",
       "editTitle": "Edit phase",
       "errors": {
         "nameRequired": "Phase name is required",
@@ -2468,7 +2464,6 @@
       "inputPctPlaceholder": "Leave blank to use linked-task progress",
       "name": "Phase name",
       "namePlaceholder": "e.g. Engineering design",
-      "newSubtitle": "Add a delivery phase to this project",
       "newTitle": "New phase",
       "save": "Save phase",
       "sortOrder": "Position",
@@ -2658,7 +2653,6 @@
         "descriptionPlaceholder": "Add scope, notes, or acceptance criteria…",
         "detailsLegend": "Details",
         "dueDate": "Due date",
-        "editSubtitle": "Update this task",
         "editTitle": "Edit task",
         "errors": {
           "nameRequired": "Task name is required."
@@ -2667,7 +2661,6 @@
         "milestone": "Phase",
         "name": "Task name",
         "namePlaceholder": "e.g. Survey the site",
-        "newSubtitle": "Add a task to this project",
         "noDependencies": "No dependencies. Add a task that must finish first.",
         "noParent": "No parent (top-level)",
         "parentTask": "Parent task",
@@ -2893,16 +2886,11 @@
   },
   "projectForm": {
     "value": {
-      "helper": "Estimate, pre-win. Editable by Admin, Executive, and PM.",
       "formatError": "Use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals (for example {{example}})."
     },
     "title": {
       "create": "New project",
       "edit": "Edit project"
-    },
-    "subtitle": {
-      "create": "Create a project",
-      "edit": "Update the project header details"
     },
     "submit": {
       "create": "Create project",
@@ -2930,8 +2918,7 @@
       "noun": "manager"
     },
     "stage": {
-      "label": "Origination stage",
-      "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."
+      "label": "Origination stage"
     },
     "estimatedValue": "Estimated value",
     "expectedStart": "Expected start",
@@ -2977,7 +2964,6 @@
       "archiveDescription": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
       "archiveTitle": "Archive project?"
     },
-    "description": "Pre-win projects live in the Pipeline.",
     "empty": {
       "clearFilters": "Clear filters",
       "noMatchSub": "Try a different status, customer, PM, or search term.",

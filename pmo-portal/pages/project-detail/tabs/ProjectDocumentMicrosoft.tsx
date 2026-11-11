@@ -33,7 +33,7 @@ export const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, o
   let notice: React.ReactNode;
   if (!connection && isPending) {
     notice = (
-      <p role="status" className="text-[13px] text-muted-foreground">
+      <p role="status" className="text-sm text-muted-foreground">
         {t('m365Documents.checkingConnection', 'Checking your Microsoft 365 connection…')}
       </p>
     );

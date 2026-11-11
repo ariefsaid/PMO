@@ -67,10 +67,6 @@ const exactIdr = (value: number, language: 'en' | 'id') => new Intl.NumberFormat
   language === 'id' ? 'id-ID' : 'en-US',
   { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 },
 ).format(value);
-const shortIdr = (value: number, language: 'en' | 'id') => new Intl.NumberFormat(
-  language === 'id' ? 'id-ID' : 'en-US',
-  { style: 'currency', currency: 'IDR', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 },
-).format(value);
 async function expectFixtureAmount(figure: Locator, amount: number, language: 'en' | 'id') {
   await expect(figure).toBeVisible();
   await expect(figure.locator('[title]')).toHaveAttribute('title', exactIdr(amount, language));
@@ -78,11 +74,12 @@ async function expectFixtureAmount(figure: Locator, amount: number, language: 'e
 const companyReady: Route['ready'] = async (page, _width, language) => {
   const company = page.getByRole('region', { name: language === 'id' ? 'Angka perusahaan' : 'Company figures' });
   await expect(company.locator('.tabular').filter({ hasText: /373[.,]5/ }).first()).toBeVisible({ timeout: 20_000 });
-  const sales = page.getByRole('region', { name: language === 'id' ? 'Kinerja penjualan' : 'Sales performance' });
-  await expect(sales.locator('.tabular').filter({ hasText: /212[.,]6/ }).first()).toBeVisible();
+  // The Sales card carries the weighted pipeline; the win rate and billing sit in the Analysis disclosure,
+  // opened here so their figures stay inside the geometry gate.
+  const weighted = page.getByText(language === 'id' ? 'Pipeline terbobot' : 'Weighted pipeline', { exact: true }).locator('xpath=..');
+  await expect(weighted.locator('.tabular').filter({ hasText: /75[.,]2/ }).first()).toBeVisible();
+  await page.getByText(language === 'id' ? 'Analisis' : 'Analysis', { exact: true }).click();
   await expect(page.getByTestId('kpi-win-rate')).toHaveText(/95(?:[.,]0)?%/);
-  const billing = page.getByRole('region', { name: language === 'id' ? 'Posisi penagihan' : 'Billing position' });
-  await expect(billing.locator('.tabular').first()).toHaveText(shortIdr(FINANCE_FIXTURE.receivable, language));
 };
 const financeReady: Route['ready'] = async (page, _width, language) => {
   const areas = page.getByRole('region', { name: language === 'id' ? 'Area keuangan' : 'Finance areas' });
@@ -110,7 +107,7 @@ const reportReady: Route['ready'] = async (page, _width, language) => {
 const ROUTES: Route[] = [
   { name: 'executive', user: 'exec@acme.test', path: '/', ready: companyReady, widths: WIDTHS, bahasaWidths: [1440, 390] },
   { name: 'finance', user: 'finance@acme.test', path: '/finance', ready: financeReady, widths: WIDTHS, bahasaWidths: [1440] },
-  { name: 'pm', user: 'pm@acme.test', path: '/', ready: async (p) => { await expect(p.getByTestId('kpi-my-contract-value').locator('.tabular').filter({ hasText: /160[.,]9/ })).toBeVisible(); }, widths: WIDTHS, bahasaWidths: [] },
+  { name: 'pm', user: 'pm@acme.test', path: '/', ready: async (p) => { await expect(p.getByTestId('kpi-my-contract-value').locator('.tabular').filter({ hasText: /161B/ })).toBeVisible(); }, widths: WIDTHS, bahasaWidths: [] },
   { name: 'revenue by project', user: 'exec@acme.test', path: '/revenue-by-project', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
   { name: 'management pack', user: 'exec@acme.test', path: '/reports', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
   // Phase 2 (#1529): the sales pipeline route joins the matrix — the weighted total is the loaded,

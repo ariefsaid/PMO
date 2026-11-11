@@ -479,7 +479,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     const table = within(drawer).getByRole('table', { name: 'Version comparison' });
     expect(table).toHaveTextContent('GBP 100');
     expect(table).toHaveTextContent('EUR 125');
-    expect(within(table).getAllByText('—').length).toBeGreaterThan(0);
+    expect(table).not.toHaveTextContent('EUR 25');
     await userEvent.selectOptions(within(drawer).getByRole('combobox', { name: 'Version B' }), 'v-archived');
     expect(table).toHaveTextContent('+GBP 25');
   });
@@ -515,7 +515,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(screen.getByText('No active budget')).toBeInTheDocument();
     const tiles = screen.getByRole('region', { name: 'Budget figures' });
     expect(within(tiles).queryByText('€125')).not.toBeInTheDocument();
-    expect(within(tiles).getAllByText('—').length).toBeGreaterThan(0);
+    expect(within(tiles).queryByText('Budget')).not.toBeInTheDocument();
   });
 
   it('F11: summary tiles show short amounts with the full amount kept for hover and screen readers', () => {

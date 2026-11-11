@@ -8,7 +8,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrency, formatDateOnly, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, milli, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
@@ -59,15 +59,15 @@ function thisMonth(): string {
 
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string; source: string }> = ({ testId, label, value, note, source }) => (
   <div>
-    <dt className="text-[12px] text-muted-foreground">{label}</dt>
+    <dt className="text-sm text-muted-foreground">{label}</dt>
     <dd className="cursor-help tabular text-[15px] font-semibold" data-testid={testId}><Tooltip content={source}><span>{value}</span></Tooltip></dd>
-    {note && <dd className="text-[11px] text-muted-foreground">{note}</dd>}
+    {note && <dd className="text-sm text-muted-foreground">{note}</dd>}
   </div>
 );
 
 const SourcedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
   <div>
-    <dt className="text-[12px] text-muted-foreground">{label}</dt>
+    <dt className="text-sm text-muted-foreground">{label}</dt>
     <dd className="cursor-help tabular text-[15px] font-semibold"><Tooltip content={detail}><span>{value}</span></Tooltip></dd>
   </div>
 );
@@ -255,7 +255,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), cell: (row) => (
       <div className="flex flex-col">
         <span className="font-semibold">{row.item_code}</span>
-        <span className="text-[11px] text-muted-foreground">{row.description}</span>
+        <span className="text-sm text-muted-foreground">{row.description}</span>
       </div>
     ) },
     { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num',
@@ -275,7 +275,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           <Tooltip content={t('projectDetail.billing.boq.source.balance', 'Computed as contract quantity less ordered quantity.')}><span className="cursor-help tabular" data-testid={`boq-balance-${row.id}`}>
             {f ? quantityText(row, f.contractBalance) : '—'}
             {f && f.contractBalance < 0 && (
-              <span className="ml-1 block text-[11px] text-destructive-text">
+              <span className="ml-1 block text-sm text-destructive-text">
                 {t('projectTabs:contractQuantities.billing.boq.overOrdered', 'Over-ordered by {{qty}}', { qty: quantityText(row, -f.contractBalance) })}
               </span>
             )}
@@ -288,7 +288,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           <Tooltip content={t('projectDetail.billing.boq.source.accepted', 'Source: quantities on confirmed BASTs.')}><span className="cursor-help tabular" data-testid={`boq-accepted-${row.id}`}>
             {f ? quantityText(row, f.acceptedQuantity) : '—'}
             {f && milli(f.acceptedQuantity) > milli(f.orderedQuantity) && (
-              <span className="ml-1 block text-[11px] text-destructive-text">{t('projectTabs:contractQuantities.billing.boq.overMeasured', 'More than ordered')}</span>
+              <span className="ml-1 block text-sm text-destructive-text">{t('projectTabs:contractQuantities.billing.boq.overMeasured', 'More than ordered')}</span>
             )}
           </span></Tooltip>
         );
@@ -323,7 +323,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       return (
         <Tooltip content={t('projectDetail.billing.boq.source.remaining', 'Computed as contract quantity less quantities claimed.')}><span className="cursor-help tabular" data-testid={`boq-remaining-${row.id}`}>
           {row.earning_basis === 'lump_sum' ? percentOfLot(left) : formatNumberExact(left)}
-          {left < 0 && <span className="ml-1 text-[11px] text-destructive-text">{t('projectDetail.billing.boq.overClaimed', 'Over-claimed')}</span>}
+          {left < 0 && <span className="ml-1 text-sm text-destructive-text">{t('projectDetail.billing.boq.overClaimed', 'Over-claimed')}</span>}
         </span></Tooltip>
       );
     } },
@@ -382,7 +382,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
           ) : (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {t('projectDetail.billing.claims.evidenceNeeded', 'Attach evidence before raising')}
             </span>
           ))}
@@ -519,7 +519,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             kind: claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
               : claim.kind === 'time_materials' ? t('timeAndMaterials:title', 'Time and materials')
                 : t('projectDetail.billing.claims.kind.progress', 'Progress'),
-            date: formatDateOnly(claim.created_at),
+            date: formatDay(claim.created_at),
           })}
           onActivate={(claim) => setOpenRecord(claim.id, 'billingClaim')}
           rowMenu={(claim) => {
@@ -541,7 +541,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       : claimDetailFor.kind === 'time_materials'
         ? t('timeAndMaterials:title', 'Time and materials')
         : t('projectDetail.billing.claims.kind.progress', 'Progress')}
-    subtitle={formatDateOnly(claimDetailFor.created_at)}
+    subtitle={formatDay(claimDetailFor.created_at)}
     status={<StatusPill variant={claimDetailFor.withdrawn_at ? 'lost' : claimDetailFor.invoice?.status === 'Paid' ? 'won' : 'neutral'}>{claimDetailFor.withdrawn_at
       ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
       : claimDetailFor.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
@@ -680,7 +680,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           }
         >
           {t('projectDetail.billing.summary.title', 'Billing summary')}
-          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{currency} · {excl}</span>
+          <span className="ml-2 text-sm font-normal text-muted-foreground">{currency} · {excl}</span>
         </CardHead>
         <CardPad>
           {billing.isPending ? (
@@ -716,7 +716,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             </dl>
           )}
           {summary && lineProject && !summary.assessment && (
-            <p className="mt-3 text-[12px] text-muted-foreground" data-testid="billing-unassessed">
+            <p className="mt-3 text-sm text-muted-foreground" data-testid="billing-unassessed">
               {t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}
             </p>
           )}

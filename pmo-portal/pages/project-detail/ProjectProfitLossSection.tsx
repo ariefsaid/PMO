@@ -11,7 +11,7 @@ import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hoo
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead } from '@/src/lib/financialStatements';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 interface ProjectProfitLossSectionProps {
   projectId: string;
@@ -43,7 +43,7 @@ function totalsContext(read: FinancialStatementRead, currentLabel: string): stri
   if (!isTotalsRead(read)) return '';
   return [
     read.generation.currency,
-    `${currentLabel}: ${formatDateOnly(read.result.period.currentStart)} – ${formatDateOnly(read.result.period.currentEnd)}`,
+    `${currentLabel}: ${formatDay(read.result.period.currentStart)} – ${formatDay(read.result.period.currentEnd)}`,
   ].join(' · ');
 }
 
@@ -144,7 +144,7 @@ const ErpnextProjectProfitLoss: React.FC<ProjectProfitLossSectionProps> = ({ pro
           <StatementPeriodPicker
             kind={periodKind}
             periodStart={selectedPair?.currentStart ?? null}
-            periods={choices.map((pair) => ({ kind: pair.kind, periodStart: pair.currentStart, label: `${formatDateOnly(pair.currentStart)} – ${formatDateOnly(pair.currentEnd)} · ${priorLabel}: ${formatDateOnly(pair.priorStart)} – ${formatDateOnly(pair.priorEnd)}` }))}
+            periods={choices.map((pair) => ({ kind: pair.kind, periodStart: pair.currentStart, label: `${formatDay(pair.currentStart)} – ${formatDay(pair.currentEnd)} · ${priorLabel}: ${formatDay(pair.priorStart)} – ${formatDay(pair.priorEnd)}` }))}
             labels={{
               kind: t('financialStatements.periodKind', 'Period type'),
               period: t('financialStatements.period', 'Period'),
@@ -198,9 +198,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
   const { odoo, error, retry } = useOdooLedgerMode();
   const { t } = useTranslation();
   if (!odoo) {
-    return error
-      ? <><LedgerModeNotice className="mt-6" onRetry={retry} /><ErpnextProjectProfitLoss projectId={projectId} /></>
-      : <ErpnextProjectProfitLoss projectId={projectId} />;
+    return <>{error && <LedgerModeNotice className="mt-6" onRetry={retry} />}<ErpnextProjectProfitLoss projectId={projectId} /></>;
   }
   return (
     <div className="mt-6 min-w-0 border-t border-border/70 pt-4">

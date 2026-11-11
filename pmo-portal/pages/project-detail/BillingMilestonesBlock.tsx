@@ -8,7 +8,7 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useWorkOrderAcceptanceAge, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { deriveBillingMilestoneStatus, sortBillingMilestones, type BillingMilestoneStatus } from '@/src/lib/billingMilestones';
 import { canInvoiceWorkOrder } from '@/src/lib/workOrderBilling';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 
 const TONE: Record<BillingMilestoneStatus, StatusVariant> = { unknown: 'warn', planned: 'open', 'in-progress': 'progress', invoiced: 'neutral', paid: 'won' };
 
@@ -26,8 +26,7 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
   const ageById = useMemo(() => new Map((age.data ?? []).map((a) => [a.workOrderId, a] as const)), [age.data]);
   const contractHref = `/projects/${projectId}/contract`;
   const shell = (children: React.ReactNode) => (
-    <Block id="pd-billing-milestones" title={title}
-      unit={t('projectDetail.billingMilestones.subline', "The client's work orders. Billing follows each work order.")}>{children}</Block>
+    <Block id="pd-billing-milestones" title={title}>{children}</Block>
   );
   if (orders.isPending || billing.isPending || age.isPending) return shell(<ListState variant="loading" rows={3} />);
   if (orders.isError || billing.isError || age.isError) {
@@ -46,10 +45,10 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
     paid: t('projectDetail.billingMilestones.status.paid', 'Paid'),
   };
   const dates = (w: (typeof rows)[number]) =>
-    w.start_date && w.end_date ? t('projectDetail.billingMilestones.dates', '{{start}} – {{end}}', { start: formatDateOnly(w.start_date), end: formatDateOnly(w.end_date) })
-      : w.start_date ? t('projectDetail.billingMilestones.startOnly', 'From {{date}}', { date: formatDateOnly(w.start_date) })
-      : w.end_date ? t('projectDetail.billingMilestones.endOnly', 'Due {{date}}', { date: formatDateOnly(w.end_date) })
-      : w.order_date ? t('projectDetail.billingMilestones.ordered', 'Ordered {{date}}', { date: formatDateOnly(w.order_date) })
+    w.start_date && w.end_date ? t('projectDetail.billingMilestones.dates', '{{start}} – {{end}}', { start: formatDay(w.start_date), end: formatDay(w.end_date) })
+      : w.start_date ? t('projectDetail.billingMilestones.startOnly', 'From {{date}}', { date: formatDay(w.start_date) })
+      : w.end_date ? t('projectDetail.billingMilestones.endOnly', 'Due {{date}}', { date: formatDay(w.end_date) })
+      : w.order_date ? t('projectDetail.billingMilestones.ordered', 'Ordered {{date}}', { date: formatDay(w.order_date) })
       : t('projectDetail.billingMilestones.noDates', 'No dates');
   return shell(
     <ul className="flex flex-col divide-y divide-border">
@@ -64,9 +63,9 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
                 {w.wo_number ?? t('projectDetail.billingMilestones.notIssued', 'Not issued yet')}
               </Link>
               <span className="ml-2 break-words text-sm text-foreground">{w.title}</span>
-              <p className="text-xs text-muted-foreground tabular-nums">{dates(w)}</p>
+              <p className="text-sm text-muted-foreground tabular-nums">{dates(w)}</p>
               {aged && <Tooltip content={t('projectDetail.workOrders.acceptanceAgeSource', 'Counted from the earliest confirmed BAST not yet followed by a submitted invoice.')}>
-                <p tabIndex={0} className="text-xs font-semibold text-warning-foreground">{t('projectDetail.workOrders.acceptanceAge', 'Days since acceptance, not invoiced: {{days}}', { days: aged.days })}</p>
+                <p tabIndex={0} className="text-sm font-semibold text-warning-foreground">{t('projectDetail.workOrders.acceptanceAge', 'Days since acceptance, not invoiced: {{days}}', { days: aged.days })}</p>
               </Tooltip>}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">

@@ -255,7 +255,7 @@ function ProcurementBudgetLeft({
 
   return (
     <div className="space-y-1">
-      <div className="text-xs text-muted-foreground">
+      <div className="text-sm text-muted-foreground">
         {t('projectDetail.procurement.detail.budgetLeft', 'Budget left in category')}
       </div>
       <Tooltip content={source}>
@@ -533,7 +533,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.'),
       unpaid ? `${unpaid}. ${t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}` : null,
     ].filter(Boolean).join(' ');
-    if (amount === undefined) return <span className="text-xs text-muted-foreground">{t('procurement.moneyUnknown', 'Not recorded')}</span>;
+    if (amount === undefined) return <span className="text-sm text-muted-foreground">{t('procurement.moneyUnknown', 'Not recorded')}</span>;
     // Owner tidy ruling 2026-10-29: the stage word under the amount is gone — the
     // Stage pill in its own column already says it (the balance stays in the tooltip).
     return (
@@ -577,7 +577,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
             <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
-              <span className="shrink-0 text-xs tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
+              <span className="shrink-0 text-sm tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
                 {percent}%
               </span>
             </span>
@@ -625,11 +625,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${isExpanded ? '-rotate-90' : 'rotate-90'}`} />
                 </button>
               </div>
-              <span className="block line-clamp-2 break-words text-xs text-muted-foreground">
+              <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
                 <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span> · {row.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}
               </span>
               {isExpanded && (
-                <div className="space-y-2 border-t border-border/70 pt-2 text-xs" onClick={(event) => event.stopPropagation()}>
+                <div className="space-y-2 border-t border-border/70 pt-2 text-sm" onClick={(event) => event.stopPropagation()}>
                   <div><span className="text-muted-foreground">{t('procurement.nextStepLabel', 'Next step')}: </span>{nextStepText(row.status, canDecideRow(row), t)}</div>
                   {canSeeMoney && project && <ProcurementBudgetLeft project={project} row={row} amount={rowValue} t={t} />}
                   <div>
@@ -718,7 +718,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
           return (
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
-              <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-[12px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <Avatar name={owner} decorative />
                 <span className="truncate">{owner}</span>
               </span>
@@ -852,14 +852,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
                   className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
-                  <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
+                  <span className="flex w-full min-w-0 items-center justify-between gap-1 text-sm font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
                     {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
                   <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
                     <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
-                    <span className="flex min-w-0 flex-wrap justify-start gap-x-2 text-xs text-muted-foreground">
+                    <span className="flex min-w-0 flex-wrap justify-start gap-x-2 text-sm text-muted-foreground">
                       {currencyTotals.map((item) => <span key={item.currency} title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
                     </span>
                   )}
@@ -889,7 +889,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <StatusPill variant={workflowVariant(row.status)}>{statusText(row.status, t)}</StatusPill>
-                  <span className={`text-xs tabular ${days > 30 && row.status !== 'Paid' ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                  <span className={`text-sm tabular ${days > 30 && row.status !== 'Paid' ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
                     <span className="sr-only">{t('procurement.ageShort', 'Age')}</span>
                     {t('procurement.ageInStageDays', '{{count}}d', { count: days })}
                   </span>
@@ -898,11 +898,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               </div>
               <div className="flex min-w-0 items-center justify-between gap-3">
                 {next ? (
-                  <Link to={`/procurement/${row.id}`} className="inline-flex min-h-8 items-center rounded-sm text-[13px] font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  <Link to={`/procurement/${row.id}`} className="inline-flex min-h-8 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {next}
                   </Link>
                 ) : <span />}
-                <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
                   <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
                   <Avatar name={owner} size="xs" decorative />
                   <span className="truncate">{owner}</span>
@@ -971,7 +971,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             </>
           ) : (
             <>
-              <label className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-[13px] focus-within:ring-2 focus-within:ring-ring sm:max-w-[260px]">
+              <label className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-sm focus-within:ring-2 focus-within:ring-ring sm:max-w-[260px]">
                 <Icon name="search" className="size-4 shrink-0 text-muted-foreground" />
                 <span className="sr-only">{t('projectDetail.procurement.searchLabel', 'Search procurement')}</span>
                 <input
@@ -988,7 +988,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 id="procurement-category-filter"
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <option value="">{t('projectDetail.procurement.filter.allCategories', 'Category')}</option>
                 {rows.some((row) => !row.budget_category) && <option value={UNCATEGORIZED_FILTER}>{t('projectDetail.procurement.uncategorized', 'Uncategorized')}</option>}
@@ -999,7 +999,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 id="procurement-owner-filter"
                 value={ownerFilter}
                 onChange={(event) => setOwnerFilter(event.target.value)}
-                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <option value="">{t('projectDetail.procurement.filter.allOwners', 'Owner')}</option>
                 {rows.some((row) => !row.requested_by_id) && <option value={UNASSIGNED_FILTER}>{t('projectDetail.procurement.unassigned', 'Unassigned')}</option>}
@@ -1045,21 +1045,21 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           <div className="space-y-6">
             <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-border/70 pb-5 text-sm">
               <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.category', 'Category')}</div>
+                <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.category', 'Category')}</div>
                 <div className="font-medium">{categoryLabel(selected.budget_category)}</div>
               </div>
               {canSeeMoney && (
                 <div className="space-y-1">
-                  <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.value', 'Value')}</div>
+                  <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.value', 'Value')}</div>
                   <Tooltip content={moneyTooltip}>
                     <span tabIndex={0} className="inline-flex rounded-sm font-medium tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                       {drawerMoney?.mostReal ? formatCurrency(drawerMoney.mostReal.amount, selected.currency) : t('procurement.moneyUnknown', 'Not recorded')}
                     </span>
                   </Tooltip>
-                  {drawerMoney?.mostReal && <div className="text-xs text-muted-foreground">{moneyBasisText(drawerMoney.mostReal.kind, t)}</div>}
+                  {drawerMoney?.mostReal && <div className="text-sm text-muted-foreground">{moneyBasisText(drawerMoney.mostReal.kind, t)}</div>}
                   {drawerUnpaid && (
                     <Tooltip content={t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}>
-                      <div tabIndex={0} className="rounded-sm text-xs font-medium text-warning-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                      <div tabIndex={0} className="rounded-sm text-sm font-medium text-warning-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                         {drawerUnpaid}
                       </div>
                     </Tooltip>
@@ -1067,14 +1067,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 </div>
               )}
               <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
+                <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
                 <div className="inline-flex min-w-0 items-center gap-2 font-medium">
                   <Avatar name={selected.requested_by?.full_name} decorative />
                   <span className="truncate">{selected.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
+                <div className="text-sm text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
                 <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}>
                   <span tabIndex={0} className="inline-flex rounded-sm tabular text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {t('procurement.ageInStageDays', '{{count}}d', { count: selected ? derivationFor(selected).age : 0 })}
@@ -1085,7 +1085,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <ProcurementBudgetLeft project={project} row={selected} amount={drawerMoney.mostReal.amount} t={t} />
               )}
               <div className="col-span-full space-y-1">
-                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
+                <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
                 <div className={selected.status === 'Requested' && canApprove ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
                   {nextStepText(selected.status, canDecideRow(selected), t)}
                 </div>
@@ -1095,14 +1095,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <section aria-labelledby="procurement-drawer-timeline">
               <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 id="procurement-drawer-timeline" className="text-sm font-semibold">{t('projectDetail.procurement.detail.timeline', 'Step timeline')}</h2>
-                <span className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.timelineHint', 'Steps can happen in any order; skipped steps are not recorded.')}</span>
+                <span className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.timelineHint', 'Steps can happen in any order; skipped steps are not recorded.')}</span>
               </div>
               <ol className="space-y-2 border-l border-border pl-4">
                 {timeline.map((step) => (
                   <li key={step.key} className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 text-sm">
                     <span aria-hidden="true" className={`absolute -left-[21px] top-1.5 size-2.5 rounded-full border ${step.date ? 'border-success bg-success' : 'border-border bg-card'}`} />
                     <span className={step.date ? 'font-medium text-foreground' : 'text-muted-foreground'}>{stageText(step.key, t)}</span>
-                    <time dateTime={step.date ?? undefined} className="text-xs tabular text-muted-foreground">
+                    <time dateTime={step.date ?? undefined} className="text-sm tabular text-muted-foreground">
                       {step.date ? formatDate(step.date) : t('projectDetail.procurement.detail.notRecorded', 'Not recorded')}
                     </time>
                   </li>
@@ -1114,7 +1114,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h2 id="procurement-drawer-documents" className="text-sm font-semibold">{t('projectDetail.procurement.detail.documents', 'Documents')}</h2>
                 {canAttachDocument && (
-                  <Link to={`/procurement/${selected.id}/files`} className="text-xs font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  <Link to={`/procurement/${selected.id}/files`} className="text-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {t('procurement.rowMenu.linkFile', 'Link a file')}
                   </Link>
                 )}

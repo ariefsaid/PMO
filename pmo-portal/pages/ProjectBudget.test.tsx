@@ -457,9 +457,10 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     expect(screen.getAllByText(/4,700,000/).length).toBeGreaterThan(0);
-    expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
+    // Spending is unknown here, so the table drops the blank Spent column; the tile still names it.
+    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: 'Left' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Left' })).not.toBeInTheDocument();
     expect(within(table).getAllByText(/2,000,000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/USD/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('tax-basis')).toBeInTheDocument();
@@ -488,8 +489,12 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
 
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('—');
-    expect(screen.getAllByText(/Spending isn't linked yet\./)).toHaveLength(1);
+    // Unknown spending is not a column of dashes: the column is dropped and the reason is said once.
+    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
+    // One line on the page names what is hidden and why, instead of dashes in every row.
+    const hidden = screen.getByTestId('figures-hidden');
+    expect(hidden).toHaveTextContent(/2 figures hidden: spending is not linked/);
+    expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
   });
 
   it('places the accounting-system notice after the budget table for Admin and Finance, and hides it from PMs', async () => {
@@ -691,9 +696,10 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [draftVersion];
     renderPage();
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Return to drafter$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Return$/i }));
     expect(mockReturn).not.toHaveBeenCalled();
-    const confirm = screen.getByRole('button', { name: /^Return draft$/i });
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: /^Return$/i });
     expect(confirm).toBeDisabled();
     await userEvent.type(screen.getByRole('textbox', { name: /Reason for returning/i }), '  Split labour by quarter ');
     await userEvent.click(confirm);
@@ -706,12 +712,12 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
     const { unmount } = renderPage();
-    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return$/i })).not.toBeInTheDocument();
     unmount();
     roleState.realRole = 'Project Manager';
     versionsState.data = [draftVersion];
     renderPage();
-    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return$/i })).not.toBeInTheDocument();
     resetState();
   });
 
@@ -723,7 +729,7 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByTestId('budget-returned-banner')).toHaveTextContent('Split labour');
     expect(screen.queryByTestId('budget-draft-banner')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return$/i })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Resubmit for approval$/i }));
     expect(mockResubmit).not.toHaveBeenCalled();
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Resubmit for approval$/i }));

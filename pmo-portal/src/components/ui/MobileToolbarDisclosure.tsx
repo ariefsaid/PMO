@@ -106,7 +106,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   // Its focused action then unmounts and focus falls to <body>. Return focus to the
   // surviving trigger, but leave it alone when another disclosure has taken focus.
   useEffect(() => {
-    if (wasOpenRef.current && !isOpen && document.activeElement === document.body) {
+    if (wasOpenRef.current && !isOpen && (document.activeElement === document.body || panelRef.current?.contains(document.activeElement))) {
       triggerRef.current?.focus();
     }
     wasOpenRef.current = isOpen;

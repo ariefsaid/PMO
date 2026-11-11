@@ -43,7 +43,7 @@ export function buildDocumentRegisterColumns(deps: DocumentRegisterColumnDeps): 
       header: t('project:projectDetail.documents.column.category', 'Category'),
       size: 128, minSize: 112, maxSize: 220,
       sortKey: 'category',
-      cell: (d) => <span className="text-[13px] text-muted-foreground">{categoryName(d)}</span>,
+      cell: (d) => <span className="text-sm text-muted-foreground">{categoryName(d)}</span>,
       exportValue: categoryName,
     },
     {
