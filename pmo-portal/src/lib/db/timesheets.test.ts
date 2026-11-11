@@ -287,3 +287,8 @@ it('AC-RSN-004 timesheet reads include the visible rejecting profile', async () 
   expect(result[0]).toMatchObject({ rejection_reason: 'reason', rejected_by: 'u1', rejecter: { full_name: 'Approver' } });
   expect(mockSelect.mock.calls[0][0]).toContain('timesheets_rejected_by_fkey');
 });
+
+it('AC-RSN-004 maps missing legacy timesheet decision fields to null', async () => {
+  builderResolving({ data: [{ id: 'legacy', week_start_date: '2026-01-01', entries: [] }], error: null });
+  expect((await listTimesheets('u1'))[0]).toMatchObject({ rejection_reason: null, rejected_by: null, rejected_at: null });
+});

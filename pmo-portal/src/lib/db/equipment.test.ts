@@ -160,7 +160,7 @@ describe('AC-EQU-017 usage reads', () => {
   it('AC-EQU-017 listUsage without filters sends no equality filter and a short list is not truncated', async () => {
     h.result.value = { data: [{ id: 'e1' }], error: null };
     const out = await dal.listUsage({ from: '2026-09-07', to: '2026-09-13' });
-    expect(out).toEqual({ rows: [{ id: 'e1' }], truncated: false });
+    expect(out).toEqual({ rows: [{ id: 'e1', decision_notes: null, rejected_by: null, rejected_at: null }], truncated: false });
     expect(h.calls.eq).toEqual([]);
   });
 
@@ -360,4 +360,9 @@ it('AC-RSN-004 equipment reads include the visible rejecting profile', async () 
   const result = await dal.listUsage({ from: '2026-01-01', to: '2026-01-07' });
   expect(result.rows[0]).toMatchObject({ rejected_by: 'u1', decision_notes: 'reason', rejecter: { full_name: 'Approver' } });
   expect(h.calls.select[0]).toContain('equipment_usage_entries_rejected_by_fkey');
+});
+
+it('AC-RSN-004 maps missing legacy equipment decision fields to null', async () => {
+  h.result.value = { data: [{ id: 'legacy' }], error: null };
+  expect((await dal.listUsage({ from: '2026-01-01', to: '2026-01-07' })).rows[0]).toMatchObject({ decision_notes: null, rejected_by: null, rejected_at: null });
 });

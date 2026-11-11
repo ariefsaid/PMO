@@ -5,7 +5,7 @@
 -- password=postgres is the Supabase LOCAL default (AC-IMP-045's dblink session); runs only under `supabase test db`.
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(60);
 create extension if not exists dblink;
 
 
@@ -339,5 +339,35 @@ select is((select count(*) from imprest_replenishments where float_id='15150000-
 
 
 reset role;
+select is((select confdeltype::text from pg_constraint where conrelid = 'public.imprest_replenishments'::regclass and conname = 'imprest_replenishments_rejected_by_fkey'), 'n', 'AC-RSN-003 deleting the actor sets rejected_by null');
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');
+select request_imprest_replenishment('15150000-0000-0000-0000-0000000000d1');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');
+select lives_ok($$ select transition_imprest_replenishment((select id from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and status='Requested'),'Rejected', '   ') $$, 'AC-RSN-007 spaces-only notes accepted');
+select is((select count(*) from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and status='Rejected' and decided_notes is null), 2::bigint, 'AC-RSN-007 spaces-only notes stored null');
+reset role;
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');
+select request_imprest_replenishment('15150000-0000-0000-0000-0000000000d1');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');
+select lives_ok($$ select transition_imprest_replenishment((select id from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and status='Requested'),'Rejected', E' \t\n ') $$, 'AC-RSN-007 whitespace-only notes accepted');
+select is((select decided_notes from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and status='Rejected' and decided_notes like E'%\t%'), E'\t\n', 'AC-RSN-007 tabs and newlines retain existing behavior');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');
+select request_imprest_replenishment('15150000-0000-0000-0000-0000000000d1');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');
+select lives_ok($$ select transition_imprest_replenishment((select id from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and status='Requested'),'Rejected', ' ' || repeat('x',5000) || ' ') $$, 'AC-RSN-007 long notes accepted');
+select is((select decided_notes from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and status='Rejected' and length(decided_notes) > 1000), repeat('x',5000), 'AC-RSN-007 long notes trimmed and stored');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '15150000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
+select ok(coalesce((select decided_notes=repeat('x',5000) and rejected_by is not null and rejected_at is not null from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and length(decided_notes)=5000),false), 'AC-RSN-003 submitter reads reason actor time');
+select set_config('request.jwt.claims', json_build_object('sub', '15150000-0000-0000-0000-0000000000a6', 'role','authenticated')::text, true);
+select is((select count(*) from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and length(decided_notes)=5000), 0::bigint, 'AC-RSN-003 unrelated member cannot read');
+select set_config('request.jwt.claims', json_build_object('sub', '15150000-0000-0000-0000-0000000000b1', 'role','authenticated')::text, true);
+select is((select count(*) from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and length(decided_notes)=5000), 0::bigint, 'AC-RSN-003 other organization cannot read');
+reset role;
+do $$ begin delete from profiles where id='15150000-0000-0000-0000-0000000000a3'; exception when foreign_key_violation then null; end $$;
+select ok(case when exists(select 1 from profiles where id='15150000-0000-0000-0000-0000000000a3') then (select confdeltype='n' from pg_constraint where conrelid='public.imprest_replenishments'::regclass and conname='imprest_replenishments_rejected_by_fkey') else (select rejected_by is null and rejected_at is not null and decided_notes is not null from imprest_replenishments where float_id='15150000-0000-0000-0000-0000000000d1' and length(decided_notes)=5000) end, 'AC-RSN-003 deleted actor is nullable or FK requires set null');
 select * from finish();
 rollback;

@@ -65,6 +65,8 @@ Each checkbox is a small ordered task: write the focused test, observe red, impl
 
 ## Slice B — enforcement and submitter display on ux/1110 after A
 
+Slice B owns whitespace-aware refusal; its required-reason cap must respect equipment’s existing 500-character limit (use per-kind caps or 500 for equipment).
+
 Branch inspection used `git show origin/ux/1110:<path>`. Screens are `pmo-portal/pages/Timesheets.tsx` (returned banner), `pmo-portal/pages/ExpenseClaimDetail.tsx` (existing note), `pmo-portal/pages/ImprestFloatDetail.tsx` (replenishment table), and `pmo-portal/pages/equipment/EquipmentUsage.tsx` (own-entry rows). Its approver dialogs already use `pmo-portal/src/components/ui/ReasonDialog.tsx`; retain them.
 
 8. [ ] Verify the existing redesign reason dialogs with their RTL tests (AC-RSN-006), preserving required input and reason forwarding. Pick the next free prefix on ux/1110 at build time; add the four constraint triggers and rollback described above. Create `supabase/tests/return_reasons_required.test.sql` owning AC-RSN-001: for each type test null, empty, spaces, tabs/newlines, over 1000 characters, valid 1000 characters, legal authorization and atomic unchanged state on refusal; prove legacy rows and correction remain usable and non-rejection transitions unaffected.

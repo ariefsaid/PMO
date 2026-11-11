@@ -3,7 +3,7 @@
 -- OQ-7/8) and the audit trail. Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(56);
+select plan(67);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -230,5 +230,39 @@ select ok(has_function_privilege('authenticated', (select oid from pg_proc where
 select ok(not has_function_privilege('anon', (select oid from pg_proc where pronamespace='public'::regnamespace and proname='transition_equipment_usage'), 'execute'), 'AC-RSN-003 anonymous execution denied');
 select ok(not has_column_privilege('authenticated', 'public.equipment_usage_entries', 'rejected_by', 'UPDATE'), 'AC-RSN-003 actor is not client writable');
 select ok(not has_column_privilege('authenticated', 'public.equipment_usage_entries', 'rejected_by', 'INSERT'), 'AC-RSN-003 actor is not client insertable');
+select is((select confdeltype::text from pg_constraint where conrelid = 'public.equipment_usage_entries'::regclass and conname = 'equipment_usage_entries_rejected_by_fkey'), 'n', 'AC-RSN-003 deleting the actor sets rejected_by null');
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a6', 'role','authenticated')::text, true);
+select transition_equipment_usage((select v from _e where k='e2'),'Draft');
+select transition_equipment_usage((select v from _e where k='e2'),'Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a5', 'role','authenticated')::text, true);
+select lives_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected','   ')$$, 'AC-RSN-007 spaces-only notes accepted');
+select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), null::text, 'AC-RSN-007 spaces-only notes stored null');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a6', 'role','authenticated')::text, true);
+select transition_equipment_usage((select v from _e where k='e2'),'Draft');
+select transition_equipment_usage((select v from _e where k='e2'),'Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a5', 'role','authenticated')::text, true);
+select lives_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected', E' \t\n ')$$, 'AC-RSN-007 whitespace-only notes accepted');
+select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), E'\t\n', 'AC-RSN-007 tabs and newlines retain existing behavior');
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a6', 'role','authenticated')::text, true);
+select transition_equipment_usage((select v from _e where k='e2'),'Draft');
+select transition_equipment_usage((select v from _e where k='e2'),'Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a5', 'role','authenticated')::text, true);
+select throws_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected', repeat('x',501))$$, '23514', null, 'AC-RSN-007 existing 500 character limit remains');
+select transition_equipment_usage((select v from _e where k='e2'),'Rejected', repeat('x',500));
+select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), repeat('x',500), 'AC-RSN-007 500 character equipment note stored');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a6', 'role','authenticated')::text, true);
+select ok(coalesce((select decision_notes=repeat('x',500) and rejected_by is not null and rejected_at is not null from equipment_usage_entries where id=(select v from _e where k='e2')),false), 'AC-RSN-003 submitter reads reason actor time');
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a7', 'role','authenticated')::text, true);
+select is((select count(*) from equipment_usage_entries where id=(select v from _e where k='e2')), 0::bigint, 'AC-RSN-003 unrelated member cannot read');
+select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000b1', 'role','authenticated')::text, true);
+select is((select count(*) from equipment_usage_entries where id=(select v from _e where k='e2')), 0::bigint, 'AC-RSN-003 other organization cannot read');
+reset role;
+do $$ begin delete from profiles where id='15190000-0000-0000-0000-0000000000a5'; exception when foreign_key_violation then null; end $$;
+select ok(case when exists(select 1 from profiles where id='15190000-0000-0000-0000-0000000000a5') then (select confdeltype='n' from pg_constraint where conrelid='public.equipment_usage_entries'::regclass and conname='equipment_usage_entries_rejected_by_fkey') else (select rejected_by is null and rejected_at is not null and decision_notes is not null from equipment_usage_entries where id=(select v from _e where k='e2')) end, 'AC-RSN-003 deleted actor is nullable or FK requires set null');
 select * from finish();
 rollback;

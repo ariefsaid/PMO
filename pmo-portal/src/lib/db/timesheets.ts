@@ -44,6 +44,9 @@ export async function listTimesheets(
   // Normalise hours to number at the data boundary so callers never need Number() casts.
   return data.map(sheet => ({
     ...sheet,
+    rejection_reason: sheet.rejection_reason ?? null,
+    rejected_by: sheet.rejected_by ?? null,
+    rejected_at: sheet.rejected_at ?? null,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
   }));
 }

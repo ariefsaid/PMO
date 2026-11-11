@@ -1,7 +1,7 @@
 -- expense_claims_transition.test.sql — #775 status machine, numbering and the separations of duty
 -- (AC-EXP-010..016). No spend_approvers rows here, so routing is `flat` (the OD-PROC-1 rank floor).
 begin;
-select plan(44);
+select plan(55);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('02472000-0000-0000-0000-00000000000a','EXP Txn Org','IDR','Asia/Jakarta');
@@ -166,5 +166,38 @@ select ok(has_function_privilege('authenticated', (select oid from pg_proc where
 select ok(not has_function_privilege('anon', (select oid from pg_proc where pronamespace='public'::regnamespace and proname='transition_expense_claim'), 'execute'), 'AC-RSN-003 anonymous execution denied');
 select ok(not has_column_privilege('authenticated', 'public.expense_claims', 'rejected_by', 'UPDATE'), 'AC-RSN-003 actor is not client writable');
 select ok(not has_column_privilege('authenticated', 'public.expense_claims', 'rejected_by', 'INSERT'), 'AC-RSN-003 actor is not client insertable');
+select is((select confdeltype::text from pg_constraint where conrelid = 'public.expense_claims'::regclass and conname = 'expense_claims_rejected_by_fkey'), 'n', 'AC-RSN-003 deleting the actor sets rejected_by null');
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select transition_expense_claim('02472000-0000-0000-0000-000000000708','Draft');
+select transition_expense_claim('02472000-0000-0000-0000-000000000708','Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a3', 'role','authenticated')::text, true);
+select lives_ok($$select transition_expense_claim('02472000-0000-0000-0000-000000000708','Rejected','   ')$$, 'AC-RSN-007 spaces-only notes accepted');
+select is((select rejection_notes from expense_claims where id='02472000-0000-0000-0000-000000000708'), null::text, 'AC-RSN-007 spaces-only notes stored null');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select transition_expense_claim('02472000-0000-0000-0000-000000000708','Draft');
+select transition_expense_claim('02472000-0000-0000-0000-000000000708','Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a3', 'role','authenticated')::text, true);
+select lives_ok($$select transition_expense_claim('02472000-0000-0000-0000-000000000708','Rejected', E' \t\n ')$$, 'AC-RSN-007 whitespace-only notes accepted');
+select is((select rejection_notes from expense_claims where id='02472000-0000-0000-0000-000000000708'), E'\t\n', 'AC-RSN-007 tabs and newlines retain existing behavior');
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select transition_expense_claim('02472000-0000-0000-0000-000000000708','Draft');
+select transition_expense_claim('02472000-0000-0000-0000-000000000708','Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a3', 'role','authenticated')::text, true);
+select lives_ok($$select transition_expense_claim('02472000-0000-0000-0000-000000000708','Rejected', ' ' || repeat('x',5000) || ' ')$$, 'AC-RSN-007 long notes accepted');
+select is((select rejection_notes from expense_claims where id='02472000-0000-0000-0000-000000000708'), repeat('x',5000), 'AC-RSN-007 long notes trimmed and stored');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select ok(coalesce((select rejection_notes=repeat('x',5000) and rejected_by is not null and rejected_at is not null from expense_claims where id='02472000-0000-0000-0000-000000000708'),false), 'AC-RSN-003 submitter reads reason actor time');
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
+select is((select count(*) from expense_claims where id='02472000-0000-0000-0000-000000000708'), 0::bigint, 'AC-RSN-003 unrelated member cannot read');
+select set_config('request.jwt.claims', json_build_object('sub', '02472000-0000-0000-0000-0000000000b1', 'role','authenticated')::text, true);
+select is((select count(*) from expense_claims where id='02472000-0000-0000-0000-000000000708'), 0::bigint, 'AC-RSN-003 other organization cannot read');
+reset role;
+do $$ begin delete from profiles where id='02472000-0000-0000-0000-0000000000a3'; exception when foreign_key_violation then null; end $$;
+select ok(case when exists(select 1 from profiles where id='02472000-0000-0000-0000-0000000000a3') then (select confdeltype='n' from pg_constraint where conrelid='public.expense_claims'::regclass and conname='expense_claims_rejected_by_fkey') else (select rejected_by is null and rejected_at is not null and rejection_notes is not null from expense_claims where id='02472000-0000-0000-0000-000000000708') end, 'AC-RSN-003 deleted actor is nullable or FK requires set null');
 select * from finish();
 rollback;

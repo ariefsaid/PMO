@@ -13,20 +13,20 @@
 -- Isolated org; UUID prefix 17110000-… (issue #1710).
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(36);
 
 insert into organizations (id, name) values
-  ('17110000-0000-0000-0000-000000000001','Timesheet Map Org (1710)');
+  ('17110000-0000-0000-0000-000000000001','Timesheet Map Org (1710)'), ('17110000-0000-0000-0000-000000000002','Other Org');
 
 insert into auth.users (id, email) values
   ('17110000-0000-0000-0000-0000000000a1','owner-map1710@example.com'),
   ('17110000-0000-0000-0000-0000000000a2','admin-map1710@example.com'),
-  ('17110000-0000-0000-0000-0000000000a3','other-map1710@example.com');
+  ('17110000-0000-0000-0000-0000000000a3','other-map1710@example.com'), ('17110000-0000-0000-0000-0000000000b1','foreign-map1710@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
   ('17110000-0000-0000-0000-0000000000a1','17110000-0000-0000-0000-000000000001','Owner 1710','owner-map1710@example.com','Engineer'),
   ('17110000-0000-0000-0000-0000000000a2','17110000-0000-0000-0000-000000000001','Admin 1710','admin-map1710@example.com','Admin'),
-  ('17110000-0000-0000-0000-0000000000a3','17110000-0000-0000-0000-000000000001','Other 1710','other-map1710@example.com','Engineer');
+  ('17110000-0000-0000-0000-0000000000a3','17110000-0000-0000-0000-000000000001','Other 1710','other-map1710@example.com','Engineer'), ('17110000-0000-0000-0000-0000000000b1','17110000-0000-0000-0000-000000000002','Foreign','foreign-map1710@example.com','Engineer');
 
 -- The owner has NO manager_id, so the Admin/Exec fallback authorizes the approve/reject/reopen
 -- arms (0023/0025 own that matrix — here it is only the map's gatekeeper).
@@ -121,5 +121,38 @@ select ok(has_function_privilege('authenticated', (select oid from pg_proc where
 select ok(not has_function_privilege('anon', (select oid from pg_proc where pronamespace='public'::regnamespace and proname='transition_timesheet'), 'execute'), 'AC-RSN-003 anonymous execution denied');
 select ok(not has_column_privilege('authenticated', 'public.timesheets', 'rejected_by', 'UPDATE'), 'AC-RSN-003 actor is not client writable');
 select ok(not has_column_privilege('authenticated', 'public.timesheets', 'rejected_by', 'INSERT'), 'AC-RSN-003 actor is not client insertable');
+select is((select confdeltype::text from pg_constraint where conrelid = 'public.timesheets'::regclass and conname = 'timesheets_rejected_by_fkey'), 'n', 'AC-RSN-003 deleting the actor sets rejected_by null');
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Draft');
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
+select lives_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected','   ')$$, 'AC-RSN-007 spaces-only notes accepted');
+select is((select rejection_reason from timesheets where id='17110000-0000-0000-0000-000000000012'), null::text, 'AC-RSN-007 spaces-only notes stored null');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Draft');
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
+select lives_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', E' \t\n ')$$, 'AC-RSN-007 whitespace-only notes accepted');
+select is((select rejection_reason from timesheets where id='17110000-0000-0000-0000-000000000012'), E'\t\n', 'AC-RSN-007 tabs and newlines retain existing behavior');
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Draft');
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Submitted');
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
+select lives_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', ' ' || repeat('x',5000) || ' ')$$, 'AC-RSN-007 long notes accepted');
+select is((select rejection_reason from timesheets where id='17110000-0000-0000-0000-000000000012'), repeat('x',5000), 'AC-RSN-007 long notes trimmed and stored');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
+select ok(coalesce((select rejection_reason=repeat('x',5000) and rejected_by is not null and rejected_at is not null from timesheets where id='17110000-0000-0000-0000-000000000012'),false), 'AC-RSN-003 submitter reads reason actor time');
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a3', 'role','authenticated')::text, true);
+select is((select count(*) from timesheets where id='17110000-0000-0000-0000-000000000012'), 0::bigint, 'AC-RSN-003 unrelated member cannot read');
+select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000b1', 'role','authenticated')::text, true);
+select is((select count(*) from timesheets where id='17110000-0000-0000-0000-000000000012'), 0::bigint, 'AC-RSN-003 other organization cannot read');
+reset role;
+do $$ begin delete from profiles where id='17110000-0000-0000-0000-0000000000a2'; exception when foreign_key_violation then null; end $$;
+select ok(case when exists(select 1 from profiles where id='17110000-0000-0000-0000-0000000000a2') then (select confdeltype='n' from pg_constraint where conrelid='public.timesheets'::regclass and conname='timesheets_rejected_by_fkey') else (select rejected_by is null and rejected_at is not null and rejection_reason is not null from timesheets where id='17110000-0000-0000-0000-000000000012') end, 'AC-RSN-003 deleted actor is nullable or FK requires set null');
 select * from finish();
 rollback;

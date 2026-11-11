@@ -111,7 +111,7 @@ export async function listUsage(
   if (range.status) query = query.eq('status', range.status);
   const { data, error } = await query.order('work_date', { ascending: false }).order('created_at', { ascending: true }).limit(LIST_LIMIT + 1);
   fail(error);
-  return bounded(data);
+  return bounded((data ?? []).map(row => ({ ...row, decision_notes: row.decision_notes ?? null, rejected_by: row.rejected_by ?? null, rejected_at: row.rejected_at ?? null })));
 }
 export async function saveUsage(input: UsageInput): Promise<UsageSaveResult> {
   const { data, error } = await supabase.rpc('save_equipment_usage', { p_entry: input as unknown as Json });
