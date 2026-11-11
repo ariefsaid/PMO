@@ -294,7 +294,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     const row = within(projectCell('Alpha').closest('tr')!);
 
     // O11: with no progress on any project, the invoiced basis is said once, not repeated in a column.
-    expect(screen.getByText('No progress assessments recorded, so earned revenue follows what has been invoiced.')).toBeInTheDocument();
+    expect(screen.getByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
     expect(row.queryByText(/No entry for/)).not.toBeInTheDocument();
     expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
@@ -362,8 +362,8 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     // One figure in the organisation currency; the other currency is its own second line, never "A · B".
     const figures = screen.getByRole('region', { name: 'Report figures' });
     const invoiced = within(figures).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
-    expect(within(invoiced).getByTitle(/^IDR[\s\u00a0]250$/)).toHaveTextContent('250');
-    expect(within(invoiced).getByText(/^\+ USD/)).toHaveTextContent('12.3K');
+    expect(within(invoiced).getByTitle(/^IDR[\s\u00a0]250; USD[\s\u00a0]12,345$/)).toHaveTextContent('250');
+    expect(within(invoiced).getByText(/^USD/)).toHaveTextContent('12.3K');
     expect(figures).not.toHaveTextContent(/[.,]00\b/);
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
@@ -380,7 +380,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
     expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden');
-    expect(screen.getAllByText(/Left to bill is left out where a foreign-currency invoice needs reconciliation/)).toHaveLength(1);
+    expect(screen.getAllByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
 

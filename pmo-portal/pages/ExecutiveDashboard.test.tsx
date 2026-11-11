@@ -284,13 +284,29 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(figures()).queryByText(/^\d+$/)).not.toBeInTheDocument();
   });
 
-  it('puts a second currency on its own line, never joined into one figure', () => {
+  it('puts a second currency on its own line without a plus sign', () => {
     renderPage();
     const invoiced = tile('Invoiced');
     expect(flat(invoiced.textContent)).not.toMatch(/·/);
-    const second = within(invoiced).getByText('+ IDR 5.3M');
+    const second = within(invoiced).getByText('IDR 5.3M');
     expect(second).toHaveClass('block');
+    expect(second).not.toHaveTextContent('+');
     expect(invoiced).toHaveTextContent('$7.7M');
+  });
+
+  it('renders supplier payables with one currency per line and no plus sign', () => {
+    setToday('supplier-payables', {
+      value: '$30K',
+      amounts: [{ currency: 'USD', amount: 30_000 }, { currency: 'IDR', amount: 12_000_000 }],
+    });
+    renderPage();
+
+    const supplier = tile('Owed to suppliers');
+    expect(within(supplier).getByText('$30K')).toBeInTheDocument();
+    const secondCurrency = within(supplier).getByText('IDR 12M');
+    expect(secondCurrency).toHaveClass('block');
+    expect(secondCurrency).not.toHaveTextContent('+');
+    expect(within(supplier).getByText('$30,000; IDR 12,000,000')).toHaveClass('sr-only');
   });
 
   it('F2: known margin is a fifth tile only when the accounting source provides it', () => {
@@ -348,6 +364,14 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.getByTestId('location')).toHaveTextContent('/?period=month');
   });
 
+  it('spells out Year to date in the period picker and the Invoiced tile', () => {
+    renderPage('/?period=ytd');
+    const period = screen.getByRole('combobox', { name: 'Period' });
+
+    expect(within(period).getByRole('option', { name: 'Year to date' })).toBeInTheDocument();
+    expect(tile('Invoiced')).toHaveTextContent('Year to date');
+  });
+
   it('AC-DASH-1403-06: Admin sees the same company home as Executive', () => {
     state.role = 'Admin';
     renderPage();
@@ -388,7 +412,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     const rows = within(screen.getByTestId('waits-on-you')).getAllByRole('link').map((link) => link.getAttribute('href'));
     expect(rows).toEqual(['/approvals', '/procurement?status=Vendor+Invoiced', '/finance/receivables?overdue=true', '/projects']);
     expect(screen.getByText('oldest 118 days overdue')).toBeInTheDocument();
-    const order = ['Waits on you', 'Overdue from clients', 'Ready to pay'].map((name) => screen.getByRole('heading', { name }));
+    const order = ['Waits on you', 'Client overdue', 'Ready to pay'].map((name) => screen.getByRole('heading', { name }));
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(figures()).getAllByText(/^(Owed by clients|Owed to suppliers|Invoiced|Collected)$/)).toHaveLength(4);
   });
@@ -410,7 +434,7 @@ describe('company home — finance (one question: what must I collect, pay and i
       ],
     };
     renderPage();
-    const card = screen.getByRole('heading', { name: 'Overdue from clients' }).closest('.panel-card') as HTMLElement;
+    const card = screen.getByRole('heading', { name: 'Client overdue' }).closest('.panel-card') as HTMLElement;
     const names = within(card).getAllByRole('row').slice(1).map((row) => row.textContent);
     expect(names[0]).toContain('Client A');
     expect(names[0]).toContain('$1,000');
@@ -426,9 +450,9 @@ describe('company home — finance (one question: what must I collect, pay and i
       overdue: [{ invoice: { id: 'i1', customer_name: 'Client A', pmo_number: 'INV-1', currency: 'USD', amount: 2_500, tax_amount: 0, tax_treatment: 'inclusive' }, daysOverdue: 118, outstanding: null }],
     };
     renderPage();
-    const card = screen.getByRole('heading', { name: 'Overdue from clients' }).closest('.panel-card') as HTMLElement;
+    const card = screen.getByRole('heading', { name: 'Client overdue' }).closest('.panel-card') as HTMLElement;
     expect(within(card).getByRole('columnheader', { name: 'Invoice' })).toBeInTheDocument();
-    expect(within(card).getByRole('columnheader', { name: 'Invoice total' })).toBeInTheDocument();
+    expect(within(card).getByRole('columnheader', { name: 'Total' })).toBeInTheDocument();
     expect(within(card).queryByRole('columnheader', { name: 'Outstanding' })).not.toBeInTheDocument();
     const row = within(card).getAllByRole('row')[1];
     expect(row).toHaveTextContent('INV-1');
@@ -594,7 +618,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
       .filter((label): label is string => label !== undefined);
     expect(visibleFigureLabels).toEqual(['Contract on hand', 'Invoiced', 'Owed to suppliers', 'Left to bill']);
     expect(screen.queryByText('Analysis')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Plan vs actual' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
     // One help control on the page: the win-rate definition is folded into it.
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
@@ -607,25 +631,24 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(within(screen.getByRole('region', { name: 'Billing' })).queryByText('Left to bill')).not.toBeInTheDocument();
   });
 
-  it('draws budget and spending per project, worst first, and leaves out a project whose spending is unknown', () => {
+  it('draws contract, budget and known spending per project and names unknown spending', () => {
     const top = (id: string, spent: number | null) => ({ id, name: `Delivery ${id}`, client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent, actual_complete: spent !== null, actual_currency: 'USD', status: 'Ongoing Project' });
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top('a', 1_000), top('b', 5_000), top('c', null)];
     renderPage();
-    const rows = tableCells('Budget and spending by project');
-    expect(rows[0]).toContain('Delivery b');
-    expect(rows[0]).toContain('Spent $5K');
-    expect(rows[1]).toContain('Delivery a');
-    expect(rows[2]).toContain('Delivery c');
-    expect(rows[2]).not.toContain('Spent');
+    const chart = screen.getByRole('img', { name: /^Plan vs actual by project\./ });
+    const label = chart.getAttribute('aria-label') ?? '';
+    expect(label).toContain('Delivery a: Contract $10,000, Budget $4,000, Spent $1,000');
+    expect(label).toContain('Delivery b: Contract $10,000, Budget $4,000, Spent $5,000');
+    expect(label).toContain('Delivery c: Contract $10,000, Budget $4,000, Spent unknown');
   });
 
-  it('with no recorded spending the budget chart is not drawn and the page line counts it', async () => {
+  it('keeps contract and budget visible when spending is unknown and marks spent as unknown', () => {
     const top = { id: 'a', name: 'Delivery a', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: null, actual_complete: false, actual_currency: null, status: 'Ongoing Project' };
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
     renderPage();
-    expect(screen.queryByRole('heading', { name: 'Budget and spending by project' })).not.toBeInTheDocument();
-    await openHiddenReasons();
-    expect(await screen.findByText('project spending is not recorded')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
+    const chart = screen.getByRole('img', { name: /^Plan vs actual by project\./ });
+    expect(chart.getAttribute('aria-label')).toContain('Delivery a: Contract $10,000, Budget $4,000, Spent unknown');
   });
 
   it('the sales card draws the open stages as bars on one scale with their counts, Won as a figure, and no stage table', () => {
@@ -652,14 +675,14 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(purchasing).toHaveTextContent('Pay 1');
     expect(screen.queryByRole('heading', { name: /Invoiced/ })).not.toBeInTheDocument();
     await openHiddenReasons();
-    expect(await screen.findByText('the period covers fewer than three months')).toBeInTheDocument();
+    expect(await screen.findByText('fewer than three months have invoiced or collected amounts')).toBeInTheDocument();
   });
 
   it('draws every month of the period, invoiced next to collected once receipts are recorded', () => {
     const months = ['2026-05', '2026-06', '2026-07'].map((month, index) => ({ month, amount: 1_000 * (index + 1) }));
-    figureState.result = { ...figureState.result, invoicedByMonth: months, collectedByMonth: new Map([['2026-06', 500]]) };
+    figureState.result = { ...figureState.result, trendInvoicedByMonth: months, collectedByMonth: new Map([['2026-06', 500]]) };
     renderPage();
-    const rows = tableCells('Invoiced and collected by month');
+    const rows = tableCells('Invoiced and collected · last 12 completed months');
     expect(rows).toHaveLength(3);
     expect(rows[1]).toContain('Invoiced, excl. tax $2K');
     expect(rows[1]).toContain('Collected $500');
@@ -674,6 +697,10 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.queryByText(/Not recorded/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Win and loss by client' })).toBeInTheDocument();
     expect(screen.getByText('1 won, 1 lost')).toBeInTheDocument();
+    const purchasing = screen.getByTestId('chart-purchasing');
+    const winLoss = screen.getByTestId('chart-loss-reasons');
+    expect(winLoss.parentElement).toBe(purchasing.parentElement);
+    expect(purchasing.compareDocumentPosition(winLoss) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     await openHiddenReasons();
     expect(await screen.findByText('no loss reason is recorded')).toBeInTheDocument();
   });
@@ -685,11 +712,11 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.getByRole('img', { name: /^Why deals were lost\. .*: 4$/ })).toBeInTheDocument();
   });
 
-  it('finance: overdue from clients beside waits, receivables by age, and an unknown balance counted, not drawn', () => {
+  it('finance: client overdue beside waits, receivables by age, and an unknown balance counted, not drawn', () => {
     state.role = 'Finance';
     financePositionState.position = { receivablesAgeing: { USD: { notDue: 100_000, d1_30: 50_000, d31_60: 0, d61_90: 0, over90: 25_000 } }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 2 } as never;
     renderPage();
-    for (const name of ['Waits on you', 'Overdue from clients', 'Ready to pay']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    for (const name of ['Waits on you', 'Client overdue', 'Ready to pay']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     const rows = tableCells('Owed by clients, by age');
     expect(rows).toHaveLength(5);
     expect(rows[0]).toContain('$1K');

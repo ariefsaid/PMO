@@ -130,6 +130,12 @@ describe('money vocabulary', () => {
       'tile',
     );
     expect(lines.map(norm)).toEqual(['IDR 7.7B', '+ USD 5.3K', '+ SGD 1.2M']);
+    expect(formatMoneyLines(
+      [{ currency: 'USD', amount: 5_300 }, { currency: 'IDR', amount: 7_700_000_000 }],
+      'IDR',
+      'tile',
+      { prefixOtherCurrencies: false },
+    ).map(norm)).toEqual(['IDR 7.7B', 'USD 5.3K']);
     expect(formatMoneyLines([{ currency: 'USD', amount: 5_300 }], 'IDR', 'table').map(norm)).toEqual(['IDR 0', '+ USD 5,300']);
     expect(formatMoneyLines([], 'IDR', 'table').map(norm)).toEqual(['IDR 0']);
     expect(formatMoneyLines([{ currency: 'IDR', amount: 5 }, { currency: 'IDR', amount: 7 }], 'IDR', 'table').map(norm)).toEqual(['IDR 12']);

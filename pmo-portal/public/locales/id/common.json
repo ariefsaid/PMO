@@ -4020,7 +4020,7 @@
     "otherCurrency": "Ditagih dalam {{currency}}, bukan mata uang kontrak",
     "recordProgress": "Catat progres",
     "billedAhead": "ditagih di muka",
-    "undated": "{{count}} faktur tanpa tanggal tidak dihitung",
+    "undated": "{{count}} faktur tanpa tanggal dikecualikan",
     "total": "Total",
     "basis": {
       "invoiced": "Ditagih",

@@ -24,13 +24,14 @@ vi.mock('@/src/lib/procurement/procurementMoney', () => ({ withLinkedDocuments: 
 import { useCompanyFigures } from './useCompanyFigures';
 
 it('AC-DTR-001 the headline line is the pack of the twelve completed months, whatever period is picked', () => {
-  h.data = { totals: [{ currency: 'IDR', months: [100_00, 250_00, 400_00].map((invoiced, i) => ({ month: `2026-0${i + 7}-01`, invoiced })) }] };
+  h.data = { months: [], rows: [], totals: [{ currency: 'IDR', months: [100_00, 250_00, 400_00].map((invoiced, i) => ({ month: `2026-0${i + 7}-01`, invoiced })) }] };
   const { result } = renderHook(() => useCompanyFigures({ key: 'month', label: 'This month', from: '2026-10', to: '2026-10' }));
   expect(h.pack).toHaveBeenCalledWith({ from: '2025-10-01', to: '2026-09-01' }, true);
   expect(result.current.invoicedTrend).toMatchObject({ currency: 'IDR', total: 750, direction: 'up', hasLine: true });
 });
 
 it('the trend stays pending while the org day is unknown, so its card is reserved before the window exists', () => {
+  h.data = { months: [], rows: [], totals: [] };
   h.orgDay = { day: undefined, isPending: true };
   const { result } = renderHook(() => useCompanyFigures({ key: 'month', label: 'This month', from: '2026-10', to: '2026-10' }));
   expect(result.current.trendPending).toBe(true);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
@@ -20,7 +20,7 @@ const NameTick: React.FC<{
   compact: boolean;
 }> = ({ x = 0, y = 0, payload, compact }) => {
   const name = payload?.value ?? '';
-  const lines = wrapProjectName(name, compact ? 19 : 22);
+  const lines = wrapProjectName(name, compact ? 15 : 20);
   const textX = Number(x) - 4;
   return (
     <text x={textX} y={Number(y) + (lines.length > 1 ? -6 : 4)} textAnchor="end" style={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}>
@@ -30,26 +30,25 @@ const NameTick: React.FC<{
   );
 };
 
-interface DirectRowSummaryProps {
-  x?: number | string;
-  y?: number | string;
-  width?: number | string;
-  value?: unknown;
-}
+type BarLabelTone = 'contract' | 'budget' | 'spent';
+interface DirectBarLabelProps { x?: number | string; y?: number | string; width?: number | string; height?: number | string; value?: unknown }
 
-const DirectRowSummary: React.FC<DirectRowSummaryProps> = ({ x = 0, y = 0, width = 0, value }) => {
-  if (typeof value !== 'string' || !value) return null;
-  const lines = value.split('\n');
-  const textX = Number(x) + Number(width) + 6;
-  const textY = Number(y) + 4 - ((lines.length - 1) * 7);
-  return (
-    <text x={textX} y={textY} textAnchor="start" style={{ fontSize: 12, fontWeight: 600, fill: 'hsl(var(--foreground))' }}>
-      {lines.map((line, index) => <tspan key={index} x={textX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
-    </text>
-  );
+const directBarLabel = (tone: BarLabelTone) => ({ x = 0, y = 0, width = 0, height = 0, value }: DirectBarLabelProps) => {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  const barX = Number(x);
+  const barWidth = Number(width);
+  const barY = Number(y);
+  const barHeight = Number(height);
+  // Long bars hold their own labels; shorter bars place them right after the bar in the open track.
+  const inside = barWidth >= value.length * 7.5 + 10;
+  const textX = inside ? barX + barWidth - 5 : barX + barWidth + 6;
+  const fill = inside && tone === 'spent' ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))';
+  return <text x={textX} y={barY + barHeight / 2 + 5} textAnchor={inside ? 'end' : 'start'} style={{ fontSize: 14, fontWeight: 600, fill }}>{value}</text>;
 };
 
-const rowSummary = () => (props: DirectRowSummaryProps) => <DirectRowSummary {...props} />;
+const BAR_LABEL_CONTRACT = directBarLabel('contract');
+const BAR_LABEL_BUDGET = directBarLabel('budget');
+const BAR_LABEL_SPENT = directBarLabel('spent');
 
 export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, currency }) => {
   const { t } = useTranslation('dashboard');
@@ -60,51 +59,36 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
   const actualLabel = t('hub.company.planVsActual.actual', 'Spent');
   const budgetLabel = t('hub.company.planVsActual.budget', 'Active budget');
   const budgetShortLabel = t('hub.company.planVsActual.budgetShort', 'Budget');
-  const rows = React.useMemo(() => planVsActualRows(projects, currency).map((row) => {
-    const planSummary = `${planLabel} ${formatCompactCurrency(row.plan, currency)}`;
-    const budgetSummary = row.budget == null ? null : `${budgetShortLabel} ${formatCompactCurrency(row.budget, currency)}`;
-    const actualSummary = row.actual == null ? null : `${actualLabel} ${formatCompactCurrency(row.actual, currency)}`;
-    const summary = compact
-      ? [planSummary, budgetSummary, actualSummary].filter((label): label is string => label !== null).join('\n')
-      : [[planSummary, budgetSummary].filter((label): label is string => label !== null).join(' · '), actualSummary].filter((label): label is string => label !== null).join('\n');
-    let anchor: 'plan' | 'budget' | 'actual' = 'plan';
-    let maxValue = row.plan;
-    if (row.budget != null && row.budget > maxValue) {
-      anchor = 'budget';
-      maxValue = row.budget;
-    }
-    if (row.actual != null && row.actual > maxValue) anchor = 'actual';
-    return {
-      ...row,
-      used: row.actual != null && row.budget ? Math.round((row.actual / row.budget) * 100) : null,
-      summaryOnPlan: anchor === 'plan' ? summary : null,
-      summaryOnBudget: anchor === 'budget' ? summary : null,
-      summaryOnActual: anchor === 'actual' ? summary : null,
-    };
-  }), [projects, currency, planLabel, budgetShortLabel, actualLabel, compact]);
+  const rows = React.useMemo(() => planVsActualRows(projects, currency).map((row) => ({
+    ...row,
+    labelPlan: `${planLabel} ${formatCompactCurrency(row.plan, currency)}`,
+    labelBudget: row.budget == null ? null : `${budgetShortLabel} ${formatCompactCurrency(row.budget, currency)}`,
+    labelActual: row.actual == null ? null : `${actualLabel} ${formatCompactCurrency(row.actual, currency)}`,
+    used: row.actual != null && row.budget ? Math.round((row.actual / row.budget) * 100) : null,
+  })), [projects, currency, planLabel, budgetShortLabel, actualLabel]);
   const name = t('hub.company.planVsActual.name', 'Plan vs actual by project');
   if (rows.length === 0) return <ListState variant="empty" icon="grid" title={t('hub.company.planVsActual.empty', 'No projects to compare yet')} />;
   const incomplete = rows.filter((row) => row.actual == null).length;
   const noBudget = rows.filter((row) => row.budget == null).length;
   const otherCurrency = projects.filter((project) => project.currency !== currency).length;
-  const chartHeight = Math.max(300, rows.length * 50);
+  const maxValue = Math.max(1, ...rows.flatMap((row) => [row.plan, row.budget ?? 0, row.actual ?? 0]));
+  const chartHeight = Math.max(300, rows.length * 72);
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-[300px] flex-1"><div role="img" aria-label={`${name}. ${rows.map((row) => `${row.name}: ${planLabel} ${formatCurrency(row.plan, currency)}, ${budgetLabel} ${row.budget == null ? 'unknown' : formatCurrency(row.budget, currency)}, ${actualLabel} ${row.actual == null ? 'unknown' : formatCurrency(row.actual, currency)}`).join('; ')}`} className="h-full min-h-[300px]">
+      <div className="min-h-[300px] flex-1"><div role="img" aria-label={`${name}. ${rows.map((row) => `${row.name}: ${planLabel} ${formatCurrency(row.plan, currency)}, ${budgetShortLabel} ${row.budget == null ? 'unknown' : formatCurrency(row.budget, currency)}, ${actualLabel} ${row.actual == null ? 'unknown' : formatCurrency(row.actual, currency)}`).join('; ')}`} className="h-full min-h-[300px]">
         <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setChartWidth(width)}>
-          <BarChart data={rows} layout="vertical" margin={{ top: 4, right: compact ? 128 : 200, bottom: 4, left: 0 }} barGap={2} barCategoryGap="22%">
-            <XAxis type="number" domain={[0, 'auto']} tick={false} tickLine={false} stroke={chartTheme.grid} />
-            <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={compact ? 142 : 160} interval={0} tickLine={false} axisLine={false} />
+          <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barGap={4} barCategoryGap="16%">
+            <XAxis type="number" domain={[0, maxValue * 1.3]} tick={false} tickLine={false} stroke={chartTheme.grid} />
+            <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={compact ? 112 : 140} interval={0} tickLine={false} axisLine={false} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
-            <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2}>
-              <LabelList dataKey="summaryOnPlan" position="right" content={rowSummary()} />
+            <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
+              <LabelList dataKey="labelPlan" content={BAR_LABEL_CONTRACT} />
             </Bar>
-            <Bar dataKey="budget" name={budgetLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2}>
-              <LabelList dataKey="summaryOnBudget" position="right" content={rowSummary()} />
+            <Bar dataKey="budget" name={budgetShortLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
+              <LabelList dataKey="labelBudget" content={BAR_LABEL_BUDGET} />
             </Bar>
-            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2}>
-              {rows.map((row) => <Cell key={row.id} fill={row.used != null && row.used > 100 ? chartTheme.series.destructive : chartTheme.series.primary} />)}
-              <LabelList dataKey="summaryOnActual" position="right" content={rowSummary()} />
+            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
+              <LabelList dataKey="labelActual" content={BAR_LABEL_SPENT} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -118,7 +102,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
       {(incomplete > 0 || otherCurrency > 0) && (
         <p data-testid="plan-actual-caption" className="mt-2 text-control text-muted-foreground">
           {[
-            incomplete > 0 ? t('hub.company.planVsActual.incomplete', { count: incomplete, defaultValue: 'Spent is incomplete for {{count}} projects; known bars are shown', defaultValue_one: 'Spent is incomplete for {{count}} project; known bars are shown' }) : null,
+            incomplete > 0 ? t('hub.company.planVsActual.incomplete', { count: incomplete, defaultValue: 'Spend incomplete: {{count}} projects; known bars shown', defaultValue_one: 'Spend incomplete: {{count}} project; known bars shown' }) : null,
             otherCurrency > 0 ? t('hub.company.planVsActual.otherCurrency', { count: otherCurrency, defaultValue: '{{count}} projects in another currency are left out', defaultValue_one: '{{count}} project in another currency is left out' }) : null,
           ].filter(Boolean).join(' · ')}
         </p>

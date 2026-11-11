@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChartCard } from '@/src/components/dashboard/charts';
-import { RevenueTrendLineChart } from '@/src/components/dashboard/RevenueTrendLineChart';
+import { ChartCard, MonthColumns } from '@/src/components/dashboard/charts';
 import { usePaidPaymentFacts } from '@/src/hooks/useRevenue';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
@@ -65,12 +64,14 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
       error={!canDraw && (pack.isError || payments.isError) ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry: () => { void pack.refetch(); void payments.refetch(); } } : undefined}
       testId="finance-revenue-trend"
     >
-      <RevenueTrendLineChart
+      <MonthColumns
         points={points}
         ariaLabel={collectionsPrimary ? `${title} · ${t('home.chartCollected', 'Collected')}` : title}
         seriesNames={collectionsPrimary
           ? [t('home.chartCollected', 'Collected')]
           : [t('home.chartInvoiced', 'Invoiced, excl. tax'), t('home.chartCollected', 'Collected')]}
+        labelAll
+        minWidth={660}
       />
       {gap && <p data-testid="finance-revenue-trend-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>

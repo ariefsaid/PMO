@@ -279,7 +279,10 @@ describe('Project Manager home (one question: what needs me, which of my project
     renderDashboard();
     const tile = screen.getByTestId('kpi-my-contract-value');
     expect(tile).toHaveTextContent('$100K');
-    expect(tile).toHaveTextContent('+ IDR');
+    const otherCurrency = within(tile).getByText('IDR 2B');
+    expect(otherCurrency).toHaveClass('block');
+    expect(otherCurrency).not.toHaveTextContent('+');
+    expect(tile).toHaveTextContent(/\$100,000;\s*IDR\s*2,000,000,000/);
     expect(tile.textContent).not.toMatch(/2,100|2\.1B/);
   });
 
@@ -367,7 +370,7 @@ describe('Project Manager home — layouts', () => {
     const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
     const label = chart.getAttribute('aria-label') ?? '';
     expect(label.indexOf('Project Two')).toBeLessThan(label.indexOf('Project Three'));
-    expect(label).toContain('Project Two: Contract $250,000, Active budget $200,000, Spent $50,000');
+    expect(label).toContain('Project Two: Contract $250,000, Budget $200,000, Spent $50,000');
   });
 
   it('Overview: no overdue tasks reads as a line, not an empty chart', () => {
