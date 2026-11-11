@@ -12,6 +12,7 @@
  * copied verbatim from ImportWizard.
  */
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog } from '@base-ui/react/dialog';
 import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { Button, Icon, StatusPill } from '@/src/components/ui';
@@ -452,6 +453,7 @@ function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: bo
 
 /** A single record row within a case card — shows what's being imported (type, ref, amount, date). */
 function RecordRow({ row, source, currency }: { row: ValidatedRow; source: CycleRow | undefined; currency: string }) {
+  const { t } = useTranslation('import');
   // ValidatedRow carries rowNumber + valid + errors; the human-meaningful fields (what TYPE of
   // record, its ref/amount/date) live on the joined source CycleRow so the user can review what
   // they're about to import — not just a bare row number.
@@ -495,9 +497,11 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
         )}
       </div>
       {row.valid ? (
-        <StatusPill variant="won">Valid</StatusPill>
+        // The same words and keys as the sibling ImportWizard preview table (import:preview.*) —
+        // never hard-coded: the key already exists in both locales (id: "Valid" / "Dilewati").
+        <StatusPill variant="won">{t('preview.valid', 'Valid')}</StatusPill>
       ) : (
-        <StatusPill variant="lost">Skipped</StatusPill>
+        <StatusPill variant="lost">{t('preview.skipped', 'Skipped')}</StatusPill>
       )}
     </div>
   );
