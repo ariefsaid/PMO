@@ -1,14 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, StatTiles, TextField, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBelowReorder, useStockKeepers, useStockOnHand, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
+import { formatQuantity, formatStockValue, sumDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseStockError } from '@/src/lib/stockErrors';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
@@ -60,6 +60,13 @@ const StockOnHand: React.FC = () => {
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
   const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
 
+  // The code is only said when two warehouses share a name.
+  const sharedNames = useMemo(() => {
+    const byName = new Map<string, Set<string>>();
+    for (const r of allRows) byName.set(r.warehouseName, (byName.get(r.warehouseName) ?? new Set()).add(r.warehouseId));
+    return new Set([...byName].filter(([, ids]) => ids.size > 1).map(([name]) => name));
+  }, [allRows]);
+
   const columns: Column<StockOnHandRow>[] = useMemo(() => {
     const cols: Column<StockOnHandRow>[] = [
       {
@@ -75,10 +82,9 @@ const StockOnHand: React.FC = () => {
       {
         key: 'warehouse', header: t('onHand.columns.warehouse'),
         cell: (r) => (
-          <div className="min-w-0">
-            <span className="block truncate text-sm">{r.warehouseName}</span>
-            <span className="block truncate text-sm text-muted-foreground"><span className="font-mono">{r.warehouseCode}</span> · {t(`setup.kinds.${r.warehouseKind}`)}</span>
-          </div>
+          <span className="block truncate text-sm">
+            {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="font-mono text-muted-foreground"> · {r.warehouseCode}</span>}
+          </span>
         ),
         exportValue: (r) => r.warehouseName,
       },
@@ -95,7 +101,7 @@ const StockOnHand: React.FC = () => {
       );
     }
     return cols;
-  }, [t, loc, currency, showCost]);
+  }, [t, loc, currency, showCost, sharedNames]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
@@ -103,6 +109,10 @@ const StockOnHand: React.FC = () => {
   const tooMany = parseStockError(onHand.error)?.code === 'STK_TOO_MANY';
 
   const centralCount = rows.filter((r) => r.warehouseKind === 'central').length;
+  const itemCount = new Set(rows.map((r) => r.itemId)).size;
+  const whCount = new Set(rows.map((r) => r.warehouseId)).size;
+  // The total of the Value column on screen; absent whenever the server left the value off.
+  const totalValue = showCost ? sumDecimal(rows.flatMap((r) => (r.valueOnHand === undefined ? [] : [r.valueOnHand]))) : null;
 
   return (
     <ListPage
@@ -123,18 +133,11 @@ const StockOnHand: React.FC = () => {
       )}
     >
       <StockTabs />
-      {state === undefined && (
-        <StatTiles
-          className="mb-4"
-          tiles={[
-            { label: t('onHand.tiles.items'), value: new Set(rows.map((r) => r.itemId)).size },
-            { label: t('onHand.tiles.warehouses'), value: new Set(rows.map((r) => r.warehouseId)).size },
-            { label: t('onHand.tiles.central'), value: centralCount },
-            { label: t('onHand.tiles.site'), value: rows.length - centralCount },
-          ]}
-        />
-      )}
       <StockFilters>
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={belowOnly} onChange={(e) => setBelowOnly(e.target.checked)} />
+            {t('onHand.filters.belowReorder')}
+          </label>
           <SelectField
             label={t('onHand.filters.warehouse')}
             hideLabel
@@ -145,14 +148,19 @@ const StockOnHand: React.FC = () => {
           />
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={belowOnly} onChange={(e) => setBelowOnly(e.target.checked)} />
-            {t('onHand.filters.belowReorder')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} />
             {t('onHand.filters.includeZero')}
           </label>
       </StockFilters>
+      {state === undefined && (
+        <p className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+          <span><b className="font-semibold text-foreground tabular-nums">{itemCount}</b> {t('onHand.tiles.items')}</span>
+          <span><b className="font-semibold text-foreground tabular-nums">{whCount}</b> {t('onHand.tiles.warehouses')}</span>
+          <span><b className="font-semibold text-foreground tabular-nums">{centralCount}</b> {t('onHand.tiles.central')}</span>
+          <span><b className="font-semibold text-foreground tabular-nums">{rows.length - centralCount}</b> {t('onHand.tiles.site')}</span>
+          {totalValue !== null && <span>{t('onHand.columns.value')} <b className="font-semibold text-foreground tabular-nums">{formatStockValue(totalValue, currency, loc)}</b></span>}
+        </p>
+      )}
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
       {state === 'error' && (
         <ListState

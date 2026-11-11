@@ -211,16 +211,16 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     committedState.data = 986600; // committed spend (Σ PO Ordered..Paid)
   });
 
-  it('renders "This procurement" label with total_value formatted as currency', () => {
+  it('renders "Procurement total" label with total_value formatted as currency', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    const labels = screen.getAllByText(/this procurement/i);
+    const labels = screen.getAllByText(/procurement total/i);
     expect(labels.length).toBeGreaterThan(0);
     expect(screen.getByText(/\$48,000/)).toBeInTheDocument();
   });
 
   it('AC-1438 shows the procurement term in Bahasa budget-impact labels', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' }, 'id');
-    expect(screen.getByText('Pengadaan ini')).toBeInTheDocument();
+    expect(screen.getByText('Total pengadaan')).toBeInTheDocument();
     expect(screen.getByText('Setelah pengadaan ini')).toBeInTheDocument();
   });
 
@@ -576,7 +576,7 @@ it('#1354 labels each figure in its own currency: the request in its currency, b
   reservedState.data = 200;
   renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project', currency: 'EUR' });
   const valueOf = (label: RegExp) => within(screen.getByText(label).closest('[data-testid="stat-tile"]') as HTMLElement);
-  expect(valueOf(/^this procurement$/i).getByText(/€50\b/)).toBeInTheDocument();
+  expect(valueOf(/^procurement total$/i).getByText(/€50\b/)).toBeInTheDocument();
   expect(valueOf(/^project budget$/i).getByText(/\$1,000\b/)).toBeInTheDocument();
   expect(valueOf(/^uncommitted budget$/i).getByText(/\$500\b/)).toBeInTheDocument();
   expect(valueOf(/^reserved$/i).getByText(/\$200\b/)).toBeInTheDocument();

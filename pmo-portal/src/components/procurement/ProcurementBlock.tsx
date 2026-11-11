@@ -261,6 +261,9 @@ function ProcurementBudgetLeft({
  * a wizard opening) now skips the whole table, while a change to its own query data or a filter callback
  * still re-renders it — the queries and the store subscriptions trigger it directly.
  */
+/** Amber means waiting on someone: a request left undecided for over a month. A purchase order that has been open a long time is not an exception by itself. */
+const waitingLong = (row: { status: string }, days: number) => row.status === 'Requested' && days > 30;
+
 export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(function ProcurementBlock({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange }) {
   const { t } = useTranslation('procurement');
   // The state main action reuses the record page's labels, which live in the common catalogue.
@@ -653,7 +656,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         cell: (row) => {
           const days = derivationFor(row).age;
           return (
-            <span className={`tabular ${days > 30 && !TERMINAL_STATUSES.includes(row.status) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+            <span className={`tabular ${waitingLong(row, days) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
               {t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })}
             </span>
           );
@@ -843,23 +846,19 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <ProcurementStatusPill status={row.status} />
-                  <span className={`text-sm tabular ${days > 30 && !TERMINAL_STATUSES.includes(row.status) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                    <span className="sr-only">{t('procurement.inStage', 'In stage')}</span>
-                    {t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })}
+                  <span className={`text-sm tabular ${waitingLong(row, days) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                    {t('procurement.inStageDaysLong', { count: days, defaultValue_one: '{{count}} day in stage', defaultValue_other: '{{count}} days in stage' })}
                   </span>
                 </span>
                 {canSeeMoney && rowAmount(row, true)}
               </div>
               <div className="flex min-w-0 items-center justify-between gap-3">
                 {next ? (
-                  <Link to={`/procurement/${row.id}`} className="inline-flex min-h-8 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                    {next}
-                  </Link>
+                  <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/${row.id}`)}>{next}</Button>
                 ) : <span />}
-                <span className="inline-flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+                <span className="min-w-0 truncate text-sm text-muted-foreground">
                   <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
-                  <Avatar name={owner} size="xs" decorative />
-                  <span className="truncate">{owner}</span>
+                  {owner}
                 </span>
               </div>
             </div>
@@ -901,8 +900,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-muted-foreground/40'} />
               ))}
             </div>}
-          <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex gap-2 overflow-x-auto">
-            {stageStats.map(({ key, rows: stageRows, currencyTotals }) => {
+          <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex flex-wrap gap-2">
+            {stageStats.filter(({ key, rows: stageRows }) => stageRows.length > 0 || selectedStage === key).map(({ key, rows: stageRows, currencyTotals }) => {
               const forYou = key === 'Request' && canApprove
                 ? pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length
                 : 0;

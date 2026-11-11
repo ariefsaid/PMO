@@ -316,7 +316,9 @@
     "inStage": "In stage",
     "inStageDays_one": "{{count}} day",
     "inStageDays_other": "{{count}} days",
-    "filters": "Filters"
+    "filters": "Filters",
+    "inStageDaysLong_one": "{{count}} day in stage",
+    "inStageDaysLong_other": "{{count}} days in stage"
   },
   "common": {
     "loading": "Loading…",
@@ -349,7 +351,7 @@
     "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
-    "thisProcurement": "This procurement",
+    "thisProcurement": "Procurement total",
     "notCompared": "In a different currency: not compared with the budget",
     "afterThisProcurement": "After this procurement",
     "overBudgetLead": "This procurement exceeds available budget by",

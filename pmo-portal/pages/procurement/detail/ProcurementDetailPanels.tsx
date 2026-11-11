@@ -196,6 +196,11 @@ const moneyLabels: Record<ProcurementMoneyKind, string> = {
   requested: 'Requested', ordered: 'Ordered', invoiced: 'Invoiced', paid: 'Paid', unpaid: 'Unpaid',
 };
 
+/** The document a missing figure comes from, so the hidden-figures line cannot be read as the procurement total. */
+const moneySources: Record<ProcurementMoneyKind, string> = {
+  requested: 'purchase request', ordered: 'purchase order', invoiced: 'supplier invoice', paid: 'payment', unpaid: 'invoice balance',
+};
+
 export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal }) => {
   const { t } = useTranslation('procurementRecord');
   const money = procurementMoney({
@@ -235,7 +240,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   });
   useFigureReport(shown.filter((entry) => entry.hidden).map<HiddenFigure>((entry) => ({
     label: t(`money.${entry.kind}`, moneyLabels[entry.kind]),
-    reason: t('money.sourceMissing', '{{figure}} amount not recorded', { figure: t(`money.${entry.kind}`, moneyLabels[entry.kind]).toLowerCase() }),
+    reason: t('money.sourceMissing', '{{figure}} amount not recorded', { figure: t(`money.source.${entry.kind}`, moneySources[entry.kind]) }),
   })));
   const visible = shown.filter((entry) => !entry.hidden);
   // No figure and no budget line: no empty card.

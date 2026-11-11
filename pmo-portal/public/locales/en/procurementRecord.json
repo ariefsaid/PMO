@@ -142,7 +142,14 @@
     "projectBudget": "Project budget tracked",
     "projectBudgetTooltip": "Project budget and reserved-spend data are shown here when available. Full impact is shown while this procurement is in Request.",
     "financeOnly": "Invoices and payments are handled by Finance.",
-    "sourceMissing": "{{figure}} amount not recorded"
+    "sourceMissing": "{{figure}} amount not recorded",
+    "source": {
+      "requested": "purchase request",
+      "ordered": "purchase order",
+      "invoiced": "supplier invoice",
+      "paid": "payment",
+      "unpaid": "invoice balance"
+    }
   },
   "timeline": {
     "overdue": "Overdue {{days}} days",

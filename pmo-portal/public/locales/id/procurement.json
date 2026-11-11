@@ -316,7 +316,9 @@
     "inStage": "Di tahap",
     "inStageDays_one": "{{count}} hari",
     "inStageDays_other": "{{count}} hari",
-    "filters": "Filter"
+    "filters": "Filter",
+    "inStageDaysLong_one": "{{count}} hari di tahap ini",
+    "inStageDaysLong_other": "{{count}} hari di tahap ini"
   },
   "common": {
     "loading": "Memuat…",
@@ -349,7 +351,7 @@
     "returnedDetail": "{{title}} telah dikembalikan"
   },
   "decisionSupport": {
-    "thisProcurement": "Pengadaan ini",
+    "thisProcurement": "Total pengadaan",
     "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
     "afterThisProcurement": "Setelah pengadaan ini",
     "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar",

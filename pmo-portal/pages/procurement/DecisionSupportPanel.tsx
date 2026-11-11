@@ -204,7 +204,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const tiles = [
     {
-      label: t('decisionSupport.thisProcurement', 'This procurement'),
+      label: t('decisionSupport.thisProcurement', 'Procurement total'),
       value: formatCurrency(totalValue, currency),
       ...(requestInOtherCurrency ? { sub: t('decisionSupport.notCompared', 'In a different currency: not compared with the budget') } : {}),
     },

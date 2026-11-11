@@ -142,7 +142,14 @@
     "projectBudget": "Anggaran proyek terlacak",
     "projectBudgetTooltip": "Data anggaran proyek dan pengeluaran yang dicadangkan ditampilkan jika tersedia. Dampak penuh ditampilkan saat pengadaan masih di tahap Permintaan.",
     "financeOnly": "Faktur dan pembayaran ditangani oleh Finance.",
-    "sourceMissing": "jumlah {{figure}} belum dicatat"
+    "sourceMissing": "jumlah {{figure}} belum dicatat",
+    "source": {
+      "requested": "permintaan pembelian",
+      "ordered": "pesanan pembelian",
+      "invoiced": "faktur pemasok",
+      "paid": "pembayaran",
+      "unpaid": "saldo faktur"
+    }
   },
   "timeline": {
     "overdue": "Terlambat {{days}} hari",

@@ -212,13 +212,14 @@ describe('Procurement list rows', () => {
     authState.role = 'Finance';
   });
 
-  it('B7: stage band and stage pill read Request · Order · Receive · Pay', () => {
+  it('B7: the stage band names only stages in use, in Request · Order · Receive · Pay words', () => {
     procState.data = [row({ id: 'o', status: 'Ordered', procurement_invoices: [] }), row({ id: 'r', status: 'Received', procurement_invoices: [] })];
     renderBlock('/procurement');
     const band = screen.getByRole('group', { name: 'Procurement stages' });
     const labels = within(band).getAllByRole('button').map((button) => button.textContent ?? '');
-    expect(labels[1]).toMatch(/^Order/);
-    expect(labels[2]).toMatch(/^Receive/);
+    expect(labels).toHaveLength(2);   // stages with nothing in them are not drawn
+    expect(labels[0]).toMatch(/^Order/);
+    expect(labels[1]).toMatch(/^Receive/);
     expect(band).not.toHaveTextContent(/Ordered|Received/);
   });
 
@@ -248,7 +249,7 @@ describe('Procurement list rows on a phone (L3)', () => {
     const card = screen.getByRole('button', { name: 'Open Inverters' }).closest('li')!;
     expect(within(card).getByText('Supplier invoice')).toBeInTheDocument();
     expect(within(card).getAllByText('$62,000')).toHaveLength(1);
-    expect(within(card).getByRole('link', { name: 'Pay' })).toHaveAttribute('href', '/procurement/p-1');
+    expect(within(card).getByRole('button', { name: 'Pay' })).toBeInTheDocument();
     expect(card.querySelector('dl')).toBeNull();
     expect(card).not.toHaveTextContent(/Category|Materials|Paid \/ invoiced/);
     expect(within(card).getByText('Rina Requester')).toBeInTheDocument();

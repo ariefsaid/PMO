@@ -50,11 +50,24 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.getByText('70')).toBeInTheDocument();
   });
 
-  it('the warehouse column names the warehouse, its code secondary (like items)', async () => {
+  it('the warehouse column says the name once, and the code only when two warehouses share a name', async () => {
+    const { unmount } = renderPage();
+    const name = await within(await screen.findByRole('table')).findByText('Site A');
+    expect(name.closest('td')).toHaveTextContent(/^Site A$/);
+    unmount();
+    reports.onHand.mockResolvedValue([row, { ...row, itemId: 'i2', itemCode: 'CAB', warehouseId: 'w2', warehouseCode: 'SITE-B' }]);
     renderPage();
-    const table = await screen.findByRole('table');
-    const name = await within(table).findByText('Site A');
-    expect(name.closest('td')).toHaveTextContent(/Site A\s*SITE-A/);
+    const cells = (await screen.findAllByText(/Site A/)).map((el) => el.closest('td')?.textContent);
+    expect(cells).toEqual(expect.arrayContaining([expect.stringContaining('SITE-A'), expect.stringContaining('SITE-B')]));
+  });
+
+  it('a compact figure line carries the counts and the total of the Value column', async () => {
+    reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00' }, { ...row, itemId: 'i2', itemCode: 'CAB', valueOnHand: '500.50' }]);
+    renderPage();
+    await screen.findByText('CEM');
+    const line = screen.getByText('Items').closest('p')!;
+    expect(line).toHaveTextContent(/2\s*Items/);
+    expect(line).toHaveTextContent(/4,000/);
   });
 
   it('AC-STK-032 empty: no stock yet', async () => {
@@ -75,15 +88,15 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
   it('AC-STK-020 value columns follow the DATA: absent when the response has no value key, present when it does', async () => {
     const { unmount } = renderPage('Engineer');
     await screen.findByText('CEM');
-    expect(screen.queryByText('Value')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Value' })).not.toBeInTheDocument();
     expect(screen.queryByText('Average cost')).not.toBeInTheDocument();
     unmount();
     reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00', avgCost: '50.0000' }]);
     renderPage('Project Manager');
     await screen.findByText('CEM');
-    expect(screen.getByText('Value')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Value' })).toBeInTheDocument();
     expect(screen.getByText('Average cost')).toBeInTheDocument();
-    expect(screen.getByText(/3,500/)).toBeInTheDocument();
+    expect(screen.getAllByText(/3,500/).length).toBeGreaterThan(0);
   });
 
   it('FR-STK-040 the "Below reorder level" filter keeps only balances on the reorder worklist', async () => {

@@ -430,7 +430,7 @@ const ProcurementPage: React.FC = () => {
         {userId && canCreate && referencesPending && <div role="status">{t('references.loading', 'Loading references…')}</div>}
         {userId && canCreate && !referencesPending && referencesError && <div role="status">{t('references.error', "Couldn't refresh references.")} <Button variant="outline" onClick={() => void refreshReferences()}>{t('references.retry', 'Retry references')}</Button></div>}
       </MobileToolbarDisclosure>
-      {canCreate && <span className="hidden sm:block"><Button variant="primary" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></span>}
+      {canCreate && <span><Button variant="primary" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></span>}
     </div>
   );
 
@@ -468,7 +468,7 @@ const ProcurementPage: React.FC = () => {
       help={help}
       primaryAction={primaryAction}
     >
-      <div className="space-y-4 pb-20 sm:pb-0">
+      <div className="space-y-4">
         <FigureHiddenLine />
         <Tabs
           items={tabs.map(({ key, label, count, money }) => ({ value: key, label, count, detail: money || undefined }))}
@@ -592,7 +592,6 @@ const ProcurementPage: React.FC = () => {
           />
         )}
       </div>
-      {canCreate && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 p-3 shadow-sm sm:hidden"><Button variant="primary" className="w-full" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></div>}
     </ListPage>
     </FigureScope>
   );
