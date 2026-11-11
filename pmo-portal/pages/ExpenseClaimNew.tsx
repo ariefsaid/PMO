@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FormGrid, FormSection, GateNotice, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, FormFooter, FormGrid, FormSection, GateNotice, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
@@ -190,7 +190,12 @@ const ExpenseClaimNew: React.FC = () => {
         <Button type="button" variant="outline" onClick={() => setLines((rows) => [...rows, blankLine()])}>{t('expenses.lines.add', 'Add line')}</Button>
         <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
       </FormSection>
-      <div className="sticky bottom-[var(--phone-nav-height)] flex justify-end gap-2 border-t border-border bg-background py-3"><Button type="button" variant="outline" onClick={() => guardLeave(() => navigate('/expenses'))}>{t('expenses.actions.cancel', 'Cancel')}</Button><Button type="submit" variant="primary" disabled={saving || advancesNotReady || projectsNotReady}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}</Button></div>
+      <FormFooter
+        submitLabel={saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}
+        cancelLabel={t('expenses.actions.cancel', 'Cancel')}
+        onCancel={() => guardLeave(() => navigate('/expenses'))}
+        disabled={saving || advancesNotReady || projectsNotReady}
+      />
     </form>
     <UnsavedChangesDialog open={blockedLeave !== null} onKeepEditing={() => setBlockedLeave(null)} onDiscard={() => { const leave = blockedLeave; setBlockedLeave(null); leave?.(); }} />
   </div>;

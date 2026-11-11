@@ -72,6 +72,9 @@ test('the budget position compares compatible currency and identifies foreign de
 test('a procurement in an incompatible currency shows no headroom comparison', async ({ page }) => {
   await signIn(page, 'finance@acme.test');
   await page.goto(`/procurement/${ids[3]}`);
-  await expect(page.getByText(/Budget comparison unavailable for these currencies/).first()).toBeVisible();
+  // COPY (ux/1110): the panel states the same fact in the redesigned wording — the purchase is in
+  // another currency and is therefore not compared with the budget. Oracle unchanged: the user is
+  // told there is no comparison, and no headroom figure is claimed.
+  await expect(page.getByText(/In a different currency: not compared with the budget/i).first()).toBeVisible();
   await expect(page.getByText(/headroom remaining/)).not.toBeVisible();
 });

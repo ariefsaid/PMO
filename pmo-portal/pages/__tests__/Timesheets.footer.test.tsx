@@ -186,6 +186,27 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     const saveBtn = within(footer).getByRole('button', { name: /^save$/i });
     expect(saveBtn.className).not.toMatch(/bg-primary/);
   });
+
+  it('R2-c2c: the desktop footer is the shared sticky form footer — viewport-bottom pin, Save left of Submit, outside the clipped card', () => {
+    tsState.data = draftSheet([
+      { id: 'e1', timesheet_id: 'ts-draft', project_id: 'pr1', entry_date: currentWeekStartStr(), hours: 8,
+        notes: null, project: { name: 'Alpha Project', code: 'A001' } },
+    ]);
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+
+    const footer = screen.getByTestId('timesheets-footer');
+    // Shared sticky footer layout: pinned above the phone bar token (0 on desktop).
+    expect(footer.className).toContain('sticky');
+    expect(footer.className).toContain('bottom-[var(--phone-nav-height)]');
+    expect(footer.className).toContain('bg-background');
+    // Primary first from the right: Save precedes Submit in DOM order.
+    const saveBtn = within(footer).getByRole('button', { name: /^save$/i });
+    const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
+    expect(saveBtn.compareDocumentPosition(submitBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Outside the clipped card, so the sticky pin engages against the viewport, not the card.
+    expect(footer.closest('.overflow-hidden')).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
