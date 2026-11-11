@@ -79,6 +79,8 @@ export const AttachJournalLineDialog: React.FC<{ line: ErpJournalLine; onClose: 
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
       loading={attach.isPending}
+      // F2-11: a chosen purchase must survive Escape/Cancel/backdrop — confirm the discard first.
+      dirty={!!target}
       submitDisabled={!target || verdict?.ok !== true}
       disabledReason={target ? t('erpJournal.cannotAttach', 'This line cannot be attached to that purchase.') : t('erpLinks.choosePurchaseFirst', 'Choose a purchase first.')}
       submitError={submitError}
