@@ -88,8 +88,9 @@ test(
     const statusButton = createdRow.getByRole('button', { name: `Status for ${taskName}` });
     await statusButton.click();
     await statusCtl.selectOption('In Progress');
-    // GOAL ORACLE: the control reflects the new status (the row persisted the change)
-    await expect(statusButton).toHaveText('In Progress', { timeout: 15_000 });
+    // GOAL ORACLE: the control reflects the new status (the row persisted the change).
+    // The stored value stays 'In Progress'; ux/1110 prints it through status.json as "In progress".
+    await expect(statusButton).toHaveText('In progress', { timeout: 15_000 });
     await statusButton.click();
     await expect(statusCtl).toHaveValue('In Progress', { timeout: 15_000 });
 
