@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, ListPage, ListState, SelectField, StatusPill, type Column } from '@/src/components/ui';
+import { Button, DataTable, ListPage, ListState, SelectField, StatusPill, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockDocuments } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
@@ -15,8 +15,13 @@ const StockDocuments: React.FC = () => {
   const { t } = useTranslation('stock');
   const { t: tStatus } = useTranslation('status');
   const navigate = useNavigate();
-  const [kind, setKind] = useState('');
-  const [status, setStatus] = useState('');
+  // R2: kind/status are URL-owned so Back/refresh (and a shared link) keep them; defaults stay
+  // out of the URL (empty = all).
+  const { values, setFilter } = useUrlFilters(['kind', 'status']);
+  const kind = values.kind;
+  const status = values.status;
+  const setKind = (value: string) => setFilter('kind', value);
+  const setStatus = (value: string) => setFilter('status', value);
   const q = useStockDocuments({ ...(kind ? { kind: kind as StockDocumentKind } : {}), ...(status ? { status: status as StockDocumentStatus } : {}) });
   const rows = useMemo(() => (q.data?.pages ?? []).flat(), [q.data]);
 

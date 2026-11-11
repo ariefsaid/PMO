@@ -225,10 +225,14 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   const invoiceEmptyMessage = (): React.ReactNode | undefined => {
     if (selectedCustomerId && !hasEligibleInvoices) {
       if (otherLedgerOpenInvoiceCount === 1) {
-        return <span role="status">{t('financeCopy.otherLedgerInvoiceSingular', '1 open invoice is recorded in the accounting system: record its payment there.')}</span>;
+        return <span role="status">{native
+          ? t('financeCopy.excludedAccountingInvoiceSingular', '1 open invoice is recorded in the accounting system. A receipt against it cannot be recorded here yet.')
+          : t('financeCopy.excludedPmoInvoiceSingular', '1 open invoice is recorded in PMO. A receipt against it cannot be recorded here yet.')}</span>;
       }
       if (otherLedgerOpenInvoiceCount > 1) {
-        return <span role="status">{t('financeCopy.otherLedgerInvoicesPlural', '{{count}} open invoices are recorded in the accounting system: record their payments there.', { count: otherLedgerOpenInvoiceCount })}</span>;
+        return <span role="status">{native
+          ? t('financeCopy.excludedAccountingInvoicesPlural', '{{count}} open invoices are recorded in the accounting system. Receipts against them cannot be recorded here yet.', { count: otherLedgerOpenInvoiceCount })
+          : t('financeCopy.excludedPmoInvoicesPlural', '{{count}} open invoices are recorded in PMO. Receipts against them cannot be recorded here yet.', { count: otherLedgerOpenInvoiceCount })}</span>;
       }
       return <span role="status">{native
         ? t('financeCopy.noEligibleNativeInvoiceForCustomer', 'No approved invoice with a reported balance is available for this customer. Create or approve an invoice, or refresh its balance, then try again.')

@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -22,10 +22,17 @@ const StockOnHand: React.FC = () => {
   const me = useAuth().currentUser?.id;
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
-  const [warehouseId, setWarehouseId] = useState('');
-  const [includeZero, setIncludeZero] = useState(false);
-  const [search, setSearch] = useState('');
-  const [belowOnly, setBelowOnly] = useState(false);
+  // R2: all four filters are URL-owned so Back/refresh keep them; defaults stay out of the URL
+  // (empty = all warehouses, zero balances hidden, no search, worklist off).
+  const { values, setFilter } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder']);
+  const warehouseId = values.warehouse;
+  const includeZero = values.zero === '1';
+  const search = values.q;
+  const belowOnly = values.belowReorder === '1';
+  const setWarehouseId = (value: string) => setFilter('warehouse', value);
+  const setIncludeZero = (checked: boolean) => setFilter('zero', checked ? '1' : '');
+  const setSearch = (value: string) => setFilter('q', value);
+  const setBelowOnly = (checked: boolean) => setFilter('belowReorder', checked ? '1' : '');
   const navigate = useNavigate();
 
   const warehouses = useStockWarehouses(false);

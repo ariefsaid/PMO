@@ -105,8 +105,15 @@ export default function ReceivablesPage() {
     const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
     return amount === null ? undefined : cashDeltaCents > 0 ? `+${amount}` : cashDeltaCents < 0 ? `−${amount}` : amount;
   })();
-  const owedTile = dataPending || (owedUnknown > 0 && !owed[orgCurrency]) ? null : moneyTileProps(owed, orgCurrency);
-  const overdueTile = dataPending || (overdueUnknown > 0 && !finance.position.overdueTotals[orgCurrency]) ? null : moneyTileProps(finance.position.overdueTotals, orgCurrency);
+  const owedTile = dataPending || (owedUnknown > 0 && !owed[orgCurrency]) ? null : moneyTileProps(finance.position.receivablesCount === 0 ? { [orgCurrency]: 0 } : owed, orgCurrency);
+  const overdueTile = dataPending || (overdueUnknown > 0 && !finance.position.overdueTotals[orgCurrency]) ? null : moneyTileProps(finance.position.overdue.length === 0 ? { [orgCurrency]: 0 } : finance.position.overdueTotals, orgCurrency);
+
+  const dueSoonTile = moneyTileProps(dueSoon.length === 0 && today ? { [orgCurrency]: 0 } : dueSoonByCurrency, orgCurrency);
+  const hasCurrentPayments = today && payments.some((payment) => {
+    const date = payment.date?.slice(0, 10);
+    return date && date >= monthStart(today) && date < nextMonthStart(today) && payment.status === 'Paid' && !payment.cancelled_at && !payment.erp_cancelled_at;
+  });
+  const cashTile = moneyTileProps(today && !hasCurrentPayments ? { [orgCurrency]: 0 } : thisMonthCash, orgCurrency);
 
   const changeView = (nextView: ReceivablesView) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
@@ -139,7 +146,7 @@ export default function ReceivablesPage() {
     return next;
   }, { replace: true });
 
-  const unknownReason = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count });
+  const unknownReason = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} invoice has no balance reported by the accounting system' : '{{count}} invoices have no balance reported by the accounting system', count });
   const seeInvoices = { to: '/finance/receivables?status=Unpaid', label: t('financeHub:hub.seeInvoices', 'See invoices') };
 
   return (
@@ -175,13 +182,13 @@ export default function ReceivablesPage() {
           <KPITile
             icon="grid" tone="amber" label={t('finance:receivables.dueNext30', 'Due in next 30 days')}
             caption={dueSoon[0] ? t('finance:receivables.nextDue', 'next due {{date}}', { date: formatDay(dueSoon[0].due) }) : undefined}
-            value={dataPending ? null : moneyTileProps(dueSoonByCurrency, orgCurrency).value} exactValue={dataPending ? undefined : moneyTileProps(dueSoonByCurrency, orgCurrency).exactValue} loading={dataPending}
+            value={dataPending ? null : dueSoonTile.value} exactValue={dataPending ? undefined : dueSoonTile.exactValue} loading={dataPending}
             help={t('finance:receivables.dueHelp', 'Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.')}
           />
           <KPITile
             icon="grid" tone="green" label={t('finance:receivables.receivedThisMonth', 'Received this month')}
             caption={cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
-            value={dataPending ? null : moneyTileProps(thisMonthCash, orgCurrency).value} exactValue={dataPending ? undefined : moneyTileProps(thisMonthCash, orgCurrency).exactValue} loading={dataPending}
+            value={dataPending ? null : cashTile.value} exactValue={dataPending ? undefined : cashTile.exactValue} loading={dataPending}
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
           />
         </KPIRow>

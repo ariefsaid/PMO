@@ -52,6 +52,8 @@ import { projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { calendarAgeDays } from '@/src/lib/finance/financePosition';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -567,6 +569,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     ...(canDelete ? [{ key: 'delete', label: t('projectDetail.header.action.delete', 'Delete'), onSelect: () => setDeleteOpen(true), danger: true }] : []),
   ];
   const taxLabel = canViewMoney && project.tax_treatment;
+  const orgToday = useOrgToday();
+  const pastEndDays = group !== 'lost' && status !== 'Close Out'
+    ? calendarAgeDays(project.end_date, orgToday)
+    : null;
   const hasDetails = compact && Boolean(menuContent || taxLabel);
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
@@ -600,11 +606,19 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     </Popover>
   ) : undefined;
   const statusPill = <StatusPill record="project" state={status} />;
+  const statusWithEndDate = (
+    <span className="flex flex-wrap items-center gap-2">
+      {statusPill}
+      {pastEndDays !== null && pastEndDays > 0 && (
+        <StatusPill variant="warn">{t('projectDetail.header.pastEndDate', 'Past end date · {{count}} d', { count: pastEndDays })}</StatusPill>
+      )}
+    </span>
+  );
   // Phone: the status pill joins the action row (one row less above the work).
   const statusOnPhoneRow = compact && !isDesktopHeader;
   const actions = compact ? (
     <>
-      {statusOnPhoneRow && statusPill}
+      {statusOnPhoneRow && statusWithEndDate}
       {secondaryAction}
       {detailsPanel}
       {showCompactContractLock && (
@@ -739,7 +753,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={statusOnPhoneRow ? undefined : statusPill}
+        status={statusOnPhoneRow ? undefined : statusWithEndDate}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.

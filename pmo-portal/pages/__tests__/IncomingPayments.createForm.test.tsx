@@ -656,8 +656,33 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await pick(user, 'Customer', 'Acme Energy');
     await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
 
-    expect(await screen.findByText('1 open invoice is recorded in the accounting system: record its payment there.')).toBeInTheDocument();
+    expect(await screen.findByText('1 open invoice is recorded in the accounting system. A receipt against it cannot be recorded here yet.')).toBeInTheDocument();
     expect(screen.queryByText('No invoice matches.')).not.toBeInTheDocument();
+  });
+
+  it('R2-P1b #5 names the excluded invoice ledger in both modes and keeps the receipt path in PMO', async () => {
+    const user = userEvent.setup();
+
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-erp', pmo_native: false })];
+    const nativePage = renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+    expect(await screen.findByText(
+      '1 open invoice is recorded in the accounting system. A receipt against it cannot be recorded here yet.',
+    )).toBeInTheDocument();
+    nativePage.unmount();
+
+    hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }];
+    hoisted.invoicesState.data = [invoice({ id: 'si-pmo', pmo_native: true })];
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+    expect(await screen.findByText(
+      '1 open invoice is recorded in PMO. A receipt against it cannot be recorded here yet.',
+    )).toBeInTheDocument();
   });
 
   it('distinguishes invoices that are still loading from an empty eligible list', async () => {

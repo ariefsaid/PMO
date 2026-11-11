@@ -69,6 +69,18 @@ beforeEach(() => {
 });
 
 describe('ExpenseClaims page', () => {
+  it('R2-P1b #7 shows the exact transaction amount in the claims list', () => {
+    h.list.data = {
+      rows: [{ ...ROW, amount: 12.5, currency: 'USD' }],
+      truncated: false,
+    };
+    renderPage();
+
+    const row = screen.getByRole('row', { name: /Site visit/ });
+    expect(within(row).getByText('$12.50')).toBeInTheDocument();
+    expect(within(row).queryByText('$13')).not.toBeInTheDocument();
+  });
+
   it('AC-EXP-060 lists records with number, claimant, project, amount and status', () => {
     renderPage();
     const row = screen.getByRole('row', { name: /Site visit/ });

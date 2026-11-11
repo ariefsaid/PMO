@@ -116,6 +116,13 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
+  it('shows known zero for no receivables and no supplier invoices', () => {
+    state.position = { ...positionFixture(), receivablesCount: 0, receivablesAgeing: {}, payables: [], payablesTotals: {} };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+    expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+  });
+
   it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
     renderHub('Finance');
     expect(screen.getByTestId('invoice-pair-review')).toHaveTextContent('org-1');
@@ -135,7 +142,7 @@ describe('Finance hub', () => {
     expect(receivables).toHaveTextContent('IDR 400K');
     expect(receivables).toHaveTextContent('1 invoice · balance unknown');
     expect(receivables).not.toHaveTextContent('$0');
-    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/balance.*unknown/i);
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/no balance reported by the accounting system/i);
   });
 
   it('F1: names a wholly unknown balance and keeps a known unbilled zero as zero', () => {
@@ -147,9 +154,10 @@ describe('Finance hub', () => {
     };
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
 
-    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
-    expect(receivables).toHaveTextContent('Balance unknown');
-    expect(receivables).not.toHaveTextContent('$0');
+    expect(screen.queryByRole('link', { name: 'Open Receivables' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoice balances unknown');
+    expect(screen.getByRole('link', { name: 'See invoices' })).toHaveAttribute('href', '/finance/receivables');
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/no balance reported by the accounting system/i);
     const unbilled = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
     expect(unbilled).toHaveTextContent('Done, not yet billed');
     expect(unbilled).toHaveTextContent('$0');
