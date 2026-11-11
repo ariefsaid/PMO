@@ -85,7 +85,7 @@ const FinanceHub: React.FC = () => {
         label={t('financeHub:hub.owed', 'Receivables')}
         value={owed.value} exactValue={owed.exactValue}
         caption={finance.position.receivablesUnknownCount > 0
-          ? t('financeHub:hub.owedUnknownCaption', { count: finance.position.receivablesUnknownCount, defaultValue_one: '{{count}} invoice · balance unknown', defaultValue_other: '{{count}} invoices · balance unknown' })
+          ? t('financeHub:hub.owedUnknownCaption', { count: finance.position.receivablesUnknownCount, defaultValue_one: '{{count}} balance unknown', defaultValue_other: '{{count}} balances unknown' })
           : t('financeHub:hub.taxIncluded', 'tax included')}
         unavailableReason={owed.unknown ? t('financeHub:hub.owedUnknown', 'invoice balances unknown') : undefined}
         hiddenLink={{ to: '/finance/receivables', label: t('financeHub:hub.seeInvoices', 'See invoices') }}

@@ -1,10 +1,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChartCard, MonthColumns, SeriesKey } from '@/src/components/dashboard/charts';
-import { usePaidPaymentFacts } from '@/src/hooks/useRevenue';
-import { useManagementPack } from '@/src/hooks/useManagementPack';
+import { useMonthlyInvoiceFacts, usePaidPaymentFacts } from '@/src/hooks/useRevenue';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
-import { selectCollectedByMonth, selectInvoicedByMonth } from '@/src/components/dashboard/restructure/useCompanyFigures';
+import { selectCollectedByMonth } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { addMonths, monthsBetween } from '@/src/lib/reports/months';
 import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 
@@ -13,18 +12,21 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const currencyState = useOrgCurrencyState();
   const to = addMonths(`${(today ?? new Date().toISOString()).slice(0, 7)}-01`, -1);
   const from = addMonths(to, -5);
-  // The Finance hub's narrow figures endpoint is the only route read. Reuse monthly data from the
-  // query cache when Home or Reports already loaded it; opening this chart must not fetch the full pack.
-  const pack = useManagementPack({ from, to }, false);
-  const payments = usePaidPaymentFacts(false);
-  const invoicesByMonth = selectInvoicedByMonth(pack.data, from, to, currencyState.currency);
+  const invoices = useMonthlyInvoiceFacts(from, addMonths(to, 1), enabled && Boolean(today));
+  const payments = usePaidPaymentFacts(enabled && Boolean(today));
+  const invoiceValues = new Map<string, number>();
+  for (const invoice of invoices.data ?? []) {
+    if (invoice.currency !== currencyState.currency || invoice.net == null) continue;
+    const month = invoice.invoice_date.slice(0, 7);
+    invoiceValues.set(month, (invoiceValues.get(month) ?? 0) + Number(invoice.net) + Number(invoice.recovery ?? 0));
+  }
+  const invoicesByMonth = invoices.data === undefined ? undefined : invoiceValues;
   const collectedByMonth = selectCollectedByMonth(payments.data, currencyState.currency);
   const hasInvoices = invoicesByMonth !== undefined;
   const hasCollections = collectedByMonth !== undefined;
   const collectionsPrimary = !hasInvoices && hasCollections;
   const hasPair = hasInvoices && hasCollections && !collectionsPrimary;
   const months = monthsBetween(from, to);
-  const invoiceValues = new Map((invoicesByMonth ?? []).map((point) => [point.month, point.amount]));
   const points = months.map((month) => {
     const monthKey = month.slice(0, 7);
     const collected = hasCollections ? collectedByMonth?.get(monthKey) ?? 0 : undefined;
@@ -55,7 +57,7 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const hasNonZero = points.some((point) => point.a !== 0 || (point.b !== undefined && point.b !== 0));
   const canDraw = hasSeries && hasNonZero && points.length >= 3;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
-  const pending = !today || !currencyState.isResolved;
+  const pending = !today || !currencyState.isResolved || invoices.isPending || payments.isPending;
 
   if (!enabled) return null;
   return (
