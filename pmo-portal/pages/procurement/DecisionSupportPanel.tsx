@@ -95,7 +95,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
-      <h3 className="text-[12.5px] font-semibold text-muted-foreground">
+      <h3 className="text-control font-semibold text-muted-foreground">
         Budget impact
       </h3>
       {projectName ? (
@@ -103,7 +103,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           projectId={scopedProjectId}
           name={projectName}
           legalName={projectLegalName}
-          className="text-[12.5px] font-medium text-foreground"
+          className="text-control font-medium text-foreground"
         />
       ) : null}
     </div>
@@ -133,7 +133,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-control text-muted-foreground">
             Budget unavailable — budget impact can&apos;t be shown right now.
           </p>
         </CardPad>
@@ -149,7 +149,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-control text-muted-foreground">
             No active budget set for this project — budget impact can&apos;t be shown.
           </p>
         </CardPad>
@@ -166,7 +166,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
     return (
       <Card variant="bare" className="mb-4"><CardPad>{heading}
-        <p className="text-[13px] text-muted-foreground">{t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')}</p>
+        <p className="text-control text-muted-foreground">{t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')}</p>
       </CardPad></Card>
     );
   }
@@ -189,7 +189,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       : computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency: currency });
   } catch {
     return <Card variant="bare" className="mb-4"><CardPad>{heading}
-      <p className="text-[13px] text-muted-foreground">{t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')}</p>
+      <p className="text-control text-muted-foreground">{t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')}</p>
     </CardPad></Card>;
   }
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } = signal;
@@ -252,7 +252,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <span className="bg-muted-foreground/55" style={{ width: `${spokenPct}%` }} />
             <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
-          <p className="mt-1 text-support text-muted-foreground tabular">
+          <p className="mt-1 text-control text-muted-foreground tabular">
             {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
           </p>
         </div>
@@ -298,7 +298,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <div className="mt-3 pt-3 border-t border-border/50">
           <Link
             to={`/projects/${scopedProjectId}`}
-            className="inline-flex items-center gap-1 text-[12px] font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
+            className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
             Open project
           </Link>

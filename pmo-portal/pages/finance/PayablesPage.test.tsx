@@ -117,16 +117,18 @@ describe('Payables page', () => {
     expect(screen.getByText('North')).toBeInTheDocument();
     expect(screen.getByText('DW')).toBeInTheDocument();
     expect(screen.getAllByText(/100 days/)).toHaveLength(2);
-    expect(screen.getByText('Calendar days since invoiced status was recorded, or last update if unavailable')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Supplier invoices by age · since invoiced status or last update/ })).toBeInTheDocument();
+    expect(screen.getByText('Longest wait')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Waiting to pay, by days/ })).toBeInTheDocument();
     expect(screen.queryByText(/Paid this month/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Procurement' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Procurement title \+ code/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/Jul 19, 2026|19 Jul 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/19 Jul/)).toBeInTheDocument();
     expect(screen.queryByText('—')).not.toBeInTheDocument();
     expect(screen.queryByText('How it is calculated')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(2);
+    // One help control for the page; no per-figure "?".
+    expect(screen.queryAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: /About Payables/ })).toHaveLength(1);
   });
 
   it('F11: the to-pay figure is short with its exact amount kept, while the table total stays full', () => {
@@ -187,9 +189,8 @@ describe('Payables page', () => {
     const row = screen.getByRole('row', { name: /Bumi Rental/ });
     expect(row).not.toHaveTextContent(/IDR\s?0\b|Rp\s?0\b/);
     expect(row).not.toHaveTextContent('—');
-    expect(within(screen.getByRole('region', { name: 'Payables figures' })).getByText('1 balance unknown')).toBeInTheDocument();
-    expect(screen.getAllByText(/1 supplier invoice has no amount on record, so its balance is left out of the total/)).toHaveLength(1);
-    expect(within(screen.getByRole('region', { name: /Supplier invoices by age/ })).getByTestId('ageing-bucket-IDR-d0_30')).toHaveTextContent('1 balance unknown');
+    expect(screen.getAllByText(/1 invoice has no amount and is left out of the total/)).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: /Waiting to pay, by days/ })).getByTestId('ageing-bucket-IDR-d0_30')).toHaveTextContent('1 balance unknown');
   });
 
   it('L12(a): a supplier invoice kept in the accounting system shows the amount the procurement record shows', () => {
@@ -219,7 +220,7 @@ describe('Payables page', () => {
       payablesAgeing: { IDR: { d0_30: 6_240_000_000, d31_60: 0, d61_90: 0, over90: 0 } },
     });
 
-    const ageing = screen.getByRole('region', { name: /Supplier invoices by age/ });
+    const ageing = screen.getByRole('region', { name: /Waiting to pay, by days/ });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('1 balance unknown');
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).not.toHaveTextContent(/IDR\s?0\b/);
     expect(within(ageing).getByTestId('ageing-bucket-IDR-d0_30')).not.toHaveTextContent(/unknown/);

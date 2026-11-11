@@ -1,18 +1,18 @@
 import React, { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, Tooltip, ViewToggle } from '@/src/components/ui';
+import { Button, Icon, PageHeader, ViewToggle } from '@/src/components/ui';
+import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
+import { figureCols, moneyTileProps } from '@/src/components/finance/moneyTile';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatDateOnly } from '@/src/lib/format';
-import { moneyFigure, shortMoney, type MoneyFigure } from '@/src/lib/dashboardMoney';
-import { FigureContent } from '@/src/components/ui/FigureContent';
-import { KPIRow } from '@/src/components/ui/KPITile';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import type { CurrencyTotals } from '@/src/lib/finance/financePosition';
+import { formatDay, formatTileMoney } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
 import SalesInvoices from '@/pages/SalesInvoices';
@@ -40,23 +40,6 @@ function addDays(day: string, days: number): string {
   const date = new Date(`${day}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
-}
-
-/** Figure tiles show short money (F11); the exact amount rides as hover/screen-reader metadata. */
-function leadCurrencyAmount(values: CurrencyTotals, currency: string): MoneyFigure {
-  return moneyFigure((values[currency] ?? 0) / 100, currency, '');
-}
-
-function otherCurrencyAmounts(values: CurrencyTotals, leadCurrency: string): string[] {
-  return Object.entries(values)
-    .filter(([currency, amount]) => currency !== leadCurrency && amount !== 0)
-    .map(([currency, cents]) => shortMoney(cents / 100, currency, '—', { code: true }));
-}
-
-/** Signed short delta; an unchanged month carries no sign (O8). */
-function signedShort(cents: number, currency: string, opts: { code?: boolean } = {}): string {
-  const amount = shortMoney(Math.abs(cents) / 100, currency, '—', opts);
-  return cents > 0 ? `+${amount}` : cents < 0 ? `−${amount}` : amount;
 }
 
 function dueSoonTotals(invoices: { erp_outstanding_amount: number | null; currency: string }[]): CurrencyTotals {
@@ -88,37 +71,6 @@ function monthlyCash(payments: IncomingPaymentRow[], from: string, to: string): 
   return totals;
 }
 
-function Figure({
-  title,
-  value,
-  detail,
-  secondaryDetail,
-  help,
-  tone,
-}: {
-  title: string;
-  value: MoneyFigure | null;
-  detail: string;
-  secondaryDetail?: string;
-  help: string;
-  tone?: 'good' | 'bad';
-}) {
-  const { t } = useTranslation();
-  return (
-    <section className="min-w-0 p-3 sm:p-4" aria-label={title}>
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
-        <Tooltip content={help}>
-          <button type="button" aria-label={t('finance:receivables.calculation', 'How this figure is calculated')} className="touch-target inline-grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
-        </Tooltip>
-      </div>
-      <p data-figure-value className="mt-2 break-words text-[20px] font-semibold leading-tight tabular sm:text-[23px]">{value ? <FigureContent value={value.value} exactValue={value.exactValue} /> : '—'}</p>
-      <p className={`mt-1 min-h-5 text-xs ${tone === 'good' ? 'text-[hsl(var(--success-text))]' : tone === 'bad' ? 'text-destructive-text' : 'text-muted-foreground'}`}>{detail}</p>
-      {secondaryDetail && <p className="mt-1 text-xs text-muted-foreground">{secondaryDetail}</p>}
-    </section>
-  );
-}
-
 export default function ReceivablesPage() {
   const { t } = useTranslation();
   const may = usePermission();
@@ -133,17 +85,9 @@ export default function ReceivablesPage() {
   const canCreatePayment = may('create', 'incomingPayment');
   const owed = useMemo(() => owedTotals(finance.position), [finance.position]);
   const openInvoices = useMemo(() => invoices.filter((invoice) => isOpenClientInvoiceStatus(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
-  const clientsCount = new Set(openInvoices.map((invoice) => invoice.customer_id).filter(Boolean)).size;
   const owedUnknown = finance.position.receivablesUnknownCount;
   const overdueUnknown = finance.position.overdueUnknownCount;
-  const unknownLabel = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count });
-  const owedValue = leadCurrencyAmount(owed, orgCurrency);
-  const owedOtherCurrencies = otherCurrencyAmounts(owed, orgCurrency);
-  const overdueValue = leadCurrencyAmount(finance.position.overdueTotals, orgCurrency);
-  const overdueOtherCurrencies = otherCurrencyAmounts(finance.position.overdueTotals, orgCurrency);
-  const overdueCents = finance.position.overdueTotals[orgCurrency] ?? 0;
-  const overduePercent = owedUnknown || overdueUnknown ? '—' : owed[orgCurrency] ? `${Math.round((overdueCents / owed[orgCurrency]) * 100)}%` : '0%';
-  const oldestOverdueDays = finance.position.overdue[0]?.daysOverdue ?? 0;
+  const overduePercent = owedUnknown || overdueUnknown ? null : owed[orgCurrency] ? Math.round(((finance.position.overdueTotals[orgCurrency] ?? 0) / owed[orgCurrency]) * 100) : 0;
   const today = finance.today;
   const dueSoon = useMemo(() => {
     if (!today) return [];
@@ -154,21 +98,15 @@ export default function ReceivablesPage() {
     }).sort((a, b) => a.due.localeCompare(b.due));
   }, [openInvoices, today]);
   const dueSoonByCurrency = useMemo(() => dueSoonTotals(dueSoon.map(({ invoice }) => invoice)), [dueSoon]);
-  const dueSoonOtherCurrencies = otherCurrencyAmounts(dueSoonByCurrency, orgCurrency);
   const thisMonthCash = useMemo(() => today ? monthlyCash(payments, monthStart(today), nextMonthStart(today)) : {}, [payments, today]);
   const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : {}, [payments, today]);
-  const cashValue = leadCurrencyAmount(thisMonthCash, orgCurrency);
   const cashDeltaCents = (thisMonthCash[orgCurrency] ?? 0) - (lastMonthCash[orgCurrency] ?? 0);
-  const cashDelta = signedShort(cashDeltaCents, orgCurrency);
-  const cashOtherDelta = Object.keys({ ...thisMonthCash, ...lastMonthCash })
-    .filter((currency) => currency !== orgCurrency)
-    .map((currency) => {
-      const delta = (thisMonthCash[currency] ?? 0) - (lastMonthCash[currency] ?? 0);
-      return delta === 0 ? null : signedShort(delta, currency, { code: true });
-    })
-    .filter((amount): amount is string => amount !== null);
-  const cashIsGood = cashDeltaCents > 0;
-  const cashIsBad = cashDeltaCents < 0;
+  const cashDelta = (() => {
+    const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
+    return amount === null ? undefined : cashDeltaCents > 0 ? `+${amount}` : cashDeltaCents < 0 ? `−${amount}` : amount;
+  })();
+  const owedTile = dataPending || (owedUnknown > 0 && !owed[orgCurrency]) ? null : moneyTileProps(owed, orgCurrency);
+  const overdueTile = dataPending || (overdueUnknown > 0 && !finance.position.overdueTotals[orgCurrency]) ? null : moneyTileProps(finance.position.overdueTotals, orgCurrency);
 
   const changeView = (nextView: ReceivablesView) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
@@ -201,73 +139,69 @@ export default function ReceivablesPage() {
     return next;
   }, { replace: true });
 
+  const unknownReason = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count });
+  const seeInvoices = { to: '/finance/receivables?status=Unpaid', label: t('financeHub:hub.seeInvoices', 'See invoices') };
+
   return (
-    <div className="min-w-0 pb-24 sm:pb-0">
-      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('finance:receivables.title', 'Receivables')}</h1>
-        </div>
-        {/* B4: on a phone the sticky bar owns New invoice. The wrapper hides it: Button's own inline-flex would beat `hidden`. */}
-        <div className="flex flex-wrap items-center gap-2">
-          {canCreatePayment && view === 'payments' && <Button type="button" variant="primary" onClick={openNewPayment}>
-            <Icon name="plus" />{t('financeCopy.receivePayment', 'Receive Payment')}
-          </Button>}
-          {canCreateInvoice && <div data-testid="receivables-header-new-invoice" className="hidden sm:block">
-            <Button type="button" variant={view === 'payments' ? 'outline' : 'primary'} onClick={openNewInvoice}>
-              <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
-            </Button>
-          </div>}
-        </div>
-      </header>
+    <FigureScope>
+    <div className="flex min-w-0 flex-col">
+      <PageHeader
+        title={t('finance:receivables.title', 'Receivables')}
+        help={<p>{t('finance:receivables.helpAges', 'Client balances by age count days past due, tax included. Overdue shows known balances only; invoices with an unknown balance are listed, not added.')}</p>}
+        helpSubject={t('finance:receivables.title', 'Receivables')}
+        className="order-1"
+        action={<div className="flex flex-wrap items-center gap-2">
+          {/* One filled primary (by view). The other create action is an outline button on large screens and in the list's ⋯ menu on a phone. */}
+          {view === 'payments'
+            ? <>
+              {canCreateInvoice && <div className="hidden sm:block"><Button type="button" variant="outline" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
+              {canCreatePayment && <Button type="button" variant="primary" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button>}
+            </>
+            : <>
+              {canCreatePayment && <div className="hidden sm:block"><Button type="button" variant="outline" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button></div>}
+              {canCreateInvoice && <div data-testid="receivables-header-new-invoice"><Button type="button" variant="primary" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
+            </>}
+        </div>}
+      />
 
-      <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
-        <Figure
-          title={t('finance:receivables.owed', 'Owed to you')}
-          value={dataPending || (owedUnknown > 0 && !owed[orgCurrency]) ? null : owedValue}
-          detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.invoiceClients', {
-            count: openInvoices.length,
-            clients: clientsCount,
-            clientLabel: t(clientsCount === 1 ? 'finance:receivables.clientSingular' : 'finance:receivables.clientPlural', clientsCount === 1 ? 'client' : 'clients'),
-            defaultValue_one: '{{count}} invoice · {{clients}} {{clientLabel}}',
-            defaultValue_other: '{{count}} invoices · {{clients}} {{clientLabel}}',
-          })}
-          secondaryDetail={!dataPending ? [owedUnknown ? unknownLabel(owedUnknown) : '', owedOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: owedOtherCurrencies.join(' · ') }) : ''].filter(Boolean).join(' · ') : undefined}
-          help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
-        />
-        <Figure
-          title={t('finance:receivables.overdue', 'Overdue')}
-          value={dataPending || (overdueUnknown > 0 && !finance.position.overdueTotals[orgCurrency]) ? null : overdueValue}
-          detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.overdueDetails', '{{percent}} of owed · {{count}} {{invoiceLabel}} · oldest {{days}} days', { percent: overduePercent, count: finance.position.overdue.length, days: oldestOverdueDays, invoiceLabel: t(finance.position.overdue.length === 1 ? 'finance:receivables.invoiceSingular' : 'finance:receivables.invoicePlural', finance.position.overdue.length === 1 ? 'invoice' : 'invoices') })}
-          secondaryDetail={!dataPending ? [overdueUnknown ? unknownLabel(overdueUnknown) : '', overdueOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: overdueOtherCurrencies.join(' · ') }) : ''].filter(Boolean).join(' · ') : undefined}
-          help={t('finance:receivables.overdueHelp', 'Known overdue balances divided by known owed balances in the same currency. Invoice count includes invoices with an unknown balance.')}
-        />
-        <Figure
-          title={t('finance:receivables.dueNext30', 'Due in next 30 days')}
-          value={dataPending ? null : leadCurrencyAmount(dueSoonByCurrency, orgCurrency)}
-          detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : dueSoon[0]
-            ? t('finance:receivables.dueDetails', '{{count}} invoices · next due {{date}}', { count: dueSoon.length, date: formatDateOnly(dueSoon[0].due) })
-            : t('finance:receivables.noneDue', 'No invoices due in the next 30 days')}
-          secondaryDetail={!dataPending && dueSoonOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: dueSoonOtherCurrencies.join(' · ') }) : undefined}
-          help={t('finance:receivables.dueHelp', 'Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.')}
-        />
-        <Figure
-          title={t('finance:receivables.receivedThisMonth', 'Received this month')}
-          value={dataPending ? null : cashValue}
-          detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : `${cashDelta} ${t('finance:receivables.receivedVsLastMonth', 'vs last month')}`}
-          secondaryDetail={!dataPending && cashOtherDelta.length ? t('finance:receivables.otherCurrencyDeltas', '{{amounts}} vs last month', { amounts: cashOtherDelta.join(' · ') }) : undefined}
-          help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
-          tone={dataPending ? undefined : cashIsGood ? 'good' : cashIsBad ? 'bad' : undefined}
-        />
-      </KPIRow>
+      <div className="order-2 mb-3"><FigureHiddenLine /></div>
 
-      <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={owedUnknown} />
+      <div className="order-4 max-sm:order-5 min-w-0">
+        <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || dataPending ? 1 : 0) + (overdueTile || dataPending ? 1 : 0) + 2)}`}>
+          <KPITile
+            icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
+            value={owedTile?.value ?? null} exactValue={owedTile?.exactValue} loading={dataPending}
+            unavailableReason={owedTile || dataPending ? undefined : unknownReason(owedUnknown)} hiddenLink={seeInvoices}
+            help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
+          />
+          <KPITile
+            icon="grid" tone="red" label={t('finance:receivables.overdue', 'Overdue')} caption={overduePercent == null ? undefined : t('finance:receivables.overduePercent', '{{percent}}% of owed', { percent: overduePercent })}
+            value={overdueTile?.value ?? null} exactValue={overdueTile?.exactValue} loading={dataPending}
+            unavailableReason={overdueTile || dataPending ? undefined : unknownReason(overdueUnknown)} hiddenLink={seeInvoices}
+            help={t('finance:receivables.overdueHelp', 'Known overdue balances divided by known owed balances in the same currency. Invoice count includes invoices with an unknown balance.')}
+          />
+          <KPITile
+            icon="grid" tone="amber" label={t('finance:receivables.dueNext30', 'Due in next 30 days')}
+            caption={dueSoon[0] ? t('finance:receivables.nextDue', 'next due {{date}}', { date: formatDay(dueSoon[0].due) }) : undefined}
+            value={dataPending ? null : moneyTileProps(dueSoonByCurrency, orgCurrency).value} exactValue={dataPending ? undefined : moneyTileProps(dueSoonByCurrency, orgCurrency).exactValue} loading={dataPending}
+            help={t('finance:receivables.dueHelp', 'Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.')}
+          />
+          <KPITile
+            icon="grid" tone="green" label={t('finance:receivables.receivedThisMonth', 'Received this month')}
+            caption={cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
+            value={dataPending ? null : moneyTileProps(thisMonthCash, orgCurrency).value} exactValue={dataPending ? undefined : moneyTileProps(thisMonthCash, orgCurrency).exactValue} loading={dataPending}
+            help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
+          />
+        </KPIRow>
+        <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={owedUnknown} />
+      </div>
 
-      {finance.isError && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+      {finance.isError && <div role="alert" className="order-4 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-control">
         <span>{t('finance:area.attentionLoadError', "Couldn't load finance activity")}</span>
         <Button type="button" variant="outline" size="sm" onClick={finance.retry}>{t('ui.listState.retry', 'Retry')}</Button>
       </div>}
 
-      <section aria-label={t('finance:area.viewInvoicesOrPayments', 'Receivables list')} className="min-w-0">
+      <section aria-label={t('finance:area.viewInvoicesOrPayments', 'Receivables list')} className="order-3 min-w-0 sm:order-5">
         {/* ponytail: no outer card — the DataTable frame is the one container (no card inside a card). */}
         <div className="mb-3">
           <ViewToggle<ReceivablesView>
@@ -282,16 +216,11 @@ export default function ReceivablesPage() {
         </div>
         <div>
           {view === 'invoices'
-            ? <SalesInvoices embedded onRecordPayment={recordPayment} />
-            : <IncomingPayments embedded />}
+            ? <SalesInvoices embedded onRecordPayment={recordPayment} secondaryAction={canCreatePayment ? { label: t('financeCopy.receivePayment', 'Receive payment'), onSelect: openNewPayment } : undefined} />
+            : <IncomingPayments embedded secondaryAction={canCreateInvoice ? { label: t('finance:area.newInvoice', 'New invoice'), onSelect: openNewInvoice } : undefined} />}
         </div>
       </section>
-
-      {canCreateInvoice && <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
-        <Button type="button" variant="primary" onClick={openNewInvoice} className="w-full">
-          <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
-        </Button>
-      </div>}
     </div>
+    </FigureScope>
   );
 }

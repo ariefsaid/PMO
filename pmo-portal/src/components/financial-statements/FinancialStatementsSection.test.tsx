@@ -181,6 +181,18 @@ describe('AC-008 FinancialStatementsSection controlled states', () => {
     expect(within(section).queryByTestId('snapshot-provenance')).not.toBeInTheDocument();
   });
 
+  it('an unavailable page names the one control that fixes it, and shows none when the viewer cannot act', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const props = propsFor('en', { kind: 'unavailable' });
+    const { unmount } = renderInLocale(<FinancialStatementsSection {...props} unavailableAction={{ label: 'Set up accounting', onClick }} />, 'en');
+    await user.click(screen.getByRole('button', { name: 'Set up accounting' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    unmount();
+    renderInLocale(<FinancialStatementsSection {...props} />, 'en');
+    expect(screen.queryByRole('button', { name: 'Set up accounting' })).not.toBeInTheDocument();
+  });
+
   it.each(['en', 'id'] as const)('AC-008 %s complete-empty retains provenance and never mounts children', (locale) => {
     setProfileLocale(locale);
     const props = propsFor(locale, { ...completeState, hasActivity: false });

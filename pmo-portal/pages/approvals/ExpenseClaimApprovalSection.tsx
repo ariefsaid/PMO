@@ -23,9 +23,9 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  if (list.isPending) return <p className="px-4 py-2 text-xs text-muted-foreground">{t('expenses.approvals.receiptsLoading', 'Loading receipts…')}</p>;
-  if (list.isError) return <p role="alert" className="px-4 py-2 text-xs text-destructive-text">{t('expenses.approvals.receiptsError', "Couldn't load receipts.")}</p>;
-  if (files.length === 0) return <p className="px-4 py-2 text-xs text-muted-foreground">{t('expenses.approvals.noReceipts', 'No receipts attached.')}</p>;
+  if (list.isPending) return <p className="px-4 py-2 text-control text-muted-foreground">{t('expenses.approvals.receiptsLoading', 'Loading receipts…')}</p>;
+  if (list.isError) return <p role="alert" className="px-4 py-2 text-control text-destructive-text">{t('expenses.approvals.receiptsError', "Couldn't load receipts.")}</p>;
+  if (files.length === 0) return <p className="px-4 py-2 text-control text-muted-foreground">{t('expenses.approvals.noReceipts', 'No receipts attached.')}</p>;
 
   return (
     <div className="border-t border-border px-4 py-3">
@@ -37,7 +37,7 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
       {files.map((file) => {
         const name = receiptName(file.file_path);
         return <li key={file.id} className="flex flex-wrap items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-xs" title={name}>{name}</span>
+          <span className="min-w-0 flex-1 truncate text-control" title={name}>{name}</span>
           <ReceiptPreviewButton id={file.id} fileName={name} filePath={file.file_path} getSignedUrl={download} onDownload={() => downloadOriginal(file.file_path)} />
         </li>;
       })}

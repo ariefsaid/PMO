@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Checkbox, ListState, StatusPill } from '@/src/components/ui';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency } from '@/src/lib/format';
+import { Badge, Checkbox, ListState } from '@/src/components/ui';
+import { formatTableMoney } from '@/src/lib/format';
+import { ageInDays, urgencyOf } from '@/src/lib/selectors/approvalUrgency';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
 import type { ProcurementBulkController } from './useProcurementBulkApprove';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -34,6 +34,8 @@ export function QueueButton({
   if (item.kind === 'procurement') {
     const row = item.row;
     const canSelect = procurementBulk?.approvableIds.has(row.id) ?? false;
+    const waitingDays = ageInDays(row.created_at);
+    const overdue = urgencyOf(row.created_at) === 'overdue';
     const rowButton = (
       <button
         type="button"
@@ -46,16 +48,17 @@ export function QueueButton({
       >
         <div className="min-w-0">
           <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
-          <StatusPill variant={workflowVariant(row.status)} className="mt-1">{row.status}</StatusPill>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          {/* Every row here is awaiting a decision, so no status pill repeats it; only the wait is shown. */}
+          {waitingDays > 0 && <div className="mt-1"><span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('procurement:approvalQueue.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span></div>}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
             <span>·</span>
             <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
           </div>
         </div>
-        <div className="mt-2 text-xs text-muted-foreground">
+        <div className="mt-2 text-control text-muted-foreground">
           <span className="block break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
-          <span className="mt-1 block tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
+          <span className="mt-1 block tabular font-medium text-foreground">{formatTableMoney(row.total_value, row.currency) ?? '—'}</span>
         </div>
       </button>
     );
@@ -89,15 +92,14 @@ export function QueueButton({
           <div className="truncate text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{weekLabel(row.week_start_date, t)}</span>
             <span>·</span>
             <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
           </div>
         </div>
-        <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control text-muted-foreground">
         <span>
           {row.entries.length}{' '}
           {row.entries.length === 1
@@ -126,9 +128,9 @@ export function QueueGroup({
   isError,
   onRetry,
   emptyTitle,
-  emptySub,
   bulk,
   procurementBulk,
+  hideWhenEmpty = false,
 }: {
   title: string;
   count: number;
@@ -139,15 +141,17 @@ export function QueueGroup({
   isError: boolean;
   onRetry: () => void;
   emptyTitle: string;
-  emptySub: string;
   bulk?: BulkController;
   procurementBulk?: ProcurementBulkController;
+  /** Another group already has rows: an empty group is left out instead of drawing its own box. */
+  hideWhenEmpty?: boolean;
 }) {
   const { t } = useTranslation();
+  if (hideWhenEmpty && !isPending && !isError && items.length === 0) return null;
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold text-muted-foreground">
+        <h2 className="text-control font-semibold text-muted-foreground">
           {title}
         </h2>
         <Badge>{count}</Badge>
@@ -165,9 +169,7 @@ export function QueueGroup({
           onRetry={onRetry}
         />
       ) : items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border/80">
-          <ListState variant="empty" title={emptyTitle} sub={emptySub} className="px-4 py-8" />
-        </div>
+        <p className="py-2 text-control text-muted-foreground">{emptyTitle}</p>
       ) : (
         <div className="space-y-1.5">
           {items.map((item) => (

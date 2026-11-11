@@ -108,7 +108,7 @@ export function DataTableMobile<Row>({
       aria-label={accessibleName}
       className="divide-y divide-border/70"
     >
-      {selection && !state && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
+      {selection && !state && (!selection.selectAllAfterFirst || selection.selectedIds.size > 0) && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
         <span onClick={(event) => event.stopPropagation()}>
           <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} labelledBy={`${tableInstanceId}-select-all`} disabled={visibleSelectionIds.length === 0} />
         </span>

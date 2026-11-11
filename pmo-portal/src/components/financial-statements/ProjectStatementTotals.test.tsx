@@ -51,13 +51,13 @@ describe('ProjectStatementTotals (AC-008)', () => {
     const headers = within(table).getAllByRole('columnheader');
     expect(headers.map((header) => header.textContent)).toEqual([
       labels.amounts,
-      'CurrentCurrent · Jan 1, 2025 – Jan 31, 2025 · IDR',
-      'PreviousPrevious · Jan 1, 2024 – Jan 31, 2024 · IDR',
+      'CurrentCurrent · 1 Jan 2025 – 31 Jan 2025 · IDR',
+      'PreviousPrevious · 1 Jan 2024 – 31 Jan 2024 · IDR',
     ]);
     expect(headers[1]?.querySelector('[data-period-caption="mobile"]')).toHaveTextContent('Current');
-    expect(headers[1]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Current · Jan 1, 2025 – Jan 31, 2025 · IDR');
+    expect(headers[1]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Current · 1 Jan 2025 – 31 Jan 2025 · IDR');
     expect(headers[2]?.querySelector('[data-period-caption="mobile"]')).toHaveTextContent('Previous');
-    expect(headers[2]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Previous · Jan 1, 2024 – Jan 31, 2024 · IDR');
+    expect(headers[2]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Previous · 1 Jan 2024 – 31 Jan 2024 · IDR');
     expect(within(table).getAllByRole('row').slice(1).map((row) => row.querySelector('td')?.textContent))
       .toEqual(['Income', 'Expense', 'Net']);
     for (const value of [

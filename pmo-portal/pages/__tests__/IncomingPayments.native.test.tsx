@@ -75,7 +75,7 @@ const openInvoice = {
 } as unknown as SalesInvoiceRow;
 
 async function pickInvoice(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+  await user.click(screen.getAllByRole('button', { name: /Receive payment/i })[0]);
   await user.click(screen.getByRole('combobox', { name: 'Customer' }));
   await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
   await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
@@ -169,14 +169,14 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
 
   it('UX-010/011 Finance gets one receive action and no duplicate empty-state CTA', () => {
     renderPage();
-    expect(screen.getAllByRole('button', { name: 'Receive Payment' })).toHaveLength(1);
-    expect(screen.getByText(/Use Receive Payment when a client payment arrives/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Receive payment' })).toHaveLength(1);
+    expect(screen.getByText(/Use Receive payment when a client pays/)).toBeInTheDocument();
   });
 
-  it('embedded receivables shows a compact Payments received heading without a page action or description', () => {
+  it('embedded receivables adds no second heading, page action or description', () => {
     renderPage(true);
-    expect(screen.getByRole('heading', { level: 2, name: 'Payments received' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Receive Payment' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Payments received' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Receive payment' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Customer receipts recorded in PMO/)).not.toBeInTheDocument();
   });
 
@@ -214,7 +214,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(card).toHaveTextContent('Acme Energy');
     expect(card).toHaveTextContent('RCV-2610070001');
     expect(card).toHaveTextContent('Received');
-    expect(card).toHaveTextContent('Oct 7, 2026');
+    expect(card).toHaveTextContent('7 Oct');
     expect(card).toHaveTextContent(/of/);
     expect(card.querySelector('dl')).toBeNull();
   });
@@ -234,7 +234,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(screen.queryByRole('button', { name: 'Browse Projects' })).toBeNull();
     expect(screen.getByText(/Finance records client payments/)).toBeInTheDocument();
     expect(screen.queryByText(/Record your first payment/)).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Receive payment' })).toBeNull();
   });
 
   it('UX-010 renders the Project Manager empty-state copy in Indonesian', async () => {
@@ -258,7 +258,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
   it('AC-NPA-001 a receipt naming no invoice is recorded ON ACCOUNT for the customer (the invoice is optional)', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /Receive payment/i })[0]);
     expect(screen.getByRole('combobox', { name: /Sales Invoice \(optional\)/ })).not.toBeRequired();
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
@@ -276,7 +276,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
   it('IP-1: each invalid-receipt summary link focuses its invoice, amount, or date control', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /Receive payment/i })[0]);
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
 
@@ -310,7 +310,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     } as unknown as SalesInvoiceRow];
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /Receive payment/i })[0]);
     await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
     expect(within(await screen.findByRole('listbox')).getByRole('option', { name: /INV-2610070001/ })).toBeInTheDocument();
   });
@@ -389,10 +389,10 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect((await screen.findAllByText('Enter the payment date.')).length).toBeGreaterThan(0);
   });
 
-  it('AC-NAR-006 a cancelled PMO receipt offers no Cancel; the page says receipts are recorded in PMO', () => {
+  it('AC-NAR-006 a cancelled PMO receipt offers no Cancel', () => {
     h.payments.data = [receipt({ cancelled_at: '2026-10-07T01:00:00Z' })];
     renderPage();
-    expect(screen.getByText('Customer receipts recorded in PMO against approved invoices.')).toBeInTheDocument();
+    expect(screen.queryByText('Customer receipts recorded in PMO against approved invoices.')).not.toBeInTheDocument();
     // A row with no available action renders no menu trigger at all (DataTable).
     expect(screen.queryByRole('button', { name: 'Row actions' })).toBeNull();
   });
@@ -445,7 +445,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     h.invoices.data = [openInvoice, { ...openInvoice, id: 'si-erp', pmo_native: false, pmo_number: null, si_number: 'ACC-SINV-0001' }];
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /Receive payment/i })[0]);
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
     await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
@@ -481,7 +481,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     h.route = 'external';
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /Receive payment/i })[0]);
     expect(screen.getByRole('combobox', { name: /Sales Invoice \(optional\)/ })).not.toBeRequired();
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
@@ -500,8 +500,6 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('button', { name: financeTestI18n.t('financeCopy.recordPayment') })).toBeInTheDocument();
     expect(financeTestI18n.t('financeCopy.recordPayment')).not.toBe('Record payment');
-    expect(dialog).toHaveTextContent(financeTestI18n.t('financeCopy.receivePaymentSubtitle'));
-    expect(financeTestI18n.t('financeCopy.receivePaymentSubtitle')).not.toBe('Record a new incoming payment from a client');
   });
 
   it('AC-NAR-003 (I-5) the payment date cannot be before the invoice date — the picker says so and refuses it', async () => {
