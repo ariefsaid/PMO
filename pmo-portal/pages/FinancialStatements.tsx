@@ -262,7 +262,7 @@ const FinancialStatements: React.FC = () => {
 
   if (loading || (session !== null && currentUser === null && profileError === null)) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
+      <ListPage title={t('financeHub:hub.statements', 'Statements')}>
         <ListState variant="loading" shape="detail" />
       </ListPage>
     );
@@ -270,7 +270,7 @@ const FinancialStatements: React.FC = () => {
 
   if (!catalogueQuery.eligible) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
+      <ListPage title={t('financeHub:hub.statements', 'Statements')}>
         <section className="min-w-0 rounded-lg border border-border bg-card p-4" aria-labelledby="financial-statements-access-title">
           <h2 id="financial-statements-access-title" className="text-base font-semibold text-foreground">
             {t('financialStatements.accessDenied', "You don't have access to financial statements")}
@@ -288,7 +288,7 @@ const FinancialStatements: React.FC = () => {
 
   if (odooMode.odoo) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')} className="min-w-0">
+      <ListPage title={t('financeHub:hub.statements', 'Statements')} className="min-w-0">
         <OdooStatementsSection />
       </ListPage>
     );
@@ -324,7 +324,7 @@ const FinancialStatements: React.FC = () => {
 
   return (
     <ListPage
-      title={t('shell.nav.financialStatements', 'Financial statements')}
+      title={t('financeHub:hub.statements', 'Statements')}
      
       className="min-w-0"
     >

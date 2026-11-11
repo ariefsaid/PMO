@@ -421,7 +421,7 @@ const ProcurementPage: React.FC = () => {
     ? new Map([...needsYouReasons].map(([id, value]) => [id, value.text]))
     : new Map<string, string>()), [needsYouReasons, tab]);
 
-  const title = isEngineer ? t('title.engineer', 'Your procurements') : t('title.default', 'Procurement');
+  const title = t('title.default', 'Procurement');
   // The page's one help: the definitions that used to sit in per-column and per-tile tooltips.
   const help = (
     <dl className="space-y-2">

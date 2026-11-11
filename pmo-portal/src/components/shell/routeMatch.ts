@@ -106,7 +106,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'vendors',
     icon: 'cart',
-    label: 'Vendors', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    label: 'Suppliers', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
@@ -344,7 +344,7 @@ export function railParentForPath(pathname: string): string | undefined {
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
-const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
+export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
   '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
