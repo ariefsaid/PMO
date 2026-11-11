@@ -32,6 +32,8 @@ const NameTick: React.FC<{
 
 type BarLabelTone = 'contract' | 'budget' | 'spent';
 interface DirectBarLabelProps { x?: number | string; y?: number | string; width?: number | string; height?: number | string; value?: unknown }
+const CONTRACT_BAR_FILL = 'hsl(var(--muted-foreground) / 0.54)';
+const CONTRACT_LABEL_FILL = 'hsl(var(--foreground))';
 
 const directBarLabel = (tone: BarLabelTone) => ({ x = 0, y = 0, width = 0, height = 0, value }: DirectBarLabelProps) => {
   if (typeof value !== 'string' || value.length === 0) return null;
@@ -42,7 +44,7 @@ const directBarLabel = (tone: BarLabelTone) => ({ x = 0, y = 0, width = 0, heigh
   // Long bars hold their own labels; shorter bars place them right after the bar in the open track.
   const inside = barWidth >= value.length * 7.5 + 10;
   const textX = inside ? barX + barWidth - 5 : barX + barWidth + 6;
-  const fill = inside && tone === 'spent' ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))';
+  const fill = inside && tone === 'spent' ? 'hsl(var(--primary-foreground))' : CONTRACT_LABEL_FILL;
   return <text x={textX} y={barY + barHeight / 2 + 5} textAnchor={inside ? 'end' : 'start'} style={{ fontSize: 14, fontWeight: 600, fill }}>{value}</text>;
 };
 
@@ -75,13 +77,13 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
   const chartHeight = Math.max(300, rows.length * 72);
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-[300px] flex-1"><div role="img" aria-label={`${name}. ${rows.map((row) => `${row.name}: ${planLabel} ${formatCurrency(row.plan, currency)}, ${budgetShortLabel} ${row.budget == null ? 'unknown' : formatCurrency(row.budget, currency)}, ${actualLabel} ${row.actual == null ? 'unknown' : formatCurrency(row.actual, currency)}`).join('; ')}`} className="h-full min-h-[300px]">
+      <div className="min-h-[300px] flex-1"><div role="img" aria-label={`${name}. ${rows.map((row) => `${row.name}: ${planLabel} ${formatCurrency(row.plan, currency)}, ${budgetShortLabel} ${row.budget == null ? 'unknown' : formatCurrency(row.budget, currency)}, ${actualLabel} ${row.actual == null ? 'unknown' : formatCurrency(row.actual, currency)}`).join('; ')}`} data-contract-fill={CONTRACT_BAR_FILL} data-contract-label-fill={CONTRACT_LABEL_FILL} className="h-full min-h-[300px]">
         <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setChartWidth(width)}>
           <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barGap={4} barCategoryGap="16%">
             <XAxis type="number" domain={[0, maxValue * 1.3]} tick={false} tickLine={false} stroke={chartTheme.grid} />
             <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={compact ? 112 : 140} interval={0} tickLine={false} axisLine={false} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
-            <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
+            <Bar dataKey="plan" name={planLabel} fill={CONTRACT_BAR_FILL} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
               <LabelList dataKey="labelPlan" content={BAR_LABEL_CONTRACT} />
             </Bar>
             <Bar dataKey="budget" name={budgetShortLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>

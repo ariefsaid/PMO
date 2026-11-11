@@ -592,7 +592,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             rowKey={(row) => row.key}
             tableId="managementpack-1-table"
             accessibleName={t('managementPack.col.project', 'Project')}
-            mobileLabelsOnce
             totals={projectTotals}
             // N6: the heading sits apart from the filter panel, so the table closes its own top edge.
             className="rounded-t-lg"
