@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, MobileActionStrip } from '@/src/components/ui';
+import { Button, FormFooter, Icon, MobileActionStrip } from '@/src/components/ui';
 
 type Props = {
   mode: 'desktop' | 'mobile';
@@ -31,15 +31,20 @@ export function TimesheetWeekActions({ mode, total, dirty, editValid, canSubmit,
       onSubmit={onSubmit}
     />
   );
+  // Desktop: the shared sticky form footer (R2-c2c) — the ONE place for the week's actions,
+  // pinned to the viewport bottom for long weeks. Save is secondary, Submit the primary (rightmost).
   return (
-    <div data-testid="timesheets-footer" className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5">
-      {!canSubmit && <span className="mr-auto text-control text-muted-foreground">{t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}</span>}
+    <FormFooter
+      testId="timesheets-footer"
+      className="px-3.5"
+      hint={!canSubmit ? t('timesheets.enterHoursToSubmit', 'Enter hours to submit') : undefined}
+    >
       <Button variant="outline" onClick={onSave} disabled={!dirty || !editValid || saving || deleting || isReconciling} loading={saving}>
         <Icon name="check" />{t('timesheets.save', 'Save')}
       </Button>
       <Button variant="primary" onClick={onSubmit} disabled={!canSubmit || submitting || deleting || isReconciling} loading={submitting}>
         <Icon name="check" />{t('timesheets.submit', 'Submit timesheet')}
       </Button>
-    </div>
+    </FormFooter>
   );
 }

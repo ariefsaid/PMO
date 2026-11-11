@@ -64,7 +64,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     }] : []),
     ...(scope === 'all' && position.payables.length > 0 ? [{
       key: 'payables', count: position.payables.length,
-      label: t('financeHub:hub.fix.waiting.payables', { defaultValue: '{{count}} supplier invoices waiting to be paid', count: position.payables.length }),
+      label: t('financeHub:hub.fix.waiting.payables', { defaultValue: '{{count}} unpaid supplier invoices', count: position.payables.length }),
       // L6: the known amount lives on the Payables figure; this row adds the age (or says the balance is unknown).
       detail: currencyLines(position.payablesTotals, orgCurrency).length > 0
         ? [t('financeHub:hub.fix.waiting.payablesOldest', { defaultValue: 'Oldest {{days}} days', days: position.payables[0]?.ageDays ?? 0 })]

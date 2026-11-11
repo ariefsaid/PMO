@@ -111,6 +111,9 @@ test('@layout UIP-009 stacks the full record title and status in the phone heade
   await signIn(page, 'finance@acme.test');
   await page.goto(`/procurement/${recordId}`);
   await expect(page.getByTestId('record-header')).toBeVisible({ timeout: 20_000 });
-  await assertRecordHeaderStacksTitleAboveStatus(page, LONG_TITLE, 'Purchase Request');
+  // VOCABULARY (ux/1110, §G6): the chip names the canonical STATUS ("Requested"), not the old
+  // stage phrase ("Purchase Request"). The oracle — full title stacked above the chip, unclipped —
+  // is unchanged.
+  await assertRecordHeaderStacksTitleAboveStatus(page, LONG_TITLE, 'Requested');
   await waitForFonts(page);
 });
