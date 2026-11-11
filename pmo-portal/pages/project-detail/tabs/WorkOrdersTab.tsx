@@ -537,7 +537,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </Button>
             )}
             {may('create', 'workOrder') && (
-              <Button variant="outline" size="sm" onClick={() => setFormFor(null)}>
+              <Button id="add-customer-order" variant="outline" size="sm" onClick={() => setFormFor(null)}>
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
