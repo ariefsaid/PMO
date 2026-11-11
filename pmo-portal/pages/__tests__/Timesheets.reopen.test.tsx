@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -124,7 +124,8 @@ describe('AC-W3-B1: Timesheet Rejected → Draft rework action', () => {
     tsState.isPending = false; tsState.isError = false;
     renderPage();
     // The ErrBanner must still be present
-    expect(screen.getByText('Returned for changes', { exact: true })).toBeInTheDocument();
+    const returnedBanner = screen.getAllByRole('status')[0]!;
+    expect(within(returnedBanner).getByText('Returned', { exact: true })).toBeInTheDocument();
     // The rework button must be present
     expect(screen.getByRole('button', { name: /revise this week/i })).toBeInTheDocument();
   });

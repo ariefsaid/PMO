@@ -5,8 +5,16 @@ import { StatusPill } from '../StatusPill';
 const pillFor = (label: string) => screen.getByText(label).parentElement!;
 
 describe('StatusPill reads the shared status map', () => {
-  it('record + state supplies the label and the tone', () => {
+  it('a returned expense uses the shared amber waiting tone', () => {
     render(<StatusPill record="expense" state="Rejected" />);
+    const pill = pillFor('Returned');
+    expect(pill.style.color).toBe('');
+    expect(pill.className).toContain('bg-status-warning-surface');
+    expect(pill.className).toContain('text-warning-foreground');
+  });
+
+  it('a terminal cash-float rejection stays red', () => {
+    render(<StatusPill record="imprest" state="Rejected" />);
     const pill = pillFor('Rejected');
     expect(pill.style.color).toBe('hsl(var(--status-lost-text))');
     expect(pill.className).toContain('bg-status-danger-surface');

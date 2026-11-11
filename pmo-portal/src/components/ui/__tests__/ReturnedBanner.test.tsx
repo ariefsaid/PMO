@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { ReturnedBanner } from '../ReturnedBanner';
 
@@ -30,11 +30,23 @@ describe('returned decision banner', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('2026');
   });
 
+  it('uses the waiting surface and a filled primary action for returned work', () => {
+    render(<ReturnedBanner record="expense" reason="Please attach the receipt." action={{ label: 'Edit and resubmit', onClick: () => {} }} />);
+
+    const banner = screen.getByRole('status');
+    expect(banner).toHaveClass('bg-waiting-surface');
+    expect(banner).toHaveClass('border-warning/30');
+    expect(within(banner).getByText('Returned')).toHaveClass('text-warning-foreground');
+    expect(within(banner).getByRole('button', { name: 'Edit and resubmit' })).toHaveClass('bg-primary');
+  });
+
   it('keeps a terminal cash-float top-up labeled Rejected from the shared status map', () => {
     render(<ReturnedBanner record="imprest" reason="More detail needed." />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Rejected');
-    expect(screen.getByRole('status')).not.toHaveTextContent('2026');
-    expect(screen.getByRole('status')).toHaveTextContent('More detail needed.');
+    const banner = screen.getByRole('status');
+    expect(banner).toHaveTextContent('Rejected');
+    expect(banner).not.toHaveTextContent('2026');
+    expect(banner).toHaveTextContent('More detail needed.');
+    expect(banner).toHaveClass('bg-destructive/[0.07]');
   });
 });
