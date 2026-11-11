@@ -251,9 +251,9 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const supplierKnown = suppliers?.knownTotals.length ? currencyText(suppliers.knownTotals, orgCurrency, moneyReason) : null;
   const invoiceCurrencyTotals = useMemo(() => invoiced ?? [], [invoiced]);
   const collectedCurrencyTotals = useMemo(() => collected?.totals ?? [], [collected]);
-  const invoicedAmounts = invoiced === undefined ? null : invoiceCurrencyTotals.length > 0
+  const invoicedAmounts = useMemo(() => invoiced === undefined ? null : invoiceCurrencyTotals.length > 0
     ? invoiceCurrencyTotals
-    : [{ currency: orgCurrency, amount: 0 }];
+    : [{ currency: orgCurrency, amount: 0 }], [invoiced, invoiceCurrencyTotals, orgCurrency]);
   const winCurrencyTotals = (winRate.data?.value_by_currency ?? [])
     .filter((row) => row.wins_value !== null && row.wins_value > 0)
     .map((row) => ({ currency: row.currency, amount: row.wins_value }));
@@ -383,7 +383,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       { id: 'won', label: t('figures.won', 'Won'), count: wonCount, amounts: wonCount === undefined ? null : winCurrencyTotals.map((row) => ({ currency: row.currency, amount: row.amount as number })), value: wonCount === undefined ? null : `${wonCount}${wonMoney ? ` · ${wonMoney}` : ''}`, unavailableReason: t('figures.wonUnknown', 'Won project results are unavailable for this period.'), href: windowQuery ? `/projects?filter=won&${windowQuery}` : undefined },
       { id: 'win-rate', label: t('figures.winRate', 'Win rate'), value: rate === undefined || (winRate.data?.wins_count ?? 0) + (winRate.data?.losses_count ?? 0) === 0 ? null : `${(rate * 100).toFixed(1)}%`, unavailableReason: t('figures.winRateNoResults', 'No closed project results were recorded in this period.'), subline: rate === undefined ? undefined : t('figures.winRateBasis', 'By project count'), href: windowQuery ? `/projects?filter=decided&${windowQuery}` : undefined },
     ];
-  }, [collected, collectedCurrencyTotals, invoiced, invoiceCurrencyTotals, moneyReason, orgCurrency, period.from, period.to, t, winCurrencyTotals, winRate.data]);
+  }, [collected, collectedCurrencyTotals, invoiced, invoicedAmounts, invoiceCurrencyTotals, moneyReason, orgCurrency, period.from, period.to, t, winCurrencyTotals, winRate.data]);
 
   const periodPending = pack.isPending || payments.isPending || winRate.isPending;
   const periodError = pack.isError || payments.isError || winRate.isError;

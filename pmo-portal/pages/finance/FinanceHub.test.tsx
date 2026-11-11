@@ -227,6 +227,7 @@ describe('Finance hub', () => {
     expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
     expect(screen.getAllByTestId('ageing-bar-IDR')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: /Waiting on Finance/ })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Finance areas' }).children).toHaveLength(3);
     const firstRow = screen.getByTestId('finance-hub-first-row');
     const [left, right] = Array.from(firstRow.children) as HTMLElement[];
     const attention = screen.getByRole('region', { name: 'Finance attention' });
