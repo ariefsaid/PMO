@@ -5,7 +5,7 @@ import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import type { NativeReportColumn, NativeReportScalar, StatementReportPair } from '@/src/lib/adapterSeam/erpnext/statementReports';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import {
   formatStatementAmount,
   hasNativeStatementEmphasis,
@@ -123,7 +123,7 @@ function accountNumber(row: NativeRow, label: string): string | null {
 }
 
 function sideRange(side: NativeReportColumn): string {
-  return `${formatDateOnly(side.period.fromDate)} – ${formatDateOnly(side.period.toDate)}`;
+  return `${formatDayYear(side.period.fromDate)} – ${formatDayYear(side.period.toDate)}`;
 }
 
 const moneyColumns = (side: NativeReportColumn) =>
@@ -136,7 +136,7 @@ function periodColumns(side: NativeReportColumn): ReportField[] {
   return periods.length > 0 ? periods : money;
 }
 
-const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-[11.5px] font-semibold text-muted-foreground';
+const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-control font-semibold text-muted-foreground';
 const ACCOUNT_CELL = 'sticky left-0 bg-card px-3 text-left';
 
 function AmountCell({ row, column, presentation, notProvided, className }: {
@@ -244,7 +244,7 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
       <tr
         key={line.key}
         data-row-kind={computed ? 'total' : group ? 'group' : 'account'}
-        className={cn('text-[13.5px] text-foreground [&>*]:py-1.5', computed || group ? 'font-semibold' : 'font-normal')}
+        className={cn('text-control text-foreground [&>*]:py-1.5', computed || group ? 'font-semibold' : 'font-normal')}
       >
         <th scope="row" className={cn(ACCOUNT_CELL, 'min-w-40 max-w-72 whitespace-normal break-words md:min-w-48', computed || group ? 'font-semibold' : 'font-normal', rule)}>
           <div style={indent > 0 ? { paddingInlineStart: `calc(var(--spacing) * ${indent * 4})` } : undefined} className="flex items-center">
@@ -394,7 +394,7 @@ function ComparativeStatement({ pair, reportTitle, companyLabel, currency, prese
     ),
   }));
   const periodLine = balanceSheet
-    ? `${labels.asAt} ${formatDateOnly(pair.current.period.toDate)}`
+    ? `${labels.asAt} ${formatDayYear(pair.current.period.toDate)}`
     : `${labels.forThePeriod} ${sideRange(pair.current)}`;
   const emptySides = (['current', 'prior'] as const).filter((side) => pair[side].rows.length === 0);
   return (
@@ -414,7 +414,7 @@ function ComparativeStatement({ pair, reportTitle, companyLabel, currency, prese
         : (
           <>
             {emptySides.map((side) => (
-              <p key={side} className="min-w-0 break-words text-xs text-muted-foreground">{labels[side]}: {labels.noActivity}</p>
+              <p key={side} className="min-w-0 break-words text-control text-muted-foreground">{labels[side]}: {labels.noActivity}</p>
             ))}
             <StatementTable
               headingId={headingId}

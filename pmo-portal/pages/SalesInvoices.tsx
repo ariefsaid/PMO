@@ -24,6 +24,8 @@ import { EfakturModal } from '@/src/components/EfakturModal';
 import { issuedWithinMonthWindow, monthWindowFromParams } from '@/src/lib/finance/invoicePeriod';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton } from '@/src/components/export';
+import { useExport } from '@/src/components/export/useExport';
+import { PhoneListToolbar } from './sales-invoices/PhoneListToolbar';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -57,10 +59,12 @@ type InvoiceGroupMode = 'none' | 'client' | 'project';
 
 interface SalesInvoicesProps {
   embedded?: boolean;
+  /** The page's other create action; on a phone it sits in the toolbar ⋯ menu. */
+  secondaryAction?: { label: string; onSelect: () => void };
   onRecordPayment?: (invoice: SalesInvoiceRow) => void;
 }
 
-const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment }) => {
+const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment, secondaryAction }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -296,7 +300,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     ? canApproveDraft(viewTarget)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(viewTarget) }
       : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
-        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(viewTarget) }
+        ? { label: t('finance:receivables.markReceived', 'Record delivery'), onClick: () => setReceiptTarget(viewTarget) }
         : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && (viewTarget.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
           ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => navigate(`/finance/receivables?view=payments&invoice=${encodeURIComponent(viewTarget.id)}&create=1`) }
           : null
@@ -350,6 +354,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   }, [filtered, organizationToday, searchParams]);
   // P5: on a phone the status chips become one select, so no chip is clipped at the scroll edge.
   const isDesktop = useIsDesktop();
+  const { exportXlsx, busy: exporting } = useExport();
   // C6: the Amount header states the basis most listed amounts share, once; only rows on another basis carry their own.
   const sharedTaxBasis = useMemo(() => {
     if (!embedded) return null;
@@ -404,7 +409,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     }
     const amounts = Array.from(balances, ([currency, cents]) => formatCurrencyCents(cents / 100, currency));
     return amounts.length
-      ? <span className="text-xs font-medium tabular text-muted-foreground">{t('finance:receivables.openBalance', 'Open balance {{amount}}', { amount: amounts.join(' · ') })}</span>
+      ? <span className="text-control font-medium tabular text-muted-foreground">{t('finance:receivables.openBalance', 'Open balance {{amount}}', { amount: amounts.join(' · ') })}</span>
       : null;
   };
 
@@ -423,7 +428,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     ? canApproveDraft(panelInvoice)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(panelInvoice) }
       : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && !panelInvoice.received_date && canRecordReceipt && !(panelInvoice.pmo_native && !native)
-        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(panelInvoice) }
+        ? { label: t('finance:receivables.markReceived', 'Record delivery'), onClick: () => setReceiptTarget(panelInvoice) }
         : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && (panelInvoice.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
           ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => onRecordPayment?.(panelInvoice) }
           : null
@@ -439,22 +444,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     });
   };
 
-  return (
-    <ListPage
-      title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
-      count={data ? filtered.length : undefined}
-      total={data ? all.length : undefined}
-      headingLevel={embedded ? 2 : 1}
-      description={embedded ? undefined : t('finance:invoices.description', 'Client invoices.')}
-      banner={odooOffline ? <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
-      primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
-        <Button variant="primary" onClick={openNewInvoice}>
-          <Icon name="plus" />
-          {t('financeCopy.newInvoice', "New Invoice")}</Button>
-      ) : undefined}
-      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
-      filters={
-        state !== 'loading' && (
+  const filtersNode = state !== 'loading' && (
           <SalesInvoicesFilters
             embedded={embedded}
             isDesktop={isDesktop}
@@ -477,10 +467,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             groupMode={groupMode}
             onGroupChange={(value) => setQueryValue('group', value === 'none' ? '' : value)}
           />
-        )
-      }
-      search={
-        state !== 'loading' && (
+        );
+  const searchNode = state !== 'loading' && (
           <SearchMini
             placeholder={t('financeCopy.searchInvoices', "Search invoices…")}
             aria-label={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
@@ -494,10 +482,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             resultCount={filtered.length}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && !(searchParams.get('overdue') === 'true' && !organizationToday) && (
+        );
+  const exportNode = state !== 'loading' && !(searchParams.get('overdue') === 'true' && !organizationToday) && (
           embedded && localSelectedKeys.size > 0
             ? <BulkBar count={localSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
               <ExportButton
@@ -508,8 +494,40 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
               />
             </BulkBar>
             : <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
-        )
-      }
+        );
+  const activeFilterCount = [statusFilter !== 'All', searchParams.get('overdue') === 'true', groupMode !== 'none', Boolean(requestedCustomerId), Boolean(contextualProjectId)].filter(Boolean).length;
+  const exportRows = embedded && localSelectedKeys.size > 0 ? all.filter((invoice) => localSelectedKeys.has(invoice.id)) : sortedInvoices;
+  const phoneToolbar = embedded && state !== 'loading' && !isDesktop ? (
+    <PhoneListToolbar
+      search={searchNode}
+      filters={filtersNode}
+      activeFilters={activeFilterCount}
+      menuItems={[
+        { key: 'export', label: localSelectedKeys.size > 0 ? t('finance:bulk.exportSelected', 'Export selected') : t('finance:receivables.exportList', 'Export'), disabled: exporting || exportRows.length === 0 || (searchParams.get('overdue') === 'true' && !organizationToday), onSelect: () => void exportXlsx(exportRows, exportColumns, 'Sales Invoices') },
+        ...(secondaryAction ? [{ key: 'secondary', label: secondaryAction.label, onSelect: secondaryAction.onSelect }] : []),
+      ]}
+      selectionBar={localSelectedKeys.size > 0 ? <BulkBar count={localSelectedKeys.size} onClear={() => handleSelectionChange(new Set())} /> : undefined}
+    />
+  ) : undefined;
+
+  return (
+    <ListPage
+      title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
+      headingLevel={embedded ? 2 : 1}
+      banner={odooOffline ? <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
+      primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
+        <Button variant="primary" onClick={openNewInvoice}>
+          <Icon name="plus" />
+          {t('financeCopy.newInvoice', "New Invoice")}</Button>
+      ) : undefined}
+      hideHeader={embedded}
+      mobileToolbar={phoneToolbar}
+      filters={filtersNode}
+      search={searchNode}
+      exportAction={exportNode}
+      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
     >
       {/* Body */}
       {contextError && (
@@ -563,10 +581,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         <ListState
           variant="empty"
           icon="doc"
-          title={t('financeCopy.noSalesInvoicesYet', "No sales invoices yet")}
-          sub={canCreate
-            ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'No client invoices have been recorded yet. Use New Invoice to start billing.')
-            : t('uxs26.invoiceEmptyProjectManager', 'No client invoices have been recorded yet. Finance manages invoice creation.')}
+          title={t('financeCopy.noSalesInvoicesYet', "No invoices yet")}
+          sub={canCreate ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'Use New Invoice to start billing.') : t('uxs26.invoiceEmptyProjectManager', 'Finance manages invoice creation.')}
           stateId="sales-invoices-empty"
           role={realRole ?? undefined}
           module="salesInvoices"
@@ -582,13 +598,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           onActivate={embedded ? openInvoicePanel : undefined}
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
           mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="min-w-0 truncate text-[13px] font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+            <span className="min-w-0 truncate text-control font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
+            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? mobileCardDetails : undefined}
           selection={embedded ? {
             selectedIds: localSelectedKeys,
             onChange: handleSelectionChange,
+            selectAllAfterFirst: true,
             rowLabel: (inv) => t('finance:table.selectRow', 'Select {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }),
           } : undefined}
           groupBy={groupRowsBy}

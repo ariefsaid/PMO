@@ -1,6 +1,6 @@
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import type { NativeProjectStatementTotals, StatementReportPeriod } from '@/src/lib/adapterSeam/erpnext/statementReports';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import { formatNativeStatementAmount } from '@/src/lib/nativeStatementPresentation';
 
 export interface ProjectStatementTotalsProps {
@@ -30,7 +30,7 @@ function periodCaption(
   period: Pick<StatementReportPeriod, 'fromDate' | 'toDate'>,
   currency: NativeProjectStatementTotals['currency'],
 ): string {
-  return `${sideLabel} · ${formatDateOnly(period.fromDate)} – ${formatDateOnly(period.toDate)} · ${currency}`;
+  return `${sideLabel} · ${formatDayYear(period.fromDate)} – ${formatDayYear(period.toDate)} · ${currency}`;
 }
 
 function responsivePeriodCaption(

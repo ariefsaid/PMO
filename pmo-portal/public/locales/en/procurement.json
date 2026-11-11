@@ -328,29 +328,21 @@
   },
   "approvalRow": {
     "approve": "Approve",
-    "rejectShort": "Reject",
     "unknownRequester": "Unknown requester",
     "loadErrorSub": "Something went wrong fetching the budget impact and line items.",
     "lineItems": "Line items",
-    "requestedBy": "Requested by",
-    "project": "Project",
-    "requested": "Requested",
-    "totalValue": "Total value",
-    "noProject": "No project linked",
     "approveTitle": "Approve {{title}}?",
-    "rejectTitle": "Reject {{title}}?",
     "approvedDetail": "{{title}} has been approved",
-    "rejectedDetail": "{{title}} has been rejected",
     "open": "Open procurement",
-    "details": "Procurement details",
     "loadError": "Couldn't load procurement details",
     "approved": "Procurement approved",
-    "rejected": "Procurement rejected",
-    "reject": "Reject procurement",
     "approveDescription": "Approve {{title}} ({{amount}})? This will advance the procurement to the ordering stage.",
-    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit.",
     "rejectionComment": "Rejection comment",
-    "rejectionCommentHelp": "Add a comment for the requester before rejecting this purchase."
+    "rejectionCommentHelp": "Add a comment for the requester before rejecting this purchase.",
+    "rejectSubject": "purchase request",
+    "returnShort": "Return",
+    "returned": "Procurement returned",
+    "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
     "thisProcurement": "This procurement",
@@ -523,7 +515,13 @@
       "decidedBy": "Decided by {{names}}",
       "projectApprovers": "project approvers",
       "done": "Done",
-      "status": { "Requested": "Requested", "Approved": "Approved", "Revised": "Revised", "Rejected": "Rejected", "Disputed": "Disputed" },
+      "status": {
+        "Requested": "Requested",
+        "Approved": "Approved",
+        "Revised": "Revised",
+        "Rejected": "Rejected",
+        "Disputed": "Disputed"
+      },
       "postWork": "Post-work",
       "preWork": "Pre-work",
       "approve": "Approve",
@@ -703,5 +701,10 @@
       "retry": "Retry",
       "clearAll": "Clear quantities and receive all open items"
     }
+  },
+  "approvalQueue": {
+    "headingAll": "Purchases and timesheets",
+    "waitingDays_one": "{{count}} day waiting",
+    "waitingDays_other": "{{count}} days waiting"
   }
 }

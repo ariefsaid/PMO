@@ -2,19 +2,10 @@
   "pages/AdministrationCredits.tsx": {
     "EntityFormModal-subtitle": 1
   },
-  "pages/IncomingPayments.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/ManagementPack.tsx": {
-    "ListPage-description": 1
-  },
   "pages/MasterData.tsx": {
     "ListPage-description": 1
   },
   "pages/Procurement.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/SalesInvoices.tsx": {
     "ListPage-description": 1
   },
   "pages/activity/EditActivityModal.tsx": {
@@ -45,15 +36,6 @@
   "pages/equipment/EquipmentUsage.tsx": {
     "ListPage-description": 1
   },
-  "pages/finance/PayablesPage.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/incoming-payments/ApplyReceiptForm.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/incoming-payments/IncomingPaymentFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
   "pages/procurement/LinkErpDocumentsDialog.tsx": {
     "EntityFormModal-subtitle": 1
   },
@@ -65,12 +47,6 @@
   },
   "pages/procurement/SubcontractLinesEditor.tsx": {
     "EntityFormModal-subtitle": 2
-  },
-  "pages/sales-invoices/SalesInvoiceDialogs.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/sales-invoices/SalesInvoiceFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
   },
   "pages/stock/StockDocuments.tsx": {
     "ListPage-description": 1
@@ -99,9 +75,6 @@
   "src/components/builder/PanelEditorForm.tsx": {
     "EntityFormModal-subtitle": 1
   },
-  "src/components/fx/FxRateUpload.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
   "src/components/integrations/ConnectCredentialsModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
@@ -115,9 +88,6 @@
     "EntityFormModal-subtitle": 1
   },
   "src/components/integrations/odoo/OdooConnectionCard.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/reports/RecordProgressModal.tsx": {
     "EntityFormModal-subtitle": 1
   }
 }

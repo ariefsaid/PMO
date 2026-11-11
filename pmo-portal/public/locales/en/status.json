@@ -23,7 +23,7 @@
     "received": "Goods receipt",
     "vendorInvoiced": "Supplier invoice",
     "paid": "Paid",
-    "rejected": "Rejected",
+    "rejected": "Returned",
     "cancelled": "Cancelled"
   },
   "expense": {

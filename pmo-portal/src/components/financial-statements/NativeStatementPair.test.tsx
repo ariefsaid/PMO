@@ -211,7 +211,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
 
     expect(screen.getAllByRole('table')).toHaveLength(1);
     expect(table).toHaveAccessibleName(/Sample organization/);
-    expect(table).toHaveAccessibleName(/For the period Jan 1, 2025 – Jan 31, 2025/);
+    expect(table).toHaveAccessibleName(/For the period 1 Jan 2025 – 31 Jan 2025/);
     expect(table).toHaveAccessibleName(/Amounts in IDR/);
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual(['Account', 'Opening Debit', 'Opening Credit', 'Debit', 'Credit', 'Closing Debit', 'Closing Credit', 'Returned Total']);
@@ -258,7 +258,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(previous).toHaveAttribute('aria-pressed', 'true');
     const table = screen.getByRole('table');
     expect(screen.getAllByRole('table')).toHaveLength(1);
-    expect(table).toHaveAccessibleName(/For the period Jan 1, 2024 – Jan 31, 2024/);
+    expect(table).toHaveAccessibleName(/For the period 1 Jan 2024 – 31 Jan 2024/);
     expect(within(table).getByText('Prior-only Account')).toBeInTheDocument();
     expect(within(table).queryByText('Current-only Expense')).not.toBeInTheDocument();
     expect(cellsOf(rowFor(table, 'Prior-only Account'))).toEqual(['901.00', '902.00', '903.00', '904.00', '905.00', '906.00']);
@@ -386,7 +386,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(screen.getAllByRole('table')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Previous period' })).not.toBeInTheDocument();
     const table = screen.getByRole('table', { name: /Profit and loss/ });
-    expect(table).toHaveAccessibleName(/For the period Sep 1, 2026 – Sep 30, 2026/);
+    expect(table).toHaveAccessibleName(/For the period 1 Sep 2026 – 30 Sep 2026/);
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual(['Account', 'Sep 2026Current period', 'Aug 2026Previous period']);
 
@@ -417,7 +417,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
   it('AC-008 support: states the balance sheet as-at date once, in its heading', () => {
     renderPair(plPair('Balance Sheet'), 'Balance sheet');
     const table = screen.getByRole('table', { name: /Balance sheet/ });
-    expect(table).toHaveAccessibleName(/As at Sep 30, 2026/);
+    expect(table).toHaveAccessibleName(/As at 30 Sep 2026/);
     expect(screen.getAllByText(/As at/)).toHaveLength(1);
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual(['Account', 'Sep 2026Current period', 'Aug 2026Previous period']);

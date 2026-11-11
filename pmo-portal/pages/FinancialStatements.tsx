@@ -19,7 +19,7 @@ import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
 import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import { repositories } from '@/src/lib/repositories';
 
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
@@ -46,7 +46,7 @@ function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: St
 }
 
 function pairLabel(pair: FinancialStatementPair, priorLabel: string): string {
-  return `${formatDateOnly(pair.currentStart)} – ${formatDateOnly(pair.currentEnd)} · ${priorLabel}: ${formatDateOnly(pair.priorStart)} – ${formatDateOnly(pair.priorEnd)}`;
+  return `${formatDayYear(pair.currentStart)} – ${formatDayYear(pair.currentEnd)} · ${priorLabel}: ${formatDayYear(pair.priorStart)} – ${formatDayYear(pair.priorEnd)}`;
 }
 
 function completeDetailRead(value: FinancialStatementRead | undefined): value is FinancialStatementRead & {
@@ -290,8 +290,8 @@ const FinancialStatements: React.FC = () => {
     expandAll: tf('statements.expandAll', 'Expand all'),
   };
   const sectionLabels = {
-    unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),
-    unavailableDescription: t('financialStatements.unavailableDescription', 'Saved statements will appear here when available.'),
+    unavailable: t('financialStatements.unavailable', 'No statements yet'),
+    unavailableDescription: t('financialStatements.unavailableDescription', 'Statements come from the accounting system.'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
     error: t('financialStatements.error', "Couldn't load financial statements"),
@@ -364,6 +364,7 @@ const FinancialStatements: React.FC = () => {
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
+        unavailableAction={may('manage', 'integration') ? { label: tf('statements.setUp', 'Set up accounting'), onClick: () => navigate('/administration/integrations') } : undefined}
         refreshNow={{
           label: t('financialStatements.refreshNow', 'Refresh now'),
           pending: refreshNowMutation.isPending,
