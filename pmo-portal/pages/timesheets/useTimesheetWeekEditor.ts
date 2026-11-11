@@ -24,7 +24,7 @@ type Props = {
   allProjects: ProjectPickerOption[] | undefined;
   signedInUserId: string | undefined;
   currentDate: Date;
-  setCurrentDate: React.Dispatch<React.SetStateAction<Date>>;
+  setCurrentDate: (date: Date) => void;
   /** LAST week's entries (already resolved by the page from the same repository list) — the copy source. */
   lastWeekEntries: TimesheetEntryWithProject[];
   entryMutations: ReturnType<typeof useTimesheetEntryMutations>;

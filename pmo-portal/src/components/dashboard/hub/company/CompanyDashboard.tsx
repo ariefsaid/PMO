@@ -309,7 +309,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const overviewTiles = stillTile
       ? [contractTile, invoicedTile, supplierTile, stillTile, owedClientsTile, ...otherTiles]
       : positionTiles;
-    const tilesNode = tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col [&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-1', overviewTiles);
+    const tilesNode = tilesRow('grid-cols-2 min-[900px]:grid-cols-2', overviewTiles);
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
     // The chart area is two independent columns (no card waits for its neighbour's height); on a phone the columns
@@ -346,10 +346,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <div className={ORDER[1]}>{planCard}</div>
           {invoicedCard(3)}
           <PurchasingCard className={ORDER[4]} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
-            <LossReasonsCard className={ORDER[5]} range={lossRange} />
         </div>
         <div className={columns}>
           <SalesOverviewCard className={ORDER[2]} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange} />
+          <LossReasonsCard className={ORDER[5]} range={lossRange} />
           {billing}
         </div>
       </div>
@@ -358,11 +358,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
           {header}
-          <div className={cn(panelGrid, 'min-[900px]:items-stretch min-[900px]:grid-cols-3')}>
-            <div className="min-w-0 min-[900px]:[&>div]:h-full">{waitsEl}</div>
-            <div className="min-w-0 min-[900px]:col-span-2 min-[900px]:[&>div]:h-full">{finance ? overdueCard : offTrackEl}</div>
+          <div data-testid="home-primary-layout" className={cn(panelGrid, 'min-[900px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]')}>
+            <div className="grid min-w-0 content-start gap-[var(--space-panel-gap)]">
+              {waitsEl}
+              {tilesNode}
+            </div>
+            <div className="min-w-0">{finance ? overdueCard : offTrackEl}</div>
           </div>
-          {tilesNode}
           {chartsRow}
           {/* Executive: everything is on the page. Finance keeps the accounting-system ageing and ledger tables collapsed: they are long tables from the accounting source, not figures. */}
           {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}

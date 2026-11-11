@@ -14,7 +14,7 @@ import {
   UnsavedChangesDialog,
   useToast,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
@@ -61,11 +61,23 @@ const TimesheetsPage: React.FC = () => {
   // Engineer cannot approve timesheets (OD-W2-2), so showing them the cross-link is a RBAC leak.
   const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
-  // Pending-approval count for the queue toggle badge (shared cache; cheap).
+  // Pending-approval count for the queue toggle badge (shared cache; cheap). Unknown (not yet
+  // loaded) is null — the badge withholds the count; it never reads as a confirmed zero.
   const { data: awaiting } = useTimesheetsAwaitingApproval();
-  const pendingCount = awaiting?.length ?? 0;
+  const pendingCount = awaiting?.length ?? null;
 
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // R2: the selected week is URL-owned (`?week=YYYY-MM-DD`) so Back/refresh return to it; the
+  // current week is the default and stays out of the URL (empty = default).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentDate = useMemo(() => {
+    const match = searchParams.get('week')?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date();
+  }, [searchParams]);
+  const setCurrentDate = (date: Date) => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set('week', dayKey(date));
+    return next;
+  });
 
   const { date: weekStartDate, key: weekStartString } = weekStart(currentDate);
   // Windowed read: current + recent weeks; stepping back past it fetches the older weeks (perf q12).
