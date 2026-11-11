@@ -193,6 +193,7 @@ describe('Payables page', () => {
     renderPage('Finance', { ...payablesFixture(), payables: [], payablesTotals: {}, payablesAgeing: {} });
 
     expect(screen.getByText('No supplier invoices waiting to be paid.')).toBeInTheDocument();
+    expect(screen.getByText('To pay suppliers').parentElement?.parentElement).toHaveTextContent(/IDR\s*0/);
     expect(screen.queryByRole('button', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
   });
 
