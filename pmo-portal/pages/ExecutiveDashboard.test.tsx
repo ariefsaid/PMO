@@ -38,7 +38,7 @@ const defaultToday = [
   { id: 'pipeline', label: 'Pipeline (weighted)', value: '$300', amounts: [{ currency: 'USD', amount: 300_000 }], subline: 'Gross: $600 · Forecast margin: 20%', href: '/sales' },
   { id: 'owed-clients', label: 'Owed by clients', value: '', amounts: [{ currency: 'USD', amount: 2_500_000 }], subline: '$400K overdue', href: '/finance/receivables', unavailableReason: 'some client invoice balances are not synced' },
   { id: 'supplier-payables', label: 'Owed to suppliers', value: '$100', amounts: [{ currency: 'USD', amount: 100_000 }], subline: '3 supplier invoices awaiting payment', href: '/procurement?status=Vendor+Invoiced' },
-  { id: 'still-to-invoice', label: 'Still to invoice on work orders', value: '$250', amounts: [{ currency: 'USD', amount: 250_000 }], href: '/projects' },
+  { id: 'left-to-bill', label: 'Left to bill', value: '$250', amounts: [{ currency: 'USD', amount: 250_000 }], href: '/finance/reports' },
 ];
 const figureState = vi.hoisted(() => ({
   result: null as null | Record<string, unknown>,
@@ -204,7 +204,7 @@ describe('company home — executive (one question: is the company OK, what wait
 
   it('AC-UX-016: the approvals row opens /approvals and states the count; nothing waiting is one plain line', () => {
     const { unmount } = renderPage();
-    const row = screen.getByRole('link', { name: /2\s*approvals waiting for you/ });
+    const row = screen.getByRole('link', { name: /2\s*Approvals/ });
     expect(row).toHaveAttribute('href', '/approvals');
     unmount();
     needsState.items = [];
@@ -213,24 +213,24 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.queryByRole('link', { name: /waiting for you/ })).not.toBeInTheDocument();
   });
 
-  it('F2/#1418: lists only off-track projects, in the server order, at most five, each opening its project', () => {
+  it('D2: orders off-track projects by task count, at most five, each opening its project', () => {
     setAttention([
-      attention(6, { overdue_items: 4, waiting_approvals: 2, over_budget: true, budget_used_ratio: 1.5 }),
-      attention(5, { overdue_items: 2 }),
+      attention(6, { overdue_items: 4, overdue_tasks: 4, waiting_approvals: 2, over_budget: true, budget_used_ratio: 1.5 }),
+      attention(5, { overdue_items: 2, overdue_tasks: 2 }),
       attention(9),
       attention(4, { over_budget: true, budget_used_ratio: 1.1 }),
-      attention(3, { overdue_items: 1 }),
-      attention(2, { overdue_items: 1 }),
-      attention(1, { overdue_items: 1 }),
+      attention(3, { overdue_items: 1, overdue_tasks: 1 }),
+      attention(2, { overdue_items: 1, overdue_tasks: 1 }),
+      attention(1, { overdue_items: 1, overdue_tasks: 1 }),
     ]);
     projectsState.data = new Array(7).fill({});
     renderPage();
     const list = screen.getByTestId('project-rows');
     const links = within(list).getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/projects/'));
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/projects/project-6', '/projects/project-5', '/projects/project-4', '/projects/project-3', '/projects/project-2']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/projects/project-6', '/projects/project-5', '/projects/project-3', '/projects/project-2', '/projects/project-1']);
     expect(within(list).queryByText('Project 9')).not.toBeInTheDocument();
     const row = links[0];
-    expect(row).toHaveTextContent('4 overdue · 2 awaiting approval · over budget');
+    expect(row).toHaveAccessibleName(/Tasks overdue:?\s*4.*Phases late:?\s*0.*Invoices overdue:?\s*0.*Awaiting approval:?\s*2/);
     expect(row).toHaveTextContent('40%');
     expect(row).toHaveTextContent('150%');
     // A status pill takes its tone from the status map, not from being off track (red already means overdue).
@@ -262,7 +262,7 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(tiles.parentElement).toBe(sales.parentElement);
     expect(sales.parentElement?.className).toMatch(/min-\[900px\]:grid-cols-2/);
     expect(sales.querySelectorAll('.bg-primary, .bg-success').length).toBe(0);
-    const won = within(sales).getByRole('button', { name: /Won · Year to date · 2/ });
+    const won = within(sales).getByRole('button', { name: /Won · 2/ });
     expect(won.querySelector('[aria-hidden="true"]')).toBeNull();
   });
 
@@ -270,7 +270,7 @@ describe('company home — executive (one question: is the company OK, what wait
     (figureState.result?.dashboard as Record<string, unknown>).risk_unchecked_projects = 6;
     renderPage();
     expect(screen.getByText('No checked project is off track.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /6 projects can’t be checked against their budget/ })).toHaveAttribute('href', '/projects');
+    expect(screen.getByRole('link', { name: /Budget check unavailable for 6 projects/ })).toHaveAttribute('href', '/projects');
   });
 
   it('shows the position as money tiles that each carry their currency, with no bare count among them', () => {
@@ -326,7 +326,7 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(sales).getByRole('button', { name: /Negotiation · 2/ })).toBeInTheDocument();
     expect(within(sales).queryByText(/Ongoing/)).not.toBeInTheDocument();
     expect(within(sales).queryByRole('table')).toBeNull();
-    expect(within(sales).getByRole('button', { name: /Won · Year to date · 2/ })).toHaveTextContent('$14.4M');
+    expect(within(sales).getByRole('button', { name: /Won · 2/ })).toHaveTextContent('$14.4M');
     expect(within(sales).getByText('Weighted pipeline')).toBeInTheDocument();
     await userEvent.click(within(sales).getByRole('button', { name: /Negotiation/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales?status=Negotiation');
@@ -516,7 +516,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     await openAnalysis();
     const clientAgeing = await screen.findByRole('region', { name: 'Client balances by age' });
     expect(within(clientAgeing).getByText('$100')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Waiting to pay, by days' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Invoice age, by days' })).toBeInTheDocument();
   });
 });
 
@@ -586,8 +586,8 @@ describe('company home — Overview layout (the default: one page, charts carry 
   it('executive: waits, off-track, figures and Sales on the page, billing figures in their own row, no Analysis section', () => {
     renderPage();
     for (const name of ['Waits on you', 'Projects off track', 'Sales']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
-    expect(within(figures()).getByText('Still to invoice')).toBeInTheDocument();
-    expect(tile('Still to invoice')).toHaveTextContent('$250K');
+    expect(within(figures()).getByText('Left to bill')).toBeInTheDocument();
+    expect(tile('Left to bill')).toHaveTextContent('$250K');
     expect(within(figures()).getByText('Contract on hand')).toBeInTheDocument();
     expect(screen.queryByText('Analysis')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Plan vs actual' })).not.toBeInTheDocument();
@@ -595,12 +595,12 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
 
-  it('omits Still to invoice from the figure row when its value is unknown', () => {
-    setToday('still-to-invoice', { value: null, amounts: null });
+  it('omits Left to bill from the figure row when its value is unknown', () => {
+    setToday('left-to-bill', { value: null, amounts: null });
     renderPage();
 
-    expect(within(figures()).queryByText('Still to invoice')).not.toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Billing' })).queryByText('Still to invoice')).not.toBeInTheDocument();
+    expect(within(figures()).queryByText('Left to bill')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Billing' })).queryByText('Left to bill')).not.toBeInTheDocument();
   });
 
   it('draws budget and spending per project, worst first, and leaves out a project whose spending is unknown', () => {
@@ -637,7 +637,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(rows[1]).toContain('Negotiation · 2');
     expect(rows.join(' ')).not.toContain('Ongoing');
     const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card') as HTMLElement;
-    expect(within(sales).getByRole('button', { name: /Won · Year to date · 2/ })).toHaveTextContent('$14.4M');
+    expect(within(sales).getByRole('button', { name: /Won · 2/ })).toHaveTextContent('$14.4M');
   });
 
   it('draws purchasing as one stacked bar with a count per stage, and invoiced by month only from three months of history', async () => {

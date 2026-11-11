@@ -7,7 +7,7 @@
  * 3. OD-C / review-I2 — "Vendor Invoiced" is a VISIBLE Procurement segment (selectable toolbar filter)
  * 4. J4 — tabular numerics, right-aligned money columns (console reframe)
  * 5. a11y — aria-sort on sortable columns; text+sign not color-only; honest empty states
- * 6. Design-review fix I1 — age column header is "Last updated" (not "Invoiced")
+ * 6. D3 — invoice age is based on the supplier's invoice date
  * 7. Design-review fix I2 — budget-review excludes budget===0 rows; real bleeders rank first
  *
  * Red → Green → Refactor (TDD). Written BEFORE production code.
@@ -57,15 +57,15 @@ const dash = {
 const makePR = (overrides: Record<string, unknown>) => ({
   id: 'pr-x', status: 'Draft', total_value: 0, currency: 'USD', title: 'Default',
   code: 'DF-001', requested_by_id: 'u1', requested_by: { full_name: 'Alice' },
-  project: null, created_at: threeDaysAgo, updated_at: threeDaysAgo,
+  project: null, created_at: threeDaysAgo, updated_at: threeDaysAgo, procurement_invoices: [],
   org_id: 'org-1', vendor_id: null, approved_by_id: null, approval_notes: null,
   rejection_notes: null, pr_number: null, po_number: null, vendor: null,
   ...overrides,
 });
 
 const procurements = [
-  makePR({ id: 'vi-1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', title: 'Scaffolding Invoice', code: 'VI-001', updated_at: threeDaysAgo }),
-  makePR({ id: 'vi-2', status: 'Vendor Invoiced', total_value: 80_000, currency: 'USD', title: 'Electrical Works Invoice', code: 'VI-002', requested_by: { full_name: 'Bob' }, project: { name: 'Beta' }, updated_at: tenDaysAgo }),
+  makePR({ id: 'vi-1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', title: 'Scaffolding Invoice', code: 'VI-001', updated_at: threeDaysAgo, procurement_invoices: [{ invoice_date: '2026-11-08' }] }),
+  makePR({ id: 'vi-2', status: 'Vendor Invoiced', total_value: 80_000, currency: 'USD', title: 'Electrical Works Invoice', code: 'VI-002', requested_by: { full_name: 'Bob' }, project: { name: 'Beta' }, updated_at: tenDaysAgo, procurement_invoices: [{ invoice_date: '2026-11-01' }] }),
   makePR({ id: 'paid-1', status: 'Paid', total_value: 999_999, currency: 'USD', title: 'Paid Invoice', code: 'PD-001', requested_by: { full_name: 'Carol' } }),
   makePR({ id: 'draft-1', status: 'Draft', total_value: 5_000, currency: 'USD', title: 'Draft Request', code: 'DR-001', requested_by_id: 'u2', requested_by: { full_name: 'Dave' } }),
 ];
@@ -143,6 +143,11 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
 // real query. ⛑ At line-start on purpose — an earlier automated insert landed it INSIDE the
 // vi.mock call below, which parses as a syntax error rather than a wrong value.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-11', isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useFinanceHubFigures', () => ({ useFinanceHubFigures: () => ({
+  data: { pack: { unbilled: [{ currency: 'USD', cents: 12_500 }] } },
+  isPending: false, isError: false, refetch: vi.fn(),
+}) }));
 // ── Imports after mocks ──────────────────────────────────────────────────────
 import { FinanceDashboard, ReadyToPayTable } from '../FinanceDashboard';
 import ProcurementPage from '@/pages/Procurement';  // @/* maps to pmo-portal root per tsconfig paths
@@ -203,11 +208,9 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
     expect(btn).toBeInTheDocument();
   });
 
-  it('AC-IXD-DASH-W5-C2B-N16-6: shows vendor-invoiced age column header', () => {
+  it('D3: shows the supplier invoice age column', () => {
     renderPane();
-    // "Invoiced" column header in the Ready-to-pay table — may match multiple elements
-    // (KPI tile also says "invoiced"). Use getAllByText and check at least one exists.
-    expect(screen.getAllByText(/invoiced/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-7: honest empty state — "Nothing awaiting payment" when no VI PRs', () => {
@@ -362,20 +365,17 @@ describe('AC-IXD-DASH-W5-C2B — J4: console reframe (tabular, right-align)', ()
   });
 });
 
-// ── Finance-debt (migration 0022) — honest invoice-age column label ───────
-// SUPERSEDES the I1 "Last updated" proxy: a real vendor_invoiced_at column now exists, so the N16
-// age column is honestly labelled "Invoiced" and reads vendor_invoiced_at (falling back to
-// updated_at only for legacy rows). This is a deliberate UX correction, per the finance-debt plan.
+// Invoice age is based on the supplier's invoice date, never the status-recorded timestamp.
 
-describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoiced_at, supersedes I1 proxy)', () => {
-  it('AC-FIN-DEBT-005: Ready-to-pay table has an "Invoiced" column header (not the "Last updated" proxy)', () => {
+describe('D3 — N16 invoice age uses the supplier invoice date', () => {
+  it('labels the age column and explains its date basis', () => {
     const { container } = render(
       <MemoryRouter>
         <ReadyToPayTable
+          today="2026-11-11"
           procurements={[
-            // @ts-expect-error minimal shape for test
             { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, currency: 'USD', title: 'Test Invoice',
-              code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
+              code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, procurement_invoices: [{ invoice_date: '2026-11-01', created_at: threeDaysAgo, amount: 100_000, external_ref: null, erp_outstanding_amount: 100_000 }], project: null },
           ]}
           isPending={false}
           isError={false}
@@ -383,22 +383,19 @@ describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoi
         />
       </MemoryRouter>,
     );
-    // The "age" column header now says "Invoiced" — not the old "Last updated" proxy.
     const ths = Array.from(container.querySelectorAll('th'));
-    const invoicedTh = ths.find((th) => /^invoiced$/i.test(th.textContent?.trim() ?? ''));
-    expect(invoicedTh).toBeTruthy();
-    const lastUpdatedTh = ths.find((th) => /last updated/i.test(th.textContent ?? ''));
-    expect(lastUpdatedTh).toBeUndefined();
+    const invoiceAgeTh = ths.find((th) => /^invoice age$/i.test(th.textContent?.trim() ?? ''));
+    expect(invoiceAgeTh).toBeTruthy();
   });
 
-  it('AC-FIN-DEBT-005: the "Invoiced" column header carries a title tooltip (vendor_invoiced_at provenance)', () => {
+  it('the invoice age header explains that age starts at invoice date', () => {
     const { container } = render(
       <MemoryRouter>
         <ReadyToPayTable
+          today="2026-11-11"
           procurements={[
-            // @ts-expect-error minimal shape for test
             { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, currency: 'USD', title: 'Test Invoice',
-              code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
+              code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, procurement_invoices: [{ invoice_date: '2026-11-01', created_at: threeDaysAgo, amount: 100_000, external_ref: null, erp_outstanding_amount: 100_000 }], project: null },
           ]}
           isPending={false}
           isError={false}
@@ -407,23 +404,23 @@ describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoi
       </MemoryRouter>,
     );
     const ths = Array.from(container.querySelectorAll('th'));
-    const invoicedTh = ths.find((th) => /^invoiced$/i.test(th.textContent?.trim() ?? ''));
-    expect(invoicedTh).toBeTruthy();
-    const elWithTitle = invoicedTh?.querySelector('[title]') ?? (invoicedTh?.hasAttribute('title') ? invoicedTh : null);
+    const invoiceAgeTh = ths.find((th) => /^invoice age$/i.test(th.textContent?.trim() ?? ''));
+    expect(invoiceAgeTh).toBeTruthy();
+    const elWithTitle = invoiceAgeTh?.querySelector('[title]') ?? (invoiceAgeTh?.hasAttribute('title') ? invoiceAgeTh : null);
     expect(elWithTitle).toBeTruthy();
+    expect(elWithTitle?.getAttribute('title')).toMatch(/supplier invoice date/i);
   });
 
-  it('AC-FIN-DEBT-006: age cell reads vendor_invoiced_at, falling back to updated_at when null', () => {
+  it('uses invoice dates and leaves age unknown when no supplier invoice date exists', () => {
     const { container } = render(
       <MemoryRouter>
         <ReadyToPayTable
+          today="2026-11-11"
           procurements={[
-            // @ts-expect-error minimal shape for test — vi-1 has a real stamp, vi-2 is null (legacy)
             { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, currency: 'USD', title: 'Stamped Invoice',
-              code: 'VI-T1', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
-            // @ts-expect-error minimal shape for test
+              code: 'VI-T1', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, procurement_invoices: [{ invoice_date: '2026-11-01', created_at: threeDaysAgo, amount: 100_000, external_ref: null, erp_outstanding_amount: 100_000 }], project: null },
             { id: 'vi-2', status: 'Vendor Invoiced', total_value: 50_000, currency: 'USD', title: 'Legacy Invoice',
-              code: 'VI-T2', vendor_invoiced_at: null, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Bob' } },
+              code: 'VI-T2', vendor_invoiced_at: null, updated_at: threeDaysAgo, procurement_invoices: [{ invoice_date: null, created_at: '2026-11-08', amount: 50_000, external_ref: null, erp_outstanding_amount: 50_000 }], project: null },
           ]}
           isPending={false}
           isError={false}
@@ -431,9 +428,9 @@ describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoi
         />
       </MemoryRouter>,
     );
-    // vi-1: vendor_invoiced_at ≈ 10 days; vi-2: null → falls back to updated_at ≈ 3 days.
+    // vi-1: invoice date is 10 calendar days old; vi-2 has only recorded/created timestamps.
     expect(container.textContent).toContain('10 days');
-    expect(container.textContent).toContain('3 days');
+    expect(container.textContent).toContain('—');
   });
 });
 
@@ -472,13 +469,20 @@ describe('AC-IXD-DASH-W5-C2B — I2: budget-review excludes zero-budget rows', (
   });
 });
 
+it('D1: Finance home labels earned less invoiced as Done, not yet billed', () => {
+  renderPane();
+  const card = screen.getByTestId('dashboard-done-not-yet-billed');
+  expect(card).toHaveTextContent('Done, not yet billed');
+  expect(card).toHaveTextContent('$125');
+});
+
 // ── ReadyToPayTable unit: empty / loading / error states ──────────────────
 
 describe('AC-IXD-DASH-W5-C2B — ReadyToPayTable: empty state', () => {
   it('AC-IXD-DASH-W5-C2B-EMPTY-1: shows "Nothing awaiting payment" when zero VI PRs', () => {
     render(
       <MemoryRouter>
-        <ReadyToPayTable procurements={[]} isPending={false} isError={false} onRetry={() => {}} />
+        <ReadyToPayTable procurements={[]} today="2026-11-11" isPending={false} isError={false} onRetry={() => {}} />
       </MemoryRouter>,
     );
     expect(screen.getByText(/nothing awaiting payment/i)).toBeInTheDocument();
@@ -487,7 +491,7 @@ describe('AC-IXD-DASH-W5-C2B — ReadyToPayTable: empty state', () => {
   it('AC-IXD-DASH-W5-C2B-EMPTY-2: shows loading state when isPending=true', () => {
     render(
       <MemoryRouter>
-        <ReadyToPayTable procurements={[]} isPending={true} isError={false} onRetry={() => {}} />
+        <ReadyToPayTable procurements={[]} today="2026-11-11" isPending={true} isError={false} onRetry={() => {}} />
       </MemoryRouter>,
     );
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
@@ -497,7 +501,7 @@ describe('AC-IXD-DASH-W5-C2B — ReadyToPayTable: empty state', () => {
     const onRetry = vi.fn();
     render(
       <MemoryRouter>
-        <ReadyToPayTable procurements={[]} isPending={false} isError={true} onRetry={onRetry} />
+        <ReadyToPayTable procurements={[]} today="2026-11-11" isPending={false} isError={true} onRetry={onRetry} />
       </MemoryRouter>,
     );
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();

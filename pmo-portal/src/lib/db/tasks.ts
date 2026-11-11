@@ -136,6 +136,7 @@ export async function listTaskDueRows(projectIds: readonly string[]): Promise<Ta
       .select('id, project_id, status, end_date')
       .in('project_id', chunk)
       .is('tombstoned_at', null)
+      .is('archived_at', null)
       .order('id', { ascending: true })
       .range(from, to)) as unknown as TaskDueRow[]));
   }

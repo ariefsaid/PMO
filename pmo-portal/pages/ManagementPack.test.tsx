@@ -53,14 +53,14 @@ describe('Management pack money display (#1260, #1437)', () => {
 
     const figures = screen.getByRole('region', { name: 'Report figures' });
     // Unknown is not a value: the backlog tile is hidden and one page line says why, with its fix link.
-    expect(within(figures).queryByText('Backlog')).not.toBeInTheDocument();
+    expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden');
     expect(within(figures).queryByRole('status')).not.toBeInTheDocument();
     // A known zero stays a figure in the home currency.
     expect(within(figures).getAllByText('IDR 0', { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
-    expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known/)).toHaveLength(1);
+    expect(screen.getAllByText(/Left to bill is left out where a foreign-currency invoice needs reconciliation before the amount can be known/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
 });

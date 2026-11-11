@@ -29,7 +29,7 @@ describe('AC-MOBILE-1 and AC-MOBILE-3 responsive dashboard reading order', () =>
   it('never claims a clear result while risk was unchecked: names the unchecked projects, and says "No project is off track" only when all were checked', () => {
     dashboardHarness.dashboard!.attention_projects = [];
     const unchecked = renderCompanyDashboard();
-    expect(screen.getByRole('link', { name: '5 projects can’t be checked against their budget' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Budget check unavailable for 5 projects' })).toBeInTheDocument();
     expect(screen.queryByText('No project is off track.')).not.toBeInTheDocument();
     expect(screen.getByText('No checked project is off track.')).toBeInTheDocument();
     unchecked.unmount();

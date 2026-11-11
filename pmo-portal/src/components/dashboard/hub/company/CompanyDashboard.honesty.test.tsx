@@ -32,7 +32,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { totals: [] as unknown[] } }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
@@ -96,7 +96,7 @@ const tile = (label: string) => {
   return element as HTMLElement;
 };
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { totals: [] }; });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { months: [], rows: [], totals: [] }; });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
@@ -160,10 +160,34 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-RD-RISK-001: unbudgeted active projects are named once under Projects off track, so no off-track project is not read as all clear', async () => {
     h.dash = { ...base, risk_unchecked_projects: 2 };
     renderExec();
-    const notice = /2 projects can’t be checked against their budget/;
+    const notice = /Budget check unavailable for 2 projects/;
     expect(await screen.findByText(notice)).toBeInTheDocument();
     expect(screen.getAllByText(notice)).toHaveLength(1);
     expect(screen.queryByText('No project is off track.')).not.toBeInTheDocument();
+  });
+
+  it('D2: executive project counts use one set of labels and keep each project count in its own column', () => {
+    h.dash = {
+      ...base,
+      attention_projects: [{
+        id: 'p1', name: 'Project One', short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null,
+        status: 'Ongoing Project', attention_signals: 2, overdue_items: 4, overdue_tasks: 2, overdue_milestones: 1,
+        overdue_invoices: 0, waiting_approvals: 1, over_budget: false, budget_used_ratio: null,
+      }],
+    };
+    renderExec();
+
+    const list = screen.getByTestId('project-rows');
+    expect(within(list).getAllByText('Tasks overdue')).toHaveLength(2);
+    expect(within(list).getAllByText('Phases late')).toHaveLength(2);
+    expect(within(list).getAllByText('Invoices overdue')).toHaveLength(2);
+    expect(within(list).getAllByText('Awaiting approval')).toHaveLength(2);
+    const project = within(list).getByRole('link', { name: /Project One/ });
+    expect(project).toHaveTextContent('2');
+    expect(project).toHaveTextContent('1');
+    expect(project).toHaveAccessibleName(/Tasks overdue:?\s*2/);
+    expect(project).toHaveAccessibleName(/Phases late:?\s*1/);
+    expect(project).toHaveAccessibleName(/Awaiting approval:?\s*1/);
   });
 
   it('shows mixed-currency contract on hand per currency, never as a blend or "USD $", with the exact amounts kept', () => {
@@ -188,17 +212,17 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(contract).not.toHaveTextContent(/\$0\b/);
   });
 
-  it('L6: Won reads "Won · Year to date · 3" with "$14.4M" once, in the Sales card, with no second "3 projects won" line', () => {
+  it('L6: Won reads "Won · 3" with "$14.4M" once, in the Sales card, with no second "3 projects won" line', () => {
     h.win = { wins_count: 3, losses_count: 2, wins_value: 14_400_000, losses_value: 0, win_rate_count: 0.6, win_rate_value: 0.5, value_by_currency: [{ currency: 'USD', wins_value: 14_400_000, losses_value: 0 }] };
     renderExec();
-    const won = screen.getByRole('button', { name: /Won · Year to date · 3/ });
+    const won = screen.getByRole('button', { name: /Won · 3/ });
     expect(won).toHaveTextContent('$14.4M');
     expect(screen.queryByText(/projects? won/)).not.toBeInTheDocument();
   });
 
   it('L2: Invoiced puts one currency per line, the organisation currency first', () => {
     const january = `${new Date().getFullYear()}-01`;
-    h.pack = { totals: [
+    h.pack = { months: [{ month: january }], rows: [], totals: [
       { currency: 'IDR', months: [{ month: january, invoiced: 11_470_000_000 }] },
       { currency: 'USD', months: [{ month: january, invoiced: 1_180_000_000 }] },
     ] };

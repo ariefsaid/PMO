@@ -6,8 +6,8 @@ import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 const labels: ManagementPackExportLabels = {
   month: 'Month', projectNumber: 'Project number', project: 'Project', client: 'Client', currency: 'Currency',
   taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoiced: 'Invoiced',
-  recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Unbilled',
-  backlog: 'Backlog', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
+  recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
+  backlog: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
   basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
 };
 
@@ -55,8 +55,8 @@ describe('AC-MMP-011 management pack export', () => {
     expect(feb[col('Project number')]).toBe('PRJ-26-0001');
     expect(feb[col('Recognised to date')]).toBe(500);
     expect(feb[col('Invoiced to date')]).toBe(100.5);
-    expect(feb[col('Unbilled')]).toBe(399.5);
-    expect(feb[col('Backlog')]).toBe(500);
+    expect(feb[col('Done, not yet billed')]).toBe(399.5);
+    expect(feb[col('Left to bill')]).toBe(899.5);
     expect(feb[col('Basis')]).toBe('Progress');
     expect(feb[col('Planned')]).toBe('');
     expect(table.body[3][col('Project')]).toBe('Unassigned');
@@ -68,7 +68,7 @@ describe('AC-MMP-011 management pack export', () => {
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-02-01', net: 5, invoice_count: 1 }],
     });
     const exported = buildManagementPackExport(packWithForeignBilling, labels);
-    const backlog = exported.header.indexOf('Backlog');
+    const backlog = exported.header.indexOf('Left to bill');
     expect(exported.body[0][backlog]).toBe('');
     expect(exported.body[1][backlog]).toBe('');
   });
@@ -82,7 +82,7 @@ describe('AC-MMP-011 management pack export', () => {
     const project = exported.header.indexOf('Project');
     const projectNumber = exported.header.indexOf('Project number');
     const currency = exported.header.indexOf('Currency');
-    const backlog = exported.header.indexOf('Backlog');
+    const backlog = exported.header.indexOf('Left to bill');
     const invoicedToDate = exported.header.indexOf('Invoiced to date');
     const contractRows = exported.body.filter((row) => row[projectNumber] === 'PRJ-26-0001' && row[currency] === 'IDR');
     const idrTotals = exported.body.filter((row) => row[project] === 'Total' && row[currency] === 'IDR');
