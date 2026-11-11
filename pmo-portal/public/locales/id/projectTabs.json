@@ -112,11 +112,6 @@
         "selfConfirmHint": "Anda yang menyiapkan ini. Pengguna Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
         "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
         "stage": "Tahap",
-        "status": {
-          "confirmed": "Terkonfirmasi",
-          "draft": "Draft",
-          "withdrawn": "Ditarik"
-        },
         "toast": {
           "closed": "BAST final terkonfirmasi: ditutup pada {{amount}}",
           "confirmed": "BAST terkonfirmasi",

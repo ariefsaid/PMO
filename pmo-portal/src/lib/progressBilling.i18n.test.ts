@@ -90,7 +90,6 @@ describe('progress billing strings', () => {
     expect(sameAsEnglish.sort()).toEqual([
       'billing.boq.lumpSum',
       'workOrders.acceptances.final',
-      'workOrders.acceptances.status.draft',
     ]);
   });
 });
