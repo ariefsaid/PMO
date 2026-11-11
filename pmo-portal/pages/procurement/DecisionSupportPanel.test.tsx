@@ -20,6 +20,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { BahasaProvider } from '@/test/bahasa';
+import { FigureHiddenLine, FigureScope } from '@/src/components/ui';
 
 // ---------------------------------------------------------------------------
 // Mock useProjectBudget + useProjectCommittedSpend — controlled per-test
@@ -71,11 +72,13 @@ function renderPanel(
   props: Omit<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'> &
     Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'>>,
   locale?: 'id',
+  withFigureScope = false,
 ) {
+  const panel = <DecisionSupportPanel status="Requested" currency="USD" {...props} />;
   const content = (
     <ImpersonationProvider realRole={viewerRole}>
       <MemoryRouter>
-        <DecisionSupportPanel status="Requested" currency="USD" {...props} />
+        {withFigureScope ? <FigureScope><FigureHiddenLine />{panel}</FigureScope> : panel}
       </MemoryRouter>
     </ImpersonationProvider>
   );
@@ -341,6 +344,30 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     const bar = screen.getByRole('progressbar');
     expect(bar).toHaveAttribute('aria-valuenow', '100');
     expect(bar.querySelector('.bg-destructive')).not.toBeNull();
+  });
+});
+
+describe('DecisionSupportPanel unavailable comparisons', () => {
+  it('reports a currency mismatch to the shared hidden-figure line', async () => {
+    budgetState.data = 1200000;
+    committedState.data = 0;
+    reservedState.projectCurrency = 'IDR';
+    reservedState.budgetCurrency = 'USD';
+
+    renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' }, undefined, true);
+
+    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Budget comparison unavailable for these currencies.');
+    expect(screen.queryByText('Budget comparison unavailable for these currencies.', { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('reports unrepresentable amounts to the shared hidden-figure line', async () => {
+    budgetState.data = 1200000;
+    committedState.data = 0;
+
+    renderPanel({ projectId: 'proj-1', totalValue: Number.NaN, projectName: 'HQ Fit-Out' }, undefined, true);
+
+    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Budget comparison unavailable for these amounts.');
+    expect(screen.queryByText('Budget comparison unavailable for these amounts.', { exact: true })).not.toBeInTheDocument();
   });
 });
 
