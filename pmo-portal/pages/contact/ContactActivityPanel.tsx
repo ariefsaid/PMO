@@ -39,11 +39,12 @@ const kindOptions = (t: TFunction) => [
   { value: 'Note', label: t('contactDetail.activityKind.note', 'Note') },
 ];
 
-const formatOccurred = (iso: string): string => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return formatDay(iso);
-};
+/** The kind's localized label — the pill reads the same words as the form's select. */
+const kindLabel = (kind: string, t: TFunction): string =>
+  kindOptions(t).find((option) => option.value === kind)?.label ?? kind;
+
+/** formatDay renders unparseable input as an em-dash — never echo a raw ISO string. */
+const formatOccurred = (iso: string): string => formatDay(iso);
 
 export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) => {
   const { t } = useTranslation();
@@ -217,7 +218,7 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
             return (
               <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
+                  <StatusPill variant={crmActivityVariant(a.kind)}>{kindLabel(a.kind, t)}</StatusPill>
                   <div className="flex items-center gap-1">
                     <span className="text-control text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
                     {canEdit && (

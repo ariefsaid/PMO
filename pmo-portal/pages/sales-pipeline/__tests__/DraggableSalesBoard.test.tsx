@@ -99,8 +99,8 @@ describe('DraggableSalesBoard', () => {
     const user = userEvent.setup();
     renderBoard();
     await drop('negotiation', 'stage-Won');
-    expect(await screen.findByText('Win — enter contract details')).toBeInTheDocument();
-    const submit = screen.getByRole('button', { name: 'Confirm' });
+    expect(await screen.findByText('Record the won project')).toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: 'Confirm won' });
     expect(submit).toBeDisabled();
     await user.type(screen.getByLabelText('Customer contract ref'), 'CPO-1');
     await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
@@ -115,7 +115,7 @@ describe('DraggableSalesBoard', () => {
     const user = userEvent.setup();
     renderBoard();
     await drop('negotiation', 'stage-Won');
-    await screen.findByText('Win — enter contract details');
+    await screen.findByText('Record the won project');
     expect(inColumn('stage-Won', 'negotiation')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(inColumn('stage-Negotiation', 'negotiation')).toBeInTheDocument());
@@ -133,7 +133,7 @@ describe('DraggableSalesBoard', () => {
     renderBoard();
     await drop('negotiation', 'stage-Won');
     expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(screen.queryByText('Win — enter contract details')).toBeNull();
+    expect(screen.queryByText('Record the won project')).toBeNull();
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(inColumn('stage-Negotiation', 'negotiation')).toBeInTheDocument();
   });
@@ -226,7 +226,7 @@ describe('DraggableSalesBoard', () => {
     await drop('negotiation', 'stage-Won');
     await user.type(await screen.findByLabelText('Customer contract ref'), 'CPO-1');
     await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm won' }));
     const form = await screen.findByRole('dialog');
     expect(await within(form).findByRole('alert')).toHaveTextContent('Illegal transition');
     expect(screen.queryByText('Status change failed')).toBeNull();
@@ -236,7 +236,7 @@ describe('DraggableSalesBoard', () => {
     expect(inColumn('stage-Won', 'negotiation')!.closest('[data-drag-state]')).toHaveAttribute('data-drag-state', 'held');
 
     mutateAsync.mockResolvedValueOnce({ erpSetupPending: false });
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm won' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(mutateAsync).toHaveBeenCalledTimes(2);
     expect(mutateAsync).toHaveBeenLastCalledWith({
@@ -251,7 +251,7 @@ describe('DraggableSalesBoard', () => {
     await drop('negotiation', 'stage-Won');
     await user.type(await screen.findByLabelText('Customer contract ref'), 'CPO-1');
     await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm won' }));
     await within(await screen.findByRole('dialog')).findByRole('alert');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await user.click(await screen.findByRole('button', { name: 'Discard' }));
@@ -281,7 +281,7 @@ describe('DraggableSalesBoard', () => {
     expect(screen.queryByText('Move project to PQ Submitted?')).toBeNull();
     expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument();
     await act(async () => { answer('allowed'); });
-    expect(await screen.findByText('Win — enter contract details')).toBeInTheDocument();
+    expect(await screen.findByText('Record the won project')).toBeInTheDocument();
     expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument();
     expect(screen.queryByText('Move project to PQ Submitted?')).toBeNull();
   });
@@ -295,7 +295,7 @@ describe('DraggableSalesBoard', () => {
       await drop(id, 'stage-Won');
       await user.type(await screen.findByLabelText('Customer contract ref'), 'CPO-1');
       await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
-      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      await user.click(screen.getByRole('button', { name: 'Confirm won' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     }
     // Each win surfaces its own stacked note toast; the newest one is what's announced.
@@ -340,8 +340,8 @@ describe('DraggableSalesBoard', () => {
     renderBoard();
     await user.click(screen.getAllByRole('button', { name: 'Actions for negotiation deal' })[0]);
     await user.click(await screen.findByRole('menuitem', { name: 'Move to Won' }));
-    expect(await screen.findByText('Win — enter contract details')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled();
+    expect(await screen.findByText('Record the won project')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm won' })).toBeDisabled();
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
