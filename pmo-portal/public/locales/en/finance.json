@@ -729,7 +729,11 @@
     "withholdingArticleNone": "Not stated",
     "withholdingArticlePph23": "PPh 23",
     "withholdingArticlePph42": "PPh 4(2)",
-    "withholdingArticleNotStated": "Not stated"
+    "withholdingArticleNotStated": "Not stated",
+    "invoiceLoading": "Loading invoices…",
+    "noOpenInvoicesForCustomer": "No open invoices for this customer.",
+    "otherLedgerInvoiceSingular": "1 open invoice is recorded in the accounting system: record its payment there.",
+    "otherLedgerInvoicesPlural": "{{count}} open invoices are recorded in the accounting system: record their payments there."
   },
   "odooOutcome": {
     "confirmed": "In Odoo",

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { Card, CardHead, CardPad, DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
@@ -66,6 +67,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const openRecordId = searchParams.get('open');
   const openRecordType = searchParams.get('openType');
   const may = usePermission();
+  const { currentUser } = useAuth();
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const orders = useProjectWorkOrders(project.id);
@@ -107,6 +109,86 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     .filter((order) => order.lineCount === 0 && order.figuresComplete)
     .reduce((sum, order) => sum + Math.max(0, order.remaining), 0);
   const canInvoice = lineCanInvoice + moneyOrderCanInvoice;
+  const customerOrders = orders.data ?? [];
+  const issuedCustomerOrders = customerOrders.filter((order) => order.status === 'Issued' || order.status === 'Closed');
+  const customerOrderRecorded = issuedCustomerOrders.length > 0;
+  const hasContractLines = items.length > 0;
+  const hasAllocatedLines = allocations.length > 0;
+  const hasAcceptedQuantity = allocations.some((allocation) => allocation.acceptedQuantity !== null && allocation.acceptedQuantity > 0);
+  const hasUnclaimedQuantity = allocations.some((allocation) => allocation.acceptedQuantity !== null && allocation.acceptedQuantity > allocation.claimedQuantity);
+  const moneyOnlyOrders = orderBillingRows.filter((order) => order.lineCount === 0);
+  const hasUnclaimedMoneyOrderValue = moneyOnlyOrders.some((order) => order.figuresComplete && order.remaining > 0);
+  const incompleteMoneyOrder = moneyOnlyOrders.some((order) => !order.figuresComplete);
+  const billableAmountUnavailable = orderBilling.isPending || orderBilling.isError || orderBilling.data == null || incompleteMoneyOrder;
+  const billabilityDataReady = !isCascadePending && !isCascadeError && !billableAmountUnavailable;
+  const draftOrder = customerOrders.find((order) => order.status === 'Draft');
+  const orderStepAction = !customerOrderRecorded
+    ? draftOrder
+      ? may('transition', 'workOrder')
+        ? { label: t('projectDetail.cascade.openDraftOrder', 'Open draft order'), to: `/projects/${encodeURIComponent(project.id)}/contract?wo=${encodeURIComponent(draftOrder.id)}` }
+        : undefined
+      : may('create', 'workOrder')
+        ? { label: t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order'), to: `/projects/${encodeURIComponent(project.id)}/contract#add-customer-order` }
+        : undefined
+    : undefined;
+  const allocationOrder = !hasAllocatedLines
+    ? customerOrders.find((order) => may('create', 'workOrderLine', { record: { status: order.status } }))
+    : undefined;
+  const acceptanceOrder = !hasAcceptedQuantity
+    ? customerOrders.find((order) => order.status === 'Issued'
+      && allocations.some((allocation) => allocation.workOrderId === order.id)
+      && may('create', 'workOrderAcceptance', {
+        currentUserId: currentUser?.id,
+        record: { status: order.status, project_manager_id: project.project_manager_id },
+      }))
+    : undefined;
+  const billabilityReason = canInvoice > 0
+    ? null
+    : !customerOrderRecorded
+      ? draftOrder
+        ? t('projectDetail.cascade.reasonDraftOrder', 'The customer order is still a draft.')
+        : t('projectDetail.cascade.reasonNoOrders', 'No customer orders.')
+      : hasContractLines && !hasAllocatedLines
+        ? t('projectDetail.cascade.reasonNoAllocations', 'No contract lines are allocated.')
+        : hasContractLines && !hasAcceptedQuantity
+          ? t('projectDetail.cascade.reasonNoAcceptance', 'No accepted quantities.')
+          : hasContractLines && !hasUnclaimedQuantity
+            ? t('projectDetail.cascade.reasonAlreadyClaimed', 'Accepted quantities are already claimed.')
+            : !hasContractLines && moneyOnlyOrders.length > 0 && moneyOnlyOrders.every((order) => order.figuresComplete && order.remaining <= 0)
+              ? t('projectDetail.cascade.reasonMoneyOrdersClaimed', 'Customer order value is already invoiced.')
+              : t('projectDetail.cascade.reasonComputedZero', 'The billable total is zero at current contract rates.');
+  const billabilitySteps = [
+    {
+      id: 'order',
+      label: t('projectDetail.cascade.stepOrder', 'Customer order recorded'),
+      state: customerOrderRecorded ? 'done' as const : 'needed' as const,
+      action: orderStepAction,
+    },
+    {
+      id: 'allocation',
+      label: t('projectDetail.cascade.stepAllocation', 'Contract lines allocated'),
+      state: !hasContractLines ? 'not-needed' as const : hasAllocatedLines ? 'done' as const : 'needed' as const,
+      action: allocationOrder ? {
+        label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'),
+        to: `/projects/${encodeURIComponent(project.id)}/contract?wo=${encodeURIComponent(allocationOrder.id)}`,
+      } : undefined,
+    },
+    {
+      id: 'acceptance',
+      label: t('projectDetail.cascade.stepAcceptance', 'Accepted quantity recorded'),
+      state: !hasContractLines ? 'not-needed' as const : hasAcceptedQuantity ? 'done' as const : 'needed' as const,
+      action: acceptanceOrder ? {
+        label: t('projectDetail.cascade.recordAcceptedQuantity', 'Record accepted quantity'),
+        to: `/projects/${encodeURIComponent(project.id)}/contract?wo=${encodeURIComponent(acceptanceOrder.id)}`,
+      } : undefined,
+    },
+    {
+      id: 'unclaimed',
+      label: t('projectDetail.cascade.stepUnclaimed', 'Unclaimed quantity remains'),
+      state: hasUnclaimedQuantity || hasUnclaimedMoneyOrderValue ? 'done' as const : 'needed' as const,
+      action: undefined,
+    },
+  ];
   // #1457: the one shared overdue rule (status + derived due date + org day) decides each row.
   const overdue = invoiceRows.reduce((sum, invoice) => {
     if (clientInvoiceOverdueDays(invoice, orgDay) === null) return sum;
@@ -168,11 +250,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             </>}
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            {(orderBilling.isError || orderBilling.isPending) ? (
+            {billableAmountUnavailable ? (
               <span className="text-sm text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
-                {orderBilling.isError ? t('projectDetail.cascade.orderBillingError', 'Can invoice is unavailable while work-order billing is loading.') : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
+                {orderBilling.isError
+                  ? t('projectDetail.cascade.orderBillingError', "Couldn't load the billable amount.")
+                  : incompleteMoneyOrder
+                    ? t('projectDetail.cascade.orderBillingIncomplete', 'Can invoice is unavailable until the order value is complete.')
+                    : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
               </span>
-            ) : <Tooltip content={t('projectDetail.cascade.source.canInvoice', 'Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.')}>
+            ) : <Tooltip content={t('projectDetail.cascade.source.canInvoice', 'Accepted quantity not yet claimed, priced at contract rates, plus remaining value on money-only orders.')}>
               <span className="inline-flex cursor-help items-center gap-2 tabular-nums">
                 <span className="text-muted-foreground">{t('projectDetail.cascade.canInvoice', 'Can invoice')}</span>
                 <strong className="font-semibold text-foreground">{tableMoney(canInvoice)}</strong>
@@ -193,6 +279,40 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               interpolation: { escapeValue: false },
             })}</span></Tooltip>}
           </p>}
+          {billabilityDataReady && canViewMoney && (
+            <section className="mt-4 border-t border-border pt-4" aria-labelledby="pd-before-bill">
+              <h3 id="pd-before-bill" className="text-base font-semibold text-foreground">
+                {t('projectDetail.cascade.beforeBill', 'Before you can bill')}
+              </h3>
+              <p className="mt-1 text-control text-muted-foreground">
+                {t('projectDetail.cascade.phaseProgressLabel', 'Phase progress is not billable quantity.')}
+              </p>
+              {canInvoice === 0 && billabilityReason && (
+                <p role="status" className="mt-2 text-control text-muted-foreground" data-testid="billability-reason">
+                  {billabilityReason}
+                </p>
+              )}
+              <ol aria-label={t('projectDetail.cascade.billingSteps', 'Billing steps')} className="mt-3 space-y-2">
+                {billabilitySteps.map((step) => (
+                  <li key={step.id} data-testid={`billability-step-${step.id}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control">
+                    <span className="min-w-0 font-medium text-foreground">{step.label}</span>
+                    <span className="ml-auto text-muted-foreground">
+                      {step.state === 'done'
+                        ? t('projectDetail.cascade.done', 'Done')
+                        : step.state === 'not-needed'
+                          ? t('projectDetail.cascade.notNeeded', 'Not needed')
+                          : t('projectDetail.cascade.needed', 'Needed')}
+                    </span>
+                    {step.action && (
+                      <Link className="touch-target inline-flex min-h-11 items-center rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" to={step.action.to}>
+                        {step.action.label}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           {invoiceFiguresMissing && !children && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
               <span>{invoices.isError

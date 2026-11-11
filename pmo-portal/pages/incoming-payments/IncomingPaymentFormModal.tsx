@@ -100,21 +100,29 @@ const validate = (
  * hasn't reported one yet, so the invoice stays selectable rather than silently disappearing.
  * Scoped to `customerId` when one is chosen — a receipt must never settle another client's invoice.
  */
+function openCustomerOpenInvoices(
+  invoices: SalesInvoiceRow[],
+  customerId: string | null | undefined,
+): SalesInvoiceRow[] {
+  return invoices
+    .filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
+    .filter((inv) => inv.erp_outstanding_amount == null || inv.erp_outstanding_amount > 0)
+    .filter((inv) => !customerId || inv.customer_id === customerId);
+}
+
 function openInvoiceOptions(
   invoices: SalesInvoiceRow[],
   customerId: string | null | undefined,
   native: boolean,
   t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
 ): ComboboxOption[] {
-  return invoices
+  return openCustomerOpenInvoices(invoices, customerId)
     // I-5: a PMO receipt settles only a PMO invoice; an ERP payment never settles a PMO invoice frozen at connect.
     .filter((inv) => Boolean(inv.pmo_native) === native)
-    .filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
-    .filter((inv) => inv.erp_outstanding_amount == null || inv.erp_outstanding_amount > 0)
-    .filter((inv) => !customerId || inv.customer_id === customerId)
     .map((inv) => ({
       value: inv.id,
       label: invoiceNumber(inv) ?? inv.id,
+      searchTerms: inv.customer_name ? [inv.customer_name] : undefined,
       sub:
         inv.erp_outstanding_amount != null
           ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) })
@@ -169,7 +177,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   // this identity (the committed Payment Entry is reconciled, NOT posted twice), while a success
   // closes the modal → the next "Receive Payment" mints a fresh one.
   const intent = useCommandIntent();
-  const { data: invoices } = useSalesInvoices();
+  const { data: invoices, isPending: invoicesPending, isError: invoicesError, refetch: refetchInvoices } = useSalesInvoices();
   const invoiceDateOf = (id: string | null) => (id ? invoices?.find((inv) => inv.id === id)?.invoice_date ?? null : null);
   const initialInvoice = initialInvoiceId ? invoices?.find((invoice) => invoice.id === initialInvoiceId) : undefined;
   const form = useEntityForm<FormValues>({
@@ -203,6 +211,23 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   const { data: customerOptions } = useClientCompanyOptions();
   const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => customerOptions ?? [], [customerOptions]);
   const selectedCustomerId = form.values.customerId;
+  const selectedCustomerOpenInvoices = openCustomerOpenInvoices(invoices ?? [], selectedCustomerId);
+  const hasEligibleInvoices = selectedCustomerOpenInvoices.some((invoice) => Boolean(invoice.pmo_native) === native);
+  const otherLedgerOpenInvoiceCount = selectedCustomerOpenInvoices.filter((invoice) => Boolean(invoice.pmo_native) !== native).length;
+  const invoiceQueryLoading = invoicesPending || (!invoicesError && invoices == null);
+  const invoiceEmptyMessage = (): React.ReactNode | undefined => {
+    if (selectedCustomerId && !hasEligibleInvoices) {
+      if (otherLedgerOpenInvoiceCount === 1) {
+        return <span role="status">{t('financeCopy.otherLedgerInvoiceSingular', '1 open invoice is recorded in the accounting system: record its payment there.')}</span>;
+      }
+      if (otherLedgerOpenInvoiceCount > 1) {
+        return <span role="status">{t('financeCopy.otherLedgerInvoicesPlural', '{{count}} open invoices are recorded in the accounting system: record their payments there.', { count: otherLedgerOpenInvoiceCount })}</span>;
+      }
+      return <span role="status">{t('financeCopy.noOpenInvoicesForCustomer', 'No open invoices for this customer.')}</span>;
+    }
+    // Keep the Combobox's standard query-specific "No invoice matches" copy when eligible invoices exist.
+    return undefined;
+  };
   const loadOpenInvoices = useCallback(
     async (): Promise<ComboboxOption[]> => openInvoiceOptions(invoices ?? [], selectedCustomerId, native, t),
     [invoices, selectedCustomerId, native, t],
@@ -376,6 +401,9 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             error={salesInvoiceField.error}
             placeholder={t('financeCopy.linkToSalesInvoice', "Link to sales invoice…")}
             loadOptions={loadOpenInvoices}
+            statusOverride={invoiceQueryLoading ? 'loading' : invoicesError ? 'error' : undefined}
+            onRetry={() => { void refetchInvoices(); }}
+            emptyMessage={invoiceEmptyMessage}
             noun="invoice"
           />
           {native && !salesInvoiceField.value && (
