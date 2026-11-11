@@ -267,7 +267,7 @@ const Meetings: React.FC = () => {
             total={scopeTotal}
             labels={{
               all: t('meetings.filters.allProjects', 'All projects'),
-              clear: t('meetings.table.clearFilters', 'Clear filters'),
+              clear: 'Clear all',
             }}
           />
         )
