@@ -840,6 +840,7 @@
     },
     "tasks": {
       "selectTask": "Select task {{name}}",
+      "addTask": "Add task",
       "bulk": {
         "toast": {
           "partial": "{{succeeded}} updated; {{failed}} failed. Review the selected tasks and retry.",
