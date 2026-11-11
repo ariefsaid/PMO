@@ -249,7 +249,7 @@ export const ProjectRows: React.FC<{
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
                             <span className={cn('min-w-0 text-control', emphasized ? 'font-semibold' : 'font-normal')}>{row.name}</span>
-                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
+                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill className="py-2" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (
                               <span className="col-span-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-control tabular min-[900px]:contents">
                                 {needColumns.map((column) => {
